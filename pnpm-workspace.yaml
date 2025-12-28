@@ -9,6 +9,8 @@ catalog:
   '@types/react': 19.2.7
   '@types/react-dom': 19.2.3
   '@vitejs/plugin-react': 5.1.2
+  husky: 9.1.7
+  lint-staged: 16.2.7
   react: 19.2.3
   react-dom: 19.2.3
   tsup: 8.5.1
