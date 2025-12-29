@@ -1,14 +1,17 @@
 import { useHelloWorld } from '@soundor/react';
-import { useEffect } from 'react';
 
 function App() {
-  const helloWorld = useHelloWorld();
+  const { count, sayHello } = useHelloWorld();
 
-  useEffect(() => {
-    helloWorld();
-  }, [helloWorld]);
-
-  return <h1>Soundor</h1>;
+  return (
+    <>
+      <h1>Soundor</h1>
+      <h2>Hello: {count}</h2>
+      <button onClick={sayHello} type="button">
+        Say Hello
+      </button>
+    </>
+  );
 }
 
 export default App;
