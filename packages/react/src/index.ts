@@ -1,7 +1,12 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 
 export function useHelloWorld() {
-  return useCallback(() => {
+  const [count, setCount] = useState(0);
+
+  const sayHello = useCallback(() => {
     console.log('Hello World!');
+    setCount((count) => count + 1);
   }, []);
+
+  return { count, sayHello };
 }
