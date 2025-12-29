@@ -17,20 +17,18 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "lint": "biome lint ."
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
+    "@soundor/tsdown-config": "workspace:*",
     "@soundor/typescript-config": "workspace:*",
     "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "tsup": "catalog:"
+    "tsdown": "catalog:"
   },
   "peerDependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react": "^19.2.3"
   }
 }
