@@ -6,7 +6,9 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "turbo run test",
+    "test:watch": "turbo run dev test:watch --parallel"
   },
   "lint-staged": {
     "*": "pnpm exec biome check . --write --linter-enabled=false --no-errors-on-unmatched"
