@@ -19,15 +19,24 @@
   "scripts": {
     "build": "tsdown --clean",
     "dev": "tsdown --watch",
-    "lint": "biome lint ."
+    "lint": "biome lint .",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
   },
   "devDependencies": {
     "@biomejs/biome": "catalog:",
     "@soundor/tsdown-config": "workspace:*",
     "@soundor/typescript-config": "workspace:*",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "happy-dom": "catalog:",
     "react": "catalog:",
-    "tsdown": "catalog:"
+    "react-dom": "catalog:",
+    "tsdown": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "react": "^19.2.3"
