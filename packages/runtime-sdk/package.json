@@ -1,0 +1,33 @@
+{
+  "name": "@soundor/runtime-sdk",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@soundor/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@soundor/tsdown-config": "workspace:*",
+    "@soundor/typescript-config": "workspace:*",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
+  }
+}
