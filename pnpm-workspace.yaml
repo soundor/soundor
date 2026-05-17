@@ -3,28 +3,25 @@ packages:
   - configs/*
   - examples/*
 
-allowBuilds:
-  esbuild: true
-
 catalog:
-  '@testing-library/dom': 10.4.1
-  '@testing-library/react': 16.3.1
-  '@types/node': 25.0.3
-  '@types/react': 19.2.7
-  '@types/react-dom': 19.2.3
-  '@vitejs/plugin-react': 5.1.2
-  happy-dom: 20.0.11
-  husky: 9.1.7
-  lint-staged: 16.2.7
+  '@testing-library/dom': ^10.4.1
+  '@testing-library/react': ^16.3.2
+  '@types/node': ^25.8.0
+  '@types/react': ^19.2.14
+  '@types/react-dom': ^19.2.3
+  '@vitejs/plugin-react': ^6.0.2
+  happy-dom: ^20.9.0
+  husky: ^9.1.7
+  lint-staged: ^17.0.4
   oxfmt: ^0.50.0
   oxlint: ^1.65.0
-  react: 19.2.3
-  react-dom: 19.2.3
-  tsdown: 0.18.3
-  turbo: 2.7.2
-  typescript: 5.9.3
-  vite: 7.3.0
-  vitest: 4.0.16
+  react: ^19.2.6
+  react-dom: ^19.2.6
+  tsdown: ^0.22.0
+  turbo: ^2.9.14
+  typescript: ^6.0.3
+  vite: ^8.0.13
+  vitest: ^4.1.6
 
 catalogMode: strict
 
