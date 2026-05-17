@@ -1,0 +1,32 @@
+{
+  "name": "create-soundor-app",
+  "version": "0.0.0",
+  "bin": {
+    "create-soundor-app": "./dist/index.mjs"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@clack/prompts": "catalog:",
+    "citty": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/tsdown-config": "workspace:*",
+    "@soundor/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

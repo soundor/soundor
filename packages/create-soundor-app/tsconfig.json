@@ -1,0 +1,7 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src"]
+}
