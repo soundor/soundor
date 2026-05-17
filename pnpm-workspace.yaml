@@ -30,4 +30,6 @@ catalogMode: strict
 
 cleanupUnusedCatalogs: true
 
+engineStrict: true
+
 minimumReleaseAge: 2880
