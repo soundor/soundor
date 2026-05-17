@@ -172,6 +172,31 @@ importers:
         specifier: 'catalog:'
         version: 4.1.6(@types/node@25.8.0)(happy-dom@20.9.0)(vite@8.0.13(@types/node@25.8.0)(yaml@2.9.0))
 
+  packages/create-soundor-app:
+    dependencies:
+      '@clack/prompts':
+        specifier: 'catalog:'
+        version: 1.4.0
+      citty:
+        specifier: 'catalog:'
+        version: 0.2.2
+    devDependencies:
+      '@soundor/tsdown-config':
+        specifier: workspace:*
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:*
+        version: link:../../configs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.8.0
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.22.0(typescript@6.0.3)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.6(@types/node@25.8.0)(happy-dom@20.9.0)(vite@8.0.13(@types/node@25.8.0)(yaml@2.9.0))
+
   packages/react:
     devDependencies:
       '@soundor/tsdown-config':
