@@ -18,7 +18,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Run formatter
-        run: pnpm exec biome check . --linter-enabled=false
+        run: pnpm run format
 
       - name: Run linter
         run: pnpm run lint

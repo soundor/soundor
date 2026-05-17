@@ -9,19 +9,21 @@ The workspace currently uses Biome for formatting, linting, and import organizat
 - Omit Biome assist functionality except for replacing import organization with Oxfmt import sorting.
 - Move lint, format, and fix workflows to Turborepo root tasks.
 - Update CI and pre-commit/lint-staged quality checks to use Oxlint/Oxfmt instead of Biome.
-- Remove Biome config files, package-level Biome lint scripts, and Biome dependencies/catalog entries; install Oxlint/Oxfmt only as root development dependencies because they are root-only tools.
+- Remove Biome config files, package-level Biome lint scripts, and Biome dependencies/catalog entries; install Oxlint/Oxfmt only as root development dependencies while keeping versions in the pnpm catalog because the workspace uses strict catalog mode.
 
 ## Capabilities
 
 ### New Capabilities
+
 - `workspace-oxc-quality-tooling`: Workspace-level linting and formatting are provided by Oxlint/Oxfmt through root configuration and Turborepo root tasks.
 
 ### Modified Capabilities
+
 - `dependency-supply-chain-hardening`: Existing verification workflows continue to pass with Oxc tooling replacing Biome in dependency, lint, build, and test workflows.
 
 ## Impact
 
-- Root tooling files: `package.json`, `turbo.json`, lockfile, new `oxlint.config.ts`, and new `oxfmt.config.ts`.
+- Root tooling files: `package.json`, `turbo.json`, `pnpm-workspace.yaml`, lockfile, new `oxlint.config.ts`, and new `oxfmt.config.ts`.
 - Package/example manifests that currently run `biome lint .` or depend on `@biomejs/biome`.
 - Biome config files at the root and package/example level.
 - CI workflow and lint-staged/pre-commit quality checks.

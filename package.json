@@ -5,22 +5,31 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "format": "turbo run //#format:check",
+    "format:check": "oxfmt --check",
+    "format:fix": "oxfmt .",
+    "lint": "turbo run //#lint:check",
+    "lint:check": "oxlint .",
+    "lint:fix": "oxlint --fix .",
     "prepare": "husky",
     "test": "turbo run test",
     "test:watch": "turbo run dev test:watch --parallel"
   },
-  "lint-staged": {
-    "*": "pnpm exec biome check . --write --linter-enabled=false --no-errors-on-unmatched"
-  },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "husky": "catalog:",
     "lint-staged": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
     "turbo": "catalog:"
   },
-  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
+  "lint-staged": {
+    "*": [
+      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ]
+  },
   "engines": {
     "node": ">=24"
-  }
+  },
+  "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499"
 }
