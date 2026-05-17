@@ -1,0 +1,34 @@
+{
+  "name": "@soundor/cli",
+  "version": "0.0.0",
+  "private": true,
+  "bin": {
+    "soundor": "./dist/index.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@clack/prompts": "catalog:",
+    "@soundor/config": "workspace:*",
+    "@soundor/runtime-sdk": "workspace:*",
+    "citty": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/tsdown-config": "workspace:*",
+    "@soundor/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

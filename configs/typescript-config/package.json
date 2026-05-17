@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./react-library": "./react-library.json"
+    "./react-library": "./react-library.json",
+    "./node": "./node.json"
   }
 }
