@@ -7,6 +7,7 @@ Workspace pnpm configuration currently lives in `pnpm-workspace.yaml`, including
 ## Goals / Non-Goals
 
 **Goals:**
+
 - Upgrade the workspace to pnpm v11 using the root `packageManager` field and a regenerated lockfile.
 - Configure a two-day release-age cooldown with `minimumReleaseAge: 2880`.
 - Remove pnpm v10-only build-script configuration.
@@ -14,6 +15,7 @@ Workspace pnpm configuration currently lives in `pnpm-workspace.yaml`, including
 - Make dependency build-script trust an explicit manual review step using `pnpm approve-builds`.
 
 **Non-Goals:**
+
 - Do not introduce a new package manager or change workspace layout.
 - Do not change dependency versions beyond what is required by pnpm v11 lockfile regeneration.
 - Do not configure Rolldown or other bundler changes as part of this change.

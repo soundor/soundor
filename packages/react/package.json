@@ -2,29 +2,27 @@
   "name": "@soundor/react",
   "version": "0.0.0",
   "private": true,
-  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
   "scripts": {
     "build": "tsdown --clean",
     "dev": "tsdown --watch",
-    "lint": "biome lint .",
     "test": "vitest run",
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@biomejs/biome": "catalog:",
     "@soundor/tsdown-config": "workspace:*",
     "@soundor/typescript-config": "workspace:*",
     "@testing-library/dom": "catalog:",

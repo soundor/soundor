@@ -13,6 +13,7 @@ The project should upgrade to pnpm v11 to adopt newer supply-chain protections a
 ## Capabilities
 
 ### New Capabilities
+
 - `dependency-supply-chain-hardening`: Workspace dependency installation SHALL use pnpm v11 supply-chain controls, including release-age cooldown and explicit dependency build-script approval.
 
 ### Modified Capabilities
