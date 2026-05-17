@@ -3,16 +3,13 @@ packages:
   - configs/*
   - examples/*
 
-allowBuilds:
-  esbuild: true
-
 catalog:
   '@testing-library/dom': ^10.4.1
   '@testing-library/react': ^16.3.2
   '@types/node': ^25.8.0
   '@types/react': ^19.2.14
   '@types/react-dom': ^19.2.3
-  '@vitejs/plugin-react': ^5.2.0
+  '@vitejs/plugin-react': ^6.0.2
   happy-dom: ^20.9.0
   husky: ^9.1.7
   lint-staged: ^17.0.4
@@ -23,7 +20,7 @@ catalog:
   tsdown: ^0.22.0
   turbo: ^2.9.14
   typescript: ^5.9.3
-  vite: ^7.3.3
+  vite: ^8.0.13
   vitest: ^4.1.6
 
 catalogMode: strict
