@@ -1,9 +1,6 @@
-import type { ProjectConfig } from '@soundor/config';
+import { defineSoundorConfig } from '@soundor/config';
 
-const config: ProjectConfig = {
-  name: '__PROJECT_NAME__',
-  runtime: '__RUNTIME__',
+export default defineSoundorConfig({
+  runtimes: [{ id: '__RUNTIME__' }],
   parameters: [],
-};
-
-export default config;
+});
