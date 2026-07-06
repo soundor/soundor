@@ -10,7 +10,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsc --noEmit && tsdown --clean",
+    "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest watch"

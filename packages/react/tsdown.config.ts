@@ -4,5 +4,6 @@ import { defineConfig } from 'tsdown';
 export default defineConfig(
   withPreset(browser, {
     entry: ['src/index.ts'],
+    tsconfig: './tsconfig.app.json',
   }),
 );
