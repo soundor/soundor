@@ -1,2 +1,13 @@
-export type { Parameter, ProjectConfig } from './types';
-export { parseConfig } from './parse';
+export type {
+  BaseParameter,
+  BoolParameter,
+  EnumParameter,
+  FloatParameter,
+  IntParameter,
+  NativeMethod,
+  Parameter,
+  ParameterType,
+  RuntimeConfig,
+  SoundorConfig,
+} from './types';
+export { defineSoundorConfig } from './define';
