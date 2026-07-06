@@ -24,6 +24,7 @@
     "@soundor/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {
