@@ -1,12 +1,12 @@
-import type { ProjectConfig } from '@soundor/config';
+import type { SoundorConfig } from '@soundor/config';
 
-export type { ProjectConfig };
+export type { SoundorConfig };
 
 export interface BuildOptions {
   mode: 'debug' | 'production';
 }
 
 export interface Runtime {
-  dev(config: ProjectConfig): Promise<void>;
-  build(config: ProjectConfig, options: BuildOptions): Promise<void>;
+  dev(config: SoundorConfig): Promise<void>;
+  build(config: SoundorConfig, options: BuildOptions): Promise<void>;
 }
