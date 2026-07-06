@@ -16,7 +16,7 @@ catalog:
   happy-dom: ^20.10.6
   husky: ^9.1.7
   lint-staged: ^17.0.8
-  oxfmt: ^0.50.0
+  oxfmt: ^0.57.0
   oxlint: ^1.72.0
   react: ^19.2.7
   react-dom: ^19.2.7
