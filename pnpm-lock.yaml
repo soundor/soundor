@@ -54,6 +54,9 @@ catalogs:
     react-dom:
       specifier: ^19.2.7
       version: 19.2.7
+    rolldown:
+      specifier: ^1.1.4
+      version: 1.1.4
     tsdown:
       specifier: ^0.22.3
       version: 0.22.3
@@ -69,6 +72,9 @@ catalogs:
     vitest:
       specifier: ^4.1.9
       version: 4.1.9
+    zod:
+      specifier: ^4.1.13
+      version: 4.4.3
 
 importers:
 
@@ -164,6 +170,13 @@ importers:
         version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
 
   packages/config:
+    dependencies:
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.1.4
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@soundor/tsdown-config':
         specifier: workspace:*
@@ -1501,6 +1514,9 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@adobe/css-tools@4.5.0': {}
@@ -2498,3 +2514,5 @@ snapshots:
 
   yaml@2.9.0:
     optional: true
+
+  zod@4.4.3: {}

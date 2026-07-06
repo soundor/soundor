@@ -6,6 +6,7 @@
     "esModuleInterop": true,
     "incremental": false,
     "isolatedModules": true,
+    "types": ["node"],
     "lib": ["es2022"],
     "module": "ESNext",
     "moduleDetection": "force",

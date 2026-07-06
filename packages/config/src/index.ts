@@ -11,3 +11,7 @@ export type {
   SoundorConfig,
 } from './types';
 export { defineSoundorConfig } from './define';
+export { parseConfig } from './parse';
+export type { ParseConfigOptions } from './parse';
+export { ConfigError } from './errors';
+export type { ConfigIssue, ConfigErrorKind } from './errors';
