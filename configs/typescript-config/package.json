@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     "./react-library": "./react-library.json",
-    "./node": "./node.json"
+    "./node": "./node.json",
+    "./node-test": "./node-test.json",
+    "./react-test": "./react-test.json"
   }
 }

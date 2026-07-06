@@ -1,0 +1,10 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}
