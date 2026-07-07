@@ -150,7 +150,7 @@ function renderParametersTs(parameters: readonly CoreParameter[]): string {
   );
 
   return ensureFinalNewline(
-    `${HEADER}export const parameters = {\n${parameterEntries.join('\n')}\n} as const;\n\nexport type ParameterId = keyof typeof parameters;\n\nexport type ParameterValueMap = {\n${valueMapEntries.join('\n')}\n};\n\nexport type ParameterValue<T extends ParameterId> = ParameterValueMap[T];\n\nexport const useParamInfo = parameters;\n`,
+    `${HEADER}export const parameters = {\n${parameterEntries.join('\n')}\n} as const;\n\nexport type ParameterId = keyof typeof parameters;\n\nexport type ParameterInfoMap = typeof parameters;\n\nexport type ParameterValueMap = {\n${valueMapEntries.join('\n')}\n};\n\nexport type ParameterValue<T extends ParameterId> = ParameterValueMap[T];\n\nexport const useParamInfo = parameters;\n\ndeclare module '@soundor/bridge' {\n  interface SoundorParamInfoMap extends ParameterInfoMap {}\n  interface SoundorParamValueMap extends ParameterValueMap {}\n}\n`,
   );
 }
 
@@ -169,7 +169,7 @@ function renderNativeMethodsTs(methods: readonly CoreNativeMethod[]): string {
   );
 
   return ensureFinalNewline(
-    `${HEADER}${aliases.join('\n')}\n\nexport interface NativeMethodRequests {\n${requestEntries.join('\n')}\n}\n\nexport interface NativeMethodResponses {\n${responseEntries.join('\n')}\n}\n\nexport type NativeMethodName = keyof NativeMethodRequests;\n\nexport type NativeMethodDispatcher = {\n  [K in NativeMethodName]: (\n    request: NativeMethodRequests[K],\n  ) => Promise<NativeMethodResponses[K]>;\n};\n`,
+    `${HEADER}${aliases.join('\n')}\n\nexport interface NativeMethodRequests {\n${requestEntries.join('\n')}\n}\n\nexport interface NativeMethodResponses {\n${responseEntries.join('\n')}\n}\n\nexport type NativeMethodName = keyof NativeMethodRequests;\n\nexport type NativeMethodDispatcher = {\n  [K in NativeMethodName]: (\n    request: NativeMethodRequests[K],\n  ) => Promise<NativeMethodResponses[K]>;\n};\n\ndeclare module '@soundor/bridge' {\n  interface SoundorNativeMethodRequests extends NativeMethodRequests {}\n  interface SoundorNativeMethodResponses extends NativeMethodResponses {}\n}\n`,
   );
 }
 
