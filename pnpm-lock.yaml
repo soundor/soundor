@@ -143,6 +143,9 @@ importers:
       '@soundor/config':
         specifier: workspace:*
         version: link:../config
+      '@soundor/core':
+        specifier: workspace:*
+        version: link:../core
       '@soundor/runtime-sdk':
         specifier: workspace:*
         version: link:../runtime-sdk
