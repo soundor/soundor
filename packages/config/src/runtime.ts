@@ -16,7 +16,10 @@ import type { RuntimeConfig, SoundorConfig } from './types';
 export interface DoctorCheck {
   label: string;
   status: 'ok' | 'warn' | 'fail';
+  /** Why the check landed on this status (the reason). */
   detail?: string;
+  /** A concrete, actionable fix — surfaced for `warn`/`fail` checks. */
+  suggestion?: string;
 }
 
 /** Diagnostic report returned by {@link Runtime.doctor}. */
