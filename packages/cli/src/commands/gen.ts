@@ -2,7 +2,12 @@ import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 
 import { outro, spinner } from '@clack/prompts';
-import { parseConfig, resolveRuntime, runPhase } from '@soundor/config';
+import {
+  parseConfig,
+  resolveRuntime,
+  runPhase,
+  type RuntimeMode,
+} from '@soundor/config';
 import {
   checkGeneratedFiles,
   createCodegenSink,
@@ -12,6 +17,7 @@ import {
   generateSoundorFiles,
   rootFromConfigPath,
   SoundorError,
+  UnknownRuntimeError,
   writeGeneratedFiles,
   type CodegenFile,
   type FileSystemHost,
@@ -24,6 +30,8 @@ export interface RunGenOptions {
   cwd?: string;
   configPath?: string;
   check?: boolean;
+  mode?: RuntimeMode;
+  runtimeIds?: readonly string[];
 }
 
 export type RunGenFileStatus =
@@ -59,6 +67,10 @@ export async function runGen(
   const logger = createConsoleLogger('soundor');
   const portableDir = fs.resolve('.soundor', 'generated');
   const portableFiles = generateSoundorFiles(config);
+  const runtimeEntries = selectRuntimeEntries(
+    config.runtimes,
+    options.runtimeIds,
+  );
   const groups: RunGenGroupReport[] = [];
 
   if (options.check === true) {
@@ -78,7 +90,7 @@ export async function runGen(
     });
   }
 
-  for (const runtimeEntry of config.runtimes) {
+  for (const runtimeEntry of runtimeEntries) {
     const resolved = resolveRuntime(config, runtimeEntry.id);
     const codegen = createCodegenSink();
     const paths = createProjectPaths({
@@ -92,6 +104,7 @@ export async function runGen(
       fs,
       logger: logger.child(runtimeEntry.id),
       codegen,
+      mode: options.mode,
     });
 
     if (options.check === true) {
@@ -113,6 +126,23 @@ export async function runGen(
   }
 
   return { mode: options.check === true ? 'check' : 'write', groups };
+}
+
+function selectRuntimeEntries<T extends { readonly id: string }>(
+  entries: readonly T[],
+  runtimeIds?: readonly string[],
+): T[] {
+  if (runtimeIds === undefined) return [...entries];
+
+  return runtimeIds.map((id) => {
+    const entry = entries.find((runtime) => runtime.id === id);
+    if (entry === undefined)
+      throw new UnknownRuntimeError(
+        id,
+        entries.map((runtime) => runtime.id),
+      );
+    return entry;
+  });
 }
 
 export const genCommand = defineCommand({
