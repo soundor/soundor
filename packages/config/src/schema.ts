@@ -1,7 +1,25 @@
 import { z } from 'zod';
 
 import { type ConfigIssue, ConfigError } from './errors';
+import type { Runtime } from './runtime';
 import type { Parameter, SoundorConfig } from './types';
+
+/** The lifecycle methods every {@link Runtime} must expose. */
+const RUNTIME_METHODS = ['init', 'gen', 'dev', 'build', 'doctor'] as const;
+
+/**
+ * Structural check that a value is a live {@link Runtime}: a `string` id plus
+ * the five lifecycle methods. Runtimes are registered by passing the object a
+ * runtime factory returns (e.g. `juceRuntime({ ... })`) into `runtimes[]`.
+ */
+function isRuntime(value: unknown): value is Runtime {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record['id'] !== 'string') return false;
+  return RUNTIME_METHODS.every(
+    (method) => typeof record[method] === 'function',
+  );
+}
 
 const baseParameter = {
   id: z.string(),
@@ -50,6 +68,10 @@ const parameterSchema = z.discriminatedUnion('type', [
 const runtimeSchema = z.object({
   id: z.string(),
   options: z.record(z.string(), z.unknown()).optional(),
+  runtime: z.custom<Runtime>(isRuntime, {
+    message:
+      'missing runtime implementation; register it with a runtime factory, e.g. `runtimes: [juceRuntime({ ... })]`, not a bare `{ id }`',
+  }),
 });
 
 const nativeMethodSchema = z.object({
@@ -179,6 +201,7 @@ function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
     runtimes: data.runtimes.map((runtime) => ({
       id: runtime.id,
       options: runtime.options ?? {},
+      runtime: runtime.runtime,
     })),
     parameters: data.parameters.map(normalizeParameter),
     nativeMethods: (data.nativeMethods ?? []).map((method) => ({

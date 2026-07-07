@@ -1,7 +1,11 @@
 import { defineSoundorConfig } from '@soundor/config';
 
+import { fakeRuntime } from './fake-runtime';
+
 export default defineSoundorConfig({
-  runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
+  runtimes: [
+    { id: 'juce', options: { format: 'vst3' }, runtime: fakeRuntime('juce') },
+  ],
   parameters: [
     {
       type: 'float',
