@@ -56,6 +56,8 @@ export const parameters = {
 
 export type ParameterId = keyof typeof parameters;
 
+export type ParameterInfoMap = typeof parameters;
+
 export type ParameterValueMap = {
   bypass: boolean;
   gain: number;
@@ -66,6 +68,11 @@ export type ParameterValueMap = {
 export type ParameterValue<T extends ParameterId> = ParameterValueMap[T];
 
 export const useParamInfo = parameters;
+
+declare module '@soundor/bridge' {
+  interface SoundorParamInfoMap extends ParameterInfoMap {}
+  interface SoundorParamValueMap extends ParameterValueMap {}
+}
 `,
       },
       {
@@ -131,6 +138,11 @@ export type NativeMethodDispatcher = {
     request: NativeMethodRequests[K],
   ) => Promise<NativeMethodResponses[K]>;
 };
+
+declare module '@soundor/bridge' {
+  interface SoundorNativeMethodRequests extends NativeMethodRequests {}
+  interface SoundorNativeMethodResponses extends NativeMethodResponses {}
+}
 `,
       },
     ]);
