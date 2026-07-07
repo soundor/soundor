@@ -18,6 +18,7 @@
   "dependencies": {
     "@clack/prompts": "catalog:",
     "@soundor/config": "workspace:*",
+    "@soundor/core": "workspace:*",
     "@soundor/runtime-sdk": "workspace:*",
     "citty": "catalog:"
   },

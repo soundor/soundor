@@ -28,3 +28,22 @@ export type {
   CollectingCodegenSink,
 } from './codegen';
 export { createCodegenSink, nullCodegenSink } from './codegen';
+
+export type {
+  CoreBaseParameter,
+  CoreBoolParameter,
+  CoreEnumParameter,
+  CoreFloatParameter,
+  CoreIntParameter,
+  CoreNativeMethod,
+  CoreParameter,
+  CoreRuntimeDescriptor,
+  CoreSoundorConfig,
+  GeneratedFileChange,
+} from './generate';
+export {
+  GeneratedFilesOutOfDateError,
+  checkGeneratedFiles,
+  generateSoundorFiles,
+  writeGeneratedFiles,
+} from './generate';
