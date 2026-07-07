@@ -20,7 +20,8 @@
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@soundor/runtime-sdk": "workspace:*",
-    "citty": "catalog:"
+    "citty": "catalog:",
+    "vite": "catalog:"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:*",
