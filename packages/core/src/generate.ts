@@ -66,6 +66,16 @@ export interface GeneratedFileChange {
   readonly kind: 'missing' | 'stale';
 }
 
+export interface GeneratedFileWriteResult {
+  readonly path: string;
+  readonly status: 'created' | 'updated' | 'unchanged';
+}
+
+export interface GeneratedFileCheckResult {
+  readonly path: string;
+  readonly status: 'up-to-date';
+}
+
 export class GeneratedFilesOutOfDateError extends SoundorError {
   readonly changes: GeneratedFileChange[];
 
@@ -106,26 +116,29 @@ export async function writeGeneratedFiles(
   fs: FileSystemHost,
   outputDir: string,
   files: readonly CodegenFile[],
-): Promise<void> {
+): Promise<GeneratedFileWriteResult[]> {
+  const results: GeneratedFileWriteResult[] = [];
   for (const file of sortFiles(files)) {
     const target = generatedTarget(fs, outputDir, file.path);
-    if (
-      (await fs.exists(target)) &&
-      (await fs.read(target)) === file.contents
-    ) {
+    const exists = await fs.exists(target);
+    if (exists && (await fs.read(target)) === file.contents) {
+      results.push({ path: file.path, status: 'unchanged' });
       continue;
     }
     await fs.write(target, file.contents);
+    results.push({ path: file.path, status: exists ? 'updated' : 'created' });
   }
+  return results;
 }
 
 export async function checkGeneratedFiles(
   fs: FileSystemHost,
   outputDir: string,
   files: readonly CodegenFile[],
-): Promise<void> {
+): Promise<GeneratedFileCheckResult[]> {
   const changes: GeneratedFileChange[] = [];
-  for (const file of sortFiles(files)) {
+  const sorted = sortFiles(files);
+  for (const file of sorted) {
     const target = generatedTarget(fs, outputDir, file.path);
     if (!(await fs.exists(target))) {
       changes.push({ path: file.path, kind: 'missing' });
@@ -136,6 +149,7 @@ export async function checkGeneratedFiles(
     }
   }
   if (changes.length > 0) throw new GeneratedFilesOutOfDateError(changes);
+  return sorted.map((file) => ({ path: file.path, status: 'up-to-date' }));
 }
 
 function renderParametersTs(parameters: readonly CoreParameter[]): string {

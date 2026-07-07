@@ -184,9 +184,11 @@ describe('generated file writer', () => {
     await writeGeneratedFiles(fs, outputDir, files);
 
     expect(await fs.read(join(outputDir, 'parameters.ts'))).toBe(first);
-    await expect(
-      checkGeneratedFiles(fs, outputDir, files),
-    ).resolves.toBeUndefined();
+    await expect(checkGeneratedFiles(fs, outputDir, files)).resolves.toEqual([
+      { path: 'native-methods.ts', status: 'up-to-date' },
+      { path: 'parameters.json', status: 'up-to-date' },
+      { path: 'parameters.ts', status: 'up-to-date' },
+    ]);
   });
 
   it('resolves relative output dirs through the filesystem host', async () => {

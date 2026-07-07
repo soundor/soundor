@@ -39,7 +39,9 @@ export type {
   CoreParameter,
   CoreRuntimeDescriptor,
   CoreSoundorConfig,
+  GeneratedFileCheckResult,
   GeneratedFileChange,
+  GeneratedFileWriteResult,
 } from './generate';
 export {
   GeneratedFilesOutOfDateError,

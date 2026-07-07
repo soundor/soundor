@@ -1,7 +1,15 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { ConfigError } from '@soundor/config';
 import type { CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,15 +49,60 @@ describe('runGen', () => {
   it('writes portable and runtime generated files, then passes check mode', async () => {
     await writeConfig(root, 'gain');
 
-    await runGen({ cwd: root });
+    const report = await runGen({ cwd: root });
 
+    expect(report).toMatchObject({
+      mode: 'write',
+      groups: [
+        {
+          name: 'core',
+          files: [
+            { path: 'native-methods.ts', status: 'created' },
+            { path: 'parameters.json', status: 'created' },
+            { path: 'parameters.ts', status: 'created' },
+          ],
+        },
+        {
+          name: 'runtime:test',
+          files: [{ path: 'runtime.txt', status: 'created' }],
+        },
+      ],
+    });
     await expect(
       readFile(join(root, '.soundor', 'generated', 'parameters.ts'), 'utf8'),
     ).resolves.toContain('gain: number;');
     await expect(
       readFile(join(root, '.soundor', 'gen', 'test', 'runtime.txt'), 'utf8'),
     ).resolves.toBe('["gain"]\n');
-    await expect(runGen({ cwd: root, check: true })).resolves.toBeUndefined();
+    await expect(runGen({ cwd: root, check: true })).resolves.toMatchObject({
+      mode: 'check',
+      groups: [
+        { name: 'core' },
+        {
+          name: 'runtime:test',
+          files: [{ path: 'runtime.txt', status: 'up-to-date' }],
+        },
+      ],
+    });
+  });
+
+  it('is idempotent across repeated generation', async () => {
+    await writeConfig(root, 'gain');
+
+    await runGen({ cwd: root });
+    const first = await snapshotTree(join(root, '.soundor'));
+    const report = await runGen({ cwd: root });
+    const second = await snapshotTree(join(root, '.soundor'));
+
+    expect(second).toEqual(first);
+    expect(report.groups.flatMap((group) => group.files)).toEqual(
+      expect.arrayContaining([
+        { path: 'parameters.json', status: 'unchanged' },
+        { path: 'parameters.ts', status: 'unchanged' },
+        { path: 'native-methods.ts', status: 'unchanged' },
+        { path: 'runtime.txt', status: 'unchanged' },
+      ]),
+    );
   });
 
   it('fails check mode when generated files are stale', async () => {
@@ -65,7 +118,60 @@ describe('runGen', () => {
       ],
     });
   });
+
+  it('fails check mode when runtime generated files are stale', async () => {
+    await writeConfig(root, 'gain');
+    await runGen({ cwd: root });
+
+    await writeFile(
+      join(root, '.soundor', 'gen', 'test', 'runtime.txt'),
+      'stale\n',
+      'utf8',
+    );
+
+    await expect(runGen({ cwd: root, check: true })).rejects.toMatchObject({
+      changes: [{ path: 'runtime.txt', kind: 'stale' }],
+    });
+  });
+
+  it('aborts invalid config before writing generated files', async () => {
+    await writeInvalidConfig(root);
+
+    await expect(runGen({ cwd: root })).rejects.toBeInstanceOf(ConfigError);
+    await expect(pathExists(join(root, '.soundor'))).resolves.toBe(false);
+  });
 });
+
+interface SnapshotEntry {
+  path: string;
+  contents: string;
+}
+
+async function snapshotTree(
+  dir: string,
+  prefix = '',
+): Promise<SnapshotEntry[]> {
+  const entries: SnapshotEntry[] = [];
+  for (const name of await readdir(dir)) {
+    const path = join(dir, name);
+    const relative = prefix === '' ? name : join(prefix, name);
+    if ((await stat(path)).isDirectory()) {
+      entries.push(...(await snapshotTree(path, relative)));
+    } else {
+      entries.push({ path: relative, contents: await readFile(path, 'utf8') });
+    }
+  }
+  return entries.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function writeConfig(root: string, parameterId: string): Promise<void> {
   await writeFile(
@@ -100,6 +206,21 @@ export default defineSoundorConfig({
       default: 0.5,
     },
   ],
+  nativeMethods: [],
+});
+`,
+    'utf8',
+  );
+}
+
+async function writeInvalidConfig(root: string): Promise<void> {
+  await writeFile(
+    join(root, 'soundor.config.ts'),
+    `import { defineSoundorConfig } from '@soundor/config';
+
+export default defineSoundorConfig({
+  runtimes: [{ id: 'test' }],
+  parameters: [],
   nativeMethods: [],
 });
 `,
