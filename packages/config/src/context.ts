@@ -20,6 +20,17 @@ export type RuntimeMode = 'debug' | 'production';
 /** The five lifecycle phases every runtime implements. */
 export type RuntimePhase = 'init' | 'gen' | 'dev' | 'build' | 'doctor';
 
+/** UI development server details supplied by the CLI during `dev`. */
+export interface DevUiContext {
+  readonly kind: 'vite';
+  readonly url: string;
+}
+
+/** Long-lived development services available to runtime `dev` phases. */
+export interface DevContext {
+  readonly ui?: DevUiContext;
+}
+
 /**
  * Context passed to every lifecycle method. Generic over the runtime's opaque
  * options bag so a runtime reads its own `options` with full types.
@@ -39,6 +50,8 @@ export interface LifecycleContext<
   readonly logger: Logger;
   readonly fs: FileSystemHost;
   readonly codegen: CodegenSink;
+  /** Development-only services started by the CLI before runtime dispatch. */
+  readonly dev?: DevContext;
   /** Aborts long-running phases (notably `dev`). */
   readonly signal: AbortSignal;
 }

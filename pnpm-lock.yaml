@@ -154,7 +154,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/cli:
     dependencies:
@@ -173,6 +173,9 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.1.3(@types/node@24.13.2)(yaml@2.9.0)
     devDependencies:
       '@soundor/tsdown-config':
         specifier: workspace:*
@@ -191,7 +194,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/config:
     dependencies:
@@ -222,7 +225,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/core:
     devDependencies:
@@ -243,7 +246,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/create-soundor-app:
     dependencies:
@@ -271,7 +274,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
   packages/react:
     dependencies:
@@ -320,7 +323,7 @@ importers:
         version: 8.1.3(@types/node@26.1.0)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@26.1.0)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@26.1.0)(happy-dom@20.10.6)(vite@8.1.3(@types/node@26.1.0)(yaml@2.9.0))
 
   packages/runtime-sdk:
     dependencies:
@@ -348,7 +351,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0)
+        version: 4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
 
 packages:
 
@@ -1500,6 +1503,7 @@ packages:
       '@vitest/ui': 4.1.9
       happy-dom: '*'
       jsdom: '*'
+      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -2448,7 +2452,7 @@ snapshots:
       fsevents: 2.3.3
       yaml: 2.9.0
 
-  vitest@4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(yaml@2.9.0):
+  vitest@4.1.9(@types/node@24.13.2)(happy-dom@20.10.6)(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.9
       '@vitest/mocker': 4.1.9(vite@8.1.3(@types/node@24.13.2)(yaml@2.9.0))
@@ -2474,20 +2478,9 @@ snapshots:
       '@types/node': 24.13.2
       happy-dom: 20.10.6
     transitivePeerDependencies:
-      - '@vitejs/devtools'
-      - esbuild
-      - jiti
-      - less
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
-  vitest@4.1.9(@types/node@26.1.0)(happy-dom@20.10.6)(yaml@2.9.0):
+  vitest@4.1.9(@types/node@26.1.0)(happy-dom@20.10.6)(vite@8.1.3(@types/node@26.1.0)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.9
       '@vitest/mocker': 4.1.9(vite@8.1.3(@types/node@26.1.0)(yaml@2.9.0))
@@ -2513,18 +2506,7 @@ snapshots:
       '@types/node': 26.1.0
       happy-dom: 20.10.6
     transitivePeerDependencies:
-      - '@vitejs/devtools'
-      - esbuild
-      - jiti
-      - less
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   whatwg-mimetype@3.0.0: {}
 
