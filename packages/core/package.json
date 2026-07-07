@@ -1,5 +1,5 @@
 {
-  "name": "@soundor/config",
+  "name": "@soundor/core",
   "version": "0.0.0",
   "private": true,
   "files": [
@@ -21,11 +21,6 @@
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest watch"
-  },
-  "dependencies": {
-    "@soundor/core": "workspace:*",
-    "rolldown": "catalog:",
-    "zod": "catalog:"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:*",

@@ -2,15 +2,20 @@
  * Soundor configuration model.
  *
  * Config is declarative: it describes *what* a project exposes — parameters,
- * runtimes, native methods — never *how* those things are implemented. There is
- * no logic, no side effects, and no conditionals in this model.
+ * runtimes, native methods. A runtime entry additionally carries its live
+ * {@link RuntimeDescriptor} implementation (the object returned by a runtime
+ * factory), which the CLI dispatches; core itself stays declarative.
  */
 
+import type { RuntimeDescriptor } from './runtime';
+
 /**
- * A runtime target the project can be built for.
+ * The declarative `{ id, options }` view of a runtime target. `options` is an
+ * opaque, runtime-owned surface: core never interprets it, it only carries the
+ * values through to the runtime identified by `id`.
  *
- * `options` is an opaque, runtime-owned surface: core never interprets it, it
- * only carries the values through to the runtime identified by `id`.
+ * A config's `runtimes[]` holds the richer {@link RuntimeDescriptor}, which
+ * extends this with the live {@link Runtime} implementation.
  */
 export interface RuntimeConfig {
   /** Identifier of the runtime that owns `options` (e.g. `'juce'`). */
@@ -83,7 +88,7 @@ export interface NativeMethod {
 
 /** Top-level Soundor configuration. */
 export interface SoundorConfig {
-  runtimes: RuntimeConfig[];
+  runtimes: RuntimeDescriptor[];
   parameters: Parameter[];
   nativeMethods?: NativeMethod[];
 }

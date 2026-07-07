@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import { ConfigError } from '../errors';
 import { parseConfig } from '../parse';
+import type { Runtime } from '../runtime';
 import { validateConfig } from '../schema';
 import type { SoundorConfig } from '../types';
 
@@ -21,7 +22,30 @@ afterAll(() => {
   for (const dir of cleanups) rmSync(dir, { recursive: true, force: true });
 });
 
-const expected: SoundorConfig = {
+/** A structurally-valid runtime for driving validation in unit tests. */
+function makeRuntime(id: string): Runtime {
+  const noop = async (): Promise<void> => {};
+  return {
+    id,
+    init: noop,
+    gen: noop,
+    dev: noop,
+    build: noop,
+    doctor: async () => ({ checks: [] }),
+  };
+}
+
+/** The serializable projection of a config (drops the live `runtime`). */
+function projectData(config: SoundorConfig): unknown {
+  return {
+    runtimes: config.runtimes.map((r) => ({ id: r.id, options: r.options })),
+    parameters: config.parameters,
+    nativeMethods: config.nativeMethods,
+  };
+}
+
+/** Expected serializable projection of the `valid` fixture. */
+const expectedData = {
   runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
   parameters: [
     {
@@ -46,6 +70,15 @@ const expected: SoundorConfig = {
   nativeMethods: [{ name: 'render', input: 'Request', output: 'Result' }],
 };
 
+/** Asserts a parsed config carries a live runtime implementation for `id`. */
+function expectRuntime(config: SoundorConfig, id: string): void {
+  const runtime = config.runtimes.find((r) => r.id === id)?.runtime;
+  expect(runtime?.id).toBe(id);
+  for (const method of ['init', 'gen', 'dev', 'build', 'doctor'] as const) {
+    expect(typeof runtime?.[method]).toBe('function');
+  }
+}
+
 async function rejectsWith(fn: () => Promise<unknown>): Promise<ConfigError> {
   let caught: unknown;
   try {
@@ -60,7 +93,8 @@ async function rejectsWith(fn: () => Promise<unknown>): Promise<ConfigError> {
 describe('parseConfig — loading', () => {
   it('loads and normalizes a valid config', async () => {
     const config = await parseConfig({ path: validConfig });
-    expect(config).toEqual(expected);
+    expect(projectData(config)).toEqual(expectedData);
+    expectRuntime(config, 'juce');
   });
 
   it('is deterministic: identical input yields identical output', async () => {
@@ -73,17 +107,21 @@ describe('parseConfig — loading', () => {
     const dir = mkdtempSync(resolve(tmpdir(), 'soundor-'));
     cleanups.push(dir);
     const path = resolve(dir, 'soundor.config.ts');
-    // Written outside the workspace: no imports, so no resolution needed.
+    // Written outside the workspace: no imports, so no resolution needed. The
+    // runtime is defined inline so the entry is structurally valid.
     writeFileSync(
       path,
-      `export default { runtimes: [{ id: 'juce' }], parameters: [] };`,
+      `const noop = async () => {};
+       const runtime = { id: 'juce', init: noop, gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
+       export default { runtimes: [{ id: 'juce', runtime }], parameters: [] };`,
     );
     const config = await parseConfig({ path });
-    expect(config).toEqual({
+    expect(projectData(config)).toEqual({
       runtimes: [{ id: 'juce', options: {} }],
       parameters: [],
       nativeMethods: [],
     });
+    expectRuntime(config, 'juce');
   });
 
   it('discovers soundor.config.ts by walking up from cwd', async () => {
@@ -91,7 +129,8 @@ describe('parseConfig — loading', () => {
     mkdirSync(nested, { recursive: true });
     cleanups.push(resolve(fixtures, 'valid/deeply'));
     const config = await parseConfig({ cwd: nested });
-    expect(config).toEqual(expected);
+    expect(projectData(config)).toEqual(expectedData);
+    expectRuntime(config, 'juce');
   });
 
   it('throws not-found when no config exists up the tree', async () => {
@@ -130,11 +169,21 @@ describe('validateConfig — validation rules', () => {
   const base = { runtimes: [], parameters: [] };
 
   it('accepts a valid config and normalizes it', () => {
-    expect(validateConfig({ ...base, runtimes: [{ id: 'juce' }] })).toEqual({
-      runtimes: [{ id: 'juce', options: {} }],
+    const runtime = makeRuntime('juce');
+    expect(
+      validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
+    ).toEqual({
+      runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
       nativeMethods: [],
     });
+  });
+
+  it('rejects a runtime entry with no implementation', () => {
+    const error = expectValidation({ ...base, runtimes: [{ id: 'juce' }] });
+    expect(error.issues).toContainEqual(
+      expect.objectContaining({ path: 'runtimes[0].runtime' }),
+    );
   });
 
   it('rejects a malformed shape (wrong field type)', () => {
@@ -205,7 +254,10 @@ describe('validateConfig — validation rules', () => {
 
   it('flags duplicate parameter and runtime ids', () => {
     const error = expectValidation({
-      runtimes: [{ id: 'juce' }, { id: 'juce' }],
+      runtimes: [
+        { id: 'juce', runtime: makeRuntime('juce') },
+        { id: 'juce', runtime: makeRuntime('juce') },
+      ],
       parameters: [
         { type: 'bool', id: 'x', label: 'X', default: false },
         { type: 'bool', id: 'x', label: 'X2', default: true },

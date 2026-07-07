@@ -1,3 +1,5 @@
+import { SoundorError } from '@soundor/core';
+
 /** A single, actionable problem found while loading or validating a config. */
 export interface ConfigIssue {
   /** Location of the problem, e.g. `parameters[0].max`. Empty for whole-file issues. */
@@ -10,22 +12,21 @@ export interface ConfigIssue {
 export type ConfigErrorKind = 'not-found' | 'load' | 'validation';
 
 /**
- * Thrown by {@link parseConfig} for every failure mode. Carries structured
+ * Thrown by {@link parseConfig} for every failure mode. A {@link SoundorError}
+ * subclass carrying the stable `CONFIG` code (exit code 2) plus structured
  * {@link ConfigIssue}s so a CLI can render them and exit non-zero.
  */
-export class ConfigError extends Error {
+export class ConfigError extends SoundorError {
   readonly kind: ConfigErrorKind;
-  readonly issues: ConfigIssue[];
 
   constructor(
     kind: ConfigErrorKind,
     message: string,
     issues: ConfigIssue[] = [],
   ) {
-    super(message);
+    super(message, { code: 'CONFIG', issues });
     this.name = 'ConfigError';
     this.kind = kind;
-    this.issues = issues;
   }
 
   /** Human-readable summary with one line per issue. */
