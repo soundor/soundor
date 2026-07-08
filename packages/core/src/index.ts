@@ -16,6 +16,14 @@ export {
 export type { Logger } from './logger';
 export { createConsoleLogger } from './logger';
 
+export type {
+  CommandProbe,
+  CommandRunner,
+  ProbeResult,
+  RunCommandOptions,
+} from './command';
+export { CommandFailedError, probeCommand, runCommand } from './command';
+
 export type { FileSystemHost } from './filesystem';
 export { createNodeFileSystem } from './filesystem';
 

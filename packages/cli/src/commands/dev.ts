@@ -13,6 +13,7 @@ import {
 import { defineCommand } from 'citty';
 import { createServer, type ViteDevServer } from 'vite';
 
+import { soundorBridgePlugin } from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -45,7 +46,8 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     runtimeId: options.runtime,
   });
   const controller = new AbortController();
-  const vite = await startVite(root, logger.child('ui'));
+  const bridgeEntry = resolved.runtime.bridgeModule?.();
+  const vite = await startVite(root, logger.child('ui'), bridgeEntry);
   const uiUrl = firstViteUrl(vite);
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
@@ -109,9 +111,11 @@ export const devCommand = defineCommand({
 async function startVite(
   root: string,
   logger: ReturnType<typeof createConsoleLogger>,
+  bridgeEntry?: string,
 ): Promise<ViteDevServer> {
   const server = await createServer({
     root,
+    plugins: [soundorBridgePlugin({ entry: bridgeEntry })],
     customLogger: {
       hasWarned: false,
       hasErrorLogged: () => false,

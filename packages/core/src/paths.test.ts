@@ -13,7 +13,7 @@ describe('createProjectPaths', () => {
       root: '/proj',
       config: '/proj/soundor.config.ts',
       dist: '/proj/.soundor/dist/juce',
-      gen: '/proj/.soundor/gen/juce',
+      gen: '/proj/.soundor/generated/runtimes/juce',
       cache: '/proj/.soundor/cache/juce',
     });
   });

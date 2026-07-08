@@ -72,7 +72,10 @@ describe('runGen', () => {
       readFile(join(root, '.soundor', 'generated', 'parameters.ts'), 'utf8'),
     ).resolves.toContain('gain: number;');
     await expect(
-      readFile(join(root, '.soundor', 'gen', 'test', 'runtime.txt'), 'utf8'),
+      readFile(
+        join(root, '.soundor', 'generated', 'runtimes', 'test', 'runtime.txt'),
+        'utf8',
+      ),
     ).resolves.toBe('["gain"]\n');
     await expect(runGen({ cwd: root, check: true })).resolves.toMatchObject({
       mode: 'check',
@@ -124,7 +127,7 @@ describe('runGen', () => {
     await runGen({ cwd: root });
 
     await writeFile(
-      join(root, '.soundor', 'gen', 'test', 'runtime.txt'),
+      join(root, '.soundor', 'generated', 'runtimes', 'test', 'runtime.txt'),
       'stale\n',
       'utf8',
     );

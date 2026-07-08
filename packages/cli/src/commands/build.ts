@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import { outro, spinner } from '@clack/prompts';
 import {
@@ -7,6 +7,7 @@ import {
   parseConfig,
   resolveRuntime,
   runPhase,
+  type LifecycleContext,
 } from '@soundor/config';
 import {
   createCodegenSink,
@@ -18,7 +19,9 @@ import {
   type SoundorErrorCode,
 } from '@soundor/core';
 import { defineCommand } from 'citty';
+import { build as viteBuild } from 'vite';
 
+import { soundorBridgePlugin } from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -79,16 +82,35 @@ export async function runBuild(
   for (const runtimeEntry of runtimeEntries) {
     try {
       const resolved = resolveRuntime(config, runtimeEntry.id);
-      await runPhase(resolved, 'build', config, {
-        paths: createProjectPaths({
+      const paths = createProjectPaths({
+        root,
+        config: configPath,
+        runtimeId: runtimeEntry.id,
+      });
+
+      // The CLI owns the UI bundler: build the React app (embedding the
+      // runtime's bridge) and hand the runtime the emitted assets, mirroring
+      // how `dev` hands over the Vite dev-server URL. Projects without a UI
+      // entry (headless runtimes, tests) simply skip this.
+      let build: LifecycleContext['build'];
+      if (existsSync(resolve(root, 'index.html'))) {
+        const uiDir = join(paths.cache, 'ui');
+        await buildViteBundle({
           root,
-          config: configPath,
-          runtimeId: runtimeEntry.id,
-        }),
+          outDir: uiDir,
+          bridgeEntry: resolved.runtime.bridgeModule?.(),
+          logger: logger.child(`${runtimeEntry.id}:ui`),
+        });
+        build = { ui: { kind: 'vite', dir: uiDir } };
+      }
+
+      await runPhase(resolved, 'build', config, {
+        paths,
         fs,
         logger: logger.child(runtimeEntry.id),
         codegen: createCodegenSink(),
         mode: 'production',
+        build,
       });
       results.push({ runtime: runtimeEntry.id, status: 'built' });
     } catch (error) {
@@ -181,6 +203,31 @@ function formatBuildFailureMessage(
         : `failed ${result.runtime}: ${errorMessage(result.error)}`,
     ),
   ].join('\n');
+}
+
+interface BuildViteBundleOptions {
+  readonly root: string;
+  readonly outDir: string;
+  readonly bridgeEntry?: string | undefined;
+  readonly logger: ReturnType<typeof createConsoleLogger>;
+}
+
+/**
+ * Produces the production UI bundle the CLI hands to a runtime's `build` phase.
+ * Registers {@link soundorBridgePlugin} so the app's `virtual:soundor/bridge`
+ * resolves to the active runtime's browser bridge.
+ */
+async function buildViteBundle(options: BuildViteBundleOptions): Promise<void> {
+  options.logger.info(`Building UI bundle -> ${options.outDir}`);
+  await viteBuild({
+    root: options.root,
+    logLevel: 'warn',
+    plugins: [soundorBridgePlugin({ entry: options.bridgeEntry })],
+    build: {
+      outDir: options.outDir,
+      emptyOutDir: true,
+    },
+  });
 }
 
 function resolveConfigPath(cwd: string, configPath?: string): string {

@@ -21,7 +21,7 @@ export interface RuntimeConfig {
   /** Identifier of the runtime that owns `options` (e.g. `'juce'`). */
   id: string;
   /** Runtime-specific options. Core treats this as an opaque bag. */
-  options?: Record<string, unknown>;
+  options?: object;
 }
 
 /** Fields shared by every parameter variant. */

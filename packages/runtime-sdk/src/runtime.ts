@@ -20,15 +20,15 @@ import type {
  * });
  *
  * // soundor.config.ts
- * runtimes: [juceRuntime({ format: 'vst3' })]
+ * runtimes: [juceRuntime({ plugin: { formats: ['vst3'] } })]
  * ```
  *
  * The returned descriptor carries the declarative `{ id, options }` plus the
  * implementation; the factory object also exposes `id` and `runtime` directly.
  */
-export function defineRuntime<
-  Options extends Record<string, unknown> = Record<string, unknown>,
->(definition: Runtime<Options>): RuntimeFactory<Options> {
+export function defineRuntime<Options extends object = object>(
+  definition: Runtime<Options>,
+): RuntimeFactory<Options> {
   const factory = (options?: Options): RuntimeDescriptor<Options> => ({
     id: definition.id,
     options: options ?? ({} as Options),

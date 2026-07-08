@@ -8,7 +8,10 @@ export interface ProjectPaths {
   readonly config: string;
   /** Build-output root for this runtime instance. */
   readonly dist: string;
-  /** Generated-source output dir for this runtime (codegen target). */
+  /**
+   * Generated-source output dir for this runtime (codegen target), under
+   * `.soundor/generated/runtimes/<id>`.
+   */
   readonly gen: string;
   /** Scratch/cache dir the runtime may use freely. */
   readonly cache: string;
@@ -40,7 +43,9 @@ export function createProjectPaths(
     root,
     config,
     dist: resolvePath(base, 'dist', input.runtimeId),
-    gen: resolvePath(base, 'gen', input.runtimeId),
+    // Runtime-generated sources sit under the shared `.soundor/generated` tree
+    // (alongside the portable core output), namespaced per runtime.
+    gen: resolvePath(base, 'generated', 'runtimes', input.runtimeId),
     cache: resolvePath(base, 'cache', input.runtimeId),
   };
 }
