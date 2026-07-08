@@ -104,6 +104,7 @@ export function silentLogger(): Logger {
     info: () => {},
     warn: () => {},
     error: () => {},
+    pipe: () => {},
     child: () => logger,
   };
   return logger;

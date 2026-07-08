@@ -28,4 +28,16 @@ describe('createConsoleLogger', () => {
     expect(warn).toHaveBeenNthCalledWith(1, '[juce] a');
     expect(warn).toHaveBeenNthCalledWith(2, '[juce:build] b');
   });
+
+  it('pipes process output without scope prefixes', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logger = createConsoleLogger('juce');
+
+    logger.pipe('-- Configuring done', 'stdout');
+    logger.pipe('CMake Warning', 'stderr');
+
+    expect(log).toHaveBeenCalledWith('-- Configuring done');
+    expect(error).toHaveBeenCalledWith('CMake Warning');
+  });
 });

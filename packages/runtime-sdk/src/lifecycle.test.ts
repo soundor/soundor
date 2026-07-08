@@ -48,6 +48,7 @@ function recordingLogger(records: string[]): Logger {
       info: log('info'),
       warn: log('warn'),
       error: log('error'),
+      pipe: log('pipe'),
       child: (childScope) =>
         make(scope ? `${scope}:${childScope}` : childScope),
     };

@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
-import { outro, spinner } from '@clack/prompts';
+import { outro } from '@clack/prompts';
 import { parseConfig, resolveRuntime, runPhase } from '@soundor/config';
 import {
   createCodegenSink,
@@ -96,14 +96,12 @@ export const devCommand = defineCommand({
   },
   async run({ args }) {
     const runtime = String(args['runtime']);
-    const s = spinner();
-    s.start(`Starting dev mode for runtime: ${runtime}`);
+    console.info(`Starting dev mode for runtime: ${runtime}`);
     const result = await runDev({
       runtime,
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
     });
-    s.stop(`Dev mode stopped: ${result.runtime}`);
     outro(`UI dev server: ${result.uiUrl}`);
   },
 });

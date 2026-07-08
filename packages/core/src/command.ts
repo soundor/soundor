@@ -80,7 +80,7 @@ export class CommandFailedError extends Error {
 export type CommandRunner = (options: RunCommandOptions) => Promise<void>;
 
 /**
- * Runs a command to completion, streaming stdout/stderr to the logger. Rejects
+ * Runs a command to completion, piping stdout/stderr to the logger. Rejects
  * with {@link CommandFailedError} on non-zero exit and honors `signal`.
  */
 export const runCommand: CommandRunner = ({ cmd, args, cwd, logger, signal }) =>
@@ -95,10 +95,10 @@ export const runCommand: CommandRunner = ({ cmd, args, cwd, logger, signal }) =>
       shell: process.platform === 'win32',
     });
     child.stdout?.on('data', (chunk: Buffer) => {
-      logger.info(chunk.toString('utf8').trimEnd());
+      pipeChunk(logger, chunk, 'stdout');
     });
     child.stderr?.on('data', (chunk: Buffer) => {
-      logger.warn(chunk.toString('utf8').trimEnd());
+      pipeChunk(logger, chunk, 'stderr');
     });
     child.on('error', (error) => {
       reject(new CommandFailedError(cmd, null, error.message));
@@ -108,3 +108,12 @@ export const runCommand: CommandRunner = ({ cmd, args, cwd, logger, signal }) =>
       else reject(new CommandFailedError(cmd, code));
     });
   });
+
+function pipeChunk(
+  logger: Logger,
+  chunk: Buffer,
+  stream: 'stdout' | 'stderr',
+): void {
+  const message = chunk.toString('utf8').trimEnd();
+  if (message.length > 0) logger.pipe(message, stream);
+}

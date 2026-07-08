@@ -9,6 +9,8 @@ export interface Logger {
   info(message: string, ...args: unknown[]): void;
   warn(message: string, ...args: unknown[]): void;
   error(message: string, ...args: unknown[]): void;
+  /** Raw child-process output; implementations may render or buffer it specially. */
+  pipe(message: string, stream?: 'stdout' | 'stderr'): void;
   /** Child logger that prefixes every record with `scope`. */
   child(scope: string): Logger;
 }
@@ -28,6 +30,10 @@ export function createConsoleLogger(scope?: string): Logger {
       console[level](`${prefix}${message}`, ...args);
     };
   }
+  logger.pipe = (message: string, stream = 'stdout'): void => {
+    if (stream === 'stderr') console.error(message);
+    else console.log(message);
+  };
   logger.child = (childScope: string): Logger =>
     createConsoleLogger(scope ? `${scope}:${childScope}` : childScope);
   return logger;

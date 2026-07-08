@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-import { outro, spinner } from '@clack/prompts';
+import { outro } from '@clack/prompts';
 import {
   ConfigError,
   parseConfig,
@@ -145,20 +145,13 @@ export const buildCommand = defineCommand({
     const runtime =
       typeof args['runtime'] === 'string' ? args['runtime'] : undefined;
     const target = runtime ?? 'all runtimes';
-    const s = spinner();
-    s.start(`Building: ${target}`);
-    try {
-      const result = await runBuild({
-        runtime,
-        configPath:
-          typeof args['config'] === 'string' ? args['config'] : undefined,
-      });
-      s.stop(`Built: ${target}`);
-      outro(formatRunBuildResult(result));
-    } catch (error) {
-      s.stop(`Build failed: ${target}`);
-      throw error;
-    }
+    console.info(`Building: ${target}`);
+    const result = await runBuild({
+      runtime,
+      configPath:
+        typeof args['config'] === 'string' ? args['config'] : undefined,
+    });
+    outro(formatRunBuildResult(result));
   },
 });
 
