@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdtemp,
+  mkdir,
+  readFile,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -114,6 +121,54 @@ describe('juceDev', () => {
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     expect(configure).toContain('-DSOUNDOR_DEV_URL=http://localhost:5173/');
     expect(calls.some((c) => c.includes('--build'))).toBe(true);
+  });
+
+  it('launches the standalone debug app when standalone is configured', async () => {
+    const root = await tempProjectWithJuce();
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: {
+        jucePath: join(root, 'JUCE'),
+        plugin: { formats: ['vst3', 'standalone'] },
+      },
+      signal: controller.signal,
+    });
+    const launched: string[] = [];
+    const run = async (o: RunCommandOptions) => {
+      if (o.args[0] !== '--build') return;
+      const standalone = join(
+        o.args[1]!,
+        'SoundorBasic_artefacts',
+        'Standalone',
+        'Soundor Basic',
+      );
+      await mkdir(join(standalone, '..'), { recursive: true });
+      await writeFile(standalone, 'binary');
+      await chmod(standalone, 0o755);
+    };
+
+    await juceDev(config, ctx, {
+      run,
+      probe: okProbe,
+      platform: 'linux',
+      launchStandalone: (target) => {
+        launched.push(target);
+        return true;
+      },
+    });
+
+    expect(launched).toEqual([
+      join(
+        ctx.paths.cache,
+        'build-debug',
+        'SoundorBasic_artefacts',
+        'Standalone',
+        'Soundor Basic',
+      ),
+    ]);
   });
 });
 
