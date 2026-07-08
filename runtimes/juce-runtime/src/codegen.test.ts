@@ -61,6 +61,13 @@ describe('generateJuceSources', () => {
     expect(setup).toContain('FORMATS VST3 AU');
     expect(setup).toContain('NEEDS_WEB_BROWSER TRUE');
     expect(setup).toContain('set(JUCE_DIR "/opt/JUCE")');
+    expect(setup).toContain('SoundorUiData.cpp');
+    expect(setup).toContain('target_sources(${PROJECT_NAME} PRIVATE');
+    expect(setup).toContain('font/woff2');
+    expect(setup).toContain('image/avif');
+    expect(setup).toContain('image/x-icon');
+    expect(setup).toContain('audio/mpeg');
+    expect(setup).toContain('text/plain');
     expect(setup).toContain('SoundorProcessor.cpp');
     expect(setup).not.toContain('JUCE_WEB_BROWSER=1');
   });
@@ -101,6 +108,14 @@ describe('generateJuceSources', () => {
     expect(editor).toContain('window.__SOUNDOR__');
     expect(editor).toContain('"nativeMethods":["render"]');
     expect(editor).toContain('is not allowlisted');
+  });
+
+  it('serves embedded production UI resources through the WebView provider', () => {
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    expect(editor).toContain('SoundorUiData.h');
+    expect(editor).toContain('withResourceProvider');
+    expect(editor).toContain('getEmbeddedUiResource(path)');
+    expect(editor).toContain('getResourceProviderRoot()');
   });
 
   it('syncs parameters as a single batched frame', () => {

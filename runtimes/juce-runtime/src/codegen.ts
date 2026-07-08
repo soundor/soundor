@@ -118,6 +118,85 @@ if(DEFINED SOUNDOR_DEV_URL)
 endif()
 if(DEFINED SOUNDOR_UI_DIR)
   target_compile_definitions(\${PROJECT_NAME} PUBLIC SOUNDOR_UI_DIR="\${SOUNDOR_UI_DIR}")
+  if(EXISTS "\${SOUNDOR_UI_DIR}/index.html")
+    file(GLOB_RECURSE SOUNDOR_UI_FILES CONFIGURE_DEPENDS RELATIVE "\${SOUNDOR_UI_DIR}" "\${SOUNDOR_UI_DIR}/*")
+    set(SOUNDOR_UI_HEADER "\${CMAKE_CURRENT_BINARY_DIR}/soundor-ui/SoundorUiData.h")
+    set(SOUNDOR_UI_SOURCE "\${CMAKE_CURRENT_BINARY_DIR}/soundor-ui/SoundorUiData.cpp")
+    file(MAKE_DIRECTORY "\${CMAKE_CURRENT_BINARY_DIR}/soundor-ui")
+    file(WRITE "\${SOUNDOR_UI_HEADER}" "#pragma once\n#include <juce_core/juce_core.h>\nnamespace soundor { struct UiResource { const char* path; const char* mimeType; const unsigned char* data; int size; }; const UiResource* getEmbeddedUiResource(const juce::String& path); }\n")
+    file(WRITE "\${SOUNDOR_UI_SOURCE}" "#include \\"SoundorUiData.h\\"\nnamespace soundor { namespace {\n")
+    set(SOUNDOR_UI_ENTRIES "")
+    set(SOUNDOR_UI_INDEX 0)
+    foreach(SOUNDOR_UI_FILE IN LISTS SOUNDOR_UI_FILES)
+      if(IS_DIRECTORY "\${SOUNDOR_UI_DIR}/\${SOUNDOR_UI_FILE}")
+        continue()
+      endif()
+      file(READ "\${SOUNDOR_UI_DIR}/\${SOUNDOR_UI_FILE}" SOUNDOR_UI_HEX HEX)
+      set(SOUNDOR_UI_BYTES "")
+      string(LENGTH "\${SOUNDOR_UI_HEX}" SOUNDOR_UI_HEX_LENGTH)
+      if(SOUNDOR_UI_HEX_LENGTH GREATER 0)
+        math(EXPR SOUNDOR_UI_HEX_END "\${SOUNDOR_UI_HEX_LENGTH} - 2")
+        foreach(SOUNDOR_UI_HEX_OFFSET RANGE 0 \${SOUNDOR_UI_HEX_END} 2)
+          string(SUBSTRING "\${SOUNDOR_UI_HEX}" \${SOUNDOR_UI_HEX_OFFSET} 2 SOUNDOR_UI_BYTE)
+          string(APPEND SOUNDOR_UI_BYTES "0x\${SOUNDOR_UI_BYTE},")
+        endforeach()
+      endif()
+      get_filename_component(SOUNDOR_UI_EXT "\${SOUNDOR_UI_FILE}" EXT)
+      string(TOLOWER "\${SOUNDOR_UI_EXT}" SOUNDOR_UI_EXT)
+      set(SOUNDOR_UI_MIME "application/octet-stream")
+      if(SOUNDOR_UI_EXT STREQUAL ".html")
+        set(SOUNDOR_UI_MIME "text/html")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".js")
+        set(SOUNDOR_UI_MIME "text/javascript")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".css")
+        set(SOUNDOR_UI_MIME "text/css")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".json")
+        set(SOUNDOR_UI_MIME "application/json")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".svg")
+        set(SOUNDOR_UI_MIME "image/svg+xml")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".png")
+        set(SOUNDOR_UI_MIME "image/png")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".gif")
+        set(SOUNDOR_UI_MIME "image/gif")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".ico")
+        set(SOUNDOR_UI_MIME "image/x-icon")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".avif")
+        set(SOUNDOR_UI_MIME "image/avif")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".jpg" OR SOUNDOR_UI_EXT STREQUAL ".jpeg")
+        set(SOUNDOR_UI_MIME "image/jpeg")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".webp")
+        set(SOUNDOR_UI_MIME "image/webp")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".wasm")
+        set(SOUNDOR_UI_MIME "application/wasm")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".mp3")
+        set(SOUNDOR_UI_MIME "audio/mpeg")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".wav")
+        set(SOUNDOR_UI_MIME "audio/wav")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".ogg")
+        set(SOUNDOR_UI_MIME "audio/ogg")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".flac")
+        set(SOUNDOR_UI_MIME "audio/flac")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".txt")
+        set(SOUNDOR_UI_MIME "text/plain")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".woff")
+        set(SOUNDOR_UI_MIME "font/woff")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".woff2")
+        set(SOUNDOR_UI_MIME "font/woff2")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".ttf")
+        set(SOUNDOR_UI_MIME "font/ttf")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".otf")
+        set(SOUNDOR_UI_MIME "font/otf")
+      elseif(SOUNDOR_UI_EXT STREQUAL ".eot")
+        set(SOUNDOR_UI_MIME "application/vnd.ms-fontobject")
+      endif()
+      file(APPEND "\${SOUNDOR_UI_SOURCE}" "static const unsigned char ui_\${SOUNDOR_UI_INDEX}[] = { \${SOUNDOR_UI_BYTES} };\n")
+      string(APPEND SOUNDOR_UI_ENTRIES "{ \\"\${SOUNDOR_UI_FILE}\\", \\"\${SOUNDOR_UI_MIME}\\", ui_\${SOUNDOR_UI_INDEX}, static_cast<int>(sizeof(ui_\${SOUNDOR_UI_INDEX})) },\n")
+      math(EXPR SOUNDOR_UI_INDEX "\${SOUNDOR_UI_INDEX} + 1")
+    endforeach()
+    file(APPEND "\${SOUNDOR_UI_SOURCE}" "const UiResource resources[] = {\n\${SOUNDOR_UI_ENTRIES}};\n} const UiResource* getEmbeddedUiResource(const juce::String& requestedPath) { auto path = requestedPath; if (path.isEmpty() || path == \\"/\\") path = \\"/index.html\\"; if (path.startsWithChar('/')) path = path.substring(1); for (const auto& resource : resources) if (path == resource.path) return &resource; return nullptr; } }\n")
+    target_sources(\${PROJECT_NAME} PRIVATE "\${SOUNDOR_UI_SOURCE}")
+    target_include_directories(\${PROJECT_NAME} PRIVATE "\${CMAKE_CURRENT_BINARY_DIR}/soundor-ui")
+  endif()
 endif()
 
 target_link_libraries(\${PROJECT_NAME}
@@ -306,6 +385,17 @@ function renderEditorSource(
   const manifest = JSON.stringify(bridgeManifest(parameters, methods));
   return `${HEADER}#include "SoundorEditor.h"
 
+#include <cstddef>
+#include <optional>
+#include <vector>
+
+#if __has_include("SoundorUiData.h")
+ #include "SoundorUiData.h"
+ #define SOUNDOR_HAS_EMBEDDED_UI 1
+#else
+ #define SOUNDOR_HAS_EMBEDDED_UI 0
+#endif
+
 namespace soundor
 {
     namespace
@@ -324,11 +414,31 @@ namespace soundor
     AudioProcessorEditor::AudioProcessorEditor(AudioProcessor& processor)
         : juce::AudioProcessorEditor(processor), processorRef(processor)
     {
-        webView = std::make_unique<juce::WebBrowserComponent>(
-            juce::WebBrowserComponent::Options{}
-                .withNativeIntegrationEnabled()
-                .withEventListener("soundor", [this](const juce::var& message)
-                                   { dispatchFromUi(message); }));
+        auto options = juce::WebBrowserComponent::Options{}
+            .withNativeIntegrationEnabled()
+            .withEventListener("soundor", [this](const juce::var& message)
+                               { dispatchFromUi(message); });
+
+#if JUCE_WEB_BROWSER_RESOURCE_PROVIDER_AVAILABLE
+        options = options.withResourceProvider([](const juce::String& path) -> std::optional<juce::WebBrowserComponent::Resource>
+        {
+#if SOUNDOR_HAS_EMBEDDED_UI
+            if (const auto* resource = getEmbeddedUiResource(path))
+            {
+                std::vector<std::byte> data;
+                data.reserve(static_cast<size_t>(resource->size));
+                for (int i = 0; i < resource->size; ++i)
+                    data.push_back(static_cast<std::byte>(resource->data[i]));
+                return juce::WebBrowserComponent::Resource { std::move(data), resource->mimeType };
+            }
+#else
+            juce::ignoreUnused(path);
+#endif
+            return std::nullopt;
+        });
+#endif
+
+        webView = std::make_unique<juce::WebBrowserComponent>(options);
         addAndMakeVisible(*webView);
 
         // Publish the manifest before the app boots so window.__SOUNDOR__ exists.
