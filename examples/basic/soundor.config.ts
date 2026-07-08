@@ -5,7 +5,7 @@ export default defineSoundorConfig({
   runtimes: [
     juceRuntime({
       plugin: {
-        formats: ['vst3'],
+        formats: ['vst3', 'standalone'],
         pluginName: 'Soundor Basic',
       },
     }),
