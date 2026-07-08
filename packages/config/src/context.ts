@@ -32,12 +32,27 @@ export interface DevContext {
 }
 
 /**
+ * Location of the production UI bundle the CLI built during `build`. The CLI
+ * owns the UI bundler (Vite) — a runtime consumes the emitted assets rather
+ * than invoking a bundler itself, mirroring how {@link DevUiContext} hands over
+ * the dev-server URL.
+ */
+export interface BuildUiContext {
+  readonly kind: 'vite';
+  /** Absolute path to the directory holding the built UI assets. */
+  readonly dir: string;
+}
+
+/** Build-time assets the CLI produced before dispatching a runtime `build`. */
+export interface BuildContext {
+  readonly ui?: BuildUiContext;
+}
+
+/**
  * Context passed to every lifecycle method. Generic over the runtime's opaque
  * options bag so a runtime reads its own `options` with full types.
  */
-export interface LifecycleContext<
-  Options extends Record<string, unknown> = Record<string, unknown>,
-> {
+export interface LifecycleContext<Options extends object = object> {
   /** Phase currently executing (enables generic dispatch and logging). */
   readonly phase: RuntimePhase;
   /** Mode: `'debug'` by default; `'production'` for a release build. */
@@ -52,6 +67,8 @@ export interface LifecycleContext<
   readonly codegen: CodegenSink;
   /** Development-only services started by the CLI before runtime dispatch. */
   readonly dev?: DevContext;
+  /** Production UI assets the CLI built before dispatching `build`. */
+  readonly build?: BuildContext;
   /** Aborts long-running phases (notably `dev`). */
   readonly signal: AbortSignal;
 }

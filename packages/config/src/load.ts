@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
+import { rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { type Plugin, rolldown } from 'rolldown';
 
@@ -66,6 +68,16 @@ export async function loadConfigModule(path: string): Promise<unknown> {
     const bundle = await rolldown({
       input: absolute,
       plugins: [configShimPlugin],
+      // Keep bare specifiers external so imports the config relies on — notably
+      // the runtime package in `runtimes: [juceRuntime(...)]` — are resolved by
+      // Node from the project's node_modules when the bundle is evaluated,
+      // rather than pulled into the bundle (where they'd hit the config shim).
+      // `@soundor/config` itself is handled by the shim plugin above.
+      external: (id) =>
+        id !== CONFIG_MODULE &&
+        !id.startsWith('.') &&
+        !id.startsWith('\0') &&
+        !isAbsolute(id),
       logLevel: 'silent',
     });
     const { output } = await bundle.generate({ format: 'esm' });
@@ -78,15 +90,26 @@ export async function loadConfigModule(path: string): Promise<unknown> {
     );
   }
 
+  // Evaluate from a temp file *next to the config* (not a data: URL) so Node
+  // resolves any imports the bundle left external — e.g. the runtime package in
+  // `runtimes: [juceRuntime(...)]` — from the project's own node_modules.
+  const tempPath = resolve(
+    dirname(absolute),
+    `.soundor.config.${process.pid}.${Date.now()}.mjs`,
+  );
   let module: { default?: unknown };
   try {
-    const url = `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`;
-    module = (await import(url)) as { default?: unknown };
+    await writeFile(tempPath, code, 'utf8');
+    module = (await import(pathToFileURL(tempPath).href)) as {
+      default?: unknown;
+    };
   } catch (cause) {
     throw new ConfigError(
       'load',
       `Failed to evaluate ${absolute}: ${errorMessage(cause)}`,
     );
+  } finally {
+    await rm(tempPath, { force: true });
   }
 
   if (module.default === undefined) {

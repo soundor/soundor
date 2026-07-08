@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - runtimes/*
   - configs/*
   - examples/*
 

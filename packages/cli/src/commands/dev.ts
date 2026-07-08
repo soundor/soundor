@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
-import { outro, spinner } from '@clack/prompts';
+import { outro } from '@clack/prompts';
 import { parseConfig, resolveRuntime, runPhase } from '@soundor/config';
 import {
   createCodegenSink,
@@ -13,6 +13,7 @@ import {
 import { defineCommand } from 'citty';
 import { createServer, type ViteDevServer } from 'vite';
 
+import { soundorBridgePlugin } from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -45,7 +46,8 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     runtimeId: options.runtime,
   });
   const controller = new AbortController();
-  const vite = await startVite(root, logger.child('ui'));
+  const bridgeEntry = resolved.runtime.bridgeModule?.();
+  const vite = await startVite(root, logger.child('ui'), bridgeEntry);
   const uiUrl = firstViteUrl(vite);
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
@@ -94,14 +96,12 @@ export const devCommand = defineCommand({
   },
   async run({ args }) {
     const runtime = String(args['runtime']);
-    const s = spinner();
-    s.start(`Starting dev mode for runtime: ${runtime}`);
+    console.info(`Starting dev mode for runtime: ${runtime}`);
     const result = await runDev({
       runtime,
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
     });
-    s.stop(`Dev mode stopped: ${result.runtime}`);
     outro(`UI dev server: ${result.uiUrl}`);
   },
 });
@@ -109,9 +109,11 @@ export const devCommand = defineCommand({
 async function startVite(
   root: string,
   logger: ReturnType<typeof createConsoleLogger>,
+  bridgeEntry?: string,
 ): Promise<ViteDevServer> {
   const server = await createServer({
     root,
+    plugins: [soundorBridgePlugin({ entry: bridgeEntry })],
     customLogger: {
       hasWarned: false,
       hasErrorLogged: () => false,

@@ -10,7 +10,7 @@
  */
 
 import type { LifecycleContext } from './context';
-import type { RuntimeConfig, SoundorConfig } from './types';
+import type { SoundorConfig } from './types';
 
 /** Result of a single environment/toolchain check performed by `doctor`. */
 export interface DoctorCheck {
@@ -31,11 +31,19 @@ export interface DoctorReport {
  * The full lifecycle every runtime implements. All five methods share one shape
  * — `(config, ctx)` — so orchestration can dispatch by phase alone.
  */
-export interface Runtime<
-  Options extends Record<string, unknown> = Record<string, unknown>,
-> {
+export interface Runtime<Options extends object = object> {
   /** Stable id; must match the `id` used in `config.runtimes[]`. */
   readonly id: string;
+  /**
+   * Optional, runtime-agnostic seam for injecting a browser-side bridge into
+   * the UI. Returns a module specifier (bare package path or absolute file
+   * path) that resolves to the runtime's client bridge — the concrete
+   * transport a React UI talks to instead of the mock. The CLI, which owns the
+   * UI bundler, exposes it to the app as the virtual module
+   * `virtual:soundor/bridge`; a runtime that returns nothing falls back to the
+   * mock bridge so a plain browser preview still renders.
+   */
+  bridgeModule?(): string | undefined;
   /** Scaffold/prepare a project for this runtime. */
   init(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
   /** Produce generated sources via `ctx.codegen`. */
@@ -57,9 +65,7 @@ export interface Runtime<
  * {@link Runtime} implementation the CLI dispatches. This is what a runtime
  * factory (e.g. `juceRuntime({ ... })`) returns.
  */
-export interface RuntimeDescriptor<
-  Options extends Record<string, unknown> = Record<string, unknown>,
-> extends RuntimeConfig {
+export interface RuntimeDescriptor<Options extends object = object> {
   readonly id: string;
   readonly options: Options;
   readonly runtime: Runtime<Options>;
@@ -69,9 +75,7 @@ export interface RuntimeDescriptor<
  * The config-callable factory a runtime package exports (e.g. `juceRuntime`).
  * Calling it yields a {@link RuntimeDescriptor} to drop into `runtimes[]`.
  */
-export interface RuntimeFactory<
-  Options extends Record<string, unknown> = Record<string, unknown>,
-> {
+export interface RuntimeFactory<Options extends object = object> {
   (options?: Options): RuntimeDescriptor<Options>;
   readonly id: string;
   readonly runtime: Runtime<Options>;

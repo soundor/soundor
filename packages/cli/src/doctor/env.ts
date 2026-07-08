@@ -5,55 +5,14 @@
  * (e.g. CMake/JUCE) are diagnosed by each runtime's own `doctor` hook, not here.
  */
 
-import { spawnSync } from 'node:child_process';
-
 import type { DoctorCheck } from '@soundor/config';
+import { probeCommand } from '@soundor/core';
 
 /** Lowest Node major the CLI supports (mirrors `package.json` engines `>=22`). */
 export const REQUIRED_NODE_MAJOR = 22;
 
 /** Package managers we recognize, in the order we probe for one. */
 const KNOWN_PACKAGE_MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const;
-
-/** Outcome of spawning a `<cmd> --version`-style probe. */
-export interface ProbeResult {
-  /** Whether the command ran and exited 0. */
-  ok: boolean;
-  /** Trimmed stdout (typically the version), when available. */
-  version?: string;
-  /** Why the probe failed, when it did. */
-  error?: string;
-}
-
-/**
- * Spawns `cmd` with `args` and reports whether it succeeded. Never throws: a
- * missing binary or non-zero exit is returned as `{ ok: false, error }`.
- */
-export function probeCommand(cmd: string, args: string[] = []): ProbeResult {
-  try {
-    const result = spawnSync(cmd, args, {
-      encoding: 'utf8',
-      // Windows resolves `pnpm`/`npm` shims via the shell.
-      shell: process.platform === 'win32',
-    });
-    if (result.error) {
-      return { ok: false, error: result.error.message };
-    }
-    if (result.status !== 0) {
-      const stderr = (result.stderr ?? '').trim();
-      return {
-        ok: false,
-        error: stderr || `${cmd} exited with code ${result.status ?? 'null'}`,
-      };
-    }
-    return { ok: true, version: (result.stdout ?? '').trim() || undefined };
-  } catch (error) {
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
 
 /** Runs the CLI-owned environment checks. Pure/synchronous, no side effects. */
 export function runEnvironmentChecks(): DoctorCheck[] {

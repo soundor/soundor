@@ -60,3 +60,6 @@ dist-ssr
 
 .mcp.json
 opencode.jsonc
+
+# Soundor
+.soundor

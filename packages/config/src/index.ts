@@ -23,6 +23,8 @@ export type {
   RuntimeFactory,
 } from './runtime';
 export type {
+  BuildContext,
+  BuildUiContext,
   DevContext,
   DevUiContext,
   LifecycleContext,
