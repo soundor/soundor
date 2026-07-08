@@ -63,6 +63,22 @@ describe('buildDoctorReport', () => {
     expect(check(report, 'C++ compiler').status).toBe('fail');
   });
 
+  it('does not accept a C compiler as the C++ compiler', async () => {
+    const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
+      '/proj/JUCE/modules',
+    ]);
+    const report = await buildDoctorReport(
+      fs,
+      resolveJuceOptions({ jucePath: '/proj/JUCE' }),
+      {
+        probe: (cmd) =>
+          cmd === 'cmake' || cmd === 'cc' ? ok(cmd) : missing(cmd),
+        env: {},
+      },
+    );
+    expect(check(report, 'C++ compiler').status).toBe('fail');
+  });
+
   it('reports missing JUCE with an actionable suggestion', async () => {
     const report = await buildDoctorReport(
       memoryFs('/proj'),

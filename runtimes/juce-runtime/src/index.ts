@@ -13,7 +13,9 @@ import { join, relative, sep } from 'node:path';
 import {
   defineRuntime,
   EnvError,
+  probeCommand,
   runCommand,
+  type CommandProbe,
   type CommandRunner,
   type DoctorReport,
   type LifecycleContext,
@@ -21,7 +23,7 @@ import {
 } from '@soundor/runtime-sdk';
 
 import { generateJuceSources } from './codegen';
-import { buildDoctorReport } from './doctor';
+import { buildDoctorReport, findCMake, findCppCompiler } from './doctor';
 import { resolveJuceOptions, type JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 import { juceScaffoldFiles } from './scaffold';
@@ -40,6 +42,7 @@ export const BRIDGE_MODULE = '@soundor/juce-runtime/bridge';
 /** Injectable toolchain dependencies (defaulted; overridden in tests). */
 export interface JucePhaseDeps {
   readonly run?: CommandRunner;
+  readonly probe?: CommandProbe;
 }
 
 type Ctx = LifecycleContext<JuceOptions>;
@@ -92,8 +95,10 @@ export async function juceDev(
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
+  const probe = deps.probe ?? probeCommand;
   const options = resolveJuceOptions(ctx.options);
   const jucePath = await requireJuce(ctx, options);
+  requireToolchain(probe);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const devUrl = ctx.dev?.ui?.url;
   const buildDir = join(ctx.paths.cache, 'build-debug');
@@ -139,8 +144,10 @@ export async function juceBuild(
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
+  const probe = deps.probe ?? probeCommand;
   const options = resolveJuceOptions(ctx.options);
   const jucePath = await requireJuce(ctx, options);
+  requireToolchain(probe);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-release');
   await mkdir(buildDir, { recursive: true });
@@ -218,6 +225,19 @@ async function requireJuce(
     );
   }
   return resolution.path;
+}
+
+function requireToolchain(probe: CommandProbe): void {
+  if (!findCMake(probe)) {
+    throw new EnvError(
+      'CMake not found. Install CMake >= 3.22 and ensure `cmake` is in PATH. Run `soundor doctor` for details.',
+    );
+  }
+  if (!findCppCompiler(probe)) {
+    throw new EnvError(
+      'No C++ compiler found. Install a C++ toolchain (Xcode Command Line Tools, MSVC Build Tools, or GCC/Clang) and ensure `c++`, `clang++`, or `g++` is in PATH. Run `soundor doctor` for details.',
+    );
+  }
 }
 
 /** Copies every JUCE `*_artefacts` folder from the build tree into `distDir`. */

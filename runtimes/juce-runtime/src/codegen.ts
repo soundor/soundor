@@ -103,11 +103,11 @@ juce_add_plugin(\${PROJECT_NAME}
     PLUGIN_CODE ${options.pluginCode}
     FORMATS ${formats}
     PRODUCT_NAME "${options.pluginName}"
+    NEEDS_WEB_BROWSER TRUE
     NEEDS_WEBVIEW2 TRUE)
 
 target_compile_definitions(\${PROJECT_NAME}
     PUBLIC
-        JUCE_WEB_BROWSER=1
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0)
 

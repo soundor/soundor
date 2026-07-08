@@ -21,7 +21,7 @@ import { resolveJuce } from './resolve-juce';
 const MIN_CMAKE = '3.22';
 
 /** C++ compiler front-ends probed, in order. */
-const COMPILERS = ['c++', 'clang++', 'g++', 'cc'] as const;
+const CXX_COMPILERS = ['c++', 'clang++', 'g++'] as const;
 
 export interface DoctorDeps {
   readonly probe?: CommandProbe;
@@ -63,8 +63,23 @@ function checkCMake(probe: CommandProbe): DoctorCheck {
   };
 }
 
+export function findCMake(
+  probe: CommandProbe = probeCommand,
+): string | undefined {
+  return probe('cmake', ['--version']).ok ? 'cmake' : undefined;
+}
+
+export function findCppCompiler(
+  probe: CommandProbe = probeCommand,
+): string | undefined {
+  for (const compiler of CXX_COMPILERS) {
+    if (probe(compiler, ['--version']).ok) return compiler;
+  }
+  return undefined;
+}
+
 function checkCompiler(probe: CommandProbe): DoctorCheck {
-  for (const compiler of COMPILERS) {
+  for (const compiler of CXX_COMPILERS) {
     const result = probe(compiler, ['--version']);
     if (result.ok) {
       return {
@@ -77,7 +92,7 @@ function checkCompiler(probe: CommandProbe): DoctorCheck {
   return {
     label: 'C++ compiler',
     status: 'fail',
-    detail: `No C++ compiler found (looked for ${COMPILERS.join(', ')}).`,
+    detail: `No C++ compiler found (looked for ${CXX_COMPILERS.join(', ')}).`,
     suggestion:
       'Install a C++ toolchain (Xcode Command Line Tools, MSVC Build Tools, or GCC/Clang).',
   };

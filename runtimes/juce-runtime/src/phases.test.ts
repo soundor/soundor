@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import {
   createNodeFileSystem,
+  type CommandProbe,
   type RunCommandOptions,
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
@@ -19,6 +20,8 @@ const config = {
   ],
   nativeMethods: [],
 } as unknown as SoundorConfig;
+
+const okProbe: CommandProbe = () => ({ ok: true, version: '1.2.3' });
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -105,7 +108,7 @@ describe('juceDev', () => {
       return Promise.resolve();
     };
 
-    await juceDev(config, ctx, { run });
+    await juceDev(config, ctx, { run, probe: okProbe });
 
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
@@ -135,7 +138,7 @@ describe('juceBuild', () => {
       }
     };
 
-    await juceBuild(config, ctx, { run });
+    await juceBuild(config, ctx, { run, probe: okProbe });
 
     expect(calls[0]).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     expect(calls[0]).toContain('-DSOUNDOR_UI_DIR=' + join(root, 'ui'));
@@ -154,6 +157,28 @@ describe('juceBuild', () => {
     const run = vi.fn<() => Promise<void>>();
     await expect(juceBuild(config, ctx, { run })).rejects.toMatchObject({
       code: 'ENV',
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('throws an ENV error before invoking CMake when no C++ compiler is available', async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      mode: 'production',
+    });
+    const run = vi.fn<() => Promise<void>>();
+    const probe: CommandProbe = (cmd) => ({
+      ok: cmd === 'cmake',
+      version: cmd === 'cmake' ? 'cmake 3.22' : undefined,
+      error: cmd === 'cmake' ? undefined : 'not found',
+    });
+
+    await expect(juceBuild(config, ctx, { run, probe })).rejects.toMatchObject({
+      code: 'ENV',
+      message: expect.stringContaining('No C++ compiler found'),
     });
     expect(run).not.toHaveBeenCalled();
   });
