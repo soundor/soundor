@@ -69,12 +69,14 @@ dev-server URL (`ctx.dev.ui.url`) and `build` receives the built assets dir
 ## JUCE is required (and never downloaded)
 
 JUCE ships under a license that requires explicit acceptance, so this runtime
-never fetches it. It invents no filesystem conventions of its own — it resolves a
-checkout only from the two mechanisms JUCE/CMake support by default, in order:
+never fetches it. It resolves an existing checkout in order:
 
 1. `juceRuntime({ jucePath })`
 2. the `JUCE_DIR` variable (CMake's `<package>_DIR` convention — set it as an
    environment variable, or pass `-DJUCE_DIR=...` at configure time)
+3. conservative well-known paths: `./JUCE`, `~/JUCE`, `~/SDKs/JUCE`, plus
+   `/opt/JUCE` on Linux, `/Applications/JUCE` and `/opt/JUCE` on macOS, and
+   `C:\JUCE` and `C:\SDKs\JUCE` on Windows
 
 A directory counts as JUCE when it carries the top-level `CMakeLists.txt` and
 `modules/`. `soundor doctor` reports exactly where it looked when JUCE is

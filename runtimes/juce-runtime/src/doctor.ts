@@ -102,7 +102,7 @@ async function checkJuce(
     detail: `JUCE not found. Searched: ${resolution.searched.join(', ')}.`,
     suggestion:
       'JUCE is not downloaded automatically (its license requires acceptance). ' +
-      'Set jucePath in juceRuntime({ jucePath }) or the JUCE_DIR environment variable.',
+      'Set jucePath in juceRuntime({ jucePath }), set JUCE_DIR, or install JUCE in a well-known location.',
   };
 }
 

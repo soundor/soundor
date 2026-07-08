@@ -214,7 +214,7 @@ async function requireJuce(
   const resolution = await resolveJuce(ctx.fs, options);
   if (!resolution.found || resolution.path === undefined) {
     throw new EnvError(
-      'JUCE not found. Set jucePath in juceRuntime({ jucePath }) or the JUCE_DIR environment variable. Run `soundor doctor` for details.',
+      'JUCE not found. Set jucePath in juceRuntime({ jucePath }), set JUCE_DIR, or install JUCE in a well-known location. Run `soundor doctor` for details.',
     );
   }
   return resolution.path;

@@ -51,12 +51,70 @@ describe('resolveJuce', () => {
     expect(resolution).toMatchObject({ found: true, source: 'option' });
   });
 
-  it('invents no filesystem conventions: nothing is probed without input', async () => {
-    // A JUCE checkout at ./JUCE must NOT be auto-discovered.
+  it('finds JUCE in a project-local checkout', async () => {
     const fs = juceAt('/proj/JUCE');
-    const resolution = await resolveJuce(fs, resolveJuceOptions({}), {});
-    expect(resolution.found).toBe(false);
-    expect(resolution.searched).toEqual([]);
+    const resolution = await resolveJuce(
+      fs,
+      resolveJuceOptions({}),
+      {},
+      {
+        platform: 'linux',
+      },
+    );
+    expect(resolution).toMatchObject({
+      found: true,
+      path: '/proj/JUCE',
+      source: 'well-known',
+    });
+  });
+
+  it('finds JUCE in a Linux home SDK checkout', async () => {
+    const fs = juceAt('/home/me/SDKs/JUCE');
+    const resolution = await resolveJuce(
+      fs,
+      resolveJuceOptions({}),
+      {},
+      {
+        platform: 'linux',
+        homeDir: '/home/me',
+      },
+    );
+    expect(resolution).toMatchObject({
+      found: true,
+      path: '/home/me/SDKs/JUCE',
+      source: 'well-known',
+    });
+  });
+
+  it('probes conservative platform-specific paths', async () => {
+    const fs = memoryFs('/proj');
+    const mac = await resolveJuce(
+      fs,
+      resolveJuceOptions({}),
+      {},
+      {
+        platform: 'darwin',
+        homeDir: '/Users/me',
+      },
+    );
+    expect(mac.searched).toEqual([
+      '/proj/JUCE',
+      '/Users/me/JUCE',
+      '/Users/me/SDKs/JUCE',
+      '/Applications/JUCE',
+      '/opt/JUCE',
+    ]);
+
+    const winFs = { ...fs, resolve: (...segments: string[]) => segments[0]! };
+    const win = await resolveJuce(
+      winFs,
+      resolveJuceOptions({}),
+      {},
+      {
+        platform: 'win32',
+      },
+    );
+    expect(win.searched).toEqual(['./JUCE', 'C:\\JUCE', 'C:\\SDKs\\JUCE']);
   });
 
   it('reports not found and lists the paths it actually considered', async () => {
@@ -65,9 +123,10 @@ describe('resolveJuce', () => {
       fs,
       resolveJuceOptions({ jucePath: './JUCE' }),
       {},
+      { platform: 'linux' },
     );
     expect(resolution.found).toBe(false);
-    expect(resolution.searched).toEqual(['/proj/JUCE']);
+    expect(resolution.searched).toEqual(['/proj/JUCE', '/opt/JUCE']);
   });
 
   it('ignores a directory missing the JUCE markers', async () => {
