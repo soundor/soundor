@@ -106,6 +106,9 @@ importers:
 
   examples/basic:
     dependencies:
+      '@soundor/juce-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/juce-runtime
       '@soundor/react':
         specifier: workspace:*
         version: link:../../packages/react
@@ -116,6 +119,12 @@ importers:
         specifier: 'catalog:'
         version: 19.2.7(react@19.2.7)
     devDependencies:
+      '@soundor/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2

@@ -4,16 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -b && vite build",
-    "dev": "vite",
+    "build": "soundor build",
+    "dev": "soundor dev",
+    "doctor": "soundor doctor",
+    "gen": "soundor gen",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@soundor/cli": "workspace:*",
+    "@soundor/config": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
