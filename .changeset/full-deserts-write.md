@@ -1,7 +1,5 @@
 ---
 'create-soundor-app': minor
-'@soundor/typescript-config': minor
-'@soundor/tsdown-config': minor
 '@soundor/juce-runtime': minor
 '@soundor/runtime-sdk': minor
 '@soundor/bridge': minor
