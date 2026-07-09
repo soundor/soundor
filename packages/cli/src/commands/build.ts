@@ -21,7 +21,10 @@ import {
 import { defineCommand } from 'citty';
 import { build as viteBuild } from 'vite';
 
-import { soundorBridgePlugin } from '../vite/bridge-plugin';
+import {
+  SOUNDOR_PARAMS_MODULE,
+  soundorBridgePlugin,
+} from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -215,7 +218,12 @@ async function buildViteBundle(options: BuildViteBundleOptions): Promise<void> {
   await viteBuild({
     root: options.root,
     logLevel: 'warn',
-    plugins: [soundorBridgePlugin({ entry: options.bridgeEntry })],
+    plugins: [
+      soundorBridgePlugin({
+        entry: options.bridgeEntry,
+        paramsModule: SOUNDOR_PARAMS_MODULE,
+      }),
+    ],
     build: {
       outDir: options.outDir,
       emptyOutDir: true,

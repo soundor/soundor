@@ -239,8 +239,16 @@ function byteLength(value: string): number {
 }
 
 /**
- * The ready bridge the CLI's `virtual:soundor/bridge` re-exports. Reads
- * `window.__JUCE__`/`window.__SOUNDOR__` (injected by the native host) at import
- * time, degrading to the mock when neither is present.
+ * The factory the CLI's generated `virtual:soundor/bridge` module calls. Inside
+ * a JUCE `WebBrowserComponent` it builds the real channel-backed bridge, using
+ * the authoritative manifest the native host injects as `window.__SOUNDOR__`. In
+ * a plain browser preview — no `window.__JUCE__` channel — it returns a mock
+ * seeded with the generated parameter defaults, so the UI shows real values
+ * instead of an empty state.
  */
-export const bridge: Bridge = createJuceBridge();
+export function createBridge(seed: {
+  readonly parameters: ParamInfoMap;
+}): Bridge {
+  if (globalThis.window?.__JUCE__) return createJuceBridge();
+  return createMockBridge({ parameters: seed.parameters });
+}

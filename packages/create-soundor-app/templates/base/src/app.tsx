@@ -1,18 +1,5 @@
-import { SoundorProvider, createMockBridge, useParam } from '@soundor/react';
-
-const bridge = createMockBridge({
-  parameters: {
-    gain: {
-      default: 0.5,
-      id: 'gain',
-      label: 'Gain',
-      max: 1,
-      min: 0,
-      type: 'float',
-      unit: 'dB',
-    },
-  },
-});
+import { SoundorProvider, useParam } from '@soundor/react';
+import { bridge } from 'virtual:soundor/bridge';
 
 function App() {
   return (
@@ -23,7 +10,7 @@ function App() {
 }
 
 function Demo() {
-  const [gain, setGain] = useParam<{ gain: number }>('gain');
+  const [gain, setGain] = useParam('gain');
 
   return (
     <>
