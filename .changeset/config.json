@@ -17,6 +17,6 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "prettier": true,
+  "prettier": false,
   "ignore": []
 }
