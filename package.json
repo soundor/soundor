@@ -5,7 +5,7 @@
   "scripts": {
     "build": "turbo run build --filter=!./examples/*",
     "changeset": "changeset",
-    "ci:publish": "pnpm publish -r --access=public --publish-branch=main",
+    "ci:publish": "changeset publish",
     "dev": "turbo run dev --filter=!./examples/*",
     "format": "turbo run //#format:check",
     "format:check": "oxfmt --check",
