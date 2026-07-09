@@ -18,13 +18,13 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@soundor/cli": "workspace:*",
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "soundor": "workspace:*",
     "typescript": "catalog:",
     "vite": "catalog:"
   }
