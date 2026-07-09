@@ -1,4 +1,4 @@
-# @soundor/cli
+# soundor
 
 Command line interface for creating, developing, validating, and building
 Soundor projects.
@@ -6,7 +6,7 @@ Soundor projects.
 ## Install
 
 ```sh
-pnpm add -D @soundor/cli
+pnpm add -D soundor
 ```
 
 ## Usage
