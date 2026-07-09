@@ -114,3 +114,7 @@ UI still renders.
 - **Message correlation.** Each call carries a monotonic id; only a matching
   `result` frame resolves it. Malformed inbound frames are ignored rather than
   crashing the UI.
+
+## License
+
+MIT

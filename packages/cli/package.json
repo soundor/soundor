@@ -1,10 +1,12 @@
 {
   "name": "soundor",
   "version": "0.1.0",
+  "license": "MIT",
   "bin": {
     "soundor": "./dist/index.mjs"
   },
   "files": [
+    "README.md",
     "dist"
   ],
   "type": "module",

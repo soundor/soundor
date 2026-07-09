@@ -1,7 +1,9 @@
 {
   "name": "@soundor/config",
   "version": "0.1.0",
+  "license": "MIT",
   "files": [
+    "README.md",
     "dist"
   ],
   "type": "module",
