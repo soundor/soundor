@@ -6,7 +6,6 @@
 '@soundor/config': patch
 '@soundor/react': patch
 '@soundor/core': patch
-'@soundor/cli': patch
 'soundor': patch
 ---
 
