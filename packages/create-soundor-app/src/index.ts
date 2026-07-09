@@ -1,11 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, rename } from 'node:fs/promises';
+import { cp, readdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
   cancel,
+  confirm,
   intro,
   isCancel,
   outro,
@@ -16,7 +17,7 @@ import {
 import { defineCommand, runMain } from 'citty';
 
 import { type PackageManager, PM_EXEC, detectPackageManager } from './pm';
-import { applyTokens } from './scaffold';
+import { applyTokens, clearDirectory, resolveProjectTarget } from './scaffold';
 
 const RUNTIMES = ['juce'] as const;
 
@@ -46,7 +47,22 @@ const main = defineCommand({
       projectName = answer;
     }
 
-    if (existsSync(projectName)) {
+    const target = resolveProjectTarget(projectName, process.cwd());
+
+    if (target.isCurrentDirectory) {
+      const entries = await readdir(target.targetDir);
+      if (entries.length > 0) {
+        const answer = await confirm({
+          message:
+            'Current directory is not empty. Remove all files and continue?',
+          initialValue: false,
+        });
+        if (isCancel(answer) || !answer) {
+          cancel('Cancelled');
+          process.exit(1);
+        }
+      }
+    } else if (existsSync(target.targetDir)) {
       cancel(`Directory "${projectName}" already exists`);
       process.exit(1);
     }
@@ -86,18 +102,26 @@ const main = defineCommand({
     const templateDir = fileURLToPath(
       new URL('../templates/base', import.meta.url),
     );
-    await cp(templateDir, projectName, { recursive: true });
+    if (target.isCurrentDirectory) {
+      await clearDirectory(target.targetDir);
+    }
+
+    await cp(templateDir, target.targetDir, {
+      errorOnExist: true,
+      force: false,
+      recursive: true,
+    });
     await rename(
-      join(projectName, '_gitignore'),
-      join(projectName, '.gitignore'),
+      join(target.targetDir, '_gitignore'),
+      join(target.targetDir, '.gitignore'),
     );
-    await applyTokens(projectName, projectName, runtime);
+    await applyTokens(target.targetDir, target.packageName, runtime);
     s.stop('Project scaffolded');
 
     // --- Install ---
     s.start('Installing dependencies');
     const installResult = spawnSync(pm, ['install'], {
-      cwd: projectName,
+      cwd: target.targetDir,
       stdio: 'inherit',
       shell: false,
     });
@@ -108,10 +132,10 @@ const main = defineCommand({
     s.stop('Dependencies installed');
 
     // --- soundor init ---
-    s.start(`Running soundor init ${runtime}`);
-    const execArgs = [...PM_EXEC[pm], 'soundor', 'init', runtime];
+    s.start('Running soundor init');
+    const execArgs = [...PM_EXEC[pm], 'soundor', 'init'];
     const initResult = spawnSync(execArgs[0]!, execArgs.slice(1), {
-      cwd: projectName,
+      cwd: target.targetDir,
       stdio: 'inherit',
       shell: false,
     });
@@ -122,7 +146,10 @@ const main = defineCommand({
     s.stop('Runtime initialized');
 
     // --- Done ---
-    outro(`Done! Next steps:\n\n  cd ${projectName}\n  ${pm} dev`);
+    const nextSteps = target.isCurrentDirectory
+      ? `${pm} dev`
+      : `cd ${projectName}\n  ${pm} dev`;
+    outro(`Done! Next steps:\n\n  ${nextSteps}`);
   },
 });
 
