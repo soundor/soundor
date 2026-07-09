@@ -1,5 +1,36 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
+
+export interface ProjectTarget {
+  readonly isCurrentDirectory: boolean;
+  readonly packageName: string;
+  readonly targetDir: string;
+}
+
+export function resolveProjectTarget(name: string, cwd: string): ProjectTarget {
+  if (name === '.') {
+    return {
+      isCurrentDirectory: true,
+      packageName: basename(resolve(cwd)),
+      targetDir: resolve(cwd),
+    };
+  }
+
+  return {
+    isCurrentDirectory: false,
+    packageName: name,
+    targetDir: resolve(cwd, name),
+  };
+}
+
+export async function clearDirectory(dir: string): Promise<void> {
+  const entries = await readdir(dir);
+  await Promise.all(
+    entries.map((entry) =>
+      rm(join(dir, entry), { force: true, recursive: true }),
+    ),
+  );
+}
 
 export function tokenReplace(
   content: string,
