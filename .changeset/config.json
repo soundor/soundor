@@ -9,6 +9,7 @@
       "@soundor/react",
       "@soundor/runtime-sdk",
       "@soundor/config",
+      "soundor",
       "create-soundor-app"
     ]
   ],
