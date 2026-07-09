@@ -1,4 +1,4 @@
-# @soundor/cli
+# soundor
 
 ## 0.1.0
 

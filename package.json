@@ -1,5 +1,5 @@
 {
-  "name": "soundor",
+  "name": "soundor-monorepo",
   "private": true,
   "type": "module",
   "scripts": {

@@ -1,5 +1,5 @@
 {
-  "name": "@soundor/cli",
+  "name": "soundor",
   "version": "0.1.0",
   "bin": {
     "soundor": "./dist/index.mjs"
