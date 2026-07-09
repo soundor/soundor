@@ -30,8 +30,8 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/config": "workspace:^",
-    "@soundor/core": "workspace:^"
+    "@soundor/config": "workspace:>=0.0.0 <1.0.0",
+    "@soundor/core": "workspace:>=0.0.0 <1.0.0"
   },
   "engines": {
     "node": ">=22"

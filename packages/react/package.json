@@ -39,7 +39,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/bridge": "workspace:^",
+    "@soundor/bridge": "workspace:>=0.0.0 <1.0.0",
     "react": "^19.0.0"
   }
 }

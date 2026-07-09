@@ -17,6 +17,14 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "prettier": false,
+  "format": "oxfmt",
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  },
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true,
+    "updateInternalDependents": "always"
+  },
   "ignore": []
 }
