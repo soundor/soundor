@@ -1,6 +1,6 @@
 {
   "name": "create-soundor-app",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "bin": {
     "create-soundor-app": "./dist/index.mjs"
   },
