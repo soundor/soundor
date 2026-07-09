@@ -1,5 +1,11 @@
 # @soundor/config
 
+## 0.2.0
+
+### Patch Changes
+
+- [#37](https://github.com/soundor/soundor/pull/37) [`1ea0c8d`](https://github.com/soundor/soundor/commit/1ea0c8d61333253e4495bebc24be39812ebf9ba5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Added package README files
+
 ## 0.1.0
 
 ### Minor Changes
