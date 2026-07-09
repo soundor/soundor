@@ -26,16 +26,21 @@
     "test": "vitest run",
     "test:watch": "vitest watch"
   },
-  "dependencies": {
-    "@soundor/bridge": "workspace:*",
-    "@soundor/runtime-sdk": "workspace:*"
-  },
   "devDependencies": {
+    "@soundor/bridge": "workspace:*",
+    "@soundor/config": "workspace:*",
+    "@soundor/core": "workspace:*",
+    "@soundor/runtime-sdk": "workspace:*",
     "@soundor/tsdown-config": "workspace:*",
     "@soundor/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@soundor/bridge": "workspace:^",
+    "@soundor/config": "workspace:^",
+    "@soundor/core": "workspace:^"
   }
 }

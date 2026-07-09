@@ -23,16 +23,19 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
-    "@soundor/core": "workspace:*",
     "rolldown": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@soundor/core": "workspace:*",
     "@soundor/tsdown-config": "workspace:*",
     "@soundor/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@soundor/core": "workspace:^"
   }
 }
