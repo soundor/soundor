@@ -2,8 +2,6 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "globalDependencies": [
-    ".env",
-    ".env.*",
     "oxfmt.config.ts",
     "oxlint.config.ts",
     "package.json",
@@ -15,7 +13,6 @@
     "//#lint:check": {},
     "build": {
       "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
       "outputs": ["dist"]
     },
     "dev": {

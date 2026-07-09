@@ -1,7 +1,6 @@
 {
   "name": "@soundor/juce-runtime",
   "version": "0.0.0",
-  "private": true,
   "files": [
     "dist"
   ],
@@ -27,12 +26,12 @@
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@soundor/bridge": "workspace:*",
-    "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*",
-    "@soundor/runtime-sdk": "workspace:*",
-    "@soundor/tsdown-config": "workspace:*",
-    "@soundor/typescript-config": "workspace:*",
+    "@soundor/bridge": "workspace:^",
+    "@soundor/config": "workspace:^",
+    "@soundor/core": "workspace:^",
+    "@soundor/runtime-sdk": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

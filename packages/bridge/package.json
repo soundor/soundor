@@ -1,7 +1,6 @@
 {
   "name": "@soundor/bridge",
   "version": "0.0.0",
-  "private": true,
   "files": [
     "dist"
   ],
@@ -23,8 +22,8 @@
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@soundor/tsdown-config": "workspace:*",
-    "@soundor/typescript-config": "workspace:*",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

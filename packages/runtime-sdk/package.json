@@ -1,7 +1,6 @@
 {
   "name": "@soundor/runtime-sdk",
   "version": "0.0.0",
-  "private": true,
   "files": [
     "dist"
   ],
@@ -22,10 +21,10 @@
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*",
-    "@soundor/tsdown-config": "workspace:*",
-    "@soundor/typescript-config": "workspace:*",
+    "@soundor/config": "workspace:^",
+    "@soundor/core": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

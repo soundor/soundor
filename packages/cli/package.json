@@ -1,7 +1,6 @@
 {
   "name": "@soundor/cli",
   "version": "0.0.0",
-  "private": true,
   "bin": {
     "soundor": "./dist/index.mjs"
   },
@@ -21,10 +20,10 @@
     "vite": "catalog:"
   },
   "devDependencies": {
-    "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*",
-    "@soundor/tsdown-config": "workspace:*",
-    "@soundor/typescript-config": "workspace:*",
+    "@soundor/config": "workspace:^",
+    "@soundor/core": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

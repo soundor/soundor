@@ -5,6 +5,8 @@ packages:
   - examples/*
 
 catalog:
+  '@changesets/changelog-github': ^0.7.0
+  '@changesets/cli': ^2.31.0
   '@clack/prompts': ^1.7.0
   '@testing-library/dom': ^10.4.1
   '@testing-library/jest-dom': ^6.6.4

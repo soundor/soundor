@@ -1,7 +1,6 @@
 {
   "name": "@soundor/config",
   "version": "0.0.0",
-  "private": true,
   "files": [
     "dist"
   ],
@@ -27,9 +26,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@soundor/core": "workspace:*",
-    "@soundor/tsdown-config": "workspace:*",
-    "@soundor/typescript-config": "workspace:*",
+    "@soundor/core": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
