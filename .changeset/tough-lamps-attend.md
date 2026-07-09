@@ -1,0 +1,5 @@
+---
+'soundor': minor
+---
+
+Initial release
