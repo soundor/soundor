@@ -6,6 +6,7 @@ export default defineConfig({
     es2024: true,
     node: true,
   },
+  ignorePatterns: ['**/CHANGELOG.md'],
   plugins: ['typescript', 'react', 'import', 'vitest'],
   settings: {
     react: {

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build --filter=!./examples/*",
+    "changeset": "changeset",
+    "ci:publish": "pnpm publish -r --access=public --publish-branch=main",
     "dev": "turbo run dev --filter=!./examples/*",
     "format": "turbo run //#format:check",
     "format:check": "oxfmt --check",
@@ -12,10 +14,14 @@
     "lint:check": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "prepare": "husky",
+    "release": "pnpm build && pnpm ci:publish",
     "test": "turbo run test --filter=!./examples/*",
-    "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/*"
+    "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/*",
+    "version": "changeset version && pnpm install --lockfile-only"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
     "husky": "catalog:",
     "lint-staged": "catalog:",
     "oxfmt": "catalog:",
