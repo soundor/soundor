@@ -109,6 +109,7 @@ export function generateSoundorFiles(config: CoreSoundorConfig): CodegenFile[] {
       path: 'native-methods.ts',
       contents: renderNativeMethodsTs(config.nativeMethods ?? []),
     },
+    { path: 'soundor.d.ts', contents: renderSoundorDts() },
   ];
 }
 
@@ -164,7 +165,7 @@ function renderParametersTs(parameters: readonly CoreParameter[]): string {
   );
 
   return ensureFinalNewline(
-    `${HEADER}export const parameters = {\n${parameterEntries.join('\n')}\n} as const;\n\nexport type ParameterId = keyof typeof parameters;\n\nexport type ParameterInfoMap = typeof parameters;\n\nexport type ParameterValueMap = {\n${valueMapEntries.join('\n')}\n};\n\nexport type ParameterValue<T extends ParameterId> = ParameterValueMap[T];\n\nexport const useParamInfo = parameters;\n\ndeclare module '@soundor/bridge' {\n  interface SoundorParamInfoMap extends ParameterInfoMap {}\n  interface SoundorParamValueMap extends ParameterValueMap {}\n}\n`,
+    `${HEADER}export const parameters = {\n${parameterEntries.join('\n')}\n} as const;\n\nexport type ParameterId = keyof typeof parameters;\n\nexport type ParameterInfoMap = typeof parameters;\n\nexport type ParameterValueMap = {\n${valueMapEntries.join('\n')}\n};\n\nexport type ParameterValue<T extends ParameterId> = ParameterValueMap[T];\n\nexport const useParamInfo = parameters;\n`,
   );
 }
 
@@ -183,7 +184,33 @@ function renderNativeMethodsTs(methods: readonly CoreNativeMethod[]): string {
   );
 
   return ensureFinalNewline(
-    `${HEADER}${aliases.join('\n')}\n\nexport interface NativeMethodRequests {\n${requestEntries.join('\n')}\n}\n\nexport interface NativeMethodResponses {\n${responseEntries.join('\n')}\n}\n\nexport type NativeMethodName = keyof NativeMethodRequests;\n\nexport type NativeMethodDispatcher = {\n  [K in NativeMethodName]: (\n    request: NativeMethodRequests[K],\n  ) => Promise<NativeMethodResponses[K]>;\n};\n\ndeclare module '@soundor/bridge' {\n  interface SoundorNativeMethodRequests extends NativeMethodRequests {}\n  interface SoundorNativeMethodResponses extends NativeMethodResponses {}\n}\n`,
+    `${HEADER}${aliases.join('\n')}\n\nexport interface NativeMethodRequests {\n${requestEntries.join('\n')}\n}\n\nexport interface NativeMethodResponses {\n${responseEntries.join('\n')}\n}\n\nexport type NativeMethodName = keyof NativeMethodRequests;\n\nexport type NativeMethodDispatcher = {\n  [K in NativeMethodName]: (\n    request: NativeMethodRequests[K],\n  ) => Promise<NativeMethodResponses[K]>;\n};\n`,
+  );
+}
+
+/**
+ * A single ambient declaration file that (a) augments `@soundor/bridge`'s
+ * `Soundor*` maps with the concrete param/native types and (b) declares the
+ * `virtual:soundor/bridge` module the CLI's Vite plugin serves. Apps register
+ * just this file (tsconfig `files`), keeping the generated `.ts` sources out of
+ * their compilation.
+ *
+ * Two deliberate shapes make the augmentation actually take effect:
+ *
+ * 1. No top-level `import`/`export` statements, so the file stays a global
+ *    script. A `.d.ts` with a top-level import is a module, which would turn
+ *    `declare module 'virtual:soundor/bridge'` into an augmentation of a
+ *    non-existent module (silently ignored) instead of the ambient declaration
+ *    we need.
+ * 2. The concrete generated types are pulled into top-level `type` aliases via
+ *    `import(...)` — a relative `import(...)` used directly inside a
+ *    `declare module '@soundor/bridge'` block resolves ambiguously and yields
+ *    empty types, so the augmentation's `extends` clauses reference the aliases
+ *    instead. `import(...)` in a type alias does not make the file a module.
+ */
+function renderSoundorDts(): string {
+  return ensureFinalNewline(
+    `${HEADER}type SoundorGeneratedParameterInfoMap = import('./parameters').ParameterInfoMap;\ntype SoundorGeneratedParameterValueMap = import('./parameters').ParameterValueMap;\ntype SoundorGeneratedNativeMethodRequests =\n  import('./native-methods').NativeMethodRequests;\ntype SoundorGeneratedNativeMethodResponses =\n  import('./native-methods').NativeMethodResponses;\n\ndeclare module '@soundor/bridge' {\n  interface SoundorParamInfoMap extends SoundorGeneratedParameterInfoMap {}\n  interface SoundorParamValueMap extends SoundorGeneratedParameterValueMap {}\n  interface SoundorNativeMethodRequests\n    extends SoundorGeneratedNativeMethodRequests {}\n  interface SoundorNativeMethodResponses\n    extends SoundorGeneratedNativeMethodResponses {}\n}\n\ndeclare module 'virtual:soundor/bridge' {\n  export const bridge: import('@soundor/bridge').Bridge;\n  export default bridge;\n}\n`,
   );
 }
 

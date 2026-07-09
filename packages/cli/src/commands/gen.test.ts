@@ -60,6 +60,7 @@ describe('runGen', () => {
             { path: 'native-methods.ts', status: 'created' },
             { path: 'parameters.json', status: 'created' },
             { path: 'parameters.ts', status: 'created' },
+            { path: 'soundor.d.ts', status: 'created' },
           ],
         },
         {

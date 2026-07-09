@@ -13,7 +13,10 @@ import {
 import { defineCommand } from 'citty';
 import { createServer, type ViteDevServer } from 'vite';
 
-import { soundorBridgePlugin } from '../vite/bridge-plugin';
+import {
+  SOUNDOR_PARAMS_MODULE,
+  soundorBridgePlugin,
+} from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -113,7 +116,12 @@ async function startVite(
 ): Promise<ViteDevServer> {
   const server = await createServer({
     root,
-    plugins: [soundorBridgePlugin({ entry: bridgeEntry })],
+    plugins: [
+      soundorBridgePlugin({
+        entry: bridgeEntry,
+        paramsModule: SOUNDOR_PARAMS_MODULE,
+      }),
+    ],
     customLogger: {
       hasWarned: false,
       hasErrorLogged: () => false,
