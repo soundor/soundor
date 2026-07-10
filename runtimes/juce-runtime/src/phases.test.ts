@@ -75,6 +75,16 @@ describe('juceInit', () => {
     );
     expect(proc).toContain('public soundor::AudioProcessor');
 
+    // The scaffold ships a working gain out of the box: applied (ramped) from
+    // the generated gainParameter pointer, and buses constrained so it works in
+    // a DAW that negotiates layouts (e.g. Reaper), not just standalone.
+    const procSource = await ctx.fs.read(
+      ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp'),
+    );
+    expect(procSource).toContain('gainParameter->load()');
+    expect(procSource).toContain('applyGainRamp');
+    expect(procSource).toContain('isBusesLayoutSupported');
+
     // Re-init must not overwrite user edits.
     await ctx.fs.write(cmake, 'EDITED');
     await juceInit(config, ctx);

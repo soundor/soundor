@@ -108,6 +108,11 @@ describe('generateJuceSources', () => {
     expect(editor).toContain('window.__SOUNDOR__');
     expect(editor).toContain('"nativeMethods":["render"]');
     expect(editor).toContain('is not allowlisted');
+    // The manifest must be injected via a user script so it survives the
+    // goToURL() navigation; a one-shot evaluateJavascript() would target the
+    // pre-navigation blank document and leave the JS bridge without a manifest.
+    expect(editor).toContain('.withUserScript(');
+    expect(editor).not.toMatch(/evaluateJavascript\([^)]*__SOUNDOR__/);
   });
 
   it('serves embedded production UI resources through the WebView provider', () => {
