@@ -416,6 +416,11 @@ namespace soundor
     {
         auto options = juce::WebBrowserComponent::Options{}
             .withNativeIntegrationEnabled()
+            // Publish the manifest as window.__SOUNDOR__ via a user script so it
+            // runs before the app's scripts on *every* navigation. A one-shot
+            // evaluateJavascript() would target the pre-navigation blank document
+            // and be wiped by goToURL(), leaving the bridge without a manifest.
+            .withUserScript(juce::String("window.__SOUNDOR__ = ") + kBridgeManifestJson + ";")
             .withEventListener("soundor", [this](const juce::var& message)
                                { dispatchFromUi(message); });
 
@@ -440,9 +445,6 @@ namespace soundor
 
         webView = std::make_unique<juce::WebBrowserComponent>(options);
         addAndMakeVisible(*webView);
-
-        // Publish the manifest before the app boots so window.__SOUNDOR__ exists.
-        webView->evaluateJavascript(juce::String("window.__SOUNDOR__ = ") + kBridgeManifestJson + ";");
 
 #if defined(SOUNDOR_DEV_URL)
         webView->goToURL(SOUNDOR_DEV_URL);
