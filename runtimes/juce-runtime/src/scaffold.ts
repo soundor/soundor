@@ -78,6 +78,7 @@ public:
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
+    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -99,6 +100,10 @@ public:
     float getCurrentLevel() const { return currentLevel.load(); }
 
 private:
+    // Last block's applied gain, so processBlock can ramp to the new target
+    // value instead of stepping (which would click on fast automation).
+    float previousGain { 0.5f };
+
     std::atomic<float> currentLevel { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(${cls}Processor)
@@ -122,16 +127,41 @@ ${cls}Processor::${cls}Processor()
 void ${cls}Processor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused(sampleRate, samplesPerBlock);
+
+    // Start the ramp from the current parameter value so the first block after
+    // (re)prepare doesn't glide up from silence.
+    previousGain = gainParameter->load();
+}
+
+bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
+{
+    // Standalone always runs stereo, but a DAW (e.g. Reaper) negotiates the bus
+    // layout and, without this guard, JUCE would accept any arrangement — then
+    // processBlock could be handed a layout we don't handle (mono, discrete,
+    // in != out). Restrict to mono or stereo with the input matching the output.
+    const auto& mainOutput = layouts.getMainOutputChannelSet();
+    const auto& mainInput = layouts.getMainInputChannelSet();
+
+    if (mainOutput != juce::AudioChannelSet::mono()
+        && mainOutput != juce::AudioChannelSet::stereo())
+        return false;
+
+    return mainInput == mainOutput;
 }
 
 void ${cls}Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
 
-    // TODO: your DSP here. Read parameters via the generated pointers on the
-    // soundor::AudioProcessor base (e.g. gainParameter->load()).
+    // Apply the "gain" parameter as a linear output gain. gainParameter is
+    // provided by the soundor::AudioProcessor base (generated from the config's
+    // \`gain\` parameter). Ramp from the previous block's value to the current
+    // one so automation moves don't produce zipper noise.
+    const float targetGain = gainParameter->load();
+    buffer.applyGainRamp(0, buffer.getNumSamples(), previousGain, targetGain);
+    previousGain = targetGain;
 
-    // App-specific telemetry: output RMS, stashed for the editor to stream.
+    // App-specific telemetry: output RMS (post-gain), stashed for the editor to stream.
     float sumSquares = 0.0f;
     int count = 0;
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
