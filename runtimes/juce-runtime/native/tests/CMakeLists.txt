@@ -26,7 +26,9 @@ add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
 
 # Symbol isolation: a plugin-shaped shared library that links the runtime must
 # export only its own entry point — never QuickJS or Soundor internals.
-if(NOT WIN32)
+# Sanitizer builds export their own instrumentation markers, so the check runs
+# on regular builds only.
+if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   add_library(soundor_symbol_probe MODULE symbols/Probe.cpp)
   target_link_libraries(soundor_symbol_probe PRIVATE soundor::runtime)
   soundor_configure_target(soundor_symbol_probe)
