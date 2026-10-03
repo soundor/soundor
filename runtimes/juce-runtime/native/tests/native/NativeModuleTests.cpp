@@ -176,7 +176,7 @@ namespace
         ~FixtureApi() override
         {
             if (destructionLog != nullptr)
-                destructionLog->push_back("api");
+                destructionLog->emplace_back("api");
         }
 
         int livePresets = 0;
