@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      # Native checks (clang-format, clang-tidy, native tests) use the same
+      # Clang 18 toolchain as local development.
+      CC: clang
+      CXX: clang++
     steps:
       - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -42,3 +47,45 @@ jobs:
 
       - name: Run test
         run: pnpm run test
+
+  native:
+    name: Native (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-24.04
+            preset: dev
+            cc: gcc
+            cxx: g++
+          - name: linux-sanitizers
+            os: ubuntu-24.04
+            preset: sanitize
+            cc: clang
+            cxx: clang++
+          - name: macos
+            os: macos-15
+            preset: dev
+            cc: clang
+            cxx: clang++
+          - name: windows
+            os: windows-2025
+            preset: dev
+            cc: cl
+            cxx: cl
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    defaults:
+      run:
+        working-directory: runtimes/juce-runtime/native
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Build and test the native runtime
+        run: cmake --workflow --preset ${{ matrix.preset }}
