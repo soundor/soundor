@@ -23,7 +23,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 
         const EmbeddedModule embeddedModules[] = {
             { "soundor:internal/web", &embedded::webModule },
+            { "soundor:internal/web/abort", &embedded::abortModule },
+            { "soundor:internal/web/clone", &embedded::cloneModule },
             { "soundor:internal/web/console", &embedded::consoleModule },
+            { "soundor:internal/web/crypto", &embedded::cryptoModule },
+            { "soundor:internal/web/encoding", &embedded::encodingModule },
+            { "soundor:internal/web/events", &embedded::eventsModule },
             { "soundor:internal/web/inspect", &embedded::inspectModule },
             { "soundor:internal/web/timers", &embedded::timersModule },
         };

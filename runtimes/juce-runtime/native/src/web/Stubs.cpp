@@ -3,8 +3,6 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 {
-    std::vector<NativeFunction> encodingFunctions() { return {}; }
-    std::vector<NativeFunction> randomFunctions() { return {}; }
     std::vector<NativeFunction> urlFunctions() { return {}; }
     std::vector<NativeFunction> httpFunctions() { return {}; }
     std::vector<NativeFunction> fileFunctions() { return {}; }

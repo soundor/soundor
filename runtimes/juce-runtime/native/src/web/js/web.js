@@ -3,7 +3,12 @@
 // nothing that pretends otherwise (no window, document, process or require).
 
 import { now, timeOrigin } from 'soundor:internal/platform';
+import { AbortController, AbortSignal } from 'soundor:internal/web/abort';
+import { structuredClone } from 'soundor:internal/web/clone';
 import { console, reportError } from 'soundor:internal/web/console';
+import { crypto } from 'soundor:internal/web/crypto';
+import { TextDecoder, TextEncoder } from 'soundor:internal/web/encoding';
+import { CustomEvent, Event, EventTarget } from 'soundor:internal/web/events';
 import {
   clearInterval,
   clearTimeout,
@@ -36,3 +41,12 @@ define('clearTimeout', clearTimeout);
 define('setInterval', setInterval);
 define('clearInterval', clearInterval);
 define('queueMicrotask', queueMicrotask);
+define('Event', Event);
+define('CustomEvent', CustomEvent);
+define('EventTarget', EventTarget);
+define('AbortController', AbortController);
+define('AbortSignal', AbortSignal);
+define('TextEncoder', TextEncoder);
+define('TextDecoder', TextDecoder);
+define('structuredClone', structuredClone);
+define('crypto', crypto);
