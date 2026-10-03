@@ -1,0 +1,94 @@
+#pragma once
+
+// Private to soundor_runtime: the only header where QuickJS types meet Soundor
+// types. Never include it from a public header.
+
+#include "NativeModule.h"
+
+#include <soundor/js/Context.h>
+#include <soundor/js/Runtime.h>
+
+#include <quickjs.h>
+
+#include <cassert>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <thread>
+#include <vector>
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
+{
+    struct RuntimeState
+    {
+        explicit RuntimeState(const RuntimeOptions& options);
+        ~RuntimeState();
+
+        RuntimeState(const RuntimeState&) = delete;
+        RuntimeState& operator=(const RuntimeState&) = delete;
+
+        void assertOwnerThread() const noexcept
+        {
+            assert(std::this_thread::get_id() == owner && "Soundor JS runtime used off its owning thread");
+        }
+
+        // Re-anchors the engine's stack-overflow check at the current depth.
+        // Called at every entry point, since UI callbacks arrive from different
+        // stack depths than the one the runtime was created at.
+        void enter() noexcept;
+
+        // Runs queued jobs until none remain; returns how many ran.
+        std::size_t drainJobs();
+        // Logs and forgets rejections that are still unhandled.
+        void reportUnhandledRejections();
+        // Forgets the tracked rejection of `promise` without reporting it.
+        void forgetRejection(JSValueConst promise);
+        // Forgets every tracked rejection that belongs to `ctx`.
+        void forgetRejections(JSContext* ctx);
+
+        void log(LogLevel level, std::string_view message) const;
+
+        struct Rejection
+        {
+            JSContext* ctx;
+            JSValue promise;
+            JSValue reason;
+        };
+
+        JSRuntime* rt = nullptr;
+        LogSink logSink;
+        std::thread::id owner;
+        std::vector<Rejection> rejections;
+    };
+
+    struct ContextState
+    {
+        std::shared_ptr<RuntimeState> runtime;
+        JSContext* ctx = nullptr;
+        std::shared_ptr<ModuleLoader> moduleLoader;
+        NativeModuleRegistry nativeModules;
+    };
+
+    // ── Value conversion (ValueConversion.cpp) ──────────────────────────────
+
+    // Snapshot of `value`; never throws into JavaScript.
+    Value toValue(JSContext* ctx, JSValueConst value);
+    // String(value), with conversion failures swallowed.
+    std::string toStdString(JSContext* ctx, JSValueConst value);
+    // Converts a thrown value into an Error.
+    Error toError(JSContext* ctx, JSValueConst thrown);
+    // Takes and converts the context's pending exception.
+    Error takeException(JSContext* ctx);
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
+{
+    detail::RuntimeState& stateOf(Runtime& runtime);
+    detail::ContextState& stateOf(Context& context);
+
+    // The raw engine context, for Soundor-internal bindings.
+    inline JSContext* rawContext(Context& context)
+    {
+        return stateOf(context).ctx;
+    }
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
