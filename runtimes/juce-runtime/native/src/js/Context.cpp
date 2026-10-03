@@ -74,6 +74,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         // any module hook they reach fail cleanly instead of touching freed state.
         JS_SetContextOpaque(state->ctx, nullptr);
         JS_FreeContext(state->ctx);
+        // Objects of this context (e.g. native handles) are finalized by later
+        // garbage collection, possibly after this point; keep what they may
+        // refer to alive until the runtime is gone.
+        for (auto& [key, data] : state->moduleData)
+            runtime.retiredModuleData.push_back(std::move(data));
     }
 
     Result<Value> Context::evaluateScript(std::string_view source, std::string_view filename)

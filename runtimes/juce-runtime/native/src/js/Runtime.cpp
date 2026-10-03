@@ -215,6 +215,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
             }
             rejections.clear();
             JS_FreeRuntime(rt);
+            // Only now can no finalizer reach module data any more.
+            retiredModuleData.clear();
         }
 
         // Not const: it moves the engine's stack anchor.

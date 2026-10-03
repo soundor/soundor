@@ -36,8 +36,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
     public:
         using Resolver = void (*)(detail::PendingPromise&, T&&);
 
-        Promise(std::shared_ptr<detail::PendingPromise> state, Resolver resolver)
-            : state(std::move(state)), resolver(resolver)
+        Promise(std::shared_ptr<detail::PendingPromise> pending, Resolver resolve)
+            : state(std::move(pending)), resolver(resolve)
         {
         }
 
@@ -66,8 +66,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
     public:
         using Resolver = void (*)(detail::PendingPromise&);
 
-        Promise(std::shared_ptr<detail::PendingPromise> state, Resolver resolver)
-            : state(std::move(state)), resolver(resolver)
+        Promise(std::shared_ptr<detail::PendingPromise> pending, Resolver resolve)
+            : state(std::move(pending)), resolver(resolve)
         {
         }
 

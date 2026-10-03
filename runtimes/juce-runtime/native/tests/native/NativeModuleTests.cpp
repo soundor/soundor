@@ -21,17 +21,25 @@ namespace
 {
     struct TestPreset final : native::Preset
     {
-        explicit TestPreset(std::string presetName, int& liveCount) : name(std::move(presetName)), live(liveCount)
+        TestPreset(std::string presetName, int& liveCount, std::vector<std::string>* log)
+            : name(std::move(presetName)), live(liveCount), destructionLog(log)
         {
             ++live;
         }
-        ~TestPreset() override { --live; }
+        // Touches the API's counter: only valid while the API is alive.
+        ~TestPreset() override
+        {
+            --live;
+            if (destructionLog != nullptr)
+                destructionLog->push_back("preset " + name);
+        }
 
         TestPreset(const TestPreset&) = delete;
         TestPreset& operator=(const TestPreset&) = delete;
 
         std::string name;
         int& live;
+        std::vector<std::string>* destructionLog;
     };
 
     class FixtureApi final : public native::NativeApi
@@ -71,7 +79,7 @@ namespace
 
         std::shared_ptr<native::Preset> createPreset(std::string name) override
         {
-            return std::make_shared<TestPreset>(std::move(name), livePresets);
+            return std::make_shared<TestPreset>(std::move(name), livePresets, destructionLog);
         }
 
         void fail(std::string message) override { throw std::runtime_error(message); }
@@ -162,8 +170,18 @@ namespace
             return std::accumulate(values.begin(), values.end(), 0.0);
         }
 
+        FixtureApi() = default;
+        FixtureApi(const FixtureApi&) = delete;
+        FixtureApi& operator=(const FixtureApi&) = delete;
+        ~FixtureApi() override
+        {
+            if (destructionLog != nullptr)
+                destructionLog->push_back("api");
+        }
+
         int livePresets = 0;
         int resets = 0;
+        std::vector<std::string>* destructionLog = nullptr;
         std::string saved;
         std::vector<std::pair<std::string, js::Promise<std::shared_ptr<native::Preset>>>> pendingLoads;
     };
@@ -348,6 +366,29 @@ TEST_SUITE("soundor:native")
             CHECK(api->livePresets == 2);
         }
         CHECK(api->livePresets == 0);
+    }
+
+    TEST_CASE("the API outlives every handle that may refer to it")
+    {
+        // Handles are finalized by the garbage collector, which can run after
+        // their context is destroyed: the API must still be alive then.
+        std::vector<std::string> destroyed;
+        {
+            js::Runtime runtime;
+            {
+                auto api = std::make_shared<FixtureApi>();
+                api->destructionLog = &destroyed;
+                js::Context context(runtime);
+                native::install(context, api);
+                REQUIRE(context
+                            .evaluateModule("import { createPreset } from 'soundor:native';"
+                                            "globalThis.held = createPreset('x');",
+                                            "/held.js")
+                            .ok());
+            }
+            CHECK(destroyed.empty()); // context gone, handle not yet finalized
+        }
+        CHECK(destroyed == std::vector<std::string> { "preset x", "api" });
     }
 
     TEST_CASE("async methods return promises settled later")

@@ -66,6 +66,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         };
 
         JSRuntime* rt = nullptr;
+        // Module data of destroyed contexts. Handle finalizers may still need it
+        // (a native object can refer to the API that created it), so it is only
+        // released once JS_FreeRuntime has finalized every object.
+        std::vector<std::shared_ptr<void>> retiredModuleData;
         // Class of opaque native handles (see Bindings.h).
         JSClassID handleClassId = 0;
         LogSink logSink;
