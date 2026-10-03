@@ -1,9 +1,0 @@
-{
-  "extends": "@soundor/typescript-config/react-library",
-  "compilerOptions": {
-    "noEmit": true,
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
-  },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
-}

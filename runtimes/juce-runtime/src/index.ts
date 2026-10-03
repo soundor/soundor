@@ -10,9 +10,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, type Dirent } from 'node:fs';
 import { cp, mkdir, readdir, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   defineRuntime,
+  nativeAbiNamespace,
   EnvError,
   probeCommand,
   runCommand,
@@ -38,6 +40,13 @@ export { buildDoctorReport } from './doctor';
 
 /** The runtime id; must match `config.runtimes[].id`. */
 export const RUNTIME_ID = 'juce';
+
+/**
+ * The native runtime sources shipped with this package (`native/`), which the
+ * generated setup.cmake builds into the plugin. Resolves from both `dist/` and
+ * `src/`.
+ */
+export const NATIVE_DIR = fileURLToPath(new URL('../native', import.meta.url));
 
 /** Injectable toolchain dependencies (defaulted; overridden in tests). */
 export interface JucePhaseDeps {
@@ -88,7 +97,12 @@ export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const resolution = await resolveJuce(ctx.fs, options);
   ctx.codegen.emitAll(
-    generateJuceSources(config, { options, jucePath: resolution.path }),
+    generateJuceSources(config, {
+      options,
+      jucePath: resolution.path,
+      nativeDir: NATIVE_DIR,
+      abiNamespace: nativeAbiNamespace(config.plugin.id),
+    }),
   );
 }
 

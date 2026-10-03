@@ -8,8 +8,9 @@ Project scaffolder for Soundor applications.
 pnpm create soundor-app my-plugin
 ```
 
-The generated project includes a Soundor config, React UI entry point, and
-runtime dependencies.
+The generated project includes a Soundor config (plugin identity, parameters,
+the JUCE runtime) and its dependencies. The plugin UI entry point arrives with
+Soundor's JavaScript UI bundling.
 
 ## License
 

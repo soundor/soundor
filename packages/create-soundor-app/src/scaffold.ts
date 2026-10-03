@@ -68,11 +68,7 @@ export async function applyTokens(
   pkg['name'] = name;
   await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
-  for (const rel of [
-    'soundor.config.ts',
-    'index.html',
-    join('src', 'App.tsx'),
-  ]) {
+  for (const rel of ['soundor.config.ts']) {
     const p = join(dir, rel);
     await writeFile(p, tokenReplace(await readFile(p, 'utf-8'), name, runtime));
   }

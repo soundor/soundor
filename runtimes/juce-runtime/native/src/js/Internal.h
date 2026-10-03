@@ -88,6 +88,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         std::vector<std::pair<const void*, std::shared_ptr<void>>> moduleData;
         // Async native calls not yet settled; orphaned when the context dies.
         std::vector<PendingPromise*> pendingPromises;
+        // JavaScript values native modules hold on to (e.g. a dispatcher
+        // function), keyed like moduleData. Freed before the context.
+        std::vector<std::pair<const void*, JSValue>> retainedValues;
     };
 
     // The state of the live context `ctx` belongs to, or nullptr after the

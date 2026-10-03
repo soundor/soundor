@@ -1,12 +1,15 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "soundor/soundor" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "soundor/soundor"
+    }
+  ],
   "commit": false,
   "fixed": [
     [
       "@soundor/core",
-      "@soundor/bridge",
-      "@soundor/react",
       "@soundor/runtime-sdk",
       "@soundor/config",
       "soundor",

@@ -415,6 +415,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         return nullptr;
     }
 
+    void retainValue(JSContext* ctx, const void* key, JSValue value)
+    {
+        auto* state = detail::contextStateOf(ctx);
+        if (state == nullptr)
+        {
+            JS_FreeValue(ctx, value);
+            return;
+        }
+        for (auto& [entryKey, entryValue] : state->retainedValues)
+        {
+            if (entryKey == key)
+            {
+                JS_FreeValue(ctx, std::exchange(entryValue, value));
+                return;
+            }
+        }
+        state->retainedValues.emplace_back(key, value);
+    }
+
+    JSValueConst retainedValue(JSContext* ctx, const void* key)
+    {
+        if (const auto* state = detail::contextStateOf(ctx))
+            for (const auto& [entryKey, value] : state->retainedValues)
+                if (entryKey == key)
+                    return value;
+        return JS_UNDEFINED;
+    }
+
     JSValue newPromise(JSContext* ctx, const char* method, std::shared_ptr<detail::PendingPromise>& pending)
     {
         auto* state = detail::contextStateOf(ctx);

@@ -33,6 +33,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                         JS_ThrowInternalError(ctx, "module import after the Soundor context was destroyed");
                         return nullptr;
                     }
+                    if (isInternalModuleSpecifier(specifier) && ! isNativeModuleSpecifier(referrer))
+                    {
+                        JS_ThrowTypeError(ctx, "Cannot import '%s': it is internal to the Soundor runtime", specifier);
+                        return nullptr;
+                    }
                     if (isNativeModuleSpecifier(specifier))
                         return engineString(ctx, specifier);
                     if (! state->moduleLoader)
@@ -97,6 +102,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 {
                     JS_ThrowTypeError(ctx, "Unknown Soundor module '%s'", name);
                     return nullptr;
+                }
+                if (! definition->source.empty())
+                {
+                    JSValue compiled = JS_Eval(ctx, definition->source.data(), definition->source.size(), name,
+                                               JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
+                    if (JS_IsException(compiled))
+                        return nullptr;
+                    auto* module = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(compiled));
+                    JS_FreeValue(ctx, compiled);
+                    return module;
                 }
                 JSModuleDef* module = JS_NewCModule(ctx, name, initialiseNativeModule);
                 if (module == nullptr)

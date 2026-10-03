@@ -25,7 +25,6 @@ function isRuntime(value: unknown): value is Runtime {
 const baseParameter = {
   id: z.string(),
   label: z.string(),
-  onChange: z.string().optional(),
 };
 
 const floatParameterSchema = z.object({
@@ -237,9 +236,6 @@ function normalizeParameter(parameter: Parameter): Parameter {
         max: parameter.max,
         default: parameter.default,
         ...(parameter.unit !== undefined ? { unit: parameter.unit } : {}),
-        ...(parameter.onChange !== undefined
-          ? { onChange: parameter.onChange }
-          : {}),
       };
     case 'bool':
       return {
@@ -247,9 +243,6 @@ function normalizeParameter(parameter: Parameter): Parameter {
         id: parameter.id,
         label: parameter.label,
         default: parameter.default,
-        ...(parameter.onChange !== undefined
-          ? { onChange: parameter.onChange }
-          : {}),
       };
     case 'enum':
       return {
@@ -258,9 +251,6 @@ function normalizeParameter(parameter: Parameter): Parameter {
         label: parameter.label,
         values: [...parameter.values],
         default: parameter.default,
-        ...(parameter.onChange !== undefined
-          ? { onChange: parameter.onChange }
-          : {}),
       };
   }
 }

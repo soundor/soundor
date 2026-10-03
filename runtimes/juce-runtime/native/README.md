@@ -8,9 +8,9 @@ This library is **backend-independent**: it does not include JUCE, so it builds
 and tests without a plugin host. JUCE adapters will live in separate targets on
 top of it.
 
-> Status: the engine, contexts, error conversion, job pumping, module loading
-> and generated `soundor:native` bindings are in place and tested. The plugin
-> does not host the runtime yet.
+> Status: the engine, module loading, generated `soundor:native` bindings and
+> `soundor:parameters` are in place and tested, and JUCE plugins host a runtime
+> per plugin view. Loading the plugin's own JavaScript bundle comes next.
 
 ## Layout
 
@@ -19,18 +19,21 @@ native/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
     js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
+    parameters/           the parameter Host interface backends implement
+    runtime/              RuntimeHost: one plugin view's JavaScript world
   src/
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
+    modules/              soundor:* modules (C++, plus embedded JavaScript)
+    runtime/              RuntimeHost
+  backend/juce/           JUCE adapters, compiled into the plugin (they need JUCE)
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
-  cmake/                  pinned dependencies, compiler policy
+  cmake/                  pinned dependencies, compiler policy, JS embedding
 ```
 
 Later stages add sibling directories rather than growing `js/`: `web/` (Web API
-implementations), `modules/` (`soundor:*` modules), `ui/` (UI tree, layout,
-rendering), `backend/` (JUCE adapters) and `generated/` (code generated from the
-Soundor config). A third-party header (QuickJS, later Yoga and Skia) is only
+implementations) and `ui/` (UI tree, layout, rendering). A third-party header (QuickJS, later Yoga and Skia) is only
 included by the directory that wraps it.
 
 ## Embedding API
@@ -121,6 +124,45 @@ The generator's output for a fixture covering every type is checked in under
 it ever drifts from the generator (`UPDATE_GOLDEN=1 pnpm --filter
 @soundor/juce-runtime test` regenerates it).
 
+### `soundor:parameters`
+
+The config's parameters as typed objects, shared with the DSP and the host:
+
+```ts
+import { parameters } from 'soundor:parameters';
+
+parameters.gain.get(); // number, in the declared range
+parameters.mode.set('stereo'); // enums are their string values
+const stop = parameters.gain.subscribe((gain) => draw(gain));
+parameters.gain.beginGesture(); // ...set()s while dragging... endGesture()
+parameters.gain.info; // { id, label, type, min, max, default, unit }
+```
+
+- **One parameter store.** A backend implements `parameters::Host` over its own
+  parameter system: `JuceParameterHost` wraps the `AudioProcessorValueTreeState`.
+  Values pass in plain units; `set()` validates the JavaScript type, then clamps
+  (and rounds, for discrete kinds).
+- **Realtime-safe change propagation.** Backend listeners, which may run on the
+  audio thread, only set a lock-free `ChangeFlags` bit. On the UI thread,
+  `RuntimeHost::tick()` drains the flags and calls each changed parameter's
+  subscribers once, with the latest value; bursts coalesce. JavaScript never
+  polls, and nothing runs JavaScript off the UI thread.
+- **Lifetimes.** Subscriber lists live in JavaScript and die with the context,
+  so reloads cannot accumulate listeners. Nested gestures reach the host as one
+  gesture, an unmatched `endGesture()` is ignored, and a gesture still open when
+  the runtime is destroyed (a reload mid-drag) is ended.
+- The module's JavaScript layer (`src/modules/parameters/parameters.js`) is
+  embedded at build time. It uses `soundor:internal/parameters`, which only
+  runtime modules may import.
+
+### `RuntimeHost`
+
+`RuntimeHost` is what a backend creates per plugin view: a runtime and context
+with `soundor:parameters` and the generated `soundor:native` installed. The
+backend calls `tick()` from its UI thread every frame. The generated JUCE editor
+owns one and ticks it from a 60 Hz `juce::Timer`. Its processor supplies the
+`soundor:native` implementation by overriding `createNativeApi()`.
+
 ### Threading and lifetime
 
 A `Runtime` and its `Context`s belong to the thread that created the runtime: the
@@ -184,7 +226,11 @@ Or directly, from this directory:
 cmake --workflow --preset dev        # Debug, -Werror, tests
 cmake --workflow --preset sanitize   # + AddressSanitizer / UBSan / LeakSanitizer
 cmake --workflow --preset tidy       # + clang-tidy (build only)
+JUCE_DIR=/path/to/JUCE cmake --workflow --preset juce   # + JUCE adapter tests
 ```
+
+The JUCE adapter tests need a JUCE checkout. JUCE is never downloaded, so CI
+does not run them; run them wherever JUCE is installed.
 
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,
