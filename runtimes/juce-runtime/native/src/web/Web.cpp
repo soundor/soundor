@@ -31,6 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             { "soundor:internal/web/events", &embedded::eventsModule },
             { "soundor:internal/web/inspect", &embedded::inspectModule },
             { "soundor:internal/web/timers", &embedded::timersModule },
+            { "soundor:internal/web/url", &embedded::urlModule },
         };
 
         // ── soundor:internal/platform: console, clock, timers ────────────────

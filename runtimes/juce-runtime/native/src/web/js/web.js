@@ -16,6 +16,7 @@ import {
   setInterval,
   setTimeout,
 } from 'soundor:internal/web/timers';
+import { URL, URLSearchParams } from 'soundor:internal/web/url';
 
 function define(name, value) {
   Object.defineProperty(globalThis, name, {
@@ -50,3 +51,5 @@ define('TextEncoder', TextEncoder);
 define('TextDecoder', TextDecoder);
 define('structuredClone', structuredClone);
 define('crypto', crypto);
+define('URL', URL);
+define('URLSearchParams', URLSearchParams);
