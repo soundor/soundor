@@ -3,6 +3,7 @@ import { defineSoundorConfig } from '@soundor/config';
 import { fakeRuntime } from './fake-runtime';
 
 export default defineSoundorConfig({
+  plugin: { id: 'com.example.valid', name: 'Valid' },
   runtimes: [
     { id: 'juce', options: { format: 'vst3' }, runtime: fakeRuntime('juce') },
   ],
@@ -26,5 +27,7 @@ export default defineSoundorConfig({
       default: 'stereo',
     },
   ],
-  nativeMethods: [{ name: 'render', input: 'Request', output: 'Result' }],
+  native: {
+    methods: { render: { args: { request: 'string' }, returns: 'number' } },
+  },
 });

@@ -157,7 +157,7 @@ const runtime = {
 export default defineSoundorConfig({
   runtimes: [{ id: 'test', options: {}, runtime }],
   parameters: [],
-  nativeMethods: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
     'utf8',

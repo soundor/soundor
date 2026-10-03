@@ -15,10 +15,6 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
-    },
-    "./bridge": {
-      "types": "./dist/bridge.d.ts",
-      "import": "./dist/bridge.js"
     }
   },
   "scripts": {
@@ -32,7 +28,6 @@
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@soundor/bridge": "workspace:^",
     "@soundor/config": "workspace:^",
     "@soundor/core": "workspace:^",
     "@soundor/runtime-sdk": "workspace:^",
@@ -44,7 +39,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/bridge": "workspace:>=0.0.0 <1.0.0",
     "@soundor/config": "workspace:>=0.0.0 <1.0.0",
     "@soundor/core": "workspace:>=0.0.0 <1.0.0"
   }

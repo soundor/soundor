@@ -4,9 +4,20 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { clearDirectory, resolveProjectTarget, tokenReplace } from './scaffold';
+import {
+  clearDirectory,
+  projectIdSegment,
+  resolveProjectTarget,
+  tokenReplace,
+} from './scaffold';
 
 describe('tokenReplace', () => {
+  it('replaces __PROJECT_ID__ with a reverse-DNS segment', () => {
+    expect(tokenReplace('com.example.__PROJECT_ID__', 'My Synth', 'juce')).toBe(
+      'com.example.my-synth',
+    );
+  });
+
   it('replaces __PROJECT_NAME__ with the project name', () => {
     expect(tokenReplace('name: __PROJECT_NAME__', 'my-app', 'juce')).toBe(
       'name: my-app',
@@ -72,5 +83,13 @@ describe('clearDirectory', () => {
     } finally {
       await rm(root, { force: true, recursive: true });
     }
+  });
+});
+
+describe('projectIdSegment', () => {
+  it('lowercases and collapses everything but letters and digits', () => {
+    expect(projectIdSegment('@acme/My Synth')).toBe('acme-my-synth');
+    expect(projectIdSegment('soundor-demo')).toBe('soundor-demo');
+    expect(projectIdSegment('---')).toBe('plugin');
   });
 });

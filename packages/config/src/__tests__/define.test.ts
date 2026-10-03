@@ -17,6 +17,7 @@ function makeRuntime(id: string): Runtime {
 
 describe('defineSoundorConfig', () => {
   const config = defineSoundorConfig({
+    plugin: { id: 'com.example.test', name: 'Test' },
     runtimes: [
       { id: 'juce', options: { format: 'vst3' }, runtime: makeRuntime('juce') },
     ],
@@ -31,7 +32,7 @@ describe('defineSoundorConfig', () => {
       },
       { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
     ],
-    nativeMethods: [{ name: 'render', input: 'Request', output: 'Result' }],
+    native: { methods: { render: { args: { input: 'string' } } } },
   });
 
   it('returns the config unchanged', () => {
@@ -50,6 +51,7 @@ describe('defineSoundorConfig', () => {
     // with the live runtime. The @ts-expect-error is itself checked — if the
     // entry were accepted, the unused directive would fail the build.
     const authored = defineSoundorConfig({
+      plugin: { id: 'com.example.test', name: 'Test' },
       // @ts-expect-error missing `runtime`; use a factory, e.g. juceRuntime({ ... })
       runtimes: [{ id: 'juce', options: {} }],
       parameters: [],
@@ -59,6 +61,7 @@ describe('defineSoundorConfig', () => {
 
   it('rejects an invalid parameter shape at author time', () => {
     const authored = defineSoundorConfig({
+      plugin: { id: 'com.example.test', name: 'Test' },
       runtimes: [],
       parameters: [
         {

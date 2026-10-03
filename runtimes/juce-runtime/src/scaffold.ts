@@ -5,9 +5,9 @@
  * `include(...)` line pointing at the generated `setup.cmake`.
  *
  * The scaffolded classes inherit the generated `soundor::AudioProcessor` /
- * `soundor::AudioProcessorEditor` bases (which own parameters + the WebView
- * bridge). App-specific behavior that is *not* derived from config — here, audio
- * -level metering streamed to the UI — lives in these files, not in `gen`.
+ * `soundor::AudioProcessorEditor` bases (which own the parameters and the plugin
+ * view). App-specific behavior that is *not* derived from config — here, the
+ * gain DSP — lives in these files, not in `gen`.
  */
 
 import type { ResolvedJuceOptions } from './options';
@@ -49,8 +49,9 @@ function cmakeLists(options: ResolvedJuceOptions, includePath: string): string {
 
 project(${cmakeProject(options.pluginName)})
 
-# Soundor injects only the generated JUCE setup below (parameters, plugin
-# formats, the WebView bridge). Everything else in this file is yours to edit.
+# Soundor injects only the generated JUCE setup below (plugin identity and
+# formats, parameters, the Soundor base classes). Everything else in this file
+# is yours to edit.
 include(\${CMAKE_CURRENT_SOURCE_DIR}/${includePath})
 
 target_sources(\${PROJECT_NAME}
@@ -65,8 +66,6 @@ function processorHeader(cls: string, pluginName: string): string {
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/soundor.h>
-
-#include <atomic>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
 // parameter tree generated from soundor.config. Add your DSP here.
@@ -95,16 +94,10 @@ public:
     const juce::String getProgramName(int) override { return {}; }
     void changeProgramName(int, const juce::String&) override {}
 
-    // App-specific UI telemetry (not part of the generated framework): the
-    // latest output RMS level, pushed to the UI by the editor's onFrame().
-    float getCurrentLevel() const { return currentLevel.load(); }
-
 private:
     // Last block's applied gain, so processBlock can ramp to the new target
     // value instead of stepping (which would click on fast automation).
     float previousGain { 0.5f };
-
-    std::atomic<float> currentLevel { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(${cls}Processor)
 };
@@ -114,8 +107,6 @@ private:
 function processorSource(cls: string): string {
   return `#include "PluginProcessor.h"
 #include "PluginEditor.h"
-
-#include <cmath>
 
 ${cls}Processor::${cls}Processor()
     : soundor::AudioProcessor(BusesProperties()
@@ -160,20 +151,6 @@ void ${cls}Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiB
     const float targetGain = gainParameter->load();
     buffer.applyGainRamp(0, buffer.getNumSamples(), previousGain, targetGain);
     previousGain = targetGain;
-
-    // App-specific telemetry: output RMS (post-gain), stashed for the editor to stream.
-    float sumSquares = 0.0f;
-    int count = 0;
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-    {
-        const auto* data = buffer.getReadPointer(ch);
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-        {
-            sumSquares += data[i] * data[i];
-            ++count;
-        }
-    }
-    currentLevel.store(count > 0 ? std::sqrt(sumSquares / static_cast<float>(count)) : 0.0f);
 }
 
 juce::AudioProcessorEditor* ${cls}Processor::createEditor()
@@ -196,20 +173,15 @@ function editorHeader(cls: string): string {
 
 #include "PluginProcessor.h"
 
-// Your plugin's editor. Inherits soundor::AudioProcessorEditor (WebView +
-// parameter bridge). Override onFrame() to stream app-specific telemetry.
+// Your plugin's editor. Inherits soundor::AudioProcessorEditor, the view the
+// Soundor UI renders into.
 class ${cls}Editor final : public soundor::AudioProcessorEditor
 {
 public:
     explicit ${cls}Editor(${cls}Processor&);
     ~${cls}Editor() override = default;
 
-protected:
-    void onFrame() override;
-
 private:
-    ${cls}Processor& processor;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(${cls}Editor)
 };
 `;
@@ -219,15 +191,8 @@ function editorSource(cls: string): string {
   return `#include "PluginEditor.h"
 
 ${cls}Editor::${cls}Editor(${cls}Processor& p)
-    : soundor::AudioProcessorEditor(p), processor(p)
+    : soundor::AudioProcessorEditor(p)
 {
-}
-
-void ${cls}Editor::onFrame()
-{
-    // Push the audio level to the UI as a 'level' event (~60fps). Subscribe on
-    // the UI with useEvent('level', ...) / useEventValue('level').
-    emitEvent("level", juce::var(processor.getCurrentLevel()));
 }
 `;
 }

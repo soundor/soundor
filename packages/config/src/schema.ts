@@ -1,3 +1,4 @@
+import { describeNativeApi } from '@soundor/core';
 import { z } from 'zod';
 
 import { type ConfigIssue, ConfigError } from './errors';
@@ -74,16 +75,28 @@ const runtimeSchema = z.object({
   }),
 });
 
-const nativeMethodSchema = z.object({
-  name: z.string(),
-  input: z.string(),
-  output: z.string(),
+const pluginSchema = z.object({
+  id: z
+    .string()
+    .regex(
+      /^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/,
+      'expected a reverse-DNS identifier such as com.acme.reverb (letters, digits, hyphens and dots)',
+    ),
+  name: z.string().trim().min(1, 'expected a non-empty display name'),
+});
+
+// The native API's structure is checked by describeNativeApi, which reports
+// precise paths; zod only guarantees it is an object here.
+const nativeSchema = z.object({
+  types: z.record(z.string(), z.unknown()).optional(),
+  methods: z.record(z.string(), z.unknown()).optional(),
 });
 
 const soundorConfigSchema = z.object({
+  plugin: pluginSchema,
   runtimes: z.array(runtimeSchema),
   parameters: z.array(parameterSchema),
-  nativeMethods: z.array(nativeMethodSchema).optional(),
+  native: nativeSchema.optional(),
 });
 
 /** Renders a zod path array into a `parameters[0].max`-style string. */
@@ -125,6 +138,8 @@ export function validateConfig(raw: unknown): SoundorConfig {
   data.parameters.forEach((parameter, i) => {
     checkParameter(parameter, `parameters[${i}]`, issues);
   });
+  const native = describeNativeApi(data.native as SoundorConfig['native']);
+  if (!native.ok) issues.push(...native.issues);
 
   if (issues.length > 0) {
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
@@ -198,17 +213,15 @@ function checkParameter(
 /** Builds a canonical config so identical input always yields identical output. */
 function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
   return {
+    plugin: { id: data.plugin.id, name: data.plugin.name.trim() },
     runtimes: data.runtimes.map((runtime) => ({
       id: runtime.id,
       options: runtime.options ?? {},
       runtime: runtime.runtime,
     })),
     parameters: data.parameters.map(normalizeParameter),
-    nativeMethods: (data.nativeMethods ?? []).map((method) => ({
-      name: method.name,
-      input: method.input,
-      output: method.output,
-    })),
+    // Validated above; a structured clone detaches it from the user's object.
+    native: structuredClone(data.native ?? {}) as SoundorConfig['native'],
   };
 }
 

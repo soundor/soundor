@@ -7,6 +7,8 @@
  * factory), which the CLI dispatches; core itself stays declarative.
  */
 
+import type { NativeApiDeclaration } from '@soundor/core';
+
 import type { RuntimeDescriptor } from './runtime';
 
 /**
@@ -75,20 +77,32 @@ export type Parameter =
 export type ParameterType = Parameter['type'];
 
 /**
- * Declaration of a method implemented natively by a runtime.
+ * Who the plugin is, independent of any runtime or plugin format.
  *
- * Only the shape is declared here — `input` and `output` name the types the
- * method consumes and produces; core carries them without interpretation.
+ * `id` is the stable, globally unique identifier (reverse-DNS, e.g.
+ * `com.acme.reverb`). Runtimes derive format identities from it, and Soundor
+ * derives the namespace that keeps this plugin's native symbols apart from every
+ * other Soundor plugin in the same host process — so never change it after
+ * release.
  */
-export interface NativeMethod {
+export interface PluginIdentity {
+  id: string;
+  /** Display name hosts show. */
   name: string;
-  input: string;
-  output: string;
 }
+
+export type {
+  NativeApiDeclaration,
+  NativeMethodDeclaration,
+  NativeTypeDeclaration,
+  NativeTypeRef,
+} from '@soundor/core';
 
 /** Top-level Soundor configuration. */
 export interface SoundorConfig {
+  plugin: PluginIdentity;
   runtimes: RuntimeDescriptor[];
   parameters: Parameter[];
-  nativeMethods?: NativeMethod[];
+  /** The plugin's typed native API, exposed to JavaScript as `soundor:native`. */
+  native?: NativeApiDeclaration;
 }

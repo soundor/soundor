@@ -38,14 +38,16 @@ function makeRuntime(id: string): Runtime {
 /** The serializable projection of a config (drops the live `runtime`). */
 function projectData(config: SoundorConfig): unknown {
   return {
+    plugin: config.plugin,
     runtimes: config.runtimes.map((r) => ({ id: r.id, options: r.options })),
     parameters: config.parameters,
-    nativeMethods: config.nativeMethods,
+    native: config.native,
   };
 }
 
 /** Expected serializable projection of the `valid` fixture. */
 const expectedData = {
+  plugin: { id: 'com.example.valid', name: 'Valid' },
   runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
   parameters: [
     {
@@ -67,7 +69,9 @@ const expectedData = {
       default: 'stereo',
     },
   ],
-  nativeMethods: [{ name: 'render', input: 'Request', output: 'Result' }],
+  native: {
+    methods: { render: { args: { request: 'string' }, returns: 'number' } },
+  },
 };
 
 /** Asserts a parsed config carries a live runtime implementation for `id`. */
@@ -103,7 +107,7 @@ describe('parseConfig — loading', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
-  it('applies defaults (options, nativeMethods) deterministically', async () => {
+  it('applies defaults (options, native) deterministically', async () => {
     const dir = mkdtempSync(resolve(tmpdir(), 'soundor-'));
     cleanups.push(dir);
     const path = resolve(dir, 'soundor.config.ts');
@@ -113,13 +117,14 @@ describe('parseConfig — loading', () => {
       path,
       `const noop = async () => {};
        const runtime = { id: 'juce', init: noop, gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
-       export default { runtimes: [{ id: 'juce', runtime }], parameters: [] };`,
+       export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'juce', runtime }], parameters: [] };`,
     );
     const config = await parseConfig({ path });
     expect(projectData(config)).toEqual({
+      plugin: { id: 'com.example.defaults', name: 'Defaults' },
       runtimes: [{ id: 'juce', options: {} }],
       parameters: [],
-      nativeMethods: [],
+      native: {},
     });
     expectRuntime(config, 'juce');
   });
@@ -166,16 +171,18 @@ describe('parseConfig — loading', () => {
 });
 
 describe('validateConfig — validation rules', () => {
-  const base = { runtimes: [], parameters: [] };
+  const plugin = { id: 'com.example.test', name: 'Test' };
+  const base = { plugin, runtimes: [], parameters: [] };
 
   it('accepts a valid config and normalizes it', () => {
     const runtime = makeRuntime('juce');
     expect(
       validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
     ).toEqual({
+      plugin,
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
-      nativeMethods: [],
+      native: {},
     });
   });
 
@@ -252,8 +259,53 @@ describe('validateConfig — validation rules', () => {
     );
   });
 
+  it('requires a reverse-DNS plugin id and a display name', () => {
+    for (const id of ['acme', 'com..acme', 'com.acme reverb', '']) {
+      const error = expectValidation({ ...base, plugin: { id, name: 'X' } });
+      expect(error.issues).toContainEqual(
+        expect.objectContaining({ path: 'plugin.id' }),
+      );
+    }
+    const unnamed = expectValidation({
+      ...base,
+      plugin: { ...plugin, name: ' ' },
+    });
+    expect(unnamed.issues).toContainEqual(
+      expect.objectContaining({ path: 'plugin.name' }),
+    );
+    const missing = expectValidation({ runtimes: [], parameters: [] });
+    expect(missing.issues).toContainEqual(
+      expect.objectContaining({ path: 'plugin' }),
+    );
+  });
+
+  it('reports native API issues with their config paths', () => {
+    const error = expectValidation({
+      ...base,
+      native: {
+        types: { Point: { struct: { x: 'number' } } },
+        methods: { move: { args: { to: 'Pointt' } }, delete: {} },
+      },
+    });
+    expect(error.issues.map((issue) => issue.path)).toEqual([
+      'native.methods.delete',
+      'native.methods.move.args.to',
+    ]);
+  });
+
+  it('keeps a valid native API as declared', () => {
+    const native = {
+      types: { Preset: 'handle' },
+      methods: {
+        load: { args: { path: 'string' }, returns: 'Preset', async: true },
+      },
+    };
+    expect(validateConfig({ ...base, native }).native).toEqual(native);
+  });
+
   it('flags duplicate parameter and runtime ids', () => {
     const error = expectValidation({
+      plugin,
       runtimes: [
         { id: 'juce', runtime: makeRuntime('juce') },
         { id: 'juce', runtime: makeRuntime('juce') },

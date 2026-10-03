@@ -16,11 +16,17 @@ add_executable(soundor_runtime_tests
   js/JobTests.cpp
   js/LifecycleTests.cpp
   js/ModuleTests.cpp
-  js/RuntimeTests.cpp)
-target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  js/RuntimeTests.cpp
+  native/NativeModuleTests.cpp
+  # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
+  generated/soundor/native/SoundorNative.cpp)
+target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 # Tests exercise internal seams (native modules), so they may see QuickJS.
 target_link_libraries(soundor_runtime_tests PRIVATE soundor::runtime soundor_quickjs soundor_doctest)
 soundor_configure_target(soundor_runtime_tests)
+
+# Generated code is checked by its generator's tests, not linted.
+set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)
 
 add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
 

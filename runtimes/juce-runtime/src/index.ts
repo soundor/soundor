@@ -1,10 +1,9 @@
 /**
  * `@soundor/juce-runtime` — the official reference Soundor runtime.
  *
- * Hosts the React UI in a JUCE `WebBrowserComponent`, binds DSP parameters
- * through an `AudioProcessorValueTreeState`, and owns the build/packaging and
- * dev workflows for VST3/AU. It is the proof the runtime contract works
- * end-to-end. See the package README for the native-call security defaults.
+ * Builds the plugin with JUCE, binds DSP parameters through an
+ * `AudioProcessorValueTreeState`, generates the `soundor:native` bindings, and
+ * owns the build/packaging and dev workflows for VST3/AU.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -31,16 +30,14 @@ import { resolveJuceOptions, type JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 import { juceScaffoldFiles } from './scaffold';
 
-export type { JuceFormat, JuceOptions, JucePluginOptions } from './options';
+export type { JuceFormat, JuceOptions, ResolvedJuceOptions } from './options';
+export { generateNativeModuleSources } from './native-codegen';
 export { generateJuceSources } from './codegen';
 export { resolveJuce } from './resolve-juce';
 export { buildDoctorReport } from './doctor';
 
 /** The runtime id; must match `config.runtimes[].id`. */
 export const RUNTIME_ID = 'juce';
-
-/** Browser module the CLI wires into the UI as `virtual:soundor/bridge`. */
-export const BRIDGE_MODULE = '@soundor/juce-runtime/bridge';
 
 /** Injectable toolchain dependencies (defaulted; overridden in tests). */
 export interface JucePhaseDeps {
@@ -62,11 +59,8 @@ type StandaloneLauncher = (
  * The scaffold inherits the generated framework and `include()`s its
  * `setup.cmake`; it is written once and never overwritten.
  */
-export async function juceInit(
-  _config: SoundorConfig,
-  ctx: Ctx,
-): Promise<void> {
-  const options = resolveJuceOptions(ctx.options);
+export async function juceInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
+  const options = resolveJuceOptions(ctx.options, config.plugin);
   const scaffoldDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   // CMake wants a forward-slash path regardless of platform.
   const includePath = relative(scaffoldDir, join(ctx.paths.gen, 'setup.cmake'))
@@ -91,26 +85,25 @@ export async function juceInit(
  * `setup.cmake` can bake the path; `gen` never requires JUCE to be present.
  */
 export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
-  const options = resolveJuceOptions(ctx.options);
+  const options = resolveJuceOptions(ctx.options, config.plugin);
   const resolution = await resolveJuce(ctx.fs, options);
   ctx.codegen.emitAll(
     generateJuceSources(config, { options, jucePath: resolution.path }),
   );
 }
 
-/** `dev` — debug build with the WebView pointed at the Vite dev server. */
+/** `dev` — debug build, launching the standalone app when it is built. */
 export async function juceDev(
-  _config: SoundorConfig,
+  config: SoundorConfig,
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
   const probe = deps.probe ?? probeCommand;
-  const options = resolveJuceOptions(ctx.options);
+  const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
   requireToolchain(probe);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
-  const devUrl = ctx.dev?.ui?.url;
   const buildDir = join(ctx.paths.cache, 'build-debug');
   await mkdir(buildDir, { recursive: true });
 
@@ -121,13 +114,8 @@ export async function juceDev(
     buildDir,
     `-DJUCE_DIR=${jucePath}`,
   ];
-  if (devUrl) configureArgs.push(`-DSOUNDOR_DEV_URL=${devUrl}`);
 
-  ctx.logger.info(
-    devUrl
-      ? `Configuring debug build (UI: ${devUrl})`
-      : 'Configuring debug build',
-  );
+  ctx.logger.info('Configuring debug build');
   await run({
     cmd: 'cmake',
     args: configureArgs,
@@ -152,19 +140,19 @@ export async function juceDev(
     );
   }
 
-  ctx.logger.info('Debug build ready — iterate on the UI via the dev server.');
+  ctx.logger.info('Debug build ready.');
   await waitForAbort(ctx.signal);
 }
 
-/** `build` — production package: embed the CLI-built UI bundle, produce VST3/AU. */
+/** `build` — production package: produce VST3/AU under `ctx.paths.dist`. */
 export async function juceBuild(
-  _config: SoundorConfig,
+  config: SoundorConfig,
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
   const probe = deps.probe ?? probeCommand;
-  const options = resolveJuceOptions(ctx.options);
+  const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
   requireToolchain(probe);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
@@ -179,13 +167,6 @@ export async function juceBuild(
     '-DCMAKE_BUILD_TYPE=Release',
     `-DJUCE_DIR=${jucePath}`,
   ];
-  const uiDir = ctx.build?.ui?.dir;
-  if (uiDir) configureArgs.push(`-DSOUNDOR_UI_DIR=${uiDir}`);
-  else
-    ctx.logger.warn(
-      'No UI bundle provided by the CLI; building without an embedded UI.',
-    );
-
   ctx.logger.info('Configuring release build');
   await run({
     cmd: 'cmake',
@@ -212,17 +193,16 @@ export async function juceBuild(
 
 /** `doctor` — verify CMake, a compiler, and a locatable JUCE checkout. */
 export async function juceDoctor(
-  _config: SoundorConfig,
+  config: SoundorConfig,
   ctx: Ctx,
 ): Promise<DoctorReport> {
-  const options = resolveJuceOptions(ctx.options);
+  const options = resolveJuceOptions(ctx.options, config.plugin);
   return buildDoctorReport(ctx.fs, options);
 }
 
 /** The factory a config author registers: `runtimes: [juceRuntime({ ... })]`. */
 export const juceRuntime = defineRuntime<JuceOptions>({
   id: RUNTIME_ID,
-  bridgeModule: () => BRIDGE_MODULE,
   init: juceInit,
   gen: juceGen,
   dev: (config, ctx) => juceDev(config, ctx),

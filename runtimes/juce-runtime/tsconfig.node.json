@@ -5,5 +5,5 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
   "include": ["src"],
-  "exclude": ["src/bridge.ts", "src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts"]
 }

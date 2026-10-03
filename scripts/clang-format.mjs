@@ -5,7 +5,8 @@
 //   node scripts/clang-format.mjs --fix <dir...>
 //
 // Only git-tracked (or new, unignored) C/C++ files under the given directories
-// are touched. Formatting output differs between clang-format majors, so the
+// are touched; generated code (any `generated/` directory) is skipped, since
+// it is rewritten by its generator, never edited. Formatting output differs between clang-format majors, so the
 // expected major is pinned; a mismatch is a warning locally and an error in CI.
 // Without clang-format the check is skipped locally but fails in CI.
 
@@ -72,7 +73,12 @@ function listFiles(roots) {
   if (result.status !== 0) fail(`git ls-files failed: ${result.stderr}`);
   return result.stdout
     .split('\n')
-    .filter((file) => EXTENSIONS.test(file) && existsSync(file))
+    .filter(
+      (file) =>
+        EXTENSIONS.test(file) &&
+        !file.split('/').includes('generated') &&
+        existsSync(file),
+    )
     .sort();
 }
 

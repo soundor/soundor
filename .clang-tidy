@@ -36,5 +36,6 @@ Checks: >
 # performance-enum-size: shrinking public enums buys nothing.
 # modernize-use-trailing-return-type / avoid-c-arrays: style, not defects.
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*/runtimes/[^/]+/native/(include|src|tests)/.*'
+# Generated headers (tests/generated) are excluded.
+HeaderFilterRegex: '.*/runtimes/[^/]+/native/(include|src|tests/(js|native|symbols))/.*'
 FormatStyle: file
