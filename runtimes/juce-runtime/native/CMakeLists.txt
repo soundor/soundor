@@ -37,9 +37,15 @@ add_library(soundor_runtime STATIC
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/parameters/ParametersModule.cpp
-  src/runtime/RuntimeHost.cpp)
+  src/platform/WorkerThread.cpp
+  src/runtime/RuntimeHost.cpp
+  src/web/Stubs.cpp
+  src/web/Web.cpp)
 add_library(soundor::runtime ALIAS soundor_runtime)
 soundor_embed_text(soundor_runtime parametersModule src/modules/parameters/parameters.js)
+foreach(module console inspect timers web)
+  soundor_embed_text(soundor_runtime ${module}Module src/web/js/${module}.js)
+endforeach()
 
 target_compile_features(soundor_runtime PUBLIC cxx_std_20)
 target_compile_definitions(soundor_runtime PUBLIC SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE})
@@ -47,7 +53,7 @@ target_include_directories(soundor_runtime
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
-target_link_libraries(soundor_runtime PRIVATE soundor_quickjs)
+target_link_libraries(soundor_runtime PRIVATE soundor_quickjs Threads::Threads)
 soundor_configure_target(soundor_runtime)
 
 # For Soundor-owned code built outside this library — generated bindings and

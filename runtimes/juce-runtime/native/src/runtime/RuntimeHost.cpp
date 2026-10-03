@@ -1,3 +1,5 @@
+#include "web/Web.h"
+
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <utility>
@@ -9,6 +11,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { std::move(options.moduleLoader) })),
           hasParameters(options.parameters != nullptr)
     {
+        web::install(*jsContext, web::Services {
+                                     std::move(options.http),
+                                     std::move(options.dataDirectory),
+                                     std::move(options.hostInfo),
+                                     std::move(options.pluginId),
+                                     std::move(options.pluginName),
+                                 });
         if (options.parameters != nullptr)
             parameters::install(*jsContext, std::move(options.parameters));
         if (options.installModules)
@@ -24,6 +33,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     void RuntimeHost::tick()
     {
+        web::tick(*jsContext);
         if (hasParameters)
             parameters::dispatchChanges(*jsContext);
         jsRuntime->runPendingJobs();
