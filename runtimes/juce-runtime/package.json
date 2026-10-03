@@ -24,7 +24,11 @@
   "scripts": {
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
+    "format:native": "node ../../scripts/clang-format.mjs --check native",
+    "format:native:fix": "node ../../scripts/clang-format.mjs --fix native",
+    "lint:native": "cd native && cmake --workflow --preset tidy",
     "test": "vitest run",
+    "test:native": "cd native && cmake --workflow --preset dev",
     "test:watch": "vitest watch"
   },
   "devDependencies": {
