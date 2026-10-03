@@ -3,14 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ArgsDef, CommandMeta } from 'citty';
-import { createServer, type ViteDevServer } from 'vite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { devCommand, runDev } from './dev';
-
-vi.mock('vite', () => ({
-  createServer: vi.fn<typeof createServer>(),
-}));
 
 vi.mock('@clack/prompts', () => ({
   outro: vi.fn<() => void>(),
@@ -42,20 +37,11 @@ describe('dev command', () => {
 
 describe('runDev', () => {
   let root: string;
-  let server: MockViteServer;
   let info: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
     root = await mkdtemp(join(tmpdir(), 'soundor-cli-dev-'));
-    server = {
-      resolvedUrls: { local: ['http://localhost:3000/'], network: [] },
-      listen: vi.fn<() => Promise<void>>(async () => {}),
-      close: vi.fn<() => Promise<void>>(async () => {}),
-    };
-    vi.mocked(createServer).mockResolvedValue(
-      server as unknown as ViteDevServer,
-    );
     info = vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -69,56 +55,39 @@ describe('runDev', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('runs gen, starts Vite, then dispatches runtime dev with UI URL', async () => {
+  it('runs gen, then dispatches runtime dev', async () => {
     await writeConfig(root);
 
     await expect(runDev({ cwd: root, runtime: 'test' })).resolves.toEqual({
       runtime: 'test',
-      uiUrl: 'http://localhost:3000/',
     });
 
-    expect(createServer).toHaveBeenCalledWith(
-      expect.objectContaining({ root }),
-    );
-    expect(server.listen).toHaveBeenCalledOnce();
-    expect(server.close).toHaveBeenCalledOnce();
-    expect(globalThis.__soundorDevEvents).toEqual([
-      'gen:debug',
-      'dev:debug:http://localhost:3000/',
-    ]);
+    expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
     expect(info).toHaveBeenCalledWith('[soundor:test] runtime ready');
   });
 
-  it('fails fast for an unknown runtime before gen or Vite startup', async () => {
+  it('fails fast for an unknown runtime before gen', async () => {
     await writeConfig(root);
 
     await expect(runDev({ cwd: root, runtime: 'missing' })).rejects.toThrow(
       "No runtime registered for id 'missing'. Known runtimes: test.",
     );
 
-    expect(createServer).not.toHaveBeenCalled();
     expect(globalThis.__soundorDevEvents).toEqual([]);
   });
 
-  it('aborts runtime dev on SIGINT and closes Vite', async () => {
+  it('aborts runtime dev on SIGINT', async () => {
     await writeConfig(root, { abortOnDev: true });
 
     await runDev({ cwd: root, runtime: 'test' });
 
     expect(globalThis.__soundorDevEvents).toEqual([
       'gen:debug',
-      'dev:debug:http://localhost:3000/',
+      'dev:debug',
       'aborted:true',
     ]);
-    expect(server.close).toHaveBeenCalledOnce();
   });
 });
-
-interface MockViteServer {
-  resolvedUrls: { local: string[]; network: string[] };
-  listen: ReturnType<typeof vi.fn<() => Promise<void>>>;
-  close: ReturnType<typeof vi.fn<() => Promise<void>>>;
-}
 
 declare global {
   // eslint-disable-next-line no-var
@@ -141,7 +110,7 @@ const runtime = {
     ctx.codegen.emit({ path: 'runtime.txt', contents: 'generated\\n' });
   },
   async dev(_config, ctx) {
-    globalThis.__soundorDevEvents.push('dev:' + ctx.mode + ':' + ctx.dev.ui.url);
+    globalThis.__soundorDevEvents.push('dev:' + ctx.mode);
     ctx.logger.info('runtime ready');
     if (${String(options.abortOnDev)}) {
       process.emit('SIGINT');

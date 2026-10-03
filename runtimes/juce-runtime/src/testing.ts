@@ -115,8 +115,6 @@ export interface MakeCtxOptions {
   readonly fs?: FileSystemHost;
   readonly options?: JuceOptions;
   readonly mode?: 'debug' | 'production';
-  readonly dev?: LifecycleContext['dev'];
-  readonly build?: LifecycleContext['build'];
   readonly signal?: AbortSignal;
 }
 
@@ -143,8 +141,6 @@ export function makeCtx(overrides: MakeCtxOptions = {}): TestCtx {
     logger: silentLogger(),
     fs,
     codegen: createCodegenSink(),
-    dev: overrides.dev,
-    build: overrides.build,
     signal: overrides.signal ?? new AbortController().signal,
   };
 }

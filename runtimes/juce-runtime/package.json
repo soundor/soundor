@@ -4,7 +4,13 @@
   "license": "MIT",
   "files": [
     "README.md",
-    "dist"
+    "dist",
+    "native/CMakeLists.txt",
+    "native/README.md",
+    "native/backend",
+    "native/cmake",
+    "native/include",
+    "native/src"
   ],
   "type": "module",
   "sideEffects": false,

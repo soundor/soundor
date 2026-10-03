@@ -233,6 +233,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         return static_cast<T*>(contextData(ctx, key));
     }
 
+    // Keeps a JavaScript value alive for the context's lifetime under `key`,
+    // replacing (and freeing) any previous one. Takes ownership of `value`.
+    void retainValue(JSContext* ctx, const void* key, JSValue value);
+    // The value retained under `key`, or undefined. Not a new reference.
+    [[nodiscard]] JSValueConst retainedValue(JSContext* ctx, const void* key);
+
     // ── Promises ─────────────────────────────────────────────────────────────
 
     // Creates a promise for an async method. Returns it (or JS_EXCEPTION) and

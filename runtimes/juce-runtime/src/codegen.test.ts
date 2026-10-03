@@ -37,9 +37,15 @@ const options = resolveJuceOptions(
   config.plugin,
 );
 
+const params = {
+  options,
+  nativeDir: '/opt/soundor/native',
+  abiNamespace: 'p_12345678',
+};
+
 function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
   return new Map(
-    generateJuceSources(cfg, { options, jucePath }).map((f) => [
+    generateJuceSources(cfg, { ...params, jucePath }).map((f) => [
       f.path,
       f.contents,
     ]),
@@ -48,7 +54,7 @@ function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
 
 describe('generateJuceSources', () => {
   it('emits setup.cmake plus the soundor base classes', () => {
-    const paths = generateJuceSources(config, { options }).map((f) => f.path);
+    const paths = generateJuceSources(config, params).map((f) => f.path);
     expect(paths).toEqual([
       'setup.cmake',
       'soundor/soundor.h',
@@ -116,16 +122,69 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('emits a plain plugin view without a WebView', () => {
+  it('hosts a JavaScript runtime in the plugin view, without a WebView', () => {
     const editor = [
       fileMap(config).get('soundor/SoundorEditor.h')!,
       fileMap(config).get('soundor/SoundorEditor.cpp')!,
     ].join('\n');
     expect(editor).toContain(
-      'class AudioProcessorEditor : public juce::AudioProcessorEditor',
+      'class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer',
     );
-    expect(editor).not.toMatch(
-      /WebBrowserComponent|__SOUNDOR__|Timer|emitEvent/,
+    expect(editor).toContain(
+      'std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos())',
+    );
+    expect(editor).toContain('native::install(context, std::move(api));');
+    expect(editor).toContain(
+      'void AudioProcessorEditor::timerCallback() { host->tick(); }',
+    );
+    expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
+  });
+
+  it('builds the Soundor runtime into the plugin under its own ABI namespace', () => {
+    const setup = fileMap(config).get('setup.cmake')!;
+    expect(setup).toContain('set(SOUNDOR_ABI_NAMESPACE p_12345678)');
+    expect(setup).toContain('set(SOUNDOR_BUILD_TESTS OFF)');
+    expect(setup).toContain(
+      'add_subdirectory("/opt/soundor/native" soundor-runtime)',
+    );
+    expect(setup).toContain(
+      'target_link_libraries(soundor_generated PUBLIC soundor::runtime PRIVATE soundor::runtime_internal)',
+    );
+    expect(setup).toContain(
+      '"/opt/soundor/native/backend/juce/soundor/backend/JuceParameterHost.cpp"',
+    );
+    expect(setup).toContain(
+      'target_link_libraries(${PROJECT_NAME} PRIVATE soundor_generated)',
+    );
+    for (const file of [
+      'soundor/SoundorProcessor.h',
+      'soundor/SoundorEditor.h',
+    ]) {
+      expect(fileMap(config).get(file)).toContain(
+        'namespace soundor::inline SOUNDOR_ABI_NAMESPACE',
+      );
+    }
+  });
+
+  it('generates the parameter table soundor:parameters indexes, in APVTS order', () => {
+    const proc = fileMap(config).get('soundor/SoundorProcessor.cpp')!;
+    const table = proc.slice(proc.indexOf('parameterInfos()'));
+    expect(table).toContain(
+      '{ "bypass", "Bypass", parameters::Kind::Bool, 0.0, 1.0, 0.0, "", {  } },',
+    );
+    expect(table).toContain(
+      '{ "gain", "Gain", parameters::Kind::Float, 0.0, 1.0, 0.5, "dB", {  } },',
+    );
+    expect(table).toContain(
+      '{ "mode", "Mode", parameters::Kind::Choice, 0.0, 2.0, 1.0, "", { "a", "b", "c" } },',
+    );
+    expect(table).toContain(
+      '{ "voices", "Voices", parameters::Kind::Int, 1.0, 8.0, 4.0, "", {  } },',
+    );
+    expect(table.indexOf('"bypass"')).toBeLessThan(table.indexOf('"gain"'));
+    const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
+    expect(header).toContain(
+      'virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }',
     );
   });
 
@@ -146,8 +205,8 @@ describe('generateJuceSources', () => {
       ...config,
       parameters: [...config.parameters].reverse(),
     } as SoundorConfig;
-    expect(generateJuceSources(reversed, { options })).toEqual(
-      generateJuceSources(config, { options }),
+    expect(generateJuceSources(reversed, params)).toEqual(
+      generateJuceSources(config, params),
     );
   });
 

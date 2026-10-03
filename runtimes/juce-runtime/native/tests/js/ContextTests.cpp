@@ -43,6 +43,27 @@ TEST_SUITE("Context")
         CHECK(Value::number(0.1).toString() == "0.1");
         CHECK(Value::number(42).toString() == "42");
         CHECK(Value::number(1.0 / 3.0).toString() == "0.3333333333333333");
+        CHECK(Value::number(20).toString() == "20");
+        CHECK(Value::number(-1500).toString() == "-1500");
+        CHECK(Value::number(123456789012).toString() == "123456789012");
+        CHECK(Value::number(1e21).toString() == "1e+21");
+        CHECK(Value::number(1.5e300).toString() == "1.5e+300");
+        CHECK(Value::number(0.000001).toString() == "0.000001");
+        CHECK(Value::number(1e-7).toString() == "1e-7");
+        CHECK(Value::number(-2.5e-8).toString() == "-2.5e-8");
+        CHECK(Value::number(-0.0).toString() == "0");
+        CHECK(Value::number(5e-324).toString() == "5e-324");
+
+        // Agrees with the engine's own String(number) on a spread of values.
+        Runtime runtime;
+        Context context(runtime);
+        for (const double sample : { 0.1, 20.0, 1e21, 1e-7, 123.456, -9.87e-5, 2.0 / 3.0, 1e100, 4294967296.0 })
+        {
+            CAPTURE(sample);
+            auto viaEngine = context.evaluateScript("String(" + Value::number(sample).toString() + ")");
+            REQUIRE(viaEngine.ok());
+            CHECK(viaEngine.value().asString() == Value::number(sample).toString());
+        }
     }
 
     TEST_CASE("exposes the ECMAScript language and no host environment")

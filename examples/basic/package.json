@@ -7,25 +7,16 @@
     "build": "soundor build",
     "dev": "soundor dev",
     "doctor": "soundor doctor",
-    "gen": "soundor gen",
-    "preview": "vite preview"
+    "gen": "soundor gen"
   },
   "dependencies": {
-    "@soundor/bridge": "workspace:*",
-    "@soundor/juce-runtime": "workspace:*",
-    "@soundor/react": "workspace:*",
-    "react": "catalog:",
-    "react-dom": "catalog:"
+    "@soundor/juce-runtime": "workspace:*"
   },
   "devDependencies": {
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
     "soundor": "workspace:*",
-    "typescript": "catalog:",
-    "vite": "catalog:"
+    "typescript": "catalog:"
   }
 }

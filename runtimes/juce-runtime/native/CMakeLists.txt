@@ -15,6 +15,7 @@ endif()
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 include(SoundorCompilerOptions)
+include(SoundorEmbed)
 include(SoundorQuickJS)
 
 # Inline namespace that every Soundor-native C++ symbol is mangled into. A
@@ -34,8 +35,11 @@ add_library(soundor_runtime STATIC
   src/js/NativeModule.cpp
   src/js/Runtime.cpp
   src/js/Value.cpp
-  src/js/ValueConversion.cpp)
+  src/js/ValueConversion.cpp
+  src/modules/parameters/ParametersModule.cpp
+  src/runtime/RuntimeHost.cpp)
 add_library(soundor::runtime ALIAS soundor_runtime)
+soundor_embed_text(soundor_runtime parametersModule src/modules/parameters/parameters.js)
 
 target_compile_features(soundor_runtime PUBLIC cxx_std_20)
 target_compile_definitions(soundor_runtime PUBLIC SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE})
@@ -46,8 +50,23 @@ target_include_directories(soundor_runtime
 target_link_libraries(soundor_runtime PRIVATE soundor_quickjs)
 soundor_configure_target(soundor_runtime)
 
+# For Soundor-owned code built outside this library — generated bindings and
+# backend adapters — that is written against the runtime's internal headers.
+# Never linked by plugin code itself.
+add_library(soundor_runtime_internal INTERFACE)
+add_library(soundor::runtime_internal ALIAS soundor_runtime_internal)
+target_include_directories(soundor_runtime_internal INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(soundor_runtime_internal INTERFACE soundor_runtime soundor_quickjs)
+
 option(SOUNDOR_BUILD_TESTS "Build the Soundor native runtime tests" ${PROJECT_IS_TOP_LEVEL})
+option(SOUNDOR_JUCE_TESTS "Also build the JUCE adapter tests (needs JUCE_DIR)" OFF)
 if(SOUNDOR_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
+  if(SOUNDOR_JUCE_TESTS)
+    if(NOT JUCE_DIR OR NOT EXISTS "${JUCE_DIR}/CMakeLists.txt")
+      message(FATAL_ERROR "SOUNDOR_JUCE_TESTS needs JUCE_DIR to point at a JUCE checkout")
+    endif()
+    add_subdirectory(backend/juce/tests)
+  endif()
 endif()

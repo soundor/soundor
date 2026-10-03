@@ -31,8 +31,6 @@ export interface BaseParameter {
   /** Stable identifier used as the key by downstream codegen and hooks. */
   id: string;
   label: string;
-  /** Name of a hook invoked when the value changes. Types only, no logic. */
-  onChange?: string;
 }
 
 /** Continuous, floating-point parameter. */

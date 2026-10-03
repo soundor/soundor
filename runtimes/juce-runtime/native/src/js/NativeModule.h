@@ -20,13 +20,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
     namespace detail
     {
-        // A module implemented in C++. Its export names are declared up front
-        // (ES modules are statically linked); `initialize` fills them in when
-        // the module is first imported and returns false after throwing.
+        // A module provided by the runtime. Either implemented in C++ — its
+        // export names declared up front (ES modules are statically linked)
+        // and filled in by `initialize`, which returns false after throwing —
+        // or, when `source` is set, written in JavaScript embedded in the
+        // runtime.
         struct NativeModule
         {
             std::vector<std::string> exports;
             std::function<bool(JSContext*, JSModuleDef*)> initialize;
+            std::string_view source;
         };
 
         class NativeModuleRegistry
@@ -45,6 +48,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         [[nodiscard]] inline bool isNativeModuleSpecifier(std::string_view specifier) noexcept
         {
             return specifier.starts_with(nativeModulePrefix);
+        }
+
+        // Runtime-private building blocks of the public modules: importable
+        // only from runtime-provided modules, never from plugin code.
+        inline constexpr std::string_view internalModulePrefix = "soundor:internal/";
+
+        [[nodiscard]] inline bool isInternalModuleSpecifier(std::string_view specifier) noexcept
+        {
+            return specifier.starts_with(internalModulePrefix);
         }
     } // namespace detail
 

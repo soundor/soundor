@@ -5,9 +5,10 @@ binds parameters through an `AudioProcessorValueTreeState`, generates the C++
 side of the plugin's `soundor:native` API, and owns the build/packaging and dev
 workflows for VST3/AU.
 
-> The plugin UI is moving to Soundor's embedded JavaScript runtime
-> ([`native/`](./native/README.md)). Until it renders, the generated editor is an
-> empty plugin view.
+Each plugin view hosts Soundor's embedded JavaScript runtime
+([`native/`](./native/README.md)) with the `soundor:parameters` and
+`soundor:native` modules. Rendering a UI from it comes later; until then the
+view is empty.
 
 ## Usage
 
@@ -71,7 +72,31 @@ subclasses of those bases, and a `CMakeLists.txt` whose **only** Soundor-injecte
 line is `include(...setup.cmake)`. Edit any of it freely — re-running `init`
 never overwrites existing files.
 
-## `soundor:native`
+## The plugin's JavaScript runtime
+
+The generated `soundor::AudioProcessorEditor` owns a `soundor::RuntimeHost` for
+as long as the view is open: a QuickJS runtime on the message thread, ticked at
+60 Hz to deliver parameter changes and run pending jobs. Nothing JavaScript ever
+runs on the audio thread.
+
+### `soundor:parameters`
+
+Every config parameter, backed directly by the processor's
+`AudioProcessorValueTreeState`. There is no second parameter store:
+
+```ts
+import { parameters } from 'soundor:parameters';
+
+parameters.gain.set(0.5);
+const stop = parameters.gain.subscribe((gain) => drawKnob(gain));
+```
+
+JUCE's parameter listeners only set a lock-free flag (they may run on the audio
+thread). Host automation, preset loads and UI changes all reach subscribers on
+the message thread. Gestures (`beginGesture`/`endGesture`) map to JUCE's change
+gestures, so hosts record UI drags as automation.
+
+### `soundor:native`
 
 The config's `native` section (see `@soundor/config`) declares the plugin's
 typed native API. `gen` turns it into:
@@ -81,10 +106,27 @@ typed native API. `gen` turns it into:
 - `soundor/native/SoundorNative.cpp` — the JavaScript bindings: argument
   validation, conversion, exceptions and promises.
 
+Implement it by overriding `createNativeApi()` in your processor:
+
+```cpp
+std::shared_ptr<soundor::native::NativeApi> createNativeApi() override
+{
+    return std::make_shared<MyNativeApi>(*this);
+}
+```
+
 JavaScript imports the methods from `soundor:native` with full types (from
 `.soundor/generated/native.d.ts`). Typed arrays are passed to C++ without
 copying, native objects travel as opaque handles, and a C++ exception becomes a
 JavaScript `Error`. See [`native/README.md`](./native/README.md).
+
+### Build integration
+
+`setup.cmake` builds the runtime from this package's `native/` sources into the
+plugin. QuickJS-NG is fetched by CMake at a pinned revision; no extra developer
+installs are needed. Every Soundor symbol is mangled into the plugin's own ABI
+namespace, derived from `plugin.id`. The plugin binary exports only its format
+entry points.
 
 ## JUCE is required (and never downloaded)
 

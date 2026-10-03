@@ -3,12 +3,8 @@ export { defineRuntime } from './runtime';
 // Runtime contract + config surface, re-exported so a runtime author imports
 // everything from one place.
 export type {
-  BuildContext,
-  BuildUiContext,
   DoctorCheck,
   DoctorReport,
-  DevContext,
-  DevUiContext,
   LifecycleContext,
   Runtime,
   RuntimeConfig,

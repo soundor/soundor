@@ -11,12 +11,7 @@ import {
   rootFromConfigPath,
 } from '@soundor/core';
 import { defineCommand } from 'citty';
-import { createServer, type ViteDevServer } from 'vite';
 
-import {
-  SOUNDOR_PARAMS_MODULE,
-  soundorBridgePlugin,
-} from '../vite/bridge-plugin';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -29,7 +24,6 @@ export interface RunDevOptions {
 
 export interface RunDevResult {
   runtime: string;
-  uiUrl: string;
 }
 
 export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
@@ -49,9 +43,6 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     runtimeId: options.runtime,
   });
   const controller = new AbortController();
-  const bridgeEntry = resolved.runtime.bridgeModule?.();
-  const vite = await startVite(root, logger.child('ui'), bridgeEntry);
-  const uiUrl = firstViteUrl(vite);
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
     controller.abort();
@@ -66,19 +57,12 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       codegen: createCodegenSink(),
       mode: 'debug',
       signal: controller.signal,
-      dev: {
-        ui: {
-          kind: 'vite',
-          url: uiUrl,
-        },
-      },
     });
   } finally {
     process.removeListener('SIGINT', onSigint);
-    await vite.close();
   }
 
-  return { runtime: options.runtime, uiUrl };
+  return { runtime: options.runtime };
 }
 
 export const devCommand = defineCommand({
@@ -100,61 +84,14 @@ export const devCommand = defineCommand({
   async run({ args }) {
     const runtime = String(args['runtime']);
     console.info(`Starting dev mode for runtime: ${runtime}`);
-    const result = await runDev({
+    await runDev({
       runtime,
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
     });
-    outro(`UI dev server: ${result.uiUrl}`);
+    outro(`Stopped dev mode for runtime: ${runtime}`);
   },
 });
-
-async function startVite(
-  root: string,
-  logger: ReturnType<typeof createConsoleLogger>,
-  bridgeEntry?: string,
-): Promise<ViteDevServer> {
-  const server = await createServer({
-    root,
-    plugins: [
-      soundorBridgePlugin({
-        entry: bridgeEntry,
-        paramsModule: SOUNDOR_PARAMS_MODULE,
-      }),
-    ],
-    customLogger: {
-      hasWarned: false,
-      hasErrorLogged: () => false,
-      clearScreen: () => {},
-      info: (message) => {
-        logger.info(stripTrailingNewline(message));
-      },
-      warn: (message) => {
-        logger.warn(stripTrailingNewline(message));
-      },
-      warnOnce: (message) => {
-        logger.warn(stripTrailingNewline(message));
-      },
-      error: (message) => {
-        logger.error(stripTrailingNewline(message));
-      },
-    },
-  });
-  await server.listen();
-  return server;
-}
-
-function firstViteUrl(server: ViteDevServer): string {
-  const url = server.resolvedUrls?.local[0] ?? server.resolvedUrls?.network[0];
-  if (url === undefined) {
-    throw new Error('Vite dev server started but did not report a local URL.');
-  }
-  return url;
-}
-
-function stripTrailingNewline(message: string): string {
-  return message.replace(/\n$/, '');
-}
 
 function resolveConfigPath(cwd: string, configPath?: string): string {
   if (configPath === undefined) return locateConfig(cwd);

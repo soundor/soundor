@@ -58,8 +58,7 @@ describe('runGen', () => {
           name: 'core',
           files: [
             { path: 'native.d.ts', status: 'created' },
-            { path: 'parameters.json', status: 'created' },
-            { path: 'parameters.ts', status: 'created' },
+            { path: 'parameters.d.ts', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
           ],
         },
@@ -70,8 +69,8 @@ describe('runGen', () => {
       ],
     });
     await expect(
-      readFile(join(root, '.soundor', 'generated', 'parameters.ts'), 'utf8'),
-    ).resolves.toContain('gain: number;');
+      readFile(join(root, '.soundor', 'generated', 'parameters.d.ts'), 'utf8'),
+    ).resolves.toContain('readonly gain: Parameter<number,');
     await expect(
       readFile(
         join(root, '.soundor', 'generated', 'runtimes', 'test', 'runtime.txt'),
@@ -101,8 +100,7 @@ describe('runGen', () => {
     expect(second).toEqual(first);
     expect(report.groups.flatMap((group) => group.files)).toEqual(
       expect.arrayContaining([
-        { path: 'parameters.json', status: 'unchanged' },
-        { path: 'parameters.ts', status: 'unchanged' },
+        { path: 'parameters.d.ts', status: 'unchanged' },
         { path: 'native.d.ts', status: 'unchanged' },
         { path: 'runtime.txt', status: 'unchanged' },
       ]),
@@ -116,10 +114,7 @@ describe('runGen', () => {
     await writeConfig(root, 'drive');
 
     await expect(runGen({ cwd: root, check: true })).rejects.toMatchObject({
-      changes: [
-        { path: 'parameters.json', kind: 'stale' },
-        { path: 'parameters.ts', kind: 'stale' },
-      ],
+      changes: [{ path: 'parameters.d.ts', kind: 'stale' }],
     });
   });
 

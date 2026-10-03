@@ -26,15 +26,7 @@ export type {
   RuntimeDescriptor,
   RuntimeFactory,
 } from './runtime';
-export type {
-  BuildContext,
-  BuildUiContext,
-  DevContext,
-  DevUiContext,
-  LifecycleContext,
-  RuntimeMode,
-  RuntimePhase,
-} from './context';
+export type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 
 // Resolution + dispatch
 export { resolveRuntime, runPhase } from './registry';

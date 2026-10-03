@@ -1,6 +1,10 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "dev",
@@ -17,40 +21,79 @@
       "inherits": "dev",
       "displayName": "Debug build with ASan + UBSan",
       "binaryDir": "${sourceDir}/build/sanitize",
-      "cacheVariables": { "SOUNDOR_ENABLE_SANITIZERS": "ON" }
+      "cacheVariables": {
+        "SOUNDOR_ENABLE_SANITIZERS": "ON"
+      }
     },
     {
       "name": "tidy",
       "inherits": "dev",
       "displayName": "Debug build checked by clang-tidy",
       "binaryDir": "${sourceDir}/build/tidy",
-      "cacheVariables": { "SOUNDOR_ENABLE_CLANG_TIDY": "ON" }
+      "cacheVariables": {
+        "SOUNDOR_ENABLE_CLANG_TIDY": "ON"
+      }
+    },
+    {
+      "name": "juce",
+      "inherits": "dev",
+      "displayName": "Debug build including the JUCE adapter tests (set JUCE_DIR)",
+      "binaryDir": "${sourceDir}/build/juce",
+      "cacheVariables": {
+        "SOUNDOR_JUCE_TESTS": "ON",
+        "JUCE_DIR": "$env{JUCE_DIR}"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "dev", "configurePreset": "dev", "configuration": "Debug" },
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "configuration": "Debug"
+    },
     {
       "name": "sanitize",
       "configurePreset": "sanitize",
       "configuration": "Debug"
     },
-    { "name": "tidy", "configurePreset": "tidy", "configuration": "Debug" }
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "configuration": "Debug"
+    },
+    {
+      "name": "juce",
+      "configurePreset": "juce",
+      "configuration": "Debug"
+    }
   ],
   "testPresets": [
     {
       "name": "dev",
       "configurePreset": "dev",
       "configuration": "Debug",
-      "output": { "outputOnFailure": true }
+      "output": {
+        "outputOnFailure": true
+      }
     },
     {
       "name": "sanitize",
       "configurePreset": "sanitize",
       "configuration": "Debug",
-      "output": { "outputOnFailure": true },
+      "output": {
+        "outputOnFailure": true
+      },
       "environment": {
         "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=1",
         "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
+    },
+    {
+      "name": "juce",
+      "configurePreset": "juce",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
       }
     }
   ],
@@ -58,24 +101,65 @@
     {
       "name": "dev",
       "steps": [
-        { "type": "configure", "name": "dev" },
-        { "type": "build", "name": "dev" },
-        { "type": "test", "name": "dev" }
+        {
+          "type": "configure",
+          "name": "dev"
+        },
+        {
+          "type": "build",
+          "name": "dev"
+        },
+        {
+          "type": "test",
+          "name": "dev"
+        }
       ]
     },
     {
       "name": "sanitize",
       "steps": [
-        { "type": "configure", "name": "sanitize" },
-        { "type": "build", "name": "sanitize" },
-        { "type": "test", "name": "sanitize" }
+        {
+          "type": "configure",
+          "name": "sanitize"
+        },
+        {
+          "type": "build",
+          "name": "sanitize"
+        },
+        {
+          "type": "test",
+          "name": "sanitize"
+        }
       ]
     },
     {
       "name": "tidy",
       "steps": [
-        { "type": "configure", "name": "tidy" },
-        { "type": "build", "name": "tidy" }
+        {
+          "type": "configure",
+          "name": "tidy"
+        },
+        {
+          "type": "build",
+          "name": "tidy"
+        }
+      ]
+    },
+    {
+      "name": "juce",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "juce"
+        },
+        {
+          "type": "build",
+          "name": "juce"
+        },
+        {
+          "type": "test",
+          "name": "juce"
+        }
       ]
     }
   ]

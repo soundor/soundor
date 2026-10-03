@@ -18,8 +18,7 @@
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
-    "citty": "catalog:",
-    "vite": "catalog:"
+    "citty": "catalog:"
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
