@@ -1,0 +1,40 @@
+# clang-tidy for Soundor-owned native code (the `tidy` preset of
+# runtimes/juce-runtime/native). Checks are chosen to find real defects; purely
+# stylistic or noisy ones are disabled with a reason.
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  cert-err58-cpp,
+  clang-analyzer-*,
+  concurrency-*,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-virtual-class-destructor,
+  misc-*,
+  -misc-const-correctness,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  performance-*,
+  -performance-enum-size,
+  readability-container-size-empty,
+  readability-else-after-return,
+  readability-inconsistent-declaration-parameter-name,
+  readability-make-member-function-const,
+  readability-redundant-*,
+  readability-simplify-boolean-expr
+# bugprone-easily-swappable-parameters: flags every (string_view, string_view).
+# misc-const-correctness: wants every C handle (JSValue) local const.
+# misc-include-cleaner: does not understand the QuickJS umbrella header.
+# misc-non-private-member-variables-in-classes: state structs are deliberate.
+# misc-no-recursion: path normalisation and future tree walks recurse on purpose.
+# performance-enum-size: shrinking public enums buys nothing.
+# modernize-use-trailing-return-type / avoid-c-arrays: style, not defects.
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/runtimes/[^/]+/native/(include|src|tests)/.*'
+FormatStyle: file

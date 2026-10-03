@@ -6,7 +6,10 @@
     "oxlint.config.ts",
     "package.json",
     "pnpm-lock.yaml",
-    "pnpm-workspace.yaml"
+    "pnpm-workspace.yaml",
+    ".clang-format",
+    ".clang-tidy",
+    "scripts/**"
   ],
   "tasks": {
     "//#format:check": {},
@@ -27,6 +30,22 @@
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
+    },
+    "format:native": {
+      "env": ["CLANG_FORMAT"],
+      "passThroughEnv": ["CI"]
+    },
+    "format:native:fix": {
+      "cache": false,
+      "env": ["CLANG_FORMAT"]
+    },
+    "lint:native": {
+      "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
+      "passThroughEnv": ["CI"]
+    },
+    "test:native": {
+      "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
+      "passThroughEnv": ["CI"]
     }
   }
 }

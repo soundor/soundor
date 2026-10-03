@@ -1,0 +1,47 @@
+# C++ style for Soundor-owned native code. It follows the JUCE conventions the
+# generated `soundor::` base classes and the scaffolded plugin host already use:
+# Allman braces, four-space indent, indented namespaces, `! value`.
+#
+# `pnpm format` checks the runtime's native sources with clang-format 18.
+# User-owned scaffolds under examples/ are not reformatted.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 120
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+NamespaceIndentation: All
+FixNamespaceComments: true
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+PointerAlignment: Left
+ReferenceAlignment: Left
+SpaceAfterLogicalNot: true
+SpaceBeforeCpp11BracedList: true
+Cpp11BracedListStyle: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBinaryOperators: NonAssignment
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+LambdaBodyIndentation: Signature
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Same-directory private headers first, then Soundor, third-party, standard.
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<soundor/'
+    Priority: 2
+  - Regex: '^<[a-z_]+\.h>$|^<doctest/'
+    Priority: 3
+  - Regex: '^<[a-z_]+>$'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 3

@@ -115,6 +115,15 @@ UI still renders.
   `result` frame resolves it. Malformed inbound frames are ignored rather than
   crashing the UI.
 
+## Native runtime (in progress)
+
+[`native/`](./native) holds the C++ runtime that will replace the WebView: an
+embedded QuickJS-NG engine running the plugin's UI JavaScript on the UI thread,
+with Soundor-controlled module loading and no browser or Node globals. It is
+built and tested on its own (`pnpm test` includes it). The current WebView
+pipeline described above does not use it yet. See
+[`native/README.md`](./native/README.md).
+
 ## License
 
 MIT
