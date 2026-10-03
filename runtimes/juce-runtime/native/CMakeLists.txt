@@ -41,15 +41,17 @@ add_library(soundor_runtime STATIC
   src/platform/WorkerThread.cpp
   src/runtime/RuntimeHost.cpp
   src/web/Encoding.cpp
+  src/web/Http.cpp
   src/web/Random.cpp
   src/web/Stubs.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
 add_library(soundor::runtime ALIAS soundor_runtime)
 soundor_embed_text(soundor_runtime parametersModule src/modules/parameters/parameters.js)
-foreach(module abort clone console crypto encoding events inspect timers url web)
+foreach(module abort blob clone console crypto encoding events fetch inspect timers url web)
   soundor_embed_text(soundor_runtime ${module}Module src/web/js/${module}.js)
 endforeach()
+soundor_embed_text(soundor_runtime formDataModule src/web/js/form-data.js)
 
 target_compile_features(soundor_runtime PUBLIC cxx_std_20)
 target_compile_definitions(soundor_runtime PUBLIC SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE})

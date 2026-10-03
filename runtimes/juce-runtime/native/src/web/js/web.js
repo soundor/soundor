@@ -4,11 +4,14 @@
 
 import { now, timeOrigin } from 'soundor:internal/platform';
 import { AbortController, AbortSignal } from 'soundor:internal/web/abort';
+import { Blob, File } from 'soundor:internal/web/blob';
 import { structuredClone } from 'soundor:internal/web/clone';
 import { console, reportError } from 'soundor:internal/web/console';
 import { crypto } from 'soundor:internal/web/crypto';
 import { TextDecoder, TextEncoder } from 'soundor:internal/web/encoding';
 import { CustomEvent, Event, EventTarget } from 'soundor:internal/web/events';
+import { Headers, Request, Response, fetch } from 'soundor:internal/web/fetch';
+import { FormData } from 'soundor:internal/web/form-data';
 import {
   clearInterval,
   clearTimeout,
@@ -53,3 +56,10 @@ define('structuredClone', structuredClone);
 define('crypto', crypto);
 define('URL', URL);
 define('URLSearchParams', URLSearchParams);
+define('Blob', Blob);
+define('File', File);
+define('FormData', FormData);
+define('Headers', Headers);
+define('Request', Request);
+define('Response', Response);
+define('fetch', fetch);

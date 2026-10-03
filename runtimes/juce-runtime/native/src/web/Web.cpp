@@ -24,11 +24,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         const EmbeddedModule embeddedModules[] = {
             { "soundor:internal/web", &embedded::webModule },
             { "soundor:internal/web/abort", &embedded::abortModule },
+            { "soundor:internal/web/blob", &embedded::blobModule },
             { "soundor:internal/web/clone", &embedded::cloneModule },
             { "soundor:internal/web/console", &embedded::consoleModule },
             { "soundor:internal/web/crypto", &embedded::cryptoModule },
             { "soundor:internal/web/encoding", &embedded::encodingModule },
             { "soundor:internal/web/events", &embedded::eventsModule },
+            { "soundor:internal/web/fetch", &embedded::fetchModule },
+            { "soundor:internal/web/form-data", &embedded::formDataModule },
             { "soundor:internal/web/inspect", &embedded::inspectModule },
             { "soundor:internal/web/timers", &embedded::timersModule },
             { "soundor:internal/web/url", &embedded::urlModule },
@@ -138,7 +141,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     {
     }
 
-    State::~State() = default;
+    // In-flight requests are of no use to anyone once the context is gone.
+    State::~State()
+    {
+        for (auto& [id, token] : cancellations)
+            token->cancel();
+    }
 
     double State::now() const
     {
