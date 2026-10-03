@@ -2,14 +2,11 @@ import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
 
 export default defineSoundorConfig({
-  runtimes: [
-    juceRuntime({
-      plugin: {
-        formats: ['vst3', 'standalone'],
-        pluginName: 'Soundor Basic',
-      },
-    }),
-  ],
+  plugin: {
+    id: 'dev.soundor.basic',
+    name: 'Soundor Basic',
+  },
+  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],
   parameters: [
     {
       type: 'float',

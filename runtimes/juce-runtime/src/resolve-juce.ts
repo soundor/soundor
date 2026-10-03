@@ -10,7 +10,7 @@ import { homedir } from 'node:os';
 
 import type { FileSystemHost } from '@soundor/runtime-sdk';
 
-import type { ResolvedJuceOptions } from './options';
+import type { JuceOptions } from './options';
 
 export type JuceSource = 'option' | 'env' | 'well-known';
 
@@ -49,7 +49,7 @@ async function isJuceCheckout(
 /** Ordered candidate paths, paired with the source that contributed them. */
 function candidates(
   fs: FileSystemHost,
-  options: ResolvedJuceOptions,
+  options: Pick<JuceOptions, 'jucePath'>,
   env: NodeJS.ProcessEnv,
   system: JuceResolveSystem,
 ): { path: string; source: JuceSource }[] {
@@ -97,7 +97,7 @@ function defaultSystem(): JuceResolveSystem {
 /** Resolves a JUCE checkout without ever fetching one. */
 export async function resolveJuce(
   fs: FileSystemHost,
-  options: ResolvedJuceOptions,
+  options: Pick<JuceOptions, 'jucePath'>,
   env: NodeJS.ProcessEnv = process.env,
   system: JuceResolveSystem = defaultSystem(),
 ): Promise<JuceResolution> {

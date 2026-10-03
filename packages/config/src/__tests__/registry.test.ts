@@ -49,7 +49,11 @@ function descriptor(
 }
 
 function config(...runtimes: RuntimeDescriptor[]): SoundorConfig {
-  return { runtimes, parameters: [], nativeMethods: [] };
+  return {
+    plugin: { id: 'com.example.test', name: 'Test' },
+    runtimes,
+    parameters: [],
+  };
 }
 
 describe('resolveRuntime', () => {

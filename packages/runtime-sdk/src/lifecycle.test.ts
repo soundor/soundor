@@ -90,9 +90,9 @@ describe('runtime lifecycle', () => {
     });
 
     const config: SoundorConfig = {
+      plugin: { id: 'com.example.test', name: 'Test' },
       runtimes: [juceRuntime({ format: 'vst3' })],
       parameters: [],
-      nativeMethods: [],
     };
 
     const fs = memoryFs();
@@ -149,9 +149,9 @@ describe('runtime lifecycle', () => {
       doctor: async () => ({ checks: [] }),
     });
     const config: SoundorConfig = {
+      plugin: { id: 'com.example.test', name: 'Test' },
       runtimes: [runtime()],
       parameters: [],
-      nativeMethods: [],
     };
     const resolved = resolveRuntime(config, 'juce');
     const input: DispatchContextInput = {

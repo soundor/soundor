@@ -12,6 +12,7 @@ const runtime = {
 };
 
 export default {
+  plugin: { id: 'com.example.invalid', name: 'Invalid' },
   runtimes: [{ id: 'juce', runtime }],
   parameters: [
     { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 5 },

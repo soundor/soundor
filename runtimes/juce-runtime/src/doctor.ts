@@ -14,7 +14,7 @@ import {
   type FileSystemHost,
 } from '@soundor/runtime-sdk';
 
-import type { ResolvedJuceOptions } from './options';
+import type { JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 
 /** Minimum CMake JUCE's CMake API requires. */
@@ -31,7 +31,7 @@ export interface DoctorDeps {
 /** Builds the JUCE toolchain diagnostic report. */
 export async function buildDoctorReport(
   fs: FileSystemHost,
-  options: ResolvedJuceOptions,
+  options: Pick<JuceOptions, 'jucePath'>,
   deps: DoctorDeps = {},
 ): Promise<DoctorReport> {
   const probe = deps.probe ?? probeCommand;
@@ -100,7 +100,7 @@ function checkCompiler(probe: CommandProbe): DoctorCheck {
 
 async function checkJuce(
   fs: FileSystemHost,
-  options: ResolvedJuceOptions,
+  options: Pick<JuceOptions, 'jucePath'>,
   env: NodeJS.ProcessEnv,
 ): Promise<DoctorCheck> {
   const resolution = await resolveJuce(fs, options, env);

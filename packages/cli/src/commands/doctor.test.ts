@@ -259,7 +259,7 @@ export default defineSoundorConfig({
     )
     .join(', ')}],
   parameters: [],
-  nativeMethods: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
     'utf8',

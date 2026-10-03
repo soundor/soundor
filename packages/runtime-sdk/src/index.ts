@@ -14,6 +14,7 @@ export type {
   RuntimeConfig,
   RuntimeDescriptor,
   RuntimeFactory,
+  PluginIdentity,
   RuntimeMode,
   RuntimePhase,
   SoundorConfig,
@@ -42,6 +43,8 @@ export {
   SoundorError,
   UnknownRuntimeError,
   exitCodeFor,
+  describeNativeApi,
+  nativeAbiNamespace,
 } from '@soundor/core';
 export type {
   CodegenFile,
@@ -56,8 +59,8 @@ export type {
   CoreEnumParameter,
   CoreFloatParameter,
   CoreIntParameter,
-  CoreNativeMethod,
   CoreParameter,
+  CorePluginIdentity,
   CoreRuntimeDescriptor,
   CoreSoundorConfig,
   FileSystemHost,
@@ -66,4 +69,7 @@ export type {
   ProjectPaths,
   SoundorErrorCode,
   SoundorIssue,
+  NativeApiDeclaration,
+  NativeApiModel,
+  NativeType,
 } from '@soundor/core';

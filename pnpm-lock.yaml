@@ -377,9 +377,6 @@ importers:
 
   runtimes/juce-runtime:
     devDependencies:
-      '@soundor/bridge':
-        specifier: workspace:^
-        version: link:../../packages/bridge
       '@soundor/config':
         specifier: workspace:^
         version: link:../../packages/config

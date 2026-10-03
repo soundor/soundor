@@ -19,6 +19,16 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 {
+    struct PendingPromise;
+
+    // What a SoundorHandle object owns: a native object and the identity of
+    // its declared handle type (a bind::HandleType, compared by address).
+    struct HandleBox
+    {
+        const void* type;
+        std::shared_ptr<void> object;
+    };
+
     struct RuntimeState
     {
         explicit RuntimeState(const RuntimeOptions& options);
@@ -56,6 +66,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         };
 
         JSRuntime* rt = nullptr;
+        // Class of opaque native handles (see Bindings.h).
+        JSClassID handleClassId = 0;
         LogSink logSink;
         std::thread::id owner;
         std::vector<Rejection> rejections;
@@ -67,7 +79,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         JSContext* ctx = nullptr;
         std::shared_ptr<ModuleLoader> moduleLoader;
         NativeModuleRegistry nativeModules;
+        // Data native modules keep per context (e.g. the API object behind
+        // `soundor:native`), keyed by the address of a static.
+        std::vector<std::pair<const void*, std::shared_ptr<void>>> moduleData;
+        // Async native calls not yet settled; orphaned when the context dies.
+        std::vector<PendingPromise*> pendingPromises;
     };
+
+    // The state of the live context `ctx` belongs to, or nullptr after the
+    // Soundor Context was destroyed (jobs can outlive it).
+    inline ContextState* contextStateOf(JSContext* ctx)
+    {
+        return static_cast<ContextState*>(JS_GetContextOpaque(ctx));
+    }
 
     // ── Value conversion (ValueConversion.cpp) ──────────────────────────────
 

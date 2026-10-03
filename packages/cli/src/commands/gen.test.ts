@@ -57,7 +57,7 @@ describe('runGen', () => {
         {
           name: 'core',
           files: [
-            { path: 'native-methods.ts', status: 'created' },
+            { path: 'native.d.ts', status: 'created' },
             { path: 'parameters.json', status: 'created' },
             { path: 'parameters.ts', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
@@ -103,7 +103,7 @@ describe('runGen', () => {
       expect.arrayContaining([
         { path: 'parameters.json', status: 'unchanged' },
         { path: 'parameters.ts', status: 'unchanged' },
-        { path: 'native-methods.ts', status: 'unchanged' },
+        { path: 'native.d.ts', status: 'unchanged' },
         { path: 'runtime.txt', status: 'unchanged' },
       ]),
     );
@@ -210,7 +210,7 @@ export default defineSoundorConfig({
       default: 0.5,
     },
   ],
-  nativeMethods: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
     'utf8',
@@ -225,7 +225,7 @@ async function writeInvalidConfig(root: string): Promise<void> {
 export default defineSoundorConfig({
   runtimes: [{ id: 'test' }],
   parameters: [],
-  nativeMethods: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
     'utf8',

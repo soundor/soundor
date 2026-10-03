@@ -10,11 +10,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
     {
         namespace
         {
-            ContextState* contextStateOf(JSContext* ctx)
-            {
-                return static_cast<ContextState*>(JS_GetContextOpaque(ctx));
-            }
-
             // Copies `text` into engine-owned memory, as the module hooks require.
             char* engineString(JSContext* ctx, const std::string& text)
             {
@@ -178,6 +173,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 }
                 state.rejections.push_back({ ctx, JS_DupValue(ctx, promise), JS_DupValue(ctx, reason) });
             }
+            // Releases the native object behind a handle when JavaScript drops it
+            // (garbage collection, or the context/runtime being freed).
+            void finalizeHandle(JSRuntime*, JSValueConst value)
+            {
+                JSClassID classId = 0;
+                delete static_cast<HandleBox*>(JS_GetAnyOpaque(value, &classId));
+            }
+
+            void registerHandleClass(JSRuntime* rt, JSClassID& classId)
+            {
+                JS_NewClassID(rt, &classId);
+                JSClassDef definition {};
+                definition.class_name = "SoundorHandle";
+                definition.finalizer = finalizeHandle;
+                if (JS_NewClass(rt, classId, &definition) < 0)
+                    throw std::bad_alloc();
+            }
         } // namespace
 
         RuntimeState::RuntimeState(const RuntimeOptions& options)
@@ -189,6 +201,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 JS_SetMemoryLimit(rt, options.memoryLimit);
             JS_SetMaxStackSize(rt, options.maxStackSize);
             JS_SetModuleLoaderFunc(rt, normaliseModuleName, loadModule, nullptr);
+            registerHandleClass(rt, handleClassId);
             JS_SetHostPromiseRejectionTracker(rt, trackRejection, this);
         }
 

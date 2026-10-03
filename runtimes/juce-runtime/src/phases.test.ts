@@ -21,11 +21,12 @@ import { juceBuild, juceDev, juceGen, juceInit } from './index';
 import { makeCtx } from './testing';
 
 const config = {
+  plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
   runtimes: [],
   parameters: [
     { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
   ],
-  nativeMethods: [],
+  native: {},
 } as unknown as SoundorConfig;
 
 const okProbe: CommandProbe = () => ({ ok: true, version: '1.2.3' });
@@ -103,12 +104,14 @@ describe('juceGen', () => {
       'soundor/SoundorProcessor.cpp',
       'soundor/SoundorEditor.h',
       'soundor/SoundorEditor.cpp',
+      'soundor/native/SoundorNative.h',
+      'soundor/native/SoundorNative.cpp',
     ]);
   });
 });
 
 describe('juceDev', () => {
-  it('configures a debug build pointed at the Vite dev URL', async () => {
+  it('configures and builds a debug build', async () => {
     const root = await tempProjectWithJuce();
     const controller = new AbortController();
     controller.abort(); // dev returns as soon as the (already-aborted) signal fires.
@@ -116,7 +119,6 @@ describe('juceDev', () => {
       root,
       fs: createNodeFileSystem(root),
       options: { jucePath: join(root, 'JUCE') },
-      dev: { ui: { kind: 'vite', url: 'http://localhost:5173/' } },
       signal: controller.signal,
     });
     const calls: string[][] = [];
@@ -129,7 +131,7 @@ describe('juceDev', () => {
 
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
-    expect(configure).toContain('-DSOUNDOR_DEV_URL=http://localhost:5173/');
+    expect(configure.some((arg) => arg.startsWith('-DSOUNDOR_'))).toBe(false);
     expect(calls.some((c) => c.includes('--build'))).toBe(true);
   });
 
@@ -142,7 +144,7 @@ describe('juceDev', () => {
       fs: createNodeFileSystem(root),
       options: {
         jucePath: join(root, 'JUCE'),
-        plugin: { formats: ['vst3', 'standalone'] },
+        formats: ['vst3', 'standalone'],
       },
       signal: controller.signal,
     });
@@ -183,14 +185,13 @@ describe('juceDev', () => {
 });
 
 describe('juceBuild', () => {
-  it('builds Release, passes the UI bundle, and collects artefacts into dist', async () => {
+  it('builds Release and collects artefacts into dist', async () => {
     const root = await tempProjectWithJuce();
     const ctx = makeCtx({
       root,
       fs: createNodeFileSystem(root),
       options: { jucePath: join(root, 'JUCE') },
       mode: 'production',
-      build: { ui: { kind: 'vite', dir: join(root, 'ui') } },
     });
     const calls: string[][] = [];
     const run = async (o: RunCommandOptions) => {
@@ -206,7 +207,6 @@ describe('juceBuild', () => {
     await juceBuild(config, ctx, { run, probe: okProbe });
 
     expect(calls[0]).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
-    expect(calls[0]).toContain('-DSOUNDOR_UI_DIR=' + join(root, 'ui'));
     const copied = join(
       ctx.paths.dist,
       'Plugin_artefacts',

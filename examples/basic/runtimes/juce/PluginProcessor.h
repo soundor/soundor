@@ -3,8 +3,6 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/soundor.h>
 
-#include <atomic>
-
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
 // parameter tree generated from soundor.config. Add your DSP here.
 class SoundorBasicProcessor final : public soundor::AudioProcessor
@@ -32,16 +30,10 @@ public:
     const juce::String getProgramName(int) override { return {}; }
     void changeProgramName(int, const juce::String&) override {}
 
-    // App-specific UI telemetry (not part of the generated framework): the
-    // latest output RMS level, pushed to the UI by the editor's onFrame().
-    float getCurrentLevel() const { return currentLevel.load(); }
-
 private:
     // Last block's applied gain, so processBlock can ramp to the new target
     // value instead of stepping (which would click on fast automation).
     float previousGain { 0.5f };
-
-    std::atomic<float> currentLevel { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundorBasicProcessor)
 };

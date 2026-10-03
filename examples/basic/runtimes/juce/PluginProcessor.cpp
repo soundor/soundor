@@ -1,8 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include <cmath>
-
 SoundorBasicProcessor::SoundorBasicProcessor()
     : soundor::AudioProcessor(BusesProperties()
         .withInput("Input", juce::AudioChannelSet::stereo(), true)
@@ -46,20 +44,6 @@ void SoundorBasicProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce:
     const float targetGain = gainParameter->load();
     buffer.applyGainRamp(0, buffer.getNumSamples(), previousGain, targetGain);
     previousGain = targetGain;
-
-    // App-specific telemetry: output RMS (post-gain), stashed for the editor to stream.
-    float sumSquares = 0.0f;
-    int count = 0;
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-    {
-        const auto* data = buffer.getReadPointer(ch);
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
-        {
-            sumSquares += data[i] * data[i];
-            ++count;
-        }
-    }
-    currentLevel.store(count > 0 ? std::sqrt(sumSquares / static_cast<float>(count)) : 0.0f);
 }
 
 juce::AudioProcessorEditor* SoundorBasicProcessor::createEditor()

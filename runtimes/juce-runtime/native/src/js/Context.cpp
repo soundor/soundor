@@ -1,9 +1,11 @@
+#include "Bindings.h"
 #include "Internal.h"
 
 #include <algorithm>
 #include <array>
 #include <new>
 #include <string>
+#include <utility>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 {
@@ -64,6 +66,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         auto& runtime = *state->runtime;
         runtime.assertOwnerThread();
         runtime.forgetRejections(state->ctx);
+        // Async calls still in flight can no longer settle anything.
+        for (auto* pending : std::exchange(state->pendingPromises, {}))
+            pending->orphan();
         // Jobs still queued for this context keep the engine context alive until
         // they run or the runtime is freed. Detaching the opaque pointer makes
         // any module hook they reach fail cleanly instead of touching freed state.

@@ -43,8 +43,8 @@ export type {
   CoreEnumParameter,
   CoreFloatParameter,
   CoreIntParameter,
-  CoreNativeMethod,
   CoreParameter,
+  CorePluginIdentity,
   CoreRuntimeDescriptor,
   CoreSoundorConfig,
   GeneratedFileCheckResult,
@@ -57,3 +57,27 @@ export {
   generateSoundorFiles,
   writeGeneratedFiles,
 } from './generate';
+
+export type {
+  BinaryTypeName,
+  NativeApiDeclaration,
+  NativeApiIssue,
+  NativeApiModel,
+  NativeApiResult,
+  NativeField,
+  NativeMethodDeclaration,
+  NativeMethodModel,
+  NativeType,
+  NativeTypeDeclaration,
+  NativeTypeModel,
+  NativeTypeRef,
+  PrimitiveTypeName,
+} from './native-api';
+export {
+  BINARY_TYPES,
+  PRIMITIVE_TYPES,
+  describeNativeApi,
+  enumeratorName,
+  nativeAbiNamespace,
+} from './native-api';
+export { renderNativeDts } from './native-dts';

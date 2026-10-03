@@ -32,6 +32,18 @@ export async function clearDirectory(dir: string): Promise<void> {
   );
 }
 
+/**
+ * A reverse-DNS segment derived from the project name, for the template's
+ * `plugin.id`: `@acme/My Synth` → `acme-my-synth`.
+ */
+export function projectIdSegment(name: string): string {
+  const segment = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return segment.length > 0 ? segment : 'plugin';
+}
+
 export function tokenReplace(
   content: string,
   name: string,
@@ -39,6 +51,7 @@ export function tokenReplace(
 ): string {
   return content
     .replaceAll('__PROJECT_NAME__', name)
+    .replaceAll('__PROJECT_ID__', projectIdSegment(name))
     .replaceAll('__RUNTIME__', runtime);
 }
 

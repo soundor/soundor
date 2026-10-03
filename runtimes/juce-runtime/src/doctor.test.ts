@@ -2,7 +2,6 @@ import type { CommandProbe } from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { buildDoctorReport } from './doctor';
-import { resolveJuceOptions } from './options';
 import { memoryFs } from './testing';
 
 const ok: CommandProbe = () => ({ ok: true, version: '1.2.3' });
@@ -22,7 +21,7 @@ describe('buildDoctorReport', () => {
     ]);
     const report = await buildDoctorReport(
       fs,
-      resolveJuceOptions({ jucePath: '/proj/JUCE' }),
+      { jucePath: '/proj/JUCE' },
       {
         probe: ok,
         env: {},
@@ -37,7 +36,7 @@ describe('buildDoctorReport', () => {
     ]);
     const report = await buildDoctorReport(
       fs,
-      resolveJuceOptions({ jucePath: '/proj/JUCE' }),
+      { jucePath: '/proj/JUCE' },
       {
         probe: (cmd) => (cmd === 'cmake' ? missing('cmake') : ok('x')),
         env: {},
@@ -54,7 +53,7 @@ describe('buildDoctorReport', () => {
     ]);
     const report = await buildDoctorReport(
       fs,
-      resolveJuceOptions({ jucePath: '/proj/JUCE' }),
+      { jucePath: '/proj/JUCE' },
       {
         probe: (cmd) => (cmd === 'cmake' ? ok('cmake') : missing(cmd)),
         env: {},
@@ -69,7 +68,7 @@ describe('buildDoctorReport', () => {
     ]);
     const report = await buildDoctorReport(
       fs,
-      resolveJuceOptions({ jucePath: '/proj/JUCE' }),
+      { jucePath: '/proj/JUCE' },
       {
         probe: (cmd) =>
           cmd === 'cmake' || cmd === 'cc' ? ok(cmd) : missing(cmd),
@@ -82,7 +81,7 @@ describe('buildDoctorReport', () => {
   it('reports missing JUCE with an actionable suggestion', async () => {
     const report = await buildDoctorReport(
       memoryFs('/proj'),
-      resolveJuceOptions({}),
+      {},
       {
         probe: ok,
         env: {},

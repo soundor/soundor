@@ -8,9 +8,9 @@ This library is **backend-independent**: it does not include JUCE, so it builds
 and tests without a plugin host. JUCE adapters will live in separate targets on
 top of it.
 
-> Status: foundation. The engine, contexts, error conversion, job pumping and
-> module loading are in place and tested. Nothing in the existing WebView-based
-> plugin path uses it yet.
+> Status: the engine, contexts, error conversion, job pumping, module loading
+> and generated `soundor:native` bindings are in place and tested. The plugin
+> does not host the runtime yet.
 
 ## Layout
 
@@ -18,10 +18,12 @@ top of it.
 native/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
-    js/                   Runtime, Context, Value, Error, ModuleLoader
+    js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
   src/
-    js/                   the QuickJS-NG wrapper; the only place quickjs.h is included
+    js/                   the QuickJS-NG wrapper and the binding helpers generated
+                          code uses; the only place quickjs.h is included
   tests/                  doctest suites + the exported-symbol check
+    generated/            golden soundor:native output, compiled by the tests
   cmake/                  pinned dependencies, compiler policy
 ```
 
@@ -75,8 +77,49 @@ Soundor resolves every import; the engine never touches the filesystem.
   paths and rejects bare specifiers (`react`, `node:fs`, `qjs:std`), because npm
   packages are bundled at build time, not resolved at runtime.
 
-Native modules use a private registration API (`src/js/NativeModule.h`). That is
-the seam generated bindings will use.
+Native modules use a private registration API (`src/js/NativeModule.h`), and
+generated bindings are written against the helpers in `src/js/Bindings.h`.
+
+### `soundor:native`
+
+The JUCE runtime's `gen` turns the config's `native` API into a C++ interface
+(`soundor::native::NativeApi`) plus bindings. The plugin implements the
+interface and installs it into each context:
+
+```cpp
+#include <soundor/native/SoundorNative.h>
+
+class Api final : public soundor::native::NativeApi
+{
+    soundor::native::Analysis analyze(std::span<const float> samples) override;
+    void loadPreset(std::string path, soundor::js::Promise<std::shared_ptr<soundor::native::Preset>> promise) override;
+};
+
+soundor::native::install(context, std::make_shared<Api>());
+```
+
+- **Validation.** Every argument is type-checked before C++ runs, and a mismatch
+  is a `TypeError` naming the path, e.g. `centroid(): points[1].y: expected
+number, got undefined`. Missing arguments are errors; extra ones are ignored,
+  as for any JavaScript function.
+- **Binary data.** Typed-array and `ArrayBuffer` arguments arrive as read-only
+  `std::span`s into the JavaScript buffer: zero-copy, valid until the method
+  returns. Returned `std::vector`s move into JavaScript-owned buffers without a
+  copy.
+- **Handles.** Native objects cross as opaque JavaScript objects backed by a
+  `std::shared_ptr`. They cannot be forged or confused between types. The C++
+  object is released when JavaScript drops the handle, or when the runtime is
+  torn down.
+- **Errors.** A C++ exception from a method becomes a JavaScript `Error`
+  (`"fail(): disk full"`). Nothing unwinds into the engine.
+- **Async.** `async` methods receive a `js::Promise<T>` to settle later, on the
+  runtime's thread. The first settle wins. A promise dropped unsettled rejects,
+  and settling after the context is gone does nothing.
+
+The generator's output for a fixture covering every type is checked in under
+`tests/generated` and compiled by the native tests. A TypeScript test fails if
+it ever drifts from the generator (`UPDATE_GOLDEN=1 pnpm --filter
+@soundor/juce-runtime test` regenerates it).
 
 ### Threading and lifetime
 

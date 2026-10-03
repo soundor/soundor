@@ -1,47 +1,65 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveJuceOptions } from './options';
+import { fourCharCode, resolveJuceOptions } from './options';
+
+const plugin = { id: 'com.acme.reverb', name: 'Acme Reverb' };
 
 describe('resolveJuceOptions', () => {
-  it('applies defaults for an empty options bag', () => {
-    const resolved = resolveJuceOptions({});
+  it('derives every JUCE identity from the plugin', () => {
+    const resolved = resolveJuceOptions({}, plugin);
     expect(resolved).toEqual({
       jucePath: undefined,
       formats: ['vst3'],
-      pluginName: 'SoundorPlugin',
-      companyName: 'Soundor',
-      pluginCode: 'Sndr',
-      manufacturerCode: 'Sndo',
+      bundleId: 'com.acme.reverb',
+      pluginName: 'Acme Reverb',
+      companyName: 'acme',
+      pluginCode: fourCharCode(undefined, 'com.acme.reverb'),
+      manufacturerCode: fourCharCode(undefined, 'com.acme'),
     });
   });
 
-  it('keeps explicit formats and identifiers', () => {
-    const resolved = resolveJuceOptions({
-      plugin: {
+  it('keeps explicit JUCE options', () => {
+    const resolved = resolveJuceOptions(
+      {
         formats: ['vst3', 'au'],
-        pluginName: 'My Synth',
+        companyName: 'Acme Audio',
+        pluginCode: 'Rvb1',
+        manufacturerCode: 'Acme',
       },
+      plugin,
+    );
+    expect(resolved).toMatchObject({
+      formats: ['vst3', 'au'],
+      companyName: 'Acme Audio',
+      pluginCode: 'Rvb1',
+      manufacturerCode: 'Acme',
     });
-    expect(resolved.formats).toEqual(['vst3', 'au']);
-    expect(resolved.pluginName).toBe('My Synth');
   });
 
   it('falls back when formats is empty', () => {
-    expect(resolveJuceOptions({ plugin: { formats: [] } }).formats).toEqual([
+    expect(resolveJuceOptions({ formats: [] }, plugin).formats).toEqual([
       'vst3',
     ]);
   });
 
-  it('normalizes plugin/manufacturer codes to four characters', () => {
-    expect(
-      resolveJuceOptions({ plugin: { pluginCode: 'ab' } }).pluginCode,
-    ).toBe('abxx');
-    expect(
-      resolveJuceOptions({ plugin: { pluginCode: 'abcdef' } }).pluginCode,
-    ).toBe('abcd');
-    expect(
-      resolveJuceOptions({ plugin: { manufacturerCode: 'Acme' } })
-        .manufacturerCode,
-    ).toBe('Acme');
+  it('gives plugins of one vendor distinct plugin codes and a shared manufacturer code', () => {
+    const reverb = resolveJuceOptions({}, plugin);
+    const delay = resolveJuceOptions({}, { id: 'com.acme.delay', name: 'D' });
+    expect(reverb.pluginCode).not.toBe(delay.pluginCode);
+    expect(reverb.manufacturerCode).toBe(delay.manufacturerCode);
+  });
+});
+
+describe('fourCharCode', () => {
+  it('normalizes explicit codes to four characters', () => {
+    expect(fourCharCode('ab', 'seed')).toBe('abxx');
+    expect(fourCharCode('abcdef', 'seed')).toBe('abcd');
+    expect(fourCharCode('Acme', 'seed')).toBe('Acme');
+  });
+
+  it('derives a stable code with exactly one leading upper-case letter', () => {
+    const code = fourCharCode(undefined, 'com.acme.reverb');
+    expect(code).toMatch(/^[A-Z][a-z0-9]{3}$/);
+    expect(fourCharCode(undefined, 'com.acme.reverb')).toBe(code);
   });
 });

@@ -27,6 +27,7 @@ if(NOT SOUNDOR_ABI_NAMESPACE MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
 endif()
 
 add_library(soundor_runtime STATIC
+  src/js/Bindings.cpp
   src/js/Context.cpp
   src/js/Error.cpp
   src/js/MemoryModuleLoader.cpp

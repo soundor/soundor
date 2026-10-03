@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveJuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 import { memoryFs } from './testing';
 
@@ -14,11 +13,7 @@ function juceAt(dir: string) {
 describe('resolveJuce', () => {
   it('finds JUCE via the jucePath option', async () => {
     const fs = juceAt('/opt/my-juce');
-    const resolution = await resolveJuce(
-      fs,
-      resolveJuceOptions({ jucePath: '/opt/my-juce' }),
-      {},
-    );
+    const resolution = await resolveJuce(fs, { jucePath: '/opt/my-juce' }, {});
     expect(resolution).toMatchObject({
       found: true,
       path: '/opt/my-juce',
@@ -28,9 +23,13 @@ describe('resolveJuce', () => {
 
   it('finds JUCE via JUCE_DIR', async () => {
     const fs = juceAt('/opt/env-juce');
-    const resolution = await resolveJuce(fs, resolveJuceOptions({}), {
-      JUCE_DIR: '/opt/env-juce',
-    });
+    const resolution = await resolveJuce(
+      fs,
+      {},
+      {
+        JUCE_DIR: '/opt/env-juce',
+      },
+    );
     expect(resolution).toMatchObject({ found: true, source: 'env' });
   });
 
@@ -45,7 +44,7 @@ describe('resolveJuce', () => {
     );
     const resolution = await resolveJuce(
       fs,
-      resolveJuceOptions({ jucePath: '/opt/opt-juce' }),
+      { jucePath: '/opt/opt-juce' },
       { JUCE_DIR: '/opt/env-juce' },
     );
     expect(resolution).toMatchObject({ found: true, source: 'option' });
@@ -55,7 +54,7 @@ describe('resolveJuce', () => {
     const fs = juceAt('/proj/JUCE');
     const resolution = await resolveJuce(
       fs,
-      resolveJuceOptions({}),
+      {},
       {},
       {
         platform: 'linux',
@@ -72,7 +71,7 @@ describe('resolveJuce', () => {
     const fs = juceAt('/home/me/SDKs/JUCE');
     const resolution = await resolveJuce(
       fs,
-      resolveJuceOptions({}),
+      {},
       {},
       {
         platform: 'linux',
@@ -90,7 +89,7 @@ describe('resolveJuce', () => {
     const fs = memoryFs('/proj');
     const mac = await resolveJuce(
       fs,
-      resolveJuceOptions({}),
+      {},
       {},
       {
         platform: 'darwin',
@@ -108,7 +107,7 @@ describe('resolveJuce', () => {
     const winFs = { ...fs, resolve: (...segments: string[]) => segments[0]! };
     const win = await resolveJuce(
       winFs,
-      resolveJuceOptions({}),
+      {},
       {},
       {
         platform: 'win32',
@@ -121,7 +120,7 @@ describe('resolveJuce', () => {
     const fs = memoryFs('/proj');
     const resolution = await resolveJuce(
       fs,
-      resolveJuceOptions({ jucePath: './JUCE' }),
+      { jucePath: './JUCE' },
       {},
       { platform: 'linux' },
     );
@@ -132,11 +131,7 @@ describe('resolveJuce', () => {
   it('ignores a directory missing the JUCE markers', async () => {
     // CMakeLists present but no modules/ dir → not a JUCE checkout.
     const fs = memoryFs('/proj', { '/opt/x/CMakeLists.txt': '# not juce' });
-    const resolution = await resolveJuce(
-      fs,
-      resolveJuceOptions({ jucePath: '/opt/x' }),
-      {},
-    );
+    const resolution = await resolveJuce(fs, { jucePath: '/opt/x' }, {});
     expect(resolution.found).toBe(false);
   });
 });

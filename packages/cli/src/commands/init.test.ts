@@ -115,7 +115,7 @@ const runtimes = ${JSON.stringify(runtimeIds)}.map((id) => ({
 export default defineSoundorConfig({
   runtimes,
   parameters: [],
-  nativeMethods: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
     'utf8',
