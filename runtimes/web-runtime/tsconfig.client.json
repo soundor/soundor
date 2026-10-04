@@ -1,0 +1,12 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    // Runs in the browser: DOM, no Node built-ins.
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.client.tsbuildinfo"
+  },
+  "include": ["src/client"],
+  "exclude": ["src/**/*.test.ts", "src/client/testing"]
+}
