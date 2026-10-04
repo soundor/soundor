@@ -56,7 +56,10 @@ const config: CoreSoundorConfig = {
 
 const consumer = `/// <reference path="./soundor.d.ts" />
 import { parameters, type Parameter } from 'soundor:parameters';
+import * as fs from 'soundor:fs';
+import { plugin, snapshot, subscribe } from 'soundor:host';
 import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
+import { storage } from 'soundor:storage';
 
 const gain: number = parameters.gain.get();
 parameters.gain.set(gain - 1);
@@ -77,6 +80,18 @@ const level: Level = measure(new Float32Array(128));
 const rms: number = level.rms;
 const preset: Promise<Preset> = loadPreset('/presets/a.json');
 
+const id: 'com.example.dts' = plugin.id;
+const bpm: number | undefined = snapshot().transport?.bpm;
+const stopHost: () => void = subscribe((s) => void s.sampleRate);
+const volume: Promise<number | undefined> = storage.get<number>('volume');
+const presets: Promise<string> = fs.readText('presets/a.json');
+void fs.writeBytes('raw.bin', new Uint8Array(2));
+
+// @ts-expect-error storage keys are strings
+void storage.get(1);
+// @ts-expect-error fs paths are strings
+void fs.readText(42);
+
 // @ts-expect-error not one of the enum's values
 parameters.mode.set('quad');
 // @ts-expect-error booleans are not numbers
@@ -88,7 +103,7 @@ measure([1, 2]);
 // @ts-expect-error handles cannot be forged from plain objects
 const forged: Preset = {};
 
-export { bypassed, forged, lowCut, min, preset, rms, unit, values };
+export { bpm, bypassed, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;

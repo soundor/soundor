@@ -17,6 +17,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(SoundorCompilerOptions)
 include(SoundorEmbed)
 include(SoundorQuickJS)
+include(SoundorAda)
 
 # Inline namespace that every Soundor-native C++ symbol is mangled into. A
 # plugin build sets it to a value derived from its stable plugin identifier so
@@ -37,9 +38,23 @@ add_library(soundor_runtime STATIC
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/parameters/ParametersModule.cpp
-  src/runtime/RuntimeHost.cpp)
+  src/platform/WorkerThread.cpp
+  src/runtime/RuntimeHost.cpp
+  src/web/Encoding.cpp
+  src/web/Files.cpp
+  src/web/Host.cpp
+  src/web/Http.cpp
+  src/web/Random.cpp
+  src/web/Url.cpp
+  src/web/Web.cpp)
 add_library(soundor::runtime ALIAS soundor_runtime)
-soundor_embed_text(soundor_runtime parametersModule src/modules/parameters/parameters.js)
+foreach(module fs host parameters storage)
+  soundor_embed_text(soundor_runtime ${module}Module src/modules/${module}/${module}.js)
+endforeach()
+foreach(module abort blob clone console crypto encoding events fetch inspect timers url web)
+  soundor_embed_text(soundor_runtime ${module}Module src/web/js/${module}.js)
+endforeach()
+soundor_embed_text(soundor_runtime formDataModule src/web/js/form-data.js)
 
 target_compile_features(soundor_runtime PUBLIC cxx_std_20)
 target_compile_definitions(soundor_runtime PUBLIC SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE})
@@ -47,7 +62,10 @@ target_include_directories(soundor_runtime
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
-target_link_libraries(soundor_runtime PRIVATE soundor_quickjs)
+target_link_libraries(soundor_runtime PRIVATE soundor_quickjs soundor_ada Threads::Threads)
+if(WIN32)
+  target_link_libraries(soundor_runtime PRIVATE bcrypt) # crypto.getRandomValues
+endif()
 soundor_configure_target(soundor_runtime)
 
 # For Soundor-owned code built outside this library — generated bindings and

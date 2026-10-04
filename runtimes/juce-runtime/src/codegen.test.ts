@@ -188,6 +188,39 @@ describe('generateJuceSources', () => {
     );
   });
 
+  it('captures the transport in processBlock and hands DSP to process()', () => {
+    const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
+    expect(header).toContain(
+      'virtual void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) = 0;',
+    );
+    expect(header).toContain(
+      'void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final',
+    );
+    expect(header).toContain('transport.capture(getPlayHead());');
+    expect(header).toContain(
+      'static constexpr const char* pluginId = "com.acme.synth";',
+    );
+  });
+
+  it('wires HTTP, host info and the data directory into the runtime', () => {
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    expect(editor).toContain(
+      'options.http = std::make_shared<backend::JuceHttpClient>();',
+    );
+    expect(editor).toContain(
+      'options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());',
+    );
+    expect(editor).toContain('.getChildFile(AudioProcessor::pluginId)');
+    const setup = fileMap(config).get('setup.cmake')!;
+    for (const name of [
+      'JuceHttpClient',
+      'JuceParameterHost',
+      'JuceTransport',
+    ]) {
+      expect(setup).toContain(`backend/juce/soundor/backend/${name}.cpp`);
+    }
+  });
+
   it('generates the soundor:native bindings from the native API', () => {
     const header = fileMap(config).get('soundor/native/SoundorNative.h')!;
     expect(header).toContain('virtual double render(std::string request) = 0;');

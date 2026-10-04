@@ -19,6 +19,11 @@ add_executable(soundor_runtime_tests
   js/RuntimeTests.cpp
   native/NativeModuleTests.cpp
   parameters/ParametersTests.cpp
+  web/FetchTests.cpp
+  web/GlobalsTests.cpp
+  web/PlatformModulesTests.cpp
+  web/UrlTests.cpp
+  web/WebApiTests.cpp
   # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
   generated/soundor/native/SoundorNative.cpp)
 target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)

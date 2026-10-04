@@ -8,8 +8,9 @@ This library is **backend-independent**: it does not include JUCE, so it builds
 and tests without a plugin host. JUCE adapters will live in separate targets on
 top of it.
 
-> Status: the engine, module loading, generated `soundor:native` bindings and
-> `soundor:parameters` are in place and tested, and JUCE plugins host a runtime
+> Status: the engine, module loading, the Web platform layer, and the
+> `soundor:native`, `soundor:parameters`, `soundor:host`, `soundor:storage` and
+> `soundor:fs` modules are in place and tested, and JUCE plugins host a runtime
 > per plugin view. Loading the plugin's own JavaScript bundle comes next.
 
 ## Layout
@@ -20,20 +21,22 @@ native/
     Config.h              the ABI namespace (see "Symbol isolation")
     js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
     parameters/           the parameter Host interface backends implement
+    platform/             HttpClient and HostInfo, the services backends provide
     runtime/              RuntimeHost: one plugin view's JavaScript world
   src/
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
     modules/              soundor:* modules (C++, plus embedded JavaScript)
+    platform/             background worker and UI-thread handoff queue
     runtime/              RuntimeHost
+    web/                  the Web-compatible globals (C++ + embedded JavaScript)
   backend/juce/           JUCE adapters, compiled into the plugin (they need JUCE)
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
   cmake/                  pinned dependencies, compiler policy, JS embedding
 ```
 
-Later stages add sibling directories rather than growing `js/`: `web/` (Web API
-implementations) and `ui/` (UI tree, layout, rendering). A third-party header (QuickJS, later Yoga and Skia) is only
+A later stage adds `ui/` (UI tree, layout, rendering) as a sibling directory. A third-party header (QuickJS, later Yoga and Skia) is only
 included by the directory that wraps it.
 
 ## Embedding API
@@ -155,6 +158,63 @@ parameters.gain.info; // { id, label, type, min, max, default, unit }
   embedded at build time. It uses `soundor:internal/parameters`, which only
   runtime modules may import.
 
+### The Web platform layer
+
+`RuntimeHost` installs a deliberate subset of Web APIs. These are the ones a
+standard already solves a generic problem with; Soundor never pretends to be a
+browser or Node. There is no `window`, `document`, `process` or `require`.
+
+| Globals                                                                | Notes                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `globalThis`, `self`                                                   | `self === globalThis`                                                                                                                                                                                         |
+| `console`                                                              | log/info/debug/warn/error, trace, assert, group, count, time; printf-style `%s %d %i %f %j %o %O`; objects formatted like Node's `util.inspect`. Goes to the runtime's log sink (the `soundor dev` terminal). |
+| `setTimeout`, `setInterval`, `clear*`, `queueMicrotask`, `reportError` | Timers fire from `RuntimeHost::tick()`, so they have frame resolution. String callbacks are rejected (no implied eval).                                                                                       |
+| `performance.now()`, `performance.timeOrigin`                          | The same monotonic clock as the timers.                                                                                                                                                                       |
+| `Event`, `CustomEvent`, `EventTarget`                                  | The DOM event model without a tree: target-only dispatch, `once`/`signal`/`passive`, listener errors reported.                                                                                                |
+| `AbortController`, `AbortSignal`                                       | Including `abort()`, `timeout()` and `any()`.                                                                                                                                                                 |
+| `TextEncoder`, `TextDecoder`                                           | WHATWG UTF-8, with streaming and `fatal`.                                                                                                                                                                     |
+| `URL`, `URLSearchParams`                                               | WHATWG URL via [ada](https://github.com/ada-url/ada), including IDNA.                                                                                                                                         |
+| `atob`, `btoa`, `DOMException`                                         | From QuickJS-NG.                                                                                                                                                                                              |
+| `structuredClone`                                                      | Including `transfer`. Functions, symbols and similar values throw `DataCloneError`.                                                                                                                           |
+| `crypto.getRandomValues()`, `crypto.randomUUID()`                      | From the OS CSPRNG. `crypto.subtle` is not provided.                                                                                                                                                          |
+| `fetch`, `Headers`, `Request`, `Response`, `Blob`, `File`, `FormData`  | Through the backend's `HttpClient`. Bodies are buffered (no Web Streams yet). `data:` URLs resolve locally; redirects are always followed.                                                                    |
+
+Not provided: the DOM, Canvas/WebGL, Workers, IndexedDB/`localStorage`,
+`XMLHttpRequest`, WebSocket, Web Streams, WebAudio.
+
+Anything that would block, such as network or file I/O, is asynchronous. Work
+runs on backend or worker threads and carries only an operation id and plain
+C++ results back. The UI thread settles the promise in `tick()`. A runtime torn
+down mid-operation is therefore safe: in-flight requests are cancelled, file
+writes already started complete, and late results are dropped.
+
+### `soundor:host`, `soundor:storage`, `soundor:fs`
+
+```ts
+import { plugin, snapshot, subscribe } from 'soundor:host';
+import { storage } from 'soundor:storage';
+import { readText, writeText } from 'soundor:fs';
+
+subscribe(({ transport }) => drawPlayhead(transport?.ppqPosition));
+await storage.set('lastPreset', 'warm');
+await writeText('presets/warm.json', JSON.stringify(preset));
+```
+
+- **`soundor:host`:** the plugin's id and name, plus host snapshots (sample
+  rate, block size, host name, transport). The backend captures the transport
+  on the audio thread without locking. Subscribers receive each changed
+  snapshot, once per frame while playing.
+- **`soundor:storage`:** persistent JSON key/value storage in
+  `<data>/storage.json`. It is private to the plugin and safe across instances
+  in one process.
+- **`soundor:fs`:** asynchronous file access confined to `<data>/files`. Paths
+  are relative; `..`, absolute paths and symlinks leading outside are refused.
+  Writes are atomic. Errors are `DOMException`s (`NotFoundError`,
+  `NotAllowedError`, …).
+
+`<data>` is the plugin's private data directory, chosen by the backend (JUCE:
+`<user application data>/Soundor/<plugin.id>`).
+
 ### `RuntimeHost`
 
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
@@ -180,10 +240,11 @@ leaks at teardown.
 All dependencies are fetched by CMake (`FetchContent`) from exact revisions,
 verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 
-| Dependency | Version             | License | Role                        |
-| ---------- | ------------------- | ------- | --------------------------- |
-| QuickJS-NG | v0.17.0 (`6d46d07`) | MIT     | JavaScript engine (shipped) |
-| doctest    | v2.5.3 (`2d0a935`)  | MIT     | test framework (tests only) |
+| Dependency | Version             | License          | Role                                          |
+| ---------- | ------------------- | ---------------- | --------------------------------------------- |
+| QuickJS-NG | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                   |
+| ada        | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped) |
+| doctest    | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                   |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
 sources into a static `soundor_quickjs` target with hidden visibility and links

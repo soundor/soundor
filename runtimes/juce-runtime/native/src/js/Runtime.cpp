@@ -207,6 +207,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
             }
         } // namespace
 
+        // AddressSanitizer makes native frames several times larger, so the same
+        // JavaScript recursion needs proportionally more stack.
+#if defined(__SANITIZE_ADDRESS__)
+        constexpr std::size_t sanitizerStackFactor = 4;
+#elif defined(__has_feature)
+    #if __has_feature(address_sanitizer)
+        constexpr std::size_t sanitizerStackFactor = 4;
+    #else
+        constexpr std::size_t sanitizerStackFactor = 1;
+    #endif
+#else
+        constexpr std::size_t sanitizerStackFactor = 1;
+#endif
+
         RuntimeState::RuntimeState(const RuntimeOptions& options)
             : rt(JS_NewRuntime()), logSink(options.log), owner(std::this_thread::get_id())
         {
@@ -214,7 +228,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 throw std::bad_alloc();
             if (options.memoryLimit > 0)
                 JS_SetMemoryLimit(rt, options.memoryLimit);
-            JS_SetMaxStackSize(rt, options.maxStackSize);
+            JS_SetMaxStackSize(rt, options.maxStackSize * sanitizerStackFactor);
             JS_SetModuleLoaderFunc(rt, normaliseModuleName, loadModule, nullptr);
             registerHandleClass(rt, handleClassId);
             JS_SetHostPromiseRejectionTracker(rt, trackRejection, this);

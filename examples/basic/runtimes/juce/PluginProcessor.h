@@ -14,7 +14,7 @@ public:
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
-    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -31,7 +31,7 @@ public:
     void changeProgramName(int, const juce::String&) override {}
 
 private:
-    // Last block's applied gain, so processBlock can ramp to the new target
+    // Last block's applied gain, so process() can ramp to the new target
     // value instead of stepping (which would click on fast automation).
     float previousGain { 0.5f };
 
