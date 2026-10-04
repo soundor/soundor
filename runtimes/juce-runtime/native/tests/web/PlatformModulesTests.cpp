@@ -265,6 +265,26 @@ TEST_SUITE("soundor:host")
         CHECK(f.eval("seen.join('|')").asString() == "stopped|playing 128 7/8");
     }
 
+    TEST_CASE("the snapshot is one object until the host state changes")
+    {
+        auto host = std::make_shared<FakeHostInfo>();
+        host->current.sampleRate = 44100;
+        auto options = withData({});
+        options.hostInfo = host;
+        WebFixture f(options);
+        // useSyncExternalStore(subscribe, snapshot) relies on this.
+        f.run("import { snapshot, subscribe } from 'soundor:host';"
+              "globalThis.first = snapshot(); globalThis.snapshot = snapshot; subscribe(() => {});");
+        f.host.tick();
+        CHECK(f.eval("snapshot() === first || snapshot().sampleRate === first.sampleRate").asBoolean());
+        const auto before = f.eval("globalThis.before = snapshot(); snapshot() === before");
+        CHECK(before.asBoolean());
+        host->current.sampleRate = 96000;
+        f.host.tick();
+        CHECK(f.eval("[snapshot() !== before, snapshot().sampleRate, snapshot() === snapshot()].join()").asString()
+              == "true,96000,true");
+    }
+
     TEST_CASE("without host information the snapshot is empty")
     {
         WebFixture f;

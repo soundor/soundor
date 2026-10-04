@@ -107,3 +107,49 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
       PASS_REGULAR_EXPRESSION "Objective-C classes defined(.|\n)*UnprefixedProbeClass")
   endif()
 endif()
+
+# Coexistence: two plugin-shaped libraries, each with its own copy of the
+# runtime under its own ABI namespace (as two plugins built from different
+# plugin ids), loaded into one process by a host program.
+add_library(soundor_runtime_other STATIC ${SOUNDOR_RUNTIME_SOURCES})
+# The embedded JavaScript, generated for soundor_runtime, compiled again here.
+get_target_property(soundor_runtime_all_sources soundor_runtime SOURCES)
+list(FILTER soundor_runtime_all_sources INCLUDE REGEX "soundor-embedded/")
+target_sources(soundor_runtime_other PRIVATE ${soundor_runtime_all_sources})
+add_dependencies(soundor_runtime_other soundor_runtime)
+soundor_configure_runtime(soundor_runtime_other p_coexist)
+
+add_library(soundor_coexist_a MODULE coexistence/Plugin.cpp)
+target_link_libraries(soundor_coexist_a PRIVATE soundor::runtime)
+target_compile_definitions(soundor_coexist_a PRIVATE SOUNDOR_COEXIST_COLOR="red")
+soundor_configure_target(soundor_coexist_a)
+
+add_library(soundor_coexist_b MODULE coexistence/Plugin.cpp)
+target_link_libraries(soundor_coexist_b PRIVATE soundor_runtime_other)
+target_compile_definitions(soundor_coexist_b PRIVATE SOUNDOR_COEXIST_COLOR="blue")
+soundor_configure_target(soundor_coexist_b)
+
+add_executable(soundor_coexistence_host coexistence/Host.cpp)
+target_compile_features(soundor_coexistence_host PRIVATE cxx_std_20)
+target_link_libraries(soundor_coexistence_host PRIVATE ${CMAKE_DL_LIBS})
+if(SOUNDOR_ENABLE_SANITIZERS)
+  target_compile_definitions(soundor_coexistence_host PRIVATE SOUNDOR_COEXIST_KEEP_LOADED=1)
+endif()
+soundor_configure_target(soundor_coexistence_host)
+add_dependencies(soundor_coexistence_host soundor_coexist_a soundor_coexist_b)
+add_test(
+  NAME soundor_coexistence
+  COMMAND soundor_coexistence_host $<TARGET_FILE:soundor_coexist_a> $<TARGET_FILE:soundor_coexist_b>)
+if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
+  foreach(module soundor_coexist_a soundor_coexist_b)
+    add_test(
+      NAME ${module}_exports
+      COMMAND ${CMAKE_COMMAND}
+        -DLIBRARY=$<TARGET_FILE:${module}>
+        -DNM=${SOUNDOR_NM_EXE}
+        -DAPPLE=${APPLE}
+        "-DALLOWED=soundor_coexist_create$<SEMICOLON>soundor_coexist_click$<SEMICOLON>soundor_coexist_pixel$<SEMICOLON>soundor_coexist_destroy"
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+  endforeach()
+endif()
+

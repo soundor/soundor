@@ -11,12 +11,15 @@
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "workspace:*"
+    "@soundor/juce-runtime": "workspace:*",
+    "@soundor/react": "workspace:*",
+    "react": "catalog:"
   },
   "devDependencies": {
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
     "soundor": "workspace:*",
     "typescript": "catalog:"
   }
