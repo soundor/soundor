@@ -90,6 +90,9 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
 const MODULES: Readonly<Record<string, string>> = {
   'soundor:parameters': 'modules/parameters',
   'soundor:host': 'modules/host',
+  'soundor:ui': 'modules/ui',
+  'soundor:storage': 'modules/storage',
+  'soundor:fs': 'modules/fs',
 };
 
 export interface SoundorModulesOptions {

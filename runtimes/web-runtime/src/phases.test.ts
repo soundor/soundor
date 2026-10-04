@@ -294,6 +294,20 @@ describe('webBuild', () => {
     expect(await listFiles(ctx.paths.dist)).not.toContain('stale.txt');
   });
 
+  it("reports Vite's own error when the build fails", async () => {
+    const root = await preparedProject();
+    const build = vi.fn<() => Promise<void>>(() =>
+      Promise.reject(new Error("Unknown Soundor module 'soundor:nope'")),
+    );
+    await expect(
+      webBuild(testConfig, makeCtx(root), { build: build as never }),
+    ).rejects.toMatchObject({
+      code: 'RUNTIME',
+      message:
+        "Vite failed to build the Web host: Unknown Soundor module 'soundor:nope'",
+    });
+  });
+
   it('reports a missing scaffold', async () => {
     const ctx = makeCtx(await tempProject());
     const build = vi.fn<() => Promise<void>>();

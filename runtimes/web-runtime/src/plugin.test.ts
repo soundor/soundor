@@ -28,6 +28,11 @@ describe('soundorModules', () => {
     expect(resolve('soundor:host')).toBe(
       join(SOURCE_CLIENT_DIR, 'modules/host.ts'),
     );
+    for (const name of ['ui', 'storage', 'fs']) {
+      expect(resolve(`soundor:${name}`)).toBe(
+        join(SOURCE_CLIENT_DIR, `modules/${name}.ts`),
+      );
+    }
     expect(resolve('@soundor/web-runtime/client')).toBe(
       join(SOURCE_CLIENT_DIR, 'index.ts'),
     );

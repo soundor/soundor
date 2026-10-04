@@ -12,7 +12,7 @@
 import { sendLog } from 'soundor:internal/dev';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
-import { hostContext } from './context';
+import { hostContext, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { report } from './report';
 import { createShell } from './shell';
@@ -50,6 +50,10 @@ export async function startSoundorWebHost(
   const context = hostContext();
   const shell = createShell(container, context.plugin.name);
 
+  // The plugin view fills the viewport; soundor:ui renders into it.
+  const view = uiView();
+  view.mount(shell.viewport);
+
   if (!hasUi) {
     shell.showMessage(
       'This plugin has no UI.',
@@ -72,7 +76,10 @@ export async function startSoundorWebHost(
   return {
     element: shell.element,
     viewport: shell.viewport,
-    dispose: () => shell.remove(),
+    dispose: () => {
+      view.rootElement.remove();
+      shell.remove();
+    },
   };
 }
 
