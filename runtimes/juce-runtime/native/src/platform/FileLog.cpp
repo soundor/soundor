@@ -1,6 +1,7 @@
 #include <soundor/platform/FileLog.h>
 
 #include <cstdio>
+#include <fstream>
 #include <memory>
 #include <system_error>
 
@@ -62,24 +63,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             return "info";
         }
 
-        struct FileCloser
-        {
-            void operator()(std::FILE* file) const noexcept { std::fclose(file); }
-        };
     } // namespace
 
     js::LogSink fileLogSink(const std::filesystem::path& file, std::string source)
     {
         std::error_code ignored;
         std::filesystem::create_directories(file.parent_path(), ignored);
-#if defined(_WIN32)
-        std::shared_ptr<std::FILE> handle(_wfopen(file.c_str(), L"ab"), FileCloser {});
-#else
-        std::shared_ptr<std::FILE> handle(std::fopen(file.c_str(), "ab"), FileCloser {});
-#endif
-        return [handle, source = std::move(source)](js::LogLevel level, std::string_view message)
+        // Append mode: every write lands at the end, after other writers'.
+        auto out = std::make_shared<std::ofstream>(file, std::ios::binary | std::ios::app);
+        return [out, source = std::move(source)](js::LogLevel level, std::string_view message)
         {
-            if (handle == nullptr)
+            if (! *out)
                 return;
             std::string line = R"({"level":")";
             line += levelName(level);
@@ -88,8 +82,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             line += R"(,"message":)";
             appendJsonString(line, message);
             line += "}\n";
-            std::fwrite(line.data(), 1, line.size(), handle.get());
-            std::fflush(handle.get());
+            out->write(line.data(), static_cast<std::streamsize>(line.size()));
+            out->flush();
         };
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
