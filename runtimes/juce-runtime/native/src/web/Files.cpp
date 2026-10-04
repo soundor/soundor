@@ -8,8 +8,8 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdio>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -29,7 +29,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         namespace fs = std::filesystem;
 
         // UTF-8 text as a path (fs::u8path is deprecated in C++20).
-        fs::path utf8Path(const std::string& text) { return fs::path(std::u8string(text.begin(), text.end())); }
+        fs::path utf8Path(const std::string& text)
+        {
+            return { std::u8string(text.begin(), text.end()) };
+        }
 
         std::string utf8Name(const fs::path& path)
         {
@@ -107,11 +110,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             const fs::path canonicalRoot = fs::weakly_canonical(root, error);
             if (error)
                 return std::nullopt;
-            const fs::path target = fs::weakly_canonical(root / utf8Path(relative), error);
+            fs::path target = fs::weakly_canonical(root / utf8Path(relative), error);
             if (error)
                 return std::nullopt;
-            const auto [rootEnd, unused] = std::mismatch(canonicalRoot.begin(), canonicalRoot.end(), target.begin(),
-                                                         target.end());
+            const auto [rootEnd, unused] =
+                std::mismatch(canonicalRoot.begin(), canonicalRoot.end(), target.begin(), target.end());
             (void)unused;
             if (rootEnd != canonicalRoot.end())
                 return std::nullopt;
@@ -169,24 +172,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             double modified = 0; // ms since the Unix epoch
         };
 
-        using FsResult = std::variant<std::monostate, std::vector<std::uint8_t>, std::vector<Entry>,
-                                      std::optional<Stat>, Failure>;
+        using FsResult =
+            std::variant<std::monostate, std::vector<std::uint8_t>, std::vector<Entry>, std::optional<Stat>, Failure>;
 
         JSValue toJs(JSContext* ctx, FsResult&& result)
         {
             if (auto* bytes = std::get_if<std::vector<std::uint8_t>>(&result))
                 return js::bind::write(ctx, std::move(*bytes));
             if (auto* entries = std::get_if<std::vector<Entry>>(&result))
-                return js::bind::writeArray(ctx, std::move(*entries),
-                                            [](JSContext* c, Entry&& entry)
-                                            {
-                                                js::bind::ObjectBuilder object(c);
-                                                object.set("name", js::bind::write(c, entry.name));
-                                                object.set("kind", js::bind::write(c, std::string(entry.directory
-                                                                                                      ? "directory"
-                                                                                                      : "file")));
-                                                return object.release();
-                                            });
+                return js::bind::writeArray(
+                    ctx, std::move(*entries),
+                    [](JSContext* c, Entry&& entry)
+                    {
+                        js::bind::ObjectBuilder object(c);
+                        object.set("name", js::bind::write(c, entry.name));
+                        object.set("kind", js::bind::write(c, std::string(entry.directory ? "directory" : "file")));
+                        return object.release();
+                    });
             if (auto* stat = std::get_if<std::optional<Stat>>(&result))
             {
                 if (! stat->has_value())
@@ -208,8 +210,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                 return 0;
             // file_clock → system_clock without clock_cast (not portable yet).
             const auto system = std::chrono::system_clock::now()
-                                 + std::chrono::duration_cast<std::chrono::system_clock::duration>(
-                                     time - fs::file_time_type::clock::now());
+                                + std::chrono::duration_cast<std::chrono::system_clock::duration>(
+                                    time - fs::file_time_type::clock::now());
             return double(std::chrono::duration_cast<std::chrono::milliseconds>(system.time_since_epoch()).count());
         }
 
@@ -218,7 +220,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         {
             const auto target = resolveInside(root, relative);
             if (! target)
-                return Failure { "DOMException:NotAllowedError", "'" + relative + "' leads outside the data directory" };
+                return Failure { "DOMException:NotAllowedError",
+                                 "'" + relative + "' leads outside the data directory" };
             std::error_code error;
             if (kind == "readBytes")
             {
@@ -381,7 +384,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         private:
             void skipSpace()
             {
-                while (at < text.size() && (text[at] == ' ' || text[at] == '\n' || text[at] == '\r' || text[at] == '\t'))
+                while (at < text.size()
+                       && (text[at] == ' ' || text[at] == '\n' || text[at] == '\r' || text[at] == '\t'))
                     ++at;
             }
 
@@ -543,7 +547,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             return writeAtomically(file, std::vector<std::uint8_t>(out.begin(), out.end()));
         }
 
-        using StorageResult = std::variant<std::monostate, std::optional<std::string>, std::vector<std::string>, Failure>;
+        using StorageResult =
+            std::variant<std::monostate, std::optional<std::string>, std::vector<std::string>, Failure>;
 
         StorageResult runStorageOperation(const std::string& kind, const fs::path& file, const std::string& key,
                                           const std::string& value)
@@ -561,6 +566,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             if (kind == "keys")
             {
                 std::vector<std::string> keys;
+                keys.reserve(entries.size());
                 for (const auto& [name, unused] : entries)
                     keys.push_back(name);
                 return keys;
@@ -657,9 +663,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             const fs::path root = state != nullptr && ! state->services.dataDirectory.empty()
                                       ? state->services.dataDirectory / "files"
                                       : fs::path();
-            return startFileOperation<FsResult>(
-                ctx, "soundor:fs", [kind, root, relative = *relative, data = std::move(data), recursive]
-                { return runFsOperation(kind, root, relative, data, recursive); });
+            return startFileOperation<FsResult>(ctx, "soundor:fs",
+                                                [kind, root, relative = *relative, data = std::move(data), recursive]
+                                                { return runFsOperation(kind, root, relative, data, recursive); });
         }
 
         // storageOperation(kind, key, value)
@@ -668,10 +674,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             if (argc < 3)
                 return JS_ThrowInternalError(ctx, "storageOperation() misused");
             auto* state = stateOf(ctx);
-            const fs::path file =
-                state != nullptr && ! state->services.dataDirectory.empty()
-                    ? state->services.dataDirectory / "storage.json"
-                    : fs::path();
+            const fs::path file = state != nullptr && ! state->services.dataDirectory.empty()
+                                      ? state->services.dataDirectory / "storage.json"
+                                      : fs::path();
             return startFileOperation<StorageResult>(
                 ctx, "soundor:storage",
                 [kind = text(ctx, argv[0]), file, key = text(ctx, argv[1]), value = text(ctx, argv[2])]

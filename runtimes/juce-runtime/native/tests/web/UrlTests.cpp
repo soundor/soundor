@@ -21,11 +21,12 @@ TEST_SUITE("URL")
     TEST_CASE("resolves against a base, normalizes, and handles IDNA")
     {
         WebFixture f;
-        CHECK(f.run("globalThis.result = [new URL('../x?y', 'https://a.test/p/q/r').href,"
-                    "  new URL('https://bücher.example/').hostname, new URL('http://a.test:80/').port,"
-                    "  new URL('file:///C:/plugins/x.vst3').pathname, String(new URL('data:text/plain,hi'))].join('|');")
-                  .asString()
-              == "https://a.test/p/x?y|xn--bcher-kva.example||/C:/plugins/x.vst3|data:text/plain,hi");
+        CHECK(
+            f.run("globalThis.result = [new URL('../x?y', 'https://a.test/p/q/r').href,"
+                  "  new URL('https://bücher.example/').hostname, new URL('http://a.test:80/').port,"
+                  "  new URL('file:///C:/plugins/x.vst3').pathname, String(new URL('data:text/plain,hi'))].join('|');")
+                .asString()
+            == "https://a.test/p/x?y|xn--bcher-kva.example||/C:/plugins/x.vst3|data:text/plain,hi");
     }
 
     TEST_CASE("rejects invalid input")

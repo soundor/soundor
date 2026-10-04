@@ -71,7 +71,7 @@ export function generateJuceSources(
     { path: 'soundor/soundor.h', contents: renderUmbrella() },
     {
       path: 'soundor/SoundorProcessor.h',
-      contents: renderProcessorHeader(parameters),
+      contents: renderProcessorHeader(parameters, config.plugin),
     },
     {
       path: 'soundor/SoundorProcessor.cpp',
@@ -152,7 +152,15 @@ target_sources(\${PROJECT_NAME}
     PRIVATE
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
-        ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce/soundor/backend/JuceParameterHost.cpp`))})
+        ${['JuceHttpClient', 'JuceParameterHost', 'JuceTransport']
+          .map((name) =>
+            cmakeString(
+              cmakePath(
+                `${params.nativeDir}/backend/juce/soundor/backend/${name}.cpp`,
+              ),
+            ),
+          )
+          .join('\n        ')})
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 `;
 }
@@ -163,7 +171,10 @@ function renderUmbrella(): string {
   return `${HEADER}#pragma once\n\n#include "SoundorProcessor.h"\n#include "SoundorEditor.h"\n`;
 }
 
-function renderProcessorHeader(parameters: readonly Parameter[]): string {
+function renderProcessorHeader(
+  parameters: readonly Parameter[],
+  plugin: SoundorConfig['plugin'],
+): string {
   const pointers = parameters
     .map(
       (p) =>
@@ -173,6 +184,7 @@ function renderProcessorHeader(parameters: readonly Parameter[]): string {
   return `${HEADER}#pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <soundor/backend/JuceTransport.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 
@@ -191,9 +203,28 @@ namespace ${NS}
         explicit AudioProcessor(const BusesProperties& ioLayouts);
         ~AudioProcessor() override = default;
 
+        // The plugin's identity (soundor.config \`plugin\`).
+        static constexpr const char* pluginId = ${cppString(plugin.id)};
+        static constexpr const char* pluginName = ${cppString(plugin.name)};
+
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
         void setStateInformation(const void* data, int sizeInBytes) override final;
+
+        // Implement your DSP here. Called on the audio thread for every block,
+        // like juce::AudioProcessor::processBlock (which Soundor implements to
+        // capture the host's transport for soundor:host first).
+        virtual void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) = 0;
+
+        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final
+        {
+            transport.capture(getPlayHead());
+            process(buffer, midi);
+        }
+        using juce::AudioProcessor::processBlock;
+
+        // The transport captured from the audio thread (read by soundor:host).
+        const backend::TransportCapture& transportCapture() const noexcept { return transport; }
 
         juce::AudioProcessorValueTreeState& getParameters() { return *parameters; }
         const juce::AudioProcessorValueTreeState& getParameters() const { return *parameters; }
@@ -214,6 +245,7 @@ ${pointers || '        // no parameters'}
         static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
+        backend::TransportCapture transport;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
@@ -376,8 +408,10 @@ namespace ${NS}
 function renderEditorSource(): string {
   return `${HEADER}#include "SoundorEditor.h"
 
+#include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceParameterHost.h>
 
+#include <filesystem>
 #include <string_view>
 
 namespace ${NS}
@@ -398,6 +432,17 @@ namespace ${NS}
     {
         RuntimeHost::Options options;
         options.runtime.log = logToJuce;
+        options.pluginId = AudioProcessor::pluginId;
+        options.pluginName = AudioProcessor::pluginName;
+        options.http = std::make_shared<backend::JuceHttpClient>();
+        options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());
+        // <user application data>/Soundor/<plugin id>: soundor:storage and soundor:fs.
+        options.dataDirectory = std::filesystem::path(
+            juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                .getChildFile("Soundor")
+                .getChildFile(AudioProcessor::pluginId)
+                .getFullPathName()
+                .toWideCharPointer());
         options.parameters =
             std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos());
         options.installModules = [&owner](js::Context& context)

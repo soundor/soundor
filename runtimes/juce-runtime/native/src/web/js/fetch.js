@@ -35,7 +35,7 @@ function headerName(name) {
 
 function headerValue(value) {
   const text = String(value).replace(/^[\t\n\r ]+|[\t\n\r ]+$/g, '');
-  if (/[\0\r\n]/.test(text))
+  if (/[\u0000\r\n]/.test(text))
     throw new TypeError('Header values cannot contain NUL, CR or LF');
   return text;
 }
@@ -545,12 +545,18 @@ export function fetch(input, init = {}) {
     response.then(
       (parts) => {
         signal.removeEventListener('abort', onAbort);
-        resolve(
-          fromNetwork({
-            ...parts,
-            redirected: parts.url !== '' && parts.url !== request.url,
-          }),
-        );
+        try {
+          resolve(
+            fromNetwork({
+              ...parts,
+              redirected: parts.url !== '' && parts.url !== request.url,
+            }),
+          );
+        } catch (error) {
+          reject(
+            new TypeError(`fetch failed: invalid response (${error.message})`),
+          );
+        }
       },
       (error) => {
         signal.removeEventListener('abort', onAbort);

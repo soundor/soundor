@@ -18,8 +18,7 @@ namespace
     {
         TempDir()
             : path(fs::temp_directory_path()
-                   / ("soundor-test-" + std::to_string(std::random_device {}()) + "-"
-                      + std::to_string(counter++)))
+                   / ("soundor-test-" + std::to_string(std::random_device {}()) + "-" + std::to_string(counter++)))
         {
             fs::create_directories(path);
         }
@@ -55,8 +54,8 @@ namespace
         return f.eval("globalThis.result");
     }
 
-    const std::string fsImports = "import * as fs from 'soundor:fs';\n";
-    const std::string storageImports = "import { storage } from 'soundor:storage';\n";
+    constexpr const char* fsImports = "import * as fs from 'soundor:fs';\n";
+    constexpr const char* storageImports = "import { storage } from 'soundor:storage';\n";
 
     std::string readFile(const fs::path& path)
     {
@@ -91,7 +90,8 @@ TEST_SUITE("soundor:fs")
     {
         TempDir data;
         WebFixture f(withData(data.path));
-        for (const std::string path : { "../escape.txt", "a/../../escape.txt", "/etc/passwd", "C:/Windows/x", "a\\\\b" })
+        for (const std::string path :
+             { "../escape.txt", "a/../../escape.txt", "/etc/passwd", "C:/Windows/x", "a\\\\b" })
         {
             CAPTURE(path);
             const std::string result =
@@ -116,18 +116,19 @@ TEST_SUITE("soundor:fs")
     {
         TempDir data;
         WebFixture f(withData(data.path));
-        CHECK(await(f, fsImports, "return await fs.readText('missing.txt');").asString().find(
-                  "rejected: NotFoundError: cannot read 'missing.txt'")
+        CHECK(await(f, fsImports, "return await fs.readText('missing.txt');")
+                  .asString()
+                  .find("rejected: NotFoundError: cannot read 'missing.txt'")
               == 0);
         CHECK(await(f, fsImports, "await fs.mkdir('d'); await fs.writeText('d/f', 'x'); await fs.remove('d');")
                   .asString()
                   .find("rejected: InvalidModificationError")
               == 0);
-        CHECK(await(f, fsImports, "await fs.remove('d', { recursive: true }); return await fs.exists('d');")
-                  .asBoolean()
+        CHECK(await(f, fsImports, "await fs.remove('d', { recursive: true }); return await fs.exists('d');").asBoolean()
               == false);
-        CHECK(await(f, fsImports, "await fs.mkdir('x'); await fs.mkdir('x');").asString().find(
-                  "rejected: InvalidModificationError")
+        CHECK(await(f, fsImports, "await fs.mkdir('x'); await fs.mkdir('x');")
+                  .asString()
+                  .find("rejected: InvalidModificationError")
               == 0);
         CHECK(await(f, fsImports, "await fs.mkdir('deep/er/est', { recursive: true }); return 'ok';").asString()
               == "ok");
@@ -163,9 +164,10 @@ TEST_SUITE("soundor:storage")
         }
         // A new runtime (e.g. after a reload or a session restore) sees the data.
         WebFixture again(withData(data.path));
-        CHECK(await(again, storageImports, "return (await storage.get('preset')).name + await storage.get('unicode ✓');")
-                  .asString()
-              == "warmü\n\"q\"");
+        CHECK(
+            await(again, storageImports, "return (await storage.get('preset')).name + await storage.get('unicode ✓');")
+                .asString()
+            == "warmü\n\"q\"");
         CHECK(await(again, storageImports, "await storage.clear(); return (await storage.keys()).length;").asNumber()
               == 0);
         // Another plugin's directory is a different store.
@@ -201,7 +203,7 @@ TEST_SUITE("soundor:storage")
         TempDir data;
         {
             WebFixture f(withData(data.path));
-            f.run(storageImports + "for (let i = 0; i < 20; i++) storage.set('k' + i, i);");
+            f.run(std::string(storageImports) + "for (let i = 0; i < 20; i++) storage.set('k' + i, i);");
         }
         const std::string stored = readFile(data.path / "storage.json");
         CHECK(stored.find("\"k19\": \"19\"") != std::string::npos);
@@ -245,7 +247,8 @@ TEST_SUITE("soundor:host")
         f.run("import { subscribe } from 'soundor:host';"
               "globalThis.seen = [];"
               "globalThis.stop = subscribe((s) => seen.push(s.transport?.playing ? 'playing ' + s.transport.bpm"
-              "  + ' ' + s.transport.timeSignature.numerator + '/' + s.transport.timeSignature.denominator : 'stopped'));");
+              "  + ' ' + s.transport.timeSignature.numerator + '/' + s.transport.timeSignature.denominator : "
+              "'stopped'));");
         f.host.tick(); // first tick: the initial state counts as a change
         f.host.tick(); // unchanged: nothing
         platform::Transport transport;
@@ -265,9 +268,10 @@ TEST_SUITE("soundor:host")
     TEST_CASE("without host information the snapshot is empty")
     {
         WebFixture f;
-        CHECK(f.run("import { plugin, snapshot } from 'soundor:host';"
-                    "globalThis.result = JSON.stringify([plugin, snapshot()]);")
-                  .asString()
-              == "[{\"id\":\"\",\"name\":\"\"},{\"sampleRate\":0,\"blockSize\":0,\"hostName\":\"\",\"transport\":null}]");
+        CHECK(
+            f.run("import { plugin, snapshot } from 'soundor:host';"
+                  "globalThis.result = JSON.stringify([plugin, snapshot()]);")
+                .asString()
+            == "[{\"id\":\"\",\"name\":\"\"},{\"sampleRate\":0,\"blockSize\":0,\"hostName\":\"\",\"transport\":null}]");
     }
 }

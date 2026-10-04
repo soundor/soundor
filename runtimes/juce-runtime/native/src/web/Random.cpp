@@ -13,8 +13,9 @@
 #elif defined(__APPLE__)
     #include <stdlib.h>
 #else
-    #include <cerrno>
     #include <sys/random.h>
+
+    #include <cerrno>
 #endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
@@ -66,5 +67,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         }
     } // namespace
 
-    std::vector<NativeFunction> randomFunctions() { return { { "fillRandom", fillRandomValues, 1 } }; }
+    std::vector<NativeFunction> randomFunctions()
+    {
+        return { { "fillRandom", fillRandomValues, 1 } };
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

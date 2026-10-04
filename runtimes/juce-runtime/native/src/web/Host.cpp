@@ -79,7 +79,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         };
     }
 
-    std::span<const PublicModule> publicModules() { return modules; }
+    std::span<const PublicModule> publicModules()
+    {
+        return modules;
+    }
 
     void dispatchHostChanges(JSContext* ctx, State& state)
     {

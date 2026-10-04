@@ -59,6 +59,7 @@ describe('runGen', () => {
           files: [
             { path: 'native.d.ts', status: 'created' },
             { path: 'parameters.d.ts', status: 'created' },
+            { path: 'platform.d.ts', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
           ],
         },

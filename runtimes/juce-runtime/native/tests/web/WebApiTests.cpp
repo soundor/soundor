@@ -235,14 +235,15 @@ TEST_SUITE("structuredClone")
     TEST_CASE("copies binary data, sharing buffers between views")
     {
         WebFixture f;
-        CHECK(f.run("const buffer = new ArrayBuffer(8);"
-                    "const value = { a: new Uint8Array(buffer, 2, 4), b: new DataView(buffer), buffer };"
-                    "value.a[0] = 7; const copy = structuredClone(value);"
-                    "copy.a[1] = 9;"
-                    "globalThis.result = [copy.a.buffer === copy.buffer, copy.b.buffer === copy.buffer,"
-                    "  copy.a.byteOffset, copy.a[0], new Uint8Array(buffer)[3], new Uint8Array(copy.buffer)[3]].join();")
-                  .asString()
-              == "true,true,2,7,0,9");
+        CHECK(
+            f.run("const buffer = new ArrayBuffer(8);"
+                  "const value = { a: new Uint8Array(buffer, 2, 4), b: new DataView(buffer), buffer };"
+                  "value.a[0] = 7; const copy = structuredClone(value);"
+                  "copy.a[1] = 9;"
+                  "globalThis.result = [copy.a.buffer === copy.buffer, copy.b.buffer === copy.buffer,"
+                  "  copy.a.byteOffset, copy.a[0], new Uint8Array(buffer)[3], new Uint8Array(copy.buffer)[3]].join();")
+                .asString()
+            == "true,true,2,7,0,9");
     }
 
     TEST_CASE("transfers ArrayBuffers")
@@ -253,8 +254,7 @@ TEST_SUITE("structuredClone")
                     "globalThis.result = [buffer.detached, Array.from(copy.view).join(' ')].join();")
                   .asString()
               == "true,2 3");
-        CHECK(f.error("const b = new ArrayBuffer(1); structuredClone(b, { transfer: [b, b] });")
-                  .find("DataCloneError")
+        CHECK(f.error("const b = new ArrayBuffer(1); structuredClone(b, { transfer: [b, b] });").find("DataCloneError")
               != std::string::npos);
     }
 
@@ -268,8 +268,7 @@ TEST_SUITE("structuredClone")
         for (const char* value : { "() => {}", "Symbol('s')", "{ f() {} }", "Promise.resolve()", "new WeakMap()" })
         {
             CAPTURE(value);
-            CHECK(f.error(std::string("structuredClone(") + value + ");").find("DataCloneError")
-                  != std::string::npos);
+            CHECK(f.error(std::string("structuredClone(") + value + ");").find("DataCloneError") != std::string::npos);
         }
     }
 

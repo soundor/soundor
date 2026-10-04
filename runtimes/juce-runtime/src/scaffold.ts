@@ -78,7 +78,7 @@ public:
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
-    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -95,7 +95,7 @@ public:
     void changeProgramName(int, const juce::String&) override {}
 
 private:
-    // Last block's applied gain, so processBlock can ramp to the new target
+    // Last block's applied gain, so process() can ramp to the new target
     // value instead of stepping (which would click on fast automation).
     float previousGain { 0.5f };
 
@@ -128,7 +128,7 @@ bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     // Standalone always runs stereo, but a DAW (e.g. Reaper) negotiates the bus
     // layout and, without this guard, JUCE would accept any arrangement — then
-    // processBlock could be handed a layout we don't handle (mono, discrete,
+    // process() could be handed a layout we don't handle (mono, discrete,
     // in != out). Restrict to mono or stereo with the input matching the output.
     const auto& mainOutput = layouts.getMainOutputChannelSet();
     const auto& mainInput = layouts.getMainInputChannelSet();
@@ -140,7 +140,7 @@ bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
     return mainInput == mainOutput;
 }
 
-void ${cls}Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void ${cls}Processor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
 

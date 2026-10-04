@@ -120,6 +120,21 @@ JavaScript imports the methods from `soundor:native` with full types (from
 copying, native objects travel as opaque handles, and a C++ exception becomes a
 JavaScript `Error`. See [`native/README.md`](./native/README.md).
 
+### Web APIs, `soundor:host`, `soundor:storage`, `soundor:fs`
+
+Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
+`fetch`, `crypto`, …) and the host/storage/file modules (see
+[`native/README.md`](./native/README.md)). The JUCE backend provides:
+
+- **`fetch`** over `juce::URL` on a small thread pool. Linux builds use
+  `JUCE_USE_CURL=0`, which supports plain `http` only; `https` there needs
+  libcurl enabled in JUCE.
+- **The transport** for `soundor:host`. The generated base processor captures
+  the play head in `processBlock()`, so your processor implements `process()`
+  instead, with the same signature.
+- **The data directory** `<user application data>/Soundor/<plugin.id>` for
+  storage and files.
+
 ### Build integration
 
 `setup.cmake` builds the runtime from this package's `native/` sources into the

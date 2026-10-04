@@ -136,7 +136,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     // ── State ────────────────────────────────────────────────────────────────
 
     State::State(Services provided)
-        : services(std::move(provided)), origin(std::chrono::steady_clock::now()),
+        : services(std::move(provided)),
+          origin(std::chrono::steady_clock::now()),
           timeOrigin(double(std::chrono::duration_cast<std::chrono::microseconds>(
                                 std::chrono::system_clock::now().time_since_epoch())
                                 .count())
@@ -201,7 +202,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         return *fileWorker;
     }
 
-    State* stateOf(JSContext* ctx) { return js::bind::contextData<State>(ctx, &stateKey); }
+    State* stateOf(JSContext* ctx)
+    {
+        return js::bind::contextData<State>(ctx, &stateKey);
+    }
 
     JSValue makeError(JSContext* ctx, std::string_view kind, std::string_view message)
     {

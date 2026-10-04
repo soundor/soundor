@@ -42,7 +42,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             {
                 job();
             }
-            catch (...)
+            catch (...) // NOLINT(bugprone-empty-catch): nothing to report to; see above
             {
             }
         }

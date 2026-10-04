@@ -29,9 +29,9 @@ TEST_SUITE("web globals")
     TEST_CASE("does not pretend to be a browser or Node")
     {
         WebFixture f;
-        for (const char* name : { "window", "document", "HTMLElement", "navigator", "location", "localStorage",
-                                  "XMLHttpRequest", "global", "process", "require", "module", "exports",
-                                  "Buffer", "std", "os", "print", "scriptArgs" })
+        for (const char* name :
+             { "window", "document", "HTMLElement", "navigator", "location", "localStorage", "XMLHttpRequest", "global",
+               "process", "require", "module", "exports", "Buffer", "std", "os", "print", "scriptArgs" })
         {
             CAPTURE(name);
             CHECK(f.eval(std::string("typeof ") + name).asString() == "undefined");

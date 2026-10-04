@@ -17,10 +17,10 @@ namespace
     public:
         enum class Mode
         {
-            Respond,       // immediately, on the calling thread
-            RespondLater,  // from another thread
-            Fail,          // network error
-            Hang,          // never (until released)
+            Respond,      // immediately, on the calling thread
+            RespondLater, // from another thread
+            Fail,         // network error
+            Hang,         // never (until released)
         };
 
         void send(platform::HttpRequest request, std::shared_ptr<const platform::CancellationToken> token,
@@ -32,8 +32,11 @@ namespace
             platform::HttpResponse response;
             response.status = status;
             response.statusText = "OK";
-            response.headers = { { "Content-Type", "application/json" }, { "Set-Cookie", "a=1" },
-                                 { "Set-Cookie", "b=2" }, { "X-Echo-Method", request.method } };
+            response.headers = { { "Content-Type", "application/json" },
+                                 { "Set-Cookie", "a=1" },
+                                 { "Set-Cookie", "b=2" },
+                                 { "X-Echo-Method", request.method } };
+            response.headers.insert(response.headers.end(), extraHeaders.begin(), extraHeaders.end());
             response.body.assign(body.begin(), body.end());
             response.url = finalUrl.empty() ? request.url : finalUrl;
             switch (mode)
@@ -48,7 +51,7 @@ namespace
                     complete(std::string("connection refused"));
                     break;
                 case Mode::Hang:
-                    hung.push_back([complete, response]() mutable { complete(std::move(response)); });
+                    hung.emplace_back([complete, response]() mutable { complete(std::move(response)); });
                     break;
             }
         }
@@ -68,6 +71,7 @@ namespace
         int status = 200;
         std::string body = R"({"ok":true})";
         std::string finalUrl;
+        std::vector<platform::HttpHeader> extraHeaders;
         std::vector<platform::HttpRequest> requests;
         std::vector<std::shared_ptr<const platform::CancellationToken>> tokens;
         std::vector<std::thread> threads;
@@ -120,12 +124,13 @@ TEST_SUITE("fetch")
     TEST_CASE("GET returns a Response with status, headers and body")
     {
         Fixture f;
-        CHECK(f.await("const r = await fetch('https://api.test/v1/presets?x=1');"
-                      "const data = await r.json();"
-                      "return [r.status, r.ok, r.statusText, r.url, r.redirected, r.type, r.headers.get('content-type'),"
-                      "  r.headers.getSetCookie().join(';'), data.ok, r.bodyUsed].join('|');")
-                  .asString()
-              == "200|true|OK|https://api.test/v1/presets?x=1|false|basic|application/json|a=1;b=2|true|true");
+        CHECK(
+            f.await("const r = await fetch('https://api.test/v1/presets?x=1');"
+                    "const data = await r.json();"
+                    "return [r.status, r.ok, r.statusText, r.url, r.redirected, r.type, r.headers.get('content-type'),"
+                    "  r.headers.getSetCookie().join(';'), data.ok, r.bodyUsed].join('|');")
+                .asString()
+            == "200|true|OK|https://api.test/v1/presets?x=1|false|basic|application/json|a=1;b=2|true|true");
         REQUIRE(f.http->requests.size() == 1);
         CHECK(f.http->requests[0].method == "GET");
         CHECK(f.http->requests[0].url == "https://api.test/v1/presets?x=1");
@@ -183,6 +188,14 @@ TEST_SUITE("fetch")
         f.http->mode = FakeHttp::Mode::Fail;
         CHECK(f.await("await fetch('https://a.test/');").asString()
               == "rejected: TypeError: fetch failed: connection refused");
+    }
+
+    TEST_CASE("a response the platform cannot represent rejects instead of hanging")
+    {
+        Fixture f;
+        f.http->extraHeaders = { { "HTTP/1.1 200 OK", "" } };
+        CHECK(f.await("await fetch('https://a.test/');").asString()
+              == "rejected: TypeError: fetch failed: invalid response (Invalid header name: 'HTTP/1.1 200 OK')");
     }
 
     TEST_CASE("without network access fetch rejects")

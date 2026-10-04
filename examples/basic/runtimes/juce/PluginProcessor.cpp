@@ -21,7 +21,7 @@ bool SoundorBasicProcessor::isBusesLayoutSupported(const BusesLayout& layouts) c
 {
     // Standalone always runs stereo, but a DAW (e.g. Reaper) negotiates the bus
     // layout and, without this guard, JUCE would accept any arrangement — then
-    // processBlock could be handed a layout we don't handle (mono, discrete,
+    // process() could be handed a layout we don't handle (mono, discrete,
     // in != out). Restrict to mono or stereo with the input matching the output.
     const auto& mainOutput = layouts.getMainOutputChannelSet();
     const auto& mainInput = layouts.getMainInputChannelSet();
@@ -33,7 +33,7 @@ bool SoundorBasicProcessor::isBusesLayoutSupported(const BusesLayout& layouts) c
     return mainInput == mainOutput;
 }
 
-void SoundorBasicProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void SoundorBasicProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
 

@@ -37,10 +37,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             }
         }
 
-        std::size_t utf8Length(char32_t cp) { return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4; }
+        std::size_t utf8Length(char32_t cp)
+        {
+            return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+        }
 
         void appendUtf8(char32_t cp, std::uint8_t* out)
         {
+            if (out == nullptr)
+                return;
             if (cp < 0x80)
             {
                 out[0] = std::uint8_t(cp);
@@ -135,6 +140,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             std::size_t capacity = 0;
             if (! bytesOf(ctx, argv[1], out, capacity))
                 return JS_EXCEPTION;
+            if (out == nullptr)
+                capacity = 0; // an empty view has no storage to write to
             std::size_t read = 0;
             std::size_t written = 0;
             forEachCodePoint(text.units(),
@@ -167,6 +174,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                 return JS_EXCEPTION;
             const bool fatal = JS_ToBool(ctx, argv[1]) != 0;
             const bool flush = JS_ToBool(ctx, argv[2]) != 0;
+            if (data == nullptr)
+                size = 0; // an empty view has no storage
 
             std::vector<std::uint16_t> units;
             units.reserve(size);
