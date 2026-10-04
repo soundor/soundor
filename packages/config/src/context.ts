@@ -21,6 +21,18 @@ export type RuntimeMode = 'debug' | 'production';
 export type RuntimePhase = 'init' | 'gen' | 'dev' | 'build' | 'doctor';
 
 /**
+ * The plugin UI bundle the CLI built before dispatching `dev` or `build`: a
+ * directory holding `entry` (the JavaScript bundle) and its assets. The CLI
+ * owns the bundler; runtimes ship or serve the files.
+ */
+export interface UiBundleContext {
+  /** Absolute path to the bundle directory. */
+  readonly dir: string;
+  /** The bundle file inside `dir`, e.g. `bundle.js`. */
+  readonly entry: string;
+}
+
+/**
  * Context passed to every lifecycle method. Generic over the runtime's opaque
  * options bag so a runtime reads its own `options` with full types.
  */
@@ -37,6 +49,8 @@ export interface LifecycleContext<Options extends object = object> {
   readonly logger: Logger;
   readonly fs: FileSystemHost;
   readonly codegen: CodegenSink;
+  /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
+  readonly ui?: UiBundleContext;
   /** Aborts long-running phases (notably `dev`). */
   readonly signal: AbortSignal;
 }

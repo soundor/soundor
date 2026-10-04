@@ -6,9 +6,9 @@ side of the plugin's `soundor:native` API, and owns the build/packaging and dev
 workflows for VST3/AU.
 
 Each plugin view hosts Soundor's embedded JavaScript runtime
-([`native/`](./native/README.md)) with the `soundor:parameters` and
-`soundor:native` modules. Rendering a UI from it comes later; until then the
-view is empty.
+([`native/`](./native/README.md)), running the project's UI bundle (`src/main.ts[x]`,
+bundled by the CLI) with the `soundor:*` modules. Rendering a UI from it comes
+later; until then the view is empty.
 
 ## Usage
 
@@ -56,8 +56,8 @@ ever sharing one in a host.
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`   | Scaffolds the **user-owned** host under `runtimes/juce/` (`CMakeLists.txt`, `PluginProcessor`, `PluginEditor`). Written once; idempotent.                                           |
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
-| `dev`    | Debug CMake build; launches the standalone app when that format is enabled.                                                                                                         |
-| `build`  | Release build; packages VST3/AU under `.soundor/dist/juce`.                                                                                                                         |
+| `dev`    | Debug CMake build with the development UI bundle embedded; launches the standalone app when that format is enabled.                                                                 |
+| `build`  | Release build with the production UI bundle embedded; packages VST3/AU under `.soundor/dist/juce`.                                                                                  |
 | `doctor` | Verifies CMake, a C++ compiler, and a locatable JUCE checkout.                                                                                                                      |
 
 ### init vs gen: you own the host, Soundor owns the framework
@@ -142,6 +142,10 @@ plugin. QuickJS-NG is fetched by CMake at a pinned revision; no extra developer
 installs are needed. Every Soundor symbol is mangled into the plugin's own ABI
 namespace, derived from `plugin.id`. The plugin binary exports only its format
 entry points.
+
+The UI bundle the CLI built is compiled into the plugin (`soundor_embed_directory`),
+so a plugin needs no files beside itself. The generated editor loads its
+`bundle.js` into the view's runtime.
 
 ## JUCE is required (and never downloaded)
 

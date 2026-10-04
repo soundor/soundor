@@ -223,6 +223,12 @@ backend calls `tick()` from its UI thread every frame. The generated JUCE editor
 owns one and ticks it from a 60 Hz `juce::Timer`. Its processor supplies the
 `soundor:native` implementation by overriding `createNativeApi()`.
 
+`RuntimeHost` also loads the plugin's UI. Given `platform::Resources` (the UI
+bundle compiled in with `soundor_embed_directory()`, or a directory in
+development) and an entry such as `/bundle.js`, it evaluates the entry after
+installing the modules. A failing entry is logged and leaves the host usable.
+`RuntimeHost::asset(id)` returns the bytes of a bundled image.
+
 ### Threading and lifetime
 
 A `Runtime` and its `Context`s belong to the thread that created the runtime: the

@@ -21,7 +21,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     RuntimeHost::RuntimeHost(Options options)
         : jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
-          resources(options.resources), hasParameters(options.parameters != nullptr)
+          resources(options.resources),
+          hasParameters(options.parameters != nullptr)
     {
         web::install(*jsContext, web::Services {
                                      std::move(options.http),

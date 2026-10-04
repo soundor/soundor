@@ -131,7 +131,8 @@ describe('juceDev', () => {
 
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
-    expect(configure.some((arg) => arg.startsWith('-DSOUNDOR_'))).toBe(false);
+    // No UI: the cached UI directory is cleared explicitly.
+    expect(configure).toContain('-DSOUNDOR_UI_DIR=');
     expect(calls.some((c) => c.includes('--build'))).toBe(true);
   });
 

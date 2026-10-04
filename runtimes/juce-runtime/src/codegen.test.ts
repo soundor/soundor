@@ -77,7 +77,7 @@ describe('generateJuceSources', () => {
     expect(setup).toContain('SoundorProcessor.cpp');
     expect(setup).toContain('JUCE_WEB_BROWSER=0');
     expect(setup).not.toMatch(
-      /NEEDS_WEB_BROWSER|SOUNDOR_UI_DIR|SOUNDOR_DEV_URL/,
+      /NEEDS_WEB_BROWSER|NEEDS_WEBVIEW2|SOUNDOR_DEV_URL|SoundorUiData/,
     );
   });
 
@@ -219,6 +219,20 @@ describe('generateJuceSources', () => {
     ]) {
       expect(setup).toContain(`backend/juce/soundor/backend/${name}.cpp`);
     }
+  });
+
+  it('embeds the UI bundle and loads it in the editor', () => {
+    const setup = fileMap(config).get('setup.cmake')!;
+    expect(setup).toContain('if(SOUNDOR_UI_DIR)');
+    expect(setup).toContain(
+      'soundor_embed_directory(soundor_generated pluginUi "${SOUNDOR_UI_DIR}")',
+    );
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    expect(editor).toContain('#if SOUNDOR_HAS_UI');
+    expect(editor).toContain(
+      'options.resources = std::make_shared<platform::EmbeddedResources>(embedded::pluginUi());',
+    );
+    expect(editor).toContain('options.entry = "/bundle.js";');
   });
 
   it('generates the soundor:native bindings from the native API', () => {

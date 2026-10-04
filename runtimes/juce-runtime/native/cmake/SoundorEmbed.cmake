@@ -6,18 +6,21 @@
 
 include_guard(GLOBAL)
 
-set(SOUNDOR_EMBED_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/SoundorEmbedText.cmake")
+# Both functions may be called from any directory scope (a plugin project calls
+# them after add_subdirectory()), so they locate their scripts themselves.
 
 function(soundor_embed_text target symbol input)
+  set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorEmbedText.cmake")
   get_filename_component(input "${input}" ABSOLUTE)
   set(output "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded/${symbol}.cpp")
   add_custom_command(
     OUTPUT "${output}"
-    COMMAND ${CMAKE_COMMAND} -DINPUT=${input} -DOUTPUT=${output} -DSYMBOL=${symbol} -P "${SOUNDOR_EMBED_SCRIPT}"
-    DEPENDS "${input}" "${SOUNDOR_EMBED_SCRIPT}"
+    COMMAND ${CMAKE_COMMAND} -DINPUT=${input} -DOUTPUT=${output} -DSYMBOL=${symbol} -P "${script}"
+    DEPENDS "${input}" "${script}"
     COMMENT "Embedding ${input}"
     VERBATIM)
   target_sources(${target} PRIVATE "${output}")
+  set_source_files_properties("${output}" PROPERTIES SKIP_LINTING ON) # generated
 endfunction()
 
 # soundor_embed_directory(<target> <function> <directory>) compiles every file
@@ -27,18 +30,18 @@ endfunction()
 # listing them by relative path. Regenerated when files are added, removed or
 # changed.
 
-set(SOUNDOR_EMBED_DIRECTORY_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/SoundorEmbedDirectory.cmake")
-
 function(soundor_embed_directory target function directory)
+  set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorEmbedDirectory.cmake")
   get_filename_component(directory "${directory}" ABSOLUTE)
   file(GLOB_RECURSE files CONFIGURE_DEPENDS LIST_DIRECTORIES false "${directory}/*")
   set(output "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded/${function}.cpp")
   add_custom_command(
     OUTPUT "${output}"
     COMMAND ${CMAKE_COMMAND} -DDIRECTORY=${directory} -DOUTPUT=${output} -DFUNCTION=${function}
-            -P "${SOUNDOR_EMBED_DIRECTORY_SCRIPT}"
-    DEPENDS ${files} "${SOUNDOR_EMBED_DIRECTORY_SCRIPT}"
+            -P "${script}"
+    DEPENDS ${files} "${script}"
     COMMENT "Embedding ${directory}"
     VERBATIM)
   target_sources(${target} PRIVATE "${output}")
+  set_source_files_properties("${output}" PROPERTIES SKIP_LINTING ON) # generated
 endfunction()

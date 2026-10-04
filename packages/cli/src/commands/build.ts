@@ -19,6 +19,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { bundleUi } from '../ui/bundle';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -76,6 +77,18 @@ export async function runBuild(
   const logger = createConsoleLogger('soundor');
   const results: RunBuildRuntimeResult[] = [];
 
+  // One production bundle of the plugin UI, shared by every runtime.
+  const bundle = await bundleUi({
+    root,
+    mode: 'production',
+    outDir: resolve(root, '.soundor', 'ui', 'production'),
+  });
+  if (bundle !== undefined) {
+    logger.info(
+      `Bundled the UI (${bundle.assets.length} asset${bundle.assets.length === 1 ? '' : 's'}) -> ${bundle.dir}`,
+    );
+  }
+
   for (const runtimeEntry of runtimeEntries) {
     try {
       const resolved = resolveRuntime(config, runtimeEntry.id);
@@ -91,6 +104,7 @@ export async function runBuild(
         logger: logger.child(runtimeEntry.id),
         codegen: createCodegenSink(),
         mode: 'production',
+        ui: bundle && { dir: bundle.dir, entry: bundle.entry },
       });
       results.push({ runtime: runtimeEntry.id, status: 'built' });
     } catch (error) {

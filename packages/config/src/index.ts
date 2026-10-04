@@ -26,7 +26,12 @@ export type {
   RuntimeDescriptor,
   RuntimeFactory,
 } from './runtime';
-export type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
+export type {
+  LifecycleContext,
+  RuntimeMode,
+  RuntimePhase,
+  UiBundleContext,
+} from './context';
 
 // Resolution + dispatch
 export { resolveRuntime, runPhase } from './registry';

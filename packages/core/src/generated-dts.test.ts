@@ -61,6 +61,11 @@ import { plugin, snapshot, subscribe } from 'soundor:host';
 import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 
+import logo from './logo.png';
+const asset: string = logo;
+// @ts-expect-error assets are opaque ids, not arbitrary strings
+const forgedAsset: typeof logo = 'x.png';
+
 const gain: number = parameters.gain.get();
 parameters.gain.set(gain - 1);
 const unit: 'dB' = parameters.gain.info.unit;
@@ -103,7 +108,23 @@ measure([1, 2]);
 // @ts-expect-error handles cannot be forged from plain objects
 const forged: Preset = {};
 
-export { bpm, bypassed, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+// The Web subset Soundor provides is typed…
+const controller = new AbortController();
+const response: Promise<Response> = fetch(new URL('https://a.test/x'), { signal: controller.signal });
+const bytes: Uint8Array = new TextEncoder().encode('x');
+const timer: number = setTimeout(() => console.info(performance.now(), crypto.randomUUID()), 1, 'arg');
+const clone: { a: number } = structuredClone({ a: 1 });
+self.queueMicrotask(() => reportError(new DOMException('x', 'AbortError')));
+
+// …and nothing else from browsers.
+// @ts-expect-error there is no window
+void window;
+// @ts-expect-error there is no document
+void document;
+// @ts-expect-error there is no localStorage
+void localStorage;
+
+export { asset, forgedAsset, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;

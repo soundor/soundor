@@ -48,7 +48,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     class DirectoryResources final : public Resources
     {
     public:
-        explicit DirectoryResources(std::filesystem::path root);
+        explicit DirectoryResources(std::filesystem::path directory);
         ~DirectoryResources() override;
 
         DirectoryResources(const DirectoryResources&) = delete;
@@ -68,7 +68,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     class ResourceModuleLoader final : public js::ModuleLoader
     {
     public:
-        explicit ResourceModuleLoader(std::shared_ptr<const Resources> resources);
+        explicit ResourceModuleLoader(std::shared_ptr<const Resources> provided);
 
         [[nodiscard]] js::Result<std::string> resolve(std::string_view specifier, std::string_view referrer) override;
         [[nodiscard]] js::Result<std::string> load(std::string_view name) override;

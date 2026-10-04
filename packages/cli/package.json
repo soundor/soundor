@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
-    "citty": "catalog:"
+    "citty": "catalog:",
+    "tsdown": "catalog:"
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
@@ -26,7 +27,8 @@
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
-    "tsdown": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },

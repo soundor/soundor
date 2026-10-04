@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,7 +45,33 @@ describe('runBuild', () => {
 
   afterEach(async () => {
     delete globalThis.__soundorBuildEvents;
+    delete globalThis.__soundorBuildUi;
     await rm(root, { recursive: true, force: true });
+  });
+
+  it('bundles the UI and hands it to the runtime', async () => {
+    await writeConfig(root, ['alpha']);
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(
+      join(root, 'src', 'main.ts'),
+      "import { plugin } from 'soundor:host';\nconsole.info(plugin.name);\n",
+    );
+    await runBuild({ cwd: root });
+    const ui = globalThis.__soundorBuildUi as
+      | { dir: string; entry: string }
+      | undefined;
+    expect(ui).toEqual({
+      dir: join(root, '.soundor', 'ui', 'production'),
+      entry: 'bundle.js',
+    });
+    const bundle = await readFile(join(ui!.dir, 'bundle.js'), 'utf8');
+    expect(bundle).toMatch(/from\s*["']soundor:host["']/);
+  });
+
+  it('passes no UI when the project has no entry', async () => {
+    await writeConfig(root, ['alpha']);
+    await runBuild({ cwd: root });
+    expect(globalThis.__soundorBuildUi).toBeUndefined();
   });
 
   it('builds all configured runtimes in production mode', async () => {
@@ -117,6 +143,8 @@ describe('runBuild', () => {
 declare global {
   // eslint-disable-next-line no-var
   var __soundorBuildEvents: string[] | undefined;
+  // eslint-disable-next-line no-var
+  var __soundorBuildUi: unknown;
 }
 
 async function writeConfig(
@@ -140,6 +168,7 @@ function runtime(id) {
     async build(_config, ctx) {
       globalThis.__soundorBuildEvents.push('build:' + id + ':' + ctx.mode);
       if (id === ${JSON.stringify(options.fail)}) throw new Error('build failed for ' + id);
+      globalThis.__soundorBuildUi = ctx.ui;
       await ctx.fs.write(ctx.paths.dist + '/artifact.txt', id + ':' + ctx.mode + '\\n');
     },
     async doctor() {
