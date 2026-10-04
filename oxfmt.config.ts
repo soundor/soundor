@@ -7,5 +7,8 @@ export default defineConfig({
   sortImports: true,
   sortPackageJson: true,
   // Generated, and compared byte for byte with their generator's output.
-  ignorePatterns: ['packages/core/runtime/**'],
+  ignorePatterns: [
+    'packages/core/runtime/**',
+    'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
+  ],
 });

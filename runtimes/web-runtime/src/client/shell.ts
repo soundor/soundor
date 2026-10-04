@@ -10,6 +10,8 @@ export interface HostShell {
   readonly element: HTMLElement;
   /** Where the plugin UI renders. */
   readonly viewport: HTMLElement;
+  /** Shows a notice over the viewport (no UI, a UI that failed). */
+  showMessage(title: string, detail?: string): void;
   remove(): void;
 }
 
@@ -30,6 +32,16 @@ body { margin: 0; background: #0e0f12; }
 .soundor-stage {
   flex: 1; display: flex; align-items: center; justify-content: center;
   padding: 16px; overflow: auto;
+}
+.soundor-message {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; padding: 24px;
+  text-align: center; color: #8b8f98;
+}
+.soundor-message strong { color: #f2f3f5; font-size: 14px; }
+.soundor-message pre {
+  max-width: 100%; overflow: auto; margin: 0; text-align: left;
+  white-space: pre-wrap; font-size: 12px; color: #ff8a80;
 }
 .soundor-viewport {
   position: relative; flex: none; overflow: hidden; background: #17181c;
@@ -74,6 +86,19 @@ export function createShell(
   return {
     element,
     viewport,
+    showMessage(title, detail) {
+      const message = document.createElement('div');
+      message.className = 'soundor-message';
+      const heading = document.createElement('strong');
+      heading.textContent = title;
+      message.append(heading);
+      if (detail !== undefined) {
+        const body = document.createElement('pre');
+        body.textContent = detail;
+        message.append(body);
+      }
+      viewport.append(message);
+    },
     remove() {
       element.remove();
       style.remove();

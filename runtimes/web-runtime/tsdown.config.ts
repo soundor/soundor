@@ -10,11 +10,16 @@ export default defineConfig([
   }),
   // The Web host, for the browser. Kept apart so no Node code reaches it.
   withPreset(browser, {
-    entry: { 'client/index': 'src/client/index.ts' },
+    entry: {
+      'client/index': 'src/client/index.ts',
+      'client/modules/host': 'src/client/modules/host.ts',
+      'client/modules/parameters': 'src/client/modules/parameters.ts',
+    },
     target: 'es2022',
     tsconfig: './tsconfig.client.json',
     dts: true,
     // The runtime's Vite plugin provides soundor:* to the page.
     deps: { neverBundle: [/^soundor:/] },
+    outputOptions: { chunkFileNames: 'client/[name]-[hash].js' },
   }),
 ]);

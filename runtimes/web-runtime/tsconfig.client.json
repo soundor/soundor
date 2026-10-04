@@ -8,5 +8,5 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.client.tsbuildinfo"
   },
   "include": ["src/client"],
-  "exclude": ["src/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/client/testing"]
 }

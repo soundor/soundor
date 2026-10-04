@@ -5,6 +5,8 @@
  * TypeScript and browser APIs instead of C++ and JUCE. `init` scaffolds a
  * user-owned Web host project under `runtimes/web/`, `gen` emits the project's
  * manifest, and `dev` and `build` run Vite programmatically on that project.
+ * The plugin UI is the bundle the CLI builds (`ctx.ui`), which the host loads
+ * as it is.
  */
 
 import { join, relative, sep } from 'node:path';
@@ -82,7 +84,7 @@ export async function webGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
 
 /** `dev` — serve the Web host with Vite until `ctx.signal` aborts. */
 export async function webDev(
-  _config: SoundorConfig,
+  config: SoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps = {},
 ): Promise<void> {
@@ -90,7 +92,7 @@ export async function webDev(
   await requireScaffold(ctx);
   const createServer = deps.createServer ?? viteCreateServer;
   const server = await createServer({
-    ...viteConfig(ctx, deps),
+    ...viteConfig(config, ctx, deps),
     mode: 'development',
     server: { port: options.port },
   });
@@ -109,14 +111,19 @@ export async function webDev(
 
 /** `build` — a static Web host site under `ctx.paths.dist`. */
 export async function webBuild(
-  _config: SoundorConfig,
+  config: SoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps = {},
 ): Promise<void> {
   resolveWebOptions(ctx.options);
   await requireScaffold(ctx);
+  if (ctx.ui === undefined) {
+    ctx.logger.warn(
+      'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
+    );
+  }
   const build = deps.build ?? viteBuild;
-  await build({ ...viteConfig(ctx, deps), mode: 'production' });
+  await build({ ...viteConfig(config, ctx, deps), mode: 'production' });
   ctx.logger.info(`Built the Web host -> ${ctx.paths.dist}`);
 }
 
@@ -146,7 +153,11 @@ export default webRuntime;
  * `vite.config.ts` (found in the host directory) is merged in by Vite; the
  * Soundor plugin then fixes what it must not change.
  */
-function viteConfig(ctx: Ctx, deps: WebPhaseDeps): InlineConfig {
+function viteConfig(
+  config: SoundorConfig,
+  ctx: Ctx,
+  deps: WebPhaseDeps,
+): InlineConfig {
   const hostDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   return {
     root: hostDir,
@@ -158,6 +169,8 @@ function viteConfig(ctx: Ctx, deps: WebPhaseDeps): InlineConfig {
         genDir: ctx.paths.gen,
         outDir: ctx.paths.dist,
         clientDir: deps.clientDir,
+        ui: ctx.ui,
+        pluginName: config.plugin.name,
       }),
     ],
   };

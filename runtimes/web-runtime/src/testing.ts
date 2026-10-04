@@ -4,7 +4,7 @@
  * tree-shaken out of the published bundles.
  */
 
-import { mkdtemp } from 'node:fs/promises';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -99,4 +99,37 @@ export function tempProject(): Promise<string> {
 /** Writes what a context's codegen collected, as `soundor gen` would. */
 export async function writeGenerated(ctx: TestCtx): Promise<void> {
   await writeGeneratedFiles(ctx.fs, ctx.paths.gen, ctx.codegen.files());
+}
+
+/** A 1×1 PNG. */
+export const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+export const PNG_ID = '0123456789abcdef.png';
+
+/**
+ * Writes a UI bundle as the CLI's bundler leaves it (`bundle.js`, assets,
+ * `manifest.json`, then `build-id`), and returns its context.
+ */
+export async function writeUiBundle(
+  dir: string,
+  code: string,
+  buildId = 'build-1',
+): Promise<{ dir: string; entry: string }> {
+  await mkdir(join(dir, 'assets'), { recursive: true });
+  await writeFile(join(dir, 'bundle.js'), code);
+  await writeFile(join(dir, 'assets', PNG_ID), PNG);
+  await writeFile(
+    join(dir, 'manifest.json'),
+    JSON.stringify({
+      entry: 'bundle.js',
+      mode: 'production',
+      assets: [
+        { id: PNG_ID, source: 'src/logo.png', type: 'image/png', size: 68 },
+      ],
+    }),
+  );
+  await writeFile(join(dir, 'build-id'), buildId);
+  return { dir, entry: 'bundle.js' };
 }
