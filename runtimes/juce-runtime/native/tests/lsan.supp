@@ -1,0 +1,6 @@
+# LeakSanitizer suppressions for the `sanitize` test preset.
+#
+# fontconfig keeps the patterns it builds while matching fonts in caches that
+# live as long as the process; LeakSanitizer reports them at exit. Skia's and
+# Chromium's own LSan suppressions carry the same entry.
+leak:libfontconfig

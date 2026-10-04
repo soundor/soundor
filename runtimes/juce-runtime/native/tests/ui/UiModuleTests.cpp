@@ -22,9 +22,18 @@ namespace
 
     // A 200×100 view with two 100×100 boxes side by side (a, b) exposed as
     // globals, and an event log.
+    // Layout with the approximate text engine, so sizes do not depend on
+    // the machine's fonts.
+    RuntimeHost::Options approximateText()
+    {
+        RuntimeHost::Options options;
+        options.textEngine = ui::approximateTextEngine();
+        return options;
+    }
+
     struct UiFixture : WebFixture
     {
-        UiFixture()
+        UiFixture() : WebFixture(approximateText())
         {
             host.surface().setSize({ 200, 100 });
             run(std::string(imports) + R"(
@@ -88,7 +97,8 @@ TEST_SUITE("soundor:ui")
     {
         UiFixture f;
         CHECK(f.error(std::string(imports) + "a.appendChild(a);").find("cannot contain itself") != std::string::npos);
-        CHECK(f.error(std::string(imports) + "createText('x').appendChild(createView());").find("text node")
+        CHECK(f.error(std::string(imports) + "createText('x').appendChild(createView());")
+                  .find("only views can have children")
               != std::string::npos);
         CHECK(f.error(std::string(imports) + "a.appendChild({});") == "TypeError: child must be a UiNode, got Object");
         CHECK(f.error(std::string(imports) + "a.style = { width: 'wide' };")
@@ -99,7 +109,7 @@ TEST_SUITE("soundor:ui")
         CHECK(
             f.error(std::string(imports) + "a.style = { minWidth: 'auto' };").find("expected a number or a percentage")
             != std::string::npos);
-        CHECK(f.error(std::string(imports) + "a.text = 'x';") == "TypeError: only text nodes have text");
+        CHECK(f.error(std::string(imports) + "a.text = 'x';") == "TypeError: only text and input nodes have text");
         CHECK(f.error(std::string(imports) + "new UiNode();").find("Illegal constructor") != std::string::npos);
         // The style that failed was not applied.
         CHECK(f.run(std::string(imports) + "globalThis.result = a.style.width;").asNumber() == 100);

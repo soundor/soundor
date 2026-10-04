@@ -5,8 +5,10 @@
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
 #include <soundor/platform/Resources.h>
+#include <soundor/ui/Renderer.h>
 #include <soundor/ui/Surface.h>
 
+#include <chrono>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -49,8 +51,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // The module to evaluate once everything is installed, e.g.
             // "/bundle.js". Empty: nothing runs until the backend says so.
             std::string entry;
-            // Measures text for layout; default: an approximation.
-            std::shared_ptr<ui::TextMeasurer> textMeasurer;
+            // Lays out text; default: the renderer's (the platform's fonts).
+            std::shared_ptr<ui::TextEngine> textEngine;
+            // For text inputs' copy and paste; default: private to the process.
+            std::shared_ptr<ui::Clipboard> clipboard;
         };
 
         explicit RuntimeHost(Options options);
@@ -62,8 +66,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         RuntimeHost& operator=(RuntimeHost&&) = delete;
 
         // Settles finished asynchronous work (fetch, files), runs due timers,
-        // delivers parameter and host changes, then runs pending jobs.
+        // delivers parameter and host changes, runs animation frame callbacks
+        // (requestAnimationFrame), then runs pending jobs.
         void tick();
+
+        // Whether the view looks different from when it was last rendered.
+        [[nodiscard]] bool needsRender();
+        // Draws the view into `target` (sized to the surface at its scale).
+        void render(const ui::Bitmap& target);
 
         [[nodiscard]] js::Runtime& runtime() noexcept { return *jsRuntime; }
         [[nodiscard]] js::Context& context() noexcept { return *jsContext; }
@@ -79,11 +89,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         [[nodiscard]] std::optional<std::span<const std::uint8_t>> asset(std::string_view id) const;
 
     private:
+        [[nodiscard]] double seconds() const;
+
+        std::shared_ptr<const platform::Resources> resources;
+        std::unique_ptr<ui::Renderer> renderer;
         std::shared_ptr<ui::Surface> uiSurface;
         std::unique_ptr<js::Runtime> jsRuntime;
         std::unique_ptr<js::Context> jsContext;
-        std::shared_ptr<const platform::Resources> resources;
         js::Result<void> entryOutcome;
         bool hasParameters;
+        std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+        long long blinkPhase = -1;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE

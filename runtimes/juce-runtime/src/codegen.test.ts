@@ -152,6 +152,14 @@ describe('generateJuceSources', () => {
     );
     expect(editor).toContain('handled = surface.text({ text });');
     expect(editor).toContain('setWantsKeyboardFocus(true);');
+    // Drawn by the runtime, only when the picture changed.
+    expect(editor).toContain('if (runtimeHost().needsRender())');
+    expect(editor).toContain(
+      'runtimeHost().render({ pixels.data, width, height,',
+    );
+    expect(editor).toContain(
+      'options.clipboard = std::make_shared<backend::JuceClipboard>();',
+    );
     expect(fileMap(config).get('setup.cmake')).toContain(
       'backend/juce/soundor/backend/JuceInput.cpp',
     );

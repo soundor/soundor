@@ -1,6 +1,7 @@
 #pragma once
 
 #include <soundor/ui/Input.h>
+#include <soundor/ui/Surface.h>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -30,4 +31,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     // The text a key press types, or empty (named keys, shortcuts).
     [[nodiscard]] std::string typedText(const juce::KeyPress& key);
+
+    // The system clipboard, for text inputs.
+    class JuceClipboard final : public ui::Clipboard
+    {
+    public:
+        std::string readText() override;
+        void writeText(std::string text) override;
+    };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 
-# Fails when LIBRARY exports any defined symbol other than those in ALLOWED.
+# Fails when LIBRARY exports any defined symbol other than those in ALLOWED,
+# or, on Apple platforms, defines any Objective-C class: classes live in one
+# process-wide namespace whatever their symbols' visibility, so two plugins
+# defining the same class would collide.
 #
 #   cmake -DLIBRARY=<path> -DNM=<nm> -DAPPLE=<bool> -DALLOWED=<a;b> -P CheckExportedSymbols.cmake
 
@@ -8,6 +11,23 @@ if(APPLE)
   set(nm_args -g -U -j)
 else()
   set(nm_args -D --defined-only --format=just-symbols)
+endif()
+
+if(APPLE)
+  # Every defined symbol, local ones included.
+  execute_process(
+    COMMAND ${NM} -U -j ${LIBRARY}
+    OUTPUT_VARIABLE all_symbols
+    RESULT_VARIABLE status)
+  if(NOT status EQUAL 0)
+    message(FATAL_ERROR "${NM} failed on ${LIBRARY}")
+  endif()
+  string(REGEX MATCHALL "_OBJC_CLASS_\\$_[A-Za-z0-9_]+" classes "${all_symbols}")
+  if(classes)
+    list(REMOVE_DUPLICATES classes)
+    list(JOIN classes "\n  " report)
+    message(FATAL_ERROR "Objective-C classes defined in ${LIBRARY}:\n  ${report}")
+  endif()
 endif()
 
 execute_process(

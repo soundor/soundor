@@ -201,4 +201,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             return {};
         return utf8(character);
     }
+
+    std::string JuceClipboard::readText()
+    {
+        return juce::SystemClipboard::getTextFromClipboard().toStdString();
+    }
+
+    void JuceClipboard::writeText(std::string text)
+    {
+        juce::SystemClipboard::copyTextToClipboard(juce::String::fromUTF8(text.data(), static_cast<int>(text.size())));
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

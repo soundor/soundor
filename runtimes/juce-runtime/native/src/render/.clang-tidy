@@ -1,0 +1,6 @@
+# Skia's sk_sp reference counting defeats the static analyzer: it reports
+# use-after-free inside SkRefCnt.h for every shared object that outlives a
+# local sk_sp. Everything else applies here as everywhere.
+---
+InheritParentConfig: true
+Checks: -clang-analyzer-cplusplus.NewDelete

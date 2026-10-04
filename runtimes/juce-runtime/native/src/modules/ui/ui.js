@@ -5,6 +5,10 @@
 // view's input; this layer gives plugin code DOM-like nodes: EventTargets
 // whose events capture and bubble along the tree, with Web event classes.
 //
+// Nodes are views (flexbox boxes), text, images, scroll views and text
+// inputs; the native renderer (Skia) draws them. Text inputs edit themselves
+// as the default action of the key, text and pointer events they receive.
+//
 // A node lives as long as JavaScript can reach it. The root is always
 // reachable, and so is everything attached to it; a detached node nobody
 // references is released, natively too, when it is garbage collected.
@@ -18,6 +22,8 @@ import {
 } from 'soundor:internal/web/events';
 
 const CONSTRUCTING = Symbol('constructing');
+/** The native node types, by name. */
+const TYPES = ['view', 'text', 'image', 'scroll', 'input'];
 
 /** id → WeakRef<UiNode>, to find event targets. */
 const nodes = new Map();
@@ -49,12 +55,14 @@ export class UiNode extends EventTarget {
   #style = Object.freeze({});
   #text = '';
   #focusable = false;
+  #source = '';
+  #placeholder = '';
 
-  /** Nodes are made with createView() and createText(). */
+  /** Nodes are made with createView(), createText() and the like. */
   constructor(token, type, id) {
     if (token !== CONSTRUCTING) {
       throw new TypeError(
-        'Illegal constructor: use createView() or createText()',
+        'Illegal constructor: use createView(), createText() and the like',
       );
     }
     super();
@@ -63,7 +71,7 @@ export class UiNode extends EventTarget {
     nodes.set(id, new WeakRef(this));
   }
 
-  /** 'view' or 'text'. */
+  /** 'view', 'text', 'image', 'scroll' or 'input'. */
   get type() {
     return this.#type;
   }
@@ -116,18 +124,141 @@ export class UiNode extends EventTarget {
     this.#style = Object.freeze({ ...style });
   }
 
-  /** The text of a text node. */
+  /** The text of a text node, or the value of an input. */
   get text() {
     return this.#text;
   }
 
   set text(value) {
-    if (this.#type !== 'text') {
-      throw new TypeError('only text nodes have text');
+    if (this.#type !== 'text' && this.#type !== 'input') {
+      throw new TypeError('only text and input nodes have text');
     }
     const text = String(value);
     native.setText(this.#id, text);
     this.#text = text;
+  }
+
+  /** An input's text. */
+  get value() {
+    this.#expect('input', 'value');
+    return this.#text;
+  }
+
+  set value(value) {
+    this.#expect('input', 'value');
+    this.text = value;
+    // Like the DOM: setting the value puts the caret at its end.
+    this.setSelectionRange(this.#text.length, this.#text.length);
+  }
+
+  /** An input's hint, shown while it is empty. */
+  get placeholder() {
+    this.#expect('input', 'placeholder');
+    return this.#placeholder;
+  }
+
+  set placeholder(value) {
+    this.#expect('input', 'placeholder');
+    this.#placeholder = String(value);
+    native.setPlaceholder(this.#id, this.#placeholder);
+  }
+
+  get selectionStart() {
+    this.#expect('input', 'selectionStart');
+    const { anchor, focus } = native.selection(this.#id);
+    return Math.min(anchor, focus);
+  }
+
+  get selectionEnd() {
+    this.#expect('input', 'selectionEnd');
+    const { anchor, focus } = native.selection(this.#id);
+    return Math.max(anchor, focus);
+  }
+
+  get selectionDirection() {
+    this.#expect('input', 'selectionDirection');
+    const { anchor, focus } = native.selection(this.#id);
+    return focus < anchor ? 'backward' : 'forward';
+  }
+
+  /** Selects [start, end) of an input's text (UTF-16 indices). */
+  setSelectionRange(start, end, direction = 'forward') {
+    this.#expect('input', 'setSelectionRange()');
+    const from = Math.max(0, Math.min(Number(start) || 0, this.#text.length));
+    const to = Math.max(from, Math.min(Number(end) || 0, this.#text.length));
+    if (direction === 'backward') native.setSelection(this.#id, to, from);
+    else native.setSelection(this.#id, from, to);
+  }
+
+  select() {
+    this.setSelectionRange(0, this.#text.length);
+  }
+
+  /** An image's asset id (what `import logo from './logo.png'` yields). */
+  get source() {
+    this.#expect('image', 'source');
+    return this.#source;
+  }
+
+  set source(value) {
+    this.#expect('image', 'source');
+    this.#source = value === null || value === undefined ? '' : String(value);
+    native.setSource(this.#id, this.#source);
+  }
+
+  /** How far a scroll view's content is scrolled. */
+  get scrollTop() {
+    return native.scrollOffset(this.#id).y;
+  }
+
+  set scrollTop(value) {
+    this.scrollTo({ top: value });
+  }
+
+  get scrollLeft() {
+    return native.scrollOffset(this.#id).x;
+  }
+
+  set scrollLeft(value) {
+    this.scrollTo({ left: value });
+  }
+
+  /** The size of what a scroll view scrolls. */
+  get scrollWidth() {
+    return native.contentSize(this.#id).width;
+  }
+
+  get scrollHeight() {
+    return native.contentSize(this.#id).height;
+  }
+
+  /** scrollTo({ top, left }) or scrollTo(left, top); clamped to the content. */
+  scrollTo(optionsOrLeft, top) {
+    this.#expect('scroll', 'scrollTo()');
+    const current = native.scrollOffset(this.#id);
+    const target =
+      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
+        ? {
+            x: optionsOrLeft.left ?? current.x,
+            y: optionsOrLeft.top ?? current.y,
+          }
+        : { x: optionsOrLeft ?? current.x, y: top ?? current.y };
+    native.scrollTo(this.#id, Number(target.x) || 0, Number(target.y) || 0);
+  }
+
+  scrollBy(optionsOrLeft, top) {
+    const current = native.scrollOffset(this.#id);
+    const delta =
+      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
+        ? { x: optionsOrLeft.left ?? 0, y: optionsOrLeft.top ?? 0 }
+        : { x: optionsOrLeft ?? 0, y: top ?? 0 };
+    this.scrollTo(current.x + Number(delta.x), current.y + Number(delta.y));
+  }
+
+  #expect(type, what) {
+    if (this.#type !== type) {
+      throw new TypeError(`${what} belongs to ${type} nodes`);
+    }
   }
 
   /** Whether the node takes focus when pressed or tabbed to. */
@@ -207,15 +338,20 @@ export class UiNode extends EventTarget {
   }
 
   static {
-    internals = { id: (node) => node.#id };
+    internals = {
+      id: (node) => node.#id,
+      setFocusableState(node, value) {
+        node.#focusable = value;
+      },
+    };
   }
 }
 
-function create(text) {
+function create(type) {
   const node = new UiNode(
     CONSTRUCTING,
-    text ? 'text' : 'view',
-    native.createNode(text),
+    type,
+    native.createNode(TYPES.indexOf(type)),
   );
   released.register(node, internals.id(node));
   return node;
@@ -223,16 +359,41 @@ function create(text) {
 
 /** A new, detached view: a box laid out with flexbox. */
 export function createView(style) {
-  const node = create(false);
+  const node = create('view');
   if (style !== undefined) node.style = style;
   return node;
 }
 
 /** A new, detached text node. */
 export function createText(text = '', style) {
-  const node = create(true);
+  const node = create('text');
   if (text !== '') node.text = text;
   if (style !== undefined) node.style = style;
+  return node;
+}
+
+/** A new, detached image showing a bundled asset. */
+export function createImage(source = '', style) {
+  const node = create('image');
+  if (source !== '') node.source = source;
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
+/** A new, detached view whose children scroll (by wheel, or scrollTo()). */
+export function createScrollView(style) {
+  const node = create('scroll');
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
+/** A new, detached single-line text input. It is focusable. */
+export function createTextInput(options = {}) {
+  const node = create('input');
+  internals.setFocusableState(node, true);
+  if (options.value !== undefined) node.value = options.value;
+  if (options.placeholder !== undefined) node.placeholder = options.placeholder;
+  if (options.style !== undefined) node.style = options.style;
   return node;
 }
 
@@ -247,6 +408,66 @@ export function viewSize() {
 /** The node that has keyboard focus, if any. */
 export function focusedNode() {
   return nodes.get(native.focused())?.deref() ?? null;
+}
+
+/** The system clipboard's text (navigator.clipboard's shape). */
+export const clipboard = Object.freeze({
+  readText: async () => native.readClipboard(),
+  writeText: async (text) => native.writeClipboard(String(text)),
+});
+
+/**
+ * Makes `node` pressable: press with the primary button (released over it)
+ * or, when focused, with Enter or Space. Reports the pressed and hovered
+ * state as it changes. Returns a function that undoes it.
+ */
+export function pressable(node, handlers = {}) {
+  expectNode(node, 'node');
+  const state = { pressed: false, hovered: false };
+  const update = (change) => {
+    const next = { ...state, ...change };
+    if (next.pressed === state.pressed && next.hovered === state.hovered)
+      return;
+    Object.assign(state, next);
+    handlers.onStateChange?.({ ...state });
+  };
+  const controller = new AbortController();
+  const { signal } = controller;
+  const on = (type, listener) =>
+    node.addEventListener(type, listener, { signal });
+
+  on('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    update({ pressed: true });
+    handlers.onPressIn?.(event);
+  });
+  on('pointerup', (event) => {
+    if (!state.pressed) return;
+    update({ pressed: false });
+    handlers.onPressOut?.(event);
+  });
+  on('pointercancel', (event) => {
+    if (!state.pressed) return;
+    update({ pressed: false });
+    handlers.onPressOut?.(event);
+  });
+  on('click', (event) => handlers.onPress?.(event));
+  on('pointerenter', (event) => {
+    update({ hovered: true });
+    handlers.onHoverIn?.(event);
+  });
+  on('pointerleave', (event) => {
+    update({ hovered: false });
+    handlers.onHoverOut?.(event);
+  });
+  on('keydown', (event) => {
+    if (event.target !== node || event.repeat) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handlers.onPress?.(event);
+  });
+  node.focusable = true;
+  return () => controller.abort();
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────
@@ -454,7 +675,200 @@ const EVENT_TYPES = [
   ['beforeinput', InputEvent, true, true],
   ['focus', FocusEvent, false, false],
   ['blur', FocusEvent, false, false],
+  ['scroll', Event, false, false],
 ];
+
+// ── Text editing: the default actions of an input's events ─────────────────
+
+/** Where the value was when the input last reported a change. */
+const committed = new WeakMap();
+
+const isLowSurrogate = (code) => code >= 0xdc00 && code <= 0xdfff;
+
+/** The code point boundary before `i`. */
+function previousIndex(text, i) {
+  if (i <= 0) return 0;
+  return i >= 2 && isLowSurrogate(text.charCodeAt(i - 1)) ? i - 2 : i - 1;
+}
+
+/** The code point boundary after `i`. */
+function nextIndex(text, i) {
+  if (i >= text.length) return text.length;
+  return isLowSurrogate(text.charCodeAt(i + 1)) ? i + 2 : i + 1;
+}
+
+/** Where a word-wise move from `from` lands: back (step -1) or forward. */
+function wordBoundary(text, from, step) {
+  let i = from;
+  if (step < 0) {
+    while (i > 0 && /\s/.test(text[i - 1])) i--;
+    while (i > 0 && /\S/.test(text[i - 1])) i--;
+  } else {
+    while (i < text.length && /\s/.test(text[i])) i++;
+    while (i < text.length && /\S/.test(text[i])) i++;
+  }
+  return i;
+}
+
+function edit(input, text, caret, inputType, data = null) {
+  input.text = text;
+  input.setSelectionRange(caret, caret);
+  input.dispatchEvent(
+    trustEvent(new InputEvent('input', { bubbles: true, inputType, data })),
+  );
+}
+
+function commit(input) {
+  if (committed.get(input) === input.value) return;
+  committed.set(input, input.value);
+  input.dispatchEvent(trustEvent(new Event('change', { bubbles: true })));
+}
+
+function replaceSelection(input, data, inputType) {
+  const text = input.value;
+  const start = input.selectionStart;
+  edit(
+    input,
+    text.slice(0, start) + data + text.slice(input.selectionEnd),
+    start + data.length,
+    inputType,
+    data,
+  );
+}
+
+/** keydown on a focused input; returns whether it did something. */
+function editKey(input, event) {
+  const text = input.value;
+  const { selectionStart: start, selectionEnd: end } = input;
+  const selection = native.selection(internals.id(input));
+  const command = event.ctrlKey || event.metaKey;
+  const byWord = event.ctrlKey || event.altKey;
+  const move = (to) => {
+    const target = Math.max(0, Math.min(to, text.length));
+    if (event.shiftKey)
+      native.setSelection(internals.id(input), selection.anchor, target);
+    else input.setSelectionRange(target, target);
+    return true;
+  };
+  switch (event.key) {
+    case 'ArrowLeft':
+      if (event.metaKey) return move(0);
+      if (!event.shiftKey && start !== end) return move(start);
+      return move(
+        byWord
+          ? wordBoundary(text, selection.focus, -1)
+          : previousIndex(text, selection.focus),
+      );
+    case 'ArrowRight':
+      if (event.metaKey) return move(text.length);
+      if (!event.shiftKey && start !== end) return move(end);
+      return move(
+        byWord
+          ? wordBoundary(text, selection.focus, 1)
+          : nextIndex(text, selection.focus),
+      );
+    case 'Home':
+    case 'ArrowUp':
+      return move(0);
+    case 'End':
+    case 'ArrowDown':
+      return move(text.length);
+    case 'Backspace':
+      if (start !== end) replaceSelection(input, '', 'deleteContentBackward');
+      else if (start > 0) {
+        const from = byWord
+          ? wordBoundary(text, start, -1)
+          : previousIndex(text, start);
+        edit(
+          input,
+          text.slice(0, from) + text.slice(start),
+          from,
+          'deleteContentBackward',
+        );
+      }
+      return true;
+    case 'Delete':
+      if (start !== end) replaceSelection(input, '', 'deleteContentForward');
+      else if (start < text.length) {
+        const to = byWord
+          ? wordBoundary(text, start, 1)
+          : nextIndex(text, start);
+        edit(
+          input,
+          text.slice(0, start) + text.slice(to),
+          start,
+          'deleteContentForward',
+        );
+      }
+      return true;
+    case 'Enter':
+      commit(input);
+      return true;
+    case 'Escape':
+      return false;
+  }
+  if (command && !event.altKey) {
+    switch (event.key.toLowerCase()) {
+      case 'a':
+        input.select();
+        return true;
+      case 'c':
+        if (start !== end) native.writeClipboard(text.slice(start, end));
+        return true;
+      case 'x':
+        if (start !== end) {
+          native.writeClipboard(text.slice(start, end));
+          replaceSelection(input, '', 'deleteByCut');
+        }
+        return true;
+      case 'v': {
+        const pasted = native.readClipboard().replace(/[\r\n]+/g, ' ');
+        if (pasted !== '') replaceSelection(input, pasted, 'insertFromPaste');
+        return true;
+      }
+    }
+  }
+  // Characters arrive as text (beforeinput) next.
+  return false;
+}
+
+/** Runs the default action of a dispatched event; returns whether it did. */
+function defaultAction(target, event) {
+  if (target.type !== 'input') return false;
+  const id = internals.id(target);
+  switch (event.type) {
+    case 'keydown':
+      return editKey(target, event);
+    case 'beforeinput':
+      replaceSelection(target, event.data ?? '', 'insertText');
+      return true;
+    // Placing the caret is not "handling" the press: the input still takes
+    // focus from it.
+    case 'pointerdown': {
+      if (event.button !== 0) return false;
+      const offset = native.offsetAt(id, event.offsetX, event.offsetY);
+      if (event.shiftKey)
+        native.setSelection(id, native.selection(id).anchor, offset);
+      else native.setSelection(id, offset, offset);
+      return false;
+    }
+    case 'pointermove':
+      if ((event.buttons & 1) !== 0)
+        native.setSelection(
+          id,
+          native.selection(id).anchor,
+          native.offsetAt(id, event.offsetX, event.offsetY),
+        );
+      return false;
+    case 'focus':
+      if (!committed.has(target)) committed.set(target, target.value);
+      return false;
+    case 'blur':
+      commit(target);
+      return false;
+  }
+  return false;
+}
 
 const nodeById = (id) => (id === 0 ? null : (nodes.get(id)?.deref() ?? null));
 
@@ -492,5 +906,6 @@ native.setListener((type, targetId, data) => {
   });
   trustEvent(event);
   target.dispatchEvent(event);
-  return event.defaultPrevented;
+  if (event.defaultPrevented) return true;
+  return defaultAction(target, event);
 });

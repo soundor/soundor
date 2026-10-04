@@ -60,7 +60,7 @@ import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
 import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
-import { createText, createView, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
+import { clipboard, createImage, createScrollView, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
 import logo from './logo.png';
 const asset: string = logo;
@@ -121,6 +121,23 @@ box.addEventListener('pointerdown', (event) => {
 box.addEventListener('keydown', (event) => void event.key.toUpperCase());
 box.addEventListener('wheel', (event) => void event.deltaY);
 const width: number = box.layout.width + box.getBoundingClientRect().x;
+const card = createView({ backgroundColor: '#202124', borderRadius: 8, borderWidth: 1, borderColor: 'rgb(255 255 255 / 10%)', opacity: 0.9 });
+card.appendChild(createImage(logo, { width: 32, height: 32, resizeMode: 'contain' }));
+const list = createScrollView({ height: 120 });
+list.addEventListener('scroll', () => void list.scrollTop);
+list.scrollTo({ top: 10 });
+const field = createTextInput({ placeholder: 'Preset', style: { color: 'white' } });
+field.addEventListener('input', (event) => void event.data);
+field.addEventListener('change', () => void field.value.trim());
+field.setSelectionRange(0, field.value.length);
+const stopPressing: () => void = pressable(card, { onPress: () => void 0, onStateChange: ({ pressed }) => void pressed });
+void clipboard.writeText('x').then(() => clipboard.readText());
+const frame: number = requestAnimationFrame((time: number) => void time);
+cancelAnimationFrame(frame);
+// @ts-expect-error not a resize mode
+createImage(logo, { resizeMode: 'fill' });
+// @ts-expect-error images show bundled assets, not arbitrary strings
+createImage('logo.png');
 // @ts-expect-error not a flex direction
 createView({ flexDirection: 'diagonal' });
 // @ts-expect-error unknown style property
@@ -144,7 +161,7 @@ void document;
 // @ts-expect-error there is no localStorage
 void localStorage;
 
-export { asset, forgedAsset, width, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+export { asset, forgedAsset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;

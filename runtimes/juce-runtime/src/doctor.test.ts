@@ -27,7 +27,47 @@ describe('buildDoctorReport', () => {
         env: {},
       },
     );
-    expect(report.checks.map((c) => c.status)).toEqual(['ok', 'ok', 'ok']);
+    expect(report.checks.map((c) => c.status)).toEqual([
+      'ok',
+      'ok',
+      'ok',
+      'ok',
+    ]);
+  });
+
+  it('names the tools missing to build Skia', async () => {
+    const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
+      '/proj/JUCE/modules',
+    ]);
+    const report = await buildDoctorReport(
+      fs,
+      { jucePath: '/proj/JUCE' },
+      {
+        probe: (cmd) =>
+          cmd === 'ninja' || cmd.startsWith('python') ? missing(cmd) : ok(cmd),
+        env: {},
+      },
+    );
+    expect(check(report, 'Skia build tools')).toMatchObject({
+      status: 'fail',
+      detail: expect.stringContaining('Missing Python 3, ninja'),
+      suggestion: 'Install Python 3, ninja and make them available on PATH.',
+    });
+  });
+
+  it('accepts python as Python 3 (Windows)', async () => {
+    const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
+      '/proj/JUCE/modules',
+    ]);
+    const report = await buildDoctorReport(
+      fs,
+      { jucePath: '/proj/JUCE' },
+      {
+        probe: (cmd) => (cmd === 'python3' ? missing(cmd) : ok(cmd)),
+        env: {},
+      },
+    );
+    expect(check(report, 'Skia build tools').status).toBe('ok');
   });
 
   it('reports a missing CMake with a suggestion', async () => {

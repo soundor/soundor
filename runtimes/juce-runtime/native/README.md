@@ -261,8 +261,47 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   `preventDefault()` tells the backend the input was handled; unhandled keys
   and wheel input go on to the host.
 
-Text is measured by the renderer's `ui::TextMeasurer`. Until a renderer
-provides one, an approximation from the font size is used.
+Beyond views and text there are the primitives a plugin UI is made of:
+
+- **`createImage(asset, style)`:** a bundled image (PNG, JPEG or WebP). It is
+  sized by its pixels unless styled; `resizeMode` is `cover`, `contain`,
+  `stretch` or `center`.
+- **`createScrollView(style)`:** its children scroll by wheel or by `scrollTo()`
+  and `scrollTop`/`scrollLeft`. It fires `scroll`, clips, and draws thin scroll
+  indicators.
+- **`createTextInput({ value, placeholder, style })`:** a focusable, single-line
+  input.
+  - **Editing:** it edits itself as the default action of its events, so a
+    listener's `preventDefault()` takes over. That covers typing, selection
+    with the mouse and Shift, word-wise moves and deletes, Home/End, and
+    copy/cut/paste through the system clipboard.
+  - **Events:** it fires `input`, and `change` on Enter and on blur.
+  - **Selection:** `value`, `selectionStart` and `setSelectionRange()` use
+    UTF-16 indices, as on the Web.
+- **`pressable(node, { onPress, onStateChange, … })`:** a press is a primary
+  click, or Enter/Space while focused. It reports pressed and hovered state.
+- **`requestAnimationFrame()`:** global, as on the Web. Callbacks run once on
+  the view's next frame, before it is drawn.
+
+### Rendering
+
+`ui::Renderer` draws a laid-out surface with [Skia](https://skia.org) on the
+CPU:
+
+- **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere, which
+  is `juce::Image::ARGB`'s layout. The generated editor renders straight into
+  its image and repaints only when `RuntimeHost::needsRender()` says the
+  picture changed (a blinking caret counts, twice a second).
+- **Boxes:** backgrounds, borders, per-corner radii, opacity, overflow
+  clipping, scrolling, text, images, and inputs with selection and a caret.
+- **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
+  invalid one is a `TypeError` naming the property.
+- **Text:** the platform's fonts (CoreText, DirectWrite, fontconfig/FreeType),
+  with per-character fallback, so accents, symbols and CJK render. Shaping is
+  simple: one glyph per code point, no ligatures or kerning, no complex scripts
+  or bidi; those need HarfBuzz and ICU. The same text engine lays text out, so
+  layout matches what is drawn. Tests that need machine-independent sizes use
+  `ui::approximateTextEngine()`.
 
 ### `RuntimeHost`
 
@@ -313,6 +352,7 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 | QuickJS-NG | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                   |
 | ada        | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped) |
 | Yoga       | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                      |
+| Skia       | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)     |
 | doctest    | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                   |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
@@ -327,6 +367,26 @@ Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`
 rewrites `YG_EXPORT` after download (and after the hash check). That keeps
 every `YG*` symbol inside the plugin; the symbol-isolation test fails without
 the patch.
+
+### Skia
+
+Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
+gets only its PNG, JPEG, WebP and zlib code, each at the commit Skia's `DEPS`
+pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
+
+- **The build:** `cmake/SoundorSkiaBuild.cmake` runs gn and ninja.
+  `cmake/SoundorSkia.cmake` runs it during the first configure on a machine
+  (about two minutes on four cores) and caches the result in the user cache
+  directory (override with `SOUNDOR_CACHE`), keyed by revision, build script,
+  compiler and architectures. Every later configure reuses it.
+- **Prerequisites:** git, Python 3 and ninja. `soundor doctor` checks them.
+- **Using your own build:** set `SOUNDOR_SKIA_DIR` to a Skia install made by
+  that script.
+- **Flavours:** Windows gets one library per C runtime (`/MD` and `/MDd`).
+  macOS universal builds get one per architecture, merged with `lipo`.
+- **Hiding symbols:** Skia's own symbols are hidden. libwebp exports its API
+  unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
+  catches it otherwise.
 
 ## Symbol isolation
 
@@ -344,6 +404,13 @@ or its dependencies define may be exported from a plugin binary:
   Standard-library template instantiations are tolerated, because `std` headers
   force default visibility on them. A negative-control test proves the check
   catches a leaked symbol. The check runs on Linux and macOS.
+- On Apple platforms the same check fails on any Objective-C class compiled
+  into the binary. Classes share one process-wide namespace whatever their
+  symbols' visibility, so two plugins defining one would collide. A negative
+  control covers this check too.
+- The probe library creates a full `RuntimeHost` and lays out and draws a UI,
+  so QuickJS, ada, Yoga, Skia and its codecs are all linked into what is
+  checked.
 
 ## Building and testing
 

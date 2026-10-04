@@ -8,9 +8,34 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
-    // A node's style: flexbox layout as in React Native (and CSS), plus the
-    // text properties a text node is measured with. Every field starts at its
-    // initial value, so a default Style is "no style".
+    // A node's style: flexbox layout as in React Native (and CSS), how the
+    // node is drawn, and the text properties text is set in. Every field
+    // starts at its initial value, so a default Style is "no style".
+
+    // An sRGB color with straight (not premultiplied) alpha.
+    struct Color
+    {
+        std::uint8_t r = 0;
+        std::uint8_t g = 0;
+        std::uint8_t b = 0;
+        std::uint8_t a = 0;
+
+        [[nodiscard]] constexpr bool visible() const noexcept { return a != 0; }
+        friend constexpr bool operator==(const Color&, const Color&) = default;
+    };
+
+    inline constexpr Color black { 0, 0, 0, 255 };
+    inline constexpr Color transparent {};
+
+    struct Corners
+    {
+        float topLeft = 0;
+        float topRight = 0;
+        float bottomRight = 0;
+        float bottomLeft = 0;
+
+        friend constexpr bool operator==(const Corners&, const Corners&) = default;
+    };
 
     struct Length
     {
@@ -132,8 +157,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Right,
     };
 
+    // How an image fills its box (React Native's resizeMode).
+    enum class ResizeMode : std::uint8_t
+    {
+        Cover,   // fill the box, cropping, keeping the aspect ratio
+        Contain, // fit inside the box, keeping the aspect ratio
+        Stretch, // fill the box exactly
+        Center,  // centered at its own size, scaled down to fit
+    };
+
     struct TextStyle
     {
+        Color color = black;
         std::string fontFamily; // empty: the platform's UI font
         float fontSize = 14;
         int fontWeight = 400;
@@ -182,6 +217,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Overflow overflow = Overflow::Visible;
         PointerEvents pointerEvents = PointerEvents::Auto;
+
+        Color backgroundColor;
+        Color borderColor = black;
+        Corners borderRadius;
+        // 0 (invisible) to 1; applies to the node and everything in it.
+        float opacity = 1;
+        ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;
     };

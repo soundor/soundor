@@ -1,6 +1,6 @@
 /**
- * The JUCE runtime's `doctor` checks: CMake, a C++ compiler, and a locatable
- * JUCE checkout. Per the CLI's design, runtime-specific toolchains are diagnosed
+ * The JUCE runtime's `doctor` checks: CMake, a C++ compiler, the tools Skia is
+ * built with, and a locatable JUCE checkout. Per the CLI's design, runtime-specific toolchains are diagnosed
  * here, not in the CLI's environment probes. Dependencies (the command probe,
  * the environment) are injected so the report is unit-testable with the
  * toolchain absent.
@@ -41,6 +41,7 @@ export async function buildDoctorReport(
     checks: [
       checkCMake(probe),
       checkCompiler(probe),
+      checkSkiaTools(probe),
       await checkJuce(fs, options, env),
     ],
   };
@@ -95,6 +96,31 @@ function checkCompiler(probe: CommandProbe): DoctorCheck {
     detail: `No C++ compiler found (looked for ${CXX_COMPILERS.join(', ')}).`,
     suggestion:
       'Install a C++ toolchain (Xcode Command Line Tools, MSVC Build Tools, or GCC/Clang).',
+  };
+}
+
+/**
+ * Soundor builds Skia from source on the first configure (then caches it),
+ * which needs git, Python 3 and ninja.
+ */
+function checkSkiaTools(probe: CommandProbe): DoctorCheck {
+  const missing: string[] = [];
+  if (!probe('git', ['--version']).ok) missing.push('git');
+  if (!['python3', 'python'].some((python) => probe(python, ['--version']).ok))
+    missing.push('Python 3');
+  if (!probe('ninja', ['--version']).ok) missing.push('ninja');
+  if (missing.length === 0) {
+    return {
+      label: 'Skia build tools',
+      status: 'ok',
+      detail: 'git, Python 3 and ninja available.',
+    };
+  }
+  return {
+    label: 'Skia build tools',
+    status: 'fail',
+    detail: `Missing ${missing.join(', ')}; Soundor builds Skia (its renderer) from source once per machine.`,
+    suggestion: `Install ${missing.join(', ')} and make ${missing.length === 1 ? 'it' : 'them'} available on PATH.`,
   };
 }
 

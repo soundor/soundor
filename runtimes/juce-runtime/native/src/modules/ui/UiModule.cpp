@@ -2,13 +2,16 @@
 
 #include "js/Bindings.h"
 #include "modules/Embedded.h"
+#include "ui/Color.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
@@ -18,6 +21,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         const char bindingKey = 0;
         const char listenerKey = 0;
+        const char frameListenerKey = 0;
+
+        // JavaScript indexes strings in UTF-16 code units, the surface in
+        // UTF-8 bytes.
+        std::size_t byteOffset(std::string_view text, double utf16Index)
+        {
+            std::size_t units = 0;
+            std::size_t i = 0;
+            while (i < text.size() && static_cast<double>(units) < utf16Index)
+            {
+                const auto lead = static_cast<unsigned char>(text[i]);
+                const std::size_t length = lead < 0x80 ? 1 : lead < 0xE0 ? 2 : lead < 0xF0 ? 3 : 4;
+                units += length == 4 ? 2 : 1;
+                i += length;
+            }
+            return std::min(i, text.size());
+        }
+
+        double utf16Index(std::string_view text, std::size_t offset)
+        {
+            double units = 0;
+            for (std::size_t i = 0; i < offset && i < text.size(); ++i)
+            {
+                const auto byte = static_cast<unsigned char>(text[i]);
+                if ((byte & 0xC0) != 0x80)
+                    units += byte >= 0xF0 ? 2 : 1;
+            }
+            return units;
+        }
 
         // One context's hold on the surface. The surface may outlive the
         // context (a reload), so the binding unhooks its events when it goes.
@@ -61,9 +93,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // ── Style ────────────────────────────────────────────────────────────
 
-        // Reads a style object into a Style. Unknown keys are left for others
-        // (the renderer's visual properties); known keys with invalid values
-        // throw a TypeError naming them.
+        // Reads a style object into a Style. Unknown keys are ignored; known
+        // keys with invalid values throw a TypeError naming them.
         class StyleReader
         {
         public:
@@ -74,6 +105,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 Style out;
                 readLayout(out);
                 readSpacing(out);
+                readVisual(out);
                 readText(out.text);
                 return out;
             }
@@ -290,8 +322,42 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.columnGap, number("columnGap"));
             }
 
+            std::optional<Color> color(const char* key)
+            {
+                Property property(ctx, style, key);
+                if (! property.present())
+                    return std::nullopt;
+                if (JS_IsString(property.value))
+                {
+                    const char* chars = JS_ToCString(ctx, property.value);
+                    const std::optional<Color> parsed = parseColor(chars == nullptr ? "" : chars);
+                    JS_FreeCString(ctx, chars);
+                    if (parsed)
+                        return parsed;
+                }
+                fail(property, "a CSS color");
+            }
+
+            void readVisual(Style& out)
+            {
+                static constexpr std::array<std::string_view, 4> resizeModes { "cover", "contain", "stretch",
+                                                                               "center" };
+                assign(out.backgroundColor, color("backgroundColor"));
+                assign(out.borderColor, color("borderColor"));
+                if (const auto radius = number("borderRadius"))
+                    out.borderRadius = { *radius, *radius, *radius, *radius };
+                assign(out.borderRadius.topLeft, number("borderTopLeftRadius"));
+                assign(out.borderRadius.topRight, number("borderTopRightRadius"));
+                assign(out.borderRadius.bottomRight, number("borderBottomRightRadius"));
+                assign(out.borderRadius.bottomLeft, number("borderBottomLeftRadius"));
+                if (const auto opacity = number("opacity"))
+                    out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
+                assign(out.resizeMode, choice<ResizeMode>("resizeMode", resizeModes));
+            }
+
             void readText(TextStyle& out)
             {
+                assign(out.color, color("color"));
                 static constexpr std::array<std::string_view, 2> fontStyles { "normal", "italic" };
                 static constexpr std::array<std::string_view, 4> textAligns { "auto", "left", "center", "right" };
 
@@ -348,8 +414,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return call(ctx, "createNode", argc, 1,
                         [&](Surface& surface)
                         {
-                            const NodeType type = JS_ToBool(ctx, argv[0]) != 0 ? NodeType::Text : NodeType::View;
-                            return JS_NewUint32(ctx, surface.createNode(type));
+                            int type = 0;
+                            if (JS_ToInt32(ctx, &type, argv[0]) < 0 || type < 0
+                                || type > static_cast<int>(NodeType::Input))
+                                throw std::invalid_argument("invalid node type");
+                            return JS_NewUint32(ctx, surface.createNode(static_cast<NodeType>(type)));
                         });
         }
 
@@ -445,7 +514,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface) { return JS_NewUint32(ctx, surface.focused()); });
         }
 
-        JSValue frame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        JSValue nodeFrame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
             return call(ctx, "layout", argc, 1,
                         [&](Surface& surface)
@@ -487,6 +556,153 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
                 return JS_ThrowTypeError(ctx, "setListener() expects a function");
             bind::retainValue(ctx, &listenerKey, JS_DupValue(ctx, argv[0]));
+            return JS_UNDEFINED;
+        }
+
+        std::string readString(JSContext* ctx, JSValueConst value, const char* name)
+        {
+            std::string out;
+            if (! bind::read(ctx, value, bind::Path { name }, out))
+                throw std::invalid_argument(std::string(name) + " must be a string");
+            return out;
+        }
+
+        double readNumber(JSContext* ctx, JSValueConst value)
+        {
+            double out = 0;
+            if (JS_ToFloat64(ctx, &out, value) < 0 || std::isnan(out))
+                throw std::invalid_argument("expected a number");
+            return out;
+        }
+
+        JSValue setSource(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "source", argc, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setSource(readId(ctx, argv[0]), readString(ctx, argv[1], "source"));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue setPlaceholder(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "placeholder", argc, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setPlaceholder(readId(ctx, argv[0]), readString(ctx, argv[1], "placeholder"));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        // setSelection(id, anchor, focus) in UTF-16 indices.
+        JSValue setSelection(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "setSelectionRange", argc, 3,
+                        [&](Surface& surface)
+                        {
+                            const NodeId id = readId(ctx, argv[0]);
+                            Node* node = surface.find(id);
+                            if (node == nullptr)
+                                throw std::invalid_argument("unknown node");
+                            const std::string& text = node->text();
+                            surface.setSelection(id, { byteOffset(text, readNumber(ctx, argv[1])),
+                                                       byteOffset(text, readNumber(ctx, argv[2])) });
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue selection(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "selection", argc, 1,
+                        [&](Surface& surface)
+                        {
+                            Node* node = surface.find(readId(ctx, argv[0]));
+                            if (node == nullptr)
+                                throw std::invalid_argument("unknown node");
+                            bind::ObjectBuilder object(ctx);
+                            object.set("anchor",
+                                       JS_NewFloat64(ctx, utf16Index(node->text(), node->selection().anchor)));
+                            object.set("focus", JS_NewFloat64(ctx, utf16Index(node->text(), node->selection().focus)));
+                            return object.release();
+                        });
+        }
+
+        // offsetAt(id, x, y): the UTF-16 index of the text nearest a point
+        // relative to the node.
+        JSValue offsetAt(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "offsetAt", argc, 3,
+                        [&](Surface& surface)
+                        {
+                            const NodeId id = readId(ctx, argv[0]);
+                            const Point point { static_cast<float>(readNumber(ctx, argv[1])),
+                                                static_cast<float>(readNumber(ctx, argv[2])) };
+                            const std::size_t offset = surface.textOffsetAt(id, point);
+                            return JS_NewFloat64(ctx, utf16Index(surface.find(id)->text(), offset));
+                        });
+        }
+
+        JSValue scrollTo(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "scrollTo", argc, 3,
+                        [&](Surface& surface)
+                        {
+                            surface.scrollTo(readId(ctx, argv[0]), { static_cast<float>(readNumber(ctx, argv[1])),
+                                                                     static_cast<float>(readNumber(ctx, argv[2])) });
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue scrollOffset(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "scrollOffset", argc, 1,
+                        [&](Surface& surface)
+                        {
+                            Node* node = surface.find(readId(ctx, argv[0]));
+                            if (node == nullptr)
+                                throw std::invalid_argument("unknown node");
+                            bind::ObjectBuilder object(ctx);
+                            object.set("x", JS_NewFloat64(ctx, node->scrollOffset().x));
+                            object.set("y", JS_NewFloat64(ctx, node->scrollOffset().y));
+                            return object.release();
+                        });
+        }
+
+        JSValue contentSize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "contentSize", argc, 1,
+                        [&](Surface& surface)
+                        {
+                            const Size size = surface.contentSize(readId(ctx, argv[0]));
+                            bind::ObjectBuilder object(ctx);
+                            object.set("width", JS_NewFloat64(ctx, size.width));
+                            object.set("height", JS_NewFloat64(ctx, size.height));
+                            return object.release();
+                        });
+        }
+
+        JSValue readClipboard(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        {
+            return call(ctx, "readText", argc, 0,
+                        [&](Surface& surface) { return bind::write(ctx, surface.clipboard().readText()); });
+        }
+
+        JSValue writeClipboard(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "writeText", argc, 1,
+                        [&](Surface& surface)
+                        {
+                            surface.clipboard().writeText(readString(ctx, argv[0], "text"));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue setFrameListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
+                return JS_ThrowTypeError(ctx, "setFrameListener() expects a function");
+            bind::retainValue(ctx, &frameListenerKey, JS_DupValue(ctx, argv[0]));
             return JS_UNDEFINED;
         }
 
@@ -533,6 +749,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     break;
                 case Event::Type::Focus:
                 case Event::Type::Blur:
+                case Event::Type::Scroll:
                     break;
             }
             return data.release();
@@ -564,10 +781,42 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return prevented;
         }
 
+        struct Function
+        {
+            const char* name;
+            JSCFunction* call;
+            int length;
+        };
+
+        constexpr Function functions[] = {
+            { "createNode", createNode, 1 },
+            { "releaseNode", releaseNode, 1 },
+            { "insertChild", insertChild, 3 },
+            { "removeChild", removeChild, 2 },
+            { "setStyle", setStyle, 2 },
+            { "setText", setText, 2 },
+            { "setFocusable", setFocusable, 2 },
+            { "setSource", setSource, 2 },
+            { "setPlaceholder", setPlaceholder, 2 },
+            { "setSelection", setSelection, 3 },
+            { "selection", selection, 1 },
+            { "offsetAt", offsetAt, 3 },
+            { "scrollTo", scrollTo, 3 },
+            { "scrollOffset", scrollOffset, 1 },
+            { "contentSize", contentSize, 1 },
+            { "focus", focus, 1 },
+            { "focused", focused, 0 },
+            { "frame", nodeFrame, 1 },
+            { "bounds", bounds, 1 },
+            { "size", viewSize, 0 },
+            { "readClipboard", readClipboard, 0 },
+            { "writeClipboard", writeClipboard, 1 },
+            { "setListener", setListener, 1 },
+            { "setFrameListener", setFrameListener, 1 },
+        };
+
         bool initializeInternalModule(JSContext* ctx, JSModuleDef* module)
         {
-            const auto exportFunction = [&](const char* name, JSCFunction* function, int length)
-            { return JS_SetModuleExport(ctx, module, name, JS_NewCFunction(ctx, function, name, length)) == 0; };
             Surface* surface = nullptr;
             try
             {
@@ -578,14 +827,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 JS_ThrowInternalError(ctx, "%s", error.what());
                 return false;
             }
-            return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0
-                   && exportFunction("createNode", createNode, 1) && exportFunction("releaseNode", releaseNode, 1)
-                   && exportFunction("insertChild", insertChild, 3) && exportFunction("removeChild", removeChild, 2)
-                   && exportFunction("setStyle", setStyle, 2) && exportFunction("setText", setText, 2)
-                   && exportFunction("setFocusable", setFocusable, 2) && exportFunction("focus", focus, 1)
-                   && exportFunction("focused", focused, 0) && exportFunction("frame", frame, 1)
-                   && exportFunction("bounds", bounds, 1) && exportFunction("size", viewSize, 0)
-                   && exportFunction("setListener", setListener, 1);
+            for (const Function& function : functions)
+                if (JS_SetModuleExport(ctx, module, function.name,
+                                       JS_NewCFunction(ctx, function.call, function.name, function.length))
+                    != 0)
+                    return false;
+            return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0;
         }
     } // namespace
 
@@ -596,12 +843,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         JSContext* ctx = js::rawContext(context);
         surface->setEventSink([ctx](const Event& event) { return dispatch(ctx, event); });
         bind::setContextData(context, &bindingKey, std::make_shared<Binding>(std::move(surface)));
-        js::registerNativeModule(
-            context, "soundor:internal/ui",
-            { { "rootId", "createNode", "releaseNode", "insertChild", "removeChild", "setStyle", "setText",
-                "setFocusable", "focus", "focused", "frame", "bounds", "size", "setListener" },
-              initializeInternalModule,
-              {} });
+        std::vector<std::string> exports { "rootId" };
+        for (const Function& function : functions)
+            exports.emplace_back(function.name);
+        js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });
+        js::registerNativeModule(context, "soundor:internal/ui/frames", { {}, {}, embedded::uiFramesModule });
         js::registerNativeModule(context, "soundor:ui", { {}, {}, embedded::uiModule });
+
+        // requestAnimationFrame() is global, like on the Web.
+        auto frames = context.evaluateModule("import 'soundor:internal/ui/frames';", "soundor:bootstrap/ui");
+        if (! frames)
+            throw std::runtime_error("soundor:ui failed to start: " + frames.error().toString());
+    }
+
+    void frame(js::Context& context)
+    {
+        JSContext* ctx = js::rawContext(context);
+        auto* state = js::detail::contextStateOf(ctx);
+        if (state == nullptr)
+            return;
+        state->runtime->enter();
+        JSValue listener = JS_DupValue(ctx, bind::retainedValue(ctx, &frameListenerKey));
+        if (JS_IsFunction(ctx, listener))
+        {
+            JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 0, nullptr);
+            if (JS_IsException(result))
+                state->runtime->log(js::LogLevel::Error,
+                                    "animation frame failed: " + js::detail::takeException(ctx).toString());
+            JS_FreeValue(ctx, result);
+        }
+        JS_FreeValue(ctx, listener);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

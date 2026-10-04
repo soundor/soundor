@@ -209,15 +209,34 @@ TEST_SUITE("ui::Surface layout")
         CHECK(surface.bounds(text).height == 48);
     }
 
-    TEST_CASE("the approximate measurer counts code points and honours line breaks")
+    TEST_CASE("the approximate engine counts code points and honours line breaks")
     {
-        auto measurer = approximateTextMeasurer();
+        auto engine = approximateTextEngine();
         TextStyle style;
         style.fontSize = 10;
-        CHECK(measurer->measure("ééé", style, 1e9f).width == doctest::Approx(16.5));
-        const Size twoLines = measurer->measure("ab\nabcd", style, 1e9f);
-        CHECK(twoLines.width == doctest::Approx(22));
-        CHECK(twoLines.height == doctest::Approx(24));
+        CHECK(engine->advance("ééé", style) == doctest::Approx(16.5));
+        const TextLayout twoLines = engine->layout("ab\nabcd", style, 1e9f);
+        CHECK(twoLines.size.width == doctest::Approx(22));
+        CHECK(twoLines.size.height == doctest::Approx(24));
+        REQUIRE(twoLines.lines.size() == 2);
+        CHECK(twoLines.lines[1].begin == 3);
+        CHECK(twoLines.lines[1].end == 7);
+        CHECK(twoLines.lines[1].top == doctest::Approx(12));
+    }
+
+    TEST_CASE("wrapping keeps break spaces out of lines and maps points to offsets")
+    {
+        auto engine = approximateTextEngine();
+        TextStyle style;
+        style.fontSize = 20; // 11 per character
+        const std::string text = "one two  three";
+        const TextLayout layout = engine->layout(text, style, 80);
+        REQUIRE(layout.lines.size() == 2);
+        CHECK(text.substr(layout.lines[0].begin, layout.lines[0].end - layout.lines[0].begin) == "one two");
+        CHECK(text.substr(layout.lines[1].begin, layout.lines[1].end - layout.lines[1].begin) == "three");
+        CHECK(offsetAt(*engine, text, layout.lines[0], style, 0) == 0);
+        CHECK(offsetAt(*engine, text, layout.lines[0], style, 17) == 2); // nearer the boundary after "on"
+        CHECK(offsetAt(*engine, text, layout.lines[1], style, 1000) == text.size());
     }
 }
 
@@ -267,7 +286,7 @@ TEST_SUITE("ui::Surface tree")
 
         CHECK_THROWS_AS(surface.insertChild(child, parent), std::invalid_argument); // cycle
         CHECK_THROWS_AS(surface.insertChild(parent, parent), std::invalid_argument);
-        CHECK_THROWS_AS(surface.insertChild(text, child), std::invalid_argument);
+        CHECK_THROWS_AS(surface.insertChild(text, child), std::invalid_argument); // only views have children
         CHECK_THROWS_AS(surface.insertChild(parent, root), std::invalid_argument);
         CHECK_THROWS_AS(surface.insertChild(root, text, child), std::invalid_argument); // not a child of root
         CHECK_THROWS_AS(surface.removeChild(root, child), std::invalid_argument);

@@ -45,3 +45,45 @@ IncludeCategories:
     Priority: 4
   - Regex: '.*'
     Priority: 3
+---
+# Objective-C++ (.mm) follows the same rules.
+Language: ObjC
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 120
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+BreakBeforeBraces: Allman
+NamespaceIndentation: All
+FixNamespaceComments: true
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+PointerAlignment: Left
+ReferenceAlignment: Left
+SpaceAfterLogicalNot: true
+SpaceBeforeCpp11BracedList: true
+Cpp11BracedListStyle: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBinaryOperators: NonAssignment
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+LambdaBodyIndentation: Signature
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+IncludeCategories:
+  # Same-directory private headers first, then Soundor, third-party, standard.
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<soundor/'
+    Priority: 2
+  - Regex: '^<[a-z_]+\.h>$|^<doctest/'
+    Priority: 3
+  - Regex: '^<[a-z_]+>$'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 3
