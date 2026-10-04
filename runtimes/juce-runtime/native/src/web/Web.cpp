@@ -108,7 +108,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                                        JS_NewCFunction(ctx, function.call, function.name, function.length))
                     < 0)
                     return false;
-            return JS_SetModuleExport(ctx, module, "timeOrigin", JS_NewFloat64(ctx, state->timeOrigin)) == 0;
+            return JS_SetModuleExport(ctx, module, "timeOrigin", JS_NewFloat64(ctx, state->timeOrigin)) == 0
+                   && JS_SetModuleExport(ctx, module, "pluginId", js::bind::write(ctx, state->services.pluginId)) == 0
+                   && JS_SetModuleExport(ctx, module, "pluginName", js::bind::write(ctx, state->services.pluginName))
+                          == 0;
         }
     } // namespace
 
@@ -269,6 +272,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         for (const auto& function : nativeFunctions())
             names.emplace_back(function.name);
         names.emplace_back("timeOrigin");
+        names.emplace_back("pluginId");
+        names.emplace_back("pluginName");
         return names;
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

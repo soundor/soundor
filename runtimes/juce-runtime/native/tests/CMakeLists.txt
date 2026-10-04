@@ -21,6 +21,7 @@ add_executable(soundor_runtime_tests
   parameters/ParametersTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp
+  web/PlatformModulesTests.cpp
   web/UrlTests.cpp
   web/WebApiTests.cpp
   # Golden output of the soundor:native generator (see src/native-codegen.test.ts).

@@ -10,6 +10,9 @@
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 {
     extern const std::string_view parametersModule; // modules/parameters/parameters.js
+    extern const std::string_view fsModule;         // modules/fs/fs.js
+    extern const std::string_view hostModule;       // modules/host/host.js
+    extern const std::string_view storageModule;    // modules/storage/storage.js
 
     // web/js/*.js
     extern const std::string_view abortModule;
