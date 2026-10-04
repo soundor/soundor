@@ -279,13 +279,15 @@ TEST_SUITE("CSS colors")
         CHECK(ui::parseColor("#1234") == Color { 0x11, 0x22, 0x33, 0x44 });
         CHECK(ui::parseColor("rgb(0, 128, 255)") == Color { 0, 128, 255, 255 });
         CHECK(ui::parseColor("rgba(0,0,0,0.5)") == Color { 0, 0, 0, 128 });
+        CHECK(ui::parseColor("rgba(0,0,0,.5)") == Color { 0, 0, 0, 128 });
+        CHECK(ui::parseColor("rgb(2.55e2, -10, +20)") == Color { 255, 0, 20, 255 });
         CHECK(ui::parseColor("rgb(100% 0% 0% / 50%)") == Color { 255, 0, 0, 128 });
         CHECK(ui::parseColor("hsl(120, 100%, 50%)") == Color { 0, 255, 0, 255 });
         CHECK(ui::parseColor("hsl(240deg 100% 50% / 0.25)") == Color { 0, 0, 255, 64 });
         CHECK(ui::parseColor("RebeccaPurple") == Color { 0x66, 0x33, 0x99, 255 });
         CHECK(ui::parseColor("transparent") == Color {});
-        for (const char* invalid :
-             { "", "#12", "#123456789", "#ggg", "rgb(1,2)", "hsl(1, 2, 3)", "notacolor", "rgb(a,b,c)" })
+        for (const char* invalid : { "", "#12", "#123456789", "#ggg", "rgb(1,2)", "hsl(1, 2, 3)", "notacolor",
+                                     "rgb(a,b,c)", "rgb(1.,,2,3)", "rgb(1e,2,3)", "rgb(-,2,3)" })
             CHECK_MESSAGE(! ui::parseColor(invalid), invalid);
     }
 

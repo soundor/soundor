@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <string>
 #include <utility>
@@ -212,17 +211,52 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
 
+        // A CSS number ("12", "-0.5", ".5", "1e2"), parsed without the C
+        // locale (which a host may have changed).
+        std::optional<double> parseNumber(std::string_view text)
+        {
+            std::size_t i = 0;
+            bool negative = false;
+            if (! text.empty() && (text[0] == '-' || text[0] == '+'))
+            {
+                negative = text[0] == '-';
+                i = 1;
+            }
+            double value = 0;
+            std::size_t digits = 0;
+            for (; i < text.size() && text[i] >= '0' && text[i] <= '9'; ++i, ++digits)
+                value = value * 10 + (text[i] - '0');
+            if (i < text.size() && text[i] == '.')
+            {
+                double scale = 0.1;
+                for (++i; i < text.size() && text[i] >= '0' && text[i] <= '9'; ++i, ++digits, scale /= 10)
+                    value += (text[i] - '0') * scale;
+            }
+            if (digits == 0)
+                return std::nullopt;
+            if (i < text.size() && (text[i] == 'e' || text[i] == 'E'))
+            {
+                const std::optional<double> exponent = parseNumber(text.substr(i + 1));
+                if (! exponent || std::floor(*exponent) != *exponent)
+                    return std::nullopt;
+                value *= std::pow(10.0, *exponent);
+                i = text.size();
+            }
+            if (i != text.size() || ! std::isfinite(value))
+                return std::nullopt;
+            return negative ? -value : value;
+        }
+
         // A number, optionally a percentage of `percentOf`.
         std::optional<double> component(std::string_view text, double percentOf)
         {
             const bool percent = ! text.empty() && text.back() == '%';
             if (percent)
                 text.remove_suffix(1);
-            double value = 0;
-            const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
-            if (error != std::errc {} || end != text.data() + text.size() || ! std::isfinite(value))
+            const std::optional<double> value = parseNumber(text);
+            if (! value)
                 return std::nullopt;
-            return percent ? value / 100.0 * percentOf : value;
+            return percent ? *value / 100.0 * percentOf : *value;
         }
 
         std::uint8_t channel(double value)
