@@ -7,6 +7,7 @@
   "include": [
     "src/**/*.test.ts",
     "src/client/testing/*.d.ts",
-    "src/client/internal.d.ts"
+    "src/client/internal.d.ts",
+    "node_modules/@soundor/core/runtime/ui.d.ts"
   ]
 }

@@ -10,6 +10,7 @@ import manifest from 'soundor:internal/manifest';
 import { WebHost, type WebHostOptions } from './host';
 import type { WebManifest } from './manifest';
 import { createParameterStore, type ParameterStore } from './parameters';
+import { UiView } from './ui/view';
 
 export interface WebHostContext {
   readonly manifest: WebManifest;
@@ -33,6 +34,13 @@ export function createHostContext(
 }
 
 let current: WebHostContext | undefined;
+let view: UiView | undefined;
+
+/** This page's plugin view, created on first use (it needs the DOM). */
+export function uiView(): UiView {
+  view ??= new UiView();
+  return view;
+}
 
 /** This page's context. */
 export function hostContext(): WebHostContext {

@@ -14,6 +14,7 @@ import { join, relative, sep } from 'node:path';
 import {
   ConfigError,
   defineRuntime,
+  RuntimeError,
   type DoctorReport,
   type LifecycleContext,
   type Logger,
@@ -123,7 +124,14 @@ export async function webBuild(
     );
   }
   const build = deps.build ?? viteBuild;
-  await build({ ...viteConfig(config, ctx, deps), mode: 'production' });
+  try {
+    await build({ ...viteConfig(config, ctx, deps), mode: 'production' });
+  } catch (error) {
+    throw new RuntimeError(
+      `Vite failed to build the Web host: ${error instanceof Error ? error.message : String(error)}`,
+      { runtimeId: RUNTIME_ID, phase: 'build', cause: error },
+    );
+  }
   ctx.logger.info(`Built the Web host -> ${ctx.paths.dist}`);
 }
 
