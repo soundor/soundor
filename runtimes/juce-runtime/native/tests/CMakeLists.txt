@@ -130,7 +130,11 @@ target_compile_definitions(soundor_coexist_b PRIVATE SOUNDOR_COEXIST_COLOR="blue
 soundor_configure_target(soundor_coexist_b)
 
 add_executable(soundor_coexistence_host coexistence/Host.cpp)
+target_compile_features(soundor_coexistence_host PRIVATE cxx_std_20)
 target_link_libraries(soundor_coexistence_host PRIVATE ${CMAKE_DL_LIBS})
+if(SOUNDOR_ENABLE_SANITIZERS)
+  target_compile_definitions(soundor_coexistence_host PRIVATE SOUNDOR_COEXIST_KEEP_LOADED=1)
+endif()
 soundor_configure_target(soundor_coexistence_host)
 add_dependencies(soundor_coexistence_host soundor_coexist_a soundor_coexist_b)
 add_test(

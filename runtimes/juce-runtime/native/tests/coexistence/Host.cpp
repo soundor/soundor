@@ -25,7 +25,13 @@ namespace
 #if defined(_WIN32)
             library = LoadLibraryA(path);
 #else
+    #if SOUNDOR_COEXIST_KEEP_LOADED
+            // Under LeakSanitizer: the libraries' process-lifetime singletons
+            // (Skia keeps some) would look leaked once unmapped.
+            library = dlopen(path, RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
+    #else
             library = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    #endif
 #endif
             if (library == nullptr)
                 return;
