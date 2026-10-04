@@ -115,6 +115,9 @@ importers:
       '@soundor/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
       react:
         specifier: 'catalog:'
         version: 19.3.0
@@ -364,6 +367,9 @@ importers:
       '@soundor/core':
         specifier: workspace:^
         version: link:../../packages/core
+      '@soundor/react':
+        specifier: workspace:^
+        version: link:../../packages/react
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk
@@ -376,12 +382,18 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
       fake-indexeddb:
         specifier: 'catalog:'
         version: 6.2.5
       happy-dom:
         specifier: 'catalog:'
         version: 20.14.5
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
       tsdown:
         specifier: 'catalog:'
         version: 0.22.3(typescript@6.0.3)

@@ -129,8 +129,7 @@ function nativeTs(
 // added there is a type error here until it is implemented.
 import type { WebNativeApi } from '${contractPath}';
 
-export const native: WebNativeApi = {
-${stubs.join('')}};
+export const native: WebNativeApi = ${stubs.length === 0 ? '{}' : `{\n${stubs.join('')}}`};
 `;
 }
 

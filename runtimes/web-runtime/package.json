@@ -37,12 +37,15 @@
   "devDependencies": {
     "@soundor/config": "workspace:^",
     "@soundor/core": "workspace:^",
+    "@soundor/react": "workspace:^",
     "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
     "fake-indexeddb": "catalog:",
     "happy-dom": "catalog:",
+    "react": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

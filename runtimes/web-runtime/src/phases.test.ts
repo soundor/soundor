@@ -403,6 +403,22 @@ describe('webDev', () => {
     expect(server.close).toHaveBeenCalledOnce();
   });
 
+  it("reports Vite's own error when the dev server cannot start", async () => {
+    const root = await preparedProject();
+    const createServer = vi.fn<() => Promise<FakeServer>>(() =>
+      Promise.reject(new Error('Failed to load vite.config.ts')),
+    );
+    await expect(
+      webDev(testConfig, makeCtx(root), {
+        createServer: createServer as never,
+      }),
+    ).rejects.toMatchObject({
+      code: 'RUNTIME',
+      message:
+        'Vite failed to start the Web host dev server: Failed to load vite.config.ts',
+    });
+  });
+
   it('passes the configured port to Vite', async () => {
     const root = await preparedProject();
     const controller = new AbortController();

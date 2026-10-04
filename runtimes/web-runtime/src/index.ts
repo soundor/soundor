@@ -103,20 +103,30 @@ export async function webDev(
   const options = resolveWebOptions(ctx.options);
   await requireScaffold(ctx);
   const createServer = deps.createServer ?? viteCreateServer;
-  const server = await createServer({
-    ...viteConfig(config, ctx, deps),
-    mode: 'development',
-    server: { port: options.port },
-  });
+  let server: Awaited<ReturnType<typeof viteCreateServer>>;
+  try {
+    server = await createServer({
+      ...viteConfig(config, ctx, deps),
+      mode: 'development',
+      server: { port: options.port },
+    });
+  } catch (error) {
+    throw viteFailure('start the Web host dev server', 'dev', error);
+  }
   try {
     if (ctx.signal.aborted) return;
-    await server.listen();
+    try {
+      await server.listen();
+    } catch (error) {
+      throw viteFailure('start the Web host dev server', 'dev', error);
+    }
     const url = server.resolvedUrls?.local[0];
     ctx.logger.info(
       url === undefined ? 'Web host ready.' : `Web host ready: ${url}`,
     );
     await waitForAbort(ctx.signal);
   } finally {
+    // Closes Vite's watchers and connections too, so the process can exit.
     await server.close();
   }
 }
@@ -138,10 +148,7 @@ export async function webBuild(
   try {
     await build({ ...viteConfig(config, ctx, deps), mode: 'production' });
   } catch (error) {
-    throw new RuntimeError(
-      `Vite failed to build the Web host: ${error instanceof Error ? error.message : String(error)}`,
-      { runtimeId: RUNTIME_ID, phase: 'build', cause: error },
-    );
+    throw viteFailure('build the Web host', 'build', error);
   }
   ctx.logger.info(`Built the Web host -> ${ctx.paths.dist}`);
 }
@@ -193,6 +200,18 @@ function viteConfig(
       }),
     ],
   };
+}
+
+/** Vite's own error, as a runtime error naming what failed. */
+function viteFailure(
+  what: string,
+  phase: 'dev' | 'build',
+  error: unknown,
+): RuntimeError {
+  return new RuntimeError(
+    `Vite failed to ${what}: ${error instanceof Error ? error.message : String(error)}`,
+    { runtimeId: RUNTIME_ID, phase, cause: error },
+  );
 }
 
 async function requireScaffold(ctx: Ctx): Promise<void> {
