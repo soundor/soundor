@@ -19,3 +19,26 @@ function(soundor_embed_text target symbol input)
     VERBATIM)
   target_sources(${target} PRIVATE "${output}")
 endfunction()
+
+# soundor_embed_directory(<target> <function> <directory>) compiles every file
+# under <directory> into <target> and defines
+#   std::span<const soundor::<abi>::platform::EmbeddedFile>
+#   soundor::<abi>::embedded::<function>()
+# listing them by relative path. Regenerated when files are added, removed or
+# changed.
+
+set(SOUNDOR_EMBED_DIRECTORY_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/SoundorEmbedDirectory.cmake")
+
+function(soundor_embed_directory target function directory)
+  get_filename_component(directory "${directory}" ABSOLUTE)
+  file(GLOB_RECURSE files CONFIGURE_DEPENDS LIST_DIRECTORIES false "${directory}/*")
+  set(output "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded/${function}.cpp")
+  add_custom_command(
+    OUTPUT "${output}"
+    COMMAND ${CMAKE_COMMAND} -DDIRECTORY=${directory} -DOUTPUT=${output} -DFUNCTION=${function}
+            -P "${SOUNDOR_EMBED_DIRECTORY_SCRIPT}"
+    DEPENDS ${files} "${SOUNDOR_EMBED_DIRECTORY_SCRIPT}"
+    COMMENT "Embedding ${directory}"
+    VERBATIM)
+  target_sources(${target} PRIVATE "${output}")
+endfunction()

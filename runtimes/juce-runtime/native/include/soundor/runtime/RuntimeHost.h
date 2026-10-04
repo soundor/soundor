@@ -4,6 +4,7 @@
 #include <soundor/js/Context.h>
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
+#include <soundor/platform/Resources.h>
 
 #include <filesystem>
 #include <functional>
@@ -41,6 +42,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::filesystem::path dataDirectory;
             // Installs further modules (e.g. the generated `soundor:native`).
             std::function<void(js::Context&)> installModules;
+            // The plugin's UI files (its JavaScript bundle and assets). With
+            // them, the context loads modules from these resources.
+            std::shared_ptr<const platform::Resources> resources;
+            // The module to evaluate once everything is installed, e.g.
+            // "/bundle.js". Empty: nothing runs until the backend says so.
+            std::string entry;
         };
 
         explicit RuntimeHost(Options options);
@@ -58,9 +65,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         [[nodiscard]] js::Runtime& runtime() noexcept { return *jsRuntime; }
         [[nodiscard]] js::Context& context() noexcept { return *jsContext; }
 
+        // How evaluating the entry module went (success when there was none).
+        // A failed entry is also reported to the log; the host stays usable.
+        [[nodiscard]] const js::Result<void>& entryResult() const noexcept { return entryOutcome; }
+
+        // The bytes of a bundled asset ("9f86d081884c7d65.png"), if any.
+        [[nodiscard]] std::optional<std::span<const std::uint8_t>> asset(std::string_view id) const;
+
     private:
         std::unique_ptr<js::Runtime> jsRuntime;
         std::unique_ptr<js::Context> jsContext;
+        std::shared_ptr<const platform::Resources> resources;
+        js::Result<void> entryOutcome;
         bool hasParameters;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE
