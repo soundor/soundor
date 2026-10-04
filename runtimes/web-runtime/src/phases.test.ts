@@ -94,7 +94,9 @@ describe('webInit', () => {
 
     expect(await listFiles(join(root, 'runtimes/web'))).toEqual([
       'index.html',
+      'src/audio.ts',
       'src/main.ts',
+      'src/native.ts',
       'tsconfig.json',
       'vite.config.ts',
     ]);
@@ -105,6 +107,23 @@ describe('webInit', () => {
     expect(main).toContain(
       "import { startSoundorWebHost } from '@soundor/web-runtime/client';",
     );
+    expect(main).toContain("native: () => import('./native')");
+    expect(main).toContain("audio: () => import('./audio')");
+    const native = await readFile(
+      join(root, 'runtimes/web/src/native.ts'),
+      'utf8',
+    );
+    expect(native).toContain(
+      "import type { WebNativeApi } from '../../../.soundor/generated/runtimes/web/native';",
+    );
+    expect(native).toContain('export const native: WebNativeApi = {');
+    // The plugin declares a float gain: the scaffold applies it.
+    const audio = await readFile(
+      join(root, 'runtimes/web/src/audio.ts'),
+      'utf8',
+    );
+    expect(audio).toContain('export const setupAudio: WebAudioSetup');
+    expect(audio).toContain('parameters.gain.subscribe');
     const vite = await readFile(
       join(root, 'runtimes/web/vite.config.ts'),
       'utf8',
@@ -186,7 +205,10 @@ describe('webGen', () => {
     await webGen(config, ctx);
 
     const files = ctx.codegen.files();
-    expect(files.map((file) => file.path)).toEqual(['manifest.json']);
+    expect(files.map((file) => file.path)).toEqual([
+      'manifest.json',
+      'native.ts',
+    ]);
     expect(JSON.parse(files[0]!.contents)).toEqual({
       plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
       parameters: [
@@ -216,6 +238,7 @@ describe('webGen', () => {
           default: 'warm',
         },
       ],
+      native: { methods: [] },
     });
   });
 
@@ -230,7 +253,7 @@ describe('webGen', () => {
     expect(again.codegen.files()).toEqual(first.codegen.files());
     await expect(
       checkGeneratedFiles(again.fs, again.paths.gen, again.codegen.files()),
-    ).resolves.toHaveLength(1);
+    ).resolves.toHaveLength(2);
 
     const changed = makeCtx(root);
     await webGen(
@@ -269,15 +292,22 @@ describe('webBuild', () => {
     expect(html).toMatch(/src="\.\/assets\/[^"]+\.js"/);
     expect(html).not.toMatch(/(src|href)="\//);
 
-    const script = files.find((file) => file.endsWith('.js'))!;
-    const code = await readFile(join(ctx.paths.dist, script), 'utf8');
+    const code = (
+      await Promise.all(
+        files
+          .filter((file) => file.endsWith('.js'))
+          .map((file) => readFile(join(ctx.paths.dist, file), 'utf8')),
+      )
+    ).join('\n');
     expect(code).toContain('Soundor Basic');
     expect(code).not.toContain(root);
 
     // Nothing else is written into the project.
     expect((await listFiles(join(root, 'runtimes/web'))).sort()).toEqual([
       'index.html',
+      'src/audio.ts',
       'src/main.ts',
+      'src/native.ts',
       'tsconfig.json',
       'vite.config.ts',
     ]);

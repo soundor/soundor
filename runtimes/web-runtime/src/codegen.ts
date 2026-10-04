@@ -4,12 +4,21 @@
  * ships in this package; the project contributes its manifest.
  */
 
-import type { CodegenFile, SoundorConfig } from '@soundor/runtime-sdk';
+import {
+  describeNativeApi,
+  SoundorError,
+  type CodegenFile,
+  type NativeApiModel,
+  type SoundorConfig,
+} from '@soundor/runtime-sdk';
 
 import type { WebManifest, WebParameterInfo } from './client/manifest';
+import { renderWebNative } from './native-codegen';
 
 /** The manifest's file name in `.soundor/generated/runtimes/web/`. */
 export const MANIFEST_FILE = 'manifest.json';
+/** The native API contract's file name, next to the manifest. */
+export const NATIVE_FILE = 'native.ts';
 
 /** The generated files, relative to the runtime's generated directory. */
 export function generateWebSources(config: SoundorConfig): CodegenFile[] {
@@ -18,7 +27,20 @@ export function generateWebSources(config: SoundorConfig): CodegenFile[] {
       path: MANIFEST_FILE,
       contents: `${JSON.stringify(webManifest(config), null, 2)}\n`,
     },
+    { path: NATIVE_FILE, contents: renderWebNative(nativeModel(config)) },
   ];
+}
+
+/** The resolved native API; config validation has already rejected bad input. */
+export function nativeModel(config: SoundorConfig): NativeApiModel {
+  const result = describeNativeApi(config.native);
+  if (!result.ok) {
+    throw new SoundorError('Invalid native API declaration.', {
+      code: 'CONFIG',
+      issues: [...result.issues],
+    });
+  }
+  return result.model;
 }
 
 /**
@@ -58,5 +80,11 @@ export function webManifest(config: SoundorConfig): WebManifest {
           };
       }
     }),
+    native: {
+      methods: nativeModel(config).methods.map((method) => ({
+        name: method.name,
+        async: method.async,
+      })),
+    },
   };
 }

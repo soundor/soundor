@@ -105,6 +105,14 @@ export class WebHost {
     return this.#snapshot;
   }
 
+  /**
+   * The transport's position in seconds right now (snapshots only change
+   * once per frame); for the host's audio, which must start sample-exact.
+   */
+  currentSeconds(): number {
+    return (this.#positionAt(this.#now()) * 60) / this.#bpm;
+  }
+
   /** Calls `listener` with each new snapshot. Returns an unsubscribe function. */
   subscribe(listener: (snapshot: HostSnapshot) => void): () => void {
     return this.#listeners.add(listener, 'subscribe()');

@@ -35,4 +35,13 @@ export interface WebManifest {
   readonly plugin: { readonly id: string; readonly name: string };
   /** Every declared parameter, in declaration order. */
   readonly parameters: readonly WebParameterInfo[];
+  /** The native API's methods (soundor:native), by name. */
+  readonly native: { readonly methods: readonly WebNativeMethod[] };
+}
+
+/** A method of the native API. */
+export interface WebNativeMethod {
+  readonly name: string;
+  /** Whether it returns a Promise. */
+  readonly async: boolean;
 }

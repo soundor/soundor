@@ -120,6 +120,15 @@ describe('WebHost transport', () => {
     expect(host.snapshot().transport!.ppqPosition).toBeCloseTo(0.4);
   });
 
+  it('reads the live position between frames', () => {
+    const { host, frame, advance } = testHost();
+    host.play();
+    frame(0);
+    advance(250);
+    expect(host.snapshot().transport!.timeInSeconds).toBe(0);
+    expect(host.currentSeconds()).toBe(0.25);
+  });
+
   it('pauses where it is and stops back at the start', () => {
     const { host, frame, framesPending } = testHost();
     host.play();

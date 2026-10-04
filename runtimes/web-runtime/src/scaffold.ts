@@ -18,6 +18,15 @@ export interface WebScaffoldInput {
   readonly pluginName: string;
   /** From the scaffold directory to `.soundor/generated`, '/'-separated. */
   readonly generatedPath: string;
+  /** From `src/` to the generated native contract, without extension. */
+  readonly nativeContractPath: string;
+  /** The native API's methods, stubbed in the scaffolded native.ts. */
+  readonly nativeMethods: readonly {
+    readonly name: string;
+    readonly async: boolean;
+  }[];
+  /** Whether the plugin declares a float `gain` parameter to apply. */
+  readonly gain: boolean;
 }
 
 /** The files scaffolded on `init`, under `runtimes/<runtimeId>/`. */
@@ -31,6 +40,11 @@ export function webScaffoldFiles(
     { path: `${dir}/vite.config.ts`, contents: viteConfig() },
     { path: `${dir}/tsconfig.json`, contents: tsconfig(input.generatedPath) },
     { path: `${dir}/src/main.ts`, contents: mainTs() },
+    {
+      path: `${dir}/src/native.ts`,
+      contents: nativeTs(input.nativeContractPath, input.nativeMethods),
+    },
+    { path: `${dir}/src/audio.ts`, contents: audioTs(input.gain) },
   ];
 }
 
@@ -89,10 +103,71 @@ function tsconfig(generatedPath: string): string {
 }
 
 function mainTs(): string {
-  return `// The Web host's entry: starts Soundor's Web host for this plugin.
+  return `// The Web host's entry: starts Soundor's Web host for this plugin. The
+// plugin's native API and audio load after the host, so their soundor:*
+// imports find it ready.
 import { startSoundorWebHost } from '@soundor/web-runtime/client';
 
-await startSoundorWebHost();
+await startSoundorWebHost({
+  native: () => import('./native'),
+  audio: () => import('./audio'),
+});
+`;
+}
+
+function nativeTs(
+  contractPath: string,
+  methods: readonly { readonly name: string; readonly async: boolean }[],
+): string {
+  const stubs = methods.map(
+    (method) =>
+      `  ${method.async ? 'async ' : ''}${method.name}() {\n    throw new Error('${method.name}() is not implemented for the Web yet');\n  },\n`,
+  );
+  return `// The plugin's native API (soundor:native) for the Web, in TypeScript. The
+// plugin UI's calls arrive here as they are made: same values, exceptions
+// and promises. WebNativeApi is generated from soundor.config, so a method
+// added there is a type error here until it is implemented.
+import type { WebNativeApi } from '${contractPath}';
+
+export const native: WebNativeApi = {
+${stubs.join('')}};
+`;
+}
+
+function audioTs(gain: boolean): string {
+  if (!gain) {
+    return `// The plugin's audio on the Web: plain Web Audio nodes between the host's
+// input and output. soundor:parameters and soundor:host work here too.
+import type { WebAudioSetup } from '@soundor/web-runtime/client';
+
+export const setupAudio: WebAudioSetup = ({ input, output }) => {
+  input.connect(output);
+  return () => input.disconnect();
+};
+`;
+  }
+  return `// The plugin's audio on the Web: plain Web Audio nodes between the host's
+// input and output, here a gain that follows the 'gain' parameter.
+// soundor:parameters is the same parameter the plugin UI moves.
+import type { WebAudioSetup } from '@soundor/web-runtime/client';
+import { parameters } from 'soundor:parameters';
+
+export const setupAudio: WebAudioSetup = ({ context, input, output }) => {
+  const gain = context.createGain();
+  const follow = (value: number) =>
+    gain.gain.setTargetAtTime(value, context.currentTime, 0.01);
+
+  gain.gain.value = parameters.gain.get();
+  const unsubscribe = parameters.gain.subscribe(follow);
+  input.connect(gain);
+  gain.connect(output);
+
+  return () => {
+    unsubscribe();
+    input.disconnect();
+    gain.disconnect();
+  };
+};
 `;
 }
 

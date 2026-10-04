@@ -13,11 +13,13 @@
  *   never rebundled from the project's sources (see `ui-bundle.ts`).
  */
 
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { UiBundleContext } from '@soundor/runtime-sdk';
 import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 
+import type { WebManifest } from './client/manifest';
 import { MANIFEST_FILE } from './codegen';
 import { CLIENT_DIR, clientModule } from './paths';
 import { soundorUiBundle } from './ui-bundle';
@@ -107,6 +109,8 @@ export interface SoundorModulesOptions {
 /** Internal modules whose code depends on the run (`\0`: virtual). */
 const UI_MODULE = 'soundor:internal/ui';
 const DEV_MODULE = 'soundor:internal/dev';
+/** Its exports are the project's native methods, read from the manifest. */
+const NATIVE_MODULE = 'soundor:native';
 
 /**
  * Resolves `soundor:*` (and the host's client entry) to this package's
@@ -115,28 +119,53 @@ const DEV_MODULE = 'soundor:internal/dev';
  */
 export function soundorModules(options: SoundorModulesOptions): Plugin {
   const client = (name: string) => clientModule(name, options.clientDir);
+  let command: 'build' | 'serve' = 'serve';
   return {
     name: 'soundor:web-modules',
     enforce: 'pre',
+    configResolved(config) {
+      command = config.command;
+    },
     resolveId(id) {
       if (id === CLIENT_ID) return client('index');
       if (!id.startsWith('soundor:')) return null;
       if (id === 'soundor:internal/manifest') {
         return join(options.genDir, MANIFEST_FILE);
       }
-      if (id === UI_MODULE || id === DEV_MODULE) return `\0${id}`;
+      if (id === UI_MODULE || id === DEV_MODULE || id === NATIVE_MODULE)
+        return `\0${id}`;
       const module = MODULES[id];
       if (module === undefined) {
         this.error(`Unknown Soundor module '${id}'`);
       }
       return client(module);
     },
-    load(id) {
+    async load(id) {
       if (id === `\0${UI_MODULE}`) return uiModule(options.ui);
-      if (id === `\0${DEV_MODULE}`) return devModule(options.ui);
+      if (id === `\0${DEV_MODULE}`) return devModule(options.ui, command);
+      if (id === `\0${NATIVE_MODULE}`) {
+        const manifest = join(options.genDir, MANIFEST_FILE);
+        this.addWatchFile(manifest);
+        return nativeModule(
+          JSON.parse(await readFile(manifest, 'utf8')) as WebManifest,
+          normalizePath(client('native-bridge')),
+        );
+      }
       return null;
     },
   };
+}
+
+/**
+ * `soundor:native`: one export per declared method, each calling the
+ * project's implementation directly.
+ */
+function nativeModule(manifest: WebManifest, bridge: string): string {
+  const methods = manifest.native.methods.map(
+    (method) =>
+      `export const ${method.name} = nativeMethod(${JSON.stringify(method)});\n`,
+  );
+  return `import { nativeMethod } from ${JSON.stringify(bridge)};\n${methods.join('')}`;
 }
 
 /** How the host loads the plugin UI: the CLI's bundle, imported as it is. */
@@ -149,10 +178,16 @@ function uiModule(ui: UiBundleContext | undefined): string {
 }
 
 /**
- * In `soundor dev`, how the page sends its console to the terminal: over
- * Vite's dev server connection. Nothing elsewhere.
+ * The run's presentation, and in `soundor dev` how the page sends its
+ * console to the terminal: over Vite's dev server connection.
  */
-function devModule(ui: UiBundleContext | undefined): string {
-  if (ui?.live === undefined) return 'export const sendLog = undefined;\n';
-  return `export const sendLog = import.meta.hot\n  ? (entry) => import.meta.hot.send('soundor:log', entry)\n  : undefined;\n`;
+function devModule(
+  ui: UiBundleContext | undefined,
+  command: 'build' | 'serve',
+): string {
+  // The dev server shows the inspector; a build is a clean demo.
+  const presentation = `export const presentation = ${JSON.stringify(command === 'serve' ? 'dev' : 'demo')};\n`;
+  if (ui?.live === undefined)
+    return `${presentation}export const sendLog = undefined;\n`;
+  return `${presentation}export const sendLog = import.meta.hot\n  ? (entry) => import.meta.hot.send('soundor:log', entry)\n  : undefined;\n`;
 }
