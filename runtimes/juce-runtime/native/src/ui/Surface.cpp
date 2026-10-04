@@ -129,65 +129,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeStyleSetOverflow(node, overflows[index(style.overflow)]);
         }
 
-        // ── Approximate text measurement ─────────────────────────────────────
-
-        class ApproximateTextMeasurer final : public TextMeasurer
+        class MemoryClipboard final : public Clipboard
         {
         public:
-            Size measure(std::string_view text, const TextStyle& style, float maxWidth) override
-            {
-                const float advance = style.fontSize * 0.55f + style.letterSpacing;
-                const float lineHeight = style.lineHeight > 0 ? style.lineHeight : style.fontSize * 1.2f;
-                const auto columns = std::isinf(maxWidth) || advance <= 0
-                                         ? std::numeric_limits<std::size_t>::max()
-                                         : std::max<std::size_t>(1, static_cast<std::size_t>(maxWidth / advance));
+            std::string readText() override { return text; }
+            void writeText(std::string value) override { text = std::move(value); }
 
-                std::size_t lines = 0;
-                std::size_t widest = 0;
-                std::size_t start = 0;
-                for (;;)
-                {
-                    const std::size_t end = std::min(text.find('\n', start), text.size());
-                    // Greedy word wrap of one paragraph, in code points.
-                    std::size_t line = 0;
-                    std::size_t word = 0;
-                    std::size_t paragraphLines = 1;
-                    for (std::size_t i = start; i <= end; ++i)
-                    {
-                        const bool boundary = i == end || text[i] == ' ';
-                        if (! boundary)
-                        {
-                            if ((static_cast<unsigned char>(text[i]) & 0xC0) != 0x80)
-                                ++word;
-                            continue;
-                        }
-                        const std::size_t needed = line == 0 ? word : line + 1 + word;
-                        if (needed <= columns || line == 0)
-                            line = needed;
-                        else
-                        {
-                            widest = std::max(widest, line);
-                            ++paragraphLines;
-                            line = word;
-                        }
-                        word = 0;
-                    }
-                    widest = std::max(widest, std::min(line, columns));
-                    lines += paragraphLines;
-                    if (end == text.size())
-                        break;
-                    start = end + 1;
-                }
-                if (style.numberOfLines > 0)
-                    lines = std::min(lines, static_cast<std::size_t>(style.numberOfLines));
-                return { static_cast<float>(widest) * advance, static_cast<float>(lines) * lineHeight };
-            }
+        private:
+            std::string text;
         };
+
+        bool isContinuation(char c) noexcept
+        {
+            return (static_cast<unsigned char>(c) & 0xC0) == 0x80;
+        }
+
+        // Pixels a wheel line scrolls, as browsers do.
+        constexpr float pixelsPerLine = 40;
+
+        // Applies a measure mode to a natural size.
+        float constrain(float natural, float available, YGMeasureMode mode)
+        {
+            if (mode == YGMeasureModeExactly)
+                return available;
+            if (mode == YGMeasureModeAtMost)
+                return std::min(natural, available);
+            return natural;
+        }
     } // namespace
 
-    std::shared_ptr<TextMeasurer> approximateTextMeasurer()
+    std::shared_ptr<Clipboard> memoryClipboard()
     {
-        return std::make_shared<ApproximateTextMeasurer>();
+        return std::make_shared<MemoryClipboard>();
     }
 
     // What Yoga's C callbacks need of a node.
@@ -198,16 +171,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             const auto* node = static_cast<const Node*>(YGNodeGetContext(yoga));
             const float maxWidth = widthMode == YGMeasureModeUndefined ? std::numeric_limits<float>::infinity() : width;
-            Size size = node->surface.options.textMeasurer->measure(node->textContent, node->nodeStyle.text, maxWidth);
-            if (widthMode == YGMeasureModeExactly)
-                size.width = width;
-            else if (widthMode == YGMeasureModeAtMost)
-                size.width = std::min(size.width, width);
-            if (heightMode == YGMeasureModeExactly)
-                size.height = height;
-            else if (heightMode == YGMeasureModeAtMost)
-                size.height = std::min(size.height, height);
-            return { size.width, size.height };
+            const Size size =
+                node->surface.options.textEngine->layout(node->textContent, node->nodeStyle.text, maxWidth).size;
+            return { constrain(size.width, width, widthMode), constrain(size.height, height, heightMode) };
+        }
+
+        static YGSize measureInput(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
+                                   YGMeasureMode heightMode)
+        {
+            const auto* node = static_cast<const Node*>(YGNodeGetContext(yoga));
+            TextEngine& engine = *node->surface.options.textEngine;
+            const TextStyle& style = node->nodeStyle.text;
+            const std::string& shown = node->textContent.empty() ? node->placeholderText : node->textContent;
+            // One line, with room for the caret.
+            const float natural = engine.advance(shown, style) + 1;
+            const float lineHeight = style.lineHeight > 0 ? style.lineHeight : style.fontSize * 1.2f;
+            return { constrain(natural, width, widthMode), constrain(lineHeight, height, heightMode) };
+        }
+
+        static YGSize measureImage(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
+                                   YGMeasureMode heightMode)
+        {
+            const auto* node = static_cast<const Node*>(YGNodeGetContext(yoga));
+            Size natural;
+            if (node->surface.options.images != nullptr)
+                natural = node->surface.options.images->imageSize(node->imageSource).value_or(Size {});
+            // One side given: the other follows the image's aspect ratio.
+            if (natural.width > 0 && natural.height > 0)
+            {
+                if (widthMode == YGMeasureModeExactly && heightMode != YGMeasureModeExactly)
+                    natural = { width, width * natural.height / natural.width };
+                else if (heightMode == YGMeasureModeExactly && widthMode != YGMeasureModeExactly)
+                    natural = { height * natural.width / natural.height, height };
+            }
+            return { constrain(natural.width, width, widthMode), constrain(natural.height, height, heightMode) };
         }
     };
 
@@ -218,10 +215,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         YGNodeSetContext(yoga, this);
         applyStyle(yoga, nodeStyle);
-        if (type == NodeType::Text)
+        switch (type)
         {
-            YGNodeSetNodeType(yoga, YGNodeTypeText);
-            YGNodeSetMeasureFunc(yoga, &NodeAccess::measureText);
+            case NodeType::Text:
+                YGNodeSetNodeType(yoga, YGNodeTypeText);
+                YGNodeSetMeasureFunc(yoga, &NodeAccess::measureText);
+                break;
+            case NodeType::Input:
+                YGNodeSetMeasureFunc(yoga, &NodeAccess::measureInput);
+                canFocus = true;
+                break;
+            case NodeType::Image:
+                YGNodeSetMeasureFunc(yoga, &NodeAccess::measureImage);
+                break;
+            case NodeType::View:
+            case NodeType::Scroll:
+                break;
         }
     }
 
@@ -236,12 +245,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                  YGNodeLayoutGetHeight(yoga) };
     }
 
+    Rect Node::contentBox() const noexcept
+    {
+        const float left = YGNodeLayoutGetBorder(yoga, YGEdgeLeft) + YGNodeLayoutGetPadding(yoga, YGEdgeLeft);
+        const float top = YGNodeLayoutGetBorder(yoga, YGEdgeTop) + YGNodeLayoutGetPadding(yoga, YGEdgeTop);
+        const float right = YGNodeLayoutGetBorder(yoga, YGEdgeRight) + YGNodeLayoutGetPadding(yoga, YGEdgeRight);
+        const float bottom = YGNodeLayoutGetBorder(yoga, YGEdgeBottom) + YGNodeLayoutGetPadding(yoga, YGEdgeBottom);
+        return { left, top, std::max(0.0f, YGNodeLayoutGetWidth(yoga) - left - right),
+                 std::max(0.0f, YGNodeLayoutGetHeight(yoga) - top - bottom) };
+    }
+
     // ── Surface: the tree ────────────────────────────────────────────────────
 
     Surface::Surface(Options provided) : options(std::move(provided)), config(YGConfigNew(), &YGConfigFree)
     {
-        if (options.textMeasurer == nullptr)
-            options.textMeasurer = approximateTextMeasurer();
+        if (options.textEngine == nullptr)
+            options.textEngine = approximateTextEngine();
+        if (options.clipboard == nullptr)
+            options.clipboard = memoryClipboard();
         YGConfigSetPointScaleFactor(config.get(), pixelScale);
         rootNode = &get(createNode(NodeType::View));
     }
@@ -319,8 +340,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Node& child = get(childId);
         if (&child == rootNode)
             throw std::invalid_argument("the root node cannot be a child");
-        if (parent.nodeType == NodeType::Text)
-            throw std::invalid_argument("a text node cannot have children");
+        if (parent.nodeType != NodeType::View && parent.nodeType != NodeType::Scroll)
+            throw std::invalid_argument("only views can have children");
         for (const Node* ancestor = &parent; ancestor != nullptr; ancestor = ancestor->parentNode)
             if (ancestor == &child)
                 throw std::invalid_argument("a node cannot contain itself");
@@ -359,20 +380,136 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const bool textChanged = node.nodeStyle.text != style.text;
         node.nodeStyle = style;
         applyStyle(node.yoga, style);
-        if (node.nodeType == NodeType::Text && textChanged)
+        if (textChanged && (node.nodeType == NodeType::Text || node.nodeType == NodeType::Input))
+        {
             YGNodeMarkDirty(node.yoga);
+            node.layoutWidth = -1;
+        }
         changed = true;
     }
 
     void Surface::setText(NodeId id, std::string text)
     {
         Node& node = get(id);
-        if (node.nodeType != NodeType::Text)
-            throw std::invalid_argument("only text nodes have text");
+        if (node.nodeType != NodeType::Text && node.nodeType != NodeType::Input)
+            throw std::invalid_argument("only text and input nodes have text");
         if (node.textContent == text)
             return;
         node.textContent = std::move(text);
+        node.layoutWidth = -1;
         YGNodeMarkDirty(node.yoga);
+        if (node.nodeType == NodeType::Input)
+            setSelection(id, node.textSelection);
+        changed = true;
+    }
+
+    void Surface::setSource(NodeId id, std::string source)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Image)
+            throw std::invalid_argument("only image nodes have a source");
+        if (node.imageSource == source)
+            return;
+        node.imageSource = std::move(source);
+        YGNodeMarkDirty(node.yoga);
+        changed = true;
+    }
+
+    void Surface::setPlaceholder(NodeId id, std::string placeholder)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Input)
+            throw std::invalid_argument("only input nodes have a placeholder");
+        if (node.placeholderText == placeholder)
+            return;
+        node.placeholderText = std::move(placeholder);
+        YGNodeMarkDirty(node.yoga);
+        changed = true;
+    }
+
+    void Surface::setSelection(NodeId id, Selection selection)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Input)
+            throw std::invalid_argument("only input nodes have a selection");
+        const std::string& text = node.textContent;
+        const auto clamp = [&](std::size_t offset)
+        {
+            offset = std::min(offset, text.size());
+            while (offset > 0 && offset < text.size() && isContinuation(text[offset]))
+                --offset;
+            return offset;
+        };
+        selection = { clamp(selection.anchor), clamp(selection.focus) };
+        if (node.textSelection != selection)
+        {
+            node.textSelection = selection;
+            changed = true;
+        }
+        layout();
+        keepCaretVisible(node);
+    }
+
+    void Surface::keepCaretVisible(Node& node)
+    {
+        // Laid out already: by setSelection(), or by layout() itself.
+        const float width = node.contentBox().width;
+        const float caret = options.textEngine->advance(
+            std::string_view(node.textContent).substr(0, node.textSelection.focus), node.nodeStyle.text);
+        const float total = options.textEngine->advance(node.textContent, node.nodeStyle.text) + 1;
+        // Scrolled so the caret shows, and no further than the text goes.
+        float scrollX = std::max(std::min(node.scroll.x, caret), caret + 1 - width);
+        scrollX = std::min(std::max(scrollX, 0.0f), std::max(0.0f, total - width));
+        if (scrollX != node.scroll.x)
+        {
+            node.scroll.x = scrollX;
+            changed = true;
+        }
+    }
+
+    Size Surface::contentSize(NodeId id)
+    {
+        layout();
+        const Node& node = get(id);
+        const Rect content = node.contentBox();
+        // The children's extent, plus the padding at the far ends.
+        Size size { content.width, content.height };
+        const float paddingRight = YGNodeLayoutGetPadding(node.yoga, YGEdgeRight);
+        const float paddingBottom = YGNodeLayoutGetPadding(node.yoga, YGEdgeBottom);
+        for (const Node* child : node.childNodes)
+        {
+            if (child->nodeStyle.display == Display::None)
+                continue;
+            const Rect frame = child->frame();
+            size.width = std::max(size.width, frame.x + frame.width + YGNodeLayoutGetMargin(child->yoga, YGEdgeRight)
+                                                  + paddingRight - content.x);
+            size.height =
+                std::max(size.height, frame.y + frame.height + YGNodeLayoutGetMargin(child->yoga, YGEdgeBottom)
+                                          + paddingBottom - content.y);
+        }
+        return size;
+    }
+
+    void Surface::scrollTo(NodeId id, Point offset)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Scroll)
+            throw std::invalid_argument("only scroll nodes scroll");
+        const Size content = contentSize(id);
+        const Rect box = node.contentBox();
+        const Point clamped { std::clamp(offset.x, 0.0f, std::max(0.0f, content.width - box.width)),
+                              std::clamp(offset.y, 0.0f, std::max(0.0f, content.height - box.height)) };
+        if (clamped.x == node.scroll.x && clamped.y == node.scroll.y)
+            return;
+        node.scroll = clamped;
+        changed = true;
+    }
+
+    void Surface::imagesChanged()
+    {
+        for (auto& [id, node] : nodes)
+            if (node->nodeType == NodeType::Image)
+                YGNodeMarkDirty(node->yoga);
         changed = true;
     }
 
@@ -407,8 +544,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // The root fills the view whatever its style says.
         YGNodeStyleSetWidth(rootNode->yoga, viewSize.width);
         YGNodeStyleSetHeight(rootNode->yoga, viewSize.height);
-        if (YGNodeIsDirty(rootNode->yoga))
-            YGNodeCalculateLayout(rootNode->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
+        if (! YGNodeIsDirty(rootNode->yoga))
+            return;
+        YGNodeCalculateLayout(rootNode->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
+        // An input's width may have changed: keep its caret in view.
+        for (auto& [id, node] : nodes)
+            if (node->nodeType == NodeType::Input)
+                keepCaretVisible(*node);
     }
 
     Rect Surface::bounds(NodeId id)
@@ -417,14 +559,57 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             throw std::invalid_argument("the node is not in the tree");
         layout();
         const Node& node = get(id);
-        Rect rect = node.frame();
+        const Rect frame = node.frame();
+        const Point at = origin(node);
+        return { at.x, at.y, frame.width, frame.height };
+    }
+
+    Point Surface::origin(const Node& node)
+    {
+        Point at { node.frame().x, node.frame().y };
         for (const Node* ancestor = node.parentNode; ancestor != nullptr; ancestor = ancestor->parentNode)
         {
             const Rect frame = ancestor->frame();
-            rect.x += frame.x;
-            rect.y += frame.y;
+            at.x += frame.x - ancestor->scroll.x;
+            at.y += frame.y - ancestor->scroll.y;
         }
-        return rect;
+        return at;
+    }
+
+    const TextLayout& Surface::textLayout(NodeId id)
+    {
+        layout();
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Text && node.nodeType != NodeType::Input)
+            throw std::invalid_argument("only text and input nodes have text");
+        // Inputs are one line, however long.
+        const float width =
+            node.nodeType == NodeType::Input ? std::numeric_limits<float>::infinity() : node.contentBox().width;
+        if (node.layoutWidth != width)
+        {
+            TextStyle style = node.nodeStyle.text;
+            if (node.nodeType == NodeType::Input)
+                style.numberOfLines = 1;
+            // A tolerance, so text measured at its natural width still fits.
+            node.textLayoutCache = options.textEngine->layout(node.textContent, style, width + 0.01f);
+            node.layoutWidth = width;
+        }
+        return node.textLayoutCache;
+    }
+
+    std::size_t Surface::textOffsetAt(NodeId id, Point point)
+    {
+        const TextLayout& text = textLayout(id);
+        const Node& node = get(id);
+        if (text.lines.empty())
+            return 0;
+        const Rect content = node.contentBox();
+        const float x = point.x - content.x + node.scroll.x;
+        const float y = point.y - content.y;
+        const auto line = std::find_if(text.lines.begin(), text.lines.end(),
+                                       [&](const TextLine& candidate) { return y < candidate.top + candidate.height; });
+        const TextLine& chosen = line == text.lines.end() ? text.lines.back() : *line;
+        return offsetAt(*options.textEngine, node.textContent, chosen, node.nodeStyle.text, x);
     }
 
     NodeId Surface::hitTest(Point point)
@@ -446,8 +631,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (style.pointerEvents != PointerEvents::BoxOnly)
         {
             // Later children paint over earlier ones.
+            const Point children { box.x - node.scroll.x, box.y - node.scroll.y };
             for (Node* child : std::views::reverse(node.childNodes))
-                if (const NodeId hit = hitTest(*child, point, { box.x, box.y }); hit != noNode)
+                if (const NodeId hit = hitTest(*child, point, children); hit != noNode)
                     return hit;
         }
         if (style.pointerEvents != PointerEvents::BoxNone && box.contains(point))
@@ -458,6 +644,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     bool Surface::takeChanges() noexcept
     {
         return std::exchange(changed, false);
+    }
+
+    bool Surface::animating() noexcept
+    {
+        const Node* node = find(focused());
+        return node != nullptr && node->nodeType == NodeType::Input;
     }
 
     // ── Surface: input ───────────────────────────────────────────────────────
@@ -632,7 +824,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.deltaY = input.deltaY;
         event.deltaUnit = input.unit;
         event.modifiers = input.modifiers;
-        return dispatch(event);
+        if (dispatch(event))
+            return true;
+        // The default action: scroll the nearest scroll node that can.
+        const float scale = input.unit == WheelInput::Unit::Line ? pixelsPerLine : 1;
+        float deltaX = input.deltaX * scale;
+        float deltaY = input.deltaY * scale;
+        if ((input.modifiers & Modifier::Shift) != 0 && deltaX == 0)
+            std::swap(deltaX, deltaY);
+        return scrollBy(target, deltaX, deltaY);
+    }
+
+    bool Surface::scrollBy(NodeId target, float deltaX, float deltaY)
+    {
+        for (Node* node = find(target); node != nullptr; node = node->parentNode)
+        {
+            if (node->nodeType != NodeType::Scroll || node->nodeStyle.display == Display::None)
+                continue;
+            const Point before = node->scroll;
+            scrollTo(node->nodeId, { before.x + deltaX, before.y + deltaY });
+            if (node->scroll.x == before.x && node->scroll.y == before.y)
+                continue;
+            Event event;
+            event.type = Event::Type::Scroll;
+            event.target = node->nodeId;
+            dispatch(event);
+            return true;
+        }
+        return false;
     }
 
     bool Surface::key(const KeyInput& input)

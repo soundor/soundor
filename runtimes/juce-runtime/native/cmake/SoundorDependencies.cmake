@@ -12,6 +12,7 @@
 # | QuickJS-NG | v0.17.0 | MIT     | JavaScript engine (shipped) |
 # | ada        | v3.4.4  | MIT/Apache-2.0 | WHATWG URL parser (shipped) |
 # | Yoga       | v3.2.1  | MIT     | flexbox layout (shipped)    |
+# | Skia       | m144    | BSD-3-Clause | 2D rendering (shipped; built from source, see SoundorSkia.cmake) |
 # | doctest    | v2.5.3  | MIT     | native unit tests (tests)   |
 
 include_guard(GLOBAL)
@@ -29,6 +30,12 @@ set(SOUNDOR_ADA_SHA256 "cb0dc03516129e3bfc2c23b24bff039a01fc7ccec1a7585458c425cb
 set(SOUNDOR_YOGA_VERSION "3.2.1")
 set(SOUNDOR_YOGA_REVISION "042f5013152eb81c1552dec945b88f7b95ca350f")
 set(SOUNDOR_YOGA_SHA256 "4742f41722a16f181e3da37abf943390db1e928f00f26402cb154662ae7f110f")
+
+# Skia's chrome/m144 branch; its third-party code at the commits Skia's DEPS pins.
+set(SOUNDOR_SKIA_VERSION "m144")
+set(SOUNDOR_SKIA_REVISION "ed427fd003ba3bc6eb4a8ae0337f9cdafc39e5fb")
+set(SOUNDOR_SKIA_REPOSITORY "https://skia.googlesource.com/skia")
+set(SOUNDOR_SKIA_DEPENDENCIES "libjpeg-turbo;libpng;libwebp;zlib")
 
 set(SOUNDOR_DOCTEST_VERSION "2.5.3")
 set(SOUNDOR_DOCTEST_REVISION "2d0a9359a60c51affe2a9bebb1be1dca47868151")

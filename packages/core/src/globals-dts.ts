@@ -59,6 +59,9 @@ declare function clearTimeout(id: number | undefined): void;
 declare function setInterval(handler: (...args: any[]) => void, timeout?: number, ...args: any[]): number;
 declare function clearInterval(id: number | undefined): void;
 declare function queueMicrotask(callback: () => void): void;
+/** Runs \`callback\` once, on the plugin view's next frame, before it is drawn. */
+declare function requestAnimationFrame(callback: (time: number) => void): number;
+declare function cancelAnimationFrame(id: number): void;
 declare function reportError(error: unknown): void;
 declare function structuredClone<T>(value: T, options?: { transfer?: ArrayBuffer[] }): T;
 declare function atob(data: string): string;

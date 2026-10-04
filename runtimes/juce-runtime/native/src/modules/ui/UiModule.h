@@ -11,4 +11,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     // `surface`, and the surface's events are dispatched to those nodes for as
     // long as the context lives.
     void install(js::Context& context, std::shared_ptr<Surface> surface);
+
+    // Runs the callbacks requestAnimationFrame() collected.
+    void frame(js::Context& context);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

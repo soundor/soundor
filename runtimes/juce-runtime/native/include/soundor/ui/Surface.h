@@ -3,11 +3,13 @@
 #include <soundor/Config.h>
 #include <soundor/ui/Input.h>
 #include <soundor/ui/Style.h>
+#include <soundor/ui/Text.h>
 
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -26,12 +28,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         View,
         Text,
-    };
-
-    struct Size
-    {
-        float width = 0;
-        float height = 0;
+        Image,  // a bundled image, by asset id
+        Scroll, // a view whose content scrolls
+        Input,  // an editable line of text
     };
 
     struct Rect
@@ -47,18 +46,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
     };
 
-    // Measures text for layout. The renderer provides the real one; the
-    // default approximates from the font size so layout works without fonts.
-    class TextMeasurer
+    // Knows the images nodes show, for their intrinsic size.
+    class ImageSource
     {
     public:
-        virtual ~TextMeasurer() = default;
-        // The size of `text` set in `style`, wrapped at `maxWidth` (infinite:
-        // never wrap).
-        virtual Size measure(std::string_view text, const TextStyle& style, float maxWidth) = 0;
+        virtual ~ImageSource() = default;
+        // The size of the image `source` (an asset id) in logical pixels, if
+        // it is one.
+        virtual std::optional<Size> imageSize(std::string_view source) = 0;
     };
 
-    [[nodiscard]] std::shared_ptr<TextMeasurer> approximateTextMeasurer();
+    // The system clipboard, for text inputs.
+    class Clipboard
+    {
+    public:
+        virtual ~Clipboard() = default;
+        virtual std::string readText() = 0;
+        virtual void writeText(std::string text) = 0;
+    };
+
+    // A clipboard private to the process, for backends without one.
+    [[nodiscard]] std::shared_ptr<Clipboard> memoryClipboard();
+
+    // The editing state of an input node: byte offsets into its text.
+    struct Selection
+    {
+        std::size_t anchor = 0;
+        std::size_t focus = 0;
+
+        [[nodiscard]] std::size_t start() const noexcept { return anchor < focus ? anchor : focus; }
+        [[nodiscard]] std::size_t end() const noexcept { return anchor < focus ? focus : anchor; }
+        friend constexpr bool operator==(const Selection&, const Selection&) = default;
+    };
 
     class Surface;
 
@@ -79,6 +98,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
         // The layout box relative to the parent's, once laid out.
         [[nodiscard]] Rect frame() const noexcept;
+        // The box inside the border and padding, relative to frame().
+        [[nodiscard]] Rect contentBox() const noexcept;
+
+        // Image: its asset id.
+        [[nodiscard]] const std::string& source() const noexcept { return imageSource; }
+        // Input: shown while the text is empty.
+        [[nodiscard]] const std::string& placeholder() const noexcept { return placeholderText; }
+        [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
+        // Scroll: how far the content is scrolled; Input: how far its text is.
+        [[nodiscard]] Point scrollOffset() const noexcept { return scroll; }
 
     private:
         friend class Surface;
@@ -93,7 +122,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::vector<Node*> childNodes;
         Style nodeStyle;
         std::string textContent;
+        std::string imageSource;
+        std::string placeholderText;
+        Selection textSelection;
+        Point scroll;
         bool canFocus = false;
+        // The last layout of the text, by the width it was made for.
+        float layoutWidth = -1;
+        TextLayout textLayoutCache;
     };
 
     // An event the Surface routes to a node, for the UI (soundor:ui) to
@@ -114,8 +150,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             KeyDown,
             KeyUp,
             BeforeInput,
-            Focus, // does not bubble
-            Blur,  // does not bubble
+            Focus,  // does not bubble
+            Blur,   // does not bubble
+            Scroll, // does not bubble
         };
 
         Type type = Type::PointerMove;
@@ -158,7 +195,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     public:
         struct Options
         {
-            std::shared_ptr<TextMeasurer> textMeasurer;
+            // Default: approximateTextEngine(), memoryClipboard(), no images.
+            std::shared_ptr<TextEngine> textEngine;
+            std::shared_ptr<ImageSource> images;
+            std::shared_ptr<Clipboard> clipboard;
         };
 
         explicit Surface(Options provided = {});
@@ -170,7 +210,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // ── The tree ─────────────────────────────────────────────────────────
 
         // Throws std::invalid_argument for misuse (unknown ids, cycles,
-        // children of text nodes); the tree is unchanged then.
+        // children of nodes other than views); the tree is unchanged then.
         NodeId createNode(NodeType type);
         // Destroys a node: detaches it from its parent and its children from it.
         void releaseNode(NodeId id);
@@ -179,8 +219,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void insertChild(NodeId parent, NodeId child, NodeId before = noNode);
         void removeChild(NodeId parent, NodeId child);
         void setStyle(NodeId id, const Style& style);
+        // Text and input nodes.
         void setText(NodeId id, std::string text);
         void setFocusable(NodeId id, bool focusable);
+        // Image nodes.
+        void setSource(NodeId id, std::string source);
+        // Input nodes.
+        void setPlaceholder(NodeId id, std::string placeholder);
+        // Clamped to the text and to code point boundaries.
+        void setSelection(NodeId id, Selection selection);
+        // Scroll nodes: clamped to the content.
+        void scrollTo(NodeId id, Point offset);
+        // Scroll nodes: the size of what they scroll.
+        [[nodiscard]] Size contentSize(NodeId id);
+        // Images became available or changed: lays image nodes out again.
+        void imagesChanged();
 
         [[nodiscard]] Node& root() noexcept { return *rootNode; }
         [[nodiscard]] Node* find(NodeId id) noexcept;
@@ -203,8 +256,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // The topmost node at `point` that takes pointer events, or noNode.
         [[nodiscard]] NodeId hitTest(Point point);
 
-        // Changes since the last call: the tree, a style, a size.
+        // A text or input node's text laid out in its content box.
+        [[nodiscard]] const TextLayout& textLayout(NodeId id);
+        // The byte offset of a text or input node's text nearest `point`
+        // (relative to the node's box).
+        [[nodiscard]] std::size_t textOffsetAt(NodeId id, Point point);
+
+        // Changes since the last call: the tree, a style, a size, a scroll.
         [[nodiscard]] bool takeChanges() noexcept;
+        // Whether something moves by itself (a caret blinks), so the view
+        // should be drawn again soon even without changes.
+        [[nodiscard]] bool animating() noexcept;
+
+        [[nodiscard]] TextEngine& textEngine() noexcept { return *options.textEngine; }
+        [[nodiscard]] Clipboard& clipboard() noexcept { return *options.clipboard; }
 
         // ── Input ────────────────────────────────────────────────────────────
 
@@ -241,6 +306,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);
         Event pointerEvent(Event::Type type, NodeId target, const PointerInput& input);
+        [[nodiscard]] Point origin(const Node& node);
+        bool scrollBy(NodeId target, float deltaX, float deltaY);
+        void keepCaretVisible(Node& node);
 
         Options options;
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;

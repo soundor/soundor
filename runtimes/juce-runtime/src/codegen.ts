@@ -441,6 +441,9 @@ namespace ${NS}
     private:
         void timerCallback() override;
         void deliver(const ui::PointerInput& input);
+
+        // What the UI was last drawn into, at device resolution.
+        juce::Image canvas;
         bool releaseKeys(bool all);
 
         // Keys held down, by JUCE key code, with their Web names: JUCE reports
@@ -511,6 +514,7 @@ namespace ${NS}
         options.pluginId = AudioProcessor::pluginId;
         options.pluginName = AudioProcessor::pluginName;
         options.http = std::make_shared<backend::JuceHttpClient>();
+        options.clipboard = std::make_shared<backend::JuceClipboard>();
         options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());
         // <user application data>/Soundor/<plugin id>: soundor:storage and soundor:fs.
         options.dataDirectory = std::filesystem::path(
@@ -549,6 +553,7 @@ namespace ${NS}
 #endif
 
         setWantsKeyboardFocus(true);
+        setOpaque(true);
         setSize(800, 600);
         startTimerHz(60);
     }
@@ -576,6 +581,8 @@ namespace ${NS}
 #else
         host->tick();
 #endif
+        if (runtimeHost().needsRender())
+            repaint();
     }
 
     void AudioProcessorEditor::deliver(const ui::PointerInput& input)
@@ -673,6 +680,19 @@ namespace ${NS}
     void AudioProcessorEditor::paint(juce::Graphics& g)
     {
         g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+        auto& surface = runtimeHost().surface();
+        const int width = juce::roundToInt(static_cast<float>(getWidth()) * surface.scale());
+        const int height = juce::roundToInt(static_cast<float>(getHeight()) * surface.scale());
+        if (width <= 0 || height <= 0)
+            return;
+        if (canvas.getWidth() != width || canvas.getHeight() != height)
+            canvas = juce::Image(juce::Image::ARGB, width, height, false, juce::SoftwareImageType());
+        {
+            // JUCE's ARGB pixels are Skia's native 32-bit premultiplied format.
+            juce::Image::BitmapData pixels(canvas, juce::Image::BitmapData::writeOnly);
+            runtimeHost().render({ pixels.data, width, height, static_cast<std::size_t>(pixels.lineStride) });
+        }
+        g.drawImage(canvas, getLocalBounds().toFloat());
     }
 } // namespace ${NS}
 `;

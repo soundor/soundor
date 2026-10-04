@@ -3,6 +3,7 @@
 
 #include <soundor/runtime/RuntimeHost.h>
 
+#include <string>
 #include <utility>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE
@@ -20,10 +21,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     } // namespace
 
     RuntimeHost::RuntimeHost(Options options)
-        : uiSurface(std::make_shared<ui::Surface>(ui::Surface::Options { std::move(options.textMeasurer) })),
+        : resources(options.resources),
+          renderer(std::make_unique<ui::Renderer>(
+              [assets = options.resources](std::string_view id) -> std::optional<std::span<const std::uint8_t>>
+              {
+                  if (assets == nullptr || id.empty() || id.find('/') != std::string_view::npos)
+                      return std::nullopt;
+                  return assets->find("assets/" + std::string(id));
+              })),
+          uiSurface(std::make_shared<ui::Surface>(ui::Surface::Options {
+              options.textEngine != nullptr ? std::move(options.textEngine) : renderer->textEngine(),
+              renderer->images(),
+              std::move(options.clipboard),
+          })),
           jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
-          resources(options.resources),
           hasParameters(options.parameters != nullptr)
     {
         web::install(*jsContext, web::Services {
@@ -66,6 +78,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         if (hasParameters)
             parameters::dispatchChanges(*jsContext);
         jsRuntime->runPendingJobs();
+        ui::frame(*jsContext);
+        jsRuntime->runPendingJobs();
+    }
+
+    double RuntimeHost::seconds() const
+    {
+        return std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+    }
+
+    bool RuntimeHost::needsRender()
+    {
+        bool changed = uiSurface->takeChanges();
+        // A blinking caret changes the picture twice a second.
+        const long long phase = uiSurface->animating() ? static_cast<long long>(seconds() / 0.53) : -1;
+        changed = changed || phase != blinkPhase;
+        blinkPhase = phase;
+        return changed;
+    }
+
+    void RuntimeHost::render(const ui::Bitmap& target)
+    {
+        renderer->render(*uiSurface, target, seconds());
     }
 
     std::optional<std::span<const std::uint8_t>> RuntimeHost::asset(std::string_view id) const

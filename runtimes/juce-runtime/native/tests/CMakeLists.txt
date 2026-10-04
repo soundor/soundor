@@ -22,6 +22,8 @@ add_executable(soundor_runtime_tests
   runtime/DevSessionTests.cpp
   runtime/ResourcesTests.cpp
   ui/SurfaceTests.cpp
+  ui/PrimitivesTests.cpp
+  ui/RendererTests.cpp
   ui/UiModuleTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp
@@ -87,4 +89,21 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
       -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
   set_tests_properties(soundor_exported_symbols_detects_leaks PROPERTIES
     PASS_REGULAR_EXPRESSION "Unexpected exported symbols(.|\n)*JS_LeakedEngineSymbol")
+
+  if(APPLE)
+    # Negative control for the Objective-C class check.
+    enable_language(OBJCXX)
+    add_library(soundor_objc_class_probe MODULE symbols/ObjcClassProbe.mm)
+    target_link_libraries(soundor_objc_class_probe PRIVATE "-framework Foundation")
+    add_test(
+      NAME soundor_exported_symbols_detects_objc_classes
+      COMMAND ${CMAKE_COMMAND}
+        -DLIBRARY=$<TARGET_FILE:soundor_objc_class_probe>
+        -DNM=${SOUNDOR_NM_EXE}
+        -DAPPLE=${APPLE}
+        -DALLOWED=soundor_probe_entry
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+    set_tests_properties(soundor_exported_symbols_detects_objc_classes PROPERTIES
+      PASS_REGULAR_EXPRESSION "Objective-C classes defined(.|\n)*UnprefixedProbeClass")
+  endif()
 endif()

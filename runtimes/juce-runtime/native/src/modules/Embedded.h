@@ -14,6 +14,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
     extern const std::string_view hostModule;       // modules/host/host.js
     extern const std::string_view storageModule;    // modules/storage/storage.js
     extern const std::string_view uiModule;         // modules/ui/ui.js
+    extern const std::string_view uiFramesModule;   // modules/ui/frames.js
 
     // web/js/*.js
     extern const std::string_view abortModule;

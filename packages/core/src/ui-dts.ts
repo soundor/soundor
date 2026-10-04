@@ -98,7 +98,24 @@ const UI = `declare module 'soundor:ui' {
     textAlign?: 'auto' | 'left' | 'center' | 'right';
     /** Text nodes: at most this many lines (0: no limit). */
     numberOfLines?: number;
+    color?: Color;
+
+    /** Any CSS color: '#rgb[a]', '#rrggbb[aa]', rgb(), hsl(), a name, 'transparent'. */
+    backgroundColor?: Color;
+    borderColor?: Color;
+    borderRadius?: number;
+    borderTopLeftRadius?: number;
+    borderTopRightRadius?: number;
+    borderBottomRightRadius?: number;
+    borderBottomLeftRadius?: number;
+    /** 0 to 1, for the node and everything in it. */
+    opacity?: number;
+    /** Images: how the image fills the box. */
+    resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
   }
+
+  /** A CSS color string. */
+  export type Color = string;
 
   export interface LayoutRect {
     readonly x: number;
@@ -121,15 +138,21 @@ const UI = `declare module 'soundor:ui' {
     beforeinput: InputEvent;
     focus: FocusEvent;
     blur: FocusEvent;
+    /** Scroll views: the content scrolled. */
+    scroll: Event;
+    /** Text inputs: the value changed. */
+    input: InputEvent;
+    /** Text inputs: the value was committed (Enter, or losing focus). */
+    change: Event;
   }
 
   /**
-   * A node of the view: a flexbox box ('view') or a run of text ('text').
-   * Events capture and bubble along the tree as in the DOM.
+   * A node of the view: a flexbox box ('view'), text, an image, a scroll view
+   * or a text input. Events capture and bubble along the tree as in the DOM.
    */
   export class UiNode extends EventTarget {
     private constructor();
-    readonly type: 'view' | 'text';
+    readonly type: 'view' | 'text' | 'image' | 'scroll' | 'input';
     readonly parent: UiNode | null;
     readonly children: readonly UiNode[];
     readonly firstChild: UiNode | null;
@@ -156,6 +179,30 @@ const UI = `declare module 'soundor:ui' {
     readonly layout: LayoutRect;
     /** The laid-out box, relative to the view. */
     getBoundingClientRect(): LayoutRect;
+
+    /** Text inputs: the text. Setting it puts the caret at the end. */
+    value: string;
+    /** Text inputs: shown while empty. */
+    placeholder: string;
+    /** Text inputs: the selection, in UTF-16 indices (like the Web). */
+    readonly selectionStart: number;
+    readonly selectionEnd: number;
+    readonly selectionDirection: 'forward' | 'backward';
+    setSelectionRange(start: number, end: number, direction?: 'forward' | 'backward'): void;
+    select(): void;
+
+    /** Images: the bundled image shown (an imported asset). */
+    source: SoundorAsset | '';
+
+    /** Scroll views: how far the content is scrolled, and its size. */
+    scrollTop: number;
+    scrollLeft: number;
+    readonly scrollWidth: number;
+    readonly scrollHeight: number;
+    scrollTo(options: { top?: number; left?: number }): void;
+    scrollTo(left: number, top: number): void;
+    scrollBy(options: { top?: number; left?: number }): void;
+    scrollBy(left: number, top: number): void;
     addEventListener<K extends keyof UiEventMap>(
       type: K,
       listener: (this: UiNode, event: UiEventMap[K]) => void,
@@ -182,6 +229,34 @@ const UI = `declare module 'soundor:ui' {
   export const root: UiNode;
   export function createView(style?: Style): UiNode;
   export function createText(text?: string, style?: Style): UiNode;
+  /** An image showing a bundled asset (\`import logo from './logo.png'\`). */
+  export function createImage(source?: SoundorAsset, style?: Style): UiNode;
+  /** A view whose children scroll (by wheel, or scrollTo()). */
+  export function createScrollView(style?: Style): UiNode;
+  /** A single-line text input; it is focusable and edits itself. */
+  export function createTextInput(options?: { value?: string; placeholder?: string; style?: Style }): UiNode;
+
+  export interface PressableState {
+    readonly pressed: boolean;
+    readonly hovered: boolean;
+  }
+  export interface PressableHandlers {
+    /** A click (primary button released over the node), or Enter/Space while focused. */
+    onPress?: (event: PointerEvent | KeyboardEvent) => void;
+    onPressIn?: (event: PointerEvent) => void;
+    onPressOut?: (event: PointerEvent) => void;
+    onHoverIn?: (event: PointerEvent) => void;
+    onHoverOut?: (event: PointerEvent) => void;
+    onStateChange?: (state: PressableState) => void;
+  }
+  /** Makes a node pressable (and focusable); returns a function that undoes it. */
+  export function pressable(node: UiNode, handlers?: PressableHandlers): () => void;
+
+  /** The system clipboard's text. */
+  export const clipboard: {
+    readText(): Promise<string>;
+    writeText(text: string): Promise<void>;
+  };
   /** The node that has keyboard focus, if any. */
   export function focusedNode(): UiNode | null;
   /** The view's size in logical pixels, and device pixels per logical pixel. */
