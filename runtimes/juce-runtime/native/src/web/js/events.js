@@ -1,12 +1,18 @@
 // Event, CustomEvent and EventTarget: the DOM event model without the DOM.
-// There is no tree, so an event is dispatched to its target only; capture and
-// bubbling flags are accepted and have no effect.
+// A plain EventTarget has no parent, so an event reaches its target only.
+// Targets that form a tree (soundor:ui nodes) define `[eventParent]()`, and
+// events then run the DOM's capture, target and bubble phases along it.
 
 import { now } from 'soundor:internal/platform';
 import { reportError } from 'soundor:internal/web/console';
 
 const NONE = 0;
+const CAPTURING_PHASE = 1;
 const AT_TARGET = 2;
+const BUBBLING_PHASE = 3;
+
+/** The method by which a target names its parent in an event path. */
+export const eventParent = Symbol('eventParent');
 
 /** Lets EventTarget drive an event's dispatch state without making it public. */
 let dispatchState;
@@ -22,7 +28,10 @@ export class Event {
   #phase = NONE;
   #timeStamp = now();
   #stopped = false;
+  #stoppedImmediately = false;
   #inPassiveListener = false;
+  #trusted = false;
+  #path = [];
 
   constructor(type, init = {}) {
     if (arguments.length === 0) {
@@ -65,14 +74,14 @@ export class Event {
     return this.#timeStamp;
   }
   get isTrusted() {
-    return false;
+    return this.#trusted;
   }
   get returnValue() {
     return !this.#defaultPrevented;
   }
 
   composedPath() {
-    return this.#currentTarget === null ? [] : [this.#currentTarget];
+    return this.#phase === NONE ? [] : [...this.#path];
   }
 
   preventDefault() {
@@ -80,15 +89,18 @@ export class Event {
       this.#defaultPrevented = true;
   }
 
-  stopPropagation() {}
+  stopPropagation() {
+    this.#stopped = true;
+  }
 
   stopImmediatePropagation() {
     this.#stopped = true;
+    this.#stoppedImmediately = true;
   }
 
   static {
     dispatchState = {
-      begin(event, target) {
+      begin(event, target, path) {
         if (event.#phase !== NONE) {
           throw new DOMException(
             'The event is already being dispatched',
@@ -96,26 +108,41 @@ export class Event {
           );
         }
         event.#target = target;
-        event.#currentTarget = target;
-        event.#phase = AT_TARGET;
+        event.#path = path;
         event.#stopped = false;
+        event.#stoppedImmediately = false;
+      },
+      at(event, currentTarget, phase) {
+        event.#currentTarget = currentTarget;
+        event.#phase = phase;
       },
       end(event) {
         event.#currentTarget = null;
         event.#phase = NONE;
+        event.#path = [];
       },
       stopped: (event) => event.#stopped,
+      stoppedImmediately: (event) => event.#stoppedImmediately,
       setPassive(event, passive) {
         event.#inPassiveListener = passive;
+      },
+      trust(event) {
+        event.#trusted = true;
       },
     };
   }
 }
 
-Event.NONE = 0;
-Event.CAPTURING_PHASE = 1;
-Event.AT_TARGET = 2;
-Event.BUBBLING_PHASE = 3;
+/** Marks an event as coming from the user (native input), not from script. */
+export function trustEvent(event) {
+  dispatchState.trust(event);
+  return event;
+}
+
+Event.NONE = NONE;
+Event.CAPTURING_PHASE = CAPTURING_PHASE;
+Event.AT_TARGET = AT_TARGET;
+Event.BUBBLING_PHASE = BUBBLING_PHASE;
 
 export class CustomEvent extends Event {
   #detail;
@@ -202,27 +229,48 @@ export class EventTarget {
     if (!(event instanceof Event)) {
       throw new TypeError('dispatchEvent() expects an Event');
     }
-    dispatchState.begin(event, this);
+    const path = [this];
+    for (let node = this[eventParent]?.(); node; node = node[eventParent]?.())
+      path.push(node);
+    dispatchState.begin(event, this, path);
     try {
-      const list = this.#listeners.get(event.type);
-      for (const entry of list === undefined ? [] : [...list]) {
-        if (entry.removed) continue;
-        if (entry.once)
-          this.removeEventListener(event.type, entry.listener, entry);
-        dispatchState.setPassive(event, entry.passive);
-        try {
-          if (typeof entry.listener === 'function')
-            entry.listener.call(this, event);
-          else entry.listener.handleEvent(event);
-        } catch (error) {
-          reportError(error);
-        }
-        dispatchState.setPassive(event, false);
+      for (let i = path.length - 1; i > 0; --i) {
         if (dispatchState.stopped(event)) break;
+        path[i].#invoke(event, CAPTURING_PHASE, true);
+      }
+      // At the target, capturing listeners run before the others.
+      if (!dispatchState.stopped(event)) this.#invoke(event, AT_TARGET, true);
+      if (!dispatchState.stopped(event)) this.#invoke(event, AT_TARGET, false);
+      if (event.bubbles) {
+        for (let i = 1; i < path.length; ++i) {
+          if (dispatchState.stopped(event)) break;
+          path[i].#invoke(event, BUBBLING_PHASE, false);
+        }
       }
     } finally {
       dispatchState.end(event);
     }
     return !event.defaultPrevented;
+  }
+
+  #invoke(event, phase, capture) {
+    const list = this.#listeners.get(event.type);
+    if (list === undefined) return;
+    dispatchState.at(event, this, phase);
+    for (const entry of [...list]) {
+      if (entry.removed || entry.capture !== capture) continue;
+      if (entry.once)
+        this.removeEventListener(event.type, entry.listener, entry);
+      dispatchState.setPassive(event, entry.passive);
+      try {
+        if (typeof entry.listener === 'function')
+          entry.listener.call(this, event);
+        else entry.listener.handleEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+      dispatchState.setPassive(event, false);
+      if (dispatchState.stoppedImmediately(event)) break;
+    }
   }
 }

@@ -11,6 +11,7 @@
 # | ---------- | ------- | ------- | --------------------------- |
 # | QuickJS-NG | v0.17.0 | MIT     | JavaScript engine (shipped) |
 # | ada        | v3.4.4  | MIT/Apache-2.0 | WHATWG URL parser (shipped) |
+# | Yoga       | v3.2.1  | MIT     | flexbox layout (shipped)    |
 # | doctest    | v2.5.3  | MIT     | native unit tests (tests)   |
 
 include_guard(GLOBAL)
@@ -24,6 +25,10 @@ set(SOUNDOR_QUICKJS_SHA256 "a62cf1ff7d6d2f82b90a2d247a57e9eb56b81c03feb1f372a539
 # Release asset of tag v3.4.4 (commit 8d50724a7dea209a05234a445e28f97994b0a5f6).
 set(SOUNDOR_ADA_VERSION "3.4.4")
 set(SOUNDOR_ADA_SHA256 "cb0dc03516129e3bfc2c23b24bff039a01fc7ccec1a7585458c425cb57bf9fcb")
+
+set(SOUNDOR_YOGA_VERSION "3.2.1")
+set(SOUNDOR_YOGA_REVISION "042f5013152eb81c1552dec945b88f7b95ca350f")
+set(SOUNDOR_YOGA_SHA256 "4742f41722a16f181e3da37abf943390db1e928f00f26402cb154662ae7f110f")
 
 set(SOUNDOR_DOCTEST_VERSION "2.5.3")
 set(SOUNDOR_DOCTEST_REVISION "2d0a9359a60c51affe2a9bebb1be1dca47868151")

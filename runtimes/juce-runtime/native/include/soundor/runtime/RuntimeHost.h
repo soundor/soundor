@@ -5,6 +5,7 @@
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
 #include <soundor/platform/Resources.h>
+#include <soundor/ui/Surface.h>
 
 #include <filesystem>
 #include <functional>
@@ -48,6 +49,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // The module to evaluate once everything is installed, e.g.
             // "/bundle.js". Empty: nothing runs until the backend says so.
             std::string entry;
+            // Measures text for layout; default: an approximation.
+            std::shared_ptr<ui::TextMeasurer> textMeasurer;
         };
 
         explicit RuntimeHost(Options options);
@@ -64,6 +67,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
         [[nodiscard]] js::Runtime& runtime() noexcept { return *jsRuntime; }
         [[nodiscard]] js::Context& context() noexcept { return *jsContext; }
+        // The view's node tree (`soundor:ui`): the backend sizes it and feeds
+        // it input, the renderer draws it. Run pending jobs after input.
+        [[nodiscard]] ui::Surface& surface() noexcept { return *uiSurface; }
 
         // How evaluating the entry module went (success when there was none).
         // A failed entry is also reported to the log; the host stays usable.
@@ -73,6 +79,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         [[nodiscard]] std::optional<std::span<const std::uint8_t>> asset(std::string_view id) const;
 
     private:
+        std::shared_ptr<ui::Surface> uiSurface;
         std::unique_ptr<js::Runtime> jsRuntime;
         std::unique_ptr<js::Context> jsContext;
         std::shared_ptr<const platform::Resources> resources;

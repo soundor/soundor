@@ -1,6 +1,7 @@
-// A stand-in for a plugin binary: links the whole runtime, exports one symbol.
+// A stand-in for a plugin binary: links the whole runtime (the engine, the Web
+// layer, layout), exports one symbol.
 
-#include <soundor/js/Context.h>
+#include <soundor/runtime/RuntimeHost.h>
 
 #if defined(__GNUC__) || defined(__clang__)
     #define SOUNDOR_PROBE_EXPORT extern "C" __attribute__((visibility("default")))
@@ -10,8 +11,13 @@
 
 SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
 {
-    soundor::js::Runtime runtime;
-    soundor::js::Context context(runtime);
-    auto result = context.evaluateScript("6 * 7");
-    return result ? static_cast<int>(result.value().asNumber()) : -1;
+    soundor::RuntimeHost host({});
+    host.surface().setSize({ 100, 100 });
+    auto result =
+        host.context().evaluateModule("import { root, createView } from 'soundor:ui';"
+                                      "const box = createView({ width: 42, height: 10 }); root.appendChild(box);"
+                                      "globalThis.width = box.layout.width;",
+                                      "/probe.js");
+    auto width = host.context().evaluateScript("width");
+    return result && width ? static_cast<int>(width.value().asNumber()) : -1;
 }

@@ -152,7 +152,7 @@ target_sources(\${PROJECT_NAME}
     PRIVATE
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
-        ${['JuceHttpClient', 'JuceParameterHost', 'JuceTransport']
+        ${['JuceHttpClient', 'JuceInput', 'JuceParameterHost', 'JuceTransport']
           .map((name) =>
             cmakeString(
               cmakePath(
@@ -394,7 +394,9 @@ function renderEditorHeader(): string {
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 
+#include <map>
 #include <memory>
+#include <string>
 
 #include "SoundorProcessor.h"
 
@@ -414,6 +416,19 @@ namespace ${NS}
 
         void paint(juce::Graphics&) override;
 
+        // The view's input goes to the UI (soundor:ui); what it leaves
+        // unhandled (keys, wheel) goes on to the host.
+        void mouseMove(const juce::MouseEvent&) override;
+        void mouseEnter(const juce::MouseEvent&) override;
+        void mouseExit(const juce::MouseEvent&) override;
+        void mouseDown(const juce::MouseEvent&) override;
+        void mouseDrag(const juce::MouseEvent&) override;
+        void mouseUp(const juce::MouseEvent&) override;
+        void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+        bool keyPressed(const juce::KeyPress&) override;
+        bool keyStateChanged(bool isKeyDown) override;
+        void focusLost(FocusChangeType) override;
+
     protected:
 #if SOUNDOR_UI_DEV
         RuntimeHost& runtimeHost() noexcept { return session->host(); }
@@ -425,6 +440,12 @@ namespace ${NS}
 
     private:
         void timerCallback() override;
+        void deliver(const ui::PointerInput& input);
+        bool releaseKeys(bool all);
+
+        // Keys held down, by JUCE key code, with their Web names: JUCE reports
+        // presses only, so releases are found by polling.
+        std::map<int, std::string> heldKeys;
 
 #if SOUNDOR_UI_DEV
         std::unique_ptr<DevSession> session;
@@ -442,6 +463,7 @@ function renderEditorSource(): string {
   return `${HEADER}#include "SoundorEditor.h"
 
 #include <soundor/backend/JuceHttpClient.h>
+#include <soundor/backend/JuceInput.h>
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/platform/FileLog.h>
 
@@ -526,6 +548,7 @@ namespace ${NS}
         host = std::make_unique<RuntimeHost>(std::move(options));
 #endif
 
+        setWantsKeyboardFocus(true);
         setSize(800, 600);
         startTimerHz(60);
     }
@@ -540,11 +563,112 @@ namespace ${NS}
 #endif
     }
 
+    void AudioProcessorEditor::timerCallback()
+    {
+        // Every frame, so a reloaded UI (soundor dev) gets the size at once.
+        const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
+        const double displayScale = display != nullptr ? display->scale : 1.0;
+        auto& surface = runtimeHost().surface();
+        surface.setSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
+        surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this)));
 #if SOUNDOR_UI_DEV
-    void AudioProcessorEditor::timerCallback() { session->tick(); }
+        session->tick();
 #else
-    void AudioProcessorEditor::timerCallback() { host->tick(); }
+        host->tick();
 #endif
+    }
+
+    void AudioProcessorEditor::deliver(const ui::PointerInput& input)
+    {
+        runtimeHost().surface().pointer(input);
+        runtimeHost().runtime().runPendingJobs();
+    }
+
+    void AudioProcessorEditor::mouseMove(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+    }
+
+    void AudioProcessorEditor::mouseEnter(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+    }
+
+    void AudioProcessorEditor::mouseExit(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Leave));
+    }
+
+    void AudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));
+    }
+
+    void AudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+    }
+
+    void AudioProcessorEditor::mouseUp(const juce::MouseEvent& event)
+    {
+        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Up));
+    }
+
+    void AudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+    {
+        const bool handled = runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));
+        runtimeHost().runtime().runPendingJobs();
+        if (! handled)
+            juce::AudioProcessorEditor::mouseWheelMove(event, wheel);
+    }
+
+    bool AudioProcessorEditor::keyPressed(const juce::KeyPress& key)
+    {
+        const std::string name = backend::keyName(key);
+        if (name.empty())
+            return false;
+        const bool repeat = ! heldKeys.emplace(key.getKeyCode(), name).second;
+        auto& surface = runtimeHost().surface();
+        bool handled = surface.key({ .down = true,
+                                     .key = name,
+                                     .repeat = repeat,
+                                     .modifiers = backend::modifiersOf(key.getModifiers()) });
+        if (! handled)
+            if (const std::string text = backend::typedText(key); ! text.empty())
+                handled = surface.text({ text });
+        runtimeHost().runtime().runPendingJobs();
+        return handled;
+    }
+
+    bool AudioProcessorEditor::keyStateChanged(bool isKeyDown)
+    {
+        return ! isKeyDown && releaseKeys(false);
+    }
+
+    void AudioProcessorEditor::focusLost(FocusChangeType)
+    {
+        releaseKeys(true);
+    }
+
+    bool AudioProcessorEditor::releaseKeys(bool all)
+    {
+        bool handled = false;
+        const auto modifiers = backend::modifiersOf(juce::ModifierKeys::currentModifiers);
+        for (auto key = heldKeys.begin(); key != heldKeys.end();)
+        {
+            if (! all && juce::KeyPress::isKeyCurrentlyDown(key->first))
+            {
+                ++key;
+                continue;
+            }
+            handled = runtimeHost().surface().key(
+                          { .down = false, .key = key->second, .repeat = false, .modifiers = modifiers })
+                      || handled;
+            key = heldKeys.erase(key);
+        }
+        runtimeHost().runtime().runPendingJobs();
+        return handled;
+    }
 
     void AudioProcessorEditor::paint(juce::Graphics& g)
     {
