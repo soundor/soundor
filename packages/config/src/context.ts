@@ -30,6 +30,21 @@ export interface UiBundleContext {
   readonly dir: string;
   /** The bundle file inside `dir`, e.g. `bundle.js`. */
   readonly entry: string;
+  /**
+   * Set by `soundor dev`: the CLI keeps rebuilding `dir` in place and rewrites
+   * `dir/build-id` last after every successful build. A runtime should load
+   * the UI from `dir` (not embed it) and reload it when `build-id` changes.
+   */
+  readonly live?: LiveUiContext;
+}
+
+/** Development-only details of a {@link UiBundleContext}. */
+export interface LiveUiContext {
+  /**
+   * The file the plugin appends its UI log to, one JSON object per line
+   * (`{"level","source","message"}`); the CLI shows it in the terminal.
+   */
+  readonly logFile: string;
 }
 
 /**

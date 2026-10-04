@@ -36,6 +36,22 @@ and runs in Soundor's runtime:
 - `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`) bundles the
   image as an asset and yields its stable, content-derived id.
 
+### Development
+
+`soundor dev` builds the plugin in debug mode once, then keeps rebuilding the UI
+whenever a project file changes. The plugin loads the UI from
+`.soundor/ui/development` instead of embedding it, and on every successful build
+replaces its JavaScript runtime with a fresh one: timers, subscriptions, open
+parameter gestures and pending work of the old UI all end. State lives in the
+plugin (parameters) or in `soundor:storage`, so it survives a reload.
+
+- A failed build is reported in the terminal; the plugin keeps running the last
+  good build.
+- The plugin's `console` output and uncaught errors appear in the terminal,
+  whichever process the plugin runs in (a DAW or the Standalone), with stack
+  frames mapped back to your TypeScript sources.
+- Changes to `soundor.config.ts` or native code need a restart of `soundor dev`.
+
 TypeScript types for the runtime are generated into
 `.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and
 exactly the Web APIs the runtime provides. Use them with `lib: ["ES2023"]` and

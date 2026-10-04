@@ -30,6 +30,7 @@ export type {
   LifecycleContext,
   RuntimeMode,
   RuntimePhase,
+  LiveUiContext,
   UiBundleContext,
 } from './context';
 

@@ -229,6 +229,17 @@ development) and an entry such as `/bundle.js`, it evaluates the entry after
 installing the modules. A failing entry is logged and leaves the host usable.
 `RuntimeHost::asset(id)` returns the bytes of a bundled image.
 
+### `DevSession`
+
+In development the UI is not embedded. `DevSession` owns the `RuntimeHost`
+instead: it loads the bundle directory `soundor dev` keeps rebuilding, polls its
+`build-id` file (written last, after a complete build), and on a new id destroys
+the host and creates a fresh one. Nothing of the old UI survives a reload. A
+build whose entry fails is logged; the next good build recovers.
+`platform::fileLogSink()` appends the log as JSON lines to a file that
+`soundor dev` shows in its terminal. The generated JUCE editor uses both when
+`setup.cmake` receives `SOUNDOR_UI_DEV_DIR`.
+
 ### Threading and lifetime
 
 A `Runtime` and its `Context`s belong to the thread that created the runtime: the

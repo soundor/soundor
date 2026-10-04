@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { outro } from '@clack/prompts';
@@ -12,7 +13,9 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
-import { bundleUi } from '../ui/bundle';
+import { tailLog } from '../dev/log-tail';
+import { rewriteLocations, SourceMap } from '../dev/source-map';
+import { watchUi } from '../ui/bundle';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -43,12 +46,58 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     config: configPath,
     runtimeId: options.runtime,
   });
-  const bundle = await bundleUi({
+  const uiDir = resolve(root, '.soundor', 'ui', 'development');
+  // The plugin's UI log, shown here whatever process the plugin runs in.
+  const logFile = resolve(root, '.soundor', 'dev', 'ui.log');
+  await mkdir(dirname(logFile), { recursive: true });
+  await writeFile(logFile, '');
+
+  let sourceMap: SourceMap | undefined;
+  let sourceMapLoaded = Promise.resolve();
+  let built = false;
+  const watcher = watchUi({
     root,
     mode: 'development',
-    outDir: resolve(root, '.soundor', 'ui', 'development'),
+    outDir: uiDir,
+    onBuild(bundle, milliseconds) {
+      logger.info(
+        built
+          ? `Rebuilt the UI in ${milliseconds} ms`
+          : `Bundled the UI -> ${bundle.dir}`,
+      );
+      built = true;
+      sourceMapLoaded = SourceMap.load(
+        resolve(bundle.dir, 'bundle.js.map'),
+        root,
+      ).then(
+        (map) => {
+          sourceMap = map;
+        },
+        () => {
+          sourceMap = undefined;
+        },
+      );
+    },
+    onError(error) {
+      logger.error(
+        `The UI failed to build; the plugin keeps the last good build.\n${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    },
   });
-  if (bundle !== undefined) logger.info(`Bundled the UI -> ${bundle.dir}`);
+  await watcher?.ready;
+  await sourceMapLoaded;
+
+  const uiLogger = logger.child('ui');
+  const tail = await tailLog(logFile, (entry) => {
+    const message =
+      sourceMap === undefined
+        ? entry.message
+        : rewriteLocations(entry.message, sourceMap);
+    uiLogger[entry.level](`${entry.source}: ${message}`);
+  });
+
   const controller = new AbortController();
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
@@ -64,10 +113,17 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       codegen: createCodegenSink(),
       mode: 'debug',
       signal: controller.signal,
-      ui: bundle && { dir: bundle.dir, entry: bundle.entry },
+      ui: watcher && {
+        dir: uiDir,
+        entry: 'bundle.js',
+        live: { logFile },
+      },
     });
   } finally {
     process.removeListener('SIGINT', onSigint);
+    watcher?.close();
+    await tail.poll().catch(() => {});
+    tail.close();
   }
 
   return { runtime: options.runtime };

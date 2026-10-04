@@ -14,6 +14,7 @@ export type {
   RuntimeMode,
   RuntimePhase,
   SoundorConfig,
+  LiveUiContext,
   UiBundleContext,
   ResolvedRuntime,
   DispatchContextInput,
