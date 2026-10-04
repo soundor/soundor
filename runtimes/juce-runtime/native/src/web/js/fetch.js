@@ -295,12 +295,8 @@ export class Request extends Body {
     const source = input instanceof Request ? input : null;
     if (source?.bodyUsed)
       throw new TypeError('Cannot construct a Request from a used Request');
-    let url;
-    try {
-      url = new URL(source ? source.url : String(input));
-    } catch {
-      throw new TypeError(`Invalid URL: ${String(input)}`);
-    }
+    const url = URL.parse(source ? source.url : String(input));
+    if (url === null) throw new TypeError(`Invalid URL: ${String(input)}`);
     if (url.username !== '' || url.password !== '') {
       throw new TypeError('Request URLs cannot contain credentials');
     }
