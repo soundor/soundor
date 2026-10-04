@@ -162,6 +162,13 @@ target_sources(\${PROJECT_NAME}
           )
           .join('\n        ')})
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
+
+# The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
+# into the plugin so it needs no files at runtime.
+if(SOUNDOR_UI_DIR)
+  soundor_embed_directory(soundor_generated pluginUi "\${SOUNDOR_UI_DIR}")
+  target_compile_definitions(\${PROJECT_NAME} PRIVATE SOUNDOR_HAS_UI=1)
+endif()
 `;
 }
 
@@ -414,6 +421,14 @@ function renderEditorSource(): string {
 #include <filesystem>
 #include <string_view>
 
+#if SOUNDOR_HAS_UI
+namespace ${NS}::embedded
+{
+    // The plugin UI bundle, embedded by setup.cmake.
+    std::span<const platform::EmbeddedFile> pluginUi();
+} // namespace ${NS}::embedded
+#endif
+
 namespace ${NS}
 {
     namespace
@@ -450,6 +465,10 @@ namespace ${NS}
             if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));
         };
+#if SOUNDOR_HAS_UI
+        options.resources = std::make_shared<platform::EmbeddedResources>(embedded::pluginUi());
+        options.entry = "/bundle.js";
+#endif
         host = std::make_unique<RuntimeHost>(std::move(options));
 
         setSize(800, 600);

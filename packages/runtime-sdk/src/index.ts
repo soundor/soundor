@@ -14,6 +14,7 @@ export type {
   RuntimeMode,
   RuntimePhase,
   SoundorConfig,
+  UiBundleContext,
   ResolvedRuntime,
   DispatchContextInput,
 } from '@soundor/config';

@@ -12,6 +12,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { bundleUi } from '../ui/bundle';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -42,6 +43,12 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     config: configPath,
     runtimeId: options.runtime,
   });
+  const bundle = await bundleUi({
+    root,
+    mode: 'development',
+    outDir: resolve(root, '.soundor', 'ui', 'development'),
+  });
+  if (bundle !== undefined) logger.info(`Bundled the UI -> ${bundle.dir}`);
   const controller = new AbortController();
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
@@ -57,6 +64,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       codegen: createCodegenSink(),
       mode: 'debug',
       signal: controller.signal,
+      ui: bundle && { dir: bundle.dir, entry: bundle.entry },
     });
   } finally {
     process.removeListener('SIGINT', onSigint);

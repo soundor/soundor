@@ -19,6 +19,7 @@ add_executable(soundor_runtime_tests
   js/RuntimeTests.cpp
   native/NativeModuleTests.cpp
   parameters/ParametersTests.cpp
+  runtime/ResourcesTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp
   web/PlatformModulesTests.cpp
@@ -34,7 +35,23 @@ soundor_configure_target(soundor_runtime_tests)
 # Generated code is checked by its generator's tests, not linted.
 set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)
 
+soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
 add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
+
+# soundor_embed_directory() called from another project's scope (as setup.cmake
+# does) must still find its script.
+add_test(
+  NAME soundor_embed_from_consumer_scope
+  COMMAND ${CMAKE_COMMAND} -E env --unset=CMAKE_GENERATOR
+          ${CMAKE_CTEST_COMMAND}
+          --build-and-test ${CMAKE_CURRENT_SOURCE_DIR}/embed-scope ${CMAKE_CURRENT_BINARY_DIR}/embed-scope
+          --build-generator ${CMAKE_GENERATOR}
+          --build-target embed_scope_check
+          --build-options -DSOUNDOR_NATIVE_DIR=${PROJECT_SOURCE_DIR}
+                          -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR}
+                          -DCMAKE_BUILD_TYPE=Debug)
 
 # Symbol isolation: a plugin-shaped shared library that links the runtime must
 # export only its own entry point — never QuickJS or Soundor internals.

@@ -127,6 +127,8 @@ export async function juceDev(
     '-B',
     buildDir,
     `-DJUCE_DIR=${jucePath}`,
+    // Always set, so a UI removed since the last configure is not kept cached.
+    `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
   ];
 
   ctx.logger.info('Configuring debug build');
@@ -180,7 +182,13 @@ export async function juceBuild(
     buildDir,
     '-DCMAKE_BUILD_TYPE=Release',
     `-DJUCE_DIR=${jucePath}`,
+    `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
   ];
+  if (ctx.ui === undefined) {
+    ctx.logger.warn(
+      'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
+    );
+  }
   ctx.logger.info('Configuring release build');
   await run({
     cmd: 'cmake',

@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Soundor (generated files, bundles, build output)
+.soundor

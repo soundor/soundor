@@ -38,6 +38,7 @@ add_library(soundor_runtime STATIC
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/parameters/ParametersModule.cpp
+  src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
   src/runtime/RuntimeHost.cpp
   src/web/Encoding.cpp
