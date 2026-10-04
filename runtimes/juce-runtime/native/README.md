@@ -288,7 +288,7 @@ Beyond views and text there are the primitives a plugin UI is made of:
 `ui::Renderer` draws a laid-out surface with [Skia](https://skia.org) on the
 CPU:
 
-- **Output:** 32-bit premultiplied pixels in the platform's native order, which
+- **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere, which
   is `juce::Image::ARGB`'s layout. The generated editor renders straight into
   its image and repaints only when `RuntimeHost::needsRender()` says the
   picture changed (a blinking caret counts, twice a second).

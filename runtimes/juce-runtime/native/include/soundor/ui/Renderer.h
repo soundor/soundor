@@ -13,9 +13,9 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
-    // Pixels to draw into: 32 bits each, premultiplied alpha, in the platform's
-    // native order (B, G, R, A in memory on little-endian machines, the layout
-    // of juce::Image::ARGB).
+    // Pixels to draw into: 32 bits each, premultiplied alpha, B, G, R, A in
+    // memory on every platform (a 0xAARRGGBB word on little-endian machines,
+    // the layout of juce::Image::ARGB).
     struct Bitmap
     {
         void* pixels = nullptr;

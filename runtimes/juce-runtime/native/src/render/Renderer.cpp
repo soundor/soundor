@@ -155,7 +155,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (target.pixels == nullptr || target.width <= 0 || target.height <= 0)
             return;
         surface.layout();
-        const SkImageInfo info = SkImageInfo::MakeN32Premul(target.width, target.height);
+        // BGRA on every platform (Skia's N32 is RGBA on Apple's), as Bitmap promises.
+        const SkImageInfo info =
+            SkImageInfo::Make(target.width, target.height, kBGRA_8888_SkColorType, kPremul_SkAlphaType);
         const std::unique_ptr<SkCanvas> canvas = SkCanvas::MakeRasterDirect(info, target.pixels, target.rowBytes);
         if (canvas == nullptr)
             return;
