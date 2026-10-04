@@ -133,7 +133,40 @@ describe('juceDev', () => {
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     // No UI: the cached UI directory is cleared explicitly.
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');
+    expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=');
+    expect(configure).toContain('-DSOUNDOR_UI_DEV_LOG=');
     expect(calls.some((c) => c.includes('--build'))).toBe(true);
+  });
+
+  it('loads a live UI from disk instead of embedding it', async () => {
+    const root = await tempProjectWithJuce();
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = {
+      ...makeCtx({
+        root,
+        fs: createNodeFileSystem(root),
+        options: { jucePath: join(root, 'JUCE') },
+        signal: controller.signal,
+      }),
+      ui: {
+        dir: join(root, 'ui'),
+        entry: 'bundle.js',
+        live: { logFile: join(root, 'ui.log') },
+      },
+    };
+    const calls: string[][] = [];
+    const run = (o: RunCommandOptions) => {
+      calls.push([o.cmd, ...o.args]);
+      return Promise.resolve();
+    };
+
+    await juceDev(config, ctx, { run, probe: okProbe });
+
+    const configure = calls[0]!;
+    expect(configure).toContain('-DSOUNDOR_UI_DIR=');
+    expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=' + join(root, 'ui'));
+    expect(configure).toContain('-DSOUNDOR_UI_DEV_LOG=' + join(root, 'ui.log'));
   });
 
   it('launches the standalone debug app when standalone is configured', async () => {

@@ -119,6 +119,7 @@ export async function juceDev(
   requireToolchain(probe);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
+  const live = ctx.ui?.live;
   await mkdir(buildDir, { recursive: true });
 
   const configureArgs = [
@@ -128,7 +129,10 @@ export async function juceDev(
     buildDir,
     `-DJUCE_DIR=${jucePath}`,
     // Always set, so a UI removed since the last configure is not kept cached.
-    `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
+    // A live UI (soundor dev) is loaded from disk and reloaded, not embedded.
+    `-DSOUNDOR_UI_DIR=${live === undefined ? (ctx.ui?.dir ?? '') : ''}`,
+    `-DSOUNDOR_UI_DEV_DIR=${live === undefined ? '' : ctx.ui!.dir}`,
+    `-DSOUNDOR_UI_DEV_LOG=${live?.logFile ?? ''}`,
   ];
 
   ctx.logger.info('Configuring debug build');
@@ -156,7 +160,11 @@ export async function juceDev(
     );
   }
 
-  ctx.logger.info('Debug build ready.');
+  ctx.logger.info(
+    live === undefined
+      ? 'Debug build ready.'
+      : 'Debug build ready. The plugin UI reloads on every change; its console appears here.',
+  );
   await waitForAbort(ctx.signal);
 }
 

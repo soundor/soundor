@@ -4,7 +4,13 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { assetId, bundleUi, findUiEntry } from './bundle';
+import {
+  assetId,
+  bundleUi,
+  findUiEntry,
+  type UiBundle,
+  watchUi,
+} from './bundle';
 
 // Projects live inside this package so `react` (a dev dependency) resolves
 // from them, like it would from a real plugin project.
@@ -211,11 +217,89 @@ describe('bundleUi', () => {
     expect(module.result).toBe('1,2,3');
   });
 
+  it('writes a build id that changes exactly when the build does', async () => {
+    await write('src/main.ts', `globalThis.a = 1;`);
+    const first = await bundle();
+    expect(first.result.buildId).toMatch(/^[0-9a-f]{16}$/);
+    expect(await readFile(join(first.result.dir, 'build-id'), 'utf8')).toBe(
+      first.result.buildId,
+    );
+    expect((await bundle()).result.buildId).toBe(first.result.buildId);
+    await write('src/main.ts', `globalThis.a = 2;`);
+    expect((await bundle()).result.buildId).not.toBe(first.result.buildId);
+  });
+
   it('reports build errors', async () => {
     await write(
       'src/main.ts',
       `import { missing } from './nowhere';\nmissing();`,
     );
     await expect(bundle()).rejects.toThrow(/nowhere/);
+  });
+});
+
+describe('watchUi', () => {
+  it('returns undefined for a project without a UI', () => {
+    expect(
+      watchUi({
+        root,
+        mode: 'development',
+        outDir: join(root, 'out'),
+        onBuild: () => {},
+        onError: () => {},
+      }),
+    ).toBeUndefined();
+  });
+
+  it('rebuilds on change, and keeps the last good build through an error', async () => {
+    await write('src/main.ts', `globalThis.version = 1;`);
+    const builds: UiBundle[] = [];
+    const errors: unknown[] = [];
+    let notify = (): void => {};
+    const next = (): Promise<void> =>
+      new Promise((done) => {
+        notify = done;
+      });
+    const watcher = watchUi({
+      root,
+      mode: 'development',
+      outDir: join(root, 'out'),
+      debounce: 10,
+      onBuild: (built) => {
+        builds.push(built);
+        notify();
+      },
+      onError: (error) => {
+        errors.push(error);
+        notify();
+      },
+    })!;
+    try {
+      const first = await watcher.ready;
+      expect(first?.buildId).toBe(builds[0]!.buildId);
+      const buildId = (): Promise<string> =>
+        readFile(join(root, 'out', 'build-id'), 'utf8');
+
+      let event = next();
+      await write('src/main.ts', `import './missing';`);
+      await event;
+      expect(errors).toHaveLength(1);
+      expect(await buildId()).toBe(first!.buildId);
+      expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
+        'version = 1',
+      );
+
+      event = next();
+      await write('src/main.ts', `globalThis.version = 2;`);
+      await event;
+      expect(builds).toHaveLength(2);
+      expect(await buildId()).toBe(builds[1]!.buildId);
+      expect(builds[1]!.buildId).not.toBe(first!.buildId);
+      expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
+        'version = 2',
+      );
+    } finally {
+      watcher.close();
+    }
   });
 });

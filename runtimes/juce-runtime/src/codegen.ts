@@ -169,6 +169,21 @@ if(SOUNDOR_UI_DIR)
   soundor_embed_directory(soundor_generated pluginUi "\${SOUNDOR_UI_DIR}")
   target_compile_definitions(\${PROJECT_NAME} PRIVATE SOUNDOR_HAS_UI=1)
 endif()
+
+# soundor dev: the plugin loads the UI from the directory the CLI keeps
+# rebuilding, reloads it on every build, and logs to a file the CLI shows.
+# The paths travel hex-encoded UTF-8, safe from any escaping or code page.
+if(SOUNDOR_UI_DEV_DIR)
+  file(TO_CMAKE_PATH "\${SOUNDOR_UI_DEV_DIR}" soundor_ui_dev_dir)
+  file(TO_CMAKE_PATH "\${SOUNDOR_UI_DEV_LOG}" soundor_ui_dev_log)
+  string(HEX "\${soundor_ui_dev_dir}" soundor_ui_dev_dir)
+  string(HEX "\${soundor_ui_dev_log}" soundor_ui_dev_log)
+  target_compile_definitions(\${PROJECT_NAME}
+      PRIVATE
+          SOUNDOR_UI_DEV=1
+          SOUNDOR_UI_DEV_DIR_HEX="\${soundor_ui_dev_dir}"
+          SOUNDOR_UI_DEV_LOG_HEX="\${soundor_ui_dev_log}")
+endif()
 `;
 }
 
@@ -376,6 +391,7 @@ function renderEditorHeader(): string {
   return `${HEADER}#pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <memory>
@@ -387,6 +403,8 @@ namespace ${NS}
     // Base editor: the plugin view, and the owner of this view's JavaScript
     // runtime. The runtime is created with the view and destroyed with it;
     // ~60 times a second it receives parameter changes and runs pending jobs.
+    // Under \`soundor dev\` it is replaced by a fresh one on every UI build, so
+    // do not keep the reference runtimeHost() returns.
     // Derive your plugin's editor from this.
     class AudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
     {
@@ -397,14 +415,22 @@ namespace ${NS}
         void paint(juce::Graphics&) override;
 
     protected:
+#if SOUNDOR_UI_DEV
+        RuntimeHost& runtimeHost() noexcept { return session->host(); }
+#else
         RuntimeHost& runtimeHost() noexcept { return *host; }
+#endif
 
         AudioProcessor& processorRef;
 
     private:
         void timerCallback() override;
 
+#if SOUNDOR_UI_DEV
+        std::unique_ptr<DevSession> session;
+#else
         std::unique_ptr<RuntimeHost> host;
+#endif
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessorEditor)
     };
@@ -417,8 +443,10 @@ function renderEditorSource(): string {
 
 #include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceParameterHost.h>
+#include <soundor/platform/FileLog.h>
 
 #include <filesystem>
+#include <string>
 #include <string_view>
 
 #if SOUNDOR_HAS_UI
@@ -440,6 +468,17 @@ namespace ${NS}
             juce::Logger::writeToLog(juce::String(prefixes[static_cast<int>(level)])
                                      + juce::String::fromUTF8(message.data(), static_cast<int>(message.size())));
         }
+
+#if SOUNDOR_UI_DEV
+        // A path setup.cmake passed as hex-encoded UTF-8.
+        std::filesystem::path pathFromHex(std::string_view hex)
+        {
+            std::u8string bytes;
+            for (std::size_t i = 0; i + 1 < hex.size(); i += 2)
+                bytes.push_back(static_cast<char8_t>(std::stoi(std::string(hex.substr(i, 2)), nullptr, 16)));
+            return { bytes };
+        }
+#endif
     } // namespace
 
     AudioProcessorEditor::AudioProcessorEditor(AudioProcessor& owner)
@@ -465,11 +504,27 @@ namespace ${NS}
             if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));
         };
-#if SOUNDOR_HAS_UI
+#if SOUNDOR_UI_DEV
+        // soundor dev: the UI comes from the bundle the CLI keeps rebuilding,
+        // and its log goes to the terminal running soundor dev as well.
+        options.runtime.log = [file = platform::fileLogSink(pathFromHex(SOUNDOR_UI_DEV_LOG_HEX),
+                                                            AudioProcessor::pluginName)](js::LogLevel level,
+                                                                                         std::string_view message)
+        {
+            logToJuce(level, message);
+            file(level, message);
+        };
+        session = std::make_unique<DevSession>(DevSession::Options {
+            .host = std::move(options),
+            .bundleDirectory = pathFromHex(SOUNDOR_UI_DEV_DIR_HEX),
+        });
+#else
+    #if SOUNDOR_HAS_UI
         options.resources = std::make_shared<platform::EmbeddedResources>(embedded::pluginUi());
         options.entry = "/bundle.js";
-#endif
+    #endif
         host = std::make_unique<RuntimeHost>(std::move(options));
+#endif
 
         setSize(800, 600);
         startTimerHz(60);
@@ -478,10 +533,18 @@ namespace ${NS}
     AudioProcessorEditor::~AudioProcessorEditor()
     {
         stopTimer();
+#if SOUNDOR_UI_DEV
+        session.reset();
+#else
         host.reset();
+#endif
     }
 
+#if SOUNDOR_UI_DEV
+    void AudioProcessorEditor::timerCallback() { session->tick(); }
+#else
     void AudioProcessorEditor::timerCallback() { host->tick(); }
+#endif
 
     void AudioProcessorEditor::paint(juce::Graphics& g)
     {

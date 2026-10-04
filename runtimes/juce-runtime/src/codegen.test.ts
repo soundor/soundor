@@ -227,6 +227,8 @@ describe('generateJuceSources', () => {
     expect(setup).toContain(
       'soundor_embed_directory(soundor_generated pluginUi "${SOUNDOR_UI_DIR}")',
     );
+    expect(setup).toContain('if(SOUNDOR_UI_DEV_DIR)');
+    expect(setup).toContain('SOUNDOR_UI_DEV_DIR_HEX=');
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
     expect(editor).toContain('#if SOUNDOR_HAS_UI');
     expect(editor).toContain(

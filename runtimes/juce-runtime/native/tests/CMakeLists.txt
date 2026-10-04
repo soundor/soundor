@@ -19,6 +19,7 @@ add_executable(soundor_runtime_tests
   js/RuntimeTests.cpp
   native/NativeModuleTests.cpp
   parameters/ParametersTests.cpp
+  runtime/DevSessionTests.cpp
   runtime/ResourcesTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp
