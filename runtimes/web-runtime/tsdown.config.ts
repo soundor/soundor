@@ -17,6 +17,7 @@ export default defineConfig([
       'client/modules/ui': 'src/client/modules/ui.ts',
       'client/modules/storage': 'src/client/modules/storage.ts',
       'client/modules/fs': 'src/client/modules/fs.ts',
+      'client/native-bridge': 'src/client/native-bridge.ts',
     },
     target: 'es2022',
     tsconfig: './tsconfig.client.json',

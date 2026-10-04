@@ -13,6 +13,8 @@ declare module 'soundor:internal/ui' {
 }
 
 declare module 'soundor:internal/dev' {
+  /** 'dev' under the dev server, 'demo' in a build. */
+  export const presentation: 'demo' | 'dev';
   /** In `soundor dev`: sends a console entry to the terminal. */
   export const sendLog:
     | ((entry: import('./protocol').UiLogEntry) => void)

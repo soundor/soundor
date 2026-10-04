@@ -27,7 +27,7 @@ import {
   type Logger as ViteLogger,
 } from 'vite';
 
-import { generateWebSources } from './codegen';
+import { generateWebSources, nativeModel } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
 import { soundorWebPlugin } from './plugin';
@@ -61,9 +61,20 @@ export async function webInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
   const generatedPath = relative(scaffoldDir, join(ctx.paths.gen, '..', '..'))
     .split(sep)
     .join('/');
+  const nativeContractPath = relative(
+    join(scaffoldDir, 'src'),
+    join(ctx.paths.gen, 'native'),
+  )
+    .split(sep)
+    .join('/');
   const files = webScaffoldFiles(RUNTIME_ID, {
     pluginName: config.plugin.name,
     generatedPath,
+    nativeContractPath,
+    nativeMethods: nativeModel(config).methods,
+    gain: config.parameters.some(
+      (parameter) => parameter.id === 'gain' && parameter.type === 'float',
+    ),
   });
 
   for (const file of files) {

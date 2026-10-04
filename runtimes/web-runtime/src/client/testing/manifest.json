@@ -38,5 +38,45 @@
       ],
       "default": "warm"
     }
-  ]
+  ],
+  "native": {
+    "methods": [
+      {
+        "name": "analyze",
+        "async": false
+      },
+      {
+        "name": "echo",
+        "async": false
+      },
+      {
+        "name": "fail",
+        "async": false
+      },
+      {
+        "name": "failLater",
+        "async": true
+      },
+      {
+        "name": "invert",
+        "async": false
+      },
+      {
+        "name": "loadPreset",
+        "async": true
+      },
+      {
+        "name": "presetName",
+        "async": false
+      },
+      {
+        "name": "scale",
+        "async": false
+      },
+      {
+        "name": "setCurve",
+        "async": false
+      }
+    ]
+  }
 }

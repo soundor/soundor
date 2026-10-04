@@ -26,4 +26,26 @@ export const fixtureConfig = {
       default: 'warm',
     },
   ],
+  // One method per kind of native type, sync and async.
+  native: {
+    types: {
+      Analysis: { struct: { rms: 'number', peaks: 'number[]' } },
+      Curve: { enum: ['linear', 'exponential'] },
+      Preset: 'handle',
+    },
+    methods: {
+      analyze: { args: { samples: 'Float32Array' }, returns: 'Analysis' },
+      scale: {
+        args: { values: 'number[]', factor: 'number' },
+        returns: 'number[]',
+      },
+      invert: { args: { on: 'boolean' }, returns: 'boolean' },
+      echo: { args: { data: 'Uint8Array' }, returns: 'ArrayBuffer' },
+      setCurve: { args: { curve: 'Curve' } },
+      loadPreset: { args: { path: 'string' }, returns: 'Preset', async: true },
+      presetName: { args: { preset: 'Preset' }, returns: 'string' },
+      fail: {},
+      failLater: { async: true },
+    },
+  },
 } as const;
