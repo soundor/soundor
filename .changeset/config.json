@@ -13,7 +13,8 @@
       "@soundor/runtime-sdk",
       "@soundor/config",
       "soundor",
-      "create-soundor-app"
+      "create-soundor-app",
+      "@soundor/react"
     ]
   ],
   "linked": [],

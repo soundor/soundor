@@ -6,4 +6,6 @@ export default defineConfig({
   singleQuote: true,
   sortImports: true,
   sortPackageJson: true,
+  // Generated, and compared byte for byte with their generator's output.
+  ignorePatterns: ['packages/core/runtime/**'],
 });
