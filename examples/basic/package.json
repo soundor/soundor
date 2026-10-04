@@ -5,14 +5,17 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
+    "build:web": "soundor build web",
     "dev": "soundor dev",
+    "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "typecheck": "soundor gen && tsc -b"
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },
   "devDependencies": {
