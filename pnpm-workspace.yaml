@@ -10,12 +10,14 @@ catalog:
   '@clack/prompts': ^1.7.0
   '@types/node': ^24.13.2
   '@types/react': ^19.2.17
+  '@types/react-reconciler': ^0.33.1
   citty: ^0.2.2
   husky: ^9.1.7
   lint-staged: ^17.0.8
   oxfmt: ^0.57.0
   oxlint: ^1.72.0
-  react: ^19.2.7
+  react: ^19.3.0
+  react-reconciler: ^0.34.0
   rolldown: ^1.1.4
   tsdown: ^0.22.3
   turbo: ^2.10.3

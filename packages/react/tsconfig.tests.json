@@ -1,0 +1,14 @@
+{
+  "extends": "@soundor/typescript-config/node-test",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    // Tests run in Node against a fake soundor:ui (src/testing/fake-ui.ts).
+    "lib": ["es2023", "DOM"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo"
+  },
+  "include": [
+    "src",
+    "node_modules/@soundor/core/runtime/ui.d.ts",
+    "src/testing/globals.d.ts"
+  ]
+}

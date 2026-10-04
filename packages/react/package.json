@@ -1,38 +1,44 @@
 {
-  "name": "@soundor/core",
+  "name": "@soundor/react",
   "version": "0.2.0",
   "license": "MIT",
   "files": [
     "README.md",
-    "dist",
-    "runtime"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.mjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    },
-    "./runtime/globals.d.ts": "./runtime/globals.d.ts",
-    "./runtime/ui.d.ts": "./runtime/ui.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "test:watch": "vitest watch",
-    "gen:runtime-types": "node scripts/runtime-types.mjs"
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "react-reconciler": "catalog:"
   },
   "devDependencies": {
+    "@soundor/core": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-reconciler": "catalog:",
+    "react": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
   }
 }

@@ -1,0 +1,17 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "react-jsx",
+    // Soundor's runtime: ES2023 and the Web subset it declares, no DOM, no Node.
+    "lib": ["es2023"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  },
+  "include": [
+    "src",
+    "node_modules/@soundor/core/runtime/globals.d.ts",
+    "node_modules/@soundor/core/runtime/ui.d.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/testing"]
+}
