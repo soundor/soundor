@@ -134,10 +134,27 @@ describe('generateJuceSources', () => {
       'std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos())',
     );
     expect(editor).toContain('native::install(context, std::move(api));');
-    expect(editor).toContain(
-      'void AudioProcessorEditor::timerCallback() { host->tick(); }',
-    );
+    expect(editor).toContain('        host->tick();');
     expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
+  });
+
+  it("sizes the UI surface and forwards the view's input to it", () => {
+    const editor = [
+      fileMap(config).get('soundor/SoundorEditor.h')!,
+      fileMap(config).get('soundor/SoundorEditor.cpp')!,
+    ].join('\n');
+    expect(editor).toContain('surface.setSize(');
+    expect(editor).toContain(
+      'deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));',
+    );
+    expect(editor).toContain(
+      'runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));',
+    );
+    expect(editor).toContain('handled = surface.text({ text });');
+    expect(editor).toContain('setWantsKeyboardFocus(true);');
+    expect(fileMap(config).get('setup.cmake')).toContain(
+      'backend/juce/soundor/backend/JuceInput.cpp',
+    );
   });
 
   it('builds the Soundor runtime into the plugin under its own ABI namespace', () => {

@@ -60,6 +60,7 @@ import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
 import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
+import { createText, createView, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
 import logo from './logo.png';
 const asset: string = logo;
@@ -108,6 +109,25 @@ measure([1, 2]);
 // @ts-expect-error handles cannot be forged from plain objects
 const forged: Preset = {};
 
+const box: UiNode = root.appendChild(createView({ flexDirection: 'row', width: '50%', padding: 4, flex: 1 }));
+const label = createText('hi', { fontSize: 12, fontWeight: 'bold' });
+box.insertBefore(label, null);
+box.addEventListener('pointerdown', (event) => {
+  const x: number = event.offsetX + event.clientY;
+  const pressed: UiPointerEvent = event;
+  if (event.shiftKey) event.preventDefault();
+  void x, void pressed;
+});
+box.addEventListener('keydown', (event) => void event.key.toUpperCase());
+box.addEventListener('wheel', (event) => void event.deltaY);
+const width: number = box.layout.width + box.getBoundingClientRect().x;
+// @ts-expect-error not a flex direction
+createView({ flexDirection: 'diagonal' });
+// @ts-expect-error unknown style property
+createView({ widht: 10 });
+// @ts-expect-error nodes come from createView()/createText()
+void new (root.constructor as typeof UiNode)();
+
 // The Web subset Soundor provides is typed…
 const controller = new AbortController();
 const response: Promise<Response> = fetch(new URL('https://a.test/x'), { signal: controller.signal });
@@ -124,7 +144,7 @@ void document;
 // @ts-expect-error there is no localStorage
 void localStorage;
 
-export { asset, forgedAsset, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+export { asset, forgedAsset, width, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;

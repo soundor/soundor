@@ -215,13 +215,64 @@ await writeText('presets/warm.json', JSON.stringify(preset));
 `<data>` is the plugin's private data directory, chosen by the backend (JUCE:
 `<user application data>/Soundor/<plugin.id>`).
 
+### `soundor:ui`
+
+The plugin view is a tree of nodes, laid out with flexbox
+([Yoga](https://www.yogalayout.dev)), with DOM-style events.
+
+```ts
+import { root, createView, createText } from 'soundor:ui';
+
+const knob = createView({ width: 48, height: 48, margin: 8 });
+knob.focusable = true;
+knob.addEventListener('pointerdown', (event) => startDrag(event.clientY));
+knob.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowUp') (nudge(+1), event.preventDefault());
+});
+root.style = { flexDirection: 'row', alignItems: 'center', padding: 12 };
+root.appendChild(knob);
+root.appendChild(createText('Gain', { fontSize: 13 }));
+```
+
+- **Nodes:** `UiNode`s are `'view'` boxes or `'text'` runs. They are
+  `EventTarget`s with `appendChild`, `insertBefore`, `removeChild`, `style`,
+  `layout` (box relative to the parent) and `getBoundingClientRect()`. A
+  detached node that nothing references is released, natively too, when it is
+  garbage-collected.
+- **Style:** React Native's flexbox: column by default, `flex: n`, the margin,
+  padding and border shorthands, percentages, absolute positioning, gaps,
+  `pointerEvents`, and the text properties used to measure text. An invalid
+  value throws a `TypeError` naming the property.
+- **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
+  Positions are in logical pixels, and buttons and keys use their Web names.
+  The surface routes the input:
+  - **Hit testing:** later siblings sit on top; `overflow` clips;
+    `pointerEvents` applies.
+  - **Pointer capture:** implicit from press to release.
+  - **Hover:** `pointerenter`/`pointerleave`.
+  - **Clicks:** a `click` goes to the deepest node common to press and release.
+  - **Focus:** a press focuses the nearest `focusable` node unless
+    `pointerdown` is prevented. Tab and Shift+Tab cycle through focusable
+    nodes.
+  - **Keys and text:** `keydown`/`keyup` go to the focused node (else the
+    root). Typed text arrives as `beforeinput`.
+- **Events:** capture and bubble as in the DOM, as `PointerEvent`,
+  `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
+  `preventDefault()` tells the backend the input was handled; unhandled keys
+  and wheel input go on to the host.
+
+Text is measured by the renderer's `ui::TextMeasurer`. Until a renderer
+provides one, an approximation from the font size is used.
+
 ### `RuntimeHost`
 
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
 with `soundor:parameters` and the generated `soundor:native` installed. The
 backend calls `tick()` from its UI thread every frame. The generated JUCE editor
 owns one and ticks it from a 60 Hz `juce::Timer`. Its processor supplies the
-`soundor:native` implementation by overriding `createNativeApi()`.
+`soundor:native` implementation by overriding `createNativeApi()`. Each host
+has its own `ui::Surface` (`surface()`). The editor sizes it every frame and
+forwards mouse, wheel and keyboard input to it, then runs pending jobs.
 
 `RuntimeHost` also loads the plugin's UI. Given `platform::Resources` (the UI
 bundle compiled in with `soundor_embed_directory()`, or a directory in
@@ -261,6 +312,7 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 | ---------- | ------------------- | ---------------- | --------------------------------------------- |
 | QuickJS-NG | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                   |
 | ada        | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped) |
+| Yoga       | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                      |
 | doctest    | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                   |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
@@ -269,6 +321,12 @@ it `PRIVATE`. This leaves out `quickjs-libc` (file/process access), the `qjs`/`q
 executables and the install rules, and keeps `quickjs.h` off consumers' include
 paths. To build offline, set `FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a
 checkout of the same revision.
+
+Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
+Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`
+rewrites `YG_EXPORT` after download (and after the hash check). That keeps
+every `YG*` symbol inside the plugin; the symbol-isolation test fails without
+the patch.
 
 ## Symbol isolation
 

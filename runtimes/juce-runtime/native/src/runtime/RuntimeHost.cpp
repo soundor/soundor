@@ -1,3 +1,4 @@
+#include "modules/ui/UiModule.h"
 #include "web/Web.h"
 
 #include <soundor/runtime/RuntimeHost.h>
@@ -19,7 +20,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     } // namespace
 
     RuntimeHost::RuntimeHost(Options options)
-        : jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
+        : uiSurface(std::make_shared<ui::Surface>(ui::Surface::Options { std::move(options.textMeasurer) })),
+          jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
           resources(options.resources),
           hasParameters(options.parameters != nullptr)
@@ -33,6 +35,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
                                  });
         if (options.parameters != nullptr)
             parameters::install(*jsContext, std::move(options.parameters));
+        ui::install(*jsContext, uiSurface);
         if (options.installModules)
             options.installModules(*jsContext);
         if (! options.entry.empty())

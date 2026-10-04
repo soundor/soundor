@@ -21,6 +21,8 @@ add_executable(soundor_runtime_tests
   parameters/ParametersTests.cpp
   runtime/DevSessionTests.cpp
   runtime/ResourcesTests.cpp
+  ui/SurfaceTests.cpp
+  ui/UiModuleTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp
   web/PlatformModulesTests.cpp

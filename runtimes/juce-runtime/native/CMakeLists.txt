@@ -18,6 +18,7 @@ include(SoundorCompilerOptions)
 include(SoundorEmbed)
 include(SoundorQuickJS)
 include(SoundorAda)
+include(SoundorYoga)
 
 # Inline namespace that every Soundor-native C++ symbol is mangled into. A
 # plugin build sets it to a value derived from its stable plugin identifier so
@@ -38,11 +39,13 @@ add_library(soundor_runtime STATIC
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/parameters/ParametersModule.cpp
+  src/modules/ui/UiModule.cpp
   src/platform/FileLog.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp
+  src/ui/Surface.cpp
   src/web/Encoding.cpp
   src/web/Files.cpp
   src/web/Host.cpp
@@ -51,7 +54,7 @@ add_library(soundor_runtime STATIC
   src/web/Url.cpp
   src/web/Web.cpp)
 add_library(soundor::runtime ALIAS soundor_runtime)
-foreach(module fs host parameters storage)
+foreach(module fs host parameters storage ui)
   soundor_embed_text(soundor_runtime ${module}Module src/modules/${module}/${module}.js)
 endforeach()
 foreach(module abort blob clone console crypto encoding events fetch inspect timers url web)
@@ -65,7 +68,7 @@ target_include_directories(soundor_runtime
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
-target_link_libraries(soundor_runtime PRIVATE soundor_quickjs soundor_ada Threads::Threads)
+target_link_libraries(soundor_runtime PRIVATE soundor_quickjs soundor_ada soundor_yoga Threads::Threads)
 if(WIN32)
   target_link_libraries(soundor_runtime PRIVATE bcrypt) # crypto.getRandomValues
 endif()
