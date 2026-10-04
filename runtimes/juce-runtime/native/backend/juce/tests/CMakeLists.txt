@@ -37,3 +37,21 @@ target_link_libraries(soundor_juce_tests
     juce::juce_recommended_config_flags)
 
 add_test(NAME soundor_juce_tests COMMAND soundor_juce_tests)
+
+# Two real Soundor plugins in one host process (see PluginCoexistence.cpp).
+# Runs when SOUNDOR_COEXISTENCE_PLUGINS names two built .vst3 bundles.
+juce_add_console_app(soundor_juce_coexistence)
+target_sources(soundor_juce_coexistence PRIVATE PluginCoexistence.cpp)
+target_compile_definitions(soundor_juce_coexistence
+  PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(soundor_juce_coexistence
+  PRIVATE
+    juce::juce_audio_processors
+    juce::juce_recommended_config_flags)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(X11 REQUIRED)
+  target_link_libraries(soundor_juce_coexistence PRIVATE X11::X11)
+endif()
+if(SOUNDOR_COEXISTENCE_PLUGINS)
+  add_test(NAME soundor_juce_coexistence COMMAND soundor_juce_coexistence ${SOUNDOR_COEXISTENCE_PLUGINS})
+endif()

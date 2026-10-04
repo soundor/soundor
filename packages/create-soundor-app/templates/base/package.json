@@ -11,12 +11,15 @@
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "latest"
+    "@soundor/juce-runtime": "latest",
+    "@soundor/react": "latest",
+    "react": "^19.3.0"
   },
   "devDependencies": {
     "@soundor/config": "latest",
     "@soundor/core": "latest",
     "@types/node": "^25.0.0",
+    "@types/react": "^19.2.0",
     "soundor": "latest",
     "typescript": "^6.0.0"
   }

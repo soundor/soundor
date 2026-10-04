@@ -20,9 +20,17 @@ function freeze(snapshot) {
 
 export const plugin = Object.freeze({ id: pluginId, name: pluginName });
 
-/** The current host state: sample rate, block size, host name, transport. */
+/** The latest snapshot; replaced (never changed) when the host state changes. */
+let latest = null;
+
+/**
+ * The current host state: sample rate, block size, host name, transport. The
+ * same object until the state changes, so it works as a store snapshot (e.g.
+ * React's useSyncExternalStore(subscribe, snapshot)).
+ */
 export function snapshot() {
-  return freeze(hostSnapshot());
+  latest ??= freeze(hostSnapshot());
+  return latest;
 }
 
 const listeners = new Set();
@@ -43,6 +51,7 @@ export function subscribe(listener) {
 
 setHostListener((next) => {
   const frozen = freeze(next);
+  latest = frozen;
   for (const { listener } of [...listeners]) {
     try {
       listener(frozen);

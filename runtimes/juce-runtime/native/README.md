@@ -412,6 +412,41 @@ or its dependencies define may be exported from a plugin binary:
   so QuickJS, ada, Yoga, Skia and its codecs are all linked into what is
   checked.
 
+## Coexistence
+
+Plugins built with Soundor must run side by side in one host process, each
+with its own copy of the runtime. Two tests prove it:
+
+- **`soundor_coexistence` (CTest, every platform in CI).** It builds the
+  runtime twice, under the ABI namespaces `v0` and `p_coexist`, into two
+  plugin-shaped modules. Each draws its own color and counts its own clicks.
+  A host program loads both (`dlopen` with `RTLD_LOCAL`, or `LoadLibrary`). It
+  runs two instances of one and one of the other interleaved, destroys them in
+  mixed order, and unloads and reloads both. The two modules' exports are
+  checked as well.
+- **`soundor_juce_coexistence` (JUCE adapter tests, local).** It loads two real
+  VST3s built from different plugin ids through JUCE's plugin hosting.
+  - **Audio and parameters:** it processes audio in both and moves one
+    plugin's parameter; the other's must stay put.
+  - **Editors:** it opens both side by side and reads them back from the
+    screen, so both React UIs must really have rendered. It closes one; the
+    other must keep running and follow its parameter.
+  - **Running it:** give it the plugins with
+    `-DSOUNDOR_COEXISTENCE_PLUGINS="a.vst3;b.vst3"`. On Linux it needs a
+    display; `xvfb-run` works.
+
+## Footprint
+
+Measured with `examples/basic` (React UI) on Linux x64, Release:
+
+| What                                                       | Size / time                       |
+| ---------------------------------------------------------- | --------------------------------- |
+| VST3 binary, stripped (QuickJS, ada, Yoga, Skia, JUCE, UI) | 11.1 MB                           |
+| …of which Skia with its codecs                             | ~4.6 MB                           |
+| UI bundle (React, react-reconciler, scheduler, app)        | 153 KB minified                   |
+| Editor start to first frame (host, bundle, React, render)  | ~20 ms at 1600×1200 device pixels |
+| A full redraw after that                                   | ~0.6 ms                           |
+
 ## Building and testing
 
 From the repository root:
@@ -433,7 +468,14 @@ JUCE_DIR=/path/to/JUCE cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
 The JUCE adapter tests need a JUCE checkout. JUCE is never downloaded, so CI
-does not run them; run them wherever JUCE is installed.
+does not run them; run them wherever JUCE is installed, for example the
+two-plugin host test:
+
+```sh
+cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
+  -DSOUNDOR_COEXISTENCE_PLUGINS="/path/A.vst3;/path/B.vst3"
+cmake --build build/juce && (cd build/juce && xvfb-run -a ctest -R coexistence)
+```
 
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,

@@ -30,7 +30,7 @@ if(NOT SOUNDOR_ABI_NAMESPACE MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
   message(FATAL_ERROR "SOUNDOR_ABI_NAMESPACE must be a C++ identifier, got '${SOUNDOR_ABI_NAMESPACE}'")
 endif()
 
-add_library(soundor_runtime STATIC
+set(SOUNDOR_RUNTIME_SOURCES
   src/js/Bindings.cpp
   src/js/Context.cpp
   src/js/Error.cpp
@@ -58,6 +58,9 @@ add_library(soundor_runtime STATIC
   src/web/Random.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
+list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+
+add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
 add_library(soundor::runtime ALIAS soundor_runtime)
 foreach(module fs host parameters storage ui)
   soundor_embed_text(soundor_runtime ${module}Module src/modules/${module}/${module}.js)
@@ -68,17 +71,23 @@ endforeach()
 soundor_embed_text(soundor_runtime formDataModule src/web/js/form-data.js)
 soundor_embed_text(soundor_runtime uiFramesModule src/modules/ui/frames.js)
 
-target_compile_features(soundor_runtime PUBLIC cxx_std_20)
-target_compile_definitions(soundor_runtime PUBLIC SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE})
-target_include_directories(soundor_runtime
-  PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-# PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
-target_link_libraries(soundor_runtime PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
-if(WIN32)
-  target_link_libraries(soundor_runtime PRIVATE bcrypt) # crypto.getRandomValues
-endif()
-soundor_configure_target(soundor_runtime)
+# Everything a runtime library is besides its sources: `namespace` is the
+# inline ABI namespace its symbols are mangled into.
+function(soundor_configure_runtime target namespace)
+  target_compile_features(${target} PUBLIC cxx_std_20)
+  target_compile_definitions(${target} PUBLIC SOUNDOR_ABI_NAMESPACE=${namespace})
+  target_include_directories(${target}
+    PUBLIC ${PROJECT_SOURCE_DIR}/include
+    PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
+  target_link_libraries(${target} PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
+  if(WIN32)
+    target_link_libraries(${target} PRIVATE bcrypt) # crypto.getRandomValues
+  endif()
+  soundor_configure_target(${target})
+endfunction()
+
+soundor_configure_runtime(soundor_runtime ${SOUNDOR_ABI_NAMESPACE})
 
 # For Soundor-owned code built outside this library — generated bindings and
 # backend adapters — that is written against the runtime's internal headers.
