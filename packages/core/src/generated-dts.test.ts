@@ -3,14 +3,24 @@
  * way a plugin project would, so they are proven usable — not just stable.
  */
 
+import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 
-import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { generateSoundorFiles, type CoreSoundorConfig } from './generate';
+
+const run = promisify(execFile);
+// TypeScript 7 has no compiler API in its main entry point; run the tsc CLI.
+const tsc = join(
+  dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+  'bin',
+  'tsc',
+);
 
 const config: CoreSoundorConfig = {
   plugin: { id: 'com.example.dts', name: 'Dts' },
@@ -179,22 +189,26 @@ afterAll(async () => {
 });
 
 describe('generated declarations', () => {
-  it('type-check against a consumer, rejecting misuse', () => {
-    const program = ts.createProgram([join(dir, 'consumer.ts')], {
-      strict: true,
-      noEmit: true,
-      noUnusedLocals: true,
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      lib: ['lib.es2022.d.ts'],
-      types: [],
-    });
-    const diagnostics = ts
-      .getPreEmitDiagnostics(program)
-      .map((diagnostic) =>
-        ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-      );
-    expect(diagnostics).toEqual([]);
-  });
+  it('type-check against a consumer, rejecting misuse', async () => {
+    await writeFile(
+      join(dir, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          noEmit: true,
+          noUnusedLocals: true,
+          target: 'es2022',
+          module: 'esnext',
+          moduleResolution: 'bundler',
+          lib: ['es2022'],
+          types: [],
+        },
+        files: ['consumer.ts'],
+      }),
+    );
+    // tsc exits non-zero and prints the diagnostics when the consumer fails.
+    await expect(
+      run(process.execPath, [tsc, '-p', dir, '--pretty', 'false']),
+    ).resolves.toMatchObject({ stdout: '' });
+  }, 30_000);
 });
