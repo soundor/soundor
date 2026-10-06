@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from 'vitest/config';
 
-import { soundorModules } from './src/plugin';
+import { soundorModules } from './src/plugin.ts';
 
 export default defineConfig({
   // Client tests import soundor:* as plugin code does, resolved by the

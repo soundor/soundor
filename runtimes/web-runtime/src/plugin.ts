@@ -19,10 +19,10 @@ import { join } from 'node:path';
 import type { UiBundleContext } from '@soundor/runtime-sdk';
 import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 
-import type { WebManifest } from './client/manifest';
-import { MANIFEST_FILE } from './codegen';
-import { CLIENT_DIR, clientModule } from './paths';
-import { soundorUiBundle } from './ui-bundle';
+import type { WebManifest } from './client/manifest.ts';
+import { MANIFEST_FILE } from './codegen.ts';
+import { CLIENT_DIR, clientModule } from './paths.ts';
+import { soundorUiBundle } from './ui-bundle.ts';
 
 /** The plugin's name; `defineWebConfig` checks that it is present. */
 export const PLUGIN_NAME = 'soundor:web';

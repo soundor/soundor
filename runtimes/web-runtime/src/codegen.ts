@@ -12,8 +12,8 @@ import {
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
 
-import type { WebManifest, WebParameterInfo } from './client/manifest';
-import { renderWebNative } from './native-codegen';
+import type { WebManifest, WebParameterInfo } from './client/manifest.ts';
+import { renderWebNative } from './native-codegen.ts';
 
 /** The manifest's file name in `.soundor/generated/runtimes/web/`. */
 export const MANIFEST_FILE = 'manifest.json';
