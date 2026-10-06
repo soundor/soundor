@@ -1,0 +1,20 @@
+{
+  // The plugin UI runs in Soundor's runtime, not a browser or Node: ES2023 plus
+  // the Web subset Soundor provides (declared in .soundor/generated). No DOM.
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": [],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
+  },
+  "include": ["src", ".soundor/generated/soundor.d.ts"]
+}
