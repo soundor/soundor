@@ -51,6 +51,22 @@ export class FakeNode {
     return [...this.kids];
   }
 
+  get isConnected(): boolean {
+    return this === root || (this.parent?.isConnected ?? false);
+  }
+
+  get focused(): boolean {
+    return focusedNode() === this;
+  }
+
+  focus() {
+    moveFocus(this);
+  }
+
+  blur() {
+    if (this.focused) moveFocus(null);
+  }
+
   get value(): string {
     return this.text;
   }
@@ -129,6 +145,56 @@ export class FakeNode {
 }
 
 export const root = new FakeNode('view');
+
+let focused: FakeNode | null = null;
+
+export function focusedNode(): FakeNode | null {
+  if (focused !== null && !focused.isConnected) focused = null;
+  return focused;
+}
+
+/** The runtimes' focus(): blur, then focus; unfocusable nodes are ignored. */
+function moveFocus(node: FakeNode | null) {
+  if (node !== null && (!node.focusable || !node.isConnected)) return;
+  const previous = focusedNode();
+  if (previous === node) return;
+  focused = node;
+  previous?.dispatchEvent(
+    new FakeEvent('blur', { relatedTarget: node }, false),
+  );
+  if (node !== null && focused === node)
+    node.dispatchEvent(
+      new FakeEvent('focus', { relatedTarget: previous }, false),
+    );
+}
+
+/**
+ * A key pressed: keydown at the focused node (or the root), then the
+ * runtimes' default action for Tab, cycling focus in tree order.
+ */
+export function pressKey(key: string, init: Record<string, unknown> = {}) {
+  const event = new FakeEvent('keydown', { key, ...init });
+  (focusedNode() ?? root).dispatchEvent(event);
+  if (event.defaultPrevented || key !== 'Tab') return event;
+  const order: FakeNode[] = [];
+  const collect = (node: FakeNode) => {
+    if (node.style['display'] === 'none') return;
+    if (node.focusable) order.push(node);
+    for (const kid of node.kids) collect(kid);
+  };
+  collect(root);
+  if (order.length === 0) return event;
+  const index = order.indexOf(focusedNode()!);
+  const back = Boolean(init['shiftKey']);
+  const next =
+    index < 0
+      ? back
+        ? order.length - 1
+        : 0
+      : (index + (back ? order.length - 1 : 1)) % order.length;
+  moveFocus(order[next]!);
+  return event;
+}
 
 export const createView = () => new FakeNode('view');
 export const createText = () => new FakeNode('text');
@@ -217,4 +283,5 @@ export function print(node: FakeNode = root): string {
 
 export function reset() {
   for (const kid of root.children) kid.remove();
+  focused = null;
 }

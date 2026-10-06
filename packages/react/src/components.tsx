@@ -1,5 +1,6 @@
 import {
   createElement,
+  useContext,
   useEffect,
   useState,
   type ReactNode,
@@ -16,7 +17,8 @@ import {
   type WheelEvent,
 } from 'soundor:ui';
 
-import { HostTypes } from './host';
+import { ScopeContext } from './focus';
+import { HostTypes, SCOPE_PROP } from './host';
 import type { StyleProp } from './style';
 
 /** Event props every component takes; `…Capture` runs in the capture phase. */
@@ -55,9 +57,14 @@ export interface ViewProps extends EventProps {
   children?: ReactNode;
 }
 
+/** Props for a host element: with the FocusScope it is rendered in. */
+function useHostProps<P extends object>(props: P): P {
+  return { ...props, [SCOPE_PROP]: useContext(ScopeContext) };
+}
+
 /** A box laid out with flexbox: the building block. */
 export function View(props: ViewProps) {
-  return createElement(HostTypes.View, props);
+  return createElement(HostTypes.View, useHostProps(props));
 }
 
 export interface TextProps extends EventProps {
@@ -71,7 +78,7 @@ export interface TextProps extends EventProps {
 
 /** Text. Strings must be inside a <Text>. */
 export function Text(props: TextProps) {
-  return createElement(HostTypes.Text, props);
+  return createElement(HostTypes.Text, useHostProps(props));
 }
 
 export interface ImageProps extends EventProps {
@@ -83,7 +90,7 @@ export interface ImageProps extends EventProps {
 
 /** A bundled image, sized by its pixels unless styled. */
 export function Image(props: ImageProps) {
-  return createElement(HostTypes.Image, props);
+  return createElement(HostTypes.Image, useHostProps(props));
 }
 
 export interface ScrollViewProps extends ViewProps {
@@ -98,10 +105,15 @@ export function ScrollView({
   children,
   ...props
 }: ScrollViewProps) {
+  const scope = useContext(ScopeContext);
   return createElement(
     HostTypes.ScrollView,
-    props,
-    createElement(HostTypes.View, { style: contentContainerStyle }, children),
+    { ...props, [SCOPE_PROP]: scope },
+    createElement(
+      HostTypes.View,
+      { style: contentContainerStyle, [SCOPE_PROP]: scope },
+      children,
+    ),
   );
 }
 
@@ -124,7 +136,7 @@ export interface TextInputProps extends EventProps {
 
 /** A single-line text input. */
 export function TextInput(props: TextInputProps) {
-  return createElement(HostTypes.TextInput, props);
+  return createElement(HostTypes.TextInput, useHostProps(props));
 }
 
 export interface PressableState {
@@ -215,10 +227,12 @@ export function Pressable({
     if (typeof ref === 'function') ref(value);
     else if (ref) ref.current = value;
   };
+  const scope = useContext(ScopeContext);
   return createElement(
     HostTypes.View,
     {
       ...props,
+      [SCOPE_PROP]: scope,
       ref: attach,
       focusable: !disabled,
       style: typeof style === 'function' ? style(state) : style,
