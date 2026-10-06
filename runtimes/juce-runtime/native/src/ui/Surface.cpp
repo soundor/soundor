@@ -265,6 +265,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             options.clipboard = memoryClipboard();
         YGConfigSetPointScaleFactor(config.get(), pixelScale);
         rootNode = &get(createNode(NodeType::View));
+        overlayNode = &get(createNode(NodeType::View));
     }
 
     Surface::~Surface()
@@ -292,9 +293,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     bool Surface::isConnected(NodeId id) noexcept
     {
         const Node* node = find(id);
-        while (node != nullptr && node != rootNode)
+        while (node != nullptr && node->parentNode != nullptr)
             node = node->parentNode;
-        return node != nullptr;
+        return node != nullptr && isRoot(*node);
     }
 
     NodeId Surface::createNode(NodeType type)
@@ -329,7 +330,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     void Surface::releaseNode(NodeId id)
     {
         Node& node = get(id);
-        if (&node == rootNode)
+        if (isRoot(node))
             throw std::invalid_argument("the root node cannot be released");
         detach(node);
         for (Node* child : std::vector<Node*>(node.childNodes))
@@ -349,7 +350,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         Node& parent = get(parentId);
         Node& child = get(childId);
-        if (&child == rootNode)
+        if (isRoot(child))
             throw std::invalid_argument("the root node cannot be a child");
         if (parent.nodeType != NodeType::View && parent.nodeType != NodeType::Scroll)
             throw std::invalid_argument("only views can have children");
@@ -549,19 +550,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         pixelScale = scale;
         YGConfigSetPointScaleFactor(config.get(), scale);
-        // Snapping changed everywhere: lay the whole tree out again.
+        // Snapping changed everywhere: lay the whole trees out again.
         YGNodeStyleSetWidth(rootNode->yoga, YGUndefined);
+        YGNodeStyleSetWidth(overlayNode->yoga, YGUndefined);
         changed = true;
     }
 
     void Surface::layout()
     {
-        // The root fills the view whatever its style says.
-        YGNodeStyleSetWidth(rootNode->yoga, viewSize.width);
-        YGNodeStyleSetHeight(rootNode->yoga, viewSize.height);
-        if (! YGNodeIsDirty(rootNode->yoga))
+        // The roots fill the view whatever their style says, each laid out
+        // on its own: the overlay is not in the content's flow.
+        bool laidOut = false;
+        for (Node* tree : { rootNode, overlayNode })
+        {
+            YGNodeStyleSetWidth(tree->yoga, viewSize.width);
+            YGNodeStyleSetHeight(tree->yoga, viewSize.height);
+            if (! YGNodeIsDirty(tree->yoga))
+                continue;
+            YGNodeCalculateLayout(tree->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
+            laidOut = true;
+        }
+        if (! laidOut)
             return;
-        YGNodeCalculateLayout(rootNode->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
         // An input's width may have changed: keep its caret in view.
         for (auto& [id, node] : nodes)
             if (node->nodeType == NodeType::Input)
@@ -630,6 +640,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     NodeId Surface::hitTest(Point point)
     {
         layout();
+        // The overlay first; where it has nothing, the content.
+        if (const NodeId hit = hitTest(*overlayNode, point, {}); hit != noNode && hit != overlayNode->nodeId)
+            return hit;
         return hitTest(*rootNode, point, {});
     }
 
@@ -953,6 +966,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         std::vector<NodeId> order;
         collectFocusable(*rootNode, order);
+        collectFocusable(*overlayNode, order);
         if (order.empty())
             return false;
         const auto current = std::find(order.begin(), order.end(), focused());

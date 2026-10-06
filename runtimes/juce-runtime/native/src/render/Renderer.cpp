@@ -165,7 +165,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         canvas->scale(surface.scale(), surface.scale());
         impl->surface = &surface;
         impl->seconds = seconds;
+        // The overlay over all of the content, whatever their zIndex.
         impl->drawNode(*canvas, surface.root());
+        impl->drawNode(*canvas, surface.overlay());
         impl->surface = nullptr;
     }
 

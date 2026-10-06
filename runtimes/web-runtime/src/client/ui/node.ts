@@ -62,6 +62,8 @@ export class UiNode extends TreeEventTarget {
   readonly #type: NodeType;
   readonly #element: HTMLElement;
   readonly #root: boolean;
+  /** The classes of a root node's element. */
+  readonly #rootClass: string;
   #parent: UiNode | null = null;
   #children: UiNode[] = [];
   #style: Readonly<Style> = Object.freeze({});
@@ -75,6 +77,7 @@ export class UiNode extends TreeEventTarget {
     view: ViewLink,
     type: NodeType,
     element?: HTMLElement,
+    overlay = false,
   ) {
     if (token !== CONSTRUCTING) {
       throw new TypeError(
@@ -85,10 +88,17 @@ export class UiNode extends TreeEventTarget {
     this.#view = view;
     this.#type = type;
     this.#root = element !== undefined;
+    this.#rootClass = !this.#root
+      ? ''
+      : overlay
+        ? 'sd-root sd-overlay'
+        : 'sd-root';
     const { tag, className } = ELEMENTS[type];
     this.#element =
       element ?? view.rootElement.ownerDocument.createElement(tag);
-    this.#element.className = this.#root ? `${className} sd-root` : className;
+    this.#element.className = [className, this.#rootClass]
+      .filter(Boolean)
+      .join(' ');
     if (type === 'image') {
       const image = this.#element as HTMLImageElement;
       image.alt = '';
@@ -139,7 +149,7 @@ export class UiNode extends TreeEventTarget {
     return siblings[siblings.indexOf(this) - 1] ?? null;
   }
 
-  /** Whether the node is in the view's tree. */
+  /** Whether the node is in the view's trees (under a root). */
   get isConnected(): boolean {
     if (this.#root) return true;
     for (let node = this.#parent; node !== null; node = node.#parent) {
@@ -159,11 +169,7 @@ export class UiNode extends TreeEventTarget {
     const style = readStyle(value);
     this.#element.style.cssText = cssText(cssFor(style, this.#type));
     const { className } = ELEMENTS[this.#type];
-    this.#element.className = [
-      className,
-      this.#root ? 'sd-root' : '',
-      pointerClass(style),
-    ]
+    this.#element.className = [className, this.#rootClass, pointerClass(style)]
       .filter(Boolean)
       .join(' ');
     this.#style = Object.freeze({ ...style });
@@ -468,11 +474,15 @@ export class UiNode extends TreeEventTarget {
   }
 }
 
-/** Creates a node of `type` for `view`; the root takes its element. */
+/**
+ * Creates a node of `type` for `view`. A root (the content's, or the
+ * overlay's) takes its element.
+ */
 export function createNode(
   view: ViewLink,
   type: NodeType,
   element?: HTMLElement,
+  overlay = false,
 ): UiNode {
-  return new UiNode(CONSTRUCTING, view, type, element);
+  return new UiNode(CONSTRUCTING, view, type, element, overlay);
 }

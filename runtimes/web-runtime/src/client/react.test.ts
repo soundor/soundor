@@ -3,9 +3,11 @@
 // components a plugin renders in the JUCE runtime, with no ReactDOM.
 
 import {
+  createPortalHost,
   createRoot,
   FocusScope,
   flushSync,
+  Portal,
   Image,
   Pressable,
   ScrollView,
@@ -14,7 +16,7 @@ import {
   View,
 } from '@soundor/react';
 import { createElement as h, useState } from 'react';
-import { root } from 'soundor:ui';
+import { overlayRoot, root } from 'soundor:ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { uiView } from './context';
@@ -226,6 +228,60 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     expect(seen.at(-1)).toBe('a');
     tab();
     expect(seen.at(-1)).toBe('d');
+    flushSync(() => reactRoot.unmount());
+  });
+
+  it('portals into the overlay layer over all content, and into custom hosts', () => {
+    const host = createPortalHost();
+    const reactRoot = render(
+      h(
+        View,
+        { style: { overflow: 'hidden' } },
+        h(View, { style: { zIndex: 2147483647 } }),
+        h(Portal, null, h(Text, null, 'menu')),
+        h(Portal.Host, { host }),
+        h(Portal, { host }, h(Text, null, 'hosted')),
+      ),
+    );
+    const overlay = element(overlayRoot);
+    const entry = overlayRoot.children[0]!;
+    expect(entry.children[0]!.text).toBe('menu');
+    expect(overlay.contains(element(entry))).toBe(true);
+    // After the content in the surface, in a layer CSS keeps above it.
+    expect(overlay.previousElementSibling).toBe(element(root));
+    expect(overlay.className).toContain('sd-overlay');
+    const [box] = root.children;
+    expect(box!.children[1]!.children[0]!.text).toBe('hosted');
+    flushSync(() => reactRoot.unmount());
+    expect(overlayRoot.children).toEqual([]);
+  });
+
+  it('traps Tab across a portal over the browser keyboard', () => {
+    const seen: string[] = [];
+    const field = (name: string) =>
+      h(View, { focusable: true, key: name, onFocus: () => seen.push(name) });
+    const reactRoot = render(
+      h(View, null, [
+        field('background'),
+        h(
+          FocusScope,
+          { trapped: true, autoFocus: true, key: 'scope' },
+          field('a'),
+          h(Portal, { key: 'portal' }, field('menu')),
+        ),
+      ]),
+    );
+    const tab = () =>
+      view.rootElement.dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          key: 'Tab',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    tab();
+    tab();
+    expect(seen).toEqual(['a', 'menu', 'a']);
     flushSync(() => reactRoot.unmount());
   });
 });

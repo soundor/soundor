@@ -164,6 +164,15 @@ UiNodes.
   scroll view. All four `pointerEvents` modes work.
 - **Text inputs** edit natively (IME, selection, copy and paste) and report
   `beforeinput`, `input` and `change`.
+- **Layers.** `root` and `overlayRoot` are two elements in one isolated
+  stacking context inside the viewport, the overlay above; every node
+  stacks its own children, so `zIndex` orders siblings as in the JUCE
+  runtime and never lifts content over the overlay. Nothing is rendered
+  into `document.body`.
+- **Coordinates** are logical pixels relative to the view, whatever the
+  viewport's scale: `pageX`/`pageY`, `getBoundingClientRect()`. The DOM's
+  `contextmenu` becomes Soundor's, and preventing it keeps the browser's
+  menu away.
 
 ## Native API in TypeScript
 

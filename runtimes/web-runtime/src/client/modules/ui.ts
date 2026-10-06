@@ -12,6 +12,12 @@ const view = uiView();
 /** The view's root node; it always fills the view. */
 export const root = view.root;
 
+/**
+ * The view's overlay layer: a second root, over all of root and hit before
+ * it, letting the pointer through where nothing in it takes it.
+ */
+export const overlayRoot = view.overlay;
+
 /** A new, detached view: a box laid out with flexbox. */
 export function createView(style?: Style): UiNode {
   const node = view.createNode('view');

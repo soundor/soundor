@@ -52,7 +52,11 @@ export class FakeNode {
   }
 
   get isConnected(): boolean {
-    return this === root || (this.parent?.isConnected ?? false);
+    return (
+      this === root ||
+      this === overlayRoot ||
+      (this.parent?.isConnected ?? false)
+    );
   }
 
   get focused(): boolean {
@@ -145,6 +149,7 @@ export class FakeNode {
 }
 
 export const root = new FakeNode('view');
+export const overlayRoot = new FakeNode('view');
 
 let focused: FakeNode | null = null;
 
@@ -183,6 +188,7 @@ export function pressKey(key: string, init: Record<string, unknown> = {}) {
     for (const kid of node.kids) collect(kid);
   };
   collect(root);
+  collect(overlayRoot);
   if (order.length === 0) return event;
   const index = order.indexOf(focusedNode()!);
   const back = Boolean(init['shiftKey']);
@@ -196,7 +202,11 @@ export function pressKey(key: string, init: Record<string, unknown> = {}) {
   return event;
 }
 
-export const createView = () => new FakeNode('view');
+export const createView = (style?: Record<string, unknown>) => {
+  const node = new FakeNode('view');
+  if (style !== undefined) node.style = style;
+  return node;
+};
 export const createText = () => new FakeNode('text');
 export const createImage = () => new FakeNode('image');
 export const createScrollView = () => new FakeNode('scroll');
@@ -283,5 +293,6 @@ export function print(node: FakeNode = root): string {
 
 export function reset() {
   for (const kid of root.children) kid.remove();
+  for (const kid of overlayRoot.children) kid.remove();
   focused = null;
 }

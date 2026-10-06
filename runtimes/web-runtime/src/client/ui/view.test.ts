@@ -209,6 +209,53 @@ describe('pointer routing', () => {
   });
 });
 
+describe('overlay', () => {
+  it('measures and routes overlay nodes in view coordinates', () => {
+    setup();
+    const menu = view.createNode('view');
+    view.overlay.appendChild(menu);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        if (this === view.rootElement) return new DOMRect(10, 10, 400, 300);
+        if (this === el(menu)) return new DOMRect(60, 30, 40, 40);
+        return new DOMRect();
+      },
+    );
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(menu));
+    expect(menu.getBoundingClientRect()).toEqual({
+      x: 50,
+      y: 20,
+      width: 40,
+      height: 40,
+    });
+    const seen: string[] = [];
+    menu.addEventListener('pointerdown', (event) => {
+      const e = event as unknown as Record<string, number>;
+      seen.push(`${e['pageX']},${e['locationY']}`);
+    });
+    pointer('pointerdown', 0, { clientX: 70, clientY: 35 });
+    expect(seen).toEqual(['60,5']);
+  });
+
+  it('Tab goes through the content, then the overlay', () => {
+    const { panel } = setup();
+    panel.focusable = true;
+    const menu = view.createNode('view');
+    menu.focusable = true;
+    view.overlay.appendChild(menu);
+    const tab = () =>
+      view.rootElement.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Tab', cancelable: true }),
+      );
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+    tab();
+    expect(view.focusedNode()).toBe(menu);
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+  });
+});
+
 describe('contextmenu', () => {
   function contextMenu(x: number): MouseEvent {
     const event = new window.MouseEvent('contextmenu', {

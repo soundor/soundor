@@ -168,7 +168,7 @@ const UI = `declare module 'soundor:ui' {
     readonly lastChild: UiNode | null;
     readonly nextSibling: UiNode | null;
     readonly previousSibling: UiNode | null;
-    /** Whether the node is in the view's tree. */
+    /** Whether the node is in the view's trees (under root or overlayRoot). */
     readonly isConnected: boolean;
     /** Replaced as a whole on assignment. */
     style: Readonly<Style>;
@@ -239,6 +239,14 @@ const UI = `declare module 'soundor:ui' {
 
   /** The view's root node; it always fills the view. */
   export const root: UiNode;
+  /**
+   * The view's overlay layer: a second root that fills the view, laid out
+   * apart from root, drawn over root and everything in it (whatever their
+   * zIndex) and hit before it. Where nothing in it takes pointer events,
+   * they reach root. Events in it bubble up to it, not to root. Renderers
+   * build overlays on it (@soundor/react's Portal).
+   */
+  export const overlayRoot: UiNode;
   export function createView(style?: Style): UiNode;
   export function createText(text?: string, style?: Style): UiNode;
   /** An image showing a bundled asset (\`import logo from './logo.png'\`). */

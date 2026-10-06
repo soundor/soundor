@@ -200,6 +200,33 @@ TEST_SUITE("soundor:ui")
         CHECK(f.eval("result").asString() == R"([true,true,2,2,150,40,"mouse",true])");
     }
 
+    TEST_CASE("overlayRoot: a second root whose events bubble to it, not to root")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            import { overlayRoot } from 'soundor:ui';
+            globalThis.overlayRoot = overlayRoot;
+            overlayRoot.name = 'overlay';
+            globalThis.menu = createView({ position: 'absolute', left: 120, top: 30, width: 40, height: 40 });
+            menu.name = 'menu';
+            overlayRoot.appendChild(menu);
+            for (const node of [root, overlayRoot, menu, b]) node.addEventListener('pointerdown', record);
+            globalThis.result = JSON.stringify([overlayRoot.isConnected, menu.isConnected, overlayRoot.parent,
+              menu.getBoundingClientRect(), overlayRoot.layout, root.contains(menu)]);
+        )");
+        CHECK(f.eval("result").asString()
+              == R"([true,true,null,{"x":120,"y":30,"width":40,"height":40},)"
+                 R"({"x":0,"y":0,"width":200,"height":100},false])");
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 130, 40, 1, 0));
+        CHECK(f.log() == "pointerdown@menu pointerdown@overlay:bubble");
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 130, 40, 0, 0));
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 110, 80, 1, 0));
+        CHECK(f.log() == "pointerdown@b pointerdown@root:bubble");
+        CHECK(f.error(std::string(imports) + "import { overlayRoot } from 'soundor:ui'; b.appendChild(overlayRoot);")
+                  .find("cannot be a child")
+              != std::string::npos);
+    }
+
     TEST_CASE("zIndex must be an integer")
     {
         UiFixture f;
@@ -285,11 +312,11 @@ TEST_SUITE("soundor:ui")
         f.host.tick(); // finalization callbacks run as jobs
         f.host.runtime().collectGarbage();
         f.host.tick();
-        // Root, a, b and kept remain.
+        // The two roots, a, b and kept remain.
         std::size_t alive = 0;
         for (ui::NodeId id = 1; id < 400; ++id)
             alive += f.host.surface().find(id) != nullptr ? 1U : 0U;
-        CHECK(alive == 4);
+        CHECK(alive == 5);
     }
 
     TEST_CASE("a new runtime starts with a new, empty surface")

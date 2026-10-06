@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { KeyboardEvent, PointerEvent } from './events';
 import { UiNode } from './node';
+import { STYLESHEET } from './style';
 import { UiView } from './view';
 
 let view: UiView;
@@ -143,6 +144,35 @@ describe('UiNode content', () => {
     expect(el(root).classList.contains('sd-pe-none')).toBe(true);
   });
 
+  it('has an overlay root over the content root, both filling the surface', () => {
+    const { root, overlay } = setup();
+    expect([...view.rootElement.children]).toEqual([el(root), el(overlay)]);
+    expect(view.rootElement.className).toBe('sd-surface');
+    overlay.style = { pointerEvents: 'auto', zIndex: -5 };
+    // Its layer and pass-through stay, whatever its style says.
+    expect(el(overlay).className).toBe('sd-node sd-root sd-overlay');
+    expect(STYLESHEET).toMatch(
+      /\.sd-overlay \{ z-index: 1 !important; pointer-events: none !important; \}/,
+    );
+    expect(STYLESHEET).toMatch(/\.sd-root \{[^}]*z-index: 0 !important;/);
+    const child = view.createNode('view');
+    overlay.appendChild(child);
+    expect([overlay.isConnected, child.isConnected, overlay.parent]).toEqual([
+      true,
+      true,
+      null,
+    ]);
+    expect(root.contains(child)).toBe(false);
+    expect(() => root.appendChild(overlay)).toThrow(
+      'the root node cannot be a child',
+    );
+    const seen: string[] = [];
+    root.addEventListener('pointerdown', () => seen.push('root'));
+    overlay.addEventListener('pointerdown', () => seen.push('overlay'));
+    child.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    expect(seen).toEqual(['overlay']);
+  });
+
   it('shows text, and rejects it on nodes without text', () => {
     setup();
     const text = view.createNode('text');
@@ -225,12 +255,13 @@ describe('UiNode layout', () => {
     parent.appendChild(child);
     boxes(
       new Map([
+        [view.rootElement, new DOMRect(100, 50, 800, 600)],
         [el(root), new DOMRect(100, 50, 800, 600)],
         [el(parent), new DOMRect(110, 70, 300, 200)],
         [el(child), new DOMRect(120, 60, 50, 40)],
       ]),
     );
-    Object.defineProperty(el(root), 'offsetWidth', { value: 800 });
+    Object.defineProperty(view.rootElement, 'offsetWidth', { value: 800 });
     Object.defineProperty(el(parent), 'scrollTop', { value: 30 });
 
     expect(child.getBoundingClientRect()).toEqual({
@@ -250,12 +281,12 @@ describe('UiNode layout', () => {
     root.appendChild(child);
     boxes(
       new Map([
-        [el(root), new DOMRect(0, 0, 400, 300)],
+        [view.rootElement, new DOMRect(0, 0, 400, 300)],
         [el(child), new DOMRect(50, 25, 100, 50)],
       ]),
     );
-    Object.defineProperty(el(root), 'offsetWidth', { value: 800 });
-    Object.defineProperty(el(root), 'offsetHeight', { value: 600 });
+    Object.defineProperty(view.rootElement, 'offsetWidth', { value: 800 });
+    Object.defineProperty(view.rootElement, 'offsetHeight', { value: 600 });
     expect(view.scale()).toBe(0.5);
     expect(child.getBoundingClientRect()).toEqual({
       x: 100,

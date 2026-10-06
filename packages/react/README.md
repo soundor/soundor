@@ -59,6 +59,52 @@ among its siblings, for drawing and hit testing alike; layout keeps tree
 order). `style` takes arrays and falsy entries; `StyleSheet.create()` names
 styles with their types.
 
+## Portals
+
+`Portal` renders its children elsewhere in the plugin view while they stay
+in their component's React tree: context, state and effects are kept. It is
+a Soundor extension (not a React Native component), built on the renderer's
+own portals, with no ReactDOM and no other window.
+
+```tsx
+function Menu({ x, y }: { x: number; y: number }) {
+  return (
+    <Portal>
+      <View style={{ position: 'absolute', left: x, top: y }}>…</View>
+    </Portal>
+  );
+}
+```
+
+- `<Portal>` (also `host={null}` or `host={undefined}`) renders into the
+  view's overlay layer: above all of the content whatever its `zIndex`, out
+  of any `overflow` clipping or scrolling, in view coordinates (`pageX`,
+  `getBoundingClientRect()`). Each portal is an entry that fills the view
+  and lets the pointer through; a portal opened later stacks above earlier
+  ones, so one opened from inside another (a dropdown in a dialog) is on
+  top of it. The overlay layer itself is not exported.
+- `<Portal host={host}>` renders into the `<Portal.Host host={host}>`, as its
+  children: clipped, stacked and scrolled wherever that host is, so it is not
+  an overlay unless the host is in one. Hosts are opaque handles from
+  `createPortalHost()`. Content waits (renders nothing) until its host
+  mounts, goes when the host unmounts, and comes back with it. Showing one
+  host in two places at once is an error.
+
+```tsx
+const panelHost = createPortalHost();
+
+<View style={{ overflow: 'hidden' }}>
+  <Portal.Host host={panelHost} style={{ position: 'absolute', inset: 0, pointerEvents: 'box-none' }} />
+</View>
+
+<Portal host={panelHost}>…</Portal>
+```
+
+Pointer and key events bubble through the nodes as they are shown: from a
+portal's content up to its host (or the overlay layer), not through the
+component that declared it. Focus follows React: content a `FocusScope`
+renders through a portal belongs to that scope.
+
 ## Focus
 
 `FocusScope` groups its children for keyboard focus. It adds no node, so

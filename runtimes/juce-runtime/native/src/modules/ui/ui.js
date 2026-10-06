@@ -103,11 +103,11 @@ export class UiNode extends EventTarget {
     return siblings?.[siblings.indexOf(this) - 1] ?? null;
   }
 
-  /** Whether the node is in the view's tree. */
+  /** Whether the node is in one of the view's trees. */
   get isConnected() {
     let node = this;
     while (node.#parent !== null) node = node.#parent;
-    return node === root;
+    return node === root || node === overlayRoot;
   }
 
   /** The style last set; assigning replaces it as a whole. */
@@ -399,6 +399,13 @@ export function createTextInput(options = {}) {
 
 /** The view's root node; it always fills the view. */
 export const root = new UiNode(CONSTRUCTING, 'view', native.rootId);
+
+/**
+ * The view's overlay layer: a second root that fills the view, drawn over
+ * root and everything in it and hit first, letting pointer events through
+ * where nothing in it takes them.
+ */
+export const overlayRoot = new UiNode(CONSTRUCTING, 'view', native.overlayId);
 
 /** The view's size in logical pixels, and device pixels per logical pixel. */
 export function viewSize() {
