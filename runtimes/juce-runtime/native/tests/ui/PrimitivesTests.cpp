@@ -1,6 +1,7 @@
 #include "../web/WebTestSupport.h"
 #include "ui/Color.h"
 
+#include <chrono>
 #include <string>
 
 using namespace soundor;
@@ -255,17 +256,119 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
             root.appendChild(button);
             globalThis.stop = pressable(button, {
               onPress: (e) => log.push('press:' + e.type),
-              onStateChange: ({ pressed, hovered }) => log.push((pressed ? 'P' : 'p') + (hovered ? 'H' : 'h')),
+              onStateChange: ({ pressed, hovered, focused }) =>
+                log.push((pressed ? 'P' : 'p') + (hovered ? 'H' : 'h') + (focused ? 'F' : 'f')),
             });
         )");
         f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
         f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 10, 10, 0, 0));
-        CHECK(f.eval("log.splice(0).join(' ')").asString() == "pH PH pH press:click");
+        CHECK(f.eval("log.splice(0).join(' ')").asString() == "pHf PHf PHF pHF press:click");
         CHECK(f.eval("button.focused").asBoolean());
         CHECK(f.host.surface().key(key("Enter")));
         CHECK(f.eval("log.splice(0).join(' ')").asString() == "press:keydown");
         f.run(std::string(imports) + "stop();");
         CHECK_FALSE(f.host.surface().key(key("Enter")));
+    }
+}
+
+TEST_SUITE("soundor:ui pressable")
+{
+    // A 50×50 pressable at the top left with a 30 ms long press, logged.
+    struct PressFixture : WebFixture
+    {
+        PressFixture() : WebFixture(approximateText())
+        {
+            host.surface().setSize({ 100, 100 });
+            run(std::string(imports) + R"(
+                globalThis.log = [];
+                globalThis.button = createView({ width: 50, height: 50 });
+                root.appendChild(button);
+                globalThis.stop = pressable(button, {
+                  delayLongPress: 30,
+                  onPress: (e) => log.push('press'),
+                  onLongPress: (e) => log.push('long:' + e.type + '@' + e.locationX),
+                  onPressOut: () => log.push('out'),
+                });
+            )");
+        }
+
+        void press(ui::PointerInput::Phase phase, float x, float y, unsigned buttons = 1, int button = 0)
+        {
+            host.surface().pointer(pointer(phase, x, y, buttons, button));
+        }
+
+        std::string log() { return eval("log.splice(0).join(' ')").asString(); }
+    };
+
+    TEST_CASE("holding the primary button is a long press, and then not a press")
+    {
+        PressFixture f;
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        CHECK(f.tickUntil("log.length > 0"));
+        CHECK(f.log() == "long:pointerdown@10");
+        // Held further, with the pointer captured outside: no second one.
+        f.press(ui::PointerInput::Phase::Move, 15, 12);
+        f.tickFor(std::chrono::milliseconds(60));
+        f.press(ui::PointerInput::Phase::Up, 12, 12, 0, 0);
+        CHECK(f.log() == "out");
+        // The next press is an ordinary one again.
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        f.press(ui::PointerInput::Phase::Up, 10, 10, 0, 0);
+        CHECK(f.log() == "out press");
+    }
+
+    TEST_CASE("a short press, a cancel, moving away or another button is no long press")
+    {
+        PressFixture f;
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        f.press(ui::PointerInput::Phase::Up, 10, 10, 0, 0);
+        f.tickFor(std::chrono::milliseconds(60));
+        CHECK(f.log() == "out press");
+
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        f.press(ui::PointerInput::Phase::Cancel, 10, 10, 0, -1);
+        f.tickFor(std::chrono::milliseconds(60));
+        CHECK(f.log() == "out");
+
+        // Captured: the drag still reaches the node, which gives up the long press.
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        f.press(ui::PointerInput::Phase::Move, 80, 10);
+        f.tickFor(std::chrono::milliseconds(60));
+        f.press(ui::PointerInput::Phase::Up, 80, 10, 0, 0);
+        CHECK(f.log() == "out");
+
+        f.press(ui::PointerInput::Phase::Down, 10, 10, 2, 2);
+        f.tickFor(std::chrono::milliseconds(60));
+        f.press(ui::PointerInput::Phase::Up, 10, 10, 0, 2);
+        CHECK(f.log().empty());
+    }
+
+    TEST_CASE("undoing pressable, mid-press, stops the long press")
+    {
+        PressFixture f;
+        f.press(ui::PointerInput::Phase::Down, 10, 10);
+        f.run(std::string(imports) + "stop();");
+        f.tickFor(std::chrono::milliseconds(60));
+        CHECK(f.log().empty());
+    }
+
+    TEST_CASE("the state follows focus and blur")
+    {
+        PressFixture f;
+        f.run(std::string(imports) + R"(
+            stop();
+            globalThis.states = [];
+            const other = createView();
+            other.focusable = true;
+            root.appendChild(other);
+            pressable(button, { onStateChange: (state) => states.push(JSON.stringify(state)) });
+            button.focus();
+            other.focus();
+            globalThis.result = states.join(' ');
+        )");
+        CHECK(f.eval("result").asString()
+              == R"({"pressed":false,"hovered":false,"focused":true} )"
+                 R"({"pressed":false,"hovered":false,"focused":false})");
     }
 }
 

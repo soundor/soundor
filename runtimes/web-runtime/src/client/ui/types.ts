@@ -86,6 +86,8 @@ export interface Style {
   overflow?: 'visible' | 'hidden' | 'scroll';
   /** 'box-none': not the node, but its children; 'box-only': the reverse. */
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+  /** Stacks the node among its siblings (an integer, 0 by default). */
+  zIndex?: number;
 
   fontFamily?: string;
   fontSize?: number;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { cssFor, cssText, pointerClass, readStyle } from './style';
+import { cssFor, cssText, pointerClass, readStyle, STYLESHEET } from './style';
 
 describe('cssFor', () => {
   it('writes nothing for an empty style: the stylesheet has Yoga defaults', () => {
@@ -139,6 +139,25 @@ describe('cssFor', () => {
   it('hides with display none and serializes', () => {
     const css = cssFor({ display: 'none', position: 'absolute' }, 'view');
     expect(cssText(css)).toBe('display:none;position:absolute;');
+  });
+});
+
+describe('zIndex', () => {
+  it('stacks as CSS z-index; every node stacks its own children', () => {
+    expect(cssFor({ zIndex: 3 }, 'view')).toEqual({ 'z-index': '3' });
+    expect(cssFor({ zIndex: -1 }, 'view')).toEqual({ 'z-index': '-1' });
+    expect(STYLESHEET).toMatch(/\.sd-node \{[^}]*z-index: 0;/);
+  });
+
+  it('must be an integer, as in the JUCE runtime', () => {
+    expect(readStyle({ zIndex: 2 })).toEqual({ zIndex: 2 });
+    expect(() => readStyle({ zIndex: 1.5 })).toThrow(
+      new TypeError('style.zIndex: expected an integer, got 1.5'),
+    );
+    expect(() => readStyle({ zIndex: '2' })).toThrow(
+      new TypeError("style.zIndex: expected an integer, got '2'"),
+    );
+    expect(() => readStyle({ zIndex: 2 ** 40 })).toThrow(TypeError);
   });
 });
 

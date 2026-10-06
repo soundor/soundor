@@ -416,17 +416,27 @@ export const clipboard = Object.freeze({
   writeText: async (text) => native.writeClipboard(String(text)),
 });
 
+/** How long a press lasts before it is a long press, by default (ms). */
+const LONG_PRESS_DELAY = 500;
+/** How far a press may move (logical pixels) and still be a long press. */
+const LONG_PRESS_SLOP = 10;
+
 /**
  * Makes `node` pressable: press with the primary button (released over it)
- * or, when focused, with Enter or Space. Reports the pressed and hovered
- * state as it changes. Returns a function that undoes it.
+ * or, when focused, with Enter or Space; hold it for a long press. Reports
+ * the pressed, hovered and focused state as it changes. Returns a function
+ * that undoes it.
  */
 export function pressable(node, handlers = {}) {
   expectNode(node, 'node');
-  const state = { pressed: false, hovered: false };
+  const state = { pressed: false, hovered: false, focused: node.focused };
   const update = (change) => {
     const next = { ...state, ...change };
-    if (next.pressed === state.pressed && next.hovered === state.hovered)
+    if (
+      next.pressed === state.pressed &&
+      next.hovered === state.hovered &&
+      next.focused === state.focused
+    )
       return;
     Object.assign(state, next);
     handlers.onStateChange?.({ ...state });
@@ -436,22 +446,64 @@ export function pressable(node, handlers = {}) {
   const on = (type, listener) =>
     node.addEventListener(type, listener, { signal });
 
+  // A long press: the press held, close to where it started, until a timer.
+  let longPress = null;
+  let longPressed = false;
+  const cancelLongPress = () => {
+    if (longPress !== null) clearTimeout(longPress.timer);
+    longPress = null;
+  };
+  signal.addEventListener('abort', cancelLongPress);
+
   on('pointerdown', (event) => {
     if (event.button !== 0) return;
+    cancelLongPress();
+    longPressed = false;
     update({ pressed: true });
     handlers.onPressIn?.(event);
+    if (handlers.onLongPress !== undefined && state.pressed) {
+      const delay = handlers.delayLongPress ?? LONG_PRESS_DELAY;
+      longPress = {
+        x: event.pageX,
+        y: event.pageY,
+        timer: setTimeout(() => {
+          longPress = null;
+          if (!state.pressed) return;
+          longPressed = true;
+          handlers.onLongPress?.(event);
+        }, delay),
+      };
+    }
+  });
+  on('pointermove', (event) => {
+    if (longPress === null) return;
+    const moved = Math.hypot(
+      event.pageX - longPress.x,
+      event.pageY - longPress.y,
+    );
+    if (moved > LONG_PRESS_SLOP) cancelLongPress();
   });
   on('pointerup', (event) => {
+    cancelLongPress();
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
   on('pointercancel', (event) => {
+    cancelLongPress();
+    longPressed = false;
     if (!state.pressed) return;
     update({ pressed: false });
     handlers.onPressOut?.(event);
   });
-  on('click', (event) => handlers.onPress?.(event));
+  on('click', (event) => {
+    // A long press is not also a press.
+    if (longPressed) {
+      longPressed = false;
+      return;
+    }
+    handlers.onPress?.(event);
+  });
   on('pointerenter', (event) => {
     update({ hovered: true });
     handlers.onHoverIn?.(event);
@@ -460,6 +512,8 @@ export function pressable(node, handlers = {}) {
     update({ hovered: false });
     handlers.onHoverOut?.(event);
   });
+  on('focus', () => update({ focused: true }));
+  on('blur', () => update({ focused: false }));
   on('keydown', (event) => {
     if (event.target !== node || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -538,7 +592,21 @@ export class PointerEvent extends ModifierEvent {
     };
   }
 
-  /** Relative to the view. */
+  /** Relative to the view's top-left corner, in logical pixels. */
+  get pageX() {
+    return this.#init.clientX;
+  }
+  get pageY() {
+    return this.#init.clientY;
+  }
+  /** Relative to the target's box, in logical pixels. */
+  get locationX() {
+    return this.#init.offsetX;
+  }
+  get locationY() {
+    return this.#init.offsetY;
+  }
+  /** pageX and pageY, by their Web names. */
   get clientX() {
     return this.#init.clientX;
   }
@@ -551,7 +619,7 @@ export class PointerEvent extends ModifierEvent {
   get y() {
     return this.#init.clientY;
   }
-  /** Relative to the target. */
+  /** locationX and locationY, by their Web names. */
   get offsetX() {
     return this.#init.offsetX;
   }
@@ -676,6 +744,7 @@ const EVENT_TYPES = [
   ['focus', FocusEvent, false, false],
   ['blur', FocusEvent, false, false],
   ['scroll', Event, false, false],
+  ['contextmenu', PointerEvent, true, true],
 ];
 
 // ── Text editing: the default actions of an input's events ─────────────────

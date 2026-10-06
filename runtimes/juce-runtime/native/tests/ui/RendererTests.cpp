@@ -201,6 +201,32 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(85, 35)));
     }
 
+    TEST_CASE("zIndex draws siblings in stacking order, as they are hit")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            const box = (color, zIndex) =>
+              createView({ position: 'absolute', left: 0, top: 0, width: 50, height: 50, backgroundColor: color, zIndex });
+            globalThis.red = box('red', 1);
+            globalThis.blue = box('blue', 0);
+            root.appendChild(red);
+            root.appendChild(blue);
+        )");
+        f.render();
+        CHECK(isRed(f.at(25, 25)));
+        CHECK(f.host.surface().hitTest({ 25, 25 }) != f.host.surface().root().id());
+        f.run(std::string(imports) + "blue.style = { ...blue.style, zIndex: 1 };");
+        f.render();
+        CHECK(isBlue(f.at(25, 25)));
+        // A child's zIndex stays inside its parent's place among siblings.
+        f.run(std::string(imports) + R"(
+            red.appendChild(createView({ width: 20, height: 20, backgroundColor: 'red', zIndex: 99 }));
+            blue.style = { ...blue.style, zIndex: 2 };
+        )");
+        f.render();
+        CHECK(isBlue(f.at(10, 10)));
+    }
+
     TEST_CASE("scroll views clip and offset their content")
     {
         RenderFixture f;

@@ -260,6 +260,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.overflow, choice<Overflow>("overflow", overflows));
                 assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
                 assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
+                if (Property zIndex(ctx, style, "zIndex"); zIndex.present())
+                {
+                    double value = 0;
+                    if (! JS_IsNumber(zIndex.value) || JS_ToFloat64(ctx, &value, zIndex.value) < 0
+                        || std::trunc(value) != value || std::abs(value) > 2147483647.0)
+                        fail(zIndex, "an integer");
+                    out.zIndex = static_cast<int>(value);
+                }
 
                 // `flex` as in React Native; the longhands win over it.
                 if (const auto flex = number("flex"))
@@ -728,6 +736,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::PointerEnter:
                 case Event::Type::PointerLeave:
                 case Event::Type::Click:
+                case Event::Type::ContextMenu:
                     data.set("x", JS_NewFloat64(ctx, event.position.x));
                     data.set("y", JS_NewFloat64(ctx, event.position.y));
                     data.set("offsetX", JS_NewFloat64(ctx, event.offset.x));

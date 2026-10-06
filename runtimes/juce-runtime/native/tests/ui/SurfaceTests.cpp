@@ -31,7 +31,7 @@ namespace
                 {
                     static constexpr const char* names[] = { "down",  "move",  "up",    "cancel",  "enter",
                                                              "leave", "click", "wheel", "keydown", "keyup",
-                                                             "input", "focus", "blur" };
+                                                             "input", "focus", "blur",  "scroll",  "contextmenu" };
                     events.push_back(std::string(names[static_cast<int>(event.type)]) + "@"
                                      + std::to_string(event.target));
                     last = event;
@@ -348,6 +348,62 @@ TEST_SUITE("ui::Surface hit testing")
         CHECK(surface.hitTest({ 50, 50 }) == over);
     }
 
+    TEST_CASE("zIndex stacks siblings for hit testing and leaves layout alone")
+    {
+        Surface surface;
+        surface.setSize({ 300, 100 });
+        const NodeId root = surface.root().id();
+        Style row;
+        row.flexDirection = FlexDirection::Row;
+        surface.setStyle(root, row);
+        // Three 100×100 boxes in a row, then each moved over the first.
+        const NodeId first = surface.createNode(NodeType::View);
+        const NodeId second = surface.createNode(NodeType::View);
+        const NodeId third = surface.createNode(NodeType::View);
+        for (const NodeId id : { first, second, third })
+        {
+            surface.setStyle(id, sized(100, 100));
+            surface.insertChild(root, id);
+        }
+        Style raised = sized(100, 100);
+        raised.zIndex = 1;
+        surface.setStyle(second, raised);
+        CHECK(surface.bounds(second).x == 100);
+        CHECK(surface.root().children()[1]->id() == second);
+
+        // Overlapping: the highest zIndex wins, then the later sibling.
+        Style over = sized(100, 100);
+        over.position = Position::Absolute;
+        over.zIndex = 2;
+        surface.setStyle(first, over);
+        over.zIndex = 1;
+        surface.setStyle(second, over);
+        surface.setStyle(third, over);
+        CHECK(surface.hitTest({ 50, 50 }) == first);
+        over.zIndex = 2;
+        surface.setStyle(third, over);
+        CHECK(surface.hitTest({ 50, 50 }) == third);
+        over.zIndex = -1;
+        surface.setStyle(third, over);
+        surface.setStyle(first, over);
+        CHECK(surface.hitTest({ 50, 50 }) == second);
+        CHECK(std::vector(surface.root().stackedChildren().begin(), surface.root().stackedChildren().end())
+              == std::vector { surface.find(first), surface.find(third), surface.find(second) });
+
+        // A child's zIndex counts among its siblings only.
+        const NodeId child = surface.createNode(NodeType::View);
+        Style top = sized(100, 100);
+        top.zIndex = 1000;
+        surface.setStyle(child, top);
+        surface.insertChild(first, child);
+        CHECK(surface.hitTest({ 50, 50 }) == second);
+        // Removing restacks too.
+        surface.removeChild(root, second);
+        CHECK(surface.hitTest({ 50, 50 }) == third);
+        surface.removeChild(root, third);
+        CHECK(surface.hitTest({ 50, 50 }) == child);
+    }
+
     TEST_CASE("pointerEvents and overflow")
     {
         Row f;
@@ -430,6 +486,62 @@ TEST_SUITE("ui::Surface input")
         f.surface.pointer(pointer(PointerInput::Phase::Up, 10, 10, 0, 2));
         const auto events = r.take();
         CHECK(std::find(events.begin(), events.end(), at(f.a, "click")) == events.end());
+    }
+
+    TEST_CASE("the secondary button asks for a context menu at the pressed node")
+    {
+        Row f;
+        Recorder r(f.surface);
+        f.surface.pointer(move(110, 10));
+        r.take();
+        f.surface.pointer(pointer(PointerInput::Phase::Down, 115, 20, 2, 2));
+        CHECK(r.take() == std::vector { at(f.inner, "down"), at(f.inner, "contextmenu") });
+        CHECK(r.last.button == 2);
+        CHECK(r.last.buttons == 2);
+        CHECK(r.last.position.x == 115);
+        CHECK(r.last.offset.x == 15);
+        CHECK(r.last.offset.y == 20);
+        f.surface.pointer(pointer(PointerInput::Phase::Up, 115, 20, 0, 2));
+        CHECK(r.take() == std::vector { at(f.inner, "up") });
+        // Not the primary or middle buttons; and not where nothing is hit.
+        f.surface.pointer(down(110, 10));
+        f.surface.pointer(up(110, 10));
+        f.surface.pointer(pointer(PointerInput::Phase::Down, 110, 10, 4, 1));
+        f.surface.pointer(pointer(PointerInput::Phase::Up, 110, 10, 0, 1));
+        const auto events = r.take();
+        CHECK(std::find(events.begin(), events.end(), at(f.inner, "contextmenu")) == events.end());
+        f.surface.pointer(pointer(PointerInput::Phase::Down, 250, 10, 2, 2));
+        CHECK(r.take() == std::vector { at(f.inner, "leave"), at(f.b, "leave"), at(f.root, "leave") });
+    }
+
+    TEST_CASE("positions are logical, and bounds follow scrolling where frames do not")
+    {
+        Surface surface;
+        surface.setSize({ 100, 100 });
+        surface.setScale(2);
+        const NodeId scroller = surface.createNode(NodeType::Scroll);
+        Style box = sized(100, 50);
+        box.padding = { Length::points(5), Length::points(5), Length::points(5), Length::points(5) };
+        surface.setStyle(scroller, box);
+        surface.insertChild(surface.root().id(), surface.createNode(NodeType::View));
+        surface.setStyle(surface.root().children()[0]->id(), sized(100, 20));
+        surface.insertChild(surface.root().id(), scroller);
+        const NodeId item = surface.createNode(NodeType::View);
+        surface.setStyle(item, sized(50, 200));
+        surface.insertChild(scroller, item);
+        surface.scrollTo(scroller, { 0, 30 });
+
+        CHECK(surface.find(item)->frame().y == 5);
+        CHECK(surface.bounds(item).y == 20 + 5 - 30);
+        CHECK(surface.bounds(item).height == 200);
+
+        Recorder r(surface);
+        surface.pointer(down(15, 40));
+        CHECK(r.last.target == item);
+        CHECK(r.last.position.x == 15);
+        CHECK(r.last.position.y == 40);
+        CHECK(r.last.offset.x == 10);
+        CHECK(r.last.offset.y == 45);
     }
 
     TEST_CASE("cancel ends the capture without a click")

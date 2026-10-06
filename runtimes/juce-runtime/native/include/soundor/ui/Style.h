@@ -217,6 +217,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Overflow overflow = Overflow::Visible;
         PointerEvents pointerEvents = PointerEvents::Auto;
+        // Stacks the node among its siblings: higher is drawn over and hit
+        // before lower; equal keeps tree order. Layout ignores it.
+        int zIndex = 0;
 
         Color backgroundColor;
         Color borderColor = black;

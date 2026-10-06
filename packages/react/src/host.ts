@@ -88,6 +88,7 @@ const EVENT_PROPS: Readonly<Record<string, string>> = {
   onPointerEnter: 'pointerenter',
   onPointerLeave: 'pointerleave',
   onClick: 'click',
+  onContextMenu: 'contextmenu',
   onWheel: 'wheel',
   onKeyDown: 'keydown',
   onKeyUp: 'keyup',

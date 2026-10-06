@@ -23,6 +23,9 @@ export const STYLESHEET = `
   position: relative; min-width: 0; min-height: 0; margin: 0; padding: 0;
   border: 0 solid #000; outline: none; pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
+  /* Every node stacks its own children, as in the JUCE runtime: zIndex
+     orders siblings and never reaches past their parent. */
+  z-index: 0;
 }
 .sd-text, .sd-input {
   color: #000; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -223,6 +226,14 @@ export function readStyle(value: unknown): Style {
   for (const key of COLORS) {
     if (key in style && !isColor(style[key])) fail(key, 'a CSS color');
   }
+  // Integers CSS and the JUCE runtime both keep as they are.
+  const zIndex = style['zIndex'];
+  if (
+    'zIndex' in style &&
+    !(Number.isInteger(zIndex) && Math.abs(zIndex as number) <= 2147483647)
+  ) {
+    fail('zIndex', 'an integer');
+  }
   if ('fontFamily' in style && typeof style['fontFamily'] !== 'string') {
     fail('fontFamily', 'a string');
   }
@@ -380,6 +391,7 @@ export function cssFor(style: Style, type: NodeType): Css {
     const value = style[key];
     if (value !== undefined) css[property] = px(value);
   }
+  if (style.zIndex !== undefined) css['z-index'] = String(style.zIndex);
   if (style.opacity !== undefined) {
     css['opacity'] = String(Math.min(1, Math.max(0, style.opacity)));
   }
