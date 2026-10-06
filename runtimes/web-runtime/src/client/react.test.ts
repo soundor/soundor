@@ -7,6 +7,7 @@ import {
   createRoot,
   FocusScope,
   flushSync,
+  Modal,
   Portal,
   Image,
   Pressable,
@@ -16,7 +17,12 @@ import {
   View,
 } from '@soundor/react';
 import { createElement as h, useState } from 'react';
-import { overlayRoot, root } from 'soundor:ui';
+import {
+  overlayRoot,
+  root,
+  type LayoutRect,
+  type UiNode as PluginNode,
+} from 'soundor:ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { uiView } from './context';
@@ -283,5 +289,184 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     tab();
     expect(seen).toEqual(['a', 'menu', 'a']);
     flushSync(() => reactRoot.unmount());
+  });
+
+  describe('building overlays', () => {
+    /** Lays elements out by hand (happy-dom has none); the view at (0, 0). */
+    function layout(rects: Map<Element, DOMRect>) {
+      vi.spyOn(
+        HTMLElement.prototype,
+        'getBoundingClientRect',
+      ).mockImplementation(function (this: HTMLElement) {
+        if (this === view.rootElement) return new DOMRect(0, 0, 800, 600);
+        return rects.get(this) ?? new DOMRect();
+      });
+    }
+    const at = (node: object) => {
+      vi.spyOn(document, 'elementFromPoint').mockReturnValue(element(node));
+    };
+
+    it('a custom context menu at the pointer: onContextMenu, pageX/Y and Portal', () => {
+      layout(new Map());
+      function Track() {
+        const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+        return h(
+          View,
+          {
+            style: { overflow: 'hidden' },
+            onContextMenu: (event: {
+              pageX: number;
+              pageY: number;
+              preventDefault(): void;
+            }) => {
+              event.preventDefault();
+              setMenu({ x: event.pageX, y: event.pageY });
+            },
+          },
+          menu &&
+            h(
+              Portal,
+              null,
+              h(View, {
+                style: { position: 'absolute', left: menu.x, top: menu.y },
+              }),
+            ),
+        );
+      }
+      const reactRoot = render(h(Track));
+      at(root.children[0]!);
+      const native = new window.MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 45,
+        button: 2,
+      });
+      flushSync(() => view.rootElement.dispatchEvent(native));
+      expect(native.defaultPrevented).toBe(true);
+      const menu = overlayRoot.children[0]!.children[0]!;
+      expect(element(menu).style.left).toBe('120px');
+      expect(element(menu).style.top).toBe('45px');
+      flushSync(() => reactRoot.unmount());
+    });
+
+    it('a tooltip and a dropdown placed from getBoundingClientRect, out of clipping', () => {
+      function Picker() {
+        const [trigger, setTrigger] = useState<PluginNode | null>(null);
+        const [box, setBox] = useState<LayoutRect | null>(null);
+        return h(
+          View,
+          { style: { overflow: 'hidden', height: 50 } },
+          h(
+            ScrollView,
+            null,
+            h(Pressable, {
+              ref: setTrigger,
+              onPress: () => setBox(trigger!.getBoundingClientRect()),
+            }),
+          ),
+          box &&
+            h(
+              Portal,
+              null,
+              h(View, {
+                style: {
+                  position: 'absolute',
+                  left: box.x,
+                  top: box.y + box.height,
+                },
+              }),
+            ),
+        );
+      }
+      const reactRoot = render(h(Picker));
+      const pressable =
+        root.children[0]!.children[0]!.children[0]!.children[0]!;
+      layout(new Map([[element(pressable), new DOMRect(30, 40, 100, 20)]]));
+      at(pressable);
+      const pointer = (type: string, buttons: number) =>
+        view.rootElement.dispatchEvent(
+          new window.PointerEvent(type, {
+            bubbles: true,
+            clientX: 35,
+            clientY: 45,
+            button: 0,
+            buttons,
+            pointerId: 1,
+          }),
+        );
+      flushSync(() => pointer('pointerdown', 1));
+      flushSync(() => pointer('pointerup', 0));
+      const dropdown = overlayRoot.children[0]!.children[0]!;
+      expect(element(dropdown).style.left).toBe('30px');
+      expect(element(dropdown).style.top).toBe('60px');
+      // Out of the clipping view and the scroll view.
+      expect(element(root).contains(element(dropdown))).toBe(false);
+      flushSync(() => reactRoot.unmount());
+    });
+
+    it('a Modal over the browser input: Escape, Tab, backdrop press', () => {
+      const requests: string[] = [];
+      const app = (open: boolean) =>
+        h(View, null, [
+          h(View, { focusable: true, key: 'button' }),
+          open &&
+            h(
+              Modal,
+              {
+                key: 'modal',
+                dismissOnBackdropPress: true,
+                onRequestClose: () => requests.push('close'),
+              },
+              h(View, { focusable: true }),
+              h(View, { focusable: true }),
+            ),
+        ]);
+      const reactRoot = render(app(false));
+      const button = root.children[0]!.children[0]!;
+      button.focus();
+      flushSync(() => reactRoot.render(app(true)));
+      const [backdrop, content] = overlayRoot.children[0]!.children;
+      const [first, second] = content!.children;
+      expect(first!.focused).toBe(true);
+      const key = (name: string) =>
+        view.rootElement.dispatchEvent(
+          new window.KeyboardEvent('keydown', {
+            key: name,
+            bubbles: true,
+            cancelable: true,
+          }),
+        );
+      key('Tab');
+      key('Tab');
+      expect(first!.focused).toBe(true);
+      key('Tab');
+      expect(second!.focused).toBe(true);
+      key('Escape');
+      expect(requests).toEqual(['close']);
+
+      at(backdrop!);
+      for (const [type, buttons] of [
+        ['pointerdown', 1],
+        ['pointerup', 0],
+      ] as const) {
+        view.rootElement.dispatchEvent(
+          new window.PointerEvent(type, {
+            bubbles: true,
+            clientX: 5,
+            clientY: 5,
+            button: 0,
+            buttons,
+            pointerId: 1,
+          }),
+        );
+      }
+      expect(requests).toEqual(['close', 'close']);
+      // The press kept focus in the dialog.
+      expect(second!.focused).toBe(true);
+      flushSync(() => reactRoot.render(app(false)));
+      expect(button.focused).toBe(true);
+      flushSync(() => reactRoot.unmount());
+    });
   });
 });

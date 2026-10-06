@@ -264,6 +264,23 @@ describe('Pressable', () => {
 });
 
 describe('Pressable state and long presses', () => {
+  it('renders a press before the next task, as event props do', async () => {
+    function Toggle() {
+      const [on, setOn] = useState(false);
+      return (
+        <Pressable onPress={() => setOn(true)}>
+          <Text>{on ? 'on' : 'off'}</Text>
+        </Pressable>
+      );
+    }
+    show(<Toggle />);
+    await settle();
+    fire(child(0), 'click');
+    // Microtasks only: no timer has run.
+    for (let i = 0; i < 3; ++i) await Promise.resolve();
+    expect(print()).toBe('view[view[text"on"]]');
+  });
+
   it('styles by focus, from focus and blur', async () => {
     show(
       <Pressable style={({ focused }) => ({ opacity: focused ? 0.5 : 1 })} />,

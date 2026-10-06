@@ -118,8 +118,11 @@ const CONTINUOUS = new Set([
 let currentUpdatePriority: number = NoEventPriority;
 let currentEventPriority: number = DefaultEventPriority;
 
-/** Runs a listener with the update priority its event deserves. */
-function prioritized(type: string, run: () => void): void {
+/**
+ * Runs a listener with the update priority its event deserves: discrete
+ * input (a press, a key) renders before the next task.
+ */
+export function prioritized(type: string, run: () => void): void {
   const previous = currentEventPriority;
   currentEventPriority = CONTINUOUS.has(type)
     ? ContinuousEventPriority

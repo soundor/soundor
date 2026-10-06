@@ -24,6 +24,7 @@ export {
   type ViewProps,
 } from './components';
 export { FocusScope, type FocusScopeProps } from './focus';
+export { Modal, type ModalProps } from './modal';
 export { useAnimationFrame, useParameter, type ParameterLike } from './hooks';
 export {
   createPortalHost,

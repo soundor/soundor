@@ -175,8 +175,8 @@ export interface FocusScopeProps {
   children?: ReactNode;
   /**
    * Keeps focus inside: Tab and Shift+Tab cycle through the scope's
-   * focusable nodes, and focus moved outside comes back. The innermost
-   * trapping scope wins.
+   * focusable nodes, and focus moved outside comes back (focus outside when
+   * the trap starts is dropped). The innermost trapping scope wins.
    */
   trapped?: boolean;
   /** On mount, focuses the first focusable node unless focus is inside. */
@@ -211,6 +211,10 @@ export function FocusScope({
   useLayoutEffect(() => {
     if (!trapped) return undefined;
     addTrap(scope);
+    // Keys must not reach a node outside: it loses focus (autoFocus, next,
+    // may give focus to a member).
+    const current = focusedNode();
+    if (current !== null && !within(current, scope)) current.blur();
     return () => removeTrap(scope);
   }, [scope, trapped]);
 
