@@ -15,6 +15,7 @@
 
 #include "a11y/accesskit/AccessKitPlatform.h"
 
+#include "a11y/PlatformSupport.h"
 #include "a11y/accesskit/Mapping.h"
 
 #include <soundor/runtime/RuntimeHost.h>
@@ -22,77 +23,22 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #if defined(_WIN32)
     #include <commctrl.h>
-#else
-    #include <dlfcn.h>
 #endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
 {
     namespace
     {
-        struct Registry
-        {
-            std::mutex mutex;
-            std::unordered_map<std::uintptr_t, std::weak_ptr<Channel>> channels;
-            std::uintptr_t last = 0;
-        };
-
-        // Never destroyed: a platform thread may call back while the process
-        // exits.
-        Registry& registry()
-        {
-            static auto* instance = new Registry; // NOLINT(cppcoreguidelines-owning-memory)
-            return *instance;
-        }
-
-        std::uintptr_t enroll(const std::shared_ptr<Channel>& channel)
-        {
-            Registry& all = registry();
-            const std::scoped_lock lock(all.mutex);
-            all.channels.emplace(++all.last, channel);
-            return all.last;
-        }
-
-        void withdraw(std::uintptr_t token)
-        {
-            Registry& all = registry();
-            const std::scoped_lock lock(all.mutex);
-            all.channels.erase(token);
-        }
+        using Channels = Registry<Channel>;
 
         std::shared_ptr<Channel> channelOf(void* userdata)
         {
-            Registry& all = registry();
-            const std::scoped_lock lock(all.mutex);
-            const auto found = all.channels.find(reinterpret_cast<std::uintptr_t>(userdata));
-            return found == all.channels.end() ? nullptr : found->second.lock();
-        }
-
-        // Keeps this binary loaded for the rest of the process.
-        void pinModule()
-        {
-            static std::once_flag pinned;
-            std::call_once(pinned,
-                           []
-                           {
-                               static const char anchor = 0;
-#if defined(_WIN32)
-                               HMODULE module = nullptr;
-                               GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-                                                      | GET_MODULE_HANDLE_EX_FLAG_PIN,
-                                                  reinterpret_cast<LPCWSTR>(&anchor), &module);
-#else
-                               Dl_info info {};
-                               if (dladdr(&anchor, &info) != 0 && info.dli_fname != nullptr)
-                                   dlopen(info.dli_fname, RTLD_NOW | RTLD_NOLOAD | RTLD_NODELETE);
-#endif
-                           });
+            return Channels::instance().find(reinterpret_cast<std::uintptr_t>(userdata));
         }
     } // namespace
 
@@ -147,14 +93,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
     // ── The platform-independent part ───────────────────────────────────────
 
     AccessKitPlatform::AccessKitPlatform(std::string name)
-        : channel(std::make_shared<Channel>()), channelToken(enroll(channel))
+        : channel(std::make_shared<Channel>()), channelToken(Channels::instance().enroll(channel))
     {
         presentation.name = std::move(name);
     }
 
     AccessKitPlatform::~AccessKitPlatform()
     {
-        withdraw(channelToken);
+        Channels::instance().withdraw(channelToken);
     }
 
     void AccessKitPlatform::tick(RuntimeHost& host)

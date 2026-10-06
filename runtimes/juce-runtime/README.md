@@ -143,8 +143,10 @@ The view is accessible to screen readers through Soundor's own semantics
 backend where the view is: its peer's native window, the surface's place
 and scale in it, and whether it has focus. On Windows (UI Automation) and
 Linux x64 (AT-SPI) that backend is AccessKit, fetched prebuilt and pinned
-(no Rust toolchain needed). macOS and iOS get Soundor's own bridge later;
-until then they have no platform accessibility. See
+(no Rust toolchain needed). On macOS it is Soundor's own VoiceOver bridge:
+the editor hands JUCE a container of Soundor's elements as its native
+accessibility child (`AccessibilityHandler::setNativeChildForComponent`),
+JUCE's only part in it. See
 [`native/README.md`](./native/README.md#platform-accessibility).
 
 A plugin binary then contains AccessKit (MIT or Apache-2.0, with Chromium

@@ -33,6 +33,7 @@ endif()
 
 set(SOUNDOR_RUNTIME_SOURCES
   src/a11y/Platform.cpp
+  src/a11y/PlatformSupport.cpp
   src/a11y/Semantics.cpp
   src/a11y/SurfaceSemantics.cpp
   src/js/Bindings.cpp
@@ -62,6 +63,11 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/web/Random.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
+# macOS: Soundor's own accessibility bridge (Objective-C++, ARC).
+if(APPLE AND NOT IOS)
+  enable_language(OBJCXX)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm)
+endif()
 if(SOUNDOR_HAS_ACCESSKIT)
   list(APPEND SOUNDOR_RUNTIME_SOURCES
     src/a11y/accesskit/AccessKitPlatform.cpp
@@ -90,6 +96,9 @@ function(soundor_configure_runtime target namespace)
     PRIVATE ${PROJECT_SOURCE_DIR}/src)
   # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
   target_link_libraries(${target} PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
+  if(APPLE AND NOT IOS)
+    target_link_libraries(${target} PRIVATE "-framework AppKit")
+  endif()
   if(SOUNDOR_HAS_ACCESSKIT)
     target_link_libraries(${target} PRIVATE soundor_accesskit)
     target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
@@ -100,6 +109,14 @@ function(soundor_configure_runtime target namespace)
     target_link_libraries(${target} PRIVATE bcrypt) # crypto.getRandomValues
   endif()
   soundor_configure_target(${target})
+  # Objective-C++ (the macOS bridge): C++20 and hidden like the rest, ARC,
+  # and bridged casts that look like C casts.
+  set_target_properties(${target} PROPERTIES
+    OBJCXX_STANDARD 20
+    OBJCXX_STANDARD_REQUIRED ON
+    OBJCXX_EXTENSIONS OFF
+    OBJCXX_VISIBILITY_PRESET hidden)
+  target_compile_options(${target} PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
 endfunction()
 
 soundor_configure_runtime(soundor_runtime ${SOUNDOR_ABI_NAMESPACE})
