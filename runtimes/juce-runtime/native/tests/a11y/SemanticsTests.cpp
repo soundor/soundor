@@ -555,6 +555,37 @@ TEST_SUITE("a11y semantics")
         CHECK(f.node("Name").value.text == "New name");
     }
 
+    TEST_CASE("keyboard focus moves only when asked: activating an input, not reading text")
+    {
+        A11yFixture f;
+        f.build(std::string(R"(
+            const input = createTextInput();
+            input.accessibility = { label: 'Name' };
+            root.appendChild(input);
+            root.appendChild(createText('Static'));
+            const other = createTextInput();
+            other.accessibility = { label: 'Other' };
+            root.appendChild(other);
+            globalThis.input = input;
+            globalThis.other = other;
+        )"));
+        f.run("other.focus();");
+        // Reading the tree, however often, leaves keyboard focus alone.
+        for (int i = 0; i < 3; ++i)
+            f.sync();
+        CHECK(f.eval("other.focused").asBoolean());
+        // Text cannot be focused: the request is refused, focus stays.
+        CHECK_FALSE(f.perform("Static", a11y::Action::Focus));
+        CHECK_FALSE(f.perform("Static", a11y::Action::Activate));
+        CHECK(f.eval("other.focused").asBoolean());
+        // Activating an input starts editing it.
+        CHECK(f.node("Name").supports(a11y::Action::Activate));
+        CHECK(f.perform("Name", a11y::Action::Activate));
+        CHECK(f.eval("input.focused").asBoolean());
+        f.sync();
+        CHECK(f.adapter.tree.focus() == f.element("Name"));
+    }
+
     TEST_CASE("a modal element hides everything else, and the last one shown wins")
     {
         A11yFixture f;

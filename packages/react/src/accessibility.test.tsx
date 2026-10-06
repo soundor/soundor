@@ -369,3 +369,81 @@ describe('Modal and Portal', () => {
     ]);
   });
 });
+
+describe('cooperation', () => {
+  it('a modal closes on assistive technology escape, the topmost first', () => {
+    const closed: string[] = [];
+    show(
+      <Modal onRequestClose={() => closed.push('outer')}>
+        <Modal onRequestClose={() => closed.push('inner')}>
+          <Text>Inner</Text>
+        </Modal>
+      </Modal>,
+    );
+    const [outer, inner] = overlayRoot.children as FakeNode[];
+    expect(outer!.accessibility['actions']).toEqual([{ name: 'escape' }]);
+    // Asked of something inside the inner dialog, bubbling up.
+    const event = act(inner!.children[1]!, 'escape');
+    expect(event.defaultPrevented).toBe(true);
+    expect(closed).toEqual(['inner']);
+    // Other actions are not a dismissal.
+    act(inner!, 'activate');
+    expect(closed).toEqual(['inner']);
+  });
+
+  it('a modal without onRequestClose offers no escape', () => {
+    show(<Modal accessibilityLabel="Busy" />);
+    expect(
+      (overlayRoot.children[0] as FakeNode).accessibility['actions'],
+    ).toBeUndefined();
+  });
+
+  it('an accessible knob: pointer, keys and assistive technology change one state', async () => {
+    function Knob() {
+      const [gain, setGain] = useState(-3.5);
+      const change = (next: number) =>
+        setGain(Math.min(12, Math.max(-60, next)));
+      return (
+        <View
+          focusable
+          accessibilityRole="adjustable"
+          accessibilityLabel="Gain"
+          accessibilityValue={{
+            min: -60,
+            max: 12,
+            now: gain,
+            text: `${gain} dB`,
+          }}
+          accessibilityActions={[
+            { name: 'increment' },
+            { name: 'decrement' },
+            { name: 'setValue' },
+          ]}
+          onAccessibilityAction={(event) => {
+            if (event.actionName === 'increment') change(gain + 0.5);
+            if (event.actionName === 'decrement') change(gain - 0.5);
+            if (event.actionName === 'setValue') change(Number(event.value));
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp') change(gain + 0.5);
+          }}
+          onWheel={(event) => change(gain - event['deltaY'] / 100)}
+        />
+      );
+    }
+    show(<Knob />);
+    const value = () => child(0).accessibility['value'];
+    expect(value()).toEqual({ min: -60, max: 12, now: -3.5, text: '-3.5 dB' });
+    flushSync(() => act(child(0), 'increment'));
+    expect(value()).toMatchObject({ now: -3, text: '-3 dB' });
+    flushSync(() => fire(child(0), 'keydown', { key: 'ArrowUp' }));
+    expect(value()).toMatchObject({ now: -2.5 });
+    flushSync(() => fire(child(0), 'wheel', { deltaY: 50 }));
+    expect(value()).toMatchObject({ now: -3 });
+    flushSync(() => act(child(0), 'setValue', 6.25));
+    expect(value()).toMatchObject({ now: 6.25, text: '6.25 dB' });
+    flushSync(() => act(child(0), 'decrement'));
+    expect(value()).toMatchObject({ now: 5.75 });
+    await settle();
+  });
+});
