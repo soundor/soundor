@@ -18,6 +18,7 @@ import {
 } from 'react';
 import {
   focusedNode,
+  overlayRoot,
   root,
   type FocusEvent,
   type KeyboardEvent,
@@ -69,7 +70,7 @@ function within(node: UiNode, scope: Scope): boolean {
 // ── The view's trees ──────────────────────────────────────────────────────────
 
 /** The root nodes focus can be in, in sequential order. */
-const roots: UiNode[] = [root];
+const roots: UiNode[] = [root, overlayRoot];
 
 function displayed(node: UiNode): boolean {
   for (let at: UiNode | null = node; at !== null; at = at.parent)

@@ -35,8 +35,12 @@ interface PointerState {
 const elementOf = (node: UiNode): HTMLElement => UiNode.elementOf(node);
 
 export class UiView implements ViewLink {
+  /** The view's element: the surface both roots fill, and take input on. */
   readonly rootElement: HTMLElement;
+  /** The content. */
   readonly root: UiNode;
+  /** The overlay layer: over all of the content, and hit before it. */
+  readonly overlay: UiNode;
   readonly #pointers = new Map<number, PointerState>();
   readonly #committed = new WeakMap<UiNode, string>();
   readonly #controller = new AbortController();
@@ -55,9 +59,17 @@ export class UiView implements ViewLink {
       document.head.append(style);
     }
     this.rootElement = document.createElement('div');
+    this.rootElement.className = 'sd-surface';
     this.rootElement.tabIndex = -1;
     this.rootElement.style.touchAction = 'none';
-    this.root = createNode(this, 'view', this.rootElement);
+    this.root = createNode(this, 'view', document.createElement('div'));
+    this.overlay = createNode(
+      this,
+      'view',
+      document.createElement('div'),
+      true,
+    );
+    this.rootElement.append(elementOf(this.root), elementOf(this.overlay));
     this.#listen();
   }
 
@@ -113,8 +125,10 @@ export class UiView implements ViewLink {
     if (moveDomFocus) {
       this.#movingFocus = true;
       try {
-        // The root keeps the keyboard when no node has focus.
-        elementOf(node ?? this.root).focus({ preventScroll: true });
+        // The view keeps the keyboard when no node has focus.
+        (node === null ? this.rootElement : elementOf(node)).focus({
+          preventScroll: true,
+        });
       } finally {
         this.#movingFocus = false;
       }
@@ -142,6 +156,7 @@ export class UiView implements ViewLink {
       for (const child of node.children) collect(child);
     };
     collect(this.root);
+    collect(this.overlay);
     if (order.length === 0) return false;
     const index = order.indexOf(this.focusedNode()!);
     const next =

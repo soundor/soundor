@@ -841,7 +841,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                        JS_NewCFunction(ctx, function.call, function.name, function.length))
                     != 0)
                     return false;
-            return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0;
+            return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0
+                   && JS_SetModuleExport(ctx, module, "overlayId", JS_NewUint32(ctx, surface->overlay().id())) == 0;
         }
     } // namespace
 
@@ -852,7 +853,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         JSContext* ctx = js::rawContext(context);
         surface->setEventSink([ctx](const Event& event) { return dispatch(ctx, event); });
         bind::setContextData(context, &bindingKey, std::make_shared<Binding>(std::move(surface)));
-        std::vector<std::string> exports { "rootId" };
+        std::vector<std::string> exports { "rootId", "overlayId" };
         for (const Function& function : functions)
             exports.emplace_back(function.name);
         js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });

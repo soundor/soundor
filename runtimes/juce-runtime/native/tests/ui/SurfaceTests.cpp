@@ -404,6 +404,44 @@ TEST_SUITE("ui::Surface hit testing")
         CHECK(surface.hitTest({ 50, 50 }) == child);
     }
 
+    TEST_CASE("the overlay is a second root, over the content and hit before it")
+    {
+        Surface surface;
+        surface.setSize({ 200, 100 });
+        const NodeId root = surface.root().id();
+        const NodeId overlay = surface.overlay().id();
+        Style padded;
+        padded.padding = { Length::points(30), Length::points(30), Length::points(30), Length::points(30) };
+        surface.setStyle(root, padded);
+        const NodeId content = surface.createNode(NodeType::View);
+        Style top = sized(100, 100);
+        top.position = Position::Absolute;
+        top.zIndex = 2147483647;
+        surface.setStyle(content, top);
+        surface.insertChild(root, content);
+        const NodeId floating = surface.createNode(NodeType::View);
+        surface.setStyle(floating, sized(50, 50));
+        surface.insertChild(overlay, floating);
+
+        // Laid out on its own, from the view's corner, and connected.
+        CHECK(surface.isConnected(floating));
+        CHECK(surface.bounds(floating).x == 0);
+        CHECK(surface.bounds(floating).y == 0);
+        CHECK(surface.find(overlay)->frame().width == 200);
+        // Hit first whatever the content's zIndex; elsewhere, the content.
+        CHECK(surface.hitTest({ 10, 10 }) == floating);
+        CHECK(surface.hitTest({ 80, 80 }) == content);
+        CHECK(surface.hitTest({ 150, 50 }) == root);
+        // Still a root: not a child, never released.
+        CHECK_THROWS_AS(surface.insertChild(content, overlay), std::invalid_argument);
+        CHECK_THROWS_AS(surface.releaseNode(overlay), std::invalid_argument);
+        // Its own pointerEvents never block the content.
+        Style blocking;
+        blocking.pointerEvents = PointerEvents::Auto;
+        surface.setStyle(overlay, blocking);
+        CHECK(surface.hitTest({ 80, 80 }) == content);
+    }
+
     TEST_CASE("pointerEvents and overflow")
     {
         Row f;
@@ -542,6 +580,40 @@ TEST_SUITE("ui::Surface input")
         CHECK(r.last.position.y == 40);
         CHECK(r.last.offset.x == 10);
         CHECK(r.last.offset.y == 45);
+    }
+
+    TEST_CASE("hover and focus move between the content and the overlay")
+    {
+        Row f;
+        const NodeId overlay = f.surface.overlay().id();
+        const NodeId floating = f.surface.createNode(NodeType::View);
+        Style box = sized(50, 50);
+        box.position = Position::Absolute;
+        box.inset.left = Length::points(100);
+        f.surface.setStyle(floating, box);
+        f.surface.insertChild(overlay, floating);
+        f.surface.setFocusable(f.a, true);
+        f.surface.setFocusable(floating, true);
+
+        Recorder r(f.surface);
+        f.surface.pointer(move(10, 10));
+        r.take();
+        f.surface.pointer(move(110, 10));
+        CHECK(r.take()
+              == std::vector { at(f.a, "leave"), at(f.root, "leave"), at(overlay, "enter"), at(floating, "enter"),
+                               at(floating, "move") });
+        // A press and release across the layers clicks nothing.
+        f.surface.pointer(down(110, 10));
+        f.surface.pointer(up(10, 10));
+        const auto events = r.take();
+        CHECK(std::find(events.begin(), events.end(), at(f.root, "click")) == events.end());
+        CHECK(std::find(events.begin(), events.end(), at(overlay, "click")) == events.end());
+        // Tab goes through the content, then the overlay.
+        f.surface.focus(f.a);
+        CHECK(f.surface.key(key("Tab")));
+        CHECK(f.surface.focused() == floating);
+        CHECK(f.surface.key(key("Tab")));
+        CHECK(f.surface.focused() == f.a);
     }
 
     TEST_CASE("cancel ends the capture without a click")

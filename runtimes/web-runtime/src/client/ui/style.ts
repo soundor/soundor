@@ -36,7 +36,17 @@ export const STYLESHEET = `
 .sd-image { display: block; object-fit: cover; object-position: center; }
 .sd-scroll { overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
-.sd-root { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.sd-surface {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  isolation: isolate; outline: none;
+}
+/* The two roots: the content, and over all of it the overlay layer, which
+   lets the pointer through where nothing in it takes it. */
+.sd-root {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+  z-index: 0 !important;
+}
+.sd-overlay { z-index: 1 !important; pointer-events: none !important; }
 .sd-hidden { display: none !important; }
 .sd-pe-none, .sd-pe-none * { pointer-events: none !important; }
 .sd-pe-box-none { pointer-events: none !important; }

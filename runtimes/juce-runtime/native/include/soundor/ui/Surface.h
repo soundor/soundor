@@ -244,9 +244,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Images became available or changed: lays image nodes out again.
         void imagesChanged();
 
+        // The content: what the view shows, laid out to fill it.
         [[nodiscard]] Node& root() noexcept { return *rootNode; }
+        // The overlay layer: a second root filling the view, laid out apart
+        // from the content, drawn over all of it and hit before it. It lets
+        // pointer events through where none of its descendants takes them.
+        [[nodiscard]] Node& overlay() noexcept { return *overlayNode; }
         [[nodiscard]] Node* find(NodeId id) noexcept;
-        // Whether `id` is in the tree (the root or a descendant of it).
+        // Whether `id` is in one of the trees (a root or a descendant of one).
         [[nodiscard]] bool isConnected(NodeId id) noexcept;
 
         // ── Layout ───────────────────────────────────────────────────────────
@@ -307,6 +312,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         };
 
         [[nodiscard]] Node& get(NodeId id);
+        [[nodiscard]] bool isRoot(const Node& node) const noexcept { return &node == rootNode || &node == overlayNode; }
         void detach(Node& child);
         void restack(Node& parent);
         [[nodiscard]] NodeId hitTest(Node& node, Point point, Point origin);
@@ -324,6 +330,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;
         std::unordered_map<NodeId, std::unique_ptr<Node>> nodes;
         Node* rootNode = nullptr;
+        Node* overlayNode = nullptr;
         NodeId nextId = 1;
         Size viewSize;
         float pixelScale = 1;

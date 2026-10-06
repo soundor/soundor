@@ -5,7 +5,8 @@ import { root as viewRoot, type UiNode } from 'soundor:ui';
 
 import { hostConfig } from './host';
 
-const reconciler = createReconciler(hostConfig as never);
+/** The one renderer: roots and portals share it. */
+export const reconciler = createReconciler(hostConfig as never);
 
 function report(kind: string) {
   return (error: unknown) => {

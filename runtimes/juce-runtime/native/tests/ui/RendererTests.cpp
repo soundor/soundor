@@ -227,6 +227,23 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(10, 10)));
     }
 
+    TEST_CASE("the overlay draws over all of the content, and clips inside itself")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            import { overlayRoot } from 'soundor:ui';
+            const content = createView({ position: 'absolute', left: 0, top: 0, width: 100, height: 100,
+                                         backgroundColor: 'red', zIndex: 2147483647 });
+            root.appendChild(content);
+            const clip = createView({ position: 'absolute', left: 0, top: 0, width: 50, height: 50, overflow: 'hidden' });
+            clip.appendChild(createView({ width: 100, height: 100, backgroundColor: 'blue' }));
+            overlayRoot.appendChild(clip);
+        )");
+        f.render();
+        CHECK(isBlue(f.at(25, 25)));
+        CHECK(isRed(f.at(75, 75)));
+    }
+
     TEST_CASE("scroll views clip and offset their content")
     {
         RenderFixture f;
