@@ -279,8 +279,8 @@ describe('Pressable state and long presses', () => {
   });
 
   it('passes onLongPress and its delay only when given', async () => {
-    const first = vi.fn();
-    const latest = vi.fn();
+    const first = vi.fn<(event: unknown) => void>();
+    const latest = vi.fn<(event: unknown) => void>();
     show(<Pressable onPress={() => {}} />);
     await settle();
     expect(pressables.get(child(0))).not.toHaveProperty('onLongPress');
