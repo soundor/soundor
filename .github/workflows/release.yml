@@ -28,16 +28,19 @@ jobs:
         uses: ./.github/actions/setup
         with:
           cache: false
+          registry-url: https://registry.npmjs.org
 
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: pnpm run version
-          publish: pnpm release
-          title: 'chore: release packages'
-          commit: 'chore: release packages'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm run version
+          publish-script: pnpm release
+          pr-title: 'chore: release packages'
+          commit-message: 'chore: release packages'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # changesets/action v2 no longer writes .npmrc from NPM_TOKEN; the
+          # setup step's registry-url makes npm read NODE_AUTH_TOKEN instead.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
