@@ -7,6 +7,8 @@
     #include "a11y/accesskit/AccessKitPlatform.h"
 #elif defined(__APPLE__) && TARGET_OS_OSX
     #include "a11y/apple/MacPlatform.h"
+#elif defined(__APPLE__) && TARGET_OS_IOS
+    #include "a11y/apple/IosPlatform.h"
 #endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
@@ -17,6 +19,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         return detail::createAccessKitPlatform(options);
 #elif defined(__APPLE__) && TARGET_OS_OSX
         return detail::createMacPlatform(options);
+#elif defined(__APPLE__) && TARGET_OS_IOS
+        return detail::createIosPlatform(options);
 #else
         static_cast<void>(options);
         return nullptr;

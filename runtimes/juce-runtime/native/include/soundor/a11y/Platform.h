@@ -80,7 +80,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     };
 
     // The platform's accessibility for `options.view`; null where Soundor has
-    // none here: iOS (until its bridge), Android (no runtime yet), or a build
-    // without AccessKit (Linux arm64, SOUNDOR_ACCESSKIT=OFF).
+    // none here: Android (no runtime yet), or a build without AccessKit (Linux
+    // arm64, SOUNDOR_ACCESSKIT=OFF).
     [[nodiscard]] std::unique_ptr<PlatformAccessibility> createPlatformAccessibility(const PlatformOptions& options);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y

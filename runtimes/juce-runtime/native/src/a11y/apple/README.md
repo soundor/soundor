@@ -41,6 +41,9 @@ Soundor, VST3 and AU builds of one plugin, plugins that use JUCE or AccessKit
 themselves, and unload any of them. The Objective-C class namespace is
 process-global; C++ symbol hiding does nothing for it.
 
+- **Shared with iOS.** `AppleShared.mm` holds what both bridges do the same
+  way: making the class, tagging elements, the token registry and request
+  queue. Each platform has its own file for what differs.
 - **One runtime class, never a fixed name.** The only class Soundor adds is
   the element class: a subclass of `NSAccessibilityElement`, made with
   `objc_allocateClassPair` the first time a bridge activates. Its name is
@@ -155,4 +158,4 @@ and as a VST3 in a host (Logic, Reaper), and in the Standalone app:
 - [ ] Removing the plugin from the session (the host may unload it) with
       VoiceOver on, then adding it again: no crash.
 
-iOS: see `IOS.md` once the iOS bridge exists.
+iOS: see [`IOS.md`](IOS.md).
