@@ -14,6 +14,7 @@ import {
 import {
   overlayRoot,
   root,
+  type AccessibilityActionEvent,
   type KeyboardEvent,
   type PointerEvent,
   type Style,
@@ -30,7 +31,8 @@ import type { StyleProp } from './style';
 
 /**
  * Open modals that can be asked to close, by when they opened; the last one
- * is on top. A request (Escape now; a platform's Back later) goes to it.
+ * is on top. A request (Escape, assistive technology's escape gesture; a
+ * platform's Back later) goes to it.
  */
 const dismissible: { order: number; request: () => void }[] = [];
 const listening = new WeakSet<UiNode>();
@@ -51,12 +53,24 @@ function onKeyDown(event: KeyboardEvent): void {
   });
 }
 
-/** Keys reach the root of wherever focus is, or root when nothing has it. */
+/** Assistive technology's escape (VoiceOver's scrub), asked of the dialog. */
+function onAccessibilityAction(event: AccessibilityActionEvent): void {
+  if (event.defaultPrevented || event.actionName !== 'escape') return;
+  prioritized('keydown', () => {
+    if (requestDismiss()) event.preventDefault();
+  });
+}
+
+/**
+ * Keys reach the root of wherever focus is, or root when nothing has it;
+ * accessibility actions bubble up from the dialog.
+ */
 function listen(): void {
   for (const tree of [root, overlayRoot]) {
     if (listening.has(tree)) continue;
     listening.add(tree);
     tree.addEventListener('keydown', onKeyDown);
+    tree.addEventListener('accessibilityaction', onAccessibilityAction);
   }
 }
 
@@ -159,6 +173,10 @@ export function Modal({
         role: 'dialog',
         modal: true,
         ...(accessibilityLabel !== undefined && { label: accessibilityLabel }),
+        // Escape, for assistive technology (a request; the caller decides).
+        ...(props.onRequestClose !== undefined && {
+          actions: [{ name: 'escape' }],
+        }),
       },
     },
     createElement(ModalLayer, props),

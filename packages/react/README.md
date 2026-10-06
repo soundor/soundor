@@ -265,11 +265,106 @@ Defaults:
   labelled by its text; it offers `activate` (its `onPress`) and, with
   `onLongPress`, `longpress`; `disabled` makes it disabled to assistive
   technology too (unless `accessibilityState.disabled` says otherwise).
+- `TextInput` offers `activate` (start editing: keyboard focus), `focus`
+  and `setValue` (replace its text, firing `input` and `change`).
 - `Modal` is a modal `dialog` (`accessibilityLabel` names it): while it
   shows, only it is perceived, with the portals opened from inside it.
+  With `onRequestClose` it offers `escape` (VoiceOver's scrub), which asks it
+  to close like Escape does.
 
 Moving a screen reader's cursor does not move keyboard focus; only an
-explicit `focus` request does, and only to a focusable element.
+explicit `focus` request does (or activating a text input), and only to a
+focusable element.
+
+### Examples
+
+```tsx
+// A button: its text is its label; assistive technology's "activate" is onPress.
+<Pressable onPress={save}>
+  <Text>Save preset</Text>
+</Pressable>
+
+// A toggle: a switch with its state.
+<Pressable
+  accessibilityRole="switch"
+  accessibilityLabel="Bypass"
+  accessibilityState={{ checked: bypassed }}
+  onPress={() => setBypassed(!bypassed)}
+/>
+
+// An adjustable gain control. Every input changes the same state through
+// one function; the accessibility value is that state, not a copy.
+<View
+  focusable
+  accessibilityRole="adjustable"
+  accessibilityLabel="Gain"
+  accessibilityValue={{ min: -60, max: 12, now: gain, text: `${gain.toFixed(1)} dB` }}
+  accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'setValue' }]}
+  onAccessibilityAction={(event) => {
+    if (event.actionName === 'increment') change(gain + 0.5);
+    if (event.actionName === 'decrement') change(gain - 0.5);
+    if (event.actionName === 'setValue') change(Number(event.value));
+  }}
+  onKeyDown={(event) => {
+    if (event.key === 'ArrowUp') change(gain + 0.5);
+    if (event.key === 'ArrowDown') change(gain - 0.5);
+  }}
+  onPointerMove={drag}
+/>
+
+// A text input: labelled; its text is read as its value.
+<TextInput accessibilityLabel="Preset name" value={name} onChangeText={setName} />
+
+// A modal dialog: only it is read while open; escape asks it to close.
+<Modal visible={open} onRequestClose={close} accessibilityLabel="Settings">
+  {/* ... */}
+</Modal>
+```
+
+The `primitives` example has a complete knob (`GainKnob`).
+
+### How it works
+
+Soundor owns a platform-neutral semantic tree. It is built from the view's
+nodes and their `accessibility`, by the same rules in every runtime. The
+runtime's platform backend then presents it:
+
+| Platform | Backend                                         |
+| -------- | ----------------------------------------------- |
+| Web      | ARIA on the DOM elements that draw nodes        |
+| Windows  | AccessKit (UI Automation)                       |
+| Linux    | AccessKit (AT-SPI), x64                         |
+| Android  | AccessKit, once a runtime has an Android view   |
+| macOS    | Soundor's VoiceOver bridge                      |
+| iOS      | Soundor's VoiceOver bridge (no iOS runtime yet) |
+
+- **Not tied to a framework:** the semantics do not come from JUCE, iPlug2
+  or Skia. A plugin framework only tells the backend which native view the
+  surface is in, and where. A plugin's accessibility code is the same
+  whatever framework hosts it.
+- **Three trees:** the _render tree_ (nodes, and where they draw: a portal's
+  content is under `overlayRoot`), the _keyboard focus structure_
+  (`FocusScope`s, which follow React), and the _semantic tree_ (what a
+  screen reader perceives) often look alike but differ:
+  - a button's text is not an element of its own;
+  - a portal opened inside a modal is read inside it, wherever it draws
+    (its overlay entry's `accessibilityParent`);
+  - a modal hides the rest from the semantic tree while keyboard focus is
+    trapped by its own `FocusScope`.
+
+  Closing a modal restores keyboard focus (the `FocusScope`) and the
+  accessibility context (the semantic tree) separately.
+
+- **Coordinates:** an element's bounds are the view's logical pixels, like
+  `getBoundingClientRect()`. Each backend converts them to its platform's
+  screen coordinates itself; there is no screen or window coordinate API.
+- **Cost:** nothing is computed until assistive technology is listening.
+  After that, each frame sends only the elements that changed.
+
+See the [native runtime's README](../../runtimes/juce-runtime/native/README.md#accessibility)
+for the rules in detail and the backends, and its
+[Apple bridge notes](../../runtimes/juce-runtime/native/src/a11y/apple/README.md)
+for how the macOS and iOS bridges stay safe in a plugin host.
 
 ## Focus
 

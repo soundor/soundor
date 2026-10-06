@@ -202,6 +202,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                 // What the input holds, whatever plugin code said.
                 element.value.text = node.text();
                 element.placeholder = node.placeholder();
+                // Activating an input is starting to edit it: keyboard focus.
+                offer(element, Action::Activate);
                 offer(element, Action::SetValue);
             }
             if (element.focusable)

@@ -411,3 +411,53 @@ describe('activation', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 });
+
+describe('keyboard focus and the accessibility context', () => {
+  it('closing a modal restores both, each by its own mechanism', () => {
+    function Screen({ open }: { open: boolean }) {
+      return h(
+        View,
+        null,
+        h(Pressable, { onPress: () => {} }, h(Text, null, 'Open')),
+        h(
+          Modal,
+          { visible: open, accessibilityLabel: 'Settings' },
+          h(Pressable, { onPress: () => {} }, h(Text, null, 'Inside')),
+        ),
+      );
+    }
+    render(h(Screen, { open: false }));
+    const opener = first().children[0]!;
+    opener.focus();
+    expect(view.focusedNode()).toBe(opener);
+
+    render(h(Screen, { open: true }));
+    // The modal's FocusScope took keyboard focus; ARIA hid the background.
+    const inside = view.overlay.children[0]!.children[1]!.children[0]!;
+    expect(view.focusedNode()).toBe(inside);
+    expect(aria(view.root)['aria-hidden']).toBe('true');
+
+    render(h(Screen, { open: false }));
+    expect(view.focusedNode()).toBe(opener);
+    expect(aria(view.root)['aria-hidden']).toBeUndefined();
+  });
+
+  it('activating an element does not move keyboard focus', () => {
+    const onPress = vi.fn();
+    render(
+      h(
+        View,
+        null,
+        h(Pressable, { onPress }, h(Text, null, 'Go')),
+        h(TextInput, { accessibilityLabel: 'Name' }),
+      ),
+    );
+    const input = first().children[1]!;
+    input.focus();
+    element(first().children[0]!).dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
+    expect(onPress).toHaveBeenCalledTimes(1);
+    expect(view.focusedNode()).toBe(input);
+  });
+});

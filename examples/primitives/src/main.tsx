@@ -363,6 +363,65 @@ function ScopeDemo() {
   );
 }
 
+// ── An accessible knob ───────────────────────────────────────────────────────
+
+/**
+ * What a high-level audio UI kit would build from the primitives: a knob that
+ * pointer drags, arrow keys and assistive technology all change through one
+ * `change()`. Its accessibility value is its state; there is no second one.
+ */
+function GainKnob() {
+  const [gain, setGain] = useState(-3.5);
+  const [drag, setDrag] = useState<{ y: number; from: number } | null>(null);
+  const change = (next: number) =>
+    setGain(Math.round(Math.min(12, Math.max(-60, next)) * 2) / 2);
+  const text = `${gain.toFixed(1)} dB`;
+  return (
+    <Card title="Accessible knob (adjustable)">
+      <View
+        focusable
+        accessibilityRole="adjustable"
+        accessibilityLabel="Gain"
+        accessibilityHint="Drag up or down, or use the arrow keys"
+        accessibilityValue={{ min: -60, max: 12, now: gain, text }}
+        accessibilityActions={[
+          { name: 'increment' },
+          { name: 'decrement' },
+          { name: 'setValue' },
+          { name: 'reset', label: 'Reset to 0 dB' },
+        ]}
+        onAccessibilityAction={(event) => {
+          if (event.actionName === 'increment') change(gain + 0.5);
+          else if (event.actionName === 'decrement') change(gain - 0.5);
+          else if (event.actionName === 'setValue') change(Number(event.value));
+          else if (event.actionName === 'reset') change(0);
+          else return;
+          event.preventDefault();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowUp' || event.key === 'ArrowRight')
+            change(gain + 0.5);
+          else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft')
+            change(gain - 0.5);
+          else return;
+          event.preventDefault();
+        }}
+        onPointerDown={(event) => setDrag({ y: event.pageY, from: gain })}
+        onPointerMove={(event) => {
+          if (drag !== null) change(drag.from + (drag.y - event.pageY) / 4);
+        }}
+        onPointerUp={() => setDrag(null)}
+        style={styles.knob}
+      >
+        <View
+          style={[styles.knobFill, { height: `${((gain + 60) / 72) * 100}%` }]}
+        />
+      </View>
+      <Text style={styles.caption}>Gain: {text}</Text>
+    </Card>
+  );
+}
+
 function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -376,6 +435,7 @@ function App() {
         <HostDemo />
         <ModalDemo />
         <ScopeDemo />
+        <GainKnob />
       </View>
     </ScrollView>
   );
@@ -397,6 +457,15 @@ const styles = StyleSheet.create({
   },
   cardTitle: { color: '#f2f3f5', fontSize: 14, fontWeight: 'bold' },
   caption: { color: '#8b8f98', fontSize: 12 },
+  knob: {
+    width: 40,
+    height: 96,
+    borderRadius: 6,
+    backgroundColor: '#2a2d34',
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  knobFill: { backgroundColor: '#3a7bfd' },
   row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   fill: { position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 },
   button: {
