@@ -1,5 +1,38 @@
 # @soundor/react
 
+## 0.4.0
+
+### Minor Changes
+
+- [#74](https://github.com/soundor/soundor/pull/74) [`fce95b6`](https://github.com/soundor/soundor/commit/fce95b60716eda4ff949f52d667b56e412d8e8ae) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `FocusScope`: a boundary for keyboard focus that adds no node, so layout is unchanged.
+
+  - `trapped`: Tab and Shift+Tab cycle through the scope's focusable nodes (wrapping, skipping hidden and unfocusable ones) instead of the whole view, and focus moved outside, programmatically or by a press, is taken back. The innermost trapping scope wins.
+  - `autoFocus`: on mount, focuses the first focusable node unless focus is already inside.
+  - `restoreFocus`: on unmount, returns focus to the node that had it on mount when it is still connected and focusable; nested scopes each restore to where they were opened.
+  - Membership follows React's tree rather than the node tree, so content a scope renders elsewhere in the view still belongs to it.
+
+- [#75](https://github.com/soundor/soundor/pull/75) [`97db55f`](https://github.com/soundor/soundor/commit/97db55f43711e75a2e9886775aacf998c9f5b172) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Portals, and an overlay layer to render them in, inside the plugin's one view.
+
+  - `soundor:ui` adds `overlayRoot`: a second root that fills the view, laid out apart from `root`, drawn over all of root's content whatever its `zIndex`, and hit first, letting the pointer through where nothing in it takes it. Its events bubble up to it, not to `root`. Tab moves through the content, then the overlay. The JUCE runtime draws both trees on its one Skia surface; the Web runtime keeps both in the plugin viewport, in one isolated stacking context.
+  - `@soundor/react` adds `Portal`, `Portal.Host` and `createPortalHost()`, built on the reconciler's portals: React context, state and effects survive. `<Portal>` renders into an overlay entry; entries stack in the order they open, so an overlay opened from another stacks above it. `<Portal host={host}>` renders exactly where `<Portal.Host host={host}>` is, inheriting its clipping and stacking; it renders nothing until the host mounts, follows it away and back, and showing one host in two places is an error.
+  - `FocusScope` covers both trees, so portaled content that a scope renders belongs to it.
+
+- [#76](https://github.com/soundor/soundor/pull/76) [`b7ff2ce`](https://github.com/soundor/soundor/commit/b7ff2ce383e1f15087199437511c1cf03636d4bd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `Modal`: an in-view modal layer, built on `Portal` and `FocusScope`. It is not a window: it is drawn in the plugin's one view.
+
+  - A `Portal` entry with a backdrop over the whole view that blocks the pointer from everything below (transparent by default; `backdropStyle` styles it), and the children above it.
+  - A trapped, autofocusing, focus-restoring `FocusScope`: focus goes to the first focusable child on open, Tab stays inside, focus returns on close. With nothing focusable inside, background focus is dropped so keys cannot reach it.
+  - Escape, and with `dismissOnBackdropPress` a press on the backdrop itself, call `onRequestClose`; `visible` (default `true`) keeps control with the caller. Escape goes to the topmost modal.
+  - Modals stack like portals: one opened from another is above it and owns focus, and portals opened from a modal show above it inside its focus trap.
+
+  Also: a trapping `FocusScope` drops focus that is outside it when it starts, and `Pressable` callbacks update React at the same priority as event props, so a press renders before the next task.
+
+- [#72](https://github.com/soundor/soundor/pull/72) [`64bdb5d`](https://github.com/soundor/soundor/commit/64bdb5d1b67ecc64e6c85d6f88c01ed44cf6c335) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `soundor:ui` gets the coordinates, stacking and interaction that overlays and custom controls build on, the same in the JUCE and Web runtimes.
+
+  - Pointer events add `pageX`/`pageY` (relative to the plugin view) and `locationX`/`locationY` (relative to the target), in logical pixels at any device or viewport scale. `clientX`/`clientY` and `offsetX`/`offsetY` stay, with the same values.
+  - `style.zIndex`: an integer that stacks a node among its siblings for drawing and hit testing alike (equal values keep tree order, the later sibling on top). Every node stacks its own children; layout is not affected.
+  - A `contextmenu` pointer event, which captures and bubbles, when the secondary button goes down. In the browser it bridges the DOM's `contextmenu`; preventing it keeps the browser's own menu away. `@soundor/react` adds `onContextMenu` and `onContextMenuCapture`.
+  - `pressable()` and `Pressable` add `onLongPress` (the primary button held `delayLongPress` ms, 500 by default, without moving more than 10 px; no `onPress` follows it), and their state adds `focused`, from focus and blur.
+
 ## 0.3.0
 
 ### Minor Changes

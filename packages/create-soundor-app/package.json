@@ -1,6 +1,6 @@
 {
   "name": "create-soundor-app",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "bin": {
     "create-soundor-app": "./dist/index.mjs"
