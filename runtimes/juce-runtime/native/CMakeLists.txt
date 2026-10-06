@@ -20,6 +20,7 @@ include(SoundorQuickJS)
 include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
+include(SoundorAccessKit)
 
 # Inline namespace that every Soundor-native C++ symbol is mangled into. A
 # plugin build sets it to a value derived from its stable plugin identifier so
@@ -31,6 +32,7 @@ if(NOT SOUNDOR_ABI_NAMESPACE MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
 endif()
 
 set(SOUNDOR_RUNTIME_SOURCES
+  src/a11y/Platform.cpp
   src/a11y/Semantics.cpp
   src/a11y/SurfaceSemantics.cpp
   src/js/Bindings.cpp
@@ -60,6 +62,11 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/web/Random.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
+if(SOUNDOR_HAS_ACCESSKIT)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES
+    src/a11y/accesskit/AccessKitPlatform.cpp
+    src/a11y/accesskit/Mapping.cpp)
+endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
@@ -83,6 +90,12 @@ function(soundor_configure_runtime target namespace)
     PRIVATE ${PROJECT_SOURCE_DIR}/src)
   # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
   target_link_libraries(${target} PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
+  if(SOUNDOR_HAS_ACCESSKIT)
+    target_link_libraries(${target} PRIVATE soundor_accesskit)
+    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
+  else()
+    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=0)
+  endif()
   if(WIN32)
     target_link_libraries(${target} PRIVATE bcrypt) # crypto.getRandomValues
   endif()

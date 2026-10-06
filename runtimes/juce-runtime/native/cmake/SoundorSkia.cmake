@@ -52,18 +52,7 @@ endforeach()
 list(REMOVE_DUPLICATES soundor_skia_cpus)
 
 if(NOT SOUNDOR_SKIA_DIR)
-  if(DEFINED ENV{SOUNDOR_CACHE} AND NOT "$ENV{SOUNDOR_CACHE}" STREQUAL "")
-    set(cache_root "$ENV{SOUNDOR_CACHE}")
-  elseif(WIN32)
-    set(cache_root "$ENV{LOCALAPPDATA}/Soundor/cache")
-  elseif(APPLE)
-    set(cache_root "$ENV{HOME}/Library/Caches/Soundor")
-  elseif(DEFINED ENV{XDG_CACHE_HOME} AND NOT "$ENV{XDG_CACHE_HOME}" STREQUAL "")
-    set(cache_root "$ENV{XDG_CACHE_HOME}/soundor")
-  else()
-    set(cache_root "$ENV{HOME}/.cache/soundor")
-  endif()
-  file(TO_CMAKE_PATH "${cache_root}" cache_root)
+  soundor_cache_root(cache_root)
 
   # On Linux and macOS Skia is built with the project's compiler when it is
   # Clang (Skia's supported compiler), otherwise with the clang on PATH.

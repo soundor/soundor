@@ -2,9 +2,11 @@
 // runtime under its own ABI namespace, a UI that draws a color of its own and
 // counts clicks, behind a small C entry point table.
 
+#include <soundor/a11y/Platform.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -34,6 +36,10 @@ namespace
         }
 
         soundor::RuntimeHost host { {} };
+        // Each plugin's own platform accessibility (AccessKit on Linux and
+        // Windows), side by side in one process.
+        std::unique_ptr<soundor::a11y::PlatformAccessibility> accessibility =
+            soundor::a11y::createPlatformAccessibility({ {}, SOUNDOR_COEXIST_COLOR });
         std::vector<std::uint32_t> pixels = std::vector<std::uint32_t>(std::size_t { size } * size);
         bool ok = false;
     };
@@ -65,6 +71,8 @@ SOUNDOR_COEXIST_EXPORT int soundor_coexist_click(void* handle)
     instance.host.surface().pointer(press(soundor::ui::PointerInput::Phase::Down, 1));
     instance.host.surface().pointer(press(soundor::ui::PointerInput::Phase::Up, 0));
     instance.host.tick();
+    if (instance.accessibility != nullptr)
+        instance.accessibility->tick(instance.host);
     auto count = instance.host.context().evaluateScript("count");
     return count ? static_cast<int>(count.value().asNumber()) : -1;
 }

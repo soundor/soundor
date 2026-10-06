@@ -391,6 +391,7 @@ function renderEditorHeader(): string {
   return `${HEADER}#pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <soundor/a11y/Platform.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -441,6 +442,10 @@ namespace ${NS}
     private:
         void timerCallback() override;
         void deliver(const ui::PointerInput& input);
+        // Presents the UI to the platform's assistive technology, in the
+        // native view JUCE shows it in. The semantics are Soundor's: JUCE only
+        // says where the view is.
+        void updateAccessibility();
 
         // What the UI was last drawn into, at device resolution.
         juce::Image canvas;
@@ -455,6 +460,10 @@ namespace ${NS}
 #else
         std::unique_ptr<RuntimeHost> host;
 #endif
+        // Null where Soundor has no platform accessibility (yet).
+        std::unique_ptr<a11y::PlatformAccessibility> accessibility;
+        void* accessibilityView = nullptr;
+        bool accessibilityFocused = false;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessorEditor)
     };
@@ -561,6 +570,8 @@ namespace ${NS}
     AudioProcessorEditor::~AudioProcessorEditor()
     {
         stopTimer();
+        // Before the host whose tree it presents.
+        accessibility.reset();
 #if SOUNDOR_UI_DEV
         session.reset();
 #else
@@ -581,8 +592,41 @@ namespace ${NS}
 #else
         host->tick();
 #endif
+        updateAccessibility();
         if (runtimeHost().needsRender())
             repaint();
+    }
+
+    void AudioProcessorEditor::updateAccessibility()
+    {
+        auto* peer = getPeer();
+        void* view = peer != nullptr ? peer->getNativeHandle() : nullptr;
+        if (view != accessibilityView)
+        {
+            // A new native view (or none): attach again.
+            accessibility.reset();
+            accessibilityView = view;
+            accessibilityFocused = false;
+#if ! JUCE_MAC && ! JUCE_IOS
+            if (view != nullptr)
+                accessibility = a11y::createPlatformAccessibility({ { view }, AudioProcessor::pluginName });
+#endif
+        }
+        if (accessibility == nullptr || peer == nullptr)
+            return;
+        // The surface in the native view's physical pixels.
+        const float scale = runtimeHost().surface().scale();
+        const auto physical = static_cast<float>(peer->getPlatformScaleFactor());
+        const auto topLeft = peer->getComponent().getLocalPoint(this, juce::Point<float> {}) * physical;
+        const auto screen = getScreenBounds().toFloat() * scale;
+        accessibility->setGeometry({ topLeft.x, topLeft.y, scale,
+                                     { screen.getX(), screen.getY(), screen.getWidth(), screen.getHeight() } });
+        if (const bool focused = hasKeyboardFocus(true); focused != accessibilityFocused)
+        {
+            accessibilityFocused = focused;
+            accessibility->setFocused(focused);
+        }
+        accessibility->tick(runtimeHost());
     }
 
     void AudioProcessorEditor::deliver(const ui::PointerInput& input)

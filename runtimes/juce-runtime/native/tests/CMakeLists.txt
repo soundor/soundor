@@ -44,6 +44,12 @@ set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIE
 soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+if(SOUNDOR_HAS_ACCESSKIT)
+  target_sources(soundor_runtime_tests PRIVATE a11y/AccessKitTests.cpp)
+  target_link_libraries(soundor_runtime_tests PRIVATE soundor_accesskit)
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
+endif()
+
 add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
 
 # soundor_embed_directory() called from another project's scope (as setup.cmake
