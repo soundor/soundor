@@ -216,7 +216,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 canvas.clipRRect(roundedRect(inner, style.borderRadius, border), true);
             }
             canvas.translate(-node.scrollOffset().x, -node.scrollOffset().y);
-            for (const Node* child : node.children())
+            for (const Node* child : node.stackedChildren())
                 drawNode(canvas, *child);
             canvas.restore();
         }

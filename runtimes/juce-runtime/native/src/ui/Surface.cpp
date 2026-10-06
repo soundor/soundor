@@ -312,7 +312,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeRemoveChild(parent->yoga, child.yoga);
         std::erase(parent->childNodes, &child);
         child.parentNode = nullptr;
+        restack(*parent);
         changed = true;
+    }
+
+    void Surface::restack(Node& parent)
+    {
+        parent.stacked.clear();
+        const auto raised = [](const Node* child) { return child->nodeStyle.zIndex != 0; };
+        if (std::ranges::none_of(parent.childNodes, raised))
+            return;
+        parent.stacked = parent.childNodes;
+        std::ranges::stable_sort(parent.stacked, {}, [](const Node* child) { return child->nodeStyle.zIndex; });
     }
 
     void Surface::releaseNode(NodeId id)
@@ -362,6 +373,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         parent.childNodes.insert(position, &child);
         YGNodeInsertChild(parent.yoga, child.yoga, index);
         child.parentNode = &parent;
+        restack(parent);
         changed = true;
     }
 
@@ -378,8 +390,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         Node& node = get(id);
         const bool textChanged = node.nodeStyle.text != style.text;
+        const bool zIndexChanged = node.nodeStyle.zIndex != style.zIndex;
         node.nodeStyle = style;
         applyStyle(node.yoga, style);
+        if (zIndexChanged && node.parentNode != nullptr)
+            restack(*node.parentNode);
         if (textChanged && (node.nodeType == NodeType::Text || node.nodeType == NodeType::Input))
         {
             YGNodeMarkDirty(node.yoga);
@@ -630,9 +645,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return noNode;
         if (style.pointerEvents != PointerEvents::BoxOnly)
         {
-            // Later children paint over earlier ones.
+            // The topmost child first: hit testing follows drawing.
             const Point children { box.x - node.scroll.x, box.y - node.scroll.y };
-            for (Node* child : std::views::reverse(node.childNodes))
+            for (Node* child : std::views::reverse(node.stackedChildren()))
                 if (const NodeId hit = hitTest(*child, point, children); hit != noNode)
                     return hit;
         }
@@ -754,6 +769,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         }
                     focus(isConnected(focusTarget) ? focusTarget : noNode);
                 }
+                // The secondary button asks for a context menu, as on the Web.
+                if (input.button == 2 && isConnected(target))
+                    dispatch(pointerEvent(Event::Type::ContextMenu, target, input));
                 return true;
             }
             case PointerInput::Phase::Move:

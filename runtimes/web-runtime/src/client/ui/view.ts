@@ -7,7 +7,8 @@
  * the last button is up; hover enters and leaves along the tree; a click
  * goes to the deepest node holding both press and release; pressing moves
  * focus to the nearest focusable node; Tab cycles focusable nodes; the
- * wheel scrolls the nearest scroll view that can. Hit testing is the
+ * wheel scrolls the nearest scroll view that can; the secondary button
+ * asks for a context menu (`contextmenu`). Hit testing is the
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
@@ -216,6 +217,11 @@ export class UiView implements ViewLink {
       options,
     );
     element.addEventListener('click', (e) => e.stopPropagation(), options);
+    element.addEventListener(
+      'contextmenu',
+      (e) => this.#contextMenu(e),
+      options,
+    );
     element.addEventListener('wheel', (e) => this.#wheel(e), {
       ...options,
       passive: false,
@@ -409,6 +415,24 @@ export class UiView implements ViewLink {
       }
     }
     this.#updateHover(state, event, this.#hitTest(event));
+  }
+
+  /**
+   * The browser's request for a context menu (the secondary button, a long
+   * touch) as a Soundor `contextmenu` at the pressed node, or the node under
+   * the pointer. Preventing it keeps the browser's own menu away.
+   */
+  #contextMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    const pointerId = (event as globalThis.PointerEvent).pointerId ?? 1;
+    const captured = this.#pointers.get(pointerId)?.captured ?? null;
+    const target =
+      (captured?.isConnected ? captured : null) ?? this.#hitTest(event);
+    if (target === null) return;
+    const allowed = target.dispatchEvent(
+      this.#pointerEvent('contextmenu', target, event, true, true),
+    );
+    if (!allowed) event.preventDefault();
   }
 
   #pointerCancel(event: globalThis.PointerEvent): void {

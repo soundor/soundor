@@ -57,6 +57,7 @@ function setup() {
       'pointerenter',
       'pointerleave',
       'click',
+      'contextmenu',
       'focus',
       'blur',
       'keydown',
@@ -172,6 +173,87 @@ describe('pointer routing', () => {
     });
     pointer('pointerdown', 10, { button: 0, buttons: 1 });
     expect(seen).toEqual({ x: 10, offsetX: 10, buttons: 1 });
+  });
+
+  it('gives pageX/Y on the view and locationX/Y in the target, in logical pixels', () => {
+    const { button } = setup();
+    // The host shows the 400×300 view at half size, 100 px from the page's
+    // corner; the button is at (40, 20) in the view (scrolling included).
+    const rects = new Map<Element, DOMRect>([
+      [view.rootElement, new DOMRect(100, 100, 200, 150)],
+      [el(button), new DOMRect(120, 110, 50, 25)],
+    ]);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        return rects.get(this) ?? new DOMRect();
+      },
+    );
+    Object.defineProperty(view.rootElement, 'offsetWidth', {
+      value: 400,
+      configurable: true,
+    });
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(button));
+    let seen: number[] = [];
+    button.addEventListener('pointerdown', (event) => {
+      const e = event as unknown as Record<string, number>;
+      seen = [e['pageX']!, e['pageY']!, e['locationX']!, e['locationY']!];
+      seen.push(e['clientX']! - e['pageX']!, e['offsetY']! - e['locationY']!);
+    });
+    pointer('pointerdown', 10, {
+      button: 0,
+      buttons: 1,
+      clientX: 130,
+      clientY: 120,
+    });
+    expect(seen).toEqual([60, 40, 20, 20, 0, 0]);
+  });
+});
+
+describe('contextmenu', () => {
+  function contextMenu(x: number): MouseEvent {
+    const event = new window.MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: 0,
+      button: 2,
+      buttons: 2,
+    });
+    view.rootElement.dispatchEvent(event);
+    return event;
+  }
+
+  it("bridges the browser's request as a Soundor pointer event that bubbles", () => {
+    const { root, button, events } = setup();
+    const seen: string[] = [];
+    root.addEventListener('contextmenu', (event) => {
+      const e = event as unknown as Record<string, unknown>;
+      seen.push(`${e['button']} ${e['pageX']} ${e['cancelable']}`);
+    });
+    const allowed = contextMenu(10);
+    expect(events).toEqual(['contextmenu@button']);
+    expect(seen).toEqual(['2 10 true']);
+    // Nobody prevented it: the browser may show its own menu.
+    expect(allowed.defaultPrevented).toBe(false);
+
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    expect(contextMenu(10).defaultPrevented).toBe(true);
+  });
+
+  it('goes to the pressed node while the pointer is captured', () => {
+    const { events } = setup();
+    pointer('pointerdown', 10, { button: 2, buttons: 2 });
+    contextMenu(20);
+    expect(events.filter((e) => !e.startsWith('pointerenter'))).toEqual([
+      'pointerdown@button',
+      'contextmenu@button',
+    ]);
+  });
+
+  it('is ignored outside the view', () => {
+    const { events } = setup();
+    contextMenu(50);
+    expect(events).toEqual([]);
   });
 });
 

@@ -17,15 +17,17 @@ import {
   UiNode,
   viewSize,
 } from 'soundor:ui';
-import { describe, expect, expectTypeOf, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { uiView } from './context';
+import type { PressableState } from './modules/ui';
 import type { LayoutRect, Style } from './ui/types';
 
 describe('soundor:ui', () => {
   it('declares the same shapes as the contract', () => {
     expectTypeOf<Style>().toEqualTypeOf<Contract.Style>();
     expectTypeOf<LayoutRect>().toEqualTypeOf<Contract.LayoutRect>();
+    expectTypeOf<PressableState>().toEqualTypeOf<Contract.PressableState>();
   });
 
   it('is the page view: its root and its nodes', () => {
@@ -108,6 +110,100 @@ describe('pressable', () => {
     undo();
     node.dispatchEvent(new PointerEvent('click', { button: 0 }));
     expect(onPress).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports focus in its state, from focus and blur', () => {
+    const node = createView();
+    const other = createView();
+    root.appendChild(node);
+    root.appendChild(other);
+    other.focusable = true;
+    const states: string[] = [];
+    const undo = pressable(node, {
+      onStateChange: (state) => states.push(JSON.stringify(state)),
+    });
+    node.focus();
+    other.focus();
+    expect(states).toEqual([
+      '{"pressed":false,"hovered":false,"focused":true}',
+      '{"pressed":false,"hovered":false,"focused":false}',
+    ]);
+    undo();
+  });
+
+  describe('long press', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function setup(delayLongPress?: number) {
+      vi.useFakeTimers();
+      const node = createView();
+      root.appendChild(node);
+      const log: string[] = [];
+      const undo = pressable(node, {
+        ...(delayLongPress !== undefined && { delayLongPress }),
+        onPress: () => log.push('press'),
+        onLongPress: (event) => log.push(`long:${event.type}`),
+        onPressOut: () => log.push('out'),
+      });
+      const send = (type: string, init: Record<string, number> = {}) =>
+        node.dispatchEvent(
+          new PointerEvent(type, { button: 0, bubbles: true, ...init }),
+        );
+      return { log, send, undo };
+    }
+
+    it('fires after 500 ms held, and then is not also a press', () => {
+      const { log, send, undo } = setup();
+      send('pointerdown');
+      vi.advanceTimersByTime(499);
+      expect(log).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(log).toEqual(['long:pointerdown']);
+      send('pointermove', { clientX: 5 });
+      send('pointerup');
+      send('click');
+      expect(log).toEqual(['long:pointerdown', 'out']);
+      // The next press is an ordinary one.
+      send('pointerdown');
+      send('pointerup');
+      send('click');
+      expect(log.slice(2)).toEqual(['out', 'press']);
+      undo();
+    });
+
+    it('waits delayLongPress; not after a short press, a cancel or moving away', () => {
+      const { log, send, undo } = setup(50);
+      send('pointerdown');
+      send('pointerup');
+      send('click');
+      vi.advanceTimersByTime(100);
+      expect(log).toEqual(['out', 'press']);
+      log.length = 0;
+
+      send('pointerdown');
+      send('pointercancel');
+      vi.advanceTimersByTime(100);
+      expect(log).toEqual(['out']);
+      log.length = 0;
+
+      send('pointerdown', { clientX: 0 });
+      send('pointermove', { clientX: 11 });
+      vi.advanceTimersByTime(100);
+      expect(log).toEqual([]);
+      send('pointerup');
+      log.length = 0;
+
+      send('pointerdown', { button: 2 });
+      vi.advanceTimersByTime(100);
+      expect(log).toEqual([]);
+
+      send('pointerdown');
+      undo();
+      vi.advanceTimersByTime(100);
+      expect(log).toEqual([]);
+    });
   });
 
   it('rejects what is not a node', () => {

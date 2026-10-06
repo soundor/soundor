@@ -7,8 +7,8 @@ using test::WebFixture;
 
 namespace
 {
-    constexpr const char* imports = "import { root, createView, createText, focusedNode, viewSize, UiNode, "
-                                    "PointerEvent, KeyboardEvent } from 'soundor:ui';\n";
+    constexpr const char* imports = "import { root, createView, createText, createScrollView, focusedNode, "
+                                    "viewSize, UiNode, PointerEvent, KeyboardEvent } from 'soundor:ui';\n";
 
     ui::PointerInput pointer(ui::PointerInput::Phase phase, float x, float y, unsigned buttons, int button)
     {
@@ -156,6 +156,59 @@ TEST_SUITE("soundor:ui")
         input.modifiers = ui::Modifier::Shift;
         f.host.surface().pointer(input);
         CHECK(f.eval("result").asString() == R"([true,true,true,true,150,50,40,0,1,"mouse",true,true,2])");
+    }
+
+    TEST_CASE("pointer positions: pageX/Y on the view, locationX/Y in the target, logical at any scale")
+    {
+        UiFixture f;
+        f.host.surface().setScale(2);
+        f.run(std::string(imports) + R"(
+            const scroller = createScrollView({ width: 100, height: 100, padding: 10 });
+            globalThis.item = createView({ height: 300, marginTop: 20, marginLeft: 5 });
+            scroller.appendChild(item);
+            b.appendChild(scroller);
+            scroller.scrollTop = 25;
+            item.addEventListener('pointerdown', (e) => {
+              globalThis.result = JSON.stringify([e.pageX, e.pageY, e.locationX, e.locationY,
+                e.clientX === e.pageX, e.offsetY === e.locationY, item.layout, item.getBoundingClientRect()]);
+            });
+        )");
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 130, 40, 1, 0));
+        CHECK(f.eval("result").asString()
+              == R"([130,40,15,35,true,true,{"x":15,"y":30,"width":75,"height":300},)"
+                 R"({"x":115,"y":5,"width":75,"height":300}])");
+    }
+
+    TEST_CASE("the secondary button fires contextmenu, which captures and bubbles")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            for (const node of [root, b]) {
+              node.addEventListener('contextmenu', record);
+              node.addEventListener('contextmenu', record, true);
+            }
+            b.addEventListener('contextmenu', (e) => {
+              globalThis.result = JSON.stringify([e instanceof PointerEvent, e.cancelable, e.button, e.buttons,
+                e.pageX, e.locationY, e.pointerType, e.ctrlKey]);
+              e.preventDefault();
+            });
+        )");
+        auto input = pointer(ui::PointerInput::Phase::Down, 150, 40, 2, 2);
+        input.modifiers = ui::Modifier::Control;
+        f.host.surface().pointer(input);
+        CHECK(f.log() == "contextmenu@root:capture contextmenu@b contextmenu@b contextmenu@root:bubble");
+        CHECK(f.eval("result").asString() == R"([true,true,2,2,150,40,"mouse",true])");
+    }
+
+    TEST_CASE("zIndex must be an integer")
+    {
+        UiFixture f;
+        CHECK(f.error(std::string(imports) + "a.style = { zIndex: 1.5 };")
+              == "TypeError: style.zIndex: expected an integer, got 1.5");
+        CHECK(f.error(std::string(imports) + "a.style = { zIndex: '2' };")
+              == "TypeError: style.zIndex: expected an integer, got '2'");
+        CHECK(f.run(std::string(imports) + "a.style = { zIndex: -3 }; globalThis.result = a.style.zIndex;").asNumber()
+              == -3);
     }
 
     TEST_CASE("stopPropagation and preventDefault reach the surface")

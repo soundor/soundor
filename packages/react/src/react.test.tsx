@@ -14,7 +14,14 @@ import {
   View,
   type ParameterLike,
 } from './index';
-import { fire, print, reset, root, type FakeNode } from './testing/fake-ui';
+import {
+  fire,
+  pressables,
+  print,
+  reset,
+  root,
+  type FakeNode,
+} from './testing/fake-ui';
 
 let mounted: ReturnType<typeof createRoot> | null = null;
 
@@ -167,6 +174,20 @@ describe('events', () => {
     expect(child(0).listeners.get('click')).toEqual([]);
   });
 
+  it('onContextMenu captures and bubbles with the pointer event', () => {
+    const log: string[] = [];
+    show(
+      <View
+        onContextMenuCapture={() => log.push('capture')}
+        onContextMenu={(event) => log.push(`outer ${event.pageX}`)}
+      >
+        <View onContextMenu={(event) => log.push(`inner ${event.button}`)} />
+      </View>,
+    );
+    fire(child(0, 0), 'contextmenu', { button: 2, pageX: 12 });
+    expect(log).toEqual(['capture', 'inner 2', 'outer 12']);
+  });
+
   it('re-renders from state set in a handler', async () => {
     function Toggle() {
       const [on, setOn] = useState(false);
@@ -239,6 +260,61 @@ describe('Pressable', () => {
     await settle();
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(print()).toBe('view[view{opacity:1}[text"up"]]');
+  });
+});
+
+describe('Pressable state and long presses', () => {
+  it('styles by focus, from focus and blur', async () => {
+    show(
+      <Pressable style={({ focused }) => ({ opacity: focused ? 0.5 : 1 })} />,
+    );
+    await settle();
+    const button = child(0);
+    fire(button, 'focus');
+    await settle();
+    expect(print()).toBe('view[view{opacity:0.5}]');
+    fire(button, 'blur');
+    await settle();
+    expect(print()).toBe('view[view{opacity:1}]');
+  });
+
+  it('passes onLongPress and its delay only when given', async () => {
+    const first = vi.fn();
+    const latest = vi.fn();
+    show(<Pressable onPress={() => {}} />);
+    await settle();
+    expect(pressables.get(child(0))).not.toHaveProperty('onLongPress');
+
+    show(<Pressable onLongPress={first} delayLongPress={300} />);
+    await settle();
+    show(<Pressable onLongPress={latest} delayLongPress={300} />);
+    await settle();
+    const handlers = pressables.get(child(0))!;
+    expect(handlers['delayLongPress']).toBe(300);
+    (handlers['onLongPress'] as (event: unknown) => void)({ type: 'x' });
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledWith({ type: 'x' });
+  });
+
+  it('disabling stops pressing and resets the state', async () => {
+    const App = ({ disabled }: { disabled: boolean }) => (
+      <Pressable
+        disabled={disabled}
+        onLongPress={() => {}}
+        style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+      />
+    );
+    show(<App disabled={false} />);
+    await settle();
+    const button = child(0);
+    fire(button, 'pointerdown', { button: 0 });
+    await settle();
+    expect(print()).toBe('view[view{opacity:0.5}]');
+    show(<App disabled />);
+    await settle();
+    expect(pressables.has(button)).toBe(false);
+    expect(button.focusable).toBe(false);
+    expect(print()).toBe('view[view{opacity:1}]');
   });
 });
 

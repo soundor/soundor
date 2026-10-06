@@ -34,22 +34,30 @@ browser: there is no DOM. Components follow React Native's.
 
 ## Components
 
-| Component    | What it is                                                                                                                                                                                                               |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `View`       | A box laid out with flexbox (column by default). Takes `style`, `focusable`, event props, `ref` (its `UiNode`).                                                                                                          |
-| `Text`       | Text. Strings, numbers and nested `<Text>` become one run; `numberOfLines` limits it. Strings outside `<Text>` are an error.                                                                                             |
-| `Image`      | A bundled image: `source={logo}` with `import logo from './logo.png'`. Sized by its pixels unless styled; `resizeMode` in its style.                                                                                     |
-| `ScrollView` | Content that scrolls by wheel or `ref.current.scrollTo()`. `contentContainerStyle` styles the box inside; `onScroll`.                                                                                                    |
-| `TextInput`  | A single-line input. `value` + `onChangeText` (controlled) or `defaultValue`; `placeholder`; `onSubmitEditing` on Enter; `onChange` when the text is committed.                                                          |
-| `Pressable`  | A view that responds to presses (a click, or Enter/Space while focused): `onPress`, `onPressIn`, `onPressOut`, `onHoverIn`, `onHoverOut`, `disabled`. `style` and `children` may be functions of `{ pressed, hovered }`. |
+| Component    | What it is                                                                                                                                                                                                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `View`       | A box laid out with flexbox (column by default). Takes `style`, `focusable`, event props, `ref` (its `UiNode`).                                                                                                                                                                             |
+| `Text`       | Text. Strings, numbers and nested `<Text>` become one run; `numberOfLines` limits it. Strings outside `<Text>` are an error.                                                                                                                                                                |
+| `Image`      | A bundled image: `source={logo}` with `import logo from './logo.png'`. Sized by its pixels unless styled; `resizeMode` in its style.                                                                                                                                                        |
+| `ScrollView` | Content that scrolls by wheel or `ref.current.scrollTo()`. `contentContainerStyle` styles the box inside; `onScroll`.                                                                                                                                                                       |
+| `TextInput`  | A single-line input. `value` + `onChangeText` (controlled) or `defaultValue`; `placeholder`; `onSubmitEditing` on Enter; `onChange` when the text is committed.                                                                                                                             |
+| `Pressable`  | A view that responds to presses (a click, or Enter/Space while focused): `onPress`, `onLongPress` (held `delayLongPress` ms, 500 by default), `onPressIn`, `onPressOut`, `onHoverIn`, `onHoverOut`, `disabled`. `style` and `children` may be functions of `{ pressed, hovered, focused }`. |
 
-Event props (`onPointerDown`, `onClick`, `onKeyDown`, `onWheel`, `onFocus`,
-…, and `…Capture` variants) receive `soundor:ui`'s Web-style events; they
-capture and bubble as in the DOM.
+Event props (`onPointerDown`, `onClick`, `onContextMenu`, `onKeyDown`,
+`onWheel`, `onFocus`, …, and `…Capture` variants) receive `soundor:ui`'s
+Web-style events; they capture and bubble as in the DOM. `onContextMenu`
+fires when the secondary button goes down, so a UI can open its own menu.
+
+Pointer events carry positions in logical pixels: `locationX`/`locationY`
+relative to the target, `pageX`/`pageY` relative to the plugin view. A node's
+`layout` is relative to its parent, and `getBoundingClientRect()` to the view,
+where the node shows after scrolling.
 
 Styles are React Native's: flexbox, spacing shorthands, percentages, CSS
-colors, `borderRadius`, `opacity`. `style` takes arrays and falsy entries;
-`StyleSheet.create()` names styles with their types.
+colors, `borderRadius`, `opacity`, and `zIndex` (an integer stacking a node
+among its siblings, for drawing and hit testing alike; layout keeps tree
+order). `style` takes arrays and falsy entries; `StyleSheet.create()` names
+styles with their types.
 
 ## Rendering
 

@@ -93,6 +93,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] NodeType type() const noexcept { return nodeType; }
         [[nodiscard]] Node* parent() const noexcept { return parentNode; }
         [[nodiscard]] std::span<Node* const> children() const noexcept { return childNodes; }
+        // The children bottom to top, as drawn: by zIndex, then tree order.
+        // Hit testing goes through them top to bottom.
+        [[nodiscard]] std::span<Node* const> stackedChildren() const noexcept
+        {
+            return stacked.empty() ? childNodes : stacked;
+        }
         [[nodiscard]] const Style& style() const noexcept { return nodeStyle; }
         [[nodiscard]] const std::string& text() const noexcept { return textContent; }
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
@@ -120,6 +126,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNode* yoga;
         Node* parentNode = nullptr;
         std::vector<Node*> childNodes;
+        // childNodes sorted by zIndex; empty while that is tree order.
+        std::vector<Node*> stacked;
         Style nodeStyle;
         std::string textContent;
         std::string imageSource;
@@ -153,6 +161,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Focus,  // does not bubble
             Blur,   // does not bubble
             Scroll, // does not bubble
+            ContextMenu,
         };
 
         Type type = Type::PointerMove;
@@ -299,6 +308,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         [[nodiscard]] Node& get(NodeId id);
         void detach(Node& child);
+        void restack(Node& parent);
         [[nodiscard]] NodeId hitTest(Node& node, Point point, Point origin);
         [[nodiscard]] std::vector<NodeId> pathTo(NodeId id);
         void updateHover(PointerState& state, const PointerInput& input, NodeId target);

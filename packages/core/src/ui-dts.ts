@@ -88,6 +88,13 @@ const UI = `declare module 'soundor:ui' {
     overflow?: 'visible' | 'hidden' | 'scroll';
     /** 'box-none': not the node, but its children; 'box-only': the reverse. */
     pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+    /**
+     * An integer that stacks the node among its siblings: higher ones are
+     * drawn over, and hit before, lower ones; equal ones keep tree order (the
+     * later sibling on top). Not layout: flex order stays the tree's. 0 by
+     * default.
+     */
+    zIndex?: number;
 
     fontFamily?: string;
     fontSize?: number;
@@ -132,6 +139,8 @@ const UI = `declare module 'soundor:ui' {
     pointerenter: PointerEvent;
     pointerleave: PointerEvent;
     click: PointerEvent;
+    /** The secondary button went down (or the platform's equivalent). */
+    contextmenu: PointerEvent;
     wheel: WheelEvent;
     keydown: KeyboardEvent;
     keyup: KeyboardEvent;
@@ -175,9 +184,12 @@ const UI = `declare module 'soundor:ui' {
     removeChild<T extends UiNode>(child: T): T;
     remove(): void;
     contains(other: UiNode | null): boolean;
-    /** The laid-out box, relative to the parent's. */
+    /** The laid-out box, relative to the parent's (scrolling aside). */
     readonly layout: LayoutRect;
-    /** The laid-out box, relative to the view. */
+    /**
+     * The laid-out box relative to the view's top-left corner, where it shows
+     * once its ancestors have scrolled. Zero when not connected.
+     */
     getBoundingClientRect(): LayoutRect;
 
     /** Text inputs: the text. Setting it puts the caret at the end. */
@@ -239,10 +251,21 @@ const UI = `declare module 'soundor:ui' {
   export interface PressableState {
     readonly pressed: boolean;
     readonly hovered: boolean;
+    readonly focused: boolean;
   }
   export interface PressableHandlers {
-    /** A click (primary button released over the node), or Enter/Space while focused. */
+    /**
+     * A click (primary button released over the node), or Enter/Space while
+     * focused. Not after a long press, when onLongPress is given.
+     */
     onPress?: (event: PointerEvent | KeyboardEvent) => void;
+    /**
+     * The primary button stayed down \`delayLongPress\` ms, without moving
+     * away; with the pointerdown event.
+     */
+    onLongPress?: (event: PointerEvent) => void;
+    /** Milliseconds before a press is a long press: 500 by default. */
+    delayLongPress?: number;
     onPressIn?: (event: PointerEvent) => void;
     onPressOut?: (event: PointerEvent) => void;
     onHoverIn?: (event: PointerEvent) => void;
@@ -296,12 +319,18 @@ const UI = `declare module 'soundor:ui' {
     readonly altKey: boolean;
     readonly metaKey: boolean;
     getModifierState(key: string): boolean;
-    /** Relative to the view. */
+    /** Relative to the view's top-left corner, in logical pixels. */
+    readonly pageX: number;
+    readonly pageY: number;
+    /** Relative to the target's box, in logical pixels. */
+    readonly locationX: number;
+    readonly locationY: number;
+    /** pageX and pageY, by their Web names. */
     readonly clientX: number;
     readonly clientY: number;
     readonly x: number;
     readonly y: number;
-    /** Relative to the target. */
+    /** locationX and locationY, by their Web names. */
     readonly offsetX: number;
     readonly offsetY: number;
     /** The button that changed: 0 primary, 1 middle, 2 secondary; -1 none. */

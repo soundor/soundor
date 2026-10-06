@@ -32,6 +32,12 @@ export interface EventProps {
   onPointerLeave?: (event: PointerEvent) => void;
   onClick?: (event: PointerEvent) => void;
   onClickCapture?: (event: PointerEvent) => void;
+  /**
+   * The secondary button went down: where to open a custom menu
+   * (`event.pageX/pageY`). preventDefault() keeps a browser's own away.
+   */
+  onContextMenu?: (event: PointerEvent) => void;
+  onContextMenuCapture?: (event: PointerEvent) => void;
   onWheel?: (event: WheelEvent) => void;
   onWheelCapture?: (event: WheelEvent) => void;
   onKeyDown?: (event: KeyboardEvent) => void;
@@ -124,10 +130,23 @@ export function TextInput(props: TextInputProps) {
 export interface PressableState {
   readonly pressed: boolean;
   readonly hovered: boolean;
+  /** It has keyboard focus. */
+  readonly focused: boolean;
 }
 
+const RESTING: PressableState = Object.freeze({
+  pressed: false,
+  hovered: false,
+  focused: false,
+});
+
 export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
+  /** A press; not after a long press, when onLongPress is given. */
   onPress?: (event: PointerEvent | KeyboardEvent) => void;
+  /** Held down `delayLongPress` ms without moving away. */
+  onLongPress?: (event: PointerEvent) => void;
+  /** Milliseconds before a press is a long press: 500 by default. */
+  delayLongPress?: number;
   onPressIn?: (event: PointerEvent) => void;
   onPressOut?: (event: PointerEvent) => void;
   onHoverIn?: (event: PointerEvent) => void;
@@ -138,11 +157,14 @@ export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
 }
 
 /**
- * A view that responds to presses: a click, or Enter/Space while focused.
- * `style` and `children` may depend on whether it is pressed or hovered.
+ * A view that responds to presses: a click, or Enter/Space while focused,
+ * and long presses. `style` and `children` may depend on whether it is
+ * pressed, hovered or focused.
  */
 export function Pressable({
   onPress,
+  onLongPress,
+  delayLongPress,
   onPressIn,
   onPressOut,
   onHoverIn,
@@ -154,25 +176,39 @@ export function Pressable({
   ...props
 }: PressableProps) {
   const [node, setNode] = useState<UiNode | null>(null);
-  const [state, setState] = useState<PressableState>({
-    pressed: false,
-    hovered: false,
-  });
+  const [state, setState] = useState<PressableState>(RESTING);
   // The latest handlers, read by listeners installed once per node.
   const [handlers] = useState(() => ({ current: {} as PressableProps }));
-  handlers.current = { onPress, onPressIn, onPressOut, onHoverIn, onHoverOut };
+  handlers.current = {
+    onPress,
+    onLongPress,
+    onPressIn,
+    onPressOut,
+    onHoverIn,
+    onHoverOut,
+  };
+  const longPresses = onLongPress !== undefined;
 
   useEffect(() => {
     if (node === null || disabled) return undefined;
-    return pressable(node, {
+    const undo = pressable(node, {
       onPress: (event) => handlers.current.onPress?.(event),
+      ...(longPresses && {
+        onLongPress: (event: PointerEvent) =>
+          handlers.current.onLongPress?.(event),
+        delayLongPress,
+      }),
       onPressIn: (event) => handlers.current.onPressIn?.(event),
       onPressOut: (event) => handlers.current.onPressOut?.(event),
       onHoverIn: (event) => handlers.current.onHoverIn?.(event),
       onHoverOut: (event) => handlers.current.onHoverOut?.(event),
       onStateChange: setState,
     });
-  }, [node, disabled, handlers]);
+    return () => {
+      undo();
+      setState(RESTING);
+    };
+  }, [node, disabled, handlers, longPresses, delayLongPress]);
 
   const attach = (value: UiNode | null) => {
     setNode(value);

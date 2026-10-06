@@ -311,7 +311,21 @@ export class PointerEvent extends ModifierEvent {
     };
   }
 
-  /** Relative to the view. */
+  /** Relative to the view's top-left corner, in logical pixels. */
+  get pageX(): number {
+    return this.#init.clientX;
+  }
+  get pageY(): number {
+    return this.#init.clientY;
+  }
+  /** Relative to the target's box, in logical pixels. */
+  get locationX(): number {
+    return this.#init.offsetX;
+  }
+  get locationY(): number {
+    return this.#init.offsetY;
+  }
+  /** pageX and pageY, by their Web names. */
   get clientX(): number {
     return this.#init.clientX;
   }
@@ -324,7 +338,7 @@ export class PointerEvent extends ModifierEvent {
   get y(): number {
     return this.#init.clientY;
   }
-  /** Relative to the target. */
+  /** locationX and locationY, by their Web names. */
   get offsetX(): number {
     return this.#init.offsetX;
   }

@@ -136,6 +136,9 @@ export const createImage = () => new FakeNode('image');
 export const createScrollView = () => new FakeNode('scroll');
 export const createTextInput = () => new FakeNode('input');
 
+/** The handlers each pressable node was given, for tests to inspect. */
+export const pressables = new Map<FakeNode, Record<string, unknown>>();
+
 /** pressable() reduced to what the React layer relies on. */
 export function pressable(
   node: FakeNode,
@@ -143,29 +146,43 @@ export function pressable(
     onPress?: (event: FakeEvent) => void;
     onPressIn?: (event: FakeEvent) => void;
     onPressOut?: (event: FakeEvent) => void;
-    onStateChange?: (state: { pressed: boolean; hovered: boolean }) => void;
+    onStateChange?: (state: {
+      pressed: boolean;
+      hovered: boolean;
+      focused: boolean;
+    }) => void;
   },
 ) {
-  const state = { pressed: false, hovered: false };
-  const down = (event: FakeEvent) => {
-    state.pressed = true;
+  const state = { pressed: false, hovered: false, focused: false };
+  const change = (next: Partial<typeof state>) => {
+    Object.assign(state, next);
     handlers.onStateChange?.({ ...state });
+  };
+  const down = (event: FakeEvent) => {
+    change({ pressed: true });
     handlers.onPressIn?.(event);
   };
   const up = (event: FakeEvent) => {
-    state.pressed = false;
-    handlers.onStateChange?.({ ...state });
+    change({ pressed: false });
     handlers.onPressOut?.(event);
   };
   const click = (event: FakeEvent) => handlers.onPress?.(event);
+  const focus = () => change({ focused: true });
+  const blur = () => change({ focused: false });
   node.addEventListener('pointerdown', down);
   node.addEventListener('pointerup', up);
   node.addEventListener('click', click);
+  node.addEventListener('focus', focus);
+  node.addEventListener('blur', blur);
   node.focusable = true;
+  pressables.set(node, handlers);
   return () => {
     node.removeEventListener('pointerdown', down);
     node.removeEventListener('pointerup', up);
     node.removeEventListener('click', click);
+    node.removeEventListener('focus', focus);
+    node.removeEventListener('blur', blur);
+    pressables.delete(node);
   };
 }
 
