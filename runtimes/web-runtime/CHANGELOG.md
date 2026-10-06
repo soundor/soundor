@@ -1,5 +1,17 @@
 # @soundor/web-runtime
 
+## 0.3.0
+
+### Minor Changes
+
+- [#81](https://github.com/soundor/soundor/pull/81) [`4f6615b`](https://github.com/soundor/soundor/commit/4f6615bb0a027d16557721203f5efaa77b930d85) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** `pressable()`'s and `Pressable`'s `onPress` and `onLongPress` may now receive an `AccessibilityActionEvent` (assistive technology's `activate` and `longpress`) besides pointer and keyboard events.
+
+  Accessibility semantics owned by Soundor. Components take React Native's accessibility props (`accessible`, `accessibilityLabel`, `accessibilityHint`, `accessibilityRole` — including `dialog` — `accessibilityState`, `accessibilityValue` with fractional values, `accessibilityActions`, `onAccessibilityAction`). `Pressable` is a button by default, labelled by its text, offering `activate` and reflecting `disabled`; `Modal` is a modal dialog (`accessibilityLabel`), and overlays opened from inside an overlay belong to it.
+
+  `soundor:ui` nodes gain `accessibility`, `accessibilityParent` and the `accessibilityaction` event (`AccessibilityActionEvent`). The JUCE runtime's native core builds a platform-neutral semantic tree from the view (`a11y::SurfaceSemantics`: stable ids, incremental updates, modal scoping, implicit labels, safe action routing) for platform adapters to present; the web runtime checks the same properties.
+
+- [#83](https://github.com/soundor/soundor/pull/83) [`4d0f1d4`](https://github.com/soundor/soundor/commit/4d0f1d4877d0c5d886e19f4ca183775e5a8ba7fc) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Soundor's accessibility semantics as ARIA in the browser, on the elements that already draw the nodes. Roles, labels (explicit, or the text inside a button-like element), hints, states and range values become ARIA attributes; text inputs and images keep their native semantics. A modal is an `aria-modal` dialog with everything outside it `aria-hidden`, nested modals supersede each other, and a portal opened from a modal is owned by it (`aria-owns`). A screen reader's activation (a click with no pointer) presses a `Pressable` once, through the `activate` accessibility action.
+
 ## 0.2.0
 
 ### Minor Changes
