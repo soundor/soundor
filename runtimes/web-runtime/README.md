@@ -119,9 +119,7 @@ bundle's `soundor:*` imports to this package's browser modules.
 import { defineWebConfig } from '@soundor/web-runtime/vite';
 
 export default defineWebConfig({
-  plugins: [
-    /* your Vite plugins */
-  ],
+  plugins: [/* your Vite plugins */],
 });
 ```
 

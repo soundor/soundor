@@ -11,6 +11,9 @@ updates:
     open-pull-requests-limit: 10
     ignore:
       - dependency-name: '@soundor/*'
+      # Tracks the Node version in engines.node; bump it together with Node.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       pnpm-minor-and-patch:
         update-types:

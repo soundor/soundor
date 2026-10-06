@@ -5,9 +5,9 @@ packages:
   - examples/*
 
 catalog:
-  '@changesets/changelog-github': ^0.7.0
-  '@changesets/cli': ^2.31.0
-  '@clack/prompts': ^1.7.0
+  '@changesets/changelog-github': ^1.0.1
+  '@changesets/cli': ^3.0.3
+  '@clack/prompts': ^1.8.1
   '@types/node': ^24.13.2
   '@types/react': ^19.2.17
   '@types/react-reconciler': ^0.33.1
@@ -15,18 +15,18 @@ catalog:
   fake-indexeddb: ^6.2.5
   happy-dom: ^20.14.5
   husky: ^9.1.7
-  lint-staged: ^17.0.8
-  oxfmt: ^0.57.0
-  oxlint: ^1.72.0
+  lint-staged: ^17.6.0
+  oxfmt: ^0.71.0
+  oxlint: ^1.86.0
   react: ^19.3.0
   react-reconciler: ^0.34.0
-  rolldown: ^1.1.4
-  tsdown: ^0.22.3
-  turbo: ^2.10.3
+  rolldown: ^1.2.12
+  tsdown: ^0.23.0
+  turbo: ^2.11.6
   typescript: ^6.0.3
-  vite: ^8.1.3
-  vitest: ^4.1.9
-  zod: ^4.1.13
+  vite: ^8.3.2
+  vitest: ^5.0.3
+  zod: ^4.6.5
 
 catalogMode: strict
 
