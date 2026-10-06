@@ -118,6 +118,9 @@ list(FILTER soundor_runtime_all_sources INCLUDE REGEX "soundor-embedded/")
 target_sources(soundor_runtime_other PRIVATE ${soundor_runtime_all_sources})
 add_dependencies(soundor_runtime_other soundor_runtime)
 soundor_configure_runtime(soundor_runtime_other p_coexist)
+# Same sources as soundor_runtime under another ABI namespace; linting them
+# twice only doubles the clang-tidy time.
+set_target_properties(soundor_runtime_other PROPERTIES CXX_CLANG_TIDY "")
 
 add_library(soundor_coexist_a MODULE coexistence/Plugin.cpp)
 target_link_libraries(soundor_coexist_a PRIVATE soundor::runtime)

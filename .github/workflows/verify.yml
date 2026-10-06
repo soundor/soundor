@@ -19,6 +19,9 @@ jobs:
       # Clang 18 toolchain as local development.
       CC: clang
       CXX: clang++
+      # Without it CMake defaults to Makefiles, which build one file at a time;
+      # the Skia action installs Ninja.
+      CMAKE_GENERATOR: Ninja
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
