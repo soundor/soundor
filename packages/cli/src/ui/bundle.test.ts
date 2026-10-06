@@ -255,10 +255,14 @@ describe('watchUi', () => {
     await write('src/main.ts', `globalThis.version = 1;`);
     const builds: UiBundle[] = [];
     const errors: unknown[] = [];
+    // One write can fire several watch events, so a step may see more than
+    // one rebuild: wait for the state it expects, not for the next callback.
     let notify = (): void => {};
-    const next = (): Promise<void> =>
+    const until = (reached: () => boolean): Promise<void> =>
       new Promise((done) => {
-        notify = done;
+        notify = () => {
+          if (reached()) done();
+        };
       });
     const watcher = watchUi({
       root,
@@ -280,19 +284,17 @@ describe('watchUi', () => {
       const buildId = (): Promise<string> =>
         readFile(join(root, 'out', 'build-id'), 'utf8');
 
-      let event = next();
+      let event = until(() => errors.length > 0);
       await write('src/main.ts', `import './missing';`);
       await event;
-      expect(errors).toHaveLength(1);
       expect(await buildId()).toBe(first!.buildId);
       expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
         'version = 1',
       );
 
-      event = next();
+      event = until(() => builds.length > 1);
       await write('src/main.ts', `globalThis.version = 2;`);
       await event;
-      expect(builds).toHaveLength(2);
       expect(await buildId()).toBe(builds[1]!.buildId);
       expect(builds[1]!.buildId).not.toBe(first!.buildId);
       expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
