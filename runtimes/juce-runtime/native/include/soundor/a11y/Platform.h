@@ -19,10 +19,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     // semantics are Soundor's.
     struct NativeView
     {
-        // Windows: the HWND the surface is drawn in. Linux: unused (AT-SPI
-        // needs no window, only geometry). macOS: the NSView, iOS: the UIView
-        // (once Soundor's Apple bridge exists).
+        // Windows: the HWND the surface is drawn in. macOS: the NSView, iOS:
+        // the UIView. Linux: unused (AT-SPI needs no window, only geometry).
         void* handle = nullptr;
+        // macOS and iOS: the accessibility object the view's elements are
+        // children of: the framework's element for the plugin view (JUCE:
+        // the editor's), or null for the view itself.
+        void* accessibilityParent = nullptr;
     };
 
     // Where the surface is shown, in the native view's units.
@@ -67,10 +70,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         virtual void setFocused(bool focused) = 0;
         // Whether assistive technology asked for the tree.
         [[nodiscard]] virtual bool active() const = 0;
+
+        // macOS and iOS: the object holding the view's elements, which the
+        // framework lists among the native view's accessibility children
+        // (JUCE: AccessibilityHandler::setNativeChildForComponent(); a view
+        // of one's own: its accessibilityElements / accessibilityChildren).
+        // Null elsewhere.
+        [[nodiscard]] virtual void* accessibilityContainer() const { return nullptr; }
     };
 
     // The platform's accessibility for `options.view`; null where Soundor has
-    // none here: macOS and iOS (until their bridge), Android (no runtime yet),
-    // or a build without AccessKit (Linux arm64, SOUNDOR_ACCESSKIT=OFF).
+    // none here: iOS (until its bridge), Android (no runtime yet), or a build
+    // without AccessKit (Linux arm64, SOUNDOR_ACCESSKIT=OFF).
     [[nodiscard]] std::unique_ptr<PlatformAccessibility> createPlatformAccessibility(const PlatformOptions& options);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y

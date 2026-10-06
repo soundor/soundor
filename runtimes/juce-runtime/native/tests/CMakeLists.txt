@@ -50,6 +50,13 @@ if(SOUNDOR_HAS_ACCESSKIT)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
 endif()
 
+if(APPLE AND NOT IOS)
+  target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm)
+  target_link_libraries(soundor_runtime_tests PRIVATE "-framework AppKit")
+  set_target_properties(soundor_runtime_tests PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON)
+  target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
+endif()
+
 add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
 
 # soundor_embed_directory() called from another project's scope (as setup.cmake
@@ -150,6 +157,34 @@ add_dependencies(soundor_coexistence_host soundor_coexist_a soundor_coexist_b)
 add_test(
   NAME soundor_coexistence
   COMMAND soundor_coexistence_host $<TARGET_FILE:soundor_coexist_a> $<TARGET_FILE:soundor_coexist_b>)
+# The macOS accessibility bridge in a plugin host: two plugin binaries with
+# their own runtimes (and so their own element classes), loaded together,
+# destroyed and unloaded while an element is still held.
+if(APPLE AND NOT IOS)
+  foreach(variant a b)
+    add_library(soundor_apple_module_${variant} MODULE apple/Module.mm)
+    target_include_directories(soundor_apple_module_${variant} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    target_link_libraries(soundor_apple_module_${variant} PRIVATE "-framework AppKit")
+    set_target_properties(soundor_apple_module_${variant} PROPERTIES
+      OBJCXX_STANDARD 20 OBJCXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN ON)
+    target_compile_options(soundor_apple_module_${variant} PRIVATE -fobjc-arc)
+  endforeach()
+  target_link_libraries(soundor_apple_module_a PRIVATE soundor::runtime)
+  add_library(soundor_runtime_apple STATIC ${SOUNDOR_RUNTIME_SOURCES})
+  target_sources(soundor_runtime_apple PRIVATE ${soundor_runtime_all_sources})
+  add_dependencies(soundor_runtime_apple soundor_runtime)
+  soundor_configure_runtime(soundor_runtime_apple p_apple)
+  target_link_libraries(soundor_apple_module_b PRIVATE soundor_runtime_apple)
+
+  add_executable(soundor_apple_host apple/AppleHost.mm)
+  target_link_libraries(soundor_apple_host PRIVATE "-framework AppKit" ${CMAKE_DL_LIBS})
+  target_compile_options(soundor_apple_host PRIVATE -fobjc-arc)
+  add_dependencies(soundor_apple_host soundor_apple_module_a soundor_apple_module_b)
+  add_test(
+    NAME soundor_apple_coexistence
+    COMMAND soundor_apple_host $<TARGET_FILE:soundor_apple_module_a> $<TARGET_FILE:soundor_apple_module_b>)
+endif()
+
 if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   foreach(module soundor_coexist_a soundor_coexist_b)
     add_test(

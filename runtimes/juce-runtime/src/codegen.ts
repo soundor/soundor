@@ -444,8 +444,10 @@ namespace ${NS}
         void deliver(const ui::PointerInput& input);
         // Presents the UI to the platform's assistive technology, in the
         // native view JUCE shows it in. The semantics are Soundor's: JUCE only
-        // says where the view is.
+        // says where the view is (and, on macOS, lists Soundor's elements as
+        // the editor's native accessibility child).
         void updateAccessibility();
+        void detachAccessibility();
 
         // What the UI was last drawn into, at device resolution.
         juce::Image canvas;
@@ -571,7 +573,7 @@ namespace ${NS}
     {
         stopTimer();
         // Before the host whose tree it presents.
-        accessibility.reset();
+        detachAccessibility();
 #if SOUNDOR_UI_DEV
         session.reset();
 #else
@@ -597,6 +599,17 @@ namespace ${NS}
             repaint();
     }
 
+    void AudioProcessorEditor::detachAccessibility()
+    {
+    #if JUCE_MAC
+        if (accessibility != nullptr)
+            juce::AccessibilityHandler::setNativeChildForComponent(*this, nullptr);
+    #endif
+        accessibility.reset();
+        accessibilityView = nullptr;
+        accessibilityFocused = false;
+    }
+
     void AudioProcessorEditor::updateAccessibility()
     {
         auto* peer = getPeer();
@@ -604,16 +617,32 @@ namespace ${NS}
         if (view != accessibilityView)
         {
             // A new native view (or none): attach again.
-            accessibility.reset();
+            detachAccessibility();
             accessibilityView = view;
-            accessibilityFocused = false;
-#if ! JUCE_MAC && ! JUCE_IOS
             if (view != nullptr)
-                accessibility = a11y::createPlatformAccessibility({ { view }, AudioProcessor::pluginName });
-#endif
+            {
+                a11y::NativeView native { view, nullptr };
+    #if JUCE_MAC
+                // VoiceOver reaches the view's elements through JUCE's element
+                // for this editor: the container is its native child.
+                if (auto* handler = getAccessibilityHandler())
+                    native.accessibilityParent = handler->getNativeImplementation();
+    #endif
+                accessibility = a11y::createPlatformAccessibility({ native, AudioProcessor::pluginName });
+    #if JUCE_MAC
+                if (accessibility != nullptr)
+                    juce::AccessibilityHandler::setNativeChildForComponent(*this, accessibility->accessibilityContainer());
+    #endif
+            }
         }
         if (accessibility == nullptr || peer == nullptr)
             return;
+    #if JUCE_MAC
+        // The surface in the view's points.
+        const auto topLeft = peer->getComponent().getLocalPoint(this, juce::Point<float> {});
+        const auto points = static_cast<float>(juce::Component::getApproximateScaleFactorForComponent(this));
+        accessibility->setGeometry({ topLeft.x, topLeft.y, points, {} });
+    #else
         // The surface in the native view's physical pixels.
         const float scale = runtimeHost().surface().scale();
         const auto physical = static_cast<float>(peer->getPlatformScaleFactor());
@@ -621,6 +650,7 @@ namespace ${NS}
         const auto screen = getScreenBounds().toFloat() * scale;
         accessibility->setGeometry({ topLeft.x, topLeft.y, scale,
                                      { screen.getX(), screen.getY(), screen.getWidth(), screen.getHeight() } });
+    #endif
         if (const bool focused = hasKeyboardFocus(true); focused != accessibilityFocused)
         {
             accessibilityFocused = focused;

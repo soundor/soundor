@@ -421,6 +421,13 @@ The AccessKit adapter (`src/a11y/accesskit/`, the only code that includes
 - **Linux:** `accesskit_unix_adapter`, positioned by the view's screen bounds
   (X11; Wayland does not tell them).
 
+The macOS bridge (`src/a11y/apple/`) is Soundor's own: virtual
+`NSAccessibilityElement`s, one runtime-created element class per binary
+under a random name, no swizzling, and the binary pinned once the class
+exists. It activates while VoiceOver or Switch Control is on. Its
+attachment, lifecycle and the manual VoiceOver checklist are in
+[`src/a11y/apple/README.md`](src/a11y/apple/README.md).
+
 ### `RuntimeHost`
 
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
