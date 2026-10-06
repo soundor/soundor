@@ -20,7 +20,7 @@ import { join } from 'node:path';
 import type { UiBundleContext } from '@soundor/runtime-sdk';
 import { normalizePath, type Plugin, type ViteDevServer } from 'vite';
 
-import { ASSET_PATH, isAssetId, type UiLogEntry } from './client/protocol';
+import { ASSET_PATH, isAssetId, type UiLogEntry } from './client/protocol.ts';
 
 export interface SoundorUiBundleOptions {
   /** The plugin UI bundle; undefined when the project has no UI. */
