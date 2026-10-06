@@ -173,10 +173,33 @@ UiNodes.
   viewport's scale: `pageX`/`pageY`, `getBoundingClientRect()`. The DOM's
   `contextmenu` becomes Soundor's, and preventing it keeps the browser's
   menu away.
-- **Accessibility.** `accessibility` and `accessibilityParent` are checked
-  as in the JUCE runtime, and `pressable()` answers `activate` and
-  `longpress` accessibility actions. They are not yet presented to the
-  browser's accessibility tree.
+- **Accessibility** is ARIA on the elements that draw the nodes: no second,
+  hidden DOM, and no AccessKit. The JUCE runtime's semantic rules decide
+  what is an element, as what, labelled how; a pass after each task's
+  changes sets the matching attributes:
+  - Roles: `adjustable` is `slider`, `togglebutton` a `button` with
+    `aria-pressed`, `header` a `heading`, `summary` a `region`,
+    `keyboardkey` a `button`; most others keep their name. A text input
+    stays a native `<input>` (labelled with `aria-label`), an image an
+    `<img>` whose `alt` is its label (empty while decorative).
+  - Label: `aria-label`, or for an element read whole (a button, a slider)
+    the text inside it; hint: `aria-description`; state: `aria-disabled`,
+    `aria-selected`, `aria-checked` (or `aria-pressed`), `aria-expanded`,
+    `aria-busy`; ranges: `aria-valuemin`/`max`/`now`/`text`.
+  - `accessible: false` leaves a node without role or label, and hides a
+    text node's own text; what a view holds is still read.
+  - `accessibilityParent` is `aria-owns` on the parent: a portal opened
+    from a modal is read inside it.
+  - While a modal element shows, it is `role="dialog"` with
+    `aria-modal="true"`, and everything outside it (and what it owns) is
+    `aria-hidden`; a modal opened from it supersedes it. Nothing is made
+    `inert`, so focus restoration and pointer input stay the modal's.
+  - A click no pointer made (`detail` 0: a screen reader activating an
+    element) is the `activate` action of the nearest element offering it.
+    Pointer clicks come from the view's own press and release, so a press
+    is never delivered twice. Other actions have no DOM path: screen
+    readers adjust sliders with the arrow keys, which a control handles
+    itself.
 
 ## Native API in TypeScript
 

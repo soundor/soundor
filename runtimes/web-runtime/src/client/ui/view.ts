@@ -13,6 +13,7 @@
  */
 
 import {
+  AccessibilityActionEvent,
   FocusEvent,
   InputEvent,
   KeyboardEvent,
@@ -20,6 +21,7 @@ import {
   WheelEvent,
 } from './events';
 import { createNode, nodeOf, UiNode, type ViewLink } from './node';
+import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
@@ -50,6 +52,8 @@ export class UiView implements ViewLink {
   /** Whether the last pointerdown kept the browser's default (focus, caret). */
   #nativeDown = false;
   #clipboard = '';
+  /** Whether the ARIA is to be brought up to date. */
+  #semanticsPending = false;
 
   constructor(document: Document = globalThis.document) {
     if (document.getElementById(STYLE_ID) === null) {
@@ -176,6 +180,50 @@ export class UiView implements ViewLink {
     input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
   }
 
+  // ── Accessibility ──────────────────────────────────────────────────────────
+
+  /** Brings the ARIA up to date once the current task's changes are done. */
+  semanticsChanged(): void {
+    if (this.#semanticsPending) return;
+    this.#semanticsPending = true;
+    queueMicrotask(() => this.updateSemantics());
+  }
+
+  /** Sets the view's ARIA to match its nodes now. */
+  updateSemantics(): void {
+    this.#semanticsPending = false;
+    updateSemantics([this.root, this.overlay]);
+  }
+
+  /**
+   * A click no pointer made (detail 0): assistive technology activating an
+   * element. It becomes the `activate` accessibility action of the nearest
+   * element offering one, as natively. Pointer clicks are the view's own,
+   * from its press and release, so a press is never delivered twice; and
+   * what the browser does natively (focusing an input) stays the browser's.
+   */
+  #click(event: MouseEvent): void {
+    event.stopPropagation();
+    if (event.detail !== 0) return;
+    for (
+      let node = nodeOf(event.target as Element | null, this.rootElement);
+      node !== null;
+      node = node.parent
+    ) {
+      const { actions, state } = UiNode.semanticsOf(node);
+      if (!actions.some((action) => action.name === 'activate')) continue;
+      if (state.disabled) return;
+      const action = new AccessibilityActionEvent('accessibilityaction', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        actionName: 'activate',
+      });
+      if (!node.dispatchEvent(action)) event.preventDefault();
+      return;
+    }
+  }
+
   // ── Clipboard ──────────────────────────────────────────────────────────────
 
   /** The system clipboard where the page may use it, else the page's own. */
@@ -231,7 +279,7 @@ export class UiView implements ViewLink {
       },
       options,
     );
-    element.addEventListener('click', (e) => e.stopPropagation(), options);
+    element.addEventListener('click', (e) => this.#click(e), options);
     element.addEventListener(
       'contextmenu',
       (e) => this.#contextMenu(e),

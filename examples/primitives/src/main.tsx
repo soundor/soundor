@@ -123,10 +123,14 @@ function ContextMenuDemo() {
         <Portal>
           {/* A transparent layer closes the menu on an outside press. */}
           <View style={styles.fill} onPointerDown={() => setMenu(null)} />
-          <View style={[styles.menu, { left: menu.x, top: menu.y }]}>
+          <View
+            accessibilityRole="menu"
+            style={[styles.menu, { left: menu.x, top: menu.y }]}
+          >
             {['Copy', 'Paste', 'Reset'].map((item) => (
               <Pressable
                 key={item}
+                accessibilityRole="menuitem"
                 onPress={() => choose(item)}
                 style={({ hovered }) => [
                   styles.menuItem,
@@ -211,6 +215,7 @@ function Dropdown() {
         <Portal>
           <View style={styles.fill} onPointerDown={() => setBox(null)} />
           <View
+            accessibilityRole="menu"
             style={[
               styles.menu,
               { left: box.x, top: box.y + box.height, width: box.width },
@@ -219,6 +224,7 @@ function Dropdown() {
             {['Sine', 'Saw', 'Square', 'Noise'].map((item) => (
               <Pressable
                 key={item}
+                accessibilityRole="menuitem"
                 onPress={() => {
                   setValue(item);
                   setBox(null);
@@ -297,6 +303,7 @@ function Dialog({
 }) {
   return (
     <Modal
+      accessibilityLabel={title}
       onRequestClose={onClose}
       dismissOnBackdropPress
       backdropStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
