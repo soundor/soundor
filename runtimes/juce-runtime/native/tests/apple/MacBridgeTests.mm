@@ -139,7 +139,7 @@ TEST_SUITE("a11y macOS bridge")
         CHECK([f.top() count] == 6);
 
         NSAccessibilityElement* knob = f.find("Gain");
-        REQUIRE(knob != nil);
+        REQUIRE((knob != nil));
         CHECK([[knob accessibilityRole] isEqualToString:NSAccessibilitySliderRole]);
         CHECK([[knob accessibilityValue] doubleValue] == -3.5);
         CHECK(text([knob accessibilityValueDescription]) == "-3.5 dB");
@@ -149,7 +149,7 @@ TEST_SUITE("a11y macOS bridge")
         CHECK([knob isAccessibilityElement]);
 
         NSAccessibilityElement* button = f.find("Reset");
-        REQUIRE(button != nil);
+        REQUIRE((button != nil));
         CHECK([[button accessibilityRole] isEqualToString:NSAccessibilityButtonRole]);
         CHECK([[button accessibilityChildren] count] == 0); // its text is its label
 
@@ -179,11 +179,11 @@ TEST_SUITE("a11y macOS bridge")
         CHECK(name == a11y::detail::macElementClassName());
         CHECK(name.rfind(std::string("SoundorAXElement_") + "v0_", 0) == 0);
         CHECK(name.size() > std::string("SoundorAXElement_v0_").size() + 16);
-        CHECK(class_getSuperclass(object_getClass(knob)) == [NSAccessibilityElement class]);
+        CHECK((class_getSuperclass(object_getClass(knob)) == [NSAccessibilityElement class]));
         // No class under the bare name.
-        CHECK(objc_getClass("SoundorAXElement") == nil);
+        CHECK((objc_getClass("SoundorAXElement") == nil));
         // The container is the system's own class.
-        CHECK([(__bridge id)f.platform->accessibilityContainer() class] == [NSAccessibilityElement class]);
+        CHECK(([(__bridge id)f.platform->accessibilityContainer() class] == [NSAccessibilityElement class]));
     }
 
     TEST_CASE("VoiceOver's actions reach plugin code on the next tick, if the element offers them")
@@ -239,7 +239,7 @@ TEST_SUITE("a11y macOS bridge")
         NSAccessibilityElement* knob = f.find("Gain");
         f.run("knob.remove();");
         f.tick();
-        CHECK(f.find("Gain") == nil);
+        CHECK((f.find("Gain") == nil));
         // Queued, but refused: the node is gone.
         [knob accessibilityPerformIncrement];
         f.tick();
@@ -250,7 +250,7 @@ TEST_SUITE("a11y macOS bridge")
         NSAccessibilityCustomAction* reset = [f.find("Sync") accessibilityCustomActions].firstObject;
         f.platform.reset();
         CHECK_FALSE([button accessibilityPerformPress]);
-        CHECK(reset == nil);
+        CHECK((reset == nil));
     }
 
     TEST_CASE("only the active modal is presented")
@@ -268,11 +268,11 @@ TEST_SUITE("a11y macOS bridge")
         NSAccessibilityElement* dialog = f.top()[0];
         CHECK([[dialog accessibilitySubrole] isEqualToString:NSAccessibilityDialogSubrole]);
         CHECK([dialog isAccessibilityModal]);
-        CHECK(f.find("Background") == nil);
-        CHECK(f.find("Inside") != nil);
+        CHECK((f.find("Background") == nil));
+        CHECK((f.find("Inside") != nil));
         f.run("dialog.remove();");
         f.tick();
-        CHECK(f.find("Background") != nil);
+        CHECK((f.find("Background") != nil));
     }
 
     TEST_CASE("nothing is presented while no assistive technology is on")
@@ -291,6 +291,7 @@ TEST_SUITE("a11y macOS bridge")
     TEST_CASE("frames are on the screen, wherever the window is")
     {
         MacFixture f;
+        [NSApplication sharedApplication];
         NSWindow* window = [[NSWindow alloc] initWithContentRect:NSMakeRect(100, 100, 200, 100)
                                                        styleMask:NSWindowStyleMaskBorderless
                                                          backing:NSBackingStoreBuffered
