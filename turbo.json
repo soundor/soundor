@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
+  "agentGuidance": false,
   "globalDependencies": [
     "oxfmt.config.ts",
     "oxlint.config.ts",
