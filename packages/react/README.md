@@ -59,6 +59,31 @@ among its siblings, for drawing and hit testing alike; layout keeps tree
 order). `style` takes arrays and falsy entries; `StyleSheet.create()` names
 styles with their types.
 
+## Focus
+
+`FocusScope` groups its children for keyboard focus. It adds no node, so
+layout is as if it were not there.
+
+```tsx
+<FocusScope trapped autoFocus restoreFocus>
+  <TextInput placeholder="Preset name" />
+  <Pressable onPress={save}>
+    <Text>Save</Text>
+  </Pressable>
+</FocusScope>
+```
+
+- `trapped`: Tab and Shift+Tab cycle through the scope's focusable nodes,
+  wrapping at the ends, and focus moved outside comes back. The innermost
+  trapping scope wins.
+- `autoFocus`: on mount, focuses the first focusable node, unless focus is
+  already inside.
+- `restoreFocus`: on unmount, gives focus back to the node that had it on
+  mount, if that node is still there and focusable.
+
+All default to `false`. Membership follows React, not the node tree: what
+the scope's children render belongs to it wherever it shows.
+
 ## Rendering
 
 - `render(element)` renders into the whole plugin view.

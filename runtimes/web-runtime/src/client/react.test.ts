@@ -4,6 +4,7 @@
 
 import {
   createRoot,
+  FocusScope,
   flushSync,
   Image,
   Pressable,
@@ -177,6 +178,54 @@ describe('@soundor/react on the DOM soundor:ui', () => {
       'soundor-assets/0123456789abcdef.png',
     );
     expect(element(image).style.width).toBe('32px');
+    flushSync(() => reactRoot.unmount());
+  });
+
+  it('traps Tab in a FocusScope over the browser keyboard, and restores focus', () => {
+    const field = (name: string) =>
+      h(View, { focusable: true, key: name, onFocus: () => seen.push(name) });
+    const seen: string[] = [];
+    const app = (open: boolean) =>
+      h(View, null, [
+        field('a'),
+        open &&
+          h(
+            FocusScope,
+            {
+              trapped: true,
+              autoFocus: true,
+              restoreFocus: true,
+              key: 'scope',
+            },
+            field('b'),
+            field('c'),
+          ),
+        field('d'),
+      ]);
+    const tab = (shiftKey = false) => {
+      const event = new window.KeyboardEvent('keydown', {
+        key: 'Tab',
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      });
+      view.rootElement.dispatchEvent(event);
+      return event;
+    };
+
+    const reactRoot = render(app(false));
+    root.children[0]!.children[0]!.focus();
+    flushSync(() => reactRoot.render(app(true)));
+    const tabbed = tab();
+    tab();
+    tab(true);
+    // Default prevented: the browser's own Tab does not run either.
+    expect(tabbed.defaultPrevented).toBe(true);
+    expect(seen).toEqual(['a', 'b', 'c', 'b', 'c']);
+    flushSync(() => reactRoot.render(app(false)));
+    expect(seen.at(-1)).toBe('a');
+    tab();
+    expect(seen.at(-1)).toBe('d');
     flushSync(() => reactRoot.unmount());
   });
 });

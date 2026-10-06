@@ -26,6 +26,7 @@ import {
   type UiNode,
 } from 'soundor:ui';
 
+import { tagScope, type Scope } from './focus';
 import { flattenStyle } from './style';
 
 /** The host element types the components render. */
@@ -38,6 +39,12 @@ export const HostTypes = {
 } as const;
 
 export type HostType = (typeof HostTypes)[keyof typeof HostTypes];
+
+/**
+ * The prop components pass their FocusScope through: host elements cannot
+ * read context.
+ */
+export const SCOPE_PROP = '__soundorFocusScope';
 
 type Props = Record<string, unknown>;
 
@@ -231,6 +238,8 @@ function applyProps(
 ): void {
   const { node } = instance;
   instance.props = next;
+  if (previous === null || next[SCOPE_PROP] !== previous[SCOPE_PROP])
+    tagScope(node, (next[SCOPE_PROP] as Scope | undefined) ?? null);
   const style = styleOf(instance, next);
   if (previous === null || !sameStyle(node.style, style)) node.style = style;
 

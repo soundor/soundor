@@ -23,6 +23,7 @@ export {
   type TextProps,
   type ViewProps,
 } from './components';
+export { FocusScope, type FocusScopeProps } from './focus';
 export { useAnimationFrame, useParameter, type ParameterLike } from './hooks';
 export { createRoot, flushSync, render, type Root } from './root';
 export { StyleSheet, flattenStyle, type StyleProp } from './style';
