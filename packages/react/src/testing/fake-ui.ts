@@ -41,6 +41,8 @@ export class FakeNode {
   placeholder = '';
   source = '';
   focusable: boolean;
+  accessibility: Record<string, unknown> = {};
+  accessibilityParent: FakeNode | null = null;
   readonly listeners = new Map<string, Listener[]>();
 
   constructor(readonly type: string) {
@@ -220,6 +222,7 @@ export function pressable(
   node: FakeNode,
   handlers: {
     onPress?: (event: FakeEvent) => void;
+    onLongPress?: (event: FakeEvent) => void;
     onPressIn?: (event: FakeEvent) => void;
     onPressOut?: (event: FakeEvent) => void;
     onStateChange?: (state: {
@@ -243,11 +246,25 @@ export function pressable(
     handlers.onPressOut?.(event);
   };
   const click = (event: FakeEvent) => handlers.onPress?.(event);
+  const act = (event: FakeEvent) => {
+    if (event.target !== node || event.defaultPrevented) return;
+    if (event['actionName'] === 'activate') {
+      event.preventDefault();
+      handlers.onPress?.(event);
+    } else if (
+      event['actionName'] === 'longpress' &&
+      handlers.onLongPress !== undefined
+    ) {
+      event.preventDefault();
+      handlers.onLongPress(event);
+    }
+  };
   const focus = () => change({ focused: true });
   const blur = () => change({ focused: false });
   node.addEventListener('pointerdown', down);
   node.addEventListener('pointerup', up);
   node.addEventListener('click', click);
+  node.addEventListener('accessibilityaction', act);
   node.addEventListener('focus', focus);
   node.addEventListener('blur', blur);
   node.focusable = true;
@@ -256,6 +273,7 @@ export function pressable(
     node.removeEventListener('pointerdown', down);
     node.removeEventListener('pointerup', up);
     node.removeEventListener('click', click);
+    node.removeEventListener('accessibilityaction', act);
     node.removeEventListener('focus', focus);
     node.removeEventListener('blur', blur);
     pressables.delete(node);

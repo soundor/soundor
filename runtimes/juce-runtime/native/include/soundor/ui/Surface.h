@@ -1,6 +1,7 @@
 #pragma once
 
 #include <soundor/Config.h>
+#include <soundor/a11y/Semantics.h>
 #include <soundor/ui/Input.h>
 #include <soundor/ui/Style.h>
 #include <soundor/ui/Text.h>
@@ -14,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 struct YGNode; // Yoga stays private to the runtime.
@@ -114,6 +116,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
         // Scroll: how far the content is scrolled; Input: how far its text is.
         [[nodiscard]] Point scrollOffset() const noexcept { return scroll; }
+        // What plugin code says the node is to assistive technology.
+        [[nodiscard]] const a11y::Properties& accessibility() const noexcept { return semantics; }
+        // Where assistive technology reads the node, in place of its parent
+        // (noNode: its parent).
+        [[nodiscard]] NodeId accessibilityParent() const noexcept { return semanticParent; }
 
     private:
         friend class Surface;
@@ -134,6 +141,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::string placeholderText;
         Selection textSelection;
         Point scroll;
+        a11y::Properties semantics;
+        NodeId semanticParent = noNode;
         bool canFocus = false;
         // The last layout of the text, by the width it was made for.
         float layoutWidth = -1;
@@ -162,6 +171,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Blur,   // does not bubble
             Scroll, // does not bubble
             ContextMenu,
+            AccessibilityAction,
         };
 
         Type type = Type::PointerMove;
@@ -185,6 +195,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::string key;
         bool repeat = false;
         std::string text;
+
+        // Accessibility actions: the action's name, and its value if any.
+        std::string action;
+        std::variant<std::monostate, double, std::string> value;
 
         Modifiers modifiers = 0;
     };
@@ -237,6 +251,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void setPlaceholder(NodeId id, std::string placeholder);
         // Clamped to the text and to code point boundaries.
         void setSelection(NodeId id, Selection selection);
+        // What assistive technology is told about the node.
+        void setAccessibility(NodeId id, a11y::Properties properties);
+        // Reads `id` as a child of `parent` (noNode: of its own parent), as for
+        // content a portal shows elsewhere than where it belongs.
+        void setAccessibilityParent(NodeId id, NodeId parent);
         // Scroll nodes: clamped to the content.
         void scrollTo(NodeId id, Point offset);
         // Scroll nodes: the size of what they scroll.
@@ -278,6 +297,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // Changes since the last call: the tree, a style, a size, a scroll.
         [[nodiscard]] bool takeChanges() noexcept;
+        // Counts every change to the tree, its content, its accessibility or
+        // its layout; equal revisions mean nothing changed in between.
+        [[nodiscard]] std::uint64_t revision() const noexcept { return changes; }
         // Whether something moves by itself (a caret blinks), so the view
         // should be drawn again soon even without changes.
         [[nodiscard]] bool animating() noexcept;
@@ -295,6 +317,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         bool wheel(const WheelInput& input);
         bool key(const KeyInput& input);
         bool text(const TextInput& input);
+
+        // Delivers an accessibility action to `target` (an
+        // `accessibilityaction` event); whether something acted on it.
+        bool accessibilityAction(NodeId target, std::string action,
+                                 std::variant<std::monostate, double, std::string> value = {});
 
         // Moves focus to `id` (focusable and connected) or nowhere (noNode),
         // dispatching blur and focus.
@@ -325,6 +352,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] Point origin(const Node& node);
         bool scrollBy(NodeId target, float deltaX, float deltaY);
         void keepCaretVisible(Node& node);
+        void markChanged() noexcept
+        {
+            changed = true;
+            ++changes;
+        }
 
         Options options;
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;
@@ -335,6 +367,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Size viewSize;
         float pixelScale = 1;
         bool changed = true;
+        std::uint64_t changes = 1;
         EventSink sink;
         std::map<int, PointerState> pointers;
         NodeId focusedNode = noNode;

@@ -31,6 +31,8 @@ if(NOT SOUNDOR_ABI_NAMESPACE MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
 endif()
 
 set(SOUNDOR_RUNTIME_SOURCES
+  src/a11y/Semantics.cpp
+  src/a11y/SurfaceSemantics.cpp
   src/js/Bindings.cpp
   src/js/Context.cpp
   src/js/Error.cpp

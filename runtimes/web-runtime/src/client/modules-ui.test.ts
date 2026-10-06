@@ -3,6 +3,7 @@
 
 import type * as Contract from 'soundor:ui';
 import {
+  AccessibilityActionEvent,
   clipboard,
   createImage,
   createScrollView,
@@ -21,13 +22,14 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { uiView } from './context';
 import type { PressableState } from './modules/ui';
-import type { LayoutRect, Style } from './ui/types';
+import type { Accessibility, LayoutRect, Style } from './ui/types';
 
 describe('soundor:ui', () => {
   it('declares the same shapes as the contract', () => {
     expectTypeOf<Style>().toEqualTypeOf<Contract.Style>();
     expectTypeOf<LayoutRect>().toEqualTypeOf<Contract.LayoutRect>();
     expectTypeOf<PressableState>().toEqualTypeOf<Contract.PressableState>();
+    expectTypeOf<Accessibility>().toEqualTypeOf<Contract.Accessibility>();
   });
 
   it('is the page view: its root and its nodes', () => {
@@ -210,5 +212,91 @@ describe('pressable', () => {
     expect(() => pressable({} as UiNode)).toThrow(
       new TypeError('node must be a UiNode'),
     );
+  });
+});
+
+describe('accessibility', () => {
+  it('keeps what plugin code says, frozen, and checks it as natively', () => {
+    const node = createView();
+    expect(node.accessibility).toEqual({});
+    node.accessibility = {
+      role: 'adjustable',
+      label: 'Gain',
+      value: { min: -60, max: 12, now: -3.5, text: '-3.5 dB' },
+      actions: [{ name: 'increment' }, { name: 'reset', label: 'Reset' }],
+    };
+    expect(node.accessibility.value).toEqual({
+      min: -60,
+      max: 12,
+      now: -3.5,
+      text: '-3.5 dB',
+    });
+    expect(Object.isFrozen(node.accessibility)).toBe(true);
+    expect(Object.isFrozen(node.accessibility.actions![1])).toBe(true);
+
+    const invalid = (value: unknown) => () => {
+      node.accessibility = value as Accessibility;
+    };
+    expect(invalid({ role: 'slider' })).toThrow(
+      "accessibility.role: unknown role 'slider'",
+    );
+    expect(invalid({ label: 3 })).toThrow(
+      'accessibility.label: expected a string, got number',
+    );
+    expect(invalid({ state: { checked: 'yes' } })).toThrow(
+      "accessibility.state.checked: expected a boolean or 'mixed'",
+    );
+    expect(invalid({ value: { now: Number.NaN } })).toThrow(
+      'accessibility.value.now: expected a finite number',
+    );
+    expect(invalid({ actions: [{ name: '' }] })).toThrow(
+      'accessibility.actions[0].name: must not be empty',
+    );
+    // A failed assignment changes nothing.
+    expect(node.accessibility.label).toBe('Gain');
+  });
+
+  it('takes an accessibility parent', () => {
+    const node = createView();
+    const owner = createView();
+    expect(node.accessibilityParent).toBe(null);
+    node.accessibilityParent = owner;
+    expect(node.accessibilityParent).toBe(owner);
+    expect(() => {
+      node.accessibilityParent = {} as UiNode;
+    }).toThrow('must be a UiNode');
+    expect(() => {
+      node.accessibilityParent = node;
+    }).toThrow('its own accessibility parent');
+    node.accessibilityParent = null;
+    expect(node.accessibilityParent).toBe(null);
+  });
+
+  it('lets assistive technology press a pressable', () => {
+    const button = createView();
+    root.appendChild(button);
+    const log: string[] = [];
+    const stop = pressable(button, {
+      onPress: (event) => log.push(`press:${event.type}`),
+      onLongPress: (event) => log.push(`long:${event.type}`),
+    });
+    const act = (actionName: string) => {
+      const event = new AccessibilityActionEvent('accessibilityaction', {
+        bubbles: true,
+        cancelable: true,
+        actionName,
+      });
+      button.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(act('activate')).toBe(true);
+    expect(act('longpress')).toBe(true);
+    expect(act('increment')).toBe(false);
+    expect(log).toEqual([
+      'press:accessibilityaction',
+      'long:accessibilityaction',
+    ]);
+    stop();
+    button.remove();
   });
 });

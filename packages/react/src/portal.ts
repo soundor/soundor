@@ -7,17 +7,30 @@
  * (soundor:ui's overlayRoot), above all of the content. Entries stack in the
  * order they were opened. Given a host, a portal renders into that host's
  * node instead, and so is clipped, stacked and scrolled wherever it is.
+ *
+ * To assistive technology, an overlay belongs where it was opened: an
+ * overlay opened from inside another (a menu from a modal) is read as part
+ * of it (its node's accessibilityParent). A hosted portal is read where its
+ * host is.
  */
 
 import {
+  createContext,
   createElement,
+  useContext,
   useInsertionEffect,
   useLayoutEffect,
   useState,
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { createView, overlayRoot, type Style, type UiNode } from 'soundor:ui';
+import {
+  createView,
+  overlayRoot,
+  type Accessibility,
+  type Style,
+  type UiNode,
+} from 'soundor:ui';
 
 import { View } from './components';
 import { reconciler } from './root';
@@ -127,7 +140,32 @@ const ENTRY_STYLE: Style = {
 const opened = new WeakMap<UiNode, number>();
 let openings = 0;
 
-function OverlayEntry({ children }: { children?: ReactNode }): ReactNode {
+/** The overlay entry components render in; null outside every overlay. */
+const EntryContext = createContext<UiNode | null>(null);
+
+export interface OverlayEntryProps {
+  children?: ReactNode;
+  /** The entry's own accessibility (a modal's dialog). */
+  accessibility?: Accessibility;
+}
+
+/** Tells assistive technology what an entry is, and where it belongs. */
+function describeEntry(
+  entry: UiNode,
+  owner: UiNode | null,
+  accessibility: string,
+): void {
+  entry.accessibilityParent = owner;
+  entry.accessibility = JSON.parse(accessibility) as Accessibility;
+}
+
+/** An entry of the overlay layer, holding `children`. */
+export function OverlayEntry({
+  children,
+  accessibility,
+}: OverlayEntryProps): ReactNode {
+  // An overlay opened from inside another is read as part of it.
+  const owner = useContext(EntryContext);
   // Numbered while rendering, so an overlay opened by another one, in the
   // same commit, still stacks above it.
   const [entry] = useState(() => {
@@ -145,7 +183,16 @@ function OverlayEntry({ children }: { children?: ReactNode }): ReactNode {
     overlayRoot.insertBefore(entry, above);
     return () => entry.remove();
   }, [entry]);
-  return portal(children, entry);
+  const semantics = JSON.stringify(accessibility ?? {});
+  useInsertionEffect(
+    () => describeEntry(entry, owner, semantics),
+    [entry, owner, semantics],
+  );
+  return createElement(
+    EntryContext.Provider,
+    { value: entry },
+    portal(children, entry),
+  );
 }
 
 // ── Portal ────────────────────────────────────────────────────────────────────

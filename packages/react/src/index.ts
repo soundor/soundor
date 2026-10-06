@@ -6,6 +6,15 @@
  *   render(<View style={{ padding: 16 }}><Text>Hello</Text></View>);
  */
 
+export type {
+  AccessibilityActionEvent,
+  AccessibilityActionInfo,
+  AccessibilityActionName,
+  AccessibilityProps,
+  AccessibilityRole,
+  AccessibilityState,
+  AccessibilityValue,
+} from './accessibility';
 export {
   Image,
   Pressable,
