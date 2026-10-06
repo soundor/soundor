@@ -13,6 +13,7 @@
 # | ada        | v3.4.4  | MIT/Apache-2.0 | WHATWG URL parser (shipped) |
 # | Yoga       | v3.2.1  | MIT     | flexbox layout (shipped)    |
 # | Skia       | m144    | BSD-3-Clause | 2D rendering (shipped; built from source, see SoundorSkia.cmake) |
+# | accesskit-c | 0.23.1 | MIT/Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt, see SoundorAccessKit.cmake) |
 # | doctest    | v2.5.3  | MIT     | native unit tests (tests)   |
 
 include_guard(GLOBAL)
@@ -37,9 +38,34 @@ set(SOUNDOR_SKIA_REVISION "ed427fd003ba3bc6eb4a8ae0337f9cdafc39e5fb")
 set(SOUNDOR_SKIA_REPOSITORY "https://skia.googlesource.com/skia")
 set(SOUNDOR_SKIA_DEPENDENCIES "libjpeg-turbo;libpng;libwebp;zlib")
 
+# The official release archive (prebuilt static libraries and accesskit.h) of
+# tag 0.23.1, commit-pinned by its hash.
+set(SOUNDOR_ACCESSKIT_VERSION "0.23.1")
+set(SOUNDOR_ACCESSKIT_URL "https://github.com/AccessKit/accesskit-c/releases/download/0.23.1/accesskit-c-0.23.1.zip")
+set(SOUNDOR_ACCESSKIT_SHA256 "35b7ca8a6f1e038b5da35e1e9e5a0adaed9bfcf21e1496d29598fbbadcc7043f")
+
 set(SOUNDOR_DOCTEST_VERSION "2.5.3")
 set(SOUNDOR_DOCTEST_REVISION "2d0a9359a60c51affe2a9bebb1be1dca47868151")
 set(SOUNDOR_DOCTEST_SHA256 "e64542c4ea68e9f381ccf6eae924cfdd652567c87c142d76fe92644fb4608149")
+
+# Where Soundor keeps what it builds or downloads once per machine: the
+# SOUNDOR_CACHE environment variable, or the user cache directory
+# (~/.cache/soundor, ~/Library/Caches/Soundor, %LOCALAPPDATA%\Soundor\cache).
+function(soundor_cache_root out)
+  if(DEFINED ENV{SOUNDOR_CACHE} AND NOT "$ENV{SOUNDOR_CACHE}" STREQUAL "")
+    set(root "$ENV{SOUNDOR_CACHE}")
+  elseif(WIN32)
+    set(root "$ENV{LOCALAPPDATA}/Soundor/cache")
+  elseif(APPLE)
+    set(root "$ENV{HOME}/Library/Caches/Soundor")
+  elseif(DEFINED ENV{XDG_CACHE_HOME} AND NOT "$ENV{XDG_CACHE_HOME}" STREQUAL "")
+    set(root "$ENV{XDG_CACHE_HOME}/soundor")
+  else()
+    set(root "$ENV{HOME}/.cache/soundor")
+  endif()
+  file(TO_CMAKE_PATH "${root}" root)
+  set(${out} "${root}" PARENT_SCOPE)
+endfunction()
 
 # Populates a pinned GitHub archive without running its own CMakeLists.txt:
 # Soundor defines the targets it needs itself, so upstream build options,

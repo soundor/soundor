@@ -135,6 +135,21 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 - **The data directory** `<user application data>/Soundor/<plugin.id>` for
   storage and files.
 
+### Accessibility
+
+The view is accessible to screen readers through Soundor's own semantics
+(the accessibility props of `@soundor/react`), not through JUCE's
+`AccessibilityHandler`. The generated editor only tells Soundor's platform
+backend where the view is: its peer's native window, the surface's place
+and scale in it, and whether it has focus. On Windows (UI Automation) and
+Linux x64 (AT-SPI) that backend is AccessKit, fetched prebuilt and pinned
+(no Rust toolchain needed). macOS and iOS get Soundor's own bridge later;
+until then they have no platform accessibility. See
+[`native/README.md`](./native/README.md#platform-accessibility).
+
+A plugin binary then contains AccessKit (MIT or Apache-2.0, with Chromium
+BSD-3-Clause code): ship its notices with the plugin.
+
 ### Build integration
 
 `setup.cmake` builds the runtime from this package's `native/` sources into the

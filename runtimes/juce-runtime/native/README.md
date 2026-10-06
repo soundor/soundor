@@ -373,6 +373,54 @@ knob.addEventListener('accessibilityaction', (event) => {
 - **Threading:** everything runs on the UI thread. An adapter whose
   platform calls from another thread marshals requests to it first.
 
+#### Platform accessibility
+
+`a11y::createPlatformAccessibility({ view, name })` presents a view's
+semantic tree to the platform. A plugin framework only says where: the
+native view (`NativeView`: the HWND on Windows), the surface's place and
+scale in it (`ViewGeometry`), and whether its window has focus. The
+generated JUCE editor does this from its peer; another framework (iPlug2)
+would pass its own view the same way. Call `tick(host)` after every
+`RuntimeHost::tick()`.
+
+| Platform | Backend                             | State                                                      |
+| -------- | ----------------------------------- | ---------------------------------------------------------- |
+| Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                   |
+| Windows  | AccessKit (UI Automation)           | built in                                                   |
+| Linux    | AccessKit (AT-SPI)                  | x64; not arm64 (no prebuilt AccessKit)                     |
+| Android  | AccessKit                           | not attached: Soundor has no Android view to attach to yet |
+| macOS    | Soundor's Apple bridge              | not yet: `createPlatformAccessibility()` returns null      |
+| iOS      | Soundor's Apple bridge              | not yet                                                    |
+
+The AccessKit adapter (`src/a11y/accesskit/`, the only code that includes
+`accesskit.h`) works like this:
+
+- **Lazily:** nothing is computed until assistive technology asks. The
+  activation callback only raises a flag, and the next tick sends the whole
+  tree. After that, each tick sends just the changed elements, or nothing.
+- **Mapping:** roles, states, ranges and actions are mapped in
+  `Mapping.cpp`. Standard actions become AccessKit's (click, increment,
+  decrement, focus, blur, set value, expand, collapse). `longpress` and
+  custom actions are AccessKit custom actions, identified by their place
+  among the element's actions. Bounds stay logical pixels; the root's
+  transform places and scales them in the native view.
+- **Threads:** the platform's requests may come on any thread. They are
+  copied into a queue and performed by `tick()` on the UI thread, through
+  `RuntimeHost::performAccessibilityAction()`, against the tree the platform
+  was shown. Requests from before a reload are dropped.
+- **Lifetimes:** callbacks carry a token, not a pointer. They find their
+  adapter in a registry of weak references, so a late callback does
+  nothing. Once AccessKit has started code the platform may call later (UI
+  Automation providers a screen reader holds, the AT-SPI thread), the plugin
+  binary is pinned in memory: unloading it then would crash the host.
+- **Windows:** `accesskit_windows_adapter` answers `WM_GETOBJECT` through a
+  subclass of the one HWND (`SetWindowSubclass`), removed with the adapter.
+  No window class is changed. AccessKit's subclassing adapter is not used: it
+  must exist before the window is first shown, which a plugin cannot
+  guarantee, and it panics (aborting the host) otherwise.
+- **Linux:** `accesskit_unix_adapter`, positioned by the view's screen bounds
+  (X11; Wayland does not tell them).
+
 ### `RuntimeHost`
 
 `RuntimeHost` is what a backend creates per plugin view: a runtime and context
@@ -417,13 +465,14 @@ leaks at teardown.
 All dependencies are fetched by CMake (`FetchContent`) from exact revisions,
 verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 
-| Dependency | Version             | License          | Role                                          |
-| ---------- | ------------------- | ---------------- | --------------------------------------------- |
-| QuickJS-NG | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                   |
-| ada        | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped) |
-| Yoga       | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                      |
-| Skia       | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)     |
-| doctest    | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                   |
+| Dependency  | Version             | License          | Role                                                     |
+| ----------- | ------------------- | ---------------- | -------------------------------------------------------- |
+| QuickJS-NG  | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                              |
+| ada         | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)            |
+| Yoga        | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                                 |
+| Skia        | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)                |
+| accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt) |
+| doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                              |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
 sources into a static `soundor_quickjs` target with hidden visibility and links
@@ -457,6 +506,33 @@ pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
 - **Hiding symbols:** Skia's own symbols are hidden. libwebp exports its API
   unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
   catches it otherwise.
+
+### AccessKit
+
+[AccessKit](https://github.com/AccessKit/accesskit-c) presents the semantic
+tree to UI Automation (Windows) and AT-SPI (Linux). It is written in Rust,
+so Soundor uses the official prebuilt static libraries from the pinned
+`accesskit-c` release archive rather than asking every plugin developer for
+a Rust toolchain:
+
+- **The download:** `cmake/SoundorAccessKit.cmake` downloads the archive once
+  per machine into the cache directory (`SOUNDOR_CACHE`), checks its SHA-256,
+  and keeps the header and this platform's static library. Set
+  `SOUNDOR_ACCESSKIT_DIR` to an extracted release to use your own build.
+- **Platforms:** the release has Windows x64 and arm64 (MSVC), Linux x64 and
+  Android libraries. Linux arm64 has none, so it builds without platform
+  accessibility, as does any build with `SOUNDOR_ACCESSKIT=OFF`. macOS and
+  iOS never use AccessKit: Soundor has its own Apple bridge there.
+- **One build for all configurations:** the library is a release build
+  (LTO, `panic = "abort"`) against the dynamic C runtime. It only exchanges
+  C data with Soundor, and Rust allocates through the system allocator, so
+  Debug (`/MDd`) builds link it too.
+- **Hiding symbols:** the archive's symbols have default visibility. The
+  imported target passes `--exclude-libs` for it on ELF platforms, so none
+  of them is exported. The symbol test links it into the probe plugin.
+- **Licenses:** a plugin binary contains AccessKit, under MIT or Apache-2.0,
+  and code derived from Chromium (BSD-3-Clause, `LICENSE.chromium` in the
+  archive). Ship their notices with the plugin.
 
 ## Symbol isolation
 
