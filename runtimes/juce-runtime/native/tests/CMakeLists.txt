@@ -185,6 +185,22 @@ if(APPLE AND NOT IOS)
     COMMAND soundor_apple_host $<TARGET_FILE:soundor_apple_module_a> $<TARGET_FILE:soundor_apple_module_b>)
 endif()
 
+# The iOS bridge, built for the iOS simulator: there is no iOS plugin build
+# yet, so this keeps it compiling (it cannot run here).
+if(APPLE AND NOT IOS)
+  add_test(
+    NAME soundor_ios_bridge_builds
+    COMMAND ${CMAKE_COMMAND} -E env --unset=CMAKE_GENERATOR
+            ${CMAKE_CTEST_COMMAND}
+            --build-and-test ${CMAKE_CURRENT_SOURCE_DIR}/ios ${CMAKE_CURRENT_BINARY_DIR}/ios
+            --build-generator ${CMAKE_GENERATOR}
+            --build-options -DCMAKE_SYSTEM_NAME=iOS
+                            -DCMAKE_OSX_SYSROOT=iphonesimulator
+                            -DCMAKE_OSX_ARCHITECTURES=arm64
+                            -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0
+                            -DSOUNDOR_NATIVE_DIR=${PROJECT_SOURCE_DIR})
+endif()
+
 if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   foreach(module soundor_coexist_a soundor_coexist_b)
     add_test(

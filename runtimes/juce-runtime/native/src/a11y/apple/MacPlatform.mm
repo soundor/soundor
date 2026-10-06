@@ -17,7 +17,7 @@
 
 #include "a11y/apple/MacPlatform.h"
 
-#include "a11y/PlatformSupport.h"
+#include "a11y/apple/AppleShared.h"
 
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -40,53 +40,13 @@
     #error "MacPlatform.mm is built with ARC (-fobjc-arc)"
 #endif
 
-#define SOUNDOR_STRINGIFY_(x) #x
-#define SOUNDOR_STRINGIFY(x) SOUNDOR_STRINGIFY_(x)
-
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
 {
     namespace
     {
-        // What elements share with their bridge.
-        struct Channel
-        {
-            std::mutex mutex;
-            std::vector<ActionRequest> requests;
-        };
-        using Channels = Registry<Channel>;
+        using namespace apple;
 
         std::atomic<bool> forced { false };
-
-        // Associated-object keys: an element's bridge token, node id and the
-        // actions it offers (a bit per Action).
-        const char tokenKey = 0;
-        const char nodeKey = 0;
-        const char offersKey = 0;
-
-        std::uint32_t bit(Action action)
-        {
-            return std::uint32_t { 1 } << static_cast<unsigned>(action);
-        }
-
-        std::uint64_t number(id object, const void* key)
-        {
-            id value = objc_getAssociatedObject(object, key);
-            return [value isKindOfClass:[NSNumber class]] ? [static_cast<NSNumber*>(value) unsignedLongLongValue] : 0;
-        }
-
-        // A request from an element, for its bridge; whether it was taken.
-        bool ask(id element, Action action, std::string name = {},
-                 std::variant<std::monostate, double, std::string> value = {})
-        {
-            const auto channel = Channels::instance().find(static_cast<std::uintptr_t>(number(element, &tokenKey)));
-            if (channel == nullptr)
-                return false;
-            if (action != Action::Custom && (number(element, &offersKey) & bit(action)) == 0)
-                return false;
-            const std::scoped_lock lock(channel->mutex);
-            channel->requests.push_back({ number(element, &nodeKey), action, std::move(name), std::move(value) });
-            return true;
-        }
 
         // ── The element class ───────────────────────────────────────────────
 
@@ -149,44 +109,45 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             else if (selector == @selector(setAccessibilityFocused:))
                 action = Action::Focus;
             if (action)
-                return (number(self, &offersKey) & bit(*action)) != 0 ? YES : NO;
+                return offered(self, *action) ? YES : NO;
             using Allowed = BOOL (*)(id, SEL, SEL);
             return reinterpret_cast<Allowed>(baseImplementation(command))(self, command, selector);
         }
 
-        void addMethod(Class cls, SEL selector, IMP implementation)
-        {
-            Method base = class_getInstanceMethod([NSAccessibilityElement class], selector);
-            class_addMethod(cls, selector, implementation, method_getTypeEncoding(base));
-        }
-
         Class elementClass()
         {
-            static Class cls = []
-            {
-                // From here on the runtime holds methods in this binary.
-                pinModule();
-                std::string name;
-                do
+            static Class cls = makeElementClass(
+                [NSAccessibilityElement class],
                 {
-                    std::uint64_t random[2] {};
-                    arc4random_buf(random, sizeof random);
-                    char suffix[40];
-                    std::snprintf(suffix, sizeof suffix, "%016llx%016llx", static_cast<unsigned long long>(random[0]),
-                                  static_cast<unsigned long long>(random[1]));
-                    name = std::string("SoundorAXElement_") + SOUNDOR_STRINGIFY(SOUNDOR_ABI_NAMESPACE) + "_" + suffix;
-                } while (objc_getClass(name.c_str()) != nil);
-                Class created = objc_allocateClassPair([NSAccessibilityElement class], name.c_str(), 0);
-                addMethod(created, @selector(accessibilityPerformPress), reinterpret_cast<IMP>(performPress));
-                addMethod(created, @selector(accessibilityPerformIncrement), reinterpret_cast<IMP>(performIncrement));
-                addMethod(created, @selector(accessibilityPerformDecrement), reinterpret_cast<IMP>(performDecrement));
-                addMethod(created, @selector(accessibilityPerformCancel), reinterpret_cast<IMP>(performCancel));
-                addMethod(created, @selector(setAccessibilityValue:), reinterpret_cast<IMP>(setValue));
-                addMethod(created, @selector(setAccessibilityFocused:), reinterpret_cast<IMP>(setFocused));
-                addMethod(created, @selector(isAccessibilitySelectorAllowed:), reinterpret_cast<IMP>(selectorAllowed));
-                objc_registerClassPair(created);
-                return created;
-            }();
+                    {
+                        @selector(accessibilityPerformPress), reinterpret_cast<IMP>(performPress)
+                    }
+                    ,
+                    {
+                        @selector(accessibilityPerformIncrement), reinterpret_cast<IMP>(performIncrement)
+                    }
+                    ,
+                    {
+                        @selector(accessibilityPerformDecrement), reinterpret_cast<IMP>(performDecrement)
+                    }
+                    ,
+                    {
+                        @selector(accessibilityPerformCancel), reinterpret_cast<IMP>(performCancel)
+                    }
+                    ,
+                    {
+                        @selector(setAccessibilityValue:), reinterpret_cast<IMP>(setValue)
+                    }
+                    ,
+                    {
+                        @selector(setAccessibilityFocused:), reinterpret_cast<IMP>(setFocused)
+                    }
+                    ,
+                    {
+                        @selector(isAccessibilitySelectorAllowed:), reinterpret_cast<IMP>(selectorAllowed)
+                    }
+                    ,
+                });
             return cls;
         }
 
@@ -205,11 +166,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
         }
 
         // ── Semantics in AppKit's terms ─────────────────────────────────────
-
-        NSString* string(const std::string& text)
-        {
-            return [NSString stringWithUTF8String:text.c_str()];
-        }
 
         struct AppKitRole
         {
@@ -288,14 +244,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                    || role == Role::SpinButton;
         }
 
-        std::uint32_t offers(const Node& node)
-        {
-            std::uint32_t bits = 0;
-            for (const ActionDescriptor& action : node.actions)
-                bits |= bit(action.action);
-            return bits;
-        }
-
         // The actions VoiceOver lists by name: custom ones, and those AppKit
         // has no standard action for.
         NSArray<NSAccessibilityCustomAction*>* customActions(const Node& node, std::uintptr_t token)
@@ -326,13 +274,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                 };
                 [out addObject:[[NSAccessibilityCustomAction alloc] initWithName:name
                                                                          handler:^BOOL {
-                                                                           const auto channel =
-                                                                               Channels::instance().find(token);
-                                                                           if (channel == nullptr)
-                                                                               return NO;
-                                                                           const std::scoped_lock lock(channel->mutex);
-                                                                           channel->requests.push_back(request);
-                                                                           return YES;
+                                                                           return ask(token, request) ? YES : NO;
                                                                          }]];
             }
             return out;
@@ -376,11 +318,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
                                                           ? string(node.value.text)
                                                           : nil];
 
-            objc_setAssociatedObject(element, &tokenKey, @(static_cast<unsigned long long>(token)),
-                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            objc_setAssociatedObject(element, &nodeKey, @(static_cast<unsigned long long>(node.id)),
-                                     OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            objc_setAssociatedObject(element, &offersKey, @(offers(node)), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            tag(element, token, node);
             [element setAccessibilityCustomActions:customActions(node, token)];
         }
 
@@ -414,13 +352,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
 
             void tick(RuntimeHost& host) override
             {
-                std::vector<ActionRequest> requests;
-                {
-                    const std::scoped_lock lock(channel->mutex);
-                    requests.swap(channel->requests);
-                }
                 const bool sameHost = &host == lastHost;
-                for (const ActionRequest& request : requests)
+                for (const ActionRequest& request : take(*channel))
                     if (sameHost)
                         host.performAccessibilityAction(request);
 

@@ -63,10 +63,15 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/web/Random.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
-# macOS: Soundor's own accessibility bridge (Objective-C++, ARC).
-if(APPLE AND NOT IOS)
+# macOS and iOS: Soundor's own accessibility bridges (Objective-C++, ARC).
+if(APPLE)
   enable_language(OBJCXX)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/AppleShared.mm)
+  if(IOS)
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/IosPlatform.mm)
+  else()
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm)
+  endif()
 endif()
 if(SOUNDOR_HAS_ACCESSKIT)
   list(APPEND SOUNDOR_RUNTIME_SOURCES
@@ -96,7 +101,9 @@ function(soundor_configure_runtime target namespace)
     PRIVATE ${PROJECT_SOURCE_DIR}/src)
   # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
   target_link_libraries(${target} PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
-  if(APPLE AND NOT IOS)
+  if(IOS)
+    target_link_libraries(${target} PRIVATE "-framework UIKit")
+  elseif(APPLE)
     target_link_libraries(${target} PRIVATE "-framework AppKit")
   endif()
   if(SOUNDOR_HAS_ACCESSKIT)
