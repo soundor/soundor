@@ -125,6 +125,108 @@ declare module 'soundor:ui' {
     readonly height: number;
   }
 
+  /**
+   * What a node is to assistive technology (`accessibilityRole` in
+   * @soundor/react). 'none': no role of its own.
+   */
+  export type AccessibilityRole =
+    | 'none'
+    | 'text'
+    | 'image'
+    | 'button'
+    | 'link'
+    | 'adjustable'
+    | 'checkbox'
+    | 'switch'
+    | 'togglebutton'
+    | 'radio'
+    | 'radiogroup'
+    | 'progressbar'
+    | 'search'
+    | 'combobox'
+    | 'menu'
+    | 'menubar'
+    | 'menuitem'
+    | 'scrollbar'
+    | 'spinbutton'
+    | 'tab'
+    | 'tablist'
+    | 'header'
+    | 'summary'
+    | 'keyboardkey'
+    | 'timer'
+    | 'toolbar'
+    | 'alert'
+    | 'dialog';
+
+  export interface AccessibilityState {
+    disabled?: boolean;
+    selected?: boolean;
+    /** 'mixed': partly checked. */
+    checked?: boolean | 'mixed';
+    busy?: boolean;
+    expanded?: boolean;
+  }
+
+  /** A range's value (fractional values welcome), and how to read it. */
+  export interface AccessibilityValue {
+    min?: number;
+    max?: number;
+    now?: number;
+    /** Read in place of the number: '-3.5 dB'. */
+    text?: string;
+  }
+
+  /**
+   * The actions the runtime knows; any other name is a custom action, offered
+   * to the user by its label.
+   */
+  export type AccessibilityActionName =
+    | 'activate'
+    | 'increment'
+    | 'decrement'
+    | 'longpress'
+    | 'expand'
+    | 'collapse'
+    | 'escape'
+    | 'focus'
+    | 'blur'
+    | 'setValue'
+    | (string & {});
+
+  export interface AccessibilityAction {
+    name: AccessibilityActionName;
+    /** How a custom action is presented. */
+    label?: string;
+  }
+
+  /**
+   * What a node is to assistive technology (screen readers and the like).
+   * The runtime fills in the rest from the node: its type, its text, whether
+   * it is focusable, and where it is.
+   */
+  export interface Accessibility {
+    /**
+     * true: the node is an element assistive technology perceives; false: it
+     * is not (its descendants still may be). By default, text nodes and
+     * inputs are, and so is a node given a role or a label.
+     */
+    accessible?: boolean;
+    role?: AccessibilityRole;
+    label?: string;
+    /** What happens when the element is acted on. */
+    hint?: string;
+    state?: AccessibilityState;
+    value?: AccessibilityValue;
+    /** The actions it responds to, as `accessibilityaction` events. */
+    actions?: readonly AccessibilityAction[];
+    /**
+     * While shown, assistive technology perceives only this element and what
+     * it holds (the last such element shown, when there are several).
+     */
+    modal?: boolean;
+  }
+
   export interface UiEventMap {
     pointerdown: PointerEvent;
     pointermove: PointerEvent;
@@ -147,6 +249,12 @@ declare module 'soundor:ui' {
     input: InputEvent;
     /** Text inputs: the value was committed (Enter, or losing focus). */
     change: Event;
+    /**
+     * Assistive technology asks for an action. Bubbles; preventDefault()
+     * says it was done, and keeps the runtime's own response (focusing, an
+     * input's text) away.
+     */
+    accessibilityaction: AccessibilityActionEvent;
   }
 
   /**
@@ -168,6 +276,13 @@ declare module 'soundor:ui' {
     style: Readonly<Style>;
     /** Text nodes only. */
     text: string;
+    /** What the node is to assistive technology; replaced as a whole on assignment. */
+    accessibility: Readonly<Accessibility>;
+    /**
+     * Where assistive technology reads the node, in place of its parent
+     * (null: its parent): content a portal shows away from where it belongs.
+     */
+    accessibilityParent: UiNode | null;
     /** Whether the node takes focus when pressed or tabbed to. */
     focusable: boolean;
     readonly focused: boolean;
@@ -257,15 +372,16 @@ declare module 'soundor:ui' {
   }
   export interface PressableHandlers {
     /**
-     * A click (primary button released over the node), or Enter/Space while
-     * focused. Not after a long press, when onLongPress is given.
+     * A click (primary button released over the node), Enter/Space while
+     * focused, or assistive technology's 'activate'. Not after a long press,
+     * when onLongPress is given.
      */
-    onPress?: (event: PointerEvent | KeyboardEvent) => void;
+    onPress?: (event: PointerEvent | KeyboardEvent | AccessibilityActionEvent) => void;
     /**
      * The primary button stayed down `delayLongPress` ms, without moving
-     * away; with the pointerdown event.
+     * away (with the pointerdown event), or assistive technology's 'longpress'.
      */
-    onLongPress?: (event: PointerEvent) => void;
+    onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
     /** Milliseconds before a press is a long press: 500 by default. */
     delayLongPress?: number;
     onPressIn?: (event: PointerEvent) => void;
@@ -388,6 +504,16 @@ declare module 'soundor:ui' {
   export class FocusEvent extends Event {
     constructor(type: string, init?: EventInit & { relatedTarget?: UiNode | null });
     readonly relatedTarget: UiNode | null;
+    readonly target: UiNode | null;
+    readonly currentTarget: UiNode | null;
+  }
+
+  export class AccessibilityActionEvent extends Event {
+    constructor(type: string, init?: EventInit & { actionName?: string; value?: number | string });
+    /** 'activate', 'increment', 'setValue'..., or a custom action's name. */
+    readonly actionName: AccessibilityActionName;
+    /** setValue: the value asked for (a number, or an input's text). */
+    readonly value: number | string | undefined;
     readonly target: UiNode | null;
     readonly currentTarget: UiNode | null;
   }

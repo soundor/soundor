@@ -11,6 +11,7 @@ target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SO
 
 add_executable(soundor_runtime_tests
   main.cpp
+  a11y/SemanticsTests.cpp
   js/ContextTests.cpp
   js/ErrorTests.cpp
   js/JobTests.cpp

@@ -11,6 +11,8 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
@@ -407,6 +409,113 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             JSValueConst style;
         };
 
+        // ── Accessibility ────────────────────────────────────────────────────
+
+        // Reads the accessibility ui.js normalized and checked: every key
+        // present, null where unset.
+        class AccessibilityReader
+        {
+        public:
+            explicit AccessibilityReader(JSContext* context) : ctx(context) {}
+
+            // False with a JavaScript exception pending.
+            bool read(JSValueConst object, a11y::Properties& out)
+            {
+                const bind::Path path { "accessibility" };
+                if (! bind::expectObject(ctx, object, path))
+                    return false;
+                std::optional<std::string> role;
+                bind::Field state(ctx, object, "state", path);
+                bind::Field value(ctx, object, "value", path);
+                bind::Field actions(ctx, object, "actions", path);
+                if (! state || ! value || ! actions || ! optional(object, "accessible", path, out.accessible)
+                    || ! optional(object, "role", path, role) || ! field(object, "label", path, out.label)
+                    || ! field(object, "hint", path, out.hint) || ! field(object, "modal", path, out.modal)
+                    || ! readState(state.value(), state.path(), out.state)
+                    || ! readValue(value.value(), value.path(), out.value)
+                    || ! readActions(actions.value(), actions.path(), out.actions))
+                    return false;
+                if (role)
+                {
+                    out.role = a11y::roleFromName(*role);
+                    if (! out.role)
+                    {
+                        JS_ThrowTypeError(ctx, "accessibility.role: unknown role '%s'", role->c_str());
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+        private:
+            template <typename T>
+            bool field(JSValueConst object, const char* name, const bind::Path& parent, T& out)
+            {
+                bind::Field property(ctx, object, name, parent);
+                return property && bind::read(ctx, property.value(), property.path(), out);
+            }
+
+            template <typename T>
+            bool optional(JSValueConst object, const char* name, const bind::Path& parent, std::optional<T>& out)
+            {
+                bind::Field property(ctx, object, name, parent);
+                if (! property)
+                    return false;
+                if (JS_IsNull(property.value()) || JS_IsUndefined(property.value()))
+                {
+                    out.reset();
+                    return true;
+                }
+                T read {};
+                if (! bind::read(ctx, property.value(), property.path(), read))
+                    return false;
+                out = std::move(read);
+                return true;
+            }
+
+            bool readState(JSValueConst object, const bind::Path& path, a11y::State& out)
+            {
+                if (! bind::expectObject(ctx, object, path))
+                    return false;
+                bind::Field checked(ctx, object, "checked", path);
+                if (! checked || ! field(object, "disabled", path, out.disabled)
+                    || ! field(object, "busy", path, out.busy) || ! optional(object, "selected", path, out.selected)
+                    || ! optional(object, "expanded", path, out.expanded))
+                    return false;
+                const JSValueConst value = checked.value();
+                if (JS_IsNull(value) || JS_IsUndefined(value))
+                    out.checked = a11y::Checked::Unset;
+                else if (JS_IsBool(value))
+                    out.checked = JS_ToBool(ctx, value) != 0 ? a11y::Checked::True : a11y::Checked::False;
+                else
+                    out.checked = a11y::Checked::Mixed;
+                return true;
+            }
+
+            bool readValue(JSValueConst object, const bind::Path& path, a11y::Value& out)
+            {
+                return bind::expectObject(ctx, object, path) && optional(object, "min", path, out.min)
+                       && optional(object, "max", path, out.max) && optional(object, "now", path, out.now)
+                       && field(object, "text", path, out.text);
+            }
+
+            bool readActions(JSValueConst array, const bind::Path& path, std::vector<a11y::ActionDescriptor>& out)
+            {
+                return bind::readArray(
+                    ctx, array, path, out,
+                    [this](JSContext*, JSValueConst element, const bind::Path& at, a11y::ActionDescriptor& action)
+                    {
+                        if (! bind::expectObject(ctx, element, at) || ! field(element, "name", at, action.name)
+                            || ! field(element, "label", at, action.label))
+                            return false;
+                        action.action = a11y::actionFromName(action.name);
+                        return true;
+                    });
+            }
+
+            JSContext* ctx;
+        };
+
         // ── Functions ────────────────────────────────────────────────────────
 
         template <typename Body>
@@ -492,6 +601,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             if (! bind::read(ctx, argv[1], bind::Path { "text" }, text))
                                 return JS_EXCEPTION;
                             surface.setText(readId(ctx, argv[0]), std::move(text));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue setAccessibility(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "accessibility", argc, 2,
+                        [&](Surface& surface) -> JSValue
+                        {
+                            a11y::Properties properties;
+                            if (! AccessibilityReader(ctx).read(argv[1], properties))
+                                return JS_EXCEPTION;
+                            surface.setAccessibility(readId(ctx, argv[0]), std::move(properties));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue setAccessibilityParent(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "accessibilityParent", argc, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setAccessibilityParent(readId(ctx, argv[0]), readId(ctx, argv[1]));
                             return JS_UNDEFINED;
                         });
         }
@@ -756,6 +888,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::BeforeInput:
                     data.set("data", bind::write(ctx, event.text));
                     break;
+                case Event::Type::AccessibilityAction:
+                    data.set("action", bind::write(ctx, event.action));
+                    if (const auto* number = std::get_if<double>(&event.value))
+                        data.set("value", JS_NewFloat64(ctx, *number));
+                    else if (const auto* text = std::get_if<std::string>(&event.value))
+                        data.set("value", bind::write(ctx, *text));
+                    break;
                 case Event::Type::Focus:
                 case Event::Type::Blur:
                 case Event::Type::Scroll:
@@ -805,6 +944,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setStyle", setStyle, 2 },
             { "setText", setText, 2 },
             { "setFocusable", setFocusable, 2 },
+            { "setAccessibility", setAccessibility, 2 },
+            { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
             { "setPlaceholder", setPlaceholder, 2 },
             { "setSelection", setSelection, 3 },

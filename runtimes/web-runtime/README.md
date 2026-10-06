@@ -173,6 +173,10 @@ UiNodes.
   viewport's scale: `pageX`/`pageY`, `getBoundingClientRect()`. The DOM's
   `contextmenu` becomes Soundor's, and preventing it keeps the browser's
   menu away.
+- **Accessibility.** `accessibility` and `accessibilityParent` are checked
+  as in the JUCE runtime, and `pressable()` answers `activate` and
+  `longpress` accessibility actions. They are not yet presented to the
+  browser's accessibility tree.
 
 ## Native API in TypeScript
 

@@ -23,7 +23,7 @@ import {
 import { View } from './components';
 import { FocusScope } from './focus';
 import { prioritized } from './host';
-import { Portal } from './portal';
+import { OverlayEntry } from './portal';
 import type { StyleProp } from './style';
 
 // ── Dismissal ─────────────────────────────────────────────────────────────────
@@ -75,6 +75,8 @@ export interface ModalProps {
   dismissOnBackdropPress?: boolean;
   /** The backdrop's style (transparent by default): a dimming color, say. */
   backdropStyle?: StyleProp;
+  /** What assistive technology calls the dialog. */
+  accessibilityLabel?: string;
 }
 
 const FILL: Style = {
@@ -94,7 +96,7 @@ function ModalLayer({
   onRequestClose,
   dismissOnBackdropPress,
   backdropStyle,
-}: Omit<ModalProps, 'visible'>): ReactNode {
+}: Omit<ModalProps, 'visible' | 'accessibilityLabel'>): ReactNode {
   const [order] = useState(() => ++openings);
   // The latest handler, for requests that come in later.
   const latest = useRef(onRequestClose);
@@ -139,8 +141,26 @@ function ModalLayer({
  *
  * It is a Portal entry: it stacks above overlays opened before it, and
  * portals opened from inside it stack above it. It is not a window.
+ *
+ * To assistive technology it is a modal dialog: while it shows, only it is
+ * perceived, with the overlays opened from inside it (the topmost modal,
+ * when several are open).
  */
-export function Modal({ visible = true, ...props }: ModalProps): ReactNode {
+export function Modal({
+  visible = true,
+  accessibilityLabel,
+  ...props
+}: ModalProps): ReactNode {
   if (!visible) return null;
-  return createElement(Portal, null, createElement(ModalLayer, props));
+  return createElement(
+    OverlayEntry,
+    {
+      accessibility: {
+        role: 'dialog',
+        modal: true,
+        ...(accessibilityLabel !== undefined && { label: accessibilityLabel }),
+      },
+    },
+    createElement(ModalLayer, props),
+  );
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <soundor/Config.h>
+#include <soundor/a11y/SurfaceSemantics.h>
 #include <soundor/js/Context.h>
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
@@ -81,6 +82,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // it input, the renderer draws it. Run pending jobs after input.
         [[nodiscard]] ui::Surface& surface() noexcept { return *uiSurface; }
 
+        // The view's semantic tree, for a platform's accessibility: a backend
+        // that has assistive technology to serve calls update() after tick().
+        [[nodiscard]] a11y::SurfaceSemantics& accessibility() noexcept { return *semantics; }
+        // Delivers an action assistive technology asks for, then runs pending
+        // jobs; false when the element is gone or does not offer it.
+        bool performAccessibilityAction(const a11y::ActionRequest& request);
+
         // How evaluating the entry module went (success when there was none).
         // A failed entry is also reported to the log; the host stays usable.
         [[nodiscard]] const js::Result<void>& entryResult() const noexcept { return entryOutcome; }
@@ -94,6 +102,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::shared_ptr<const platform::Resources> resources;
         std::unique_ptr<ui::Renderer> renderer;
         std::shared_ptr<ui::Surface> uiSurface;
+        std::unique_ptr<a11y::SurfaceSemantics> semantics;
         std::unique_ptr<js::Runtime> jsRuntime;
         std::unique_ptr<js::Context> jsContext;
         js::Result<void> entryOutcome;

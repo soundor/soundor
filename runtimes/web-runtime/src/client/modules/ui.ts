@@ -3,7 +3,11 @@
 // @soundor/react) runs on it as on the JUCE runtime's Skia renderer.
 
 import { uiView } from '../context';
-import type { KeyboardEvent, PointerEvent } from '../ui/events';
+import type {
+  AccessibilityActionEvent,
+  KeyboardEvent,
+  PointerEvent,
+} from '../ui/events';
 import { UiNode } from '../ui/node';
 import type { Style } from '../ui/types';
 
@@ -82,8 +86,10 @@ export interface PressableState {
 }
 
 export interface PressableHandlers {
-  onPress?: (event: PointerEvent | KeyboardEvent) => void;
-  onLongPress?: (event: PointerEvent) => void;
+  onPress?: (
+    event: PointerEvent | KeyboardEvent | AccessibilityActionEvent,
+  ) => void;
+  onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
   delayLongPress?: number;
   onPressIn?: (event: PointerEvent) => void;
   onPressOut?: (event: PointerEvent) => void;
@@ -200,6 +206,20 @@ export function pressable(
   });
   on('focus', () => update({ focused: true }));
   on('blur', () => update({ focused: false }));
+  // Assistive technology presses without the pointer or the keyboard.
+  on<AccessibilityActionEvent>('accessibilityaction', (event) => {
+    if (event.target !== node || event.defaultPrevented) return;
+    if (event.actionName === 'activate') {
+      event.preventDefault();
+      handlers.onPress?.(event);
+    } else if (
+      event.actionName === 'longpress' &&
+      handlers.onLongPress !== undefined
+    ) {
+      event.preventDefault();
+      handlers.onLongPress(event);
+    }
+  });
   on<KeyboardEvent>('keydown', (event) => {
     if (event.target !== node || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -212,6 +232,7 @@ export function pressable(
 
 export { UiNode };
 export {
+  AccessibilityActionEvent,
   FocusEvent,
   InputEvent,
   KeyboardEvent,

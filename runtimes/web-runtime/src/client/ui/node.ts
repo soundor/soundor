@@ -5,9 +5,10 @@
  */
 
 import { ASSET_PATH, isAssetId } from '../protocol';
+import { freezeAccessibility, normalizeAccessibility } from './accessibility';
 import { eventParent, TreeEventTarget } from './events';
 import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
-import type { LayoutRect, NodeType, Style } from './types';
+import type { Accessibility, LayoutRect, NodeType, Style } from './types';
 
 /** What a node needs of the view it belongs to. */
 export interface ViewLink {
@@ -70,6 +71,8 @@ export class UiNode extends TreeEventTarget {
   #text = '';
   #focusable = false;
   #source = '';
+  #accessibility: Readonly<Accessibility> = Object.freeze({});
+  #accessibilityParent: UiNode | null = null;
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(
@@ -335,6 +338,31 @@ export class UiNode extends TreeEventTarget {
       element.scrollLeft + Number(delta.x),
       element.scrollTop + Number(delta.y),
     );
+  }
+
+  // ── Accessibility ──────────────────────────────────────────────────────────
+
+  /** What the node is to assistive technology; assigning replaces it. */
+  get accessibility(): Readonly<Accessibility> {
+    return this.#accessibility;
+  }
+
+  set accessibility(value: Readonly<Accessibility>) {
+    normalizeAccessibility(value);
+    this.#accessibility = freezeAccessibility(value);
+  }
+
+  /** Where assistive technology reads the node, in place of its parent. */
+  get accessibilityParent(): UiNode | null {
+    return this.#accessibilityParent;
+  }
+
+  set accessibilityParent(value: UiNode | null) {
+    if (value !== null && value !== undefined)
+      expectNode(value, 'accessibilityParent');
+    if (value === this)
+      throw new Error('a node cannot be its own accessibility parent');
+    this.#accessibilityParent = value ?? null;
   }
 
   // ── Focus ──────────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
               renderer->images(),
               std::move(options.clipboard),
           })),
+          semantics(std::make_unique<a11y::SurfaceSemantics>(*uiSurface)),
           jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
           hasParameters(options.parameters != nullptr)
@@ -80,6 +81,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         jsRuntime->runPendingJobs();
         ui::frame(*jsContext);
         jsRuntime->runPendingJobs();
+    }
+
+    bool RuntimeHost::performAccessibilityAction(const a11y::ActionRequest& request)
+    {
+        const bool handled = semantics->perform(request);
+        jsRuntime->runPendingJobs();
+        return handled;
     }
 
     double RuntimeHost::seconds() const

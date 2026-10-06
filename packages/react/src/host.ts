@@ -26,6 +26,7 @@ import {
   type UiNode,
 } from 'soundor:ui';
 
+import { accessibilityOf } from './accessibility';
 import { tagScope, type Scope } from './focus';
 import { flattenStyle } from './style';
 
@@ -59,6 +60,8 @@ export class NodeInstance {
     { type: string; capture: boolean; listener: (event: Event) => void }
   >();
   hidden = false;
+  /** The node's accessibility as last set, to set it only when it changes. */
+  accessibility = '{}';
 
   constructor(
     readonly type: HostType,
@@ -158,6 +161,19 @@ function eventBindings(
       call: (event) => (instance.props[name] as (event: Event) => void)(event),
     });
   }
+  // Actions asked of this element only, as in React Native.
+  if (typeof props['onAccessibilityAction'] === 'function') {
+    bindings.set('onAccessibilityAction', {
+      type: 'accessibilityaction',
+      capture: false,
+      call: (event) => {
+        if (event.target === instance.node)
+          (instance.props['onAccessibilityAction'] as (event: Event) => void)(
+            event,
+          );
+      },
+    });
+  }
   // Inputs report their text and Enter through their own props.
   if (instance.type === HostTypes.TextInput) {
     if (typeof props['onChangeText'] === 'function') {
@@ -251,6 +267,13 @@ function applyProps(
     next['focusable'] !== undefined
   )
     node.focusable = Boolean(next['focusable']);
+
+  const accessibility = accessibilityOf(next);
+  const key = JSON.stringify(accessibility);
+  if (key !== instance.accessibility) {
+    node.accessibility = accessibility;
+    instance.accessibility = key;
+  }
 
   switch (instance.type) {
     case HostTypes.Image:

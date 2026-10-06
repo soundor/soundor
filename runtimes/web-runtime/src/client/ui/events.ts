@@ -463,3 +463,27 @@ export class InputEvent extends Event {
     return this.#inputType;
   }
 }
+
+/** An action assistive technology asks of a node (`accessibilityaction`). */
+export class AccessibilityActionEvent extends Event {
+  readonly #actionName: string;
+  readonly #value: number | string | undefined;
+
+  constructor(
+    type: string,
+    init: EventInit & { actionName?: string; value?: number | string } = {},
+  ) {
+    super(type, init);
+    this.#actionName = String(init.actionName ?? '');
+    this.#value = init.value;
+  }
+
+  /** 'activate', 'increment', 'setValue'... or a custom action's name. */
+  get actionName(): string {
+    return this.#actionName;
+  }
+  /** setValue: the value asked for (a number, or an input's text). */
+  get value(): number | string | undefined {
+    return this.#value;
+  }
+}

@@ -25,6 +25,38 @@ const CONSTRUCTING = Symbol('constructing');
 /** The native node types, by name. */
 const TYPES = ['view', 'text', 'image', 'scroll', 'input'];
 
+/** The roles `accessibility.role` names. */
+const ROLES = new Set([
+  'none',
+  'text',
+  'image',
+  'button',
+  'link',
+  'adjustable',
+  'checkbox',
+  'switch',
+  'togglebutton',
+  'radio',
+  'radiogroup',
+  'progressbar',
+  'search',
+  'combobox',
+  'menu',
+  'menubar',
+  'menuitem',
+  'scrollbar',
+  'spinbutton',
+  'tab',
+  'tablist',
+  'header',
+  'summary',
+  'keyboardkey',
+  'timer',
+  'toolbar',
+  'alert',
+  'dialog',
+]);
+
 /** id → WeakRef<UiNode>, to find event targets. */
 const nodes = new Map();
 const released = new FinalizationRegistry((id) => {
@@ -47,6 +79,102 @@ function expectNode(value, what) {
   return value;
 }
 
+function expectType(value, type, what) {
+  if (typeof value !== type)
+    throw new TypeError(`${what}: expected a ${type}, got ${describe(value)}`);
+  return value;
+}
+
+/**
+ * Checks `accessibility` and fills in what the native side reads: every key,
+ * null where unset.
+ */
+function normalizeAccessibility(value) {
+  const given = value ?? {};
+  if (typeof given !== 'object')
+    throw new TypeError(
+      `accessibility must be an object, got ${describe(value)}`,
+    );
+  const optional = (object, key, type, path) =>
+    object[key] === undefined || object[key] === null
+      ? null
+      : expectType(object[key], type, `${path}.${key}`);
+  const role = optional(given, 'role', 'string', 'accessibility');
+  if (role !== null && !ROLES.has(role))
+    throw new TypeError(`accessibility.role: unknown role '${role}'`);
+  const state = given.state ?? {};
+  if (typeof state !== 'object')
+    throw new TypeError(
+      `accessibility.state: expected an object, got ${describe(state)}`,
+    );
+  const checked = state.checked ?? null;
+  if (checked !== null && typeof checked !== 'boolean' && checked !== 'mixed')
+    throw new TypeError(
+      `accessibility.state.checked: expected a boolean or 'mixed', got ${describe(checked)}`,
+    );
+  const range = given.value ?? {};
+  if (typeof range !== 'object')
+    throw new TypeError(
+      `accessibility.value: expected an object, got ${describe(range)}`,
+    );
+  const number = (key) => {
+    const at = optional(range, key, 'number', 'accessibility.value');
+    if (at !== null && !Number.isFinite(at))
+      throw new TypeError(
+        `accessibility.value.${key}: expected a finite number, got ${at}`,
+      );
+    return at;
+  };
+  const actions = given.actions ?? [];
+  if (!Array.isArray(actions))
+    throw new TypeError(
+      `accessibility.actions: expected an array, got ${describe(actions)}`,
+    );
+  return {
+    accessible: optional(given, 'accessible', 'boolean', 'accessibility'),
+    role,
+    label: optional(given, 'label', 'string', 'accessibility') ?? '',
+    hint: optional(given, 'hint', 'string', 'accessibility') ?? '',
+    state: {
+      disabled:
+        optional(state, 'disabled', 'boolean', 'accessibility.state') ?? false,
+      busy: optional(state, 'busy', 'boolean', 'accessibility.state') ?? false,
+      checked,
+      selected: optional(state, 'selected', 'boolean', 'accessibility.state'),
+      expanded: optional(state, 'expanded', 'boolean', 'accessibility.state'),
+    },
+    value: {
+      min: number('min'),
+      max: number('max'),
+      now: number('now'),
+      text: optional(range, 'text', 'string', 'accessibility.value') ?? '',
+    },
+    actions: actions.map((action, i) => {
+      const path = `accessibility.actions[${i}]`;
+      if (typeof action !== 'object' || action === null)
+        throw new TypeError(
+          `${path}: expected an object, got ${describe(action)}`,
+        );
+      const name = expectType(action.name, 'string', `${path}.name`);
+      if (name === '') throw new TypeError(`${path}.name: must not be empty`);
+      return { name, label: optional(action, 'label', 'string', path) ?? '' };
+    }),
+    modal: optional(given, 'modal', 'boolean', 'accessibility') ?? false,
+  };
+}
+
+/** A frozen copy of what plugin code gave as `accessibility`. */
+function freezeAccessibility(value) {
+  const copy = { ...value };
+  if (copy.state !== undefined) copy.state = Object.freeze({ ...copy.state });
+  if (copy.value !== undefined) copy.value = Object.freeze({ ...copy.value });
+  if (copy.actions !== undefined)
+    copy.actions = Object.freeze(
+      copy.actions.map((action) => Object.freeze({ ...action })),
+    );
+  return Object.freeze(copy);
+}
+
 export class UiNode extends EventTarget {
   #id;
   #type;
@@ -57,6 +185,8 @@ export class UiNode extends EventTarget {
   #focusable = false;
   #source = '';
   #placeholder = '';
+  #accessibility = Object.freeze({});
+  #accessibilityParent = null;
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(token, type, id) {
@@ -259,6 +389,32 @@ export class UiNode extends EventTarget {
     if (this.#type !== type) {
       throw new TypeError(`${what} belongs to ${type} nodes`);
     }
+  }
+
+  /** What the node is to assistive technology; assigning replaces it. */
+  get accessibility() {
+    return this.#accessibility;
+  }
+
+  set accessibility(value) {
+    native.setAccessibility(this.#id, normalizeAccessibility(value));
+    this.#accessibility = freezeAccessibility(value ?? {});
+  }
+
+  /**
+   * Where assistive technology reads the node, in place of its parent (null:
+   * its parent): content a portal shows elsewhere than where it belongs.
+   */
+  get accessibilityParent() {
+    return this.#accessibilityParent;
+  }
+
+  set accessibilityParent(value) {
+    if (value !== null && value !== undefined)
+      expectNode(value, 'accessibilityParent');
+    const parent = value ?? null;
+    native.setAccessibilityParent(this.#id, parent?.#id ?? 0);
+    this.#accessibilityParent = parent;
   }
 
   /** Whether the node takes focus when pressed or tabbed to. */
@@ -521,6 +677,20 @@ export function pressable(node, handlers = {}) {
   });
   on('focus', () => update({ focused: true }));
   on('blur', () => update({ focused: false }));
+  // Assistive technology presses without the pointer or the keyboard.
+  on('accessibilityaction', (event) => {
+    if (event.target !== node || event.defaultPrevented) return;
+    if (event.actionName === 'activate') {
+      event.preventDefault();
+      handlers.onPress?.(event);
+    } else if (
+      event.actionName === 'longpress' &&
+      handlers.onLongPress !== undefined
+    ) {
+      event.preventDefault();
+      handlers.onLongPress(event);
+    }
+  });
   on('keydown', (event) => {
     if (event.target !== node || event.repeat) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -735,6 +905,27 @@ export class InputEvent extends Event {
   }
 }
 
+/** An action assistive technology asks of a node (`accessibilityaction`). */
+export class AccessibilityActionEvent extends Event {
+  #actionName;
+  #value;
+
+  constructor(type, init = {}) {
+    super(type, init);
+    this.#actionName = String(init.actionName ?? '');
+    this.#value = init.value;
+  }
+
+  /** 'activate', 'increment', 'setValue'... or a custom action's name. */
+  get actionName() {
+    return this.#actionName;
+  }
+  /** setValue: the value asked for (a number, or an input's text). */
+  get value() {
+    return this.#value;
+  }
+}
+
 /** By the native event type: [name, class, bubbles, cancelable]. */
 const EVENT_TYPES = [
   ['pointerdown', PointerEvent, true, true],
@@ -752,6 +943,7 @@ const EVENT_TYPES = [
   ['blur', FocusEvent, false, false],
   ['scroll', Event, false, false],
   ['contextmenu', PointerEvent, true, true],
+  ['accessibilityaction', AccessibilityActionEvent, true, true],
 ];
 
 // ── Text editing: the default actions of an input's events ─────────────────
@@ -908,8 +1100,40 @@ function editKey(input, event) {
   return false;
 }
 
+/**
+ * The runtime's own response to an accessibility action plugin code left
+ * alone: focus, and an input's text. Returns whether it did something.
+ */
+function accessibilityDefault(target, event) {
+  switch (event.actionName) {
+    case 'focus':
+      target.focus();
+      return target.focused;
+    case 'blur':
+      if (!target.focused) return false;
+      target.blur();
+      return true;
+    case 'activate':
+      // Activating an input is starting to edit it.
+      if (target.type !== 'input' || !target.focusable) return false;
+      target.focus();
+      return target.focused;
+    case 'setValue': {
+      if (target.type !== 'input' || typeof event.value !== 'string')
+        return false;
+      const text = event.value.replace(/[\r\n]+/g, ' ');
+      edit(target, text, text.length, 'insertReplacementText', text);
+      commit(target);
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Runs the default action of a dispatched event; returns whether it did. */
 function defaultAction(target, event) {
+  if (event.type === 'accessibilityaction')
+    return accessibilityDefault(target, event);
   if (target.type !== 'input') return false;
   const id = internals.id(target);
   switch (event.type) {
@@ -979,6 +1203,8 @@ native.setListener((type, targetId, data) => {
     data: data.data,
     inputType: 'insertText',
     relatedTarget: nodeById(data.related),
+    actionName: data.action,
+    value: data.value,
   });
   trustEvent(event);
   target.dispatchEvent(event);

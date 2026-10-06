@@ -125,3 +125,82 @@ export interface LayoutRect {
 }
 
 export type NodeType = 'view' | 'text' | 'image' | 'scroll' | 'input';
+
+export type AccessibilityRole =
+  | 'none'
+  | 'text'
+  | 'image'
+  | 'button'
+  | 'link'
+  | 'adjustable'
+  | 'checkbox'
+  | 'switch'
+  | 'togglebutton'
+  | 'radio'
+  | 'radiogroup'
+  | 'progressbar'
+  | 'search'
+  | 'combobox'
+  | 'menu'
+  | 'menubar'
+  | 'menuitem'
+  | 'scrollbar'
+  | 'spinbutton'
+  | 'tab'
+  | 'tablist'
+  | 'header'
+  | 'summary'
+  | 'keyboardkey'
+  | 'timer'
+  | 'toolbar'
+  | 'alert'
+  | 'dialog';
+
+export interface AccessibilityState {
+  disabled?: boolean;
+  selected?: boolean;
+  /** 'mixed': partly checked. */
+  checked?: boolean | 'mixed';
+  busy?: boolean;
+  expanded?: boolean;
+}
+
+/** A range's value (fractional values welcome), and how to read it. */
+export interface AccessibilityValue {
+  min?: number;
+  max?: number;
+  now?: number;
+  /** Read in place of the number: '-3.5 dB'. */
+  text?: string;
+}
+
+export type AccessibilityActionName =
+  | 'activate'
+  | 'increment'
+  | 'decrement'
+  | 'longpress'
+  | 'expand'
+  | 'collapse'
+  | 'escape'
+  | 'focus'
+  | 'blur'
+  | 'setValue'
+  | (string & {});
+
+export interface AccessibilityAction {
+  name: AccessibilityActionName;
+  /** How a custom action is presented. */
+  label?: string;
+}
+
+/** What a node is to assistive technology. */
+export interface Accessibility {
+  accessible?: boolean;
+  role?: AccessibilityRole;
+  label?: string;
+  hint?: string;
+  state?: AccessibilityState;
+  value?: AccessibilityValue;
+  actions?: readonly AccessibilityAction[];
+  modal?: boolean;
+}

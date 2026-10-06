@@ -314,7 +314,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::erase(parent->childNodes, &child);
         child.parentNode = nullptr;
         restack(*parent);
-        changed = true;
+        markChanged();
     }
 
     void Surface::restack(Node& parent)
@@ -375,7 +375,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeInsertChild(parent.yoga, child.yoga, index);
         child.parentNode = &parent;
         restack(parent);
-        changed = true;
+        markChanged();
     }
 
     void Surface::removeChild(NodeId parentId, NodeId childId)
@@ -401,7 +401,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeMarkDirty(node.yoga);
             node.layoutWidth = -1;
         }
-        changed = true;
+        markChanged();
     }
 
     void Surface::setText(NodeId id, std::string text)
@@ -416,7 +416,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeMarkDirty(node.yoga);
         if (node.nodeType == NodeType::Input)
             setSelection(id, node.textSelection);
-        changed = true;
+        markChanged();
     }
 
     void Surface::setSource(NodeId id, std::string source)
@@ -428,7 +428,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.imageSource = std::move(source);
         YGNodeMarkDirty(node.yoga);
-        changed = true;
+        markChanged();
     }
 
     void Surface::setPlaceholder(NodeId id, std::string placeholder)
@@ -440,7 +440,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.placeholderText = std::move(placeholder);
         YGNodeMarkDirty(node.yoga);
-        changed = true;
+        markChanged();
     }
 
     void Surface::setSelection(NodeId id, Selection selection)
@@ -460,7 +460,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.textSelection != selection)
         {
             node.textSelection = selection;
-            changed = true;
+            markChanged();
         }
         layout();
         keepCaretVisible(node);
@@ -479,7 +479,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (scrollX != node.scroll.x)
         {
             node.scroll.x = scrollX;
-            changed = true;
+            markChanged();
         }
     }
 
@@ -518,7 +518,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (clamped.x == node.scroll.x && clamped.y == node.scroll.y)
             return;
         node.scroll = clamped;
-        changed = true;
+        markChanged();
     }
 
     void Surface::imagesChanged()
@@ -526,12 +526,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         for (auto& [id, node] : nodes)
             if (node->nodeType == NodeType::Image)
                 YGNodeMarkDirty(node->yoga);
-        changed = true;
+        markChanged();
     }
 
     void Surface::setFocusable(NodeId id, bool focusable)
     {
-        get(id).canFocus = focusable;
+        Node& node = get(id);
+        if (node.canFocus == focusable)
+            return;
+        node.canFocus = focusable;
+        // Nothing to draw, but what assistive technology may do changed.
+        ++changes;
+    }
+
+    void Surface::setAccessibility(NodeId id, a11y::Properties properties)
+    {
+        Node& node = get(id);
+        if (node.semantics == properties)
+            return;
+        node.semantics = std::move(properties);
+        ++changes;
+    }
+
+    void Surface::setAccessibilityParent(NodeId id, NodeId parent)
+    {
+        Node& node = get(id);
+        if (parent == id)
+            throw std::invalid_argument("a node cannot be its own accessibility parent");
+        if (parent != noNode && find(parent) == nullptr)
+            throw std::invalid_argument("unknown node " + std::to_string(parent));
+        if (node.semanticParent == parent)
+            return;
+        node.semanticParent = parent;
+        ++changes;
     }
 
     // ── Surface: layout ──────────────────────────────────────────────────────
@@ -541,7 +568,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (size.width == viewSize.width && size.height == viewSize.height)
             return;
         viewSize = size;
-        changed = true;
+        markChanged();
     }
 
     void Surface::setScale(float scale)
@@ -553,7 +580,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Snapping changed everywhere: lay the whole trees out again.
         YGNodeStyleSetWidth(rootNode->yoga, YGUndefined);
         YGNodeStyleSetWidth(overlayNode->yoga, YGUndefined);
-        changed = true;
+        markChanged();
     }
 
     void Surface::layout()
@@ -913,6 +940,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.text = input.text;
         dispatch(event);
         return true;
+    }
+
+    bool Surface::accessibilityAction(NodeId target, std::string action,
+                                      std::variant<std::monostate, double, std::string> value)
+    {
+        if (! isConnected(target))
+            return false;
+        Event event;
+        event.type = Event::Type::AccessibilityAction;
+        event.target = target;
+        event.action = std::move(action);
+        event.value = std::move(value);
+        return dispatch(event);
     }
 
     NodeId Surface::focused() noexcept

@@ -19,11 +19,13 @@ top of it.
 native/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
+    a11y/                 accessibility semantics and the semantic tree
     js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
     parameters/           the parameter Host interface backends implement
     platform/             HttpClient and HostInfo, the services backends provide
     runtime/              RuntimeHost: one plugin view's JavaScript world
   src/
+    a11y/                 the semantic tree of a ui::Surface
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
     modules/              soundor:* modules (C++, plus embedded JavaScript)
@@ -279,7 +281,8 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Selection:** `value`, `selectionStart` and `setSelectionRange()` use
     UTF-16 indices, as on the Web.
 - **`pressable(node, { onPress, onStateChange, … })`:** a press is a primary
-  click, or Enter/Space while focused. It reports pressed and hovered state.
+  click, Enter/Space while focused, or an `activate` accessibility action. It
+  reports pressed and hovered state.
 - **`requestAnimationFrame()`:** global, as on the Web. Callbacks run once on
   the view's next frame, before it is drawn.
 
@@ -302,6 +305,73 @@ CPU:
   or bidi; those need HarfBuzz and ICU. The same text engine lays text out, so
   layout matches what is drawn. Tests that need machine-independent sizes use
   `ui::approximateTextEngine()`.
+
+### Accessibility
+
+Soundor owns its accessibility semantics: what a screen reader perceives of
+the view is decided here, from the node tree, not by JUCE or any other plugin
+framework. A platform adapter (AccessKit, the Apple bridge) only translates
+the result.
+
+```ts
+knob.accessibility = {
+  role: 'adjustable',
+  label: 'Gain',
+  value: { min: -60, max: 12, now: -3.5, text: '-3.5 dB' },
+  actions: [{ name: 'increment' }, { name: 'decrement' }],
+};
+knob.addEventListener('accessibilityaction', (event) => {
+  if (event.actionName === 'increment') nudge(+1);
+});
+```
+
+- **`node.accessibility`** (`a11y::Properties`): `accessible`, `role`,
+  `label`, `hint`, `state` (`disabled`, `selected`, `checked` incl.
+  `'mixed'`, `busy`, `expanded`), `value` (`min`, `max`, `now` as doubles,
+  `text`), `actions` (standard names or custom ones with a label) and
+  `modal`. Replaced as a whole; invalid values throw a `TypeError` naming
+  them.
+- **The semantic tree** (`a11y::SurfaceSemantics`) is not the node tree:
+  - A node is an element when it means something: a text node with text, an
+    input, a node with a role (other than `'none'`), a label or
+    `accessible: true`, or a modal. Views and images are not by default
+    (images are decorative until labelled). `accessible: false` takes the
+    node itself out, never its descendants.
+  - An element of a leaf role (button, adjustable, checkbox, text…), or a
+    role-less one made `accessible: true`, is read as a whole: without a
+    label, it is labelled by its descendants' labels or text, in tree order,
+    and they are not elements of their own. Container roles (dialog,
+    toolbar, menu, radiogroup…) keep their elements as children.
+  - Nodes with `display: 'none'` (or under one) and nodes outside the view
+    are not read. `opacity: 0` is still read: it may be animating in.
+  - `accessibilityParent` reads a node under another one rather than its
+    parent: an overlay a portal opened from a modal is part of the modal.
+    Parents that would loop are ignored.
+  - While a `modal` element is shown, the tree holds only it and what it
+    holds; the last one in reading order wins, so a modal opened from another
+    supersedes it until it closes.
+  - Reading order is tree order (not `zIndex`), the content before the
+    overlay.
+- **Identity:** an element keeps its `a11y::NodeId` while it is one. Ids are
+  unique in the process and never reused, so a platform request naming an
+  element that has gone (even from before a reload) finds nothing.
+- **Updates:** `update()` walks the tree only when the surface changed
+  (`Surface::revision()`) or focus moved, and returns just the elements
+  that changed and the ids removed; nothing is computed until an adapter
+  asks. Bounds are the view's logical pixels; adapters convert them to
+  their platform's coordinates.
+- **Actions:** `RuntimeHost::performAccessibilityAction()` checks the
+  element still exists, offers the action and is not disabled, then
+  dispatches a bubbling, cancelable `accessibilityaction` event
+  (`actionName`, `value`) at its node. `preventDefault()` marks it handled.
+  Left alone, `focus` and `blur` move keyboard focus, `activate` focuses an
+  input, and `setValue` replaces an input's text; `pressable()` answers
+  `activate` (and `longpress` with `onLongPress`).
+- **Focus:** keyboard focus is reported as the element holding the focused
+  node. Assistive technology moving its own cursor changes nothing in the
+  view; only an explicit `focus` action requests keyboard focus.
+- **Threading:** everything runs on the UI thread. An adapter whose
+  platform calls from another thread marshals requests to it first.
 
 ### `RuntimeHost`
 
