@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in Soundor does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What went wrong, and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: The smallest project or steps that show the problem. A link to a repository is best.
+      placeholder: |
+        1. `pnpm create soundor-app`
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - CLI (`soundor`)
+        - create-soundor-app
+        - '@soundor/react'
+        - '@soundor/core'
+        - '@soundor/config'
+        - '@soundor/runtime-sdk'
+        - JUCE runtime
+        - Web runtime
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Soundor version
+      placeholder: '0.4.0'
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      description: The DAW and plugin format, or Standalone, if the problem shows up in a plugin.
+      placeholder: Ableton Live 12, VST3
+  - type: textarea
+    id: doctor
+    attributes:
+      label: '`soundor doctor` output'
+      description: Your OS, toolchain and versions.
+      render: shell
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Terminal output, errors or stack traces.
+      render: shell
