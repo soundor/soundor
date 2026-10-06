@@ -5,7 +5,11 @@
  */
 
 import { ASSET_PATH, isAssetId } from '../protocol';
-import { freezeAccessibility, normalizeAccessibility } from './accessibility';
+import {
+  freezeAccessibility,
+  normalizeAccessibility,
+  type NormalizedAccessibility,
+} from './accessibility';
 import { eventParent, TreeEventTarget } from './events';
 import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
 import type { Accessibility, LayoutRect, NodeType, Style } from './types';
@@ -17,6 +21,8 @@ export interface ViewLink {
   scale(): number;
   focusedNode(): UiNode | null;
   focus(node: UiNode | null): void;
+  /** Something assistive technology perceives may have changed. */
+  semanticsChanged(): void;
 }
 
 const CONSTRUCTING = Symbol('constructing');
@@ -72,6 +78,7 @@ export class UiNode extends TreeEventTarget {
   #focusable = false;
   #source = '';
   #accessibility: Readonly<Accessibility> = Object.freeze({});
+  #semantics: NormalizedAccessibility = normalizeAccessibility({});
   #accessibilityParent: UiNode | null = null;
 
   /** Nodes are made with createView(), createText() and the like. */
@@ -176,6 +183,7 @@ export class UiNode extends TreeEventTarget {
       .filter(Boolean)
       .join(' ');
     this.#style = Object.freeze({ ...style });
+    this.#view.semanticsChanged();
   }
 
   /** The text of a text node, or the value of an input. */
@@ -191,6 +199,7 @@ export class UiNode extends TreeEventTarget {
     if (this.#type === 'input') this.#input().value = text;
     else this.#element.textContent = text;
     this.#text = text;
+    this.#view.semanticsChanged();
   }
 
   /** An input's text. Setting it puts the caret at its end. */
@@ -348,8 +357,9 @@ export class UiNode extends TreeEventTarget {
   }
 
   set accessibility(value: Readonly<Accessibility>) {
-    normalizeAccessibility(value);
+    this.#semantics = normalizeAccessibility(value);
     this.#accessibility = freezeAccessibility(value);
+    this.#view.semanticsChanged();
   }
 
   /** Where assistive technology reads the node, in place of its parent. */
@@ -363,6 +373,7 @@ export class UiNode extends TreeEventTarget {
     if (value === this)
       throw new Error('a node cannot be its own accessibility parent');
     this.#accessibilityParent = value ?? null;
+    this.#view.semanticsChanged();
   }
 
   // ── Focus ──────────────────────────────────────────────────────────────────
@@ -377,6 +388,7 @@ export class UiNode extends TreeEventTarget {
     if (this.#type === 'input') return;
     if (this.#focusable) this.#element.tabIndex = -1;
     else if (!this.#root) this.#element.removeAttribute('tabindex');
+    this.#view.semanticsChanged();
   }
 
   get focused(): boolean {
@@ -418,6 +430,7 @@ export class UiNode extends TreeEventTarget {
     else this.#children.splice(index, 0, child);
     child.#parent = this;
     this.#element.insertBefore(child.#element, before ? before.#element : null);
+    this.#view.semanticsChanged();
     return child;
   }
 
@@ -429,6 +442,7 @@ export class UiNode extends TreeEventTarget {
     this.#children.splice(this.#children.indexOf(child), 1);
     child.#parent = null;
     child.#element.remove();
+    this.#view.semanticsChanged();
     return child;
   }
 
@@ -499,6 +513,11 @@ export class UiNode extends TreeEventTarget {
   /** For the view: the element that draws `node`. */
   static elementOf(node: UiNode): HTMLElement {
     return node.#element;
+  }
+
+  /** For the view: what plugin code said about `node`, checked. */
+  static semanticsOf(node: UiNode): NormalizedAccessibility {
+    return node.#semantics;
   }
 }
 
