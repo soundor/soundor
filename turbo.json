@@ -41,11 +41,11 @@
     },
     "lint:native": {
       "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
-      "passThroughEnv": ["CI"]
+      "passThroughEnv": ["CI", "SOUNDOR_CACHE"]
     },
     "test:native": {
       "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
-      "passThroughEnv": ["CI"]
+      "passThroughEnv": ["CI", "SOUNDOR_CACHE"]
     }
   }
 }
