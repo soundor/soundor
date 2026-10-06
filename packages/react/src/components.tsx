@@ -18,7 +18,7 @@ import {
 } from 'soundor:ui';
 
 import { ScopeContext } from './focus';
-import { HostTypes, SCOPE_PROP } from './host';
+import { HostTypes, prioritized, SCOPE_PROP } from './host';
 import type { StyleProp } from './style';
 
 /** Event props every component takes; `…Capture` runs in the capture phase. */
@@ -203,18 +203,24 @@ export function Pressable({
 
   useEffect(() => {
     if (node === null || disabled) return undefined;
+    // Updates from presses render as promptly as those of event props.
+    const call =
+      <E extends Event>(name: keyof typeof handlers.current) =>
+      (event: E) =>
+        prioritized(event.type, () =>
+          (handlers.current[name] as ((event: E) => void) | undefined)?.(event),
+        );
     const undo = pressable(node, {
-      onPress: (event) => handlers.current.onPress?.(event),
+      onPress: call('onPress'),
       ...(longPresses && {
-        onLongPress: (event: PointerEvent) =>
-          handlers.current.onLongPress?.(event),
+        onLongPress: call<PointerEvent>('onLongPress'),
         delayLongPress,
       }),
-      onPressIn: (event) => handlers.current.onPressIn?.(event),
-      onPressOut: (event) => handlers.current.onPressOut?.(event),
-      onHoverIn: (event) => handlers.current.onHoverIn?.(event),
-      onHoverOut: (event) => handlers.current.onHoverOut?.(event),
-      onStateChange: setState,
+      onPressIn: call('onPressIn'),
+      onPressOut: call('onPressOut'),
+      onHoverIn: call('onHoverIn'),
+      onHoverOut: call('onHoverOut'),
+      onStateChange: (next) => prioritized('press', () => setState(next)),
     });
     return () => {
       undo();

@@ -178,6 +178,25 @@ describe('FocusScope', () => {
     expect(seen).toEqual([]);
   });
 
+  it('a trap that starts with focus outside it drops that focus', () => {
+    const app = (open: boolean) => (
+      <View>
+        <Field name="a" />
+        {open && (
+          <FocusScope trapped>
+            <Field name="b" />
+          </FocusScope>
+        )}
+      </View>
+    );
+    show(app(false));
+    node('a').focus();
+    show(app(true));
+    // Keys no longer reach the background; Tab enters the trap.
+    expect(focusedNode()).toBeNull();
+    expect(tab()).toBe('b');
+  });
+
   it('autoFocus focuses the first focusable node once it is in the view', () => {
     show(
       <View>
