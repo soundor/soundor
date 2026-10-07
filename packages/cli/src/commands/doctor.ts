@@ -17,9 +17,7 @@ import {
   createConsoleLogger,
   createNodeFileSystem,
   createProjectPaths,
-  probeCommand,
   rootFromConfigPath,
-  type CommandProbe,
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
@@ -55,10 +53,8 @@ export interface RunDoctorResult {
 export interface RunDoctorOptions {
   cwd?: string;
   configPath?: string;
-  /** Injectable for tests; default to the real process and toolchain. */
+  /** The environment signing is resolved against; defaults to `process.env`. */
   env?: NodeJS.ProcessEnv;
-  platform?: NodeJS.Platform;
-  probe?: CommandProbe;
 }
 
 /**
@@ -107,14 +103,7 @@ export async function runDoctor(
     status: 'ok',
     detail: `Loaded and validated ${configPath}.`,
   });
-  diagnostics.push(
-    signingDiagnostic(
-      config,
-      options.env ?? process.env,
-      options.platform ?? process.platform,
-      options.probe ?? probeCommand,
-    ),
-  );
+  diagnostics.push(signingDiagnostic(config, options.env ?? process.env));
 
   // 3. Runtime doctors (delegated, aggregated — one failure never aborts the rest).
   const root = rootFromConfigPath(configPath);
@@ -248,15 +237,10 @@ function glyph(status: DoctorStatus): string {
   return status;
 }
 
-/**
- * Which identity macOS binaries are signed with, and where it came from. On
- * macOS a named identity must also be in the keychain, or the build fails.
- */
+/** Which identity macOS binaries are signed with, and where it came from. */
 function signingDiagnostic(
   config: SoundorConfig,
   env: NodeJS.ProcessEnv,
-  platform: NodeJS.Platform,
-  probe: CommandProbe,
 ): DoctorDiagnostic {
   const label = 'macOS signing';
   let signing;
@@ -286,25 +270,13 @@ function signingDiagnostic(
     signing.source === 'env'
       ? MACOS_SIGNING_IDENTITY_ENV
       : 'signing.macos.identity';
-  const detail = `'${signing.identity}' (from ${from}${
-    signing.keychain === undefined ? '' : `, keychain ${signing.keychain}`
-  }).`;
-  if (platform !== 'darwin' || signing.identity === '-') {
-    return { category: 'config', label, status: 'ok', detail };
-  }
-  const args = ['find-identity', '-v', '-p', 'codesigning'];
-  if (signing.keychain !== undefined) args.push(signing.keychain);
-  const found = probe('security', args);
-  if (found.ok && found.version?.includes(signing.identity)) {
-    return { category: 'config', label, status: 'ok', detail };
-  }
   return {
     category: 'config',
     label,
-    status: 'fail',
-    detail: `${detail} No valid code signing identity with that name is in the keychain.`,
-    suggestion:
-      'Install the certificate (with its private key) in your keychain; `security find-identity -v -p codesigning` lists the usable ones.',
+    status: 'ok',
+    detail: `'${signing.identity}' (from ${from}${
+      signing.keychain === undefined ? '' : `, keychain ${signing.keychain}`
+    }).`,
   };
 }
 

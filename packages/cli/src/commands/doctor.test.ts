@@ -96,41 +96,22 @@ describe('runDoctor', () => {
     });
   });
 
-  it('checks that a named identity is in the keychain on macOS', async () => {
+  it('reports a named identity and where it came from', async () => {
     await writeConfig(root, []);
     const identity = 'Developer ID Application: Acme (ABCDE12345)';
-    const probed: string[][] = [];
-    const run = (listing: string) =>
-      runDoctor({
-        cwd: root,
-        env: { SOUNDOR_MACOS_SIGNING_IDENTITY: identity },
-        platform: 'darwin',
-        probe: (cmd, args = []) => {
-          probed.push([cmd, ...args]);
-          return { ok: true, version: listing };
-        },
-      });
-    const signing = (result: Awaited<ReturnType<typeof runDoctor>>) =>
-      result.diagnostics.find((d) => d.label === 'macOS signing');
-
+    const result = await runDoctor({
+      cwd: root,
+      env: {
+        SOUNDOR_MACOS_SIGNING_IDENTITY: identity,
+        SOUNDOR_MACOS_KEYCHAIN: '/tmp/ci.keychain-db',
+      },
+    });
     expect(
-      signing(
-        await run(`  1) 0123ABCD "${identity}"\n     1 valid identities found`),
-      ),
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
     ).toMatchObject({
       status: 'ok',
-      detail: `'${identity}' (from SOUNDOR_MACOS_SIGNING_IDENTITY).`,
+      detail: `'${identity}' (from SOUNDOR_MACOS_SIGNING_IDENTITY, keychain /tmp/ci.keychain-db).`,
     });
-    expect(probed).toContainEqual([
-      'security',
-      'find-identity',
-      '-v',
-      '-p',
-      'codesigning',
-    ]);
-    const missing = await run('     0 valid identities found');
-    expect(signing(missing)).toMatchObject({ status: 'fail' });
-    expect(missing.exitCode).toBe(1);
   });
 
   it('fails when the identity variable holds key material', async () => {

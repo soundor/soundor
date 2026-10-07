@@ -198,6 +198,13 @@ network and leaves the plugin debuggable.
   `Apple-Actions/import-codesign-certs`); set `SOUNDOR_MACOS_KEYCHAIN` if the
   step does not add that keychain to the search list.
 
+- **Where to set the identity:** usually only as
+  `SOUNDOR_MACOS_SIGNING_IDENTITY` in the release CI job. Put it in
+  `signing.macos.identity` only if everyone who runs `soundor build` has the
+  certificate and its private key: otherwise their build fails at the signing
+  step. `SOUNDOR_MACOS_SIGNING_IDENTITY=- soundor build` signs ad-hoc whatever
+  the config says; only the link and signing steps run again.
+
 Notarization is yours to run on what you ship; downloaded files are
 quarantined, and Gatekeeper blocks plugins Apple has not notarized. For a
 bundle shipped in a zip or disk image:
