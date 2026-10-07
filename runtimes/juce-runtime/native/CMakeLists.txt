@@ -21,6 +21,7 @@ include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
 include(SoundorAccessKit)
+include(SoundorPluginBundle)
 
 # Inline namespace that every Soundor-native C++ symbol is mangled into. A
 # plugin build sets it to a value derived from its stable plugin identifier so

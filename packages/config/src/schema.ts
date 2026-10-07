@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { type ConfigIssue, ConfigError } from './errors';
 import type { Runtime } from './runtime';
+import { checkSigningIdentity } from './signing';
 import type { Parameter, SoundorConfig } from './types';
 
 /** The lifecycle methods every {@link Runtime} must expose. */
@@ -91,11 +92,21 @@ const nativeSchema = z.object({
   methods: z.record(z.string(), z.unknown()).optional(),
 });
 
+const signingIdentitySchema = z.string().superRefine((value, ctx) => {
+  const problem = checkSigningIdentity(value);
+  if (problem !== undefined) ctx.addIssue({ code: 'custom', message: problem });
+});
+
+const signingSchema = z.object({
+  macos: z.object({ identity: signingIdentitySchema.optional() }).optional(),
+});
+
 const soundorConfigSchema = z.object({
   plugin: pluginSchema,
   runtimes: z.array(runtimeSchema),
   parameters: z.array(parameterSchema),
   native: nativeSchema.optional(),
+  signing: signingSchema.optional(),
 });
 
 /** Renders a zod path array into a `parameters[0].max`-style string. */
@@ -221,6 +232,10 @@ function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
     parameters: data.parameters.map(normalizeParameter),
     // Validated above; a structured clone detaches it from the user's object.
     native: structuredClone(data.native ?? {}) as SoundorConfig['native'],
+    signing:
+      data.signing?.macos?.identity !== undefined
+        ? { macos: { identity: data.signing.macos.identity.trim() } }
+        : {},
   };
 }
 

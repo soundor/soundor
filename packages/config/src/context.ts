@@ -12,6 +12,7 @@ import type {
   ProjectPaths,
 } from '@soundor/core';
 
+import type { SigningContext } from './signing';
 import type { RuntimeConfig } from './types';
 
 /** Build/run mode. */
@@ -66,6 +67,12 @@ export interface LifecycleContext<Options extends object = object> {
   readonly codegen: CodegenSink;
   /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
   readonly ui?: UiBundleContext;
+  /**
+   * The resolved code signing (environment, then `config.signing`, then
+   * ad-hoc). A runtime that produces macOS binaries signs every one of them
+   * with `signing.macos`, as the last step of its build.
+   */
+  readonly signing: SigningContext;
   /** Aborts long-running phases (notably `dev`). */
   readonly signal: AbortSignal;
 }

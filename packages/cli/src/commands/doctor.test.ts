@@ -84,6 +84,69 @@ describe('runDoctor', () => {
     });
   });
 
+  it('reports ad-hoc macOS signing by default', async () => {
+    await writeConfig(root, []);
+    const result = await runDoctor({ cwd: root, env: {} });
+    expect(
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
+    ).toMatchObject({
+      category: 'config',
+      status: 'ok',
+      detail: expect.stringContaining('ad-hoc'),
+    });
+  });
+
+  it('checks that a named identity is in the keychain on macOS', async () => {
+    await writeConfig(root, []);
+    const identity = 'Developer ID Application: Acme (ABCDE12345)';
+    const probed: string[][] = [];
+    const run = (listing: string) =>
+      runDoctor({
+        cwd: root,
+        env: { SOUNDOR_MACOS_SIGNING_IDENTITY: identity },
+        platform: 'darwin',
+        probe: (cmd, args = []) => {
+          probed.push([cmd, ...args]);
+          return { ok: true, version: listing };
+        },
+      });
+    const signing = (result: Awaited<ReturnType<typeof runDoctor>>) =>
+      result.diagnostics.find((d) => d.label === 'macOS signing');
+
+    expect(
+      signing(
+        await run(`  1) 0123ABCD "${identity}"\n     1 valid identities found`),
+      ),
+    ).toMatchObject({
+      status: 'ok',
+      detail: `'${identity}' (from SOUNDOR_MACOS_SIGNING_IDENTITY).`,
+    });
+    expect(probed).toContainEqual([
+      'security',
+      'find-identity',
+      '-v',
+      '-p',
+      'codesigning',
+    ]);
+    const missing = await run('     0 valid identities found');
+    expect(signing(missing)).toMatchObject({ status: 'fail' });
+    expect(missing.exitCode).toBe(1);
+  });
+
+  it('fails when the identity variable holds key material', async () => {
+    await writeConfig(root, []);
+    const result = await runDoctor({
+      cwd: root,
+      env: { SOUNDOR_MACOS_SIGNING_IDENTITY: '-----BEGIN CERTIFICATE-----' },
+    });
+    expect(
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
+    ).toMatchObject({
+      status: 'fail',
+      detail: expect.stringContaining('key material'),
+    });
+  });
+
   it('delegates to every runtime doctor even when one fails', async () => {
     await writeConfig(root, [
       { id: 'alpha', checks: [{ label: 'a', status: 'ok' }] },

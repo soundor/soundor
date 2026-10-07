@@ -4,17 +4,22 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { outro, spinner } from '@clack/prompts';
 import {
   ConfigError,
+  MACOS_SIGNING_IDENTITY_ENV,
   parseConfig,
   resolveRuntime,
+  resolveSigning,
   runPhase,
   type DoctorReport,
+  type SoundorConfig,
 } from '@soundor/config';
 import {
   createCodegenSink,
   createConsoleLogger,
   createNodeFileSystem,
   createProjectPaths,
+  probeCommand,
   rootFromConfigPath,
+  type CommandProbe,
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
@@ -50,6 +55,10 @@ export interface RunDoctorResult {
 export interface RunDoctorOptions {
   cwd?: string;
   configPath?: string;
+  /** Injectable for tests; default to the real process and toolchain. */
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  probe?: CommandProbe;
 }
 
 /**
@@ -98,6 +107,14 @@ export async function runDoctor(
     status: 'ok',
     detail: `Loaded and validated ${configPath}.`,
   });
+  diagnostics.push(
+    signingDiagnostic(
+      config,
+      options.env ?? process.env,
+      options.platform ?? process.platform,
+      options.probe ?? probeCommand,
+    ),
+  );
 
   // 3. Runtime doctors (delegated, aggregated — one failure never aborts the rest).
   const root = rootFromConfigPath(configPath);
@@ -118,6 +135,7 @@ export async function runDoctor(
         logger: logger.child(entry.id),
         codegen,
         mode: 'debug',
+        env: options.env,
       })) as DoctorReport;
 
       for (const check of report.checks) {
@@ -228,6 +246,66 @@ function diagnosticsSummary(result: RunDoctorResult): string {
 
 function glyph(status: DoctorStatus): string {
   return status;
+}
+
+/**
+ * Which identity macOS binaries are signed with, and where it came from. On
+ * macOS a named identity must also be in the keychain, or the build fails.
+ */
+function signingDiagnostic(
+  config: SoundorConfig,
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  probe: CommandProbe,
+): DoctorDiagnostic {
+  const label = 'macOS signing';
+  let signing;
+  try {
+    signing = resolveSigning(config, env).macos;
+  } catch (error) {
+    return {
+      category: 'config',
+      label,
+      status: 'fail',
+      detail:
+        error instanceof ConfigError
+          ? error.issues.map((issue) => issue.message).join('; ')
+          : errorMessage(error),
+      suggestion: `Set ${MACOS_SIGNING_IDENTITY_ENV} to the name of a certificate in your keychain.`,
+    };
+  }
+  if (signing.source === 'default') {
+    return {
+      category: 'config',
+      label,
+      status: 'ok',
+      detail: `ad-hoc (no identity set). Enough to use the plugin on this Mac; set ${MACOS_SIGNING_IDENTITY_ENV} or signing.macos.identity to distribute it.`,
+    };
+  }
+  const from =
+    signing.source === 'env'
+      ? MACOS_SIGNING_IDENTITY_ENV
+      : 'signing.macos.identity';
+  const detail = `'${signing.identity}' (from ${from}${
+    signing.keychain === undefined ? '' : `, keychain ${signing.keychain}`
+  }).`;
+  if (platform !== 'darwin' || signing.identity === '-') {
+    return { category: 'config', label, status: 'ok', detail };
+  }
+  const args = ['find-identity', '-v', '-p', 'codesigning'];
+  if (signing.keychain !== undefined) args.push(signing.keychain);
+  const found = probe('security', args);
+  if (found.ok && found.version?.includes(signing.identity)) {
+    return { category: 'config', label, status: 'ok', detail };
+  }
+  return {
+    category: 'config',
+    label,
+    status: 'fail',
+    detail: `${detail} No valid code signing identity with that name is in the keychain.`,
+    suggestion:
+      'Install the certificate (with its private key) in your keychain; `security find-identity -v -p codesigning` lists the usable ones.',
+  };
 }
 
 function configErrorDiagnostics(error: unknown): DoctorDiagnostic[] {

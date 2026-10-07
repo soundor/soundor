@@ -8,7 +8,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, type Dirent } from 'node:fs';
-import { cp, mkdir, readdir, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +23,7 @@ import {
   type DoctorReport,
   type LifecycleContext,
   type Logger,
+  type MacosSigning,
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
 
@@ -113,26 +114,30 @@ export async function juceDev(
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
-  const probe = deps.probe ?? probeCommand;
+  const platform = deps.platform ?? process.platform;
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
-  requireToolchain(probe);
+  requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
   const live = ctx.ui?.live;
-  await mkdir(buildDir, { recursive: true });
+  await prepareBuildDir(buildDir, platform, ctx.logger);
 
   const configureArgs = [
     '-S',
     projectDir,
     '-B',
     buildDir,
+    ...generatorArgs(platform),
     `-DJUCE_DIR=${jucePath}`,
     // Always set, so a UI removed since the last configure is not kept cached.
     // A live UI (soundor dev) is loaded from disk and reloaded, not embedded.
     `-DSOUNDOR_UI_DIR=${live === undefined ? (ctx.ui?.dir ?? '') : ''}`,
     `-DSOUNDOR_UI_DEV_DIR=${live === undefined ? '' : ctx.ui!.dir}`,
     `-DSOUNDOR_UI_DEV_LOG=${live?.logFile ?? ''}`,
+    // Debug builds are signed ad-hoc: no timestamp server, and a debugger can
+    // attach without the hardened runtime in the way.
+    ...signingArgs(platform, { identity: '-', source: 'default' }),
   ];
 
   ctx.logger.info('Configuring debug build');
@@ -175,26 +180,35 @@ export async function juceBuild(
   deps: JucePhaseDeps = {},
 ): Promise<void> {
   const run = deps.run ?? runCommand;
-  const probe = deps.probe ?? probeCommand;
+  const platform = deps.platform ?? process.platform;
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
-  requireToolchain(probe);
+  requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-release');
-  await mkdir(buildDir, { recursive: true });
+  await prepareBuildDir(buildDir, platform, ctx.logger);
 
   const configureArgs = [
     '-S',
     projectDir,
     '-B',
     buildDir,
+    ...generatorArgs(platform),
     '-DCMAKE_BUILD_TYPE=Release',
     `-DJUCE_DIR=${jucePath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
+    ...signingArgs(platform, ctx.signing.macos),
   ];
   if (ctx.ui === undefined) {
     ctx.logger.warn(
       'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
+    );
+  }
+  if (platform === 'darwin') {
+    ctx.logger.info(
+      ctx.signing.macos.identity === '-'
+        ? 'Signing ad-hoc (set SOUNDOR_MACOS_SIGNING_IDENTITY to distribute the plugin)'
+        : `Signing with '${ctx.signing.macos.identity}'`,
     );
   }
   ctx.logger.info('Configuring release build');
@@ -262,11 +276,66 @@ function requireToolchain(probe: CommandProbe): void {
       'CMake not found. Install CMake >= 3.22 and ensure `cmake` is in PATH. Run `soundor doctor` for details.',
     );
   }
+  if (!probe('ninja', ['--version']).ok) {
+    throw new EnvError(
+      'Ninja not found. Soundor builds Skia with it, and the plugin too on macOS and Linux; install it and ensure `ninja` is in PATH. Run `soundor doctor` for details.',
+    );
+  }
   if (!findCppCompiler(probe)) {
     throw new EnvError(
       'No C++ compiler found. Install a C++ toolchain (Xcode Command Line Tools, MSVC Build Tools, or GCC/Clang) and ensure `c++`, `clang++`, or `g++` is in PATH. Run `soundor doctor` for details.',
     );
   }
+}
+
+/**
+ * The CMake generator: Ninja on macOS and Linux; on Windows CMake's default,
+ * Visual Studio, which finds MSVC without a developer environment.
+ */
+function generatorArgs(platform: NodeJS.Platform): string[] {
+  return platform === 'win32' ? [] : ['-G', 'Ninja'];
+}
+
+/** CMake cache variables `soundor_finalize_plugin` signs macOS bundles with. */
+function signingArgs(
+  platform: NodeJS.Platform,
+  signing: MacosSigning,
+): string[] {
+  if (platform !== 'darwin') return [];
+  return [
+    `-DSOUNDOR_MACOS_SIGNING_IDENTITY=${signing.identity}`,
+    `-DSOUNDOR_MACOS_KEYCHAIN=${signing.keychain ?? ''}`,
+  ];
+}
+
+/**
+ * Creates `buildDir`, first deleting it on macOS and Linux when it was
+ * configured with a generator other than Ninja (as builds before Soundor chose
+ * one were): CMake cannot switch the generator of an existing build tree.
+ */
+async function prepareBuildDir(
+  buildDir: string,
+  platform: NodeJS.Platform,
+  logger: Logger,
+): Promise<void> {
+  if (platform !== 'win32') {
+    let cache: string | undefined;
+    try {
+      cache = await readFile(join(buildDir, 'CMakeCache.txt'), 'utf8');
+    } catch {
+      cache = undefined;
+    }
+    const generator = cache
+      ?.match(/^CMAKE_GENERATOR:INTERNAL=(.*)$/m)?.[1]
+      ?.trim();
+    if (generator !== undefined && generator !== 'Ninja') {
+      logger.info(
+        `Recreating ${buildDir}: it was configured for ${generator}, and Soundor builds with Ninja`,
+      );
+      await rm(buildDir, { recursive: true, force: true });
+    }
+  }
+  await mkdir(buildDir, { recursive: true });
 }
 
 /** Copies every JUCE `*_artefacts` folder from the build tree into `distDir`. */

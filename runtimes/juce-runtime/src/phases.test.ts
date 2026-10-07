@@ -269,16 +269,140 @@ describe('juceBuild', () => {
       mode: 'production',
     });
     const run = vi.fn<() => Promise<void>>();
-    const probe: CommandProbe = (cmd) => ({
-      ok: cmd === 'cmake',
-      version: cmd === 'cmake' ? 'cmake 3.22' : undefined,
-      error: cmd === 'cmake' ? undefined : 'not found',
-    });
+    const probe: CommandProbe = (cmd) => {
+      const found = cmd === 'cmake' || cmd === 'ninja';
+      return found
+        ? { ok: true, version: '1.0' }
+        : { ok: false, error: 'not found' };
+    };
 
-    await expect(juceBuild(config, ctx, { run, probe })).rejects.toMatchObject({
+    await expect(
+      juceBuild(config, ctx, { run, probe, platform: 'linux' }),
+    ).rejects.toMatchObject({
       code: 'ENV',
       message: expect.stringContaining('No C++ compiler found'),
     });
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('throws an ENV error before invoking CMake when Ninja is missing', async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      mode: 'production',
+    });
+    const run = vi.fn<() => Promise<void>>();
+    const probe: CommandProbe = (cmd) =>
+      cmd === 'ninja' ? { ok: false, error: 'not found' } : okProbe(cmd);
+
+    await expect(juceBuild(config, ctx, { run, probe })).rejects.toMatchObject({
+      code: 'ENV',
+      message: expect.stringContaining('Ninja not found'),
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('build tree', () => {
+  const identity = 'Developer ID Application: Acme (ABCDE12345)';
+
+  async function configureArgs(
+    phase: 'dev' | 'build',
+    platform: NodeJS.Platform,
+    extra: { keychain?: string } = {},
+  ): Promise<string[]> {
+    const root = await tempProjectWithJuce();
+    const controller = new AbortController();
+    controller.abort();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      signal: controller.signal,
+      signing: { macos: { identity, source: 'env', ...extra } },
+    });
+    const calls: string[][] = [];
+    const run = async (o: RunCommandOptions) => {
+      calls.push([...o.args]);
+    };
+    const deps = { run, probe: okProbe, platform };
+    await (phase === 'dev'
+      ? juceDev(config, ctx, deps)
+      : juceBuild(config, ctx, deps));
+    return calls[0]!;
+  }
+
+  it('configures macOS and Linux builds with Ninja', async () => {
+    for (const phase of ['dev', 'build'] as const) {
+      const args = await configureArgs(phase, 'linux');
+      expect(args.slice(args.indexOf('-G'), args.indexOf('-G') + 2)).toEqual([
+        '-G',
+        'Ninja',
+      ]);
+    }
+  });
+
+  it('signs release builds on macOS with the resolved identity', async () => {
+    expect(
+      await configureArgs('build', 'darwin', {
+        keychain: '/tmp/ci.keychain-db',
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        `-DSOUNDOR_MACOS_SIGNING_IDENTITY=${identity}`,
+        '-DSOUNDOR_MACOS_KEYCHAIN=/tmp/ci.keychain-db',
+      ]),
+    );
+  });
+
+  it('signs debug builds ad-hoc', async () => {
+    expect(await configureArgs('dev', 'darwin')).toEqual(
+      expect.arrayContaining([
+        '-DSOUNDOR_MACOS_SIGNING_IDENTITY=-',
+        '-DSOUNDOR_MACOS_KEYCHAIN=',
+      ]),
+    );
+  });
+
+  it('passes no signing settings outside macOS', async () => {
+    const args = await configureArgs('build', 'linux');
+    expect(args.some((arg) => arg.startsWith('-DSOUNDOR_MACOS_'))).toBe(false);
+  });
+
+  it('recreates a build tree configured with another generator', async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      mode: 'production',
+    });
+    const stale = join(ctx.paths.cache, 'build-release');
+    await mkdir(stale, { recursive: true });
+    await writeFile(
+      join(stale, 'CMakeCache.txt'),
+      'CMAKE_GENERATOR:INTERNAL=Unix Makefiles\n',
+    );
+    await writeFile(join(stale, 'Makefile'), '');
+
+    const run = async () => {};
+    const deps = { run, probe: okProbe, platform: 'linux' as const };
+    await juceBuild(config, ctx, deps);
+    expect(await exists(join(stale, 'Makefile'))).toBe(false);
+    expect(await exists(stale)).toBe(true);
+
+    // A Ninja tree is kept.
+    await writeFile(
+      join(stale, 'CMakeCache.txt'),
+      'CMAKE_GENERATOR:INTERNAL=Ninja\n',
+    );
+    await juceBuild(config, ctx, deps);
+    expect(await exists(join(stale, 'CMakeCache.txt'))).toBe(true);
+  });
+
+  it("keeps Visual Studio, CMake's default, on Windows", async () => {
+    expect((await configureArgs('build', 'win32')).includes('-G')).toBe(false);
   });
 });

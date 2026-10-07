@@ -156,6 +156,12 @@ generated framework or the runtime package, not in `init` templates.
   CMake projects.
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug QuickJS aborts on leaks).
+- Plugin builds (`soundor dev`/`build`) use Ninja on macOS and Linux and
+  Visual Studio on Windows; the supported platforms are these three.
+- macOS signing comes from `ctx.signing` (`SOUNDOR_MACOS_SIGNING_IDENTITY`,
+  then `signing.macos.identity`, then ad-hoc) and is always the last build
+  step (`soundor_finalize_plugin`); nothing may write into a bundle after it.
+  Soundor never handles key material or notarization.
 
 ## Conventions
 
