@@ -52,8 +52,12 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/platform/WorkerThread.cpp
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp
+  src/render/Damage.cpp
+  src/render/Frame.cpp
+  src/render/RasterCompositor.cpp
   src/render/Renderer.cpp
   src/render/SkiaText.cpp
+  src/render/ViewRenderer.cpp
   src/ui/Color.cpp
   src/ui/Surface.cpp
   src/ui/Text.cpp

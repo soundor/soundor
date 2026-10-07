@@ -23,14 +23,20 @@ native/
     js/                   Runtime, Context, Value, Error, ModuleLoader, Promise
     parameters/           the parameter Host interface backends implement
     platform/             HttpClient and HostInfo, the services backends provide
+    render/               frames, layers, damage regions and the Compositor
+                          interface (no Skia or GPU types)
     runtime/              RuntimeHost: one plugin view's JavaScript world
+    ui/                   the node tree (Surface), styles, text, the renderer
   src/
     a11y/                 the semantic tree of a ui::Surface
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
     modules/              soundor:* modules (C++, plus embedded JavaScript)
     platform/             background worker and UI-thread handoff queue
+    render/               Skia: drawing nodes, damage tracking, layer planning,
+                          the CPU compositor
     runtime/              RuntimeHost
+    ui/                   the Surface (Yoga layout, input routing)
     web/                  the Web-compatible globals (C++ + embedded JavaScript)
   backend/juce/           JUCE adapters, compiled into the plugin (they need JUCE)
   tests/                  doctest suites + the exported-symbol check
@@ -38,8 +44,8 @@ native/
   cmake/                  pinned dependencies, compiler policy, JS embedding
 ```
 
-A later stage adds `ui/` (UI tree, layout, rendering) as a sibling directory. A third-party header (QuickJS, later Yoga and Skia) is only
-included by the directory that wraps it.
+A third-party header (QuickJS, Yoga, Skia) is only included by the directory
+that wraps it.
 
 ## Embedding API
 
@@ -288,13 +294,46 @@ Beyond views and text there are the primitives a plugin UI is made of:
 
 ### Rendering
 
-`ui::Renderer` draws a laid-out surface with [Skia](https://skia.org) on the
-CPU:
+A frame goes through three stages, each with its own owner:
 
-- **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere, which
-  is `juce::Image::ARGB`'s layout. The generated editor renders straight into
-  its image and repaints only when `RuntimeHost::needsRender()` says the
-  picture changed (a blinking caret counts, twice a second).
+1. **Planning and rasterizing (the runtime).** `RuntimeHost::frame()` lays the
+   surface out and returns a `render::Frame`: the view's size and its
+   _layers_, bottom to top. A layer is content (today: CPU pixels, a
+   `render::RasterSurface`) placed at device-pixel `bounds`, with a
+   `transform`, `opacity` and rounded `clip`, and a stable `id` while it
+   exists. Today the whole UI (content and overlay) is one CPU layer; the
+   model is there so that content drawn elsewhere (a canvas, the GPU) becomes
+   layers of its own without changing the UI tree.
+2. **Damage.** Each layer says what changed since the previous frame, in
+   device pixels (`render::Region`, a few merged rectangles). `ui::Surface`
+   records which nodes changed (style, text, children, selection, scroll,
+   focus); the damage tracker compares where every node drew last frame with
+   where it draws now, so a node that moved, resized (by any fraction of a
+   pixel) or went away is caught as well as one that changed. Only the damage
+   is drawn again: each rectangle with Skia into a scratch bitmap with a
+   margin, then copied in. An unchanged frame rasterizes nothing.
+   - Skia flattens a curve cut by a clip slightly differently, so where damage
+     cuts a curve its edge pixels may differ from a full redraw by a few
+     levels (tests bound it). Everything else is exact.
+3. **Compositing (the backend).** A `render::Compositor` puts the layers
+   together and presents them, again drawing only what changed (the layers'
+   damage, and wherever a layer appeared, moved, went away or changed order).
+   The backend owns it, so it outlives a reloaded runtime.
+   `render::RasterCompositor` composites on the CPU with Skia into a
+   `render::RasterTarget` (pixels the platform shows); `capabilities()` and
+   `statistics()` say what it is and what the last frame cost.
+
+The generated JUCE editor renders a frame from its 60 Hz timer when
+`RuntimeHost::needsRender()` says the picture changed (a blinking caret
+counts, twice a second). Its compositor presents into a
+`backend::JuceImageTarget`: a `juce::Image` at device resolution, of which only
+the damaged parts are repainted. `RuntimeHost::render(bitmap)` still draws the
+whole view in one go, for tests and tools.
+
+`ui::Renderer` draws nodes with [Skia](https://skia.org) on the CPU:
+
+- **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere
+  (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
 - **Boxes:** backgrounds, borders, per-corner radii, opacity, overflow
   clipping, scrolling, text, images, and inputs with selection and a caret.
 - **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
@@ -443,6 +482,7 @@ bundle compiled in with `soundor_embed_directory()`, or a directory in
 development) and an entry such as `/bundle.js`, it evaluates the entry after
 installing the modules. A failing entry is logged and leaves the host usable.
 `RuntimeHost::asset(id)` returns the bytes of a bundled image.
+`RuntimeHost::frame()` renders the view for a compositor (see "Rendering").
 
 ### `DevSession`
 

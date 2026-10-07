@@ -158,7 +158,13 @@ target_sources(\${PROJECT_NAME}
     PRIVATE
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
-        ${['JuceHttpClient', 'JuceInput', 'JuceParameterHost', 'JuceTransport']
+        ${[
+          'JuceHttpClient',
+          'JuceInput',
+          'JuceParameterHost',
+          'JucePresentation',
+          'JuceTransport',
+        ]
           .map((name) =>
             cmakeString(
               cmakePath(
@@ -398,6 +404,8 @@ function renderEditorHeader(): string {
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/a11y/Platform.h>
+#include <soundor/backend/JucePresentation.h>
+#include <soundor/render/Compositor.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -411,7 +419,9 @@ namespace ${NS}
 {
     // Base editor: the plugin view, and the owner of this view's JavaScript
     // runtime. The runtime is created with the view and destroyed with it;
-    // ~60 times a second it receives parameter changes and runs pending jobs.
+    // ~60 times a second it receives parameter changes, runs pending jobs and,
+    // when the picture changed, renders a frame: the runtime rasterizes what
+    // changed and the compositor presents it.
     // Under \`soundor dev\` it is replaced by a fresh one on every UI build, so
     // do not keep the reference runtimeHost() returns.
     // Derive your plugin's editor from this.
@@ -447,6 +457,9 @@ namespace ${NS}
 
     private:
         void timerCallback() override;
+        // Gives the UI the view's size and pixel density.
+        void sizeSurface();
+        void renderFrame();
         void deliver(const ui::PointerInput& input);
         // Presents the UI to the platform's assistive technology, in the
         // native view JUCE shows it in. The semantics are Soundor's: JUCE only
@@ -455,8 +468,10 @@ namespace ${NS}
         void updateAccessibility();
         void detachAccessibility();
 
-        // What the UI was last drawn into, at device resolution.
-        juce::Image canvas;
+        // The UI's frames go to the compositor, which presents them in this
+        // view. It outlives a reloaded runtime (soundor dev).
+        backend::JuceImageTarget presentation { *this };
+        render::RasterCompositor compositor { presentation };
         bool releaseKeys(bool all);
 
         // Keys held down, by JUCE key code, with their Web names: JUCE reports
@@ -587,14 +602,24 @@ namespace ${NS}
 #endif
     }
 
-    void AudioProcessorEditor::timerCallback()
+    void AudioProcessorEditor::sizeSurface()
     {
-        // Every frame, so a reloaded UI (soundor dev) gets the size at once.
         const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
         const double displayScale = display != nullptr ? display->scale : 1.0;
         auto& surface = runtimeHost().surface();
         surface.setSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
         surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this)));
+    }
+
+    void AudioProcessorEditor::renderFrame()
+    {
+        compositor.composite(runtimeHost().frame());
+    }
+
+    void AudioProcessorEditor::timerCallback()
+    {
+        // Every frame, so a reloaded UI (soundor dev) gets the size at once.
+        sizeSurface();
 #if SOUNDOR_UI_DEV
         session->tick();
 #else
@@ -602,7 +627,7 @@ namespace ${NS}
 #endif
         updateAccessibility();
         if (runtimeHost().needsRender())
-            repaint();
+            renderFrame();
     }
 
     void AudioProcessorEditor::detachAccessibility()
@@ -760,19 +785,16 @@ namespace ${NS}
     void AudioProcessorEditor::paint(juce::Graphics& g)
     {
         g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-        auto& surface = runtimeHost().surface();
-        const int width = juce::roundToInt(static_cast<float>(getWidth()) * surface.scale());
-        const int height = juce::roundToInt(static_cast<float>(getHeight()) * surface.scale());
+        // Resized since the last frame: render one at the new size first.
+        sizeSurface();
+        const float scale = runtimeHost().surface().scale();
+        const int width = juce::roundToInt(static_cast<float>(getWidth()) * scale);
+        const int height = juce::roundToInt(static_cast<float>(getHeight()) * scale);
         if (width <= 0 || height <= 0)
             return;
-        if (canvas.getWidth() != width || canvas.getHeight() != height)
-            canvas = juce::Image(juce::Image::ARGB, width, height, false, juce::SoftwareImageType());
-        {
-            // JUCE's ARGB pixels are Skia's native 32-bit premultiplied format.
-            juce::Image::BitmapData pixels(canvas, juce::Image::BitmapData::writeOnly);
-            runtimeHost().render({ pixels.data, width, height, static_cast<std::size_t>(pixels.lineStride) });
-        }
-        g.drawImage(canvas, getLocalBounds().toFloat());
+        if (! presentation.matches(width, height))
+            renderFrame();
+        presentation.paint(g);
     }
 } // namespace ${NS}
 `;

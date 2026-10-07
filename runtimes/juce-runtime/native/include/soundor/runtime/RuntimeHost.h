@@ -6,6 +6,7 @@
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
 #include <soundor/platform/Resources.h>
+#include <soundor/render/Frame.h>
 #include <soundor/ui/Renderer.h>
 #include <soundor/ui/Surface.h>
 
@@ -17,6 +18,11 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 {
+    namespace render
+    {
+        class ViewRenderer;
+    } // namespace render
+
     // One plugin UI's JavaScript runtime, wired to the plugin: a js::Runtime
     // and js::Context with Soundor's Web-compatible globals and the
     // `soundor:*` modules installed.
@@ -73,8 +79,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
         // Whether the view looks different from when it was last rendered.
         [[nodiscard]] bool needsRender();
-        // Draws the view into `target` (sized to the surface at its scale).
-        void render(const ui::Bitmap& target);
+        // The view as layers for a compositor (render::Compositor), with what
+        // changed since the previous frame; only that is rasterized again.
+        // The frame and its pixels stay valid until the next call.
+        [[nodiscard]] const render::Frame& frame();
+        // Draws the whole view into `target` (sized to the surface at its
+        // scale), apart from frame().
+        void render(const render::Bitmap& target);
 
         [[nodiscard]] js::Runtime& runtime() noexcept { return *jsRuntime; }
         [[nodiscard]] js::Context& context() noexcept { return *jsContext; }
@@ -98,10 +109,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     private:
         [[nodiscard]] double seconds() const;
+        // Whether the caret's blink phase changed (and so its look).
+        bool blink();
 
         std::shared_ptr<const platform::Resources> resources;
         std::unique_ptr<ui::Renderer> renderer;
         std::shared_ptr<ui::Surface> uiSurface;
+        std::unique_ptr<render::ViewRenderer> view;
         std::unique_ptr<a11y::SurfaceSemantics> semantics;
         std::unique_ptr<js::Runtime> jsRuntime;
         std::unique_ptr<js::Context> jsContext;

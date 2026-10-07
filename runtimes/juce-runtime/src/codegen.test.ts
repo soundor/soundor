@@ -161,16 +161,21 @@ describe('generateJuceSources', () => {
     );
     expect(editor).toContain('handled = surface.text({ text });');
     expect(editor).toContain('setWantsKeyboardFocus(true);');
-    // Drawn by the runtime, only when the picture changed.
+    // Rendered by the runtime, only when the picture changed, and presented
+    // by a compositor that outlives a reloaded runtime.
     expect(editor).toContain('if (runtimeHost().needsRender())');
+    expect(editor).toContain('compositor.composite(runtimeHost().frame());');
     expect(editor).toContain(
-      'runtimeHost().render({ pixels.data, width, height,',
+      'render::RasterCompositor compositor { presentation };',
     );
     expect(editor).toContain(
       'options.clipboard = std::make_shared<backend::JuceClipboard>();',
     );
     expect(fileMap(config).get('setup.cmake')).toContain(
       'backend/juce/soundor/backend/JuceInput.cpp',
+    );
+    expect(fileMap(config).get('setup.cmake')).toContain(
+      'backend/juce/soundor/backend/JucePresentation.cpp',
     );
   });
 

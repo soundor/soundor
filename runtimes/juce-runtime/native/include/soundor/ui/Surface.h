@@ -297,6 +297,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // Changes since the last call: the tree, a style, a size, a scroll.
         [[nodiscard]] bool takeChanges() noexcept;
+
+        // What may look different since the last call, for drawing only
+        // that: nodes whose own drawing or anything in them changed, or
+        // everything (the size or scale changed). Nodes that only moved are
+        // not listed; a renderer finds them by comparing layouts.
+        struct Invalidation
+        {
+            std::vector<NodeId> nodes; // sorted, each once
+            bool everything = false;
+        };
+        [[nodiscard]] Invalidation takeInvalidation();
+        // Marks a node as looking different for a reason the surface does
+        // not track (a caret blinked).
+        void invalidate(NodeId id);
         // Counts every change to the tree, its content, its accessibility or
         // its layout; equal revisions mean nothing changed in between.
         [[nodiscard]] std::uint64_t revision() const noexcept { return changes; }
@@ -357,6 +371,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             changed = true;
             ++changes;
         }
+        void markChanged(const Node& node);
 
         Options options;
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;
@@ -368,6 +383,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float pixelScale = 1;
         bool changed = true;
         std::uint64_t changes = 1;
+        std::vector<NodeId> invalidNodes;
+        bool invalidAll = true;
         EventSink sink;
         std::map<int, PointerState> pointers;
         NodeId focusedNode = noNode;
