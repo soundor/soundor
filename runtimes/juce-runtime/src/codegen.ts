@@ -112,7 +112,13 @@ juce_add_plugin(\${PROJECT_NAME}
     PLUGIN_MANUFACTURER_CODE ${options.manufacturerCode}
     PLUGIN_CODE ${options.pluginCode}
     FORMATS ${formats}
-    PRODUCT_NAME ${cmakeString(options.pluginName)})
+    PRODUCT_NAME ${cmakeString(options.pluginName)}
+    VST3_AUTO_MANIFEST FALSE)
+
+# Last build steps of every format: the VST3 manifest, then (on macOS) the
+# signature, so nothing changes a bundle after it is signed. Deferred to the
+# end of the project's CMakeLists.txt, after any steps the project adds.
+cmake_language(DEFER CALL soundor_finalize_plugin \${PROJECT_NAME})
 
 target_compile_definitions(\${PROJECT_NAME}
     PUBLIC

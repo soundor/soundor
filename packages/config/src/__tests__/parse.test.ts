@@ -183,6 +183,7 @@ describe('validateConfig — validation rules', () => {
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
       native: {},
+      signing: {},
     });
   });
 
@@ -301,6 +302,37 @@ describe('validateConfig — validation rules', () => {
       },
     };
     expect(validateConfig({ ...base, native }).native).toEqual(native);
+  });
+
+  it('keeps a macOS signing identity, trimmed', () => {
+    const identity = 'Developer ID Application: Acme (ABCDE12345)';
+    expect(
+      validateConfig({
+        ...base,
+        signing: { macos: { identity: ` ${identity} ` } },
+      }).signing,
+    ).toEqual({ macos: { identity } });
+  });
+
+  it('rejects a signing identity that looks like key material', () => {
+    const error = expectValidation({
+      ...base,
+      signing: {
+        macos: { identity: '-----BEGIN PRIVATE KEY-----\nMIIE...\n' },
+      },
+    });
+    expect(error.issues).toContainEqual(
+      expect.objectContaining({
+        path: 'signing.macos.identity',
+        message: expect.stringContaining('looks like key material'),
+      }),
+    );
+    expect(
+      expectValidation({ ...base, signing: { macos: { identity: ' ' } } })
+        .issues,
+    ).toContainEqual(
+      expect.objectContaining({ path: 'signing.macos.identity' }),
+    );
   });
 
   it('flags duplicate parameter and runtime ids', () => {

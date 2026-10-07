@@ -84,6 +84,50 @@ describe('runDoctor', () => {
     });
   });
 
+  it('reports ad-hoc macOS signing by default', async () => {
+    await writeConfig(root, []);
+    const result = await runDoctor({ cwd: root, env: {} });
+    expect(
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
+    ).toMatchObject({
+      category: 'config',
+      status: 'ok',
+      detail: expect.stringContaining('ad-hoc'),
+    });
+  });
+
+  it('reports a named identity and where it came from', async () => {
+    await writeConfig(root, []);
+    const identity = 'Developer ID Application: Acme (ABCDE12345)';
+    const result = await runDoctor({
+      cwd: root,
+      env: {
+        SOUNDOR_MACOS_SIGNING_IDENTITY: identity,
+        SOUNDOR_MACOS_KEYCHAIN: '/tmp/ci.keychain-db',
+      },
+    });
+    expect(
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
+    ).toMatchObject({
+      status: 'ok',
+      detail: `'${identity}' (from SOUNDOR_MACOS_SIGNING_IDENTITY, keychain /tmp/ci.keychain-db).`,
+    });
+  });
+
+  it('fails when the identity variable holds key material', async () => {
+    await writeConfig(root, []);
+    const result = await runDoctor({
+      cwd: root,
+      env: { SOUNDOR_MACOS_SIGNING_IDENTITY: '-----BEGIN CERTIFICATE-----' },
+    });
+    expect(
+      result.diagnostics.find((d) => d.label === 'macOS signing'),
+    ).toMatchObject({
+      status: 'fail',
+      detail: expect.stringContaining('key material'),
+    });
+  });
+
   it('delegates to every runtime doctor even when one fails', async () => {
     await writeConfig(root, [
       { id: 'alpha', checks: [{ label: 'a', status: 'ok' }] },

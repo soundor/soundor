@@ -116,6 +116,7 @@ export interface MakeCtxOptions {
   readonly options?: JuceOptions;
   readonly mode?: 'debug' | 'production';
   readonly signal?: AbortSignal;
+  readonly signing?: LifecycleContext['signing'];
 }
 
 export interface TestCtx extends LifecycleContext<JuceOptions> {
@@ -141,6 +142,9 @@ export function makeCtx(overrides: MakeCtxOptions = {}): TestCtx {
     logger: silentLogger(),
     fs,
     codegen: createCodegenSink(),
+    signing: overrides.signing ?? {
+      macos: { identity: '-', source: 'default' },
+    },
     signal: overrides.signal ?? new AbortController().signal,
   };
 }

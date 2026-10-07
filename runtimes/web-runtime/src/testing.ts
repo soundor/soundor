@@ -87,6 +87,7 @@ export function makeCtx(root: string, overrides: MakeCtxOptions = {}): TestCtx {
     fs: createNodeFileSystem(root),
     codegen: createCodegenSink(),
     ui: overrides.ui,
+    signing: { macos: { identity: '-', source: 'default' } },
     signal: overrides.signal ?? new AbortController().signal,
   };
 }

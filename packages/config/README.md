@@ -72,6 +72,33 @@ Methods take positional arguments in the order declared and return `returns`
 Struct fields may be primitives, enums, structs or arrays of them. Method,
 argument and field names are camelCase; type names are PascalCase.
 
+### `signing`
+
+How runtimes sign the binaries they build. Optional; nothing here is secret.
+
+```ts
+signing: {
+  macos: { identity: 'Developer ID Application: Acme (ABCDE12345)' },
+},
+```
+
+| Field            | Meaning                                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `macos.identity` | The name of a code signing certificate in the macOS keychain, or its SHA-1 hash (`security find-identity -v -p codesigning` lists them). Defaults to ad-hoc (`-`). |
+
+Two environment variables, read by every runtime, take part:
+
+| Variable                         | Meaning                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `SOUNDOR_MACOS_SIGNING_IDENTITY` | Overrides `signing.macos.identity`, e.g. to sign only in CI.                               |
+| `SOUNDOR_MACOS_KEYCHAIN`         | A keychain to search besides the default list, for CI setups that do not add theirs to it. |
+
+An identity is only a name: `codesign` finds the private key in the keychain,
+so key material never goes in the config or these variables, and validation
+rejects anything that looks like it. Ad-hoc signing is enough to use a plugin
+on the Mac that built it; distributing one needs a Developer ID identity and
+notarization (see the JUCE runtime's README).
+
 ## License
 
 MIT

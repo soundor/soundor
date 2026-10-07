@@ -17,6 +17,7 @@ import {
 
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 import type { DoctorReport, Runtime } from './runtime';
+import { resolveSigning } from './signing';
 import type { RuntimeConfig, SoundorConfig } from './types';
 
 /** A runtime implementation paired with the config entry that selected it. */
@@ -56,6 +57,8 @@ export interface DispatchContextInput {
   /** Defaults to `'debug'`; the build command passes `'production'`. */
   mode?: RuntimeMode;
   signal?: AbortSignal;
+  /** The environment signing is resolved against; defaults to `process.env`. */
+  env?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -80,6 +83,7 @@ export async function runPhase(
     fs: input.fs,
     codegen: input.codegen,
     ui: input.ui,
+    signing: resolveSigning(config, input.env),
     signal: input.signal ?? new AbortController().signal,
   };
 

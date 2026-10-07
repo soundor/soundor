@@ -4,6 +4,7 @@ export type {
   EnumParameter,
   FloatParameter,
   IntParameter,
+  MacosSigningConfig,
   NativeApiDeclaration,
   NativeMethodDeclaration,
   NativeTypeDeclaration,
@@ -12,6 +13,7 @@ export type {
   ParameterType,
   PluginIdentity,
   RuntimeConfig,
+  SigningConfig,
   SoundorConfig,
 } from './types';
 export { defineSoundorConfig } from './define';
@@ -33,6 +35,20 @@ export type {
   LiveUiContext,
   UiBundleContext,
 } from './context';
+
+// Code signing
+export {
+  AD_HOC_IDENTITY,
+  MACOS_KEYCHAIN_ENV,
+  MACOS_SIGNING_IDENTITY_ENV,
+  checkSigningIdentity,
+  resolveSigning,
+} from './signing';
+export type {
+  MacosSigning,
+  MacosSigningSource,
+  SigningContext,
+} from './signing';
 
 // Resolution + dispatch
 export { resolveRuntime, runPhase } from './registry';

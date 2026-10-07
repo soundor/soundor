@@ -81,6 +81,15 @@ describe('generateJuceSources', () => {
     );
   });
 
+  it("writes the VST3 manifest and signs last, after the project's own steps", () => {
+    const setup = fileMap(config).get('setup.cmake')!;
+    // JUCE's automatic manifest would land after its own signature.
+    expect(setup).toContain('VST3_AUTO_MANIFEST FALSE)');
+    expect(setup).toContain(
+      'cmake_language(DEFER CALL soundor_finalize_plugin ${PROJECT_NAME})',
+    );
+  });
+
   it('takes the plugin identity from the config, quoted for CMake', () => {
     const setup = fileMap(config).get('setup.cmake')!;
     expect(setup).toContain('BUNDLE_ID "com.acme.synth"');

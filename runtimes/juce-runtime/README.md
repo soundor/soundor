@@ -56,9 +56,9 @@ ever sharing one in a host.
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`   | Scaffolds the **user-owned** host under `runtimes/juce/` (`CMakeLists.txt`, `PluginProcessor`, `PluginEditor`). Written once; idempotent.                                           |
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
-| `dev`    | Debug CMake build with the development UI bundle embedded; launches the standalone app when that format is enabled.                                                                 |
-| `build`  | Release build with the production UI bundle embedded; packages VST3/AU under `.soundor/dist/juce`.                                                                                  |
-| `doctor` | Verifies CMake, a C++ compiler, and a locatable JUCE checkout.                                                                                                                      |
+| `dev`    | Debug CMake build with the development UI bundle embedded; launches the standalone app when that format is enabled. Signed ad-hoc on macOS.                                         |
+| `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
+| `doctor` | Verifies CMake, a C++ compiler, the tools Skia is built with (git, Python 3, Ninja), and a locatable JUCE checkout.                                                                 |
 
 ### init vs gen: you own the host, Soundor owns the framework
 
@@ -163,6 +163,65 @@ entry points.
 The UI bundle the CLI built is compiled into the plugin (`soundor_embed_directory`),
 so a plugin needs no files beside itself. The generated editor loads its
 `bundle.js` into the view's runtime.
+
+`dev` and `build` configure CMake with **Ninja** on macOS and Linux, and with
+CMake's default, **Visual Studio**, on Windows. A build tree configured with
+another generator (as earlier Soundor versions left on macOS and Linux) is
+deleted and configured afresh.
+
+The last build step of every format is `soundor_finalize_plugin`
+(`native/cmake/SoundorPluginBundle.cmake`), deferred to the end of the
+project's `CMakeLists.txt` so it also follows steps the project adds: it writes
+the VST3 `moduleinfo.json` (JUCE's automatic manifest is turned off, since
+JUCE writes it after signing) and, on macOS, signs and verifies each bundle.
+
+## Signing and distributing on macOS
+
+`soundor build` signs every bundle with the identity resolved from
+`SOUNDOR_MACOS_SIGNING_IDENTITY`, then the config's `signing.macos.identity`
+(see `@soundor/config`), then ad-hoc. It verifies the signature
+(`codesign --verify --deep --strict`), so a broken one fails the build rather
+than a host's plugin scan. `soundor dev` always signs ad-hoc, which needs no
+network and leaves the plugin debuggable.
+
+- **Ad-hoc** (the default) is enough to use the plugin on the Mac that built
+  it. No Apple account is involved.
+- **To distribute** it, sign with a _Developer ID Application_ certificate
+  from a paid Apple Developer account. With a real identity Soundor adds the
+  hardened runtime and a secure timestamp, which notarization requires:
+
+  ```sh
+  SOUNDOR_MACOS_SIGNING_IDENTITY="Developer ID Application: Acme (ABCDE12345)" soundor build
+  ```
+
+  In CI, import the certificate into a keychain first (for example with
+  `Apple-Actions/import-codesign-certs`); set `SOUNDOR_MACOS_KEYCHAIN` if the
+  step does not add that keychain to the search list.
+
+- **Where to set the identity:** usually only as
+  `SOUNDOR_MACOS_SIGNING_IDENTITY` in the release CI job. Put it in
+  `signing.macos.identity` only if everyone who runs `soundor build` has the
+  certificate and its private key: otherwise their build fails at the signing
+  step. `SOUNDOR_MACOS_SIGNING_IDENTITY=- soundor build` signs ad-hoc whatever
+  the config says; only the link and signing steps run again.
+
+Notarization is yours to run on what you ship; downloaded files are
+quarantined, and Gatekeeper blocks plugins Apple has not notarized. For a
+bundle shipped in a zip or disk image:
+
+```sh
+cd .soundor/dist/juce/MyPlugin_artefacts/Release/VST3
+ditto -c -k --keepParent "My Plugin.vst3" MyPlugin.zip
+xcrun notarytool submit MyPlugin.zip --keychain-profile <profile> --wait
+xcrun stapler staple "My Plugin.vst3"   # then zip the stapled bundle to ship
+xcrun stapler validate "My Plugin.vst3"
+```
+
+`<profile>` is stored once with `xcrun notarytool store-credentials`; in CI,
+pass `--key`, `--key-id` and `--issuer` (an App Store Connect API key)
+instead. If you ship a `.pkg` installer, sign it with your _Developer ID
+Installer_ certificate (`productbuild --sign`) and notarize and staple the
+`.pkg` instead.
 
 ## JUCE is required (and never downloaded)
 

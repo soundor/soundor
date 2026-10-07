@@ -36,6 +36,7 @@ function dispatchInput(
     logger: createConsoleLogger(),
     fs: noopFs,
     codegen: createCodegenSink(),
+    env: {},
     ...overrides,
   };
 }
@@ -123,6 +124,48 @@ describe('runPhase', () => {
       { phase: 'build', mode: 'production', options: { format: 'vst3' } },
     ]);
     expect(report).toEqual({ checks: [{ label: 'ok', status: 'ok' }] });
+  });
+
+  it('resolves signing from the environment and the config', async () => {
+    const seen: unknown[] = [];
+    const runtime: Runtime = {
+      id: 'juce',
+      init: async () => {},
+      gen: async () => {},
+      dev: async () => {},
+      build: async (_c, ctx) => {
+        seen.push(ctx.signing);
+      },
+      doctor: async () => ({ checks: [] }),
+    };
+    const cfg: SoundorConfig = {
+      ...config(descriptor('juce', runtime)),
+      signing: { macos: { identity: 'Apple Development: Me (TEAM)' } },
+    };
+    const resolved = resolveRuntime(cfg, 'juce');
+
+    await runPhase(resolved, 'build', cfg, dispatchInput());
+    await runPhase(
+      resolved,
+      'build',
+      cfg,
+      dispatchInput({
+        env: {
+          SOUNDOR_MACOS_SIGNING_IDENTITY:
+            'Developer ID Application: Acme (ABCDE12345)',
+        },
+      }),
+    );
+
+    expect(seen).toEqual([
+      { macos: { identity: 'Apple Development: Me (TEAM)', source: 'config' } },
+      {
+        macos: {
+          identity: 'Developer ID Application: Acme (ABCDE12345)',
+          source: 'env',
+        },
+      },
+    ]);
   });
 
   it('wraps a thrown error as RuntimeError tagged with id and phase', async () => {

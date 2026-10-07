@@ -18,8 +18,21 @@ export type {
   UiBundleContext,
   ResolvedRuntime,
   DispatchContextInput,
+  MacosSigning,
+  MacosSigningConfig,
+  MacosSigningSource,
+  SigningConfig,
+  SigningContext,
 } from '@soundor/config';
-export { ConfigError, resolveRuntime, runPhase } from '@soundor/config';
+export {
+  AD_HOC_IDENTITY,
+  ConfigError,
+  MACOS_KEYCHAIN_ENV,
+  MACOS_SIGNING_IDENTITY_ENV,
+  resolveRuntime,
+  resolveSigning,
+  runPhase,
+} from '@soundor/config';
 
 // Host helpers + shared error taxonomy from @soundor/core.
 export {

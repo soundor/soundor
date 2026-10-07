@@ -96,6 +96,25 @@ export type {
   NativeTypeRef,
 } from '@soundor/core';
 
+/** macOS code signing. */
+export interface MacosSigningConfig {
+  /**
+   * The identity runtimes sign macOS binaries with: the name of a certificate
+   * in the keychain (e.g. `Developer ID Application: Acme (ABCDE12345)`) or
+   * its SHA-1 hash. Not a secret. `SOUNDOR_MACOS_SIGNING_IDENTITY` overrides
+   * it; without either, binaries are signed ad-hoc.
+   */
+  identity?: string;
+}
+
+/**
+ * Code signing, shared by every runtime that produces signed binaries.
+ * Key material never goes here: `codesign` finds the key in the keychain.
+ */
+export interface SigningConfig {
+  macos?: MacosSigningConfig;
+}
+
 /** Top-level Soundor configuration. */
 export interface SoundorConfig {
   plugin: PluginIdentity;
@@ -103,4 +122,6 @@ export interface SoundorConfig {
   parameters: Parameter[];
   /** The plugin's typed native API, exposed to JavaScript as `soundor:native`. */
   native?: NativeApiDeclaration;
+  /** Code signing; runtimes read the resolved settings from `ctx.signing`. */
+  signing?: SigningConfig;
 }
