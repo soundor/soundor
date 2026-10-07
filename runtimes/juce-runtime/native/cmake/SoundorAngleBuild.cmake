@@ -88,9 +88,8 @@ angle_enable_vulkan_validation_layers = false
 angle_use_custom_libvulkan = false
 ]=])
 if(TARGET_OS STREQUAL "linux")
-  # Vulkan, and OpenGL through the system's EGL (loaded at run time) where
-  # Vulkan is missing. No window system is linked: presenting goes through
-  # the native window the plugin host gives.
+  # Vulkan, and OpenGL through the system's EGL (both loaded at run time).
+  # No window system or GLib is linked, nor looked for with pkg-config.
   string(APPEND common_args [=[
 is_clang = true
 use_sysroot = false
@@ -99,6 +98,7 @@ angle_enable_gl = true
 angle_use_x11 = false
 angle_use_wayland = false
 use_libpci = false
+use_glib = false
 ]=])
 elseif(TARGET_OS STREQUAL "mac")
   # Metal only: ANGLE's OpenGL backend there defines an Objective-C class,

@@ -87,6 +87,16 @@ def main():
             sys.exit(f'{path} is not pinned to a commit in DEPS: {url}')
         print(f'ANGLE: fetching {path} {revision[:10]}', flush=True)
         checkout(os.path.join(root, path), repository, revision, [d for d in sparse.split(',') if d])
+    # What the one gclient hook the build needs (build/util/lastchange.py)
+    # would write: the commit of build/ and its time, which Windows builds
+    # stamp into binaries.
+    build = os.path.join(root, 'build')
+    commit = subprocess.run(['git', 'log', '-1', '--format=%H %ct'], cwd=build, check=True, capture_output=True,
+                            text=True).stdout.split()
+    with open(os.path.join(build, 'util', 'LASTCHANGE'), 'w', encoding='utf-8') as out:
+        out.write(f'LASTCHANGE={commit[0]}-refs/heads/main\n')
+    with open(os.path.join(build, 'util', 'LASTCHANGE.committime'), 'w', encoding='utf-8') as out:
+        out.write(commit[1])
     # What `gclient sync` writes from DEPS' gclient_gn_args. The checkout_*
     # flags say which optional repositories were checked out: none of them.
     with open(os.path.join(root, 'build', 'config', 'gclient_args.gni'), 'w', encoding='utf-8') as out:
