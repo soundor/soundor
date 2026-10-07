@@ -23,7 +23,7 @@ sync when behavior changes.
 
 ## Commands
 
-pnpm 11 + Node 24 monorepo driven by Turborepo. The root scripts exclude
+pnpm 12 + Node 24 monorepo driven by Turborepo. The root scripts exclude
 `examples/*`.
 
 ```sh
