@@ -314,7 +314,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::erase(parent->childNodes, &child);
         child.parentNode = nullptr;
         restack(*parent);
-        markChanged();
+        markChanged(child);
     }
 
     void Surface::restack(Node& parent)
@@ -375,7 +375,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeInsertChild(parent.yoga, child.yoga, index);
         child.parentNode = &parent;
         restack(parent);
-        markChanged();
+        markChanged(child);
     }
 
     void Surface::removeChild(NodeId parentId, NodeId childId)
@@ -401,7 +401,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeMarkDirty(node.yoga);
             node.layoutWidth = -1;
         }
-        markChanged();
+        markChanged(node);
     }
 
     void Surface::setText(NodeId id, std::string text)
@@ -416,7 +416,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeMarkDirty(node.yoga);
         if (node.nodeType == NodeType::Input)
             setSelection(id, node.textSelection);
-        markChanged();
+        markChanged(node);
     }
 
     void Surface::setSource(NodeId id, std::string source)
@@ -428,7 +428,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.imageSource = std::move(source);
         YGNodeMarkDirty(node.yoga);
-        markChanged();
+        markChanged(node);
     }
 
     void Surface::setPlaceholder(NodeId id, std::string placeholder)
@@ -440,7 +440,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.placeholderText = std::move(placeholder);
         YGNodeMarkDirty(node.yoga);
-        markChanged();
+        markChanged(node);
     }
 
     void Surface::setSelection(NodeId id, Selection selection)
@@ -460,7 +460,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.textSelection != selection)
         {
             node.textSelection = selection;
-            markChanged();
+            markChanged(node);
         }
         layout();
         keepCaretVisible(node);
@@ -479,7 +479,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (scrollX != node.scroll.x)
         {
             node.scroll.x = scrollX;
-            markChanged();
+            markChanged(node);
         }
     }
 
@@ -518,15 +518,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (clamped.x == node.scroll.x && clamped.y == node.scroll.y)
             return;
         node.scroll = clamped;
-        markChanged();
+        markChanged(node);
     }
 
     void Surface::imagesChanged()
     {
         for (auto& [id, node] : nodes)
             if (node->nodeType == NodeType::Image)
+            {
                 YGNodeMarkDirty(node->yoga);
-        markChanged();
+                markChanged(*node);
+            }
     }
 
     void Surface::setFocusable(NodeId id, bool focusable)
@@ -569,6 +571,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         viewSize = size;
         markChanged();
+        invalidAll = true;
     }
 
     void Surface::setScale(float scale)
@@ -581,6 +584,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         YGNodeStyleSetWidth(rootNode->yoga, YGUndefined);
         YGNodeStyleSetWidth(overlayNode->yoga, YGUndefined);
         markChanged();
+        invalidAll = true;
     }
 
     void Surface::layout()
@@ -699,6 +703,45 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     bool Surface::takeChanges() noexcept
     {
         return std::exchange(changed, false);
+    }
+
+    void Surface::markChanged(const Node& node)
+    {
+        markChanged();
+        invalidate(node.nodeId);
+    }
+
+    void Surface::invalidate(NodeId id)
+    {
+        if (id == noNode)
+            return;
+        changed = true;
+        if (invalidAll)
+            return;
+        // Past this many, drawing everything is about as cheap.
+        constexpr std::size_t limit = 4096;
+        if (invalidNodes.size() >= limit)
+        {
+            invalidNodes.clear();
+            invalidAll = true;
+            return;
+        }
+        invalidNodes.push_back(id);
+    }
+
+    Surface::Invalidation Surface::takeInvalidation()
+    {
+        Invalidation taken;
+        taken.everything = std::exchange(invalidAll, false);
+        if (! taken.everything)
+        {
+            std::ranges::sort(invalidNodes);
+            const auto [first, last] = std::ranges::unique(invalidNodes);
+            invalidNodes.erase(first, last);
+            taken.nodes = std::move(invalidNodes);
+        }
+        invalidNodes.clear();
+        return taken;
     }
 
     bool Surface::animating() noexcept
@@ -974,6 +1017,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (previous == id)
             return;
         focusedNode = id;
+        // An input shows its caret and selection only while focused.
+        invalidate(previous);
+        invalidate(id);
         if (previous != noNode)
         {
             Event blur;

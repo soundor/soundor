@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <string>
 #include <unordered_map>
 
@@ -117,6 +118,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             const float height = image.height * scale;
             return SkRect::MakeXYWH(box.centerX() - width / 2, box.centerY() - height / 2, width, height);
         }
+
+        // BGRA on every platform (Skia's N32 is RGBA on Apple's), as Bitmap promises.
+        std::unique_ptr<SkCanvas> canvasFor(const render::Bitmap& bitmap)
+        {
+            const SkImageInfo info =
+                SkImageInfo::Make(bitmap.width, bitmap.height, kBGRA_8888_SkColorType, kPremul_SkAlphaType);
+            return SkCanvas::MakeRasterDirect(info, bitmap.pixels, bitmap.rowBytes);
+        }
     } // namespace
 
     struct Renderer::Impl
@@ -125,7 +134,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::shared_ptr<SkiaImages> images;
         Surface* surface = nullptr;
         double seconds = 0;
+        // Where part of a view is drawn before being copied in.
+        render::RasterSurface scratch;
 
+        void draw(SkCanvas& canvas);
         void drawNode(SkCanvas& canvas, const Node& node);
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
@@ -150,25 +162,63 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return impl->images;
     }
 
-    void Renderer::render(Surface& surface, const Bitmap& target, double seconds)
+    void Renderer::render(Surface& surface, const render::Bitmap& target, double seconds, const render::Region* only)
     {
-        if (target.pixels == nullptr || target.width <= 0 || target.height <= 0)
+        if (target.empty() || (only != nullptr && only->empty()))
             return;
         surface.layout();
-        // BGRA on every platform (Skia's N32 is RGBA on Apple's), as Bitmap promises.
-        const SkImageInfo info =
-            SkImageInfo::Make(target.width, target.height, kBGRA_8888_SkColorType, kPremul_SkAlphaType);
-        const std::unique_ptr<SkCanvas> canvas = SkCanvas::MakeRasterDirect(info, target.pixels, target.rowBytes);
-        if (canvas == nullptr)
-            return;
-        canvas->clear(SK_ColorTRANSPARENT);
-        canvas->scale(surface.scale(), surface.scale());
         impl->surface = &surface;
         impl->seconds = seconds;
-        // The overlay over all of the content, whatever their zIndex.
-        impl->drawNode(*canvas, surface.root());
-        impl->drawNode(*canvas, surface.overlay());
+        if (only == nullptr)
+        {
+            if (const auto canvas = canvasFor(target))
+            {
+                canvas->clear(SK_ColorTRANSPARENT);
+                impl->draw(*canvas);
+            }
+        }
+        else
+        {
+            // Each rectangle is drawn apart, with a margin, then copied in:
+            // Skia draws what a clip cuts a little differently near the cut,
+            // so the cut must fall where nothing is kept.
+            constexpr int margin = 4;
+            const render::IntRect all { 0, 0, target.width, target.height };
+            for (const render::IntRect& rect : only->rects())
+            {
+                const render::IntRect inside = rect.intersected(all);
+                if (inside.empty())
+                    continue;
+                const render::IntRect drawn = render::IntRect { inside.x - margin, inside.y - margin,
+                                                                inside.width + margin * 2, inside.height + margin * 2 }
+                                                  .intersected(all);
+                impl->scratch.resize(drawn.width, drawn.height);
+                const render::Bitmap scratch = impl->scratch.bitmap();
+                std::memset(scratch.pixels, 0, scratch.rowBytes * static_cast<std::size_t>(scratch.height));
+                if (const auto canvas = canvasFor(scratch))
+                {
+                    canvas->translate(static_cast<float>(-drawn.x), static_cast<float>(-drawn.y));
+                    impl->draw(*canvas);
+                }
+                for (int y = inside.y; y < inside.bottom(); ++y)
+                    std::memcpy(static_cast<std::uint8_t*>(target.pixels)
+                                    + static_cast<std::size_t>(y) * target.rowBytes
+                                    + static_cast<std::size_t>(inside.x) * 4,
+                                static_cast<const std::uint8_t*>(scratch.pixels)
+                                    + static_cast<std::size_t>(y - drawn.y) * scratch.rowBytes
+                                    + static_cast<std::size_t>(inside.x - drawn.x) * 4,
+                                static_cast<std::size_t>(inside.width) * 4);
+            }
+        }
         impl->surface = nullptr;
+    }
+
+    void Renderer::Impl::draw(SkCanvas& canvas)
+    {
+        canvas.scale(surface->scale(), surface->scale());
+        // The overlay over all of the content, whatever their zIndex.
+        drawNode(canvas, surface->root());
+        drawNode(canvas, surface->overlay());
     }
 
     void Renderer::Impl::drawNode(SkCanvas& canvas, const Node& node)

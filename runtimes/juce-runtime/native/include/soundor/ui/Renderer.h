@@ -1,9 +1,10 @@
 #pragma once
 
 #include <soundor/Config.h>
+#include <soundor/render/Frame.h>
+#include <soundor/render/Region.h>
 #include <soundor/ui/Surface.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -13,17 +14,6 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
-    // Pixels to draw into: 32 bits each, premultiplied alpha, B, G, R, A in
-    // memory on every platform (a 0xAARRGGBB word on little-endian machines,
-    // the layout of juce::Image::ARGB).
-    struct Bitmap
-    {
-        void* pixels = nullptr;
-        int width = 0;
-        int height = 0;
-        std::size_t rowBytes = 0;
-    };
-
     // Draws a Surface with Skia, on the CPU. It also supplies the text engine
     // and image source a surface needs to lay out what it draws.
     class Renderer
@@ -46,7 +36,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Draws `surface`, laid out, into `target`, which covers the view at
         // surface.scale() device pixels per logical pixel. `seconds` is a
         // steady clock, for what animates by itself (a caret blinking).
-        void render(Surface& surface, const Bitmap& target, double seconds);
+        // Given `only`, draws just those device pixels: the rest of `target`
+        // keeps what it had.
+        void render(Surface& surface, const render::Bitmap& target, double seconds,
+                    const render::Region* only = nullptr);
 
     private:
         struct Impl;

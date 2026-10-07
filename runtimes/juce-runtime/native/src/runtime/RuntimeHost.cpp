@@ -1,4 +1,5 @@
 #include "modules/ui/UiModule.h"
+#include "render/ViewRenderer.h"
 #include "web/Web.h"
 
 #include <soundor/runtime/RuntimeHost.h>
@@ -34,6 +35,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
               renderer->images(),
               std::move(options.clipboard),
           })),
+          view(std::make_unique<render::ViewRenderer>(*renderer)),
           semantics(std::make_unique<a11y::SurfaceSemantics>(*uiSurface)),
           jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
@@ -95,17 +97,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         return std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
     }
 
-    bool RuntimeHost::needsRender()
+    bool RuntimeHost::blink()
     {
-        bool changed = uiSurface->takeChanges();
         // A blinking caret changes the picture twice a second.
         const long long phase = uiSurface->animating() ? static_cast<long long>(seconds() / 0.53) : -1;
-        changed = changed || phase != blinkPhase;
+        if (phase == blinkPhase)
+            return false;
         blinkPhase = phase;
-        return changed;
+        uiSurface->invalidate(uiSurface->focused());
+        return true;
     }
 
-    void RuntimeHost::render(const ui::Bitmap& target)
+    bool RuntimeHost::needsRender()
+    {
+        const bool blinked = blink();
+        return uiSurface->takeChanges() || blinked;
+    }
+
+    const render::Frame& RuntimeHost::frame()
+    {
+        blink();
+        return view->update(*uiSurface, seconds());
+    }
+
+    void RuntimeHost::render(const render::Bitmap& target)
     {
         renderer->render(*uiSurface, target, seconds());
     }
