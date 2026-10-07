@@ -20,8 +20,10 @@ jobs:
       CC: clang
       CXX: clang++
       # Without it CMake defaults to Makefiles, which build one file at a time;
-      # the Skia action installs Ninja.
+      # the native-deps action installs Ninja.
       CMAKE_GENERATOR: Ninja
+      # GPU tests run on Mesa's lavapipe; without a device they fail, not skip.
+      SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,8 +33,8 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Setup Skia
-        uses: ./.github/actions/skia
+      - name: Setup native dependencies
+        uses: ./.github/actions/native-deps
         with:
           job: verify
 
@@ -88,6 +90,9 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      # GPU tests need a device (lavapipe on Linux, WARP on Windows, Metal on
+      # macOS); without one they fail, not skip.
+      SOUNDOR_REQUIRE_GPU: '1'
     defaults:
       run:
         working-directory: runtimes/juce-runtime/native
@@ -95,8 +100,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Skia
-        uses: ./.github/actions/skia
+      - name: Setup native dependencies
+        uses: ./.github/actions/native-deps
         with:
           job: ${{ matrix.name }}
 

@@ -59,8 +59,9 @@ cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
 
-The first native configure builds Skia from source (minutes) and caches it in
-the user cache dir (`SOUNDOR_CACHE` overrides); later configures reuse it.
+The first native configure builds Skia and ANGLE from source (minutes) and
+caches them in the user cache dir (`SOUNDOR_CACHE` overrides); later
+configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE.
 
 Examples (`examples/basic`, `examples/primitives`) are real projects using the
 workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
@@ -137,9 +138,9 @@ generated framework or the runtime package, not in `init` templates.
 ### Native runtime invariants (`runtimes/juce-runtime/native`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
-  adapters live in `backend/juce/`. A third-party header (QuickJS, Yoga, Skia)
-  is included only by the directory that wraps it (`quickjs.h` only in
-  `src/js/`).
+  adapters live in `backend/juce/`. A third-party header (QuickJS, Yoga, Skia,
+  ANGLE) is included only by the directory that wraps it (`quickjs.h` only in
+  `src/js/`, EGL/GLES only in `src/gpu/`).
 - Threading: JavaScript runs only on the UI/message thread. Audio-thread
   listeners only set lock-free flags; `RuntimeHost::tick()` (60 Hz from the
   generated editor) drains them, fires timers and settles async work.
@@ -153,7 +154,10 @@ generated framework or the runtime package, not in `init` templates.
   dependency must keep its symbols hidden.
 - Dependencies are pinned in `cmake/SoundorDependencies.cmake` (FetchContent,
   SHA-256 verified) and compiled into private static targets, not their own
-  CMake projects.
+  CMake projects. Skia and ANGLE are built from source once per machine into
+  the cache (ANGLE: gn decides what to compile, Soundor's CMake compiles it).
+- GPU code has a device only where there is one: tests skip without one,
+  except under `SOUNDOR_REQUIRE_GPU=1` (CI), where they fail.
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug QuickJS aborts on leaks).
 - Plugin builds (`soundor dev`/`build`) use Ninja on macOS and Linux and

@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 
 #if defined(_WIN32)
@@ -38,6 +39,7 @@ namespace
             create = reinterpret_cast<void* (*)()>(symbol("soundor_coexist_create"));
             click = reinterpret_cast<int (*)(void*)>(symbol("soundor_coexist_click"));
             pixel = reinterpret_cast<std::uint32_t (*)(void*)>(symbol("soundor_coexist_pixel"));
+            gpuPixel = reinterpret_cast<std::uint32_t (*)(void*)>(symbol("soundor_coexist_gpu_pixel"));
             destroy = reinterpret_cast<void (*)(void*)>(symbol("soundor_coexist_destroy"));
         }
 
@@ -55,7 +57,7 @@ namespace
         Plugin(const Plugin&) = delete;
         Plugin& operator=(const Plugin&) = delete;
 
-        [[nodiscard]] bool loaded() const { return create && click && pixel && destroy; }
+        [[nodiscard]] bool loaded() const { return create && click && pixel && gpuPixel && destroy; }
 
         void* symbol(const char* name) const
         {
@@ -70,6 +72,7 @@ namespace
         void* (*create)() = nullptr;
         int (*click)(void*) = nullptr;
         std::uint32_t (*pixel)(void*) = nullptr;
+        std::uint32_t (*gpuPixel)(void*) = nullptr;
         void (*destroy)(void*) = nullptr;
     };
 
@@ -86,6 +89,14 @@ namespace
 
     constexpr std::uint32_t red = 0xFFFF0000;
     constexpr std::uint32_t blue = 0xFF0000FF;
+
+    // Whether there must be a GPU (CI provides one, a software one will do).
+    bool gpuRequired()
+    {
+        // Read before any thread is started.
+        const char* value = std::getenv("SOUNDOR_REQUIRE_GPU"); // NOLINT(concurrency-mt-unsafe)
+        return value != nullptr && std::string(value) == "1";
+    }
 
     void run(const char* pathA, const char* pathB, int round)
     {
@@ -104,6 +115,14 @@ namespace
             return;
 
         expect(a.pixel(a1) == red && b.pixel(b1) == blue && a.pixel(a2) == red, "each plugin draws its own UI" + at);
+        // Each instance has its own GPU device, in its own plugin's ANGLE.
+        const bool gpu = a.gpuPixel(a1) != 0;
+        if (gpu)
+            expect(b.gpuPixel(b1) == blue && a.gpuPixel(a2) == red && a.gpuPixel(a1) == red,
+                   "each plugin draws its own color on the GPU" + at);
+        else if (round == 1)
+            std::printf("No GPU here: the GPU part was skipped.\n");
+        expect(gpu || ! gpuRequired(), "a GPU is there, as SOUNDOR_REQUIRE_GPU=1 says" + at);
         a.click(a1);
         b.click(b1);
         a.click(a2);
@@ -116,6 +135,9 @@ namespace
         expect(b2 != nullptr && b.click(b2) == 1, "a new B instance starts fresh" + at);
         expect(a.click(a2) == 3 && a.pixel(a2) == red, "A2 outlives A1" + at);
         expect(b.pixel(b1) == blue && b.pixel(b2) == blue, "B instances still draw" + at);
+        if (gpu)
+            expect(a.gpuPixel(a2) == red && b.gpuPixel(b1) == blue && b.gpuPixel(b2) == blue,
+                   "GPU devices outlive another instance's" + at);
         b.destroy(b1);
         a.destroy(a2);
         b.destroy(b2);

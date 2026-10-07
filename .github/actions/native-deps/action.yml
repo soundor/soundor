@@ -1,0 +1,45 @@
+name: Native dependencies
+description: Installs what building Skia and ANGLE needs, a software GPU on Linux, and keeps built Skias and ANGLEs across runs
+
+inputs:
+  job:
+    description: A name for the cache, unique per toolchain
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Mesa's lavapipe is a Vulkan driver on the CPU: GPU tests run on it
+    # (SOUNDOR_REQUIRE_GPU=1 makes them fail rather than skip without one).
+    - name: Install build tools (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends ninja-build libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers libvulkan1
+
+    - name: Install build tools (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: command -v ninja || brew install ninja
+
+    - name: Install build tools (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: command -v ninja || choco install ninja -y --no-progress
+
+    # Soundor builds Skia and ANGLE once per machine into SOUNDOR_CACHE (see
+    # runtimes/juce-runtime/native/cmake/SoundorSkia.cmake, SoundorAngle.cmake).
+    - name: Use the native dependency cache
+      shell: bash
+      run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
+
+    # Each build lives in a directory keyed by what made it, so an older cache
+    # is a fine start: only what changed is built again.
+    - name: Cache Skia and ANGLE
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/soundor-cache
+        key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/juce-runtime/native/cmake/SoundorSkia*.cmake', 'runtimes/juce-runtime/native/cmake/SoundorAngle*.cmake', 'runtimes/juce-runtime/native/cmake/angle/**', 'runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake') }}
+        restore-keys: |
+          native-deps-${{ inputs.job }}-

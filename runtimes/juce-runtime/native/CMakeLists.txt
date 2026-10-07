@@ -20,6 +20,7 @@ include(SoundorQuickJS)
 include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
+include(SoundorAngle)
 include(SoundorAccessKit)
 include(SoundorPluginBundle)
 
@@ -83,6 +84,12 @@ if(SOUNDOR_HAS_ACCESSKIT)
     src/a11y/accesskit/AccessKitPlatform.cpp
     src/a11y/accesskit/Mapping.cpp)
 endif()
+# The GPU: ANGLE's devices and contexts (see SoundorAngle.cmake).
+if(SOUNDOR_HAS_GPU)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES
+    src/gpu/Context.cpp
+    src/gpu/Device.cpp)
+endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
@@ -116,6 +123,12 @@ function(soundor_configure_runtime target namespace)
     target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
   else()
     target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=0)
+  endif()
+  if(SOUNDOR_HAS_GPU)
+    target_link_libraries(${target} PRIVATE soundor_angle)
+    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_GPU=1)
+  else()
+    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_GPU=0)
   endif()
   if(WIN32)
     target_link_libraries(${target} PRIVATE bcrypt) # crypto.getRandomValues
