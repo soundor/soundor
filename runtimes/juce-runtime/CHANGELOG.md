@@ -1,5 +1,27 @@
 # @soundor/juce-runtime
 
+## 0.5.0
+
+### Minor Changes
+
+- [#84](https://github.com/soundor/soundor/pull/84) [`9df67d1`](https://github.com/soundor/soundor/commit/9df67d1652ddcad59ec952545b2b0a18bf94cff4) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Screen readers on Windows (UI Automation) and Linux x64 (AT-SPI) now read the plugin view, through AccessKit. It presents Soundor's own semantic tree; JUCE's accessibility is not involved. The generated editor attaches it to its peer's native view and keeps its geometry and focus up to date. AccessKit's requests (click, increment, decrement, set value, focus, custom actions) reach the view as accessibility actions on the UI thread.
+
+  AccessKit 0.23.1 comes from the official prebuilt release (pinned, SHA-256 verified, cached once per machine), so no Rust toolchain is needed. It is linked privately and none of its symbols is exported. Linux arm64 has no prebuilt library and builds without platform accessibility. The native core gains `a11y::createPlatformAccessibility()`: a framework-independent attachment that a future runtime (iPlug2) can use the same way.
+
+- [#85](https://github.com/soundor/soundor/pull/85) [`50ccc35`](https://github.com/soundor/soundor/commit/50ccc355470f7ddc08e2d0bc9b756c6b13d7455b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - VoiceOver reads the plugin view on macOS through Soundor's own bridge: virtual `NSAccessibilityElement`s built from Soundor's semantic tree, with no view per control and neither AccessKit nor JUCE's accessibility. VoiceOver's press, increment, decrement, cancel, set value and custom actions reach plugin code as accessibility actions on the UI thread. Value, title, layout, focus and destroyed-element changes are announced. Frames follow the window.
+
+  It is safe in a plugin host. The single element class is created at runtime under a random name that carries the plugin's ABI namespace. Nothing is swizzled and no existing class is modified. Elements reach their bridge only by token. Once the class exists the binary stays loaded, so nothing VoiceOver keeps can call into unloaded code. The bridge activates only while VoiceOver or Switch Control is on.
+
+- [#81](https://github.com/soundor/soundor/pull/81) [`4f6615b`](https://github.com/soundor/soundor/commit/4f6615bb0a027d16557721203f5efaa77b930d85) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** `pressable()`'s and `Pressable`'s `onPress` and `onLongPress` may now receive an `AccessibilityActionEvent` (assistive technology's `activate` and `longpress`) besides pointer and keyboard events.
+
+  Accessibility semantics owned by Soundor. Components take React Native's accessibility props (`accessible`, `accessibilityLabel`, `accessibilityHint`, `accessibilityRole` — including `dialog` — `accessibilityState`, `accessibilityValue` with fractional values, `accessibilityActions`, `onAccessibilityAction`). `Pressable` is a button by default, labelled by its text, offering `activate` and reflecting `disabled`; `Modal` is a modal dialog (`accessibilityLabel`), and overlays opened from inside an overlay belong to it.
+
+  `soundor:ui` nodes gain `accessibility`, `accessibilityParent` and the `accessibilityaction` event (`AccessibilityActionEvent`). The JUCE runtime's native core builds a platform-neutral semantic tree from the view (`a11y::SurfaceSemantics`: stable ids, incremental updates, modal scoping, implicit labels, safe action routing) for platform adapters to present; the web runtime checks the same properties.
+
+### Patch Changes
+
+- [#86](https://github.com/soundor/soundor/pull/86) [`628a587`](https://github.com/soundor/soundor/commit/628a587c657f1b0931a1cb96e419768c670cf578) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The native runtime gains Soundor's iOS VoiceOver bridge: virtual `UIAccessibilityElement`s from the semantic tree. Double tap, swipe up and down on adjustables (with the new value announced), the escape gesture and custom actions all reach plugin code. Containers are semantic groups, and modals post screen changes. It shares the macOS bridge's plugin-safety machinery (runtime class, tokens, pinning). Soundor has no iOS plugin build yet, so CI compiles the bridge for the simulator, and its attachment contract and device checklist are documented.
+
 ## 0.4.0
 
 ### Minor Changes
