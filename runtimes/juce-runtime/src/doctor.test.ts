@@ -35,7 +35,7 @@ describe('buildDoctorReport', () => {
     ]);
   });
 
-  it('names the tools missing to build Skia', async () => {
+  it('names the tools missing to build Skia and ANGLE', async () => {
     const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
       '/proj/JUCE/modules',
     ]);
@@ -48,7 +48,7 @@ describe('buildDoctorReport', () => {
         env: {},
       },
     );
-    expect(check(report, 'Skia build tools')).toMatchObject({
+    expect(check(report, 'Skia and ANGLE build tools')).toMatchObject({
       status: 'fail',
       detail: expect.stringContaining('Missing Python 3, ninja'),
       suggestion: 'Install Python 3, ninja and make them available on PATH.',
@@ -67,7 +67,7 @@ describe('buildDoctorReport', () => {
         env: {},
       },
     );
-    expect(check(report, 'Skia build tools').status).toBe('ok');
+    expect(check(report, 'Skia and ANGLE build tools').status).toBe('ok');
   });
 
   it('reports a missing CMake with a suggestion', async () => {

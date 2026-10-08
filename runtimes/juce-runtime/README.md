@@ -58,7 +58,7 @@ ever sharing one in a host.
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
 | `dev`    | Debug CMake build with the development UI bundle embedded; launches the standalone app when that format is enabled. Signed ad-hoc on macOS.                                         |
 | `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
-| `doctor` | Verifies CMake, a C++ compiler, the tools Skia is built with (git, Python 3, Ninja), and a locatable JUCE checkout.                                                                 |
+| `doctor` | Verifies CMake, a C++ compiler, the tools Skia and ANGLE are built with (git, Python 3, Ninja), and a locatable JUCE checkout.                                                      |
 
 ### init vs gen: you own the host, Soundor owns the framework
 

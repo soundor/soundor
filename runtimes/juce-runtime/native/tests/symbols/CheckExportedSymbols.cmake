@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
 # Fails when LIBRARY exports any defined symbol other than those in ALLOWED,
-# or, on Apple platforms, defines any Objective-C class: classes live in one
-# process-wide namespace whatever their symbols' visibility, so two plugins
-# defining the same class would collide.
+# or, on Apple platforms, defines any Objective-C class or category: classes
+# live in one process-wide namespace whatever their symbols' visibility, so
+# two plugins defining the same class would collide, and a category adds its
+# methods to a class every binary in the process shares.
 #
 #   cmake -DLIBRARY=<path> -DNM=<nm> -DAPPLE=<bool> -DALLOWED=<a;b> -P CheckExportedSymbols.cmake
 
@@ -27,6 +28,12 @@ if(APPLE)
     list(REMOVE_DUPLICATES classes)
     list(JOIN classes "\n  " report)
     message(FATAL_ERROR "Objective-C classes defined in ${LIBRARY}:\n  ${report}")
+  endif()
+  string(REGEX MATCHALL "_OBJC_\\$_CATEGORY_[A-Za-z0-9_$]+" categories "${all_symbols}")
+  if(categories)
+    list(REMOVE_DUPLICATES categories)
+    list(JOIN categories "\n  " report)
+    message(FATAL_ERROR "Objective-C categories defined in ${LIBRARY}:\n  ${report}")
   endif()
 endif()
 

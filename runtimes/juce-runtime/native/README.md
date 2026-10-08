@@ -32,6 +32,8 @@ native/
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
     modules/              soundor:* modules (C++, plus embedded JavaScript)
+    gpu/                  ANGLE: GPU devices and OpenGL ES contexts; the only
+                          place its headers are included
     platform/             background worker and UI-thread handoff queue
     render/               Skia: drawing nodes, damage tracking, layer planning,
                           the CPU compositor
@@ -41,7 +43,8 @@ native/
   backend/juce/           JUCE adapters, compiled into the plugin (they need JUCE)
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
-  cmake/                  pinned dependencies, compiler policy, JS embedding
+  cmake/                  pinned dependencies, compiler policy, JS embedding,
+    angle/                building ANGLE: DEPS checkout, gn → CMake, its project
 ```
 
 A third-party header (QuickJS, Yoga, Skia) is only included by the directory
@@ -345,6 +348,38 @@ whole view in one go, for tests and tools.
   layout matches what is drawn. Tests that need machine-independent sizes use
   `ui::approximateTextEngine()`.
 
+### The GPU
+
+`src/gpu/` wraps ANGLE (see "Dependencies"), the only directory that includes
+its headers. Nothing renders with it yet: it is the foundation the GPU
+compositor and WebGL build on.
+
+- **`gpu::Device`:** a GPU device and ANGLE's EGL display over it. Each device
+  has a display of its own, so destroying one never affects another editor's
+  or another plugin's. It belongs to the thread that created it (the UI
+  thread); debug builds assert that its contexts are used there only.
+- **Which device:** the platform's backend: Metal, Direct3D 11 or Vulkan.
+  `DevicePolicy` says whether software renderers (SwiftShader, llvmpipe,
+  lavapipe, WARP, told apart by their names) are acceptable: `HardwareOnly`
+  (the default, so a heavy scene never silently runs on the CPU),
+  `AllowSoftware` or `SoftwareOnly` (tests, debugging). Without an acceptable
+  device, `Device::create()` returns null and says why; the caller falls back
+  to the CPU.
+- **OpenGL on Linux:** ANGLE can also run on the system's EGL, but every user
+  of EGL in the process shares the system's display, and ANGLE terminates it
+  when a device goes away, taking the others' with it. So it is used only when
+  asked for (`Backend::OpenGL`), for development machines without Vulkan.
+- **`gpu::Context`:** an OpenGL ES 3.0 context without a surface: it draws into
+  framebuffers it makes. With `webgl`, it is ANGLE's WebGL-compatible context
+  (`EGL_CONTEXT_WEBGL_COMPATIBILITY_ANGLE`): WebGL's validation, robust
+  resource initialization, and extensions only once requested.
+  `gpu::CurrentContext` makes one current for a scope and restores what was
+  current before.
+- **Tests:** the GPU tests run on whatever device there is, software ones
+  included, and say they were skipped when there is none. CI provides one
+  (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
+  `SOUNDOR_REQUIRE_GPU=1`, which turns a missing device into a failure.
+
 ### Accessibility
 
 Soundor owns its accessibility semantics: what a screen reader perceives of
@@ -518,6 +553,7 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 | ada         | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)            |
 | Yoga        | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                                 |
 | Skia        | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)                |
+| ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)      |
 | accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt) |
 | doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                              |
 
@@ -553,6 +589,45 @@ pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
 - **Hiding symbols:** Skia's own symbols are hidden. libwebp exports its API
   unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
   catches it otherwise.
+
+### ANGLE
+
+[ANGLE](https://chromium.googlesource.com/angle/angle) implements OpenGL ES 3
+(and WebGL's rules) on each platform's own graphics API: Metal on macOS,
+Direct3D 11 on Windows, Vulkan on Linux. Soundor uses it for the GPU; nothing
+renders with it yet (see "The GPU").
+
+- **The pin:** the head of ANGLE's `chromium/7922` branch (Chrome 151),
+  `7e08726`. Its third-party code comes at the commits ANGLE's `DEPS` pins,
+  and only what the static libraries need: Chromium's `build/` configuration,
+  abseil, zlib, and on Linux the Vulkan headers, SPIR-V tools, the Vulkan
+  memory allocator and libdrm. `cmake/angle/deps.py` reads `DEPS` without
+  executing it.
+- **The build:** gn decides what ANGLE is made of for the platform
+  (`gn gen --ide=json`), and `cmake/angle/targets.py` turns that into a CMake
+  project that Soundor compiles with its own compiler, not Chromium's: Clang
+  (the project's, or the one on PATH) on Linux and macOS, MSVC on Windows. So
+  ANGLE gets the plugin's C runtime (`/MD` and `/MDd` on Windows) and hidden
+  visibility like everything else. gn itself is the version ANGLE's `DEPS`
+  pins, downloaded from CIPD and checked against a SHA-256 per host platform.
+  `cmake/SoundorAngleBuild.cmake` does all this during the first configure on
+  a machine and caches the result in the user cache directory like Skia.
+- **Prerequisites:** git, Python 3 and ninja, as for Skia.
+- **Using your own build:** set `SOUNDOR_ANGLE_DIR` to an install made by that
+  script. `-DSOUNDOR_ENABLE_GPU=OFF` builds without ANGLE (CPU only).
+- **Backends:** only the platform's own. On macOS that excludes ANGLE's OpenGL
+  backend, which defines an Objective-C class. Linux also has OpenGL through
+  the system's EGL, used only when asked for (see "The GPU").
+- **No new dependencies:** the Vulkan loader and EGL are loaded at run time,
+  so a plugin still loads on a machine without them; it just has no GPU.
+- **Hiding symbols:** ANGLE marks its API `ANGLE_EXPORT` and the Khronos
+  headers `KHRONOS_APICALL`. The build defines both to nothing
+  (`ANGLE_EXPORT=`, `KHRONOS_STATIC`), so no EGL, GLES or ANGLE symbol leaves
+  the plugin. The symbol test links ANGLE into the probe plugin.
+- **Licenses:** a plugin binary contains ANGLE (BSD-3-Clause) and the
+  third-party code above (abseil and SPIR-V tools: Apache-2.0; zlib; MIT and
+  BSD for the rest). The install's `licenses/` directory has their notices;
+  ship them with the plugin.
 
 ### AccessKit
 
@@ -597,13 +672,16 @@ or its dependencies define may be exported from a plugin binary:
   Standard-library template instantiations are tolerated, because `std` headers
   force default visibility on them. A negative-control test proves the check
   catches a leaked symbol. The check runs on Linux and macOS.
-- On Apple platforms the same check fails on any Objective-C class compiled
-  into the binary. Classes share one process-wide namespace whatever their
-  symbols' visibility, so two plugins defining one would collide. A negative
-  control covers this check too.
-- The probe library creates a full `RuntimeHost` and lays out and draws a UI,
-  so QuickJS, ada, Yoga, Skia and its codecs are all linked into what is
-  checked.
+- On Apple platforms the same check fails on any Objective-C class or
+  category compiled into the binary. Classes share one process-wide namespace
+  whatever their symbols' visibility, so two plugins defining one would
+  collide, and a category changes a class every binary shares. Negative
+  controls cover both checks.
+- The probe library creates a full `RuntimeHost`, lays out and draws a UI and
+  creates a GPU device and context, so QuickJS, ada, Yoga, Skia and its
+  codecs, and ANGLE are all linked into what is checked. A future ANGLE
+  update that introduced an Objective-C class or category, or an exported
+  EGL or GL symbol, fails the build.
 
 ## Coexistence
 
@@ -615,8 +693,10 @@ with its own copy of the runtime. Two tests prove it:
   plugin-shaped modules. Each draws its own color and counts its own clicks.
   A host program loads both (`dlopen` with `RTLD_LOCAL`, or `LoadLibrary`). It
   runs two instances of one and one of the other interleaved, destroys them in
-  mixed order, and unloads and reloads both. The two modules' exports are
-  checked as well.
+  mixed order, and unloads and reloads both. Every instance also draws its
+  color on the GPU with a device of its own, through its own module's ANGLE
+  (shader compiler included), and must keep doing so while instances of
+  either plugin come and go. The two modules' exports are checked as well.
 - **`soundor_juce_coexistence` (JUCE adapter tests, local).** It loads two real
   VST3s built from different plugin ids through JUCE's plugin hosting.
   - **Audio and parameters:** it processes audio in both and moves one

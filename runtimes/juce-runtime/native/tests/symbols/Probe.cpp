@@ -1,8 +1,12 @@
 // A stand-in for a plugin binary: links the whole runtime (the engine, the Web
-// layer, layout), exports one symbol.
+// layer, layout, the GPU), exports one symbol.
 
 #include <soundor/a11y/Platform.h>
 #include <soundor/runtime/RuntimeHost.h>
+
+#if SOUNDOR_HAS_GPU
+    #include "gpu/Context.h"
+#endif
 
 #include <cstdint>
 #include <vector>
@@ -28,6 +32,11 @@ SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
     auto accessibility = soundor::a11y::createPlatformAccessibility({});
     if (accessibility != nullptr)
         accessibility->tick(host);
+#if SOUNDOR_HAS_GPU
+    // Links ANGLE in, for the export and Objective-C checks.
+    if (auto device = soundor::gpu::Device::create({ .policy = soundor::gpu::DevicePolicy::AllowSoftware }))
+        (void)soundor::gpu::Context::create(device, { .webgl = true });
+#endif
     auto width = host.context().evaluateScript("width");
     return result && width && pixels[0] != 0 ? static_cast<int>(width.value().asNumber()) : -1;
 }

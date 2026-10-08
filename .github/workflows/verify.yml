@@ -20,8 +20,10 @@ jobs:
       CC: clang
       CXX: clang++
       # Without it CMake defaults to Makefiles, which build one file at a time;
-      # the Skia action installs Ninja.
+      # the native-deps action installs Ninja.
       CMAKE_GENERATOR: Ninja
+      # GPU tests run on Mesa's lavapipe; without a device they fail, not skip.
+      SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,8 +33,9 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      - name: Setup Skia
-        uses: ./.github/actions/skia
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
         with:
           job: verify
 
@@ -44,17 +47,34 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
+      # Each step keeps its output for "Report the failure".
       - name: Run formatter
-        run: pnpm run format
+        run: set -o pipefail; pnpm run format 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run linter
-        run: pnpm run lint
+        run: set -o pipefail; pnpm run lint 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run build
-        run: pnpm run build
+        run: set -o pipefail; pnpm run build 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run test
-        run: pnpm run test
+        run: set -o pipefail; pnpm run test 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # The end of a failed step's output as an annotation: shown on the PR's
+      # checks, and readable through the API without downloading the log.
+      - name: Report the failure
+        if: failure()
+        shell: bash
+        run: |
+          tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+      - name: Save Skia and ANGLE
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}
 
   native:
     name: Native (${{ matrix.name }})
@@ -88,6 +108,9 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      # GPU tests need a device (lavapipe on Linux, WARP on Windows, Metal on
+      # macOS); without one they fail, not skip.
+      SOUNDOR_REQUIRE_GPU: '1'
     defaults:
       run:
         working-directory: runtimes/juce-runtime/native
@@ -95,10 +118,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Skia
-        uses: ./.github/actions/skia
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
         with:
           job: ${{ matrix.name }}
 
       - name: Build and test the native runtime
-        run: cmake --workflow --preset ${{ matrix.preset }}
+        shell: bash
+        run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # The end of a failed step's output as an annotation: shown on the PR's
+      # checks, and readable through the API without downloading the log.
+      - name: Report the failure
+        if: failure()
+        shell: bash
+        run: |
+          tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+      - name: Save Skia and ANGLE
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}

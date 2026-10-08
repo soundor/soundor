@@ -1,6 +1,6 @@
 /**
- * The JUCE runtime's `doctor` checks: CMake, a C++ compiler, the tools Skia is
- * built with, and a locatable JUCE checkout. Per the CLI's design, runtime-specific toolchains are diagnosed
+ * The JUCE runtime's `doctor` checks: CMake, a C++ compiler, the tools Skia and
+ * ANGLE are built with, and a locatable JUCE checkout. Per the CLI's design, runtime-specific toolchains are diagnosed
  * here, not in the CLI's environment probes. Dependencies (the command probe,
  * the environment) are injected so the report is unit-testable with the
  * toolchain absent.
@@ -41,7 +41,7 @@ export async function buildDoctorReport(
     checks: [
       checkCMake(probe),
       checkCompiler(probe),
-      checkSkiaTools(probe),
+      checkNativeBuildTools(probe),
       await checkJuce(fs, options, env),
     ],
   };
@@ -100,10 +100,10 @@ function checkCompiler(probe: CommandProbe): DoctorCheck {
 }
 
 /**
- * Soundor builds Skia from source on the first configure (then caches it),
- * which needs git, Python 3 and ninja.
+ * Soundor builds Skia and ANGLE from source on the first configure (then
+ * caches them), which needs git, Python 3 and ninja.
  */
-function checkSkiaTools(probe: CommandProbe): DoctorCheck {
+function checkNativeBuildTools(probe: CommandProbe): DoctorCheck {
   const missing: string[] = [];
   if (!probe('git', ['--version']).ok) missing.push('git');
   if (!['python3', 'python'].some((python) => probe(python, ['--version']).ok))
@@ -111,15 +111,15 @@ function checkSkiaTools(probe: CommandProbe): DoctorCheck {
   if (!probe('ninja', ['--version']).ok) missing.push('ninja');
   if (missing.length === 0) {
     return {
-      label: 'Skia build tools',
+      label: 'Skia and ANGLE build tools',
       status: 'ok',
       detail: 'git, Python 3 and ninja available.',
     };
   }
   return {
-    label: 'Skia build tools',
+    label: 'Skia and ANGLE build tools',
     status: 'fail',
-    detail: `Missing ${missing.join(', ')}; Soundor builds Skia (its renderer) from source once per machine.`,
+    detail: `Missing ${missing.join(', ')}; Soundor builds Skia and ANGLE (its renderers) from source once per machine.`,
     suggestion: `Install ${missing.join(', ')} and make ${missing.length === 1 ? 'it' : 'them'} available on PATH.`,
   };
 }

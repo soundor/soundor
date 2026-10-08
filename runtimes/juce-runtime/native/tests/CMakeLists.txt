@@ -47,6 +47,11 @@ set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIE
 soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
+if(SOUNDOR_HAS_GPU)
+  target_sources(soundor_runtime_tests PRIVATE gpu/DeviceTests.cpp)
+  target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
+endif()
+
 if(SOUNDOR_HAS_ACCESSKIT)
   target_sources(soundor_runtime_tests PRIVATE a11y/AccessKitTests.cpp)
   target_link_libraries(soundor_runtime_tests PRIVATE soundor_accesskit)
@@ -83,6 +88,14 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   add_library(soundor_symbol_probe MODULE symbols/Probe.cpp)
   target_link_libraries(soundor_symbol_probe PRIVATE soundor::runtime)
   soundor_configure_target(soundor_symbol_probe)
+  # The probe renders on the GPU too, so ANGLE is linked in and checked.
+  target_include_directories(soundor_symbol_probe PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  if(SOUNDOR_HAS_GPU)
+    target_link_libraries(soundor_symbol_probe PRIVATE soundor_angle)
+    target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=1)
+  else()
+    target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=0)
+  endif()
 
   find_program(SOUNDOR_NM_EXE NAMES nm llvm-nm REQUIRED)
   add_test(
@@ -122,6 +135,20 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
         -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
     set_tests_properties(soundor_exported_symbols_detects_objc_classes PROPERTIES
       PASS_REGULAR_EXPRESSION "Objective-C classes defined(.|\n)*UnprefixedProbeClass")
+
+    # ... and for the Objective-C category check.
+    add_library(soundor_objc_category_probe MODULE symbols/ObjcCategoryProbe.mm)
+    target_link_libraries(soundor_objc_category_probe PRIVATE "-framework Foundation")
+    add_test(
+      NAME soundor_exported_symbols_detects_objc_categories
+      COMMAND ${CMAKE_COMMAND}
+        -DLIBRARY=$<TARGET_FILE:soundor_objc_category_probe>
+        -DNM=${SOUNDOR_NM_EXE}
+        -DAPPLE=${APPLE}
+        -DALLOWED=soundor_probe_entry
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+    set_tests_properties(soundor_exported_symbols_detects_objc_categories PROPERTIES
+      PASS_REGULAR_EXPRESSION "Objective-C categories defined(.|\n)*UnprefixedProbeCategory")
   endif()
 endif()
 
@@ -148,6 +175,17 @@ add_library(soundor_coexist_b MODULE coexistence/Plugin.cpp)
 target_link_libraries(soundor_coexist_b PRIVATE soundor_runtime_other)
 target_compile_definitions(soundor_coexist_b PRIVATE SOUNDOR_COEXIST_COLOR="blue")
 soundor_configure_target(soundor_coexist_b)
+
+# Each "plugin" drives the GPU through the runtime's own ANGLE, linked into it.
+foreach(module soundor_coexist_a soundor_coexist_b)
+  target_include_directories(${module} PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  if(SOUNDOR_HAS_GPU)
+    target_link_libraries(${module} PRIVATE soundor_angle)
+    target_compile_definitions(${module} PRIVATE SOUNDOR_HAS_GPU=1)
+  else()
+    target_compile_definitions(${module} PRIVATE SOUNDOR_HAS_GPU=0)
+  endif()
+endforeach()
 
 add_executable(soundor_coexistence_host coexistence/Host.cpp)
 target_compile_features(soundor_coexistence_host PRIVATE cxx_std_20)
@@ -212,7 +250,7 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
         -DLIBRARY=$<TARGET_FILE:${module}>
         -DNM=${SOUNDOR_NM_EXE}
         -DAPPLE=${APPLE}
-        "-DALLOWED=soundor_coexist_create$<SEMICOLON>soundor_coexist_click$<SEMICOLON>soundor_coexist_pixel$<SEMICOLON>soundor_coexist_destroy"
+        "-DALLOWED=soundor_coexist_create$<SEMICOLON>soundor_coexist_click$<SEMICOLON>soundor_coexist_pixel$<SEMICOLON>soundor_coexist_gpu_pixel$<SEMICOLON>soundor_coexist_destroy"
         -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
   endforeach()
 endif()
