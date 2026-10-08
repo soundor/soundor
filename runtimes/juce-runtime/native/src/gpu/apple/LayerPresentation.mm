@@ -58,4 +58,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         }
         return std::make_unique<LayerPresentation>(nsView);
     }
+
+    bool presentationAvailable() noexcept
+    {
+        return true;
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

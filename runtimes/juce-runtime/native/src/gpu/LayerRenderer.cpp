@@ -1,5 +1,7 @@
 #include "gpu/LayerRenderer.h"
 
+#include "gpu/SharedImage.h"
+
 #include <algorithm>
 #include <array>
 #include <string>
@@ -12,24 +14,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         constexpr const char* vertexShader = R"(#version 300 es
             uniform mat3 transform;
             uniform vec2 viewport;
+            uniform float flipY;
             in vec2 corner;
             out vec2 uv;
             out vec2 pixel;
             void main() {
                 vec3 at = transform * vec3(corner, 1.0);
                 pixel = at.xy;
-                uv = corner;
+                // OpenGL's images have their first row at the bottom.
+                uv = vec2(corner.x, flipY > 0.5 ? 1.0 - corner.y : corner.y);
                 gl_Position = vec4(at.x / viewport.x * 2.0 - 1.0, 1.0 - at.y / viewport.y * 2.0, 0.0, 1.0);
             })";
 
-        // Premultiplied content, scaled by opacity and the rounded clip's
-        // coverage (antialiased over a pixel).
+        // Premultiplied content (made so, or opaque, for GPU images that are
+        // not), scaled by opacity and the rounded clip's coverage
+        // (antialiased over a pixel).
         constexpr const char* fragmentShader = R"(#version 300 es
             precision highp float;
             uniform sampler2D content;
             uniform float opacity;
             uniform vec4 clip;
             uniform vec4 radii;
+            uniform float opaque;
+            uniform float premultiply;
             in vec2 uv;
             in vec2 pixel;
             out vec4 color;
@@ -43,7 +50,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 return clamp(0.5 - d, 0.0, 1.0);
             }
             void main() {
-                color = texture(content, uv) * (opacity * coverage());
+                vec4 texel = texture(content, uv);
+                if (opaque > 0.5)
+                    texel.a = 1.0;
+                if (premultiply > 0.5)
+                    texel.rgb *= texel.a;
+                color = texel * (opacity * coverage());
             })";
 
         GLuint compile(GLenum kind, const char* source)
@@ -71,6 +83,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         opacityLocation = glGetUniformLocation(program, "opacity");
         clipLocation = glGetUniformLocation(program, "clip");
         radiiLocation = glGetUniformLocation(program, "radii");
+        flipLocation = glGetUniformLocation(program, "flipY");
+        opaqueLocation = glGetUniformLocation(program, "opaque");
+        premultiplyLocation = glGetUniformLocation(program, "premultiply");
 
         glGenVertexArrays(1, &vertexArray);
         glBindVertexArray(vertexArray);
@@ -97,7 +112,47 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         for (auto& [id, texture] : textures)
             glDeleteTextures(1, &texture.name);
         textures.clear();
+        for (auto& [image, imported] : images)
+            glDeleteTextures(1, &imported.name);
+        images.clear();
         placed.clear();
+    }
+
+    LayerRenderer::Texture* LayerRenderer::importImage(const render::GpuContent& content)
+    {
+        auto* shared = dynamic_cast<SharedImage*>(content.image.get());
+        // Only an image on this device can be drawn here.
+        if (shared == nullptr || shared->device() != &context.device())
+            return nullptr;
+        EGLImageKHR image = shared->image();
+        if (image == EGL_NO_IMAGE_KHR)
+            return nullptr;
+        Texture& texture = images[image];
+        texture.used = frames;
+        if (texture.name != 0 && texture.generation != shared->generation())
+        {
+            // The handle now names other storage.
+            glDeleteTextures(1, &texture.name);
+            texture.name = 0;
+        }
+        texture.generation = shared->generation();
+        if (texture.name == 0)
+        {
+            // The image's storage, without a copy.
+            glGenTextures(1, &texture.name);
+            glBindTexture(GL_TEXTURE_2D, texture.name);
+            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
+        }
+        texture.width = shared->width();
+        texture.height = shared->height();
+        // Drawn after the picture is complete, without waiting on the CPU.
+        if (EGLSyncKHR ready = shared->takeReady(); ready != EGL_NO_SYNC_KHR)
+        {
+            EGLDisplay display = context.device().display();
+            eglWaitSyncKHR(display, ready, 0);
+            eglDestroySyncKHR(display, ready);
+        }
+        return &texture;
     }
 
     bool LayerRenderer::upload(const render::Frame& frame, render::CompositorStatistics& stats)
@@ -108,6 +163,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                  { return now.samePlacement(before); });
         for (const render::Layer& layer : frame.layers)
         {
+            if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
+            {
+                changed = (importImage(*gpuContent) != nullptr && gpuContent->changed) || changed;
+                continue;
+            }
             const auto* raster = std::get_if<render::RasterContent>(&layer.content);
             if (raster == nullptr || raster->surface == nullptr)
                 continue;
@@ -153,15 +213,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
         glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-        // Textures of layers gone from the frame.
-        std::erase_if(textures,
-                      [&](auto& entry)
-                      {
-                          if (entry.second.used == frames)
-                              return false;
-                          glDeleteTextures(1, &entry.second.name);
-                          return true;
-                      });
+        // Textures of layers, and images, gone from the frame.
+        const auto unused = [&](auto& entry)
+        {
+            if (entry.second.used == frames)
+                return false;
+            glDeleteTextures(1, &entry.second.name);
+            return true;
+        };
+        std::erase_if(textures, unused);
+        std::erase_if(images, unused);
         placed.clear();
         for (const render::Layer& layer : frame.layers)
             placed.push_back(
@@ -182,10 +243,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glBindVertexArray(vertexArray);
         glUniform2f(viewportLocation, static_cast<float>(frame.width), static_cast<float>(frame.height));
         glActiveTexture(GL_TEXTURE0);
+        std::vector<SharedImage*> drawnImages;
         for (const render::Layer& layer : frame.layers)
         {
-            const auto found = textures.find(layer.id);
-            if (found == textures.end() || layer.opacity <= 0)
+            const Texture* texture = nullptr;
+            SharedImage* shared = nullptr;
+            if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
+            {
+                shared = dynamic_cast<SharedImage*>(gpuContent->image.get());
+                const auto found = shared != nullptr ? images.find(shared->image()) : images.end();
+                if (found != images.end())
+                    texture = &found->second;
+            }
+            else if (const auto found = textures.find(layer.id); found != textures.end())
+                texture = &found->second;
+            if (texture == nullptr || layer.opacity <= 0)
                 continue;
             const render::Transform& t = layer.transform;
             const auto x = static_cast<float>(layer.bounds.x);
@@ -208,10 +280,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 glUniform4f(clipLocation, -1e6f, -1e6f, 1e6f, 1e6f);
                 glUniform4f(radiiLocation, 0, 0, 0, 0);
             }
-            glBindTexture(GL_TEXTURE_2D, found->second.name);
+            glUniform1f(flipLocation, shared != nullptr ? 1.0f : 0.0f);
+            glUniform1f(opaqueLocation, shared != nullptr && shared->opaque() ? 1.0f : 0.0f);
+            glUniform1f(premultiplyLocation, shared != nullptr && ! shared->premultiplied() ? 1.0f : 0.0f);
+            glBindTexture(GL_TEXTURE_2D, texture->name);
             // Pixel for pixel when only moved by whole pixels; filtered otherwise.
-            const bool exact = layer.transform.isIntegerTranslate() && found->second.width == layer.bounds.width
-                               && found->second.height == layer.bounds.height;
+            const bool exact = layer.transform.isIntegerTranslate() && texture->width == layer.bounds.width
+                               && texture->height == layer.bounds.height;
             const GLint filter = exact ? GL_NEAREST : GL_LINEAR;
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
@@ -219,7 +294,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
             ++stats.drawCalls;
+            if (shared != nullptr)
+                drawnImages.push_back(shared);
         }
+        // Their contexts draw into these images again only after this.
+        for (SharedImage* shared : drawnImages)
+            shared->released(eglCreateSyncKHR(context.device().display(), EGL_SYNC_FENCE_KHR, nullptr));
         stats.layersComposited = static_cast<int>(frame.layers.size());
         stats.pixelsComposited = static_cast<long long>(frame.width) * frame.height;
     }

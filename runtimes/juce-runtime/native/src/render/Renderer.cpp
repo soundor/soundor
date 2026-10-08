@@ -85,6 +85,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::shared_ptr<render::SkiaImages> images;
         Surface* surface = nullptr;
         double seconds = 0;
+        const Layering* layering = nullptr;
+        // Holes passed so far in this drawing, in paint order.
+        int holesPassed = 0;
+
+        // Whether what paints now belongs to the layer being drawn.
+        [[nodiscard]] bool painting() const noexcept { return layering == nullptr || holesPassed == layering->segment; }
+        [[nodiscard]] bool isHole(const Node& node) const noexcept
+        {
+            return layering != nullptr && node.type() == NodeType::Canvas
+                   && std::ranges::find(layering->holes, node.id()) != layering->holes.end();
+        }
         // Where part of a view is drawn before being copied in.
         render::RasterSurface scratch;
 
@@ -114,13 +125,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return impl->images;
     }
 
-    void Renderer::render(Surface& surface, const render::Bitmap& target, double seconds, const render::Region* only)
+    void Renderer::render(Surface& surface, const render::Bitmap& target, double seconds, const render::Region* only,
+                          const Layering* layering)
     {
         if (target.empty() || (only != nullptr && only->empty()))
             return;
         surface.layout();
         impl->surface = &surface;
         impl->seconds = seconds;
+        impl->layering = layering;
         if (only == nullptr)
         {
             if (const auto canvas = canvasFor(target))
@@ -163,10 +176,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
         impl->surface = nullptr;
+        impl->layering = nullptr;
     }
 
     void Renderer::Impl::draw(SkCanvas& canvas)
     {
+        holesPassed = 0;
         canvas.scale(surface->scale(), surface->scale());
         // The overlay over all of the content, whatever their zIndex.
         drawNode(canvas, surface->root());
@@ -186,31 +201,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         const SkRect box = SkRect::MakeWH(frame.width, frame.height);
         const SkRRect outer = roundedRect(box, style.borderRadius);
-        if (style.backgroundColor.visible())
+        if (style.backgroundColor.visible() && painting())
         {
             SkPaint paint(SkColor4f::FromColor(skColor(style.backgroundColor)));
             paint.setAntiAlias(true);
             canvas.drawRRect(outer, paint);
         }
 
-        switch (node.type())
-        {
-            case NodeType::Text:
-                drawText(canvas, node);
-                break;
-            case NodeType::Image:
-                drawImage(canvas, node, outer);
-                break;
-            case NodeType::Input:
-                drawInput(canvas, node);
-                break;
-            case NodeType::Canvas:
-                drawCanvas(canvas, node, outer);
-                break;
-            case NodeType::View:
-            case NodeType::Scroll:
-                break;
-        }
+        // Shown elsewhere: everything after it is in the next layer.
+        if (isHole(node))
+            ++holesPassed;
+        else if (painting())
+            switch (node.type())
+            {
+                case NodeType::Text:
+                    drawText(canvas, node);
+                    break;
+                case NodeType::Image:
+                    drawImage(canvas, node, outer);
+                    break;
+                case NodeType::Input:
+                    drawInput(canvas, node);
+                    break;
+                case NodeType::Canvas:
+                    drawCanvas(canvas, node, outer);
+                    break;
+                case NodeType::View:
+                case NodeType::Scroll:
+                    break;
+            }
 
         if (! node.children().empty())
         {
@@ -227,11 +246,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 drawNode(canvas, *child);
             canvas.restore();
         }
-        if (node.type() == NodeType::Scroll)
+        if (node.type() == NodeType::Scroll && painting())
             drawScrollIndicators(canvas, node);
 
         const Edges<float>& border = style.borderWidth;
-        if ((border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible())
+        if ((border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible()
+            && painting())
         {
             const SkRect inner =
                 SkRect::MakeLTRB(border.left, border.top, frame.width - border.right, frame.height - border.bottom);

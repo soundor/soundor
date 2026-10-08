@@ -476,6 +476,12 @@ namespace ${NS}
         // view. It outlives a reloaded runtime (soundor dev).
         backend::JuceImageTarget image { *this };
         std::unique_ptr<render::Compositor> compositor = std::make_unique<render::RasterCompositor>(image);
+        // The GPU device, made before the runtime: the GPU compositor and
+        // canvases' WebGL share it, so WebGL is shown without copies. Null
+        // where there is no GPU composition.
+        std::shared_ptr<gpu::Device> gpuDevice;
+        // What the compositor draws: GPU images on its device as they are.
+        render::Capabilities compositorCapabilities = compositor->capabilities();
         // The compositor while it is the GPU one, and the view it presents in.
         render::GpuCompositor* gpu = nullptr;
         void* compositorView = nullptr;
@@ -551,7 +557,9 @@ namespace ${NS}
     AudioProcessorEditor::AudioProcessorEditor(AudioProcessor& owner)
         : juce::AudioProcessorEditor(owner), processorRef(owner)
     {
+        gpuDevice = render::GpuCompositor::createDevice();
         RuntimeHost::Options options;
+        options.gpuDevice = gpuDevice;
         options.runtime.log = logToJuce;
         options.pluginId = AudioProcessor::pluginId;
         options.pluginName = AudioProcessor::pluginName;
@@ -646,7 +654,8 @@ namespace ${NS}
             if (view != nullptr && ! gpuLost)
             {
                 const auto background = getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId);
-                if (auto created = render::GpuCompositor::create({ .view = { view }, .background = background.getARGB() }, &why))
+                if (auto created = render::GpuCompositor::create(
+                        { .view = { view }, .background = background.getARGB(), .device = gpuDevice }, &why))
                 {
                     gpu = created.get();
                     compositor = std::move(created);
@@ -654,7 +663,8 @@ namespace ${NS}
             }
             if (compositor == nullptr)
                 compositor = std::make_unique<render::RasterCompositor>(image);
-            const render::Capabilities capabilities = compositor->capabilities();
+            compositorCapabilities = compositor->capabilities();
+            const render::Capabilities& capabilities = compositorCapabilities;
             log(js::LogLevel::Info, capabilities.gpu ? "renderer: GPU compositor, " + capabilities.backend
                                                      : "renderer: CPU, " + capabilities.backend + " (" + why + ")");
             // A new compositor has nothing yet: it draws everything.
@@ -679,7 +689,7 @@ namespace ${NS}
 
     void AudioProcessorEditor::renderFrame()
     {
-        compositor->composite(runtimeHost().frame());
+        compositor->composite(runtimeHost().frame(compositorCapabilities));
     }
 
     void AudioProcessorEditor::timerCallback()

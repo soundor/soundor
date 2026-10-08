@@ -585,10 +585,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     void Surface::collectCanvasDrawing()
     {
         for (const NodeId id : canvasNodes)
-            if (Node* node = find(id); node != nullptr && node->canvasBuffer->drawn)
+            if (Node* node = find(id); node != nullptr)
             {
-                node->canvasBuffer->drawn = false;
-                invalidate(id);
+                if (node->canvasBuffer->drawn)
+                {
+                    node->canvasBuffer->drawn = false;
+                    invalidate(id);
+                }
+                // A new GPU image changes the picture, not the nodes drawn
+                // on the CPU: the view renderer takes it (gpuDrawn).
+                if (node->canvasBuffer->gpuDrawn)
+                    changed = true;
             }
     }
 

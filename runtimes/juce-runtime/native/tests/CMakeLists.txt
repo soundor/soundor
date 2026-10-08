@@ -50,7 +50,7 @@ target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="
 
 if(SOUNDOR_HAS_GPU)
   target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp
-    gpu/WebGLTests.cpp)
+    gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp)
   if(APPLE)
     target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.mm)
   else()

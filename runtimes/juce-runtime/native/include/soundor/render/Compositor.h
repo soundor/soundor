@@ -17,6 +17,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         bool gpu = false;
         // E.g. "Skia raster", "ANGLE / Metal".
         std::string backend;
+        // The GPU device it draws on: GpuContent on this device is drawn as
+        // it is; any other is read back by the frame's producer first.
+        const gpu::Device* device = nullptr;
     };
 
     // What the last composite() did: zero work means nothing changed.

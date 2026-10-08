@@ -56,7 +56,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             {
                 const gpu::DeviceInfo& info = shared->info();
                 return { .gpu = true,
-                         .backend = std::string("ANGLE / ") + gpu::name(info.backend) + " (" + info.renderer + ")" };
+                         .backend = std::string("ANGLE / ") + gpu::name(info.backend) + " (" + info.renderer + ")",
+                         .device = shared.get() };
             }
 
             void composite(const Frame& frame) override
@@ -122,6 +123,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         };
     } // namespace
 
+    std::shared_ptr<gpu::Device> GpuCompositor::createDevice(bool allowSoftware, std::string* failure)
+    {
+        if (cpuRequested())
+        {
+            if (failure != nullptr)
+                *failure = "SOUNDOR_RENDERER=cpu";
+            return nullptr;
+        }
+        if (! gpu::presentationAvailable())
+        {
+            if (failure != nullptr)
+                *failure = "no GPU presentation on this platform";
+            return nullptr;
+        }
+        return gpu::Device::create(
+            { .policy = allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly }, failure);
+    }
+
     std::unique_ptr<GpuCompositor> GpuCompositor::create(const Options& options, std::string* failure)
     {
         const auto fail = [&](std::string reason) -> std::unique_ptr<GpuCompositor>
@@ -136,9 +155,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         auto presentation = gpu::createPresentation(options.view.handle, &reason);
         if (presentation == nullptr)
             return fail(reason);
-        auto device = gpu::Device::create(
-            { .policy = options.allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly },
-            &reason);
+        auto device = options.device;
+        if (device == nullptr)
+            device = gpu::Device::create({ .policy = options.allowSoftware ? gpu::DevicePolicy::AllowSoftware
+                                                                           : gpu::DevicePolicy::HardwareOnly },
+                                         &reason);
         if (device == nullptr)
             return fail(reason);
         auto context = gpu::Context::create(device, {}, &reason);

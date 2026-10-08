@@ -332,12 +332,16 @@ A frame goes through three stages, each with its own owner:
 
 1. **Planning and rasterizing (the runtime).** `RuntimeHost::frame()` lays the
    surface out and returns a `render::Frame`: the view's size and its
-   _layers_, bottom to top. A layer is content (today: CPU pixels, a
-   `render::RasterSurface`) placed at device-pixel `bounds`, with a
-   `transform`, `opacity` and rounded `clip`, and a stable `id` while it
-   exists. Today the whole UI (content and overlay) is one CPU layer; the
-   model is there so that content drawn elsewhere (a canvas, the GPU) becomes
-   layers of its own without changing the UI tree.
+   _layers_, bottom to top. A layer is content placed at device-pixel
+   `bounds`, with a `transform`, `opacity` and rounded `clip`, and a stable
+   `id` while it exists. The content is either CPU pixels (a
+   `render::RasterSurface`) or a `render::GpuImage` drawn elsewhere (a WebGL
+   canvas). The UI (content and overlay) is one CPU layer. A WebGL canvas the
+   compositor can draw (see "WebGL") becomes a layer of its own, and the UI
+   is cut around it, into what paints before it and what paints after. So a
+   canvas drawing every frame re-rasterizes and re-uploads none of the UI.
+   `frame(capabilities)` takes the compositor's capabilities to know which
+   GPU images it can draw.
 2. **Damage.** Each layer says what changed since the previous frame, in
    device pixels (`render::Region`, a few merged rectangles). `ui::Surface`
    records which nodes changed (style, text, children, selection, scroll,
@@ -354,7 +358,9 @@ A frame goes through three stages, each with its own owner:
    damage, and wherever a layer appeared, moved, went away or changed order).
    The backend owns it, so it outlives a reloaded runtime; `capabilities()`
    and `statistics()` say what it is and what the last frame cost (layers,
-   bytes uploaded, texture allocations, draw calls, readbacks).
+   bytes uploaded, texture allocations, draw calls, readbacks). The frame's
+   own statistics count the layers rasterized, GPU layers, and GPU images
+   read back for want of a compositor that could draw them.
    - `render::GpuCompositor` composites on the GPU and presents into a native
      view (see "The GPU"). CPU layers become textures, uploaded only where
      they changed; an unchanged frame uploads, draws and presents nothing.
@@ -364,8 +370,10 @@ A frame goes through three stages, each with its own owner:
 
 The generated JUCE editor renders a frame from its 60 Hz timer when
 `RuntimeHost::needsRender()` says the picture changed (a blinking caret
-counts, twice a second). Once it has a native view, it asks for a
-`GpuCompositor` and logs which renderer it got, and why when it is the CPU
+counts, twice a second). It makes its GPU device first
+(`GpuCompositor::createDevice()`) and gives it to the `RuntimeHost`, so that
+WebGL and the compositor share it. Once it has a native view, it asks for a
+`GpuCompositor` on that device and logs which renderer it got, and why when it is the CPU
 (`renderer: GPU compositor, ANGLE / Metal (…)`). Otherwise, and if the GPU is
 lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
 `juce::Image` at device resolution, of which only the damaged parts are
@@ -458,11 +466,19 @@ its headers.
     it, and it cannot take attachments. The viewport starts at its size.
     Resizing the canvas resizes it and clears it. After it is shown, it is
     cleared unless `preserveDrawingBuffer` is set.
-  - **Showing it:** after each `tick()`, a context that drew is read back
-    into the canvas's pixels, which are composited like a 2D canvas's (and
-    converted when `alpha` or `premultipliedAlpha` is false). The read-back
-    is counted (`WebGLContext::readbacks()`). It goes away where WebGL can
-    be composited without a copy.
+  - **Showing it:** after each `tick()`, a context that drew copies its
+    drawing buffer on the GPU (resolving it if multisampled) into one of two
+    presentation textures. That texture is the canvas's `gpuImage`, shared
+    through an EGLImage. A GPU compositor on the same device draws it
+    directly, as a layer: there is no read-back, the UI is not redrawn, and
+    neither side waits on the CPU (EGL fences order the producer's and the
+    compositor's GPU work). Anywhere else, the image is read back into the
+    canvas's pixels when the frame is made, and drawn like a 2D canvas's
+    (converted when `alpha` or `premultipliedAlpha` is false). That happens
+    with another device, a CPU compositor (Linux, `SOUNDOR_RENDERER=cpu`, a
+    lost GPU), `RuntimeHost::render()`, or a clip that one rounded
+    rectangle can't express. Read-backs are counted
+    (`FrameStatistics::gpuReadbacks`, `WebGLContext::readbacks()`).
   - **Texture sources:** typed arrays, a `PIXEL_UNPACK_BUFFER` offset,
     `ImageData`, and canvas nodes (RGBA, `UNSIGNED_BYTE`), honoring
     `UNPACK_FLIP_Y_WEBGL` and `UNPACK_PREMULTIPLY_ALPHA_WEBGL`.
