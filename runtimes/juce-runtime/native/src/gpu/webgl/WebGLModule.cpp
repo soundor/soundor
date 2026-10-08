@@ -237,7 +237,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         template <typename T>
         JSValue numbersOf(JSContext* ctx, std::span<const T> values)
         {
-            std::vector<double> converted(values.begin(), values.end());
+            std::vector<double> converted;
+            converted.reserve(values.size());
+            for (const T value : values)
+                converted.push_back(static_cast<double>(value));
             return numbers(ctx, converted);
         }
 
