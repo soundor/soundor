@@ -112,47 +112,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         for (auto& [id, texture] : textures)
             glDeleteTextures(1, &texture.name);
         textures.clear();
-        for (auto& [image, imported] : images)
-            glDeleteTextures(1, &imported.name);
-        images.clear();
         placed.clear();
     }
 
-    LayerRenderer::Texture* LayerRenderer::importImage(const render::GpuContent& content)
+    SharedImage* LayerRenderer::drawable(const render::GpuContent& content) const
     {
         auto* shared = dynamic_cast<SharedImage*>(content.image.get());
-        // Only an image on this device can be drawn here.
-        if (shared == nullptr || shared->device() != &context.device())
+        // Only an image whose texture this context sees can be drawn here.
+        if (shared == nullptr || shared->device() != &context.device() || shared->texture() == 0)
             return nullptr;
-        EGLImageKHR image = shared->image();
-        if (image == EGL_NO_IMAGE_KHR)
-            return nullptr;
-        Texture& texture = images[image];
-        texture.used = frames;
-        if (texture.name != 0 && texture.generation != shared->generation())
-        {
-            // The handle now names other storage.
-            glDeleteTextures(1, &texture.name);
-            texture.name = 0;
-        }
-        texture.generation = shared->generation();
-        if (texture.name == 0)
-        {
-            // The image's storage, without a copy.
-            glGenTextures(1, &texture.name);
-            glBindTexture(GL_TEXTURE_2D, texture.name);
-            glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, image);
-        }
-        texture.width = shared->width();
-        texture.height = shared->height();
-        // Drawn after the picture is complete, without waiting on the CPU.
-        if (EGLSyncKHR ready = shared->takeReady(); ready != EGL_NO_SYNC_KHR)
-        {
-            EGLDisplay display = context.device().display();
-            eglWaitSyncKHR(display, ready, 0);
-            eglDestroySyncKHR(display, ready);
-        }
-        return &texture;
+        return shared;
     }
 
     bool LayerRenderer::upload(const render::Frame& frame, render::CompositorStatistics& stats)
@@ -165,7 +134,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         {
             if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
             {
-                changed = (importImage(*gpuContent) != nullptr && gpuContent->changed) || changed;
+                SharedImage* shared = drawable(*gpuContent);
+                if (shared == nullptr)
+                    continue;
+                // Drawn after the picture is complete, without waiting on the CPU.
+                if (EGLSyncKHR ready = shared->takeReady(); ready != EGL_NO_SYNC_KHR)
+                {
+                    EGLDisplay display = context.device().display();
+                    eglWaitSyncKHR(display, ready, 0);
+                    eglDestroySyncKHR(display, ready);
+                }
+                changed = gpuContent->changed || changed;
                 continue;
             }
             const auto* raster = std::get_if<render::RasterContent>(&layer.content);
@@ -213,7 +192,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
         glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-        // Textures of layers, and images, gone from the frame.
+        // Textures of layers gone from the frame.
         const auto unused = [&](auto& entry)
         {
             if (entry.second.used == frames)
@@ -222,7 +201,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return true;
         };
         std::erase_if(textures, unused);
-        std::erase_if(images, unused);
         placed.clear();
         for (const render::Layer& layer : frame.layers)
             placed.push_back(
@@ -247,13 +225,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         for (const render::Layer& layer : frame.layers)
         {
             const Texture* texture = nullptr;
+            Texture image;
             SharedImage* shared = nullptr;
             if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
             {
-                shared = dynamic_cast<SharedImage*>(gpuContent->image.get());
-                const auto found = shared != nullptr ? images.find(shared->image()) : images.end();
-                if (found != images.end())
-                    texture = &found->second;
+                shared = drawable(*gpuContent);
+                if (shared != nullptr)
+                {
+                    image = { shared->texture(), shared->width(), shared->height(), frames };
+                    texture = &image;
+                }
             }
             else if (const auto found = textures.find(layer.id); found != textures.end())
                 texture = &found->second;
@@ -298,8 +279,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 drawnImages.push_back(shared);
         }
         // Their contexts draw into these images again only after this.
-        for (SharedImage* shared : drawnImages)
-            shared->released(eglCreateSyncKHR(context.device().display(), EGL_SYNC_FENCE_KHR, nullptr));
+        if (context.device().info().fences)
+            for (SharedImage* shared : drawnImages)
+                shared->released(eglCreateSyncKHR(context.device().display(), EGL_SYNC_FENCE_KHR, nullptr));
         stats.layersComposited = static_cast<int>(frame.layers.size());
         stats.pixelsComposited = static_cast<long long>(frame.width) * frame.height;
     }

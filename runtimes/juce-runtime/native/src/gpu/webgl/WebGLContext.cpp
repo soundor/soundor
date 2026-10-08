@@ -85,7 +85,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     } // namespace
 
     // The canvas's GPU image: the presentation texture last shown, through
-    // an EGLImage the GPU compositor (on the same device) draws directly.
+    // a texture the GPU compositor (sharing the device's textures) draws directly.
     class WebGLContext::Image final : public SharedImage
     {
     public:
@@ -95,9 +95,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
         [[nodiscard]] int width() const noexcept override { return owner != nullptr ? owner->width : 0; }
         [[nodiscard]] int height() const noexcept override { return owner != nullptr ? owner->height : 0; }
+        // Drawn without a copy only by contexts sharing its textures.
         [[nodiscard]] const Device* device() const noexcept override
         {
-            return owner != nullptr ? &owner->device() : nullptr;
+            return owner != nullptr && owner->device().info().sharesTextures ? &owner->device() : nullptr;
         }
         [[nodiscard]] bool opaque() const noexcept override { return owner != nullptr && ! owner->granted.alpha; }
         [[nodiscard]] bool premultiplied() const noexcept override
@@ -106,14 +107,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         }
         bool read(render::RasterSurface& pixels) override { return owner != nullptr && owner->readBack(pixels); }
 
-        [[nodiscard]] EGLImageKHR image() const noexcept override
+        [[nodiscard]] GLuint texture() const noexcept override
         {
-            return owner != nullptr && owner->shown >= 0 ? owner->fronts[static_cast<std::size_t>(owner->shown)].image
-                                                         : EGL_NO_IMAGE_KHR;
-        }
-        [[nodiscard]] std::uint64_t generation() const noexcept override
-        {
-            return owner != nullptr ? owner->frontsMade : 0;
+            return owner != nullptr && owner->shown >= 0 ? owner->fronts[static_cast<std::size_t>(owner->shown)].texture
+                                                         : 0;
         }
         [[nodiscard]] EGLSyncKHR takeReady() noexcept override
         {
@@ -372,9 +369,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
     bool WebGLContext::makeFronts()
     {
-        EGLDisplay display = device().display();
         const GLenum colorFormat = granted.alpha ? GL_RGBA8 : GL_RGB8;
-        ++frontsMade;
         for (Front& front : fronts)
         {
             glGenTextures(1, &front.texture);
@@ -383,11 +378,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             glGenFramebuffers(1, &front.framebuffer);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, front.framebuffer);
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, front.texture, 0);
-            // NOLINTNEXTLINE(performance-no-int-to-ptr): EGL takes the texture's name as a client buffer.
-            const auto buffer = reinterpret_cast<EGLClientBuffer>(static_cast<std::uintptr_t>(front.texture));
-            front.image = eglCreateImageKHR(display, context->handle(), EGL_GL_TEXTURE_2D_KHR, buffer, nullptr);
-            if (front.image == EGL_NO_IMAGE_KHR)
-                return false;
         }
         return true;
     }
@@ -397,8 +387,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         EGLDisplay display = device().display();
         for (Front& front : fronts)
         {
-            if (front.image != EGL_NO_IMAGE_KHR)
-                eglDestroyImageKHR(display, front.image);
             if (front.released != EGL_NO_SYNC_KHR)
                 eglDestroySyncKHR(display, front.released);
             glDeleteFramebuffers(1, &front.framebuffer);
@@ -442,7 +430,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
         if (ready != EGL_NO_SYNC_KHR)
             eglDestroySyncKHR(display, ready);
-        ready = eglCreateSyncKHR(display, EGL_SYNC_FENCE_KHR, nullptr);
+        ready = device().info().fences ? eglCreateSyncKHR(display, EGL_SYNC_FENCE_KHR, nullptr) : EGL_NO_SYNC_KHR;
         glFlush();
         shown = next;
 

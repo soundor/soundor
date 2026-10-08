@@ -468,11 +468,16 @@ its headers.
     cleared unless `preserveDrawingBuffer` is set.
   - **Showing it:** after each `tick()`, a context that drew copies its
     drawing buffer on the GPU (resolving it if multisampled) into one of two
-    presentation textures. That texture is the canvas's `gpuImage`, shared
-    through an EGLImage. A GPU compositor on the same device draws it
-    directly, as a layer: there is no read-back, the UI is not redrawn, and
-    neither side waits on the CPU (EGL fences order the producer's and the
-    compositor's GPU work). Anywhere else, the image is read back into the
+    presentation textures. That texture is the canvas's `gpuImage`. Every
+    context of a device shares one texture namespace
+    (`EGL_ANGLE_display_texture_share_group`, on Metal, Direct3D 11, Vulkan
+    and OpenGL; EGLImages from textures don't exist on Metal). So a GPU
+    compositor on the same device samples that texture directly, as a layer:
+    there is no read-back, the UI is not redrawn, and neither side waits on
+    the CPU. Where the device has EGL fences, they order the producer's and
+    the compositor's GPU work. WebGL code reaches only its own textures,
+    because it names objects through its context's wrappers. Anywhere else,
+    the image is read back into the
     canvas's pixels when the frame is made, and drawn like a 2D canvas's
     (converted when `alpha` or `premultipliedAlpha` is false). That happens
     with another device, a CPU compositor (Linux, `SOUNDOR_RENDERER=cpu`, a

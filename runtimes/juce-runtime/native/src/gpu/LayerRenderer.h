@@ -11,10 +11,12 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 {
+    class SharedImage;
+
     // Draws a render::Frame's layers with OpenGL ES into the current
     // framebuffer: CPU layers become textures, uploaded only where they
-    // changed, GPU images on the same device are drawn from their own
-    // storage, then each layer is one textured quad with its transform,
+    // changed, GPU images whose textures it shares are drawn from where
+    // they are, then each layer is one textured quad with its transform,
     // opacity and rounded clip. Deliberately small: Skia draws the UI, this
     // only puts layers together.
     //
@@ -44,12 +46,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             int width = 0;
             int height = 0;
             std::uint64_t used = 0;
-            std::uint64_t generation = 0; // a GPU image's
         };
 
-        // A GPU image's EGLImage as a texture of this context, or null when
-        // it cannot be drawn here (another device, no picture yet).
-        Texture* importImage(const render::GpuContent& content);
+        // A GPU image this context can draw (its texture is in this device's
+        // shared namespace), or null (another device, no picture yet).
+        [[nodiscard]] SharedImage* drawable(const render::GpuContent& content) const;
 
         const Context& context;
         GLuint program = 0;
@@ -64,8 +65,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         GLint opaqueLocation = -1;
         GLint premultiplyLocation = -1;
         std::unordered_map<render::LayerId, Texture> textures;
-        // GPU images' EGLImages, imported once each.
-        std::unordered_map<EGLImageKHR, Texture> images;
         std::vector<render::Layer> placed;
         std::uint64_t frames = 0;
     };

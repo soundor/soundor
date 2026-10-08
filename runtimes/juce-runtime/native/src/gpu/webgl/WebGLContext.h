@@ -89,7 +89,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         {
             GLuint texture = 0;
             GLuint framebuffer = 0;
-            EGLImageKHR image = EGL_NO_IMAGE_KHR;
             EGLSyncKHR released = EGL_NO_SYNC_KHR;
         };
         bool makeFronts();
@@ -128,7 +127,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // Shown alternately: the compositor draws one while the next is made.
         std::array<Front, 2> fronts {};
         int shown = -1;
-        std::uint64_t frontsMade = 0;
         // The fence the shown picture is complete behind.
         EGLSyncKHR ready = EGL_NO_SYNC_KHR;
         std::shared_ptr<Image> image;
