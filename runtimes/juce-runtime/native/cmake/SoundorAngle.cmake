@@ -135,6 +135,7 @@ if(NOT SOUNDOR_ANGLE_DIR)
           "-DGN_SHA256=${gn_sha256}"
           "-DCC=${angle_cc}"
           "-DCXX=${angle_cxx}"
+          "-DGENERATOR=${CMAKE_GENERATOR}"
           -P "${CMAKE_CURRENT_LIST_DIR}/SoundorAngleBuild.cmake"
         RESULT_VARIABLE status)
       if(NOT status EQUAL 0)

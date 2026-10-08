@@ -4,7 +4,7 @@
 #   cmake -DOUT=<dir> -DREVISION=<sha> -DREPOSITORY=<url> -DDEPENDENCIES=<a;b=sparse,dirs>
 #         -DTARGET_OS=<linux|mac|win> -DCPUS=<x64;arm64> -DFLAVORS=<release|md;mdd>
 #         -DGN_URL=<url> -DGN_SHA256=<sha> [-DCC=<c compiler> -DCXX=<c++ compiler>]
-#         -P SoundorAngleBuild.cmake
+#         [-DGENERATOR=<the project's CMake generator>] -P SoundorAngleBuild.cmake
 #
 # ANGLE is fetched at REVISION and its third-party code only for DEPENDENCIES,
 # each at the commit ANGLE's own DEPS file pins. gn (pinned, SHA-256 verified)
@@ -159,10 +159,19 @@ foreach(cpu IN LISTS CPUS)
   foreach(flavor IN LISTS FLAVORS)
     set(build "${work}/build/${flavor}-${cpu}")
     set(options
-      -G Ninja
-      -DCMAKE_BUILD_TYPE=Release
       "-DANGLE_TARGETS=${work}/targets-${cpu}.cmake"
       "-DCMAKE_INSTALL_PREFIX=${build}/install")
+    # Windows: the project's generator, which finds MSVC (Visual Studio), or
+    # runs where it is already set up (Ninja in a developer prompt).
+    if(TARGET_OS STREQUAL "win" AND GENERATOR MATCHES "^Visual Studio")
+      if(cpu STREQUAL "arm64")
+        list(APPEND options -G "${GENERATOR}" -A ARM64)
+      else()
+        list(APPEND options -G "${GENERATOR}" -A x64)
+      endif()
+    else()
+      list(APPEND options -G Ninja -DCMAKE_BUILD_TYPE=Release)
+    endif()
     if(TARGET_OS STREQUAL "win")
       # The C runtime has to match the plugin's: /MD, or /MDd in Debug.
       if(flavor STREQUAL "mdd")
@@ -187,8 +196,8 @@ foreach(cpu IN LISTS CPUS)
     message(STATUS "ANGLE: building ${flavor}-${cpu}")
     set(cwd "${work}")
     run(${CMAKE_COMMAND} -S "${scripts}" -B "${build}" ${options})
-    run(${CMAKE_COMMAND} --build "${build}")
-    run(${CMAKE_COMMAND} --install "${build}")
+    run(${CMAKE_COMMAND} --build "${build}" --config Release --parallel)
+    run(${CMAKE_COMMAND} --install "${build}" --config Release)
   endforeach()
 endforeach()
 

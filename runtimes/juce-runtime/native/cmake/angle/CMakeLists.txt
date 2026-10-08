@@ -30,7 +30,7 @@ endforeach()
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 if(MSVC)
-  set(angle_common_options /W0 /utf-8 /bigobj /Zc:__cplusplus /permissive- /EHsc)
+  set(angle_common_options /W0 /utf-8 /bigobj /Zc:__cplusplus /permissive- /EHsc /MP)
 else()
   set(angle_common_options -w)
 endif()
