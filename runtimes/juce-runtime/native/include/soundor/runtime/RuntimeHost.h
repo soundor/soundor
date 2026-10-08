@@ -23,6 +23,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         class ViewRenderer;
     } // namespace render
 
+    namespace gpu
+    {
+        class Device;
+    } // namespace gpu
+
     // One plugin UI's JavaScript runtime, wired to the plugin: a js::Runtime
     // and js::Context with Soundor's Web-compatible globals and the
     // `soundor:*` modules installed.
@@ -62,6 +67,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::shared_ptr<ui::TextEngine> textEngine;
             // For text inputs' copy and paste; default: private to the process.
             std::shared_ptr<ui::Clipboard> clipboard;
+            // The GPU device canvases' WebGL contexts render on: the GPU
+            // compositor's, so that they share it. Default: a device of their
+            // own, made when the first context is.
+            std::shared_ptr<gpu::Device> gpuDevice;
+            // Whether WebGL may use a software renderer when there is no GPU
+            // device (tests, debugging). Default: getContext('webgl2') is null.
+            bool allowSoftwareGpu = false;
         };
 
         explicit RuntimeHost(Options options);

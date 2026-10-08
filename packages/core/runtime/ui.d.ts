@@ -327,7 +327,9 @@ declare module 'soundor:ui' {
      * type the canvas cannot have (another than the one it has).
      */
     getContext(type: '2d', options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
-    getContext(type: string, options?: unknown): unknown;
+    /** On the GPU; null where there is no acceptable GPU. */
+    getContext(type: 'webgl2', options?: WebGLContextAttributes): WebGL2RenderingContext | null;
+    getContext(type: string, options?: unknown): null;
 
     /** Scroll views: how far the content is scrolled, and its size. */
     scrollTop: number;
@@ -379,7 +381,7 @@ declare module 'soundor:ui' {
   /** A single-line text input; it is focusable and edits itself. */
   export function createTextInput(options?: { value?: string; placeholder?: string; style?: Style }): UiNode;
   /**
-   * A canvas: pixels code draws with getContext('2d'). Its box is its
+   * A canvas: pixels code draws with getContext('2d') or getContext('webgl2'). Its box is its
    * drawing buffer's size in logical pixels unless its style sizes it.
    */
   export function createCanvas(style?: Style): UiNode;
@@ -395,6 +397,8 @@ declare module 'soundor:ui' {
   export const ImageData: typeof globalThis.ImageData;
   export type TextMetrics = globalThis.TextMetrics;
   export const TextMetrics: typeof globalThis.TextMetrics;
+  export type WebGL2RenderingContext = globalThis.WebGL2RenderingContext;
+  export const WebGL2RenderingContext: typeof globalThis.WebGL2RenderingContext;
 
   export interface PressableState {
     readonly pressed: boolean;

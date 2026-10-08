@@ -1,7 +1,9 @@
 # cmake -DINPUT=<file> -DOUTPUT=<cpp> -DSYMBOL=<name> -P SoundorEmbedText.cmake
 #
 # Writes the file as adjacent raw string literals of at most ~4 KB each, cut at
-# line ends: MSVC limits a single literal's length, not the concatenation's.
+# line ends: MSVC limits a single literal's length. Past 60 KB, which is about
+# what compilers must accept after concatenation, the literals are joined at
+# load instead.
 
 file(READ "${INPUT}" content)
 string(FIND "${content}" ")SOUNDOR_EMBED\"" collision)
@@ -31,7 +33,8 @@ while(offset LESS length)
   math(EXPR offset "${offset} + ${size}")
 endwhile()
 
-file(WRITE "${OUTPUT}.tmp" "// Generated from ${INPUT}. Do not edit.
+if(length LESS 60000)
+  file(WRITE "${OUTPUT}.tmp" "// Generated from ${INPUT}. Do not edit.
 #include <soundor/Config.h>
 
 #include <string_view>
@@ -43,5 +46,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 ${chunks}    ;
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 ")
+else()
+  # Longer than compilers must accept as one (concatenated) literal: the
+  # chunks stay apart and are joined once, at load.
+  string(REPLACE ")SOUNDOR_EMBED\"\n" ")SOUNDOR_EMBED\",\n" parts "${chunks}")
+  file(WRITE "${OUTPUT}.tmp" "// Generated from ${INPUT}. Do not edit.
+#include <soundor/Config.h>
+
+#include <string>
+#include <string_view>
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
+{
+    namespace
+    {
+        const std::string& ${SYMBOL}Text()
+        {
+            static const std::string text = []
+            {
+                constexpr std::string_view parts[] = {
+${parts}                };
+                std::string joined;
+                for (const std::string_view part : parts)
+                    joined += part;
+                return joined;
+            }();
+            return text;
+        }
+    } // namespace
+
+    extern const std::string_view ${SYMBOL};
+    const std::string_view ${SYMBOL} = ${SYMBOL}Text();
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
+")
+endif()
 file(COPY_FILE "${OUTPUT}.tmp" "${OUTPUT}" ONLY_IF_DIFFERENT)
 file(REMOVE "${OUTPUT}.tmp")

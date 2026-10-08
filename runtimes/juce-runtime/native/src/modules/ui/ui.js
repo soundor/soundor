@@ -19,6 +19,7 @@ import {
   forgetStyles,
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
+import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
 import {
   Event,
   EventTarget,
@@ -382,18 +383,28 @@ export class UiNode extends EventTarget {
     this.#canvasWidth = w;
     this.#canvasHeight = h;
     if (this.#context?.kind === '2d') forgetStyles(this.#context.value);
+    else if (this.#context?.kind === 'webgl2' && this.#context.value !== null)
+      resizeWebGL(this.#context.value);
   }
 
   /**
    * A canvas's drawing context: '2d' (CanvasRenderingContext2D, drawn with
-   * Skia on the CPU). The same object every time; null for other types, and
-   * for a type other than the one the canvas already has, as on the Web.
+   * Skia on the CPU) or 'webgl2' (WebGL2RenderingContext, on the GPU; null
+   * where there is no acceptable GPU). The same object every time; null for
+   * other types, and for a type other than the one the canvas already has,
+   * as on the Web.
    */
   getContext(type, options = {}) {
     this.#expect('canvas', 'getContext()');
     const kind = String(type);
     if (this.#context !== null)
       return this.#context.kind === kind ? this.#context.value : null;
+    if (kind === 'webgl2') {
+      const context = createWebGL2(this, this.#id, options);
+      // No GPU: null, and null again later (but '2d' may still be had).
+      if (context !== null) this.#context = { kind, value: context };
+      return context;
+    }
     if (kind !== '2d') return null;
     const settings = options ?? {};
     if (settings.alpha === false)
@@ -656,6 +667,7 @@ export {
   ImageData,
   TextMetrics,
 } from 'soundor:internal/ui/canvas';
+export { WebGL2RenderingContext } from 'soundor:internal/ui/webgl';
 
 /** The view's root node; it always fills the view. */
 export const root = new UiNode(CONSTRUCTING, 'view', native.rootId);

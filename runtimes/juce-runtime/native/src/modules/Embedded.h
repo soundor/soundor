@@ -9,13 +9,15 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 {
-    extern const std::string_view parametersModule; // modules/parameters/parameters.js
-    extern const std::string_view fsModule;         // modules/fs/fs.js
-    extern const std::string_view hostModule;       // modules/host/host.js
-    extern const std::string_view storageModule;    // modules/storage/storage.js
-    extern const std::string_view uiModule;         // modules/ui/ui.js
-    extern const std::string_view uiFramesModule;   // modules/ui/frames.js
-    extern const std::string_view uiCanvasModule;   // modules/ui/canvas.js
+    extern const std::string_view parametersModule;       // modules/parameters/parameters.js
+    extern const std::string_view fsModule;               // modules/fs/fs.js
+    extern const std::string_view hostModule;             // modules/host/host.js
+    extern const std::string_view storageModule;          // modules/storage/storage.js
+    extern const std::string_view uiModule;               // modules/ui/ui.js
+    extern const std::string_view uiFramesModule;         // modules/ui/frames.js
+    extern const std::string_view uiCanvasModule;         // modules/ui/canvas.js
+    extern const std::string_view uiWebGLModule;          // gpu/webgl/webgl.js
+    extern const std::string_view uiWebGLGeneratedModule; // gpu/webgl/generated/webgl-generated.js
 
     // web/js/*.js
     extern const std::string_view abortModule;

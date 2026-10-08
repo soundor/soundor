@@ -95,6 +95,11 @@ export function setSourceResolver(resolve) {
   sourceOf = resolve;
 }
 
+/** What a canvas source is ({ kind: 'canvas', id, … }), or null; for WebGL. */
+export function resolveSource(value) {
+  return sourceOf(value);
+}
+
 function number(value) {
   return Number(value);
 }

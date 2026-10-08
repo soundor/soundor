@@ -443,6 +443,35 @@ describe('UiNode canvases', () => {
     expect(getContext).toHaveBeenCalledWith('2d', { alpha: true });
   });
 
+  it("gives only the JUCE runtime's context types", () => {
+    setup();
+    const canvas = view.createNode('canvas');
+    const getContext = vi.spyOn(el(canvas) as HTMLCanvasElement, 'getContext');
+    expect(canvas.getContext('webgl')).toBeNull();
+    expect(canvas.getContext('bitmaprenderer')).toBeNull();
+    expect(getContext).not.toHaveBeenCalled();
+  });
+
+  it('lets contexts take canvas and image nodes as image sources', () => {
+    setup();
+    const canvas = view.createNode('canvas');
+    const source = view.createNode('canvas');
+    const image = view.createNode('image');
+    const texImage2D = vi.fn<(...args: unknown[]) => void>();
+    const context = { texImage2D };
+    vi.spyOn(el(canvas) as HTMLCanvasElement, 'getContext').mockReturnValue(
+      context as never,
+    );
+    const gl = canvas.getContext('webgl2') as typeof context;
+    expect(canvas.getContext('webgl2')).toBe(gl);
+    gl.texImage2D(1, 0, 2, 3, 4, source);
+    gl.texImage2D(1, 0, 2, 3, 4, image);
+    expect(texImage2D.mock.calls).toEqual([
+      [1, 0, 2, 3, 4, el(source)],
+      [1, 0, 2, 3, 4, el(image)],
+    ]);
+  });
+
   it('has canvas members only on canvases', () => {
     setup();
     const node = view.createNode('view');

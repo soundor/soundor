@@ -32,8 +32,9 @@ native/
     js/                   the QuickJS-NG wrapper and the binding helpers generated
                           code uses; the only place quickjs.h is included
     modules/              soundor:* modules (C++, plus embedded JavaScript)
-    gpu/                  ANGLE: GPU devices and OpenGL ES contexts; the only
-                          place its headers are included
+    gpu/                  ANGLE: GPU devices and OpenGL ES contexts, the GPU
+                          compositor, WebGL (webgl/); the only place its
+                          headers are included
     platform/             background worker and UI-thread handoff queue
     render/               Skia: drawing nodes, damage tracking, layer planning,
                           the CPU compositor
@@ -190,7 +191,8 @@ browser or Node. There is no `window`, `document`, `process` or `require`.
 | `crypto.getRandomValues()`, `crypto.randomUUID()`                      | From the OS CSPRNG. `crypto.subtle` is not provided.                                                                                                                                                          |
 | `fetch`, `Headers`, `Request`, `Response`, `Blob`, `File`, `FormData`  | Through the backend's `HttpClient`. Bodies are buffered (no Web Streams yet). `data:` URLs resolve locally; redirects are always followed.                                                                    |
 
-Not provided: the DOM, Canvas/WebGL, Workers, IndexedDB/`localStorage`,
+Not provided: the DOM (canvas contexts come with `soundor:ui`'s canvas
+nodes), Workers, IndexedDB/`localStorage`,
 `XMLHttpRequest`, WebSocket, Web Streams, WebAudio.
 
 Anything that would block, such as network or file I/O, is asynchronous. Work
@@ -297,7 +299,7 @@ Beyond views and text there are the primitives a plugin UI is made of:
     `devicePixelRatio` (a global) for crisp lines.
   - **`getContext('2d')`:** a `CanvasRenderingContext2D` drawn with Skia on
     the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
-    types give null, as on the Web for a canvas that already has a 2D
+    types give null, as on the Web for a canvas that already has a
     context. The JavaScript side (`canvas.js`) converts arguments as WebIDL
     does and makes one native call per method.
   - **What it draws:** state (`save`/`restore`/`reset`, `globalAlpha`, every
@@ -315,6 +317,9 @@ Beyond views and text there are the primitives a plugin UI is made of:
     their default values are accepted), never draw something else.
   - **Rendering:** a canvas is drawn into the UI's layer; drawing marks only
     its box as changed.
+  - **`getContext('webgl2')`:** a `WebGL2RenderingContext` on the GPU (see
+    "WebGL"), or null where there is no acceptable GPU. `getContext('webgl')`
+    (WebGL 1) is null.
 - **`pressable(node, { onPress, onStateChange, … })`:** a press is a primary
   click, Enter/Space while focused, or an `activate` accessibility action. It
   reports pressed and hovered state.
@@ -429,6 +434,50 @@ its headers.
     ANGLE built with X11 and xcb, linked into every plugin, and a plugin must
     load where they are missing (JUCE loads X11 at run time for this reason).
     So Linux composites on the CPU, and the GPU's work (WebGL) is read back.
+- **WebGL** (`src/gpu/webgl/`): a canvas's `WebGL2RenderingContext` is an
+  OpenGL ES 3.0 context in ANGLE's WebGL compatibility mode, so ANGLE checks
+  every call the way a browser's WebGL does. Its `*RobustANGLE` entry points
+  bound every read and write of JavaScript memory.
+  - **JavaScript:** `webgl.js` converts arguments the way WebIDL does. It
+    checks WebGL objects: one from another context or a deleted one is an
+    `INVALID_OPERATION`, and so is a uniform location of another program or
+    an earlier link. Each method makes one native call
+    (`webglCall(id, op, …)`). Methods whose arguments are only numbers,
+    booleans and objects are generated from the Khronos IDL in `idl/`
+    (`scripts/webgl-codegen.mjs`, `pnpm gen:webgl`, kept current by a test),
+    and so are the TypeScript declarations. The rest are hand-written, in
+    `webgl.js` and `WebGLModule.cpp`, numbered in the same order.
+  - **Which GPU:** the device the host gives
+    (`RuntimeHost::Options::gpuDevice`), or else one of WebGL's own, made
+    with the first context. It must be hardware unless the host allows
+    software (`allowSoftwareGpu`, for tests). Without one, `getContext()`
+    returns null and the console says why.
+  - **The drawing buffer:** WebGL's default framebuffer is a framebuffer
+    Soundor makes, the canvas's size. It is multisampled with `antialias`
+    and resolved before anything reads it. `bindFramebuffer(…, null)` binds
+    it, and it cannot take attachments. The viewport starts at its size.
+    Resizing the canvas resizes it and clears it. After it is shown, it is
+    cleared unless `preserveDrawingBuffer` is set.
+  - **Showing it:** after each `tick()`, a context that drew is read back
+    into the canvas's pixels, which are composited like a 2D canvas's (and
+    converted when `alpha` or `premultipliedAlpha` is false). The read-back
+    is counted (`WebGLContext::readbacks()`). It goes away where WebGL can
+    be composited without a copy.
+  - **Texture sources:** typed arrays, a `PIXEL_UNPACK_BUFFER` offset,
+    `ImageData`, and canvas nodes (RGBA, `UNSIGNED_BYTE`), honoring
+    `UNPACK_FLIP_Y_WEBGL` and `UNPACK_PREMULTIPLY_ALPHA_WEBGL`.
+  - **Extensions,** where the device has them: `EXT_color_buffer_float`,
+    `EXT_color_buffer_half_float`, `EXT_float_blend`,
+    `EXT_texture_filter_anisotropic`, `EXT_texture_norm16`,
+    `KHR_parallel_shader_compile`, `OES_texture_float_linear`,
+    `WEBGL_debug_renderer_info` and `WEBGL_lose_context`.
+  - **Objects** live until deleted, or until their context goes. Dropping a
+    wrapper does not delete the OpenGL object, because OpenGL keeps it in
+    use while it is bound.
+  - **Not there:** WebGL 1, `restoreContext()`, `drawingBufferStorage()`,
+    color spaces other than sRGB, XR, and uploads from image nodes. They
+    throw a `TypeError` saying so. `finish()` only flushes, because Soundor
+    never waits for the GPU on the UI thread.
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
@@ -575,6 +624,8 @@ development) and an entry such as `/bundle.js`, it evaluates the entry after
 installing the modules. A failing entry is logged and leaves the host usable.
 `RuntimeHost::asset(id)` returns the bytes of a bundled image.
 `RuntimeHost::frame()` renders the view for a compositor (see "Rendering").
+`Options::gpuDevice` is the device canvases' WebGL contexts use (see "WebGL"),
+and `tick()` shows what they drew.
 
 ### `DevSession`
 
@@ -651,8 +702,8 @@ pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
 
 [ANGLE](https://chromium.googlesource.com/angle/angle) implements OpenGL ES 3
 (and WebGL's rules) on each platform's own graphics API: Metal on macOS,
-Direct3D 11 on Windows, Vulkan on Linux. Soundor uses it for the GPU; nothing
-renders with it yet (see "The GPU").
+Direct3D 11 on Windows, Vulkan on Linux. Soundor uses it for the GPU
+compositor and WebGL (see "The GPU").
 
 - **The pin:** the head of ANGLE's `chromium/7922` branch (Chrome 151),
   `7e08726`. Its third-party code comes at the commits ANGLE's `DEPS` pins,

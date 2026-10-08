@@ -192,6 +192,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         return true;
     }
 
+    bool readBytes(JSContext* ctx, JSValueConst value, const Path& path, std::span<std::byte>& out)
+    {
+        if (JS_IsArrayBuffer(value))
+        {
+            std::size_t size = 0;
+            std::uint8_t* bytes = JS_GetArrayBuffer(ctx, &size, value);
+            if (bytes == nullptr && JS_HasException(ctx)) // detached
+                return false;
+            out = std::span<std::byte>(reinterpret_cast<std::byte*>(bytes), bytes != nullptr ? size : 0);
+            return true;
+        }
+        if (JS_GetTypedArrayType(value) < 0)
+        {
+            throwTypeMismatch(ctx, path, "ArrayBuffer or typed array", value);
+            return false;
+        }
+        std::size_t offset = 0;
+        std::size_t length = 0;
+        JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, &offset, &length, nullptr);
+        if (JS_IsException(buffer))
+            return false;
+        std::size_t bufferSize = 0;
+        std::uint8_t* bytes = JS_GetArrayBuffer(ctx, &bufferSize, buffer);
+        JS_FreeValue(ctx, buffer);
+        if (bytes == nullptr && JS_HasException(ctx))
+            return false;
+        out = bytes != nullptr ? std::span<std::byte>(reinterpret_cast<std::byte*>(bytes) + offset, length)
+                               : std::span<std::byte>();
+        return true;
+    }
+
     bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::uint8_t>& out)
     {
         return readTypedSpan(ctx, value, path, JS_TYPED_ARRAY_UINT8, "Uint8Array", out);

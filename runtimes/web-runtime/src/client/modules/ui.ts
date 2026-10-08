@@ -62,6 +62,7 @@ export const CanvasGradient = globalThis.CanvasGradient;
 export const CanvasPattern = globalThis.CanvasPattern;
 export const ImageData = globalThis.ImageData;
 export const TextMetrics = globalThis.TextMetrics;
+export const WebGL2RenderingContext = globalThis.WebGL2RenderingContext;
 
 /** A new, detached view whose children scroll (by wheel, or scrollTo()). */
 export function createScrollView(style?: Style): UiNode {

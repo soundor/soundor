@@ -71,6 +71,24 @@ function expectNode(value: unknown, what: string): UiNode {
   return value;
 }
 
+/** Context methods that take an image source, by context type. */
+const SOURCE_METHODS: Record<string, readonly string[] | undefined> = {
+  '2d': ['drawImage', 'createPattern'],
+  webgl2: ['texImage2D', 'texSubImage2D', 'texImage3D', 'texSubImage3D'],
+};
+
+/** Contexts whose methods already take nodes. */
+const withNodeSources = new WeakSet<object>();
+
+/** A canvas or image node as the element the browser draws from. */
+function imageSourceOf(value: unknown): unknown {
+  if (!(value instanceof UiNode)) return value;
+  const type = value.type;
+  return type === 'canvas' || type === 'image'
+    ? UiNode.elementOf(value)
+    : value;
+}
+
 export class UiNode extends TreeEventTarget {
   readonly #view: ViewLink;
   readonly #type: NodeType;
@@ -319,10 +337,32 @@ export class UiNode extends TreeEventTarget {
     this.#canvas().height = canvasSize(value, 150);
   }
 
-  /** The canvas's context: the browser's own, as `<canvas>.getContext()` gives. */
+  /**
+   * The canvas's context: the browser's own, as `<canvas>.getContext()`
+   * gives, for the types the JUCE runtime has too ('2d' and 'webgl2'; null
+   * for others). Its methods taking an image also take canvas and image nodes.
+   */
   getContext(type: string, options?: unknown): unknown {
     this.#expect('canvas', 'getContext()');
-    return this.#canvas().getContext(type, options as never);
+    const kind = String(type);
+    const methods = SOURCE_METHODS[kind];
+    if (methods === undefined) return null;
+    const context = this.#canvas().getContext(kind, options as never);
+    if (context !== null && !withNodeSources.has(context)) {
+      withNodeSources.add(context);
+      for (const name of methods) {
+        const record = context as unknown as Record<string, unknown>;
+        const original = record[name] as (...args: unknown[]) => unknown;
+        Object.defineProperty(context, name, {
+          value(this: unknown, ...args: unknown[]) {
+            return original.apply(this, args.map(imageSourceOf));
+          },
+          writable: true,
+          configurable: true,
+        });
+      }
+    }
+    return context;
   }
 
   #canvas(): HTMLCanvasElement {
