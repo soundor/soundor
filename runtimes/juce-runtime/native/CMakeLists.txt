@@ -84,11 +84,22 @@ if(SOUNDOR_HAS_ACCESSKIT)
     src/a11y/accesskit/AccessKitPlatform.cpp
     src/a11y/accesskit/Mapping.cpp)
 endif()
-# The GPU: ANGLE's devices and contexts (see SoundorAngle.cmake).
+# The GPU: ANGLE's devices and contexts, the GPU compositor and where it
+# presents (see SoundorAngle.cmake).
 if(SOUNDOR_HAS_GPU)
   list(APPEND SOUNDOR_RUNTIME_SOURCES
     src/gpu/Context.cpp
-    src/gpu/Device.cpp)
+    src/gpu/Device.cpp
+    src/gpu/GpuCompositor.cpp
+    src/gpu/LayerRenderer.cpp
+    src/gpu/OffscreenCompositor.cpp)
+  if(APPLE)
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/apple/LayerPresentation.mm)
+  elseif(WIN32)
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/win/ChildWindowPresentation.cpp)
+  else()
+    list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/NoPresentation.cpp)
+  endif()
 endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 

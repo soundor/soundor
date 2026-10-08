@@ -45,15 +45,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         eglDestroyContext(owner->display(), eglContext);
     }
 
-    CurrentContext::CurrentContext(const Context& context)
+    CurrentContext::CurrentContext(const Context& context, void* surface)
         : previousDisplay(eglGetCurrentDisplay()),
           previousContext(eglGetCurrentContext()),
           previousDraw(eglGetCurrentSurface(EGL_DRAW)),
           previousRead(eglGetCurrentSurface(EGL_READ))
     {
         assert(context.device().onOwnerThread());
-        current =
-            eglMakeCurrent(context.device().display(), EGL_NO_SURFACE, EGL_NO_SURFACE, context.handle()) == EGL_TRUE;
+        EGLSurface draw = surface != nullptr ? static_cast<EGLSurface>(surface) : EGL_NO_SURFACE;
+        current = eglMakeCurrent(context.device().display(), draw, draw, context.handle()) == EGL_TRUE;
     }
 
     CurrentContext::~CurrentContext()
