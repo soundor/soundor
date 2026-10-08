@@ -34,6 +34,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup native dependencies
+        id: deps
         uses: ./.github/actions/native-deps
         with:
           job: verify
@@ -67,6 +68,13 @@ jobs:
         run: |
           tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+      - name: Save Skia and ANGLE
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}
 
   native:
     name: Native (${{ matrix.name }})
@@ -111,6 +119,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup native dependencies
+        id: deps
         uses: ./.github/actions/native-deps
         with:
           job: ${{ matrix.name }}
@@ -127,3 +136,10 @@ jobs:
         run: |
           tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+      - name: Save Skia and ANGLE
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}

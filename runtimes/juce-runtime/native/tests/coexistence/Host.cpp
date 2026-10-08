@@ -93,9 +93,18 @@ namespace
     // Whether there must be a GPU (CI provides one, a software one will do).
     bool gpuRequired()
     {
+#if defined(_MSC_VER)
+        char* value = nullptr;
+        std::size_t size = 0;
+        const bool required =
+            _dupenv_s(&value, &size, "SOUNDOR_REQUIRE_GPU") == 0 && value != nullptr && std::string(value) == "1";
+        std::free(value);
+        return required;
+#else
         // Read before any thread is started.
         const char* value = std::getenv("SOUNDOR_REQUIRE_GPU"); // NOLINT(concurrency-mt-unsafe)
         return value != nullptr && std::string(value) == "1";
+#endif
     }
 
     void run(const char* pathA, const char* pathB, int round)

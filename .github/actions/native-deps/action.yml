@@ -6,6 +6,14 @@ inputs:
     description: A name for the cache, unique per toolchain
     required: true
 
+outputs:
+  cache-key:
+    description: The key to save the cache under at the end of the job
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+  cache-hit:
+    description: Whether the cache was restored from exactly that key
+    value: ${{ steps.restore.outputs.cache-hit }}
+
 runs:
   using: composite
   steps:
@@ -35,9 +43,12 @@ runs:
       run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
 
     # Each build lives in a directory keyed by what made it, so an older cache
-    # is a fine start: only what changed is built again.
-    - name: Cache Skia and ANGLE
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    # is a fine start: only what changed is built again. The job saves it at
+    # its end, also when tests failed (see verify.yml), so a long build is
+    # never done twice.
+    - name: Restore Skia and ANGLE
+      id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/soundor-cache
         key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/juce-runtime/native/cmake/SoundorSkia*.cmake', 'runtimes/juce-runtime/native/cmake/SoundorAngle*.cmake', 'runtimes/juce-runtime/native/cmake/angle/**', 'runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake') }}

@@ -168,6 +168,10 @@ endif()
 target_compile_definitions(soundor_angle INTERFACE KHRONOS_STATIC ANGLE_EXPORT= GL_GLEXT_PROTOTYPES=1
                                                    EGL_EGLEXT_PROTOTYPES=1)
 target_include_directories(soundor_angle SYSTEM INTERFACE "${SOUNDOR_ANGLE_DIR}/include")
+if(WIN32)
+  # EGL's headers include <windows.h>: without its min and max macros.
+  target_compile_definitions(soundor_angle INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
 file(STRINGS "${SOUNDOR_ANGLE_DIR}/libs.txt" soundor_angle_libs)
 file(STRINGS "${SOUNDOR_ANGLE_DIR}/frameworks.txt" soundor_angle_frameworks)
 foreach(framework IN LISTS soundor_angle_frameworks)

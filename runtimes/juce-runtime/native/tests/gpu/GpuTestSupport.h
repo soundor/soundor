@@ -17,9 +17,18 @@ namespace soundor::test
     // will do), so GPU tests never pass by not running there.
     inline bool gpuRequired()
     {
+#if defined(_MSC_VER)
+        char* value = nullptr;
+        std::size_t size = 0;
+        const bool required =
+            _dupenv_s(&value, &size, "SOUNDOR_REQUIRE_GPU") == 0 && value != nullptr && std::string(value) == "1";
+        std::free(value);
+        return required;
+#else
         // Read before any thread is started.
         const char* value = std::getenv("SOUNDOR_REQUIRE_GPU"); // NOLINT(concurrency-mt-unsafe)
         return value != nullptr && std::string(value) == "1";
+#endif
     }
 
     // A device for tests, software renderers included, or null when there
