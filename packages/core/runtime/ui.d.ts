@@ -258,12 +258,13 @@ declare module 'soundor:ui' {
   }
 
   /**
-   * A node of the view: a flexbox box ('view'), text, an image, a scroll view
-   * or a text input. Events capture and bubble along the tree as in the DOM.
+   * A node of the view: a flexbox box ('view'), text, an image, a scroll view,
+   * a text input or a canvas. Events capture and bubble along the tree as in
+   * the DOM.
    */
   export class UiNode extends EventTarget {
     private constructor();
-    readonly type: 'view' | 'text' | 'image' | 'scroll' | 'input';
+    readonly type: 'view' | 'text' | 'image' | 'scroll' | 'input' | 'canvas';
     readonly parent: UiNode | null;
     readonly children: readonly UiNode[];
     readonly firstChild: UiNode | null;
@@ -315,6 +316,19 @@ declare module 'soundor:ui' {
     /** Images: the bundled image shown (an imported asset). */
     source: SoundorAsset | '';
 
+    /**
+     * Canvases: the drawing buffer's size in pixels (300 by 150 to begin
+     * with), shown stretched over the box. Setting either clears the canvas.
+     */
+    width: number;
+    height: number;
+    /**
+     * Canvases: the drawing context, the same object every time; null for a
+     * type the canvas cannot have (another than the one it has).
+     */
+    getContext(type: '2d', options?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D | null;
+    getContext(type: string, options?: unknown): unknown;
+
     /** Scroll views: how far the content is scrolled, and its size. */
     scrollTop: number;
     scrollLeft: number;
@@ -364,6 +378,23 @@ declare module 'soundor:ui' {
   export function createScrollView(style?: Style): UiNode;
   /** A single-line text input; it is focusable and edits itself. */
   export function createTextInput(options?: { value?: string; placeholder?: string; style?: Style }): UiNode;
+  /**
+   * A canvas: pixels code draws with getContext('2d'). Its box is its
+   * drawing buffer's size in logical pixels unless its style sizes it.
+   */
+  export function createCanvas(style?: Style): UiNode;
+
+  // The canvas classes, which are globals too, as on the Web.
+  export type CanvasRenderingContext2D = globalThis.CanvasRenderingContext2D;
+  export const CanvasRenderingContext2D: typeof globalThis.CanvasRenderingContext2D;
+  export type CanvasGradient = globalThis.CanvasGradient;
+  export const CanvasGradient: typeof globalThis.CanvasGradient;
+  export type CanvasPattern = globalThis.CanvasPattern;
+  export const CanvasPattern: typeof globalThis.CanvasPattern;
+  export type ImageData = globalThis.ImageData;
+  export const ImageData: typeof globalThis.ImageData;
+  export type TextMetrics = globalThis.TextMetrics;
+  export const TextMetrics: typeof globalThis.TextMetrics;
 
   export interface PressableState {
     readonly pressed: boolean;

@@ -60,13 +60,13 @@ jobs:
       - name: Run test
         run: set -o pipefail; pnpm run test 2>&1 | tee "$RUNNER_TEMP/step.log"
 
-      # The end of a failed step's output as an annotation: shown on the PR's
+      # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
       - name: Report the failure
         if: failure()
         shell: bash
         run: |
-          tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Save Skia and ANGLE
@@ -128,13 +128,13 @@ jobs:
         shell: bash
         run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"
 
-      # The end of a failed step's output as an annotation: shown on the PR's
+      # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
       - name: Report the failure
         if: failure()
         shell: bash
         run: |
-          tail -n 80 "$RUNNER_TEMP/step.log" | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Save Skia and ANGLE

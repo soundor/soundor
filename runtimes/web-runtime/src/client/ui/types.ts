@@ -124,7 +124,13 @@ export interface LayoutRect {
   readonly height: number;
 }
 
-export type NodeType = 'view' | 'text' | 'image' | 'scroll' | 'input';
+export type NodeType =
+  | 'view'
+  | 'text'
+  | 'image'
+  | 'scroll'
+  | 'input'
+  | 'canvas';
 
 export type AccessibilityRole =
   | 'none'

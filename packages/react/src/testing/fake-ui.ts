@@ -40,6 +40,9 @@ export class FakeNode {
   text = '';
   placeholder = '';
   source = '';
+  // Canvases.
+  width = 300;
+  height = 150;
   focusable: boolean;
   accessibility: Record<string, unknown> = {};
   accessibilityParent: FakeNode | null = null;
@@ -213,6 +216,7 @@ export const createText = () => new FakeNode('text');
 export const createImage = () => new FakeNode('image');
 export const createScrollView = () => new FakeNode('scroll');
 export const createTextInput = () => new FakeNode('input');
+export const createCanvas = () => new FakeNode('canvas');
 
 /** The handlers each pressable node was given, for tests to inspect. */
 export const pressables = new Map<FakeNode, Record<string, unknown>>();

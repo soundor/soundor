@@ -28,6 +28,7 @@ add_executable(soundor_runtime_tests
   ui/SurfaceTests.cpp
   ui/PrimitivesTests.cpp
   ui/RendererTests.cpp
+  ui/CanvasTests.cpp
   ui/UiModuleTests.cpp
   web/FetchTests.cpp
   web/GlobalsTests.cpp

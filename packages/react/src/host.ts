@@ -16,6 +16,7 @@ import {
   NoEventPriority,
 } from 'react-reconciler/constants';
 import {
+  createCanvas,
   createImage,
   createScrollView,
   createText,
@@ -37,6 +38,7 @@ export const HostTypes = {
   Image: 'soundor-image',
   ScrollView: 'soundor-scroll',
   TextInput: 'soundor-input',
+  Canvas: 'soundor-canvas',
 } as const;
 
 export type HostType = (typeof HostTypes)[keyof typeof HostTypes];
@@ -280,6 +282,18 @@ function applyProps(
       if (next['source'] !== previous?.['source'])
         node.source = (next['source'] as typeof node.source | undefined) ?? '';
       break;
+    case HostTypes.Canvas:
+      // Setting a size clears the canvas: only when it changes.
+      for (const side of ['width', 'height'] as const) {
+        const size = next[side];
+        if (
+          size !== undefined &&
+          size !== previous?.[side] &&
+          node[side] !== size
+        )
+          node[side] = Number(size);
+      }
+      break;
     case HostTypes.TextInput: {
       if (next['placeholder'] !== previous?.['placeholder'])
         node.placeholder = String(next['placeholder'] ?? '');
@@ -354,6 +368,8 @@ function createNode(type: HostType): UiNode {
       return createScrollView();
     case HostTypes.TextInput:
       return createTextInput();
+    case HostTypes.Canvas:
+      return createCanvas();
   }
 }
 

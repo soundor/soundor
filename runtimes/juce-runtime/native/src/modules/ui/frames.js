@@ -3,7 +3,7 @@
 // performance.now()). Installed with soundor:ui.
 
 import { now } from 'soundor:internal/platform';
-import { setFrameListener } from 'soundor:internal/ui';
+import { setFrameListener, size } from 'soundor:internal/ui';
 import { reportError } from 'soundor:internal/web/console';
 
 let callbacks = new Map();
@@ -48,3 +48,11 @@ for (const [name, value] of Object.entries({
     configurable: true,
   });
 }
+
+// Device pixels per logical pixel, as window.devicePixelRatio: for sizing a
+// canvas's drawing buffer to its box.
+Object.defineProperty(globalThis, 'devicePixelRatio', {
+  get: () => size().scale,
+  enumerable: false,
+  configurable: true,
+});

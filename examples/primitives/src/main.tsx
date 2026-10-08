@@ -2,6 +2,7 @@
 // press, focus state, FocusScope, Portal / Portal.Host and Modal.
 
 import {
+  Canvas,
   createPortalHost,
   FocusScope,
   Modal,
@@ -15,7 +16,7 @@ import {
   View,
   type StyleProp,
 } from '@soundor/react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutRect, PointerEvent, UiNode } from 'soundor:ui';
 
 // ── Small building blocks ────────────────────────────────────────────────────
@@ -422,6 +423,62 @@ function GainKnob() {
   );
 }
 
+// ── Canvas 2D ────────────────────────────────────────────────────────────────
+
+const CANVAS_WIDTH = 240;
+const CANVAS_HEIGHT = 120;
+
+/** The same drawing in a browser's canvas and Soundor's (Skia). */
+function draw(context: CanvasRenderingContext2D, scale: number) {
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+  const background = context.createLinearGradient(0, 0, CANVAS_WIDTH, 0);
+  background.addColorStop(0, '#1f2a44');
+  background.addColorStop(1, '#3b2f5c');
+  context.fillStyle = background;
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  context.fillStyle = 'rgba(255, 196, 64, 0.85)';
+  context.beginPath();
+  context.arc(60, 60, 34, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = '#7dd3fc';
+  context.lineWidth = 4;
+  context.lineCap = 'round';
+  context.setLineDash([10, 8]);
+  context.beginPath();
+  context.moveTo(110, 90);
+  context.bezierCurveTo(140, 20, 190, 120, 225, 30);
+  context.stroke();
+  context.setLineDash([]);
+
+  context.fillStyle = '#ffffff';
+  context.font = 'bold 16px sans-serif';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText('Canvas 2D', 60, 60);
+}
+
+function CanvasDemo() {
+  const canvas = useRef<UiNode>(null);
+  const scale = Math.max(1, Math.round(devicePixelRatio));
+  useEffect(() => {
+    const context = canvas.current?.getContext('2d');
+    if (context) draw(context, scale);
+  }, [scale]);
+  return (
+    <Card title="Canvas 2D">
+      <Canvas
+        ref={canvas}
+        width={CANVAS_WIDTH * scale}
+        height={CANVAS_HEIGHT * scale}
+        style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
+        accessibilityLabel="A circle, a dashed curve and the words Canvas 2D"
+      />
+    </Card>
+  );
+}
+
 function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -436,6 +493,7 @@ function App() {
         <ModalDemo />
         <ScopeDemo />
         <GainKnob />
+        <CanvasDemo />
       </View>
     </ScrollView>
   );

@@ -107,6 +107,28 @@ export function Image(props: ImageProps) {
   return createElement(HostTypes.Image, useHostProps(props));
 }
 
+/**
+ * Canvases are decorative to assistive technology unless given a label (or
+ * made accessible, or given a role), like images.
+ */
+export interface CanvasProps extends EventProps, AccessibilityProps {
+  /**
+   * The drawing buffer's size in pixels (300 by 150 by default). Changing
+   * either clears the canvas; draw again after (e.g. in an effect that
+   * depends on them).
+   */
+  width?: number;
+  height?: number;
+  style?: StyleProp;
+  /** The canvas node: draw with `ref.current.getContext('2d')`. */
+  ref?: Ref<UiNode>;
+}
+
+/** A canvas code draws on, sized by its drawing buffer unless styled. */
+export function Canvas(props: CanvasProps) {
+  return createElement(HostTypes.Canvas, useHostProps(props));
+}
+
 export interface ScrollViewProps extends ViewProps {
   /** The style of the box inside that holds the children and scrolls. */
   contentContainerStyle?: StyleProp;

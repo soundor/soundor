@@ -189,6 +189,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return { constrain(natural, width, widthMode), constrain(lineHeight, height, heightMode) };
         }
 
+        static YGSize measureCanvas(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
+                                    YGMeasureMode heightMode)
+        {
+            const auto* node = static_cast<const Node*>(YGNodeGetContext(yoga));
+            // Like an image: its pixels are its natural size in logical pixels.
+            const render::RasterSurface& pixels = node->canvasBuffer->pixels;
+            return measureNatural({ static_cast<float>(pixels.width()), static_cast<float>(pixels.height()) }, width,
+                                  widthMode, height, heightMode);
+        }
+
         static YGSize measureImage(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
                                    YGMeasureMode heightMode)
         {
@@ -196,6 +206,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Size natural;
             if (node->surface.options.images != nullptr)
                 natural = node->surface.options.images->imageSize(node->imageSource).value_or(Size {});
+            return measureNatural(natural, width, widthMode, height, heightMode);
+        }
+
+        static YGSize measureNatural(Size natural, float width, YGMeasureMode widthMode, float height,
+                                     YGMeasureMode heightMode)
+        {
             // One side given: the other follows the image's aspect ratio.
             if (natural.width > 0 && natural.height > 0)
             {
@@ -227,6 +243,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 break;
             case NodeType::Image:
                 YGNodeSetMeasureFunc(yoga, &NodeAccess::measureImage);
+                break;
+            case NodeType::Canvas:
+                YGNodeSetMeasureFunc(yoga, &NodeAccess::measureCanvas);
+                // An HTML canvas's default size.
+                canvasBuffer = std::make_shared<CanvasBuffer>();
+                canvasBuffer->pixels.resize(300, 150);
                 break;
             case NodeType::View:
             case NodeType::Scroll:
@@ -302,6 +324,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         const NodeId id = nextId++;
         nodes.emplace(id, std::unique_ptr<Node>(new Node(*this, id, type)));
+        if (type == NodeType::Canvas)
+            canvasNodes.push_back(id);
         return id;
     }
 
@@ -343,6 +367,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         if (focusedNode == id)
             focusedNode = noNode;
+        if (node.nodeType == NodeType::Canvas)
+            std::erase(canvasNodes, id);
         nodes.erase(id);
     }
 
@@ -519,6 +545,51 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.scroll = clamped;
         markChanged(node);
+    }
+
+    void Surface::setCanvasSize(NodeId id, int width, int height)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Canvas)
+            throw std::invalid_argument("only canvas nodes have a drawing buffer");
+        constexpr long long maxSide = 16384;
+        constexpr long long maxPixels = 1LL << 28;
+        if (width < 0 || height < 0 || width > maxSide || height > maxSide
+            || static_cast<long long>(width) * height > maxPixels)
+            throw std::invalid_argument("a canvas of " + std::to_string(width) + "x" + std::to_string(height)
+                                        + " is too large (at most 16384 on a side and 268435456 pixels)");
+        CanvasBuffer& buffer = *node.canvasBuffer;
+        if (! buffer.pixels.resize(width, height))
+        {
+            // The same size: cleared all the same.
+            const render::Bitmap bitmap = buffer.pixels.bitmap();
+            if (! bitmap.empty())
+                std::fill_n(static_cast<std::uint32_t*>(bitmap.pixels),
+                            static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0U);
+        }
+        else
+            YGNodeMarkDirty(node.yoga);
+        ++buffer.resets;
+        buffer.drawn = false;
+        markChanged(node);
+    }
+
+    std::shared_ptr<CanvasBuffer> Surface::canvasBuffer(NodeId id)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Canvas)
+            throw std::invalid_argument("only canvas nodes have a drawing buffer");
+        return node.canvasBuffer;
+    }
+
+    void Surface::collectCanvasDrawing()
+    {
+        for (const NodeId id : canvasNodes)
+            if (Node* node = find(id); node != nullptr && node->canvasBuffer->drawn)
+            {
+                node->canvasBuffer->drawn = false;
+                invalidate(id);
+            }
     }
 
     void Surface::imagesChanged()
@@ -702,6 +773,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     bool Surface::takeChanges() noexcept
     {
+        collectCanvasDrawing();
         return std::exchange(changed, false);
     }
 
@@ -731,6 +803,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     Surface::Invalidation Surface::takeInvalidation()
     {
+        collectCanvasDrawing();
         Invalidation taken;
         taken.everything = std::exchange(invalidAll, false);
         if (! taken.everything)

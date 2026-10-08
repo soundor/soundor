@@ -289,6 +289,32 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Events:** it fires `input`, and `change` on Enter and on blur.
   - **Selection:** `value`, `selectionStart` and `setSelectionRange()` use
     UTF-16 indices, as on the Web.
+- **`createCanvas(style)`:** pixels code draws, like an HTML `<canvas>`.
+  - **Size:** `width` and `height` are the drawing buffer's (300 by 150 to
+    begin with); setting either clears it and resets its context, even to the
+    same value. The node's box is that size in logical pixels unless styled,
+    and the pixels are stretched over it; size the buffer by
+    `devicePixelRatio` (a global) for crisp lines.
+  - **`getContext('2d')`:** a `CanvasRenderingContext2D` drawn with Skia on
+    the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
+    types give null, as on the Web for a canvas that already has a 2D
+    context. The JavaScript side (`canvas.js`) converts arguments as WebIDL
+    does and makes one native call per method.
+  - **What it draws:** state (`save`/`restore`/`reset`, `globalAlpha`, every
+    `globalCompositeOperation`), transforms, rectangles, paths (lines, curves,
+    `arc`, `arcTo`, `ellipse`, `rect`, `roundRect`; `fill`, `stroke`, `clip`
+    with either fill rule; `isPointInPath`/`isPointInStroke`), line styles
+    and dashes, colors, linear, radial and conic gradients, patterns of a
+    canvas, text (`font` shorthand, `textAlign`, `textBaseline`, `fillText`,
+    `strokeText`, `measureText`: width and the font's ascent and descent),
+    `drawImage` of a canvas or an image node, and `ImageData`
+    (`createImageData`, `getImageData`, `putImageData`).
+  - **What it does not:** shadows, `filter`, `Path2D`, `DOMMatrix`
+    (`getTransform()` is a plain `{ a, b, c, d, e, f }`), `alpha: false`, and
+    other `direction`s than `ltr`. They throw a `TypeError` saying so (only
+    their default values are accepted), never draw something else.
+  - **Rendering:** a canvas is drawn into the UI's layer; drawing marks only
+    its box as changed.
 - **`pressable(node, { onPress, onStateChange, … })`:** a press is a primary
   click, Enter/Space while focused, or an `activate` accessibility action. It
   reports pressed and hovered state.

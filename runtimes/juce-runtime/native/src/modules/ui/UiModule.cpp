@@ -2,6 +2,7 @@
 
 #include "js/Bindings.h"
 #include "modules/Embedded.h"
+#include "modules/ui/CanvasModule.h"
 #include "ui/Color.h"
 
 #include <algorithm>
@@ -65,14 +66,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             std::shared_ptr<Surface> surface;
         };
-
-        Surface& surfaceOf(JSContext* ctx)
-        {
-            auto* binding = bind::contextData<Binding>(ctx, &bindingKey);
-            if (binding == nullptr)
-                throw std::logic_error("soundor:ui is not installed in this context");
-            return *binding->surface;
-        }
 
         NodeId readId(JSContext* ctx, JSValueConst value)
         {
@@ -533,7 +526,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         {
                             int type = 0;
                             if (JS_ToInt32(ctx, &type, argv[0]) < 0 || type < 0
-                                || type > static_cast<int>(NodeType::Input))
+                                || type > static_cast<int>(NodeType::Canvas))
                                 throw std::invalid_argument("invalid node type");
                             return JS_NewUint32(ctx, surface.createNode(static_cast<NodeType>(type)));
                         });
@@ -721,6 +714,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface)
                         {
                             surface.setSource(readId(ctx, argv[0]), readString(ctx, argv[1], "source"));
+                            return JS_UNDEFINED;
+                        });
+        }
+
+        JSValue setCanvasSize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            return call(ctx, "setCanvasSize", argc, 3,
+                        [&](Surface& surface)
+                        {
+                            surface.setCanvasSize(readId(ctx, argv[0]), static_cast<int>(readNumber(ctx, argv[1])),
+                                                  static_cast<int>(readNumber(ctx, argv[2])));
                             return JS_UNDEFINED;
                         });
         }
@@ -929,12 +933,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return prevented;
         }
 
-        struct Function
-        {
-            const char* name;
-            JSCFunction* call;
-            int length;
-        };
+        using Function = NativeFunction;
 
         constexpr Function functions[] = {
             { "createNode", createNode, 1 },
@@ -947,6 +946,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setAccessibility", setAccessibility, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
+            { "setCanvasSize", setCanvasSize, 3 },
             { "setPlaceholder", setPlaceholder, 2 },
             { "setSelection", setSelection, 3 },
             { "selection", selection, 1 },
@@ -977,15 +977,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 JS_ThrowInternalError(ctx, "%s", error.what());
                 return false;
             }
-            for (const Function& function : functions)
-                if (JS_SetModuleExport(ctx, module, function.name,
-                                       JS_NewCFunction(ctx, function.call, function.name, function.length))
-                    != 0)
-                    return false;
+            for (const auto& list : { std::span<const Function>(functions), canvasFunctions() })
+                for (const Function& function : list)
+                    if (JS_SetModuleExport(ctx, module, function.name,
+                                           JS_NewCFunction(ctx, function.call, function.name, function.length))
+                        != 0)
+                        return false;
             return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0
                    && JS_SetModuleExport(ctx, module, "overlayId", JS_NewUint32(ctx, surface->overlay().id())) == 0;
         }
     } // namespace
+
+    Surface& surfaceOf(JSContext* ctx)
+    {
+        auto* binding = js::bind::contextData<Binding>(ctx, &bindingKey);
+        if (binding == nullptr)
+            throw std::logic_error("soundor:ui is not installed in this context");
+        return *binding->surface;
+    }
 
     void install(js::Context& context, std::shared_ptr<Surface> surface)
     {
@@ -994,15 +1003,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         JSContext* ctx = js::rawContext(context);
         surface->setEventSink([ctx](const Event& event) { return dispatch(ctx, event); });
         bind::setContextData(context, &bindingKey, std::make_shared<Binding>(std::move(surface)));
+        installCanvases(context);
         std::vector<std::string> exports { "rootId", "overlayId" };
         for (const Function& function : functions)
             exports.emplace_back(function.name);
+        for (const Function& function : canvasFunctions())
+            exports.emplace_back(function.name);
         js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });
         js::registerNativeModule(context, "soundor:internal/ui/frames", { {}, {}, embedded::uiFramesModule });
+        js::registerNativeModule(context, "soundor:internal/ui/canvas", { {}, {}, embedded::uiCanvasModule });
         js::registerNativeModule(context, "soundor:ui", { {}, {}, embedded::uiModule });
 
-        // requestAnimationFrame() is global, like on the Web.
-        auto frames = context.evaluateModule("import 'soundor:internal/ui/frames';", "soundor:bootstrap/ui");
+        // requestAnimationFrame(), devicePixelRatio and the canvas classes are
+        // global, like on the Web.
+        auto frames = context.evaluateModule(
+            "import 'soundor:internal/ui/frames'; import 'soundor:internal/ui/canvas';", "soundor:bootstrap/ui");
         if (! frames)
             throw std::runtime_error("soundor:ui failed to start: " + frames.error().toString());
     }

@@ -414,3 +414,39 @@ describe('UiNode events', () => {
     ]);
   });
 });
+
+describe('UiNode canvases', () => {
+  it('is a real <canvas>, 300 by 150 until sized', () => {
+    setup();
+    const canvas = view.createNode('canvas');
+    expect(canvas.type).toBe('canvas');
+    expect(el(canvas).tagName).toBe('CANVAS');
+    expect([canvas.width, canvas.height]).toEqual([300, 150]);
+    canvas.width = 64;
+    canvas.height = 32;
+    expect([canvas.width, canvas.height]).toEqual([64, 32]);
+    expect((el(canvas) as HTMLCanvasElement).width).toBe(64);
+    // Negative sizes are the defaults, as in the JUCE runtime.
+    canvas.width = -5;
+    expect(canvas.width).toBe(300);
+  });
+
+  it("gives the element's own context", () => {
+    setup();
+    const canvas = view.createNode('canvas');
+    const element = el(canvas) as HTMLCanvasElement;
+    const context = {};
+    const getContext = vi
+      .spyOn(element, 'getContext')
+      .mockReturnValue(context as never);
+    expect(canvas.getContext('2d', { alpha: true })).toBe(context);
+    expect(getContext).toHaveBeenCalledWith('2d', { alpha: true });
+  });
+
+  it('has canvas members only on canvases', () => {
+    setup();
+    const node = view.createNode('view');
+    expect(() => node.width).toThrow('belongs to canvas nodes');
+    expect(() => node.getContext('2d')).toThrow('belongs to canvas nodes');
+  });
+});

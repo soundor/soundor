@@ -23,6 +23,7 @@ import {
 import { createNode, nodeOf, UiNode, type ViewLink } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
+import type { NodeType } from './types';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -88,7 +89,7 @@ export class UiView implements ViewLink {
     this.rootElement.remove();
   }
 
-  createNode(type: 'view' | 'text' | 'image' | 'scroll' | 'input'): UiNode {
+  createNode(type: NodeType): UiNode {
     return createNode(this, type);
   }
 

@@ -45,6 +45,24 @@ export function createImage(source = '', style?: Style): UiNode {
   return node;
 }
 
+/**
+ * A new, detached canvas: pixels code draws with getContext('2d'), 300 by
+ * 150 until its width and height say otherwise. Its box is that size in
+ * logical pixels unless its style sizes it.
+ */
+export function createCanvas(style?: Style): UiNode {
+  const node = view.createNode('canvas');
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
+// The browser's own canvas classes, which soundor:ui exports natively too.
+export const CanvasRenderingContext2D = globalThis.CanvasRenderingContext2D;
+export const CanvasGradient = globalThis.CanvasGradient;
+export const CanvasPattern = globalThis.CanvasPattern;
+export const ImageData = globalThis.ImageData;
+export const TextMetrics = globalThis.TextMetrics;
+
 /** A new, detached view whose children scroll (by wheel, or scrollTo()). */
 export function createScrollView(style?: Style): UiNode {
   const node = view.createNode('scroll');

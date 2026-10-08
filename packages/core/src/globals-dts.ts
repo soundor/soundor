@@ -62,6 +62,142 @@ declare function queueMicrotask(callback: () => void): void;
 /** Runs \`callback\` once, on the plugin view's next frame, before it is drawn. */
 declare function requestAnimationFrame(callback: (time: number) => void): number;
 declare function cancelAnimationFrame(id: number): void;
+/** Device pixels per logical pixel: for sizing a canvas's drawing buffer to its box. */
+declare var devicePixelRatio: number;
+
+// ── Canvas 2D ────────────────────────────────────────────────────────────────
+// What Soundor's 2D context draws (with Skia, on the CPU). Shadows, filters,
+// Path2D and DOMMatrix are not there; setting a shadow or filter throws.
+
+interface CanvasRenderingContext2DSettings {
+  alpha?: boolean;
+  colorSpace?: 'srgb';
+  desynchronized?: boolean;
+  willReadFrequently?: boolean;
+}
+
+type CanvasFillRule = 'nonzero' | 'evenodd';
+type CanvasLineCap = 'butt' | 'round' | 'square';
+type CanvasLineJoin = 'bevel' | 'miter' | 'round';
+type CanvasTextAlign = 'center' | 'end' | 'left' | 'right' | 'start';
+type CanvasTextBaseline = 'alphabetic' | 'bottom' | 'hanging' | 'ideographic' | 'middle' | 'top';
+/** A canvas node, or an image node (its bundled image). */
+type CanvasImageSource = import('soundor:ui').UiNode;
+
+interface CanvasGradient {
+  addColorStop(offset: number, color: string): void;
+}
+declare var CanvasGradient: { readonly prototype: CanvasGradient };
+
+interface CanvasPattern {
+
+}
+declare var CanvasPattern: { readonly prototype: CanvasPattern };
+
+interface TextMetrics {
+  readonly width: number;
+  readonly fontBoundingBoxAscent: number;
+  readonly fontBoundingBoxDescent: number;
+}
+declare var TextMetrics: { readonly prototype: TextMetrics };
+
+interface ImageData {
+  readonly width: number;
+  readonly height: number;
+  /** RGBA, not premultiplied, row by row. */
+  readonly data: Uint8ClampedArray;
+  readonly colorSpace: 'srgb';
+}
+declare var ImageData: {
+  readonly prototype: ImageData;
+  new (width: number, height: number): ImageData;
+  new (data: Uint8ClampedArray, width: number, height?: number): ImageData;
+};
+
+interface CanvasRenderingContext2D {
+  readonly canvas: import('soundor:ui').UiNode;
+  getContextAttributes(): Required<CanvasRenderingContext2DSettings>;
+
+  save(): void;
+  restore(): void;
+  reset(): void;
+  globalAlpha: number;
+  globalCompositeOperation: string;
+
+  scale(x: number, y: number): void;
+  rotate(angle: number): void;
+  translate(x: number, y: number): void;
+  transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  setTransform(transform?: { a?: number; b?: number; c?: number; d?: number; e?: number; f?: number }): void;
+  resetTransform(): void;
+  /** A plain { a, b, c, d, e, f } (Soundor has no DOMMatrix). */
+  getTransform(): { readonly a: number; readonly b: number; readonly c: number; readonly d: number; readonly e: number; readonly f: number; readonly is2D: true };
+
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
+  createLinearGradient(x0: number, y0: number, x1: number, y1: number): CanvasGradient;
+  createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): CanvasGradient;
+  createConicGradient(startAngle: number, x: number, y: number): CanvasGradient;
+  /** From a canvas only. */
+  createPattern(image: CanvasImageSource, repetition: string | null): CanvasPattern | null;
+
+  lineWidth: number;
+  lineCap: CanvasLineCap;
+  lineJoin: CanvasLineJoin;
+  miterLimit: number;
+  lineDashOffset: number;
+  setLineDash(segments: Iterable<number>): void;
+  getLineDash(): number[];
+  /** Only the defaults: 0, 'rgba(0, 0, 0, 0)' and 'none'; anything else throws. */
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  shadowColor: string;
+  filter: string;
+
+  clearRect(x: number, y: number, w: number, h: number): void;
+  fillRect(x: number, y: number, w: number, h: number): void;
+  strokeRect(x: number, y: number, w: number, h: number): void;
+
+  beginPath(): void;
+  closePath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+  arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  roundRect(x: number, y: number, w: number, h: number, radii?: number | number[]): void;
+  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  ellipse(x: number, y: number, radiusX: number, radiusY: number, rotation: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  fill(fillRule?: CanvasFillRule): void;
+  stroke(): void;
+  clip(fillRule?: CanvasFillRule): void;
+  isPointInPath(x: number, y: number, fillRule?: CanvasFillRule): boolean;
+  isPointInStroke(x: number, y: number): boolean;
+
+  /** A CSS font shorthand: [style] [weight] size family. */
+  font: string;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
+  direction: 'ltr';
+  fillText(text: string, x: number, y: number, maxWidth?: number): void;
+  strokeText(text: string, x: number, y: number, maxWidth?: number): void;
+  measureText(text: string): TextMetrics;
+
+  imageSmoothingEnabled: boolean;
+  imageSmoothingQuality: 'low';
+  drawImage(image: CanvasImageSource, dx: number, dy: number): void;
+  drawImage(image: CanvasImageSource, dx: number, dy: number, dw: number, dh: number): void;
+  drawImage(image: CanvasImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
+  createImageData(width: number, height: number): ImageData;
+  createImageData(imageData: ImageData): ImageData;
+  getImageData(x: number, y: number, w: number, h: number): ImageData;
+  putImageData(imageData: ImageData, dx: number, dy: number): void;
+  putImageData(imageData: ImageData, dx: number, dy: number, dirtyX: number, dirtyY: number, dirtyWidth: number, dirtyHeight: number): void;
+}
+declare var CanvasRenderingContext2D: { readonly prototype: CanvasRenderingContext2D };
 declare function reportError(error: unknown): void;
 declare function structuredClone<T>(value: T, options?: { transfer?: ArrayBuffer[] }): T;
 declare function atob(data: string): string;
