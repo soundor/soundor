@@ -16,6 +16,7 @@ export type {
   AccessibilityValue,
 } from './accessibility';
 export {
+  Canvas,
   Image,
   Pressable,
   ScrollView,
@@ -23,6 +24,7 @@ export {
   TextInput,
   View,
   type EventProps,
+  type CanvasProps,
   type ImageProps,
   type PressableProps,
   type PressableState,

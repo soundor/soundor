@@ -139,6 +139,7 @@ function roleOf(node: UiNode): Role {
     case 'text':
       return 'text';
     case 'image':
+    case 'canvas':
       return 'image';
     case 'input':
       return 'textinput';

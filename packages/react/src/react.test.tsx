@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  Canvas,
   createRoot,
   flushSync,
   Image,
@@ -355,5 +356,31 @@ describe('useParameter', () => {
     for (const listener of listeners) listener(value);
     await settle();
     expect(print()).toBe('view[text"0.75"]');
+  });
+});
+
+describe('Canvas', () => {
+  it('sizes its drawing buffer, and leaves it alone while the size stays', () => {
+    let refNode: unknown = null;
+    show(
+      <Canvas width={64} height={32} ref={(node) => void (refNode = node)} />,
+    );
+    const canvas = child(0);
+    expect(canvas.type).toBe('canvas');
+    expect([canvas.width, canvas.height]).toEqual([64, 32]);
+    expect(refNode).toBe(canvas);
+
+    // Something drew: the same size again must not clear it.
+    canvas.width = 64;
+    const sizes: number[] = [];
+    Object.defineProperty(canvas, 'width', {
+      get: () => 64,
+      set: (value: number) => void sizes.push(value),
+      configurable: true,
+    });
+    show(<Canvas width={64} height={32} style={{ opacity: 0.5 }} />);
+    expect(sizes).toEqual([]);
+    show(<Canvas width={128} height={32} />);
+    expect(sizes).toEqual([128]);
   });
 });

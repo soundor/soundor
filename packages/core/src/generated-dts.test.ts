@@ -70,7 +70,7 @@ import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
 import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
-import { clipboard, createImage, createScrollView, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
+import { clipboard, createCanvas, createImage, createScrollView, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
 import logo from './logo.png';
 const asset: string = logo;
@@ -144,6 +144,23 @@ const stopPressing: () => void = pressable(card, { onPress: () => void 0, onStat
 void clipboard.writeText('x').then(() => clipboard.readText());
 const frame: number = requestAnimationFrame((time: number) => void time);
 cancelAnimationFrame(frame);
+const canvas = createCanvas({ width: 100, height: 50 });
+canvas.width = 100 * devicePixelRatio;
+const context: CanvasRenderingContext2D | null = canvas.getContext('2d');
+if (context) {
+  const gradient: CanvasGradient = context.createLinearGradient(0, 0, 1, 0);
+  gradient.addColorStop(0, 'red');
+  context.fillStyle = gradient;
+  context.arc(10, 10, 5, 0, Math.PI * 2);
+  context.fill('evenodd');
+  const pixels: ImageData = context.getImageData(0, 0, 1, 1);
+  context.putImageData(new ImageData(pixels.data, 1), 0, 0);
+  const width: number = context.measureText('Soundor').width;
+  void width;
+  context.drawImage(canvas, 0, 0);
+  // @ts-expect-error not a fill rule
+  context.fill('even');
+}
 // @ts-expect-error not a resize mode
 createImage(logo, { resizeMode: 'fill' });
 // @ts-expect-error images show bundled assets, not arbitrary strings

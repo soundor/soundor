@@ -2,6 +2,7 @@
 
 #include <soundor/Config.h>
 #include <soundor/a11y/Semantics.h>
+#include <soundor/render/Frame.h>
 #include <soundor/ui/Input.h>
 #include <soundor/ui/Style.h>
 #include <soundor/ui/Text.h>
@@ -33,6 +34,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Image,  // a bundled image, by asset id
         Scroll, // a view whose content scrolls
         Input,  // an editable line of text
+        Canvas, // pixels drawn by code (a 2D context)
+    };
+
+    // A canvas node's pixels: its drawing buffer, `width`×`height` like an
+    // HTML canvas's, shown stretched over the node's content box. Shared
+    // with the context drawing into it.
+    struct CanvasBuffer
+    {
+        // Premultiplied BGRA; transparent after every (re)size.
+        render::RasterSurface pixels;
+        // Counts resets (the size set, even to the same): a context resets
+        // its state when it sees a new count.
+        std::uint64_t resets = 0;
+        // Something was drawn since the surface last looked.
+        bool drawn = false;
     };
 
     struct Rect
@@ -111,6 +127,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // Image: its asset id.
         [[nodiscard]] const std::string& source() const noexcept { return imageSource; }
+        // Canvas: its drawing buffer (null for other nodes).
+        [[nodiscard]] const CanvasBuffer* canvas() const noexcept { return canvasBuffer.get(); }
         // Input: shown while the text is empty.
         [[nodiscard]] const std::string& placeholder() const noexcept { return placeholderText; }
         [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
@@ -140,6 +158,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::string imageSource;
         std::string placeholderText;
         Selection textSelection;
+        std::shared_ptr<CanvasBuffer> canvasBuffer;
         Point scroll;
         a11y::Properties semantics;
         NodeId semanticParent = noNode;
@@ -262,6 +281,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] Size contentSize(NodeId id);
         // Images became available or changed: lays image nodes out again.
         void imagesChanged();
+        // Canvas nodes: sizes the drawing buffer, which clears it (also at the
+        // same size, as on the Web). Its size in logical pixels is the node's
+        // natural size. Throws std::invalid_argument past 16384 on a side or
+        // 2^28 pixels.
+        void setCanvasSize(NodeId id, int width, int height);
+        // Canvas nodes: the buffer a context draws into.
+        [[nodiscard]] std::shared_ptr<CanvasBuffer> canvasBuffer(NodeId id);
 
         // The content: what the view shows, laid out to fill it.
         [[nodiscard]] Node& root() noexcept { return *rootNode; }
@@ -319,6 +345,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool animating() noexcept;
 
         [[nodiscard]] TextEngine& textEngine() noexcept { return *options.textEngine; }
+        [[nodiscard]] const std::shared_ptr<ImageSource>& images() const noexcept { return options.images; }
         [[nodiscard]] Clipboard& clipboard() noexcept { return *options.clipboard; }
 
         // ── Input ────────────────────────────────────────────────────────────
@@ -372,6 +399,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             ++changes;
         }
         void markChanged(const Node& node);
+        // Canvases drawn into since the last look count as invalidated.
+        void collectCanvasDrawing();
 
         Options options;
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;
@@ -385,6 +414,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;
         bool invalidAll = true;
+        std::vector<NodeId> canvasNodes;
         EventSink sink;
         std::map<int, PointerState> pointers;
         NodeId focusedNode = noNode;

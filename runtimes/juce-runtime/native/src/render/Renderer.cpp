@@ -1,3 +1,4 @@
+#include "render/SkiaImages.h"
 #include "render/SkiaText.h"
 
 #include <soundor/ui/Renderer.h>
@@ -11,6 +12,7 @@
 #include <include/core/SkImage.h>
 #include <include/core/SkImageInfo.h>
 #include <include/core/SkPaint.h>
+#include <include/core/SkPixmap.h>
 #include <include/core/SkRRect.h>
 
 #include <algorithm>
@@ -27,57 +29,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             return SkColorSetARGB(color.a, color.r, color.g, color.b);
         }
-
-        // Decoded images by asset id; a failed decode is remembered too.
-        class SkiaImages final : public ImageSource
-        {
-        public:
-            explicit SkiaImages(Renderer::AssetLoader loader) : assets(std::move(loader)) {}
-
-            std::optional<Size> imageSize(std::string_view source) override
-            {
-                const sk_sp<SkImage> found = image(source);
-                if (found == nullptr)
-                    return std::nullopt;
-                return Size { static_cast<float>(found->width()), static_cast<float>(found->height()) };
-            }
-
-            sk_sp<SkImage> image(std::string_view source)
-            {
-                if (source.empty())
-                    return nullptr;
-                std::string key(source);
-                if (const auto found = cache.find(key); found != cache.end())
-                    return found->second;
-                sk_sp<SkImage> decoded;
-                if (assets)
-                    if (const auto bytes = assets(source))
-                        decoded = decode(*bytes);
-                cache.emplace(std::move(key), decoded);
-                return decoded;
-            }
-
-        private:
-            static sk_sp<SkImage> decode(std::span<const std::uint8_t> bytes)
-            {
-                sk_sp<const SkData> data = SkData::MakeWithCopy(bytes.data(), bytes.size());
-                std::unique_ptr<SkCodec> codec;
-                SkCodec::Result result = SkCodec::kSuccess;
-                if (SkPngDecoder::IsPng(bytes.data(), bytes.size()))
-                    codec = SkPngDecoder::Decode(data, &result);
-                else if (SkJpegDecoder::IsJpeg(bytes.data(), bytes.size()))
-                    codec = SkJpegDecoder::Decode(data, &result);
-                else if (SkWebpDecoder::IsWebp(bytes.data(), bytes.size()))
-                    codec = SkWebpDecoder::Decode(data, &result);
-                if (codec == nullptr)
-                    return nullptr;
-                auto [image, status] = codec->getImage();
-                return status == SkCodec::kSuccess || status == SkCodec::kIncompleteInput ? image : nullptr;
-            }
-
-            Renderer::AssetLoader assets;
-            std::unordered_map<std::string, sk_sp<SkImage>> cache;
-        };
 
         SkRRect roundedRect(const SkRect& rect, const Corners& radii, const Edges<float>& inset = {})
         {
@@ -131,7 +82,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     struct Renderer::Impl
     {
         std::shared_ptr<render::SkiaTextEngine> text = std::make_shared<render::SkiaTextEngine>();
-        std::shared_ptr<SkiaImages> images;
+        std::shared_ptr<render::SkiaImages> images;
         Surface* surface = nullptr;
         double seconds = 0;
         // Where part of a view is drawn before being copied in.
@@ -142,12 +93,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawInput(SkCanvas& canvas, const Node& node);
+        void drawCanvas(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawScrollIndicators(SkCanvas& canvas, const Node& node) const;
     };
 
     Renderer::Renderer(AssetLoader assets) : impl(std::make_unique<Impl>())
     {
-        impl->images = std::make_shared<SkiaImages>(std::move(assets));
+        impl->images = std::make_shared<render::SkiaImages>(std::move(assets));
     }
 
     Renderer::~Renderer() = default;
@@ -252,6 +204,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             case NodeType::Input:
                 drawInput(canvas, node);
                 break;
+            case NodeType::Canvas:
+                drawCanvas(canvas, node, outer);
+                break;
             case NodeType::View:
             case NodeType::Scroll:
                 break;
@@ -324,6 +279,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         canvas.clipRRect(outer, true);
         canvas.clipRect(box, true);
         canvas.drawImageRect(image, placed, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone));
+        canvas.restore();
+    }
+
+    void Renderer::Impl::drawCanvas(SkCanvas& canvas, const Node& node, const SkRRect& outer)
+    {
+        const render::RasterSurface& pixels = node.canvas()->pixels;
+        if (pixels.width() == 0 || pixels.height() == 0)
+            return;
+        const SkPixmap pixmap(
+            SkImageInfo::Make(pixels.width(), pixels.height(), kBGRA_8888_SkColorType, kPremul_SkAlphaType),
+            pixels.pixels(), static_cast<std::size_t>(pixels.width()) * 4);
+        // Borrows the pixels: nothing is copied.
+        const sk_sp<SkImage> image = SkImages::RasterFromPixmap(pixmap, nullptr, nullptr);
+        if (image == nullptr)
+            return;
+        const Rect content = node.contentBox();
+        canvas.save();
+        canvas.clipRRect(outer, true);
+        // Stretched over the content box, like an HTML canvas.
+        canvas.drawImageRect(image, SkRect::MakeXYWH(content.x, content.y, content.width, content.height),
+                             SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone));
         canvas.restore();
     }
 

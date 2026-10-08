@@ -33,6 +33,7 @@ const ELEMENTS: Record<NodeType, { tag: string; className: string }> = {
   image: { tag: 'img', className: `${NODE_CLASS} sd-image` },
   scroll: { tag: 'div', className: `${NODE_CLASS} sd-scroll` },
   input: { tag: 'input', className: `${NODE_CLASS} sd-input` },
+  canvas: { tag: 'canvas', className: `${NODE_CLASS} sd-canvas` },
 };
 
 /** The node an element draws. */
@@ -55,6 +56,12 @@ function describe(value: unknown): string {
   if (typeof value === 'object')
     return (value as object).constructor?.name ?? 'object';
   return typeof value;
+}
+
+/** A drawing buffer side as the JUCE runtime takes it: negative is the default. */
+function canvasSize(value: number, fallback: number): number {
+  const size = Math.trunc(Number(value));
+  return size >= 0 ? size : fallback;
 }
 
 function expectNode(value: unknown, what: string): UiNode {
@@ -125,7 +132,7 @@ export class UiNode extends TreeEventTarget {
     nodes.set(this.#element, this);
   }
 
-  /** 'view', 'text', 'image', 'scroll' or 'input'. */
+  /** 'view', 'text', 'image', 'scroll', 'input' or 'canvas'. */
   get type(): NodeType {
     return this.#type;
   }
@@ -283,6 +290,43 @@ export class UiNode extends TreeEventTarget {
         image.ownerDocument.baseURI,
       ).href;
     } else image.removeAttribute('src');
+  }
+
+  // ── Canvases ───────────────────────────────────────────────────────────────
+
+  /**
+   * A canvas's drawing buffer, in pixels (300 by 150 to begin with); shown
+   * stretched over the node's box. Setting either clears the canvas. The
+   * element is a real <canvas>, so its contexts are the browser's.
+   */
+  get width(): number {
+    this.#expect('canvas', 'width');
+    return this.#canvas().width;
+  }
+
+  set width(value: number) {
+    this.#expect('canvas', 'width');
+    this.#canvas().width = canvasSize(value, 300);
+  }
+
+  get height(): number {
+    this.#expect('canvas', 'height');
+    return this.#canvas().height;
+  }
+
+  set height(value: number) {
+    this.#expect('canvas', 'height');
+    this.#canvas().height = canvasSize(value, 150);
+  }
+
+  /** The canvas's context: the browser's own, as `<canvas>.getContext()` gives. */
+  getContext(type: string, options?: unknown): unknown {
+    this.#expect('canvas', 'getContext()');
+    return this.#canvas().getContext(type, options as never);
+  }
+
+  #canvas(): HTMLCanvasElement {
+    return this.#element as HTMLCanvasElement;
   }
 
   // ── Scrolling ──────────────────────────────────────────────────────────────

@@ -47,12 +47,14 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/parameters/ParametersModule.cpp
+  src/modules/ui/CanvasModule.cpp
   src/modules/ui/UiModule.cpp
   src/platform/FileLog.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp
+  src/render/Canvas2D.cpp
   src/render/Damage.cpp
   src/render/Frame.cpp
   src/render/RasterCompositor.cpp
@@ -113,6 +115,7 @@ foreach(module abort blob clone console crypto encoding events fetch inspect tim
 endforeach()
 soundor_embed_text(soundor_runtime formDataModule src/web/js/form-data.js)
 soundor_embed_text(soundor_runtime uiFramesModule src/modules/ui/frames.js)
+soundor_embed_text(soundor_runtime uiCanvasModule src/modules/ui/canvas.js)
 
 # Everything a runtime library is besides its sources: `namespace` is the
 # inline ABI namespace its symbols are mangled into.

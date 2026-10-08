@@ -181,7 +181,8 @@ UiNodes.
     `aria-pressed`, `header` a `heading`, `summary` a `region`,
     `keyboardkey` a `button`; most others keep their name. A text input
     stays a native `<input>` (labelled with `aria-label`), an image an
-    `<img>` whose `alt` is its label (empty while decorative).
+    `<img>` whose `alt` is its label (empty while decorative), a canvas a
+    `<canvas>` with role `img` once labelled.
   - Label: `aria-label`, or for an element read whole (a button, a slider)
     the text inside it; hint: `aria-description`; state: `aria-disabled`,
     `aria-selected`, `aria-checked` (or `aria-pressed`), `aria-expanded`,
@@ -326,7 +327,10 @@ plugin shares its storage. There is no parent-page control protocol yet.
 - The host is a test bench, not a DAW: no tracks, automation lanes, MIDI or
   recording. `beginGesture()`/`endGesture()` are tracked but not recorded.
 - No microphone input yet.
-- Images are leaves, as natively: an image node's children are not shown.
+- Images and canvases are leaves, as natively: their children are not shown.
+- A canvas node is a real `<canvas>`, so its contexts are the browser's: it
+  draws what browsers draw (shadows, `Path2D`, …) where the JUCE runtime's
+  2D context throws, and gives WebGL contexts the JUCE runtime does not yet.
 - `soundor:storage` and `soundor:fs` need IndexedDB. In a browser mode that
   refuses it, their promises reject with an explanation.
 

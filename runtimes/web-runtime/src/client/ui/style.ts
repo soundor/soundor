@@ -34,6 +34,7 @@ export const STYLESHEET = `
 }
 .sd-text { display: block; white-space: pre-wrap; overflow-wrap: normal; }
 .sd-image { display: block; object-fit: cover; object-position: center; }
+.sd-canvas { display: block; }
 .sd-scroll { overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
 .sd-surface {

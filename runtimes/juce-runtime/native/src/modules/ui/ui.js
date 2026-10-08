@@ -15,6 +15,11 @@
 
 import * as native from 'soundor:internal/ui';
 import {
+  createContext2D,
+  forgetStyles,
+  setSourceResolver,
+} from 'soundor:internal/ui/canvas';
+import {
   Event,
   EventTarget,
   eventParent,
@@ -23,7 +28,7 @@ import {
 
 const CONSTRUCTING = Symbol('constructing');
 /** The native node types, by name. */
-const TYPES = ['view', 'text', 'image', 'scroll', 'input'];
+const TYPES = ['view', 'text', 'image', 'scroll', 'input', 'canvas'];
 
 /** The roles `accessibility.role` names. */
 const ROLES = new Set([
@@ -61,6 +66,8 @@ const ROLES = new Set([
 const nodes = new Map();
 const released = new FinalizationRegistry((id) => {
   nodes.delete(id);
+  // A canvas's 2D context goes with it.
+  native.release2d(id, 0);
   native.releaseNode(id);
 });
 
@@ -187,6 +194,10 @@ export class UiNode extends EventTarget {
   #placeholder = '';
   #accessibility = Object.freeze({});
   #accessibilityParent = null;
+  // Canvas nodes: the drawing buffer's size, and the context made for it.
+  #canvasWidth = 300;
+  #canvasHeight = 150;
+  #context = null;
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(token, type, id) {
@@ -201,7 +212,7 @@ export class UiNode extends EventTarget {
     nodes.set(id, new WeakRef(this));
   }
 
-  /** 'view', 'text', 'image', 'scroll' or 'input'. */
+  /** 'view', 'text', 'image', 'scroll', 'input' or 'canvas'. */
   get type() {
     return this.#type;
   }
@@ -334,6 +345,67 @@ export class UiNode extends EventTarget {
     this.#expect('image', 'source');
     this.#source = value === null || value === undefined ? '' : String(value);
     native.setSource(this.#id, this.#source);
+  }
+
+  /**
+   * A canvas's drawing buffer, in pixels (300 by 150 to begin with, as on
+   * the Web); shown stretched over the node's box. Setting either clears the
+   * canvas and resets its context's state, even to the same value.
+   */
+  get width() {
+    this.#expect('canvas', 'width');
+    return this.#canvasWidth;
+  }
+
+  set width(value) {
+    this.#expect('canvas', 'width');
+    this.#resize(value, this.#canvasHeight, 300, true);
+  }
+
+  get height() {
+    this.#expect('canvas', 'height');
+    return this.#canvasHeight;
+  }
+
+  set height(value) {
+    this.#expect('canvas', 'height');
+    this.#resize(this.#canvasWidth, value, 150, false);
+  }
+
+  #resize(width, height, fallback, horizontal) {
+    const size = Math.trunc(Number(horizontal ? width : height));
+    const valid = size >= 0 ? size : fallback;
+    const [w, h] = horizontal
+      ? [valid, this.#canvasHeight]
+      : [this.#canvasWidth, valid];
+    native.setCanvasSize(this.#id, w, h);
+    this.#canvasWidth = w;
+    this.#canvasHeight = h;
+    if (this.#context?.kind === '2d') forgetStyles(this.#context.value);
+  }
+
+  /**
+   * A canvas's drawing context: '2d' (CanvasRenderingContext2D, drawn with
+   * Skia on the CPU). The same object every time; null for other types, and
+   * for a type other than the one the canvas already has, as on the Web.
+   */
+  getContext(type, options = {}) {
+    this.#expect('canvas', 'getContext()');
+    const kind = String(type);
+    if (this.#context !== null)
+      return this.#context.kind === kind ? this.#context.value : null;
+    if (kind !== '2d') return null;
+    const settings = options ?? {};
+    if (settings.alpha === false)
+      throw new TypeError(
+        "getContext('2d', { alpha: false }) is not supported by Soundor's 2D canvas",
+      );
+    if (settings.colorSpace !== undefined && settings.colorSpace !== 'srgb')
+      throw new TypeError(
+        `getContext('2d') with colorSpace '${settings.colorSpace}' is not supported by Soundor's 2D canvas`,
+      );
+    this.#context = { kind, value: createContext2D(this, this.#id) };
+    return this.#context.value;
   }
 
   /** How far a scroll view's content is scrolled. */
@@ -494,6 +566,19 @@ export class UiNode extends EventTarget {
   }
 
   static {
+    setSourceResolver((value) => {
+      if (!(value instanceof UiNode)) return null;
+      if (value.#type === 'canvas')
+        return {
+          kind: 'canvas',
+          id: value.#id,
+          width: value.#canvasWidth,
+          height: value.#canvasHeight,
+        };
+      if (value.#type === 'image')
+        return { kind: 'image', asset: value.#source };
+      return null;
+    });
     internals = {
       id: (node) => node.#id,
       setFocusableState(node, value) {
@@ -552,6 +637,25 @@ export function createTextInput(options = {}) {
   if (options.style !== undefined) node.style = options.style;
   return node;
 }
+
+/**
+ * A new, detached canvas: pixels code draws with getContext('2d'), 300 by
+ * 150 until its width and height say otherwise. Its box is that size in
+ * logical pixels unless its style sizes it.
+ */
+export function createCanvas(style) {
+  const node = create('canvas');
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
+export {
+  CanvasGradient,
+  CanvasPattern,
+  CanvasRenderingContext2D,
+  ImageData,
+  TextMetrics,
+} from 'soundor:internal/ui/canvas';
 
 /** The view's root node; it always fills the view. */
 export const root = new UiNode(CONSTRUCTING, 'view', native.rootId);
