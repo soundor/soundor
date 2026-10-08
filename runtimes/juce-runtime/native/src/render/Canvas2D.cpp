@@ -475,6 +475,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 if (! current.dash.empty())
                 {
                     std::vector<float> intervals;
+                    intervals.reserve(current.dash.size());
                     for (const double interval : current.dash)
                         intervals.push_back(static_cast<float>(interval));
                     paint.setPathEffect(
