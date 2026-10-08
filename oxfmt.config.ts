@@ -10,5 +10,7 @@ export default defineConfig({
   ignorePatterns: [
     'packages/core/runtime/**',
     'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
+    'runtimes/juce-runtime/native/src/gpu/webgl/generated/**',
+    'packages/core/src/webgl-dts.ts',
   ],
 });

@@ -94,7 +94,9 @@ if(SOUNDOR_HAS_GPU)
     src/gpu/Device.cpp
     src/gpu/GpuCompositor.cpp
     src/gpu/LayerRenderer.cpp
-    src/gpu/OffscreenCompositor.cpp)
+    src/gpu/OffscreenCompositor.cpp
+    src/gpu/webgl/WebGLContext.cpp
+    src/gpu/webgl/WebGLModule.cpp)
   if(APPLE)
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/apple/LayerPresentation.mm)
   elseif(WIN32)
@@ -102,6 +104,8 @@ if(SOUNDOR_HAS_GPU)
   else()
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/NoPresentation.cpp)
   endif()
+else()
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/webgl/NoWebGL.cpp)
 endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
@@ -116,6 +120,8 @@ endforeach()
 soundor_embed_text(soundor_runtime formDataModule src/web/js/form-data.js)
 soundor_embed_text(soundor_runtime uiFramesModule src/modules/ui/frames.js)
 soundor_embed_text(soundor_runtime uiCanvasModule src/modules/ui/canvas.js)
+soundor_embed_text(soundor_runtime uiWebGLModule src/gpu/webgl/webgl.js)
+soundor_embed_text(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/generated/webgl-generated.js)
 
 # Everything a runtime library is besides its sources: `namespace` is the
 # inline ABI namespace its symbols are mangled into.

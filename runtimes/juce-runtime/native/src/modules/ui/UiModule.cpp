@@ -1,5 +1,6 @@
 #include "modules/ui/UiModule.h"
 
+#include "gpu/webgl/WebGLModule.h"
 #include "js/Bindings.h"
 #include "modules/Embedded.h"
 #include "modules/ui/CanvasModule.h"
@@ -977,7 +978,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 JS_ThrowInternalError(ctx, "%s", error.what());
                 return false;
             }
-            for (const auto& list : { std::span<const Function>(functions), canvasFunctions() })
+            for (const auto& list : { std::span<const Function>(functions), canvasFunctions(), gpu::webglFunctions() })
                 for (const Function& function : list)
                     if (JS_SetModuleExport(ctx, module, function.name,
                                            JS_NewCFunction(ctx, function.call, function.name, function.length))
@@ -1004,20 +1005,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         surface->setEventSink([ctx](const Event& event) { return dispatch(ctx, event); });
         bind::setContextData(context, &bindingKey, std::make_shared<Binding>(std::move(surface)));
         installCanvases(context);
+        // WebGL on a device of its own until the host offers one.
+        gpu::installWebGL(context, nullptr, false);
         std::vector<std::string> exports { "rootId", "overlayId" };
-        for (const Function& function : functions)
-            exports.emplace_back(function.name);
-        for (const Function& function : canvasFunctions())
-            exports.emplace_back(function.name);
+        for (const auto& list : { std::span<const Function>(functions), canvasFunctions(), gpu::webglFunctions() })
+            for (const Function& function : list)
+                exports.emplace_back(function.name);
         js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });
         js::registerNativeModule(context, "soundor:internal/ui/frames", { {}, {}, embedded::uiFramesModule });
         js::registerNativeModule(context, "soundor:internal/ui/canvas", { {}, {}, embedded::uiCanvasModule });
+        js::registerNativeModule(context, "soundor:internal/ui/webgl-generated",
+                                 { {}, {}, embedded::uiWebGLGeneratedModule });
+        js::registerNativeModule(context, "soundor:internal/ui/webgl", { {}, {}, embedded::uiWebGLModule });
         js::registerNativeModule(context, "soundor:ui", { {}, {}, embedded::uiModule });
 
-        // requestAnimationFrame(), devicePixelRatio and the canvas classes are
-        // global, like on the Web.
-        auto frames = context.evaluateModule(
-            "import 'soundor:internal/ui/frames'; import 'soundor:internal/ui/canvas';", "soundor:bootstrap/ui");
+        // requestAnimationFrame(), devicePixelRatio and the canvas and WebGL
+        // classes are global, like on the Web.
+        auto frames = context.evaluateModule("import 'soundor:internal/ui/frames'; import 'soundor:internal/ui/canvas';"
+                                             " import 'soundor:internal/ui/webgl';",
+                                             "soundor:bootstrap/ui");
         if (! frames)
             throw std::runtime_error("soundor:ui failed to start: " + frames.error().toString());
     }

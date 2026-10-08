@@ -57,6 +57,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const float>& out);
     bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const double>& out);
 
+    // The bytes of an ArrayBuffer or any typed array, borrowed and writable
+    // (for natives that fill a buffer); invalid once the native method returns.
+    bool readBytes(JSContext* ctx, JSValueConst value, const Path& path, std::span<std::byte>& out);
+
     // Reads one of `values`, reporting its position.
     bool readEnum(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::string_view> values,
                   std::size_t& index);

@@ -135,6 +135,15 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 - **The data directory** `<user application data>/Soundor/<plugin.id>` for
   storage and files.
 
+### Canvases: 2D and WebGL
+
+A canvas node draws with `getContext('2d')`, which uses Skia on the CPU, or
+with `getContext('webgl2')`, which uses ANGLE on the GPU. WebGL needs a
+hardware GPU. Where there is none (a VM, a headless Linux machine),
+`getContext('webgl2')` returns null and the plugin log says why, so code
+should fall back. What WebGL draws is read back into the canvas for now. See
+[`native/README.md`](./native/README.md).
+
 ### Accessibility
 
 The view is accessible to screen readers through Soundor's own semantics

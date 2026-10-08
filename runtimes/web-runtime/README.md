@@ -330,7 +330,10 @@ plugin shares its storage. There is no parent-page control protocol yet.
 - Images and canvases are leaves, as natively: their children are not shown.
 - A canvas node is a real `<canvas>`, so its contexts are the browser's: it
   draws what browsers draw (shadows, `Path2D`, …) where the JUCE runtime's
-  2D context throws, and gives WebGL contexts the JUCE runtime does not yet.
+  2D context throws. Like the JUCE runtime, it gives only '2d' and 'webgl2'
+  contexts (null for other types), and their methods that take an image
+  (`drawImage`, `createPattern`, `texImage2D`, …) also take canvas and image
+  nodes.
 - `soundor:storage` and `soundor:fs` need IndexedDB. In a browser mode that
   refuses it, their promises reject with an explanation.
 

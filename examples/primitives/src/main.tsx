@@ -479,6 +479,80 @@ function CanvasDemo() {
   );
 }
 
+// ── WebGL 2 ──────────────────────────────────────────────────────────────────
+
+const TRIANGLE_VERTEX = `#version 300 es
+in vec2 position;
+in vec3 color;
+out vec3 shade;
+void main() {
+  shade = color;
+  gl_Position = vec4(position, 0.0, 1.0);
+}`;
+
+const TRIANGLE_FRAGMENT = `#version 300 es
+precision mediump float;
+in vec3 shade;
+out vec4 fragColor;
+void main() { fragColor = vec4(shade, 1.0); }`;
+
+/** One triangle, its corners red, green and blue: raw WebGL 2, no library. */
+function drawTriangle(gl: WebGL2RenderingContext) {
+  const compile = (type: number, source: string) => {
+    const shader = gl.createShader(type)!;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+  };
+  const program = gl.createProgram()!;
+  gl.attachShader(program, compile(gl.VERTEX_SHADER, TRIANGLE_VERTEX));
+  gl.attachShader(program, compile(gl.FRAGMENT_SHADER, TRIANGLE_FRAGMENT));
+  gl.linkProgram(program);
+  gl.useProgram(program);
+  const buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  // x, y, r, g, b
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      0, 0.8, 1, 0.3, 0.3, -0.8, -0.7, 0.3, 0.9, 0.4, 0.8, -0.7, 0.3, 0.5, 1,
+    ]),
+    gl.STATIC_DRAW,
+  );
+  const position = gl.getAttribLocation(program, 'position');
+  const color = gl.getAttribLocation(program, 'color');
+  gl.enableVertexAttribArray(position);
+  gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 20, 0);
+  gl.enableVertexAttribArray(color);
+  gl.vertexAttribPointer(color, 3, gl.FLOAT, false, 20, 8);
+  gl.clearColor(0.13, 0.14, 0.17, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+
+function WebGLDemo() {
+  const canvas = useRef<UiNode>(null);
+  const [available, setAvailable] = useState(true);
+  const scale = Math.max(1, Math.round(devicePixelRatio));
+  useEffect(() => {
+    const gl = canvas.current?.getContext('webgl2') ?? null;
+    setAvailable(gl !== null);
+    if (gl) drawTriangle(gl);
+  }, [scale]);
+  return (
+    <Card title="WebGL 2">
+      <Canvas
+        ref={canvas}
+        width={CANVAS_WIDTH * scale}
+        height={CANVAS_HEIGHT * scale}
+        style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
+        accessibilityLabel="A triangle shaded red, green and blue"
+      />
+      {!available && <Text style={styles.caption}>No GPU for WebGL here</Text>}
+    </Card>
+  );
+}
+
 function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -494,6 +568,7 @@ function App() {
         <ScopeDemo />
         <GainKnob />
         <CanvasDemo />
+        <WebGLDemo />
       </View>
     </ScrollView>
   );

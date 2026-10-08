@@ -1,3 +1,4 @@
+#include "gpu/webgl/WebGLModule.h"
 #include "modules/ui/UiModule.h"
 #include "render/ViewRenderer.h"
 #include "web/Web.h"
@@ -51,6 +52,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         if (options.parameters != nullptr)
             parameters::install(*jsContext, std::move(options.parameters));
         ui::install(*jsContext, uiSurface);
+        gpu::installWebGL(*jsContext, std::move(options.gpuDevice), options.allowSoftwareGpu);
         if (options.installModules)
             options.installModules(*jsContext);
         if (! options.entry.empty())
@@ -83,6 +85,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         jsRuntime->runPendingJobs();
         ui::frame(*jsContext);
         jsRuntime->runPendingJobs();
+        // What WebGL drew this tick shows in its canvases.
+        gpu::presentWebGL(*jsContext);
     }
 
     bool RuntimeHost::performAccessibilityAction(const a11y::ActionRequest& request)
