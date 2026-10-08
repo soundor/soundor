@@ -128,7 +128,7 @@ TEST_SUITE("gpu::Device")
             return;
         std::string failure;
         const auto context = gpu::Context::create(device, {}, &failure);
-        REQUIRE_MESSAGE(context != nullptr, failure);
+        REQUIRE_MESSAGE(context.get() != nullptr, failure);
         const gpu::CurrentContext current(*context);
         REQUIRE(current.ok());
 
@@ -153,7 +153,7 @@ TEST_SUITE("gpu::Device")
         if (device == nullptr)
             return;
         const auto context = gpu::Context::create(device, { .webgl = true });
-        REQUIRE(context != nullptr);
+        REQUIRE(context.get() != nullptr);
         const gpu::CurrentContext current(*context);
         REQUIRE(current.ok());
 
@@ -191,13 +191,13 @@ TEST_SUITE("gpu::Device")
         if (first == nullptr)
             return;
         const auto second = test::testDevice(true);
-        REQUIRE(second != nullptr);
+        REQUIRE(second.get() != nullptr);
         CHECK(first->display() != second->display());
 
         auto firstContext = gpu::Context::create(first, {});
         const auto secondContext = gpu::Context::create(second, {});
-        REQUIRE(firstContext != nullptr);
-        REQUIRE(secondContext != nullptr);
+        REQUIRE(firstContext.get() != nullptr);
+        REQUIRE(secondContext.get() != nullptr);
         {
             const gpu::CurrentContext current(*firstContext);
             const Target target(8);
@@ -224,8 +224,8 @@ TEST_SUITE("gpu::Device")
             return;
         const auto outer = gpu::Context::create(device, {});
         const auto inner = gpu::Context::create(device, {});
-        REQUIRE(outer != nullptr);
-        REQUIRE(inner != nullptr);
+        REQUIRE(outer.get() != nullptr);
+        REQUIRE(inner.get() != nullptr);
         const gpu::CurrentContext outerScope(*outer);
         CHECK(eglGetCurrentContext() == outer->handle());
         {
