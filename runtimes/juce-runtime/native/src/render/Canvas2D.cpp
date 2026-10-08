@@ -309,11 +309,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             while (end < text.size() && ! std::isspace(static_cast<unsigned char>(text[end])) && text[end] != '/')
                 ++end;
             const std::string size = lower(text.substr(at, end - at));
-            double value = 0;
-            const auto [rest, error] = std::from_chars(size.data(), size.data() + size.size(), value);
-            if (error != std::errc {} || value < 0)
+            // The number ends where the unit starts ("1e2px", "1em").
+            const auto isDigit = [&](std::size_t i) { return i < size.size() && size[i] >= '0' && size[i] <= '9'; };
+            std::size_t unitAt = size.find_first_not_of("0123456789.+-");
+            if (unitAt != std::string::npos && size[unitAt] == 'e'
+                && (isDigit(unitAt + 1)
+                    || ((size[unitAt + 1] == '+' || size[unitAt + 1] == '-') && isDigit(unitAt + 2))))
+                unitAt = size.find_first_not_of("0123456789", unitAt + 2);
+            const std::string_view number = std::string_view(size).substr(0, unitAt);
+            const std::string_view unit = std::string_view(size).substr(number.size());
+            const std::optional<double> parsed = ui::parseCssNumber(number);
+            if (! parsed || *parsed < 0)
                 return std::nullopt;
-            const std::string_view unit(rest, static_cast<std::size_t>(size.data() + size.size() - rest));
+            const double value = *parsed;
             if (unit == "px")
                 font.style.fontSize = static_cast<float>(value);
             else if (unit == "pt")
@@ -466,7 +474,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 paint.setStrokeMiter(current.miterLimit);
                 if (! current.dash.empty())
                 {
-                    std::vector<float> intervals(current.dash.begin(), current.dash.end());
+                    std::vector<float> intervals;
+                    for (const double interval : current.dash)
+                        intervals.push_back(static_cast<float>(interval));
                     paint.setPathEffect(
                         SkDashPathEffect::Make({ intervals.data(), intervals.size() }, current.dashOffset));
                 }

@@ -211,8 +211,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
 
-        // A CSS number ("12", "-0.5", ".5", "1e2"), parsed without the C
-        // locale (which a host may have changed).
         std::optional<double> parseNumber(std::string_view text)
         {
             std::size_t i = 0;
@@ -301,6 +299,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return p;
         }
     } // namespace
+
+    std::optional<double> parseCssNumber(std::string_view text)
+    {
+        return parseNumber(text);
+    }
 
     std::optional<Color> parseColor(std::string_view text)
     {
