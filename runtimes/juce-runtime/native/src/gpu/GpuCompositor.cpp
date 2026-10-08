@@ -15,8 +15,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     {
         bool cpuRequested()
         {
+#if defined(_MSC_VER)
+            char* value = nullptr;
+            std::size_t size = 0;
+            const bool cpu =
+                _dupenv_s(&value, &size, "SOUNDOR_RENDERER") == 0 && value != nullptr && std::string(value) == "cpu";
+            std::free(value);
+            return cpu;
+#else
             const char* value = std::getenv("SOUNDOR_RENDERER"); // NOLINT(concurrency-mt-unsafe)
             return value != nullptr && std::string(value) == "cpu";
+#endif
         }
 
         class WindowCompositor final : public GpuCompositor
