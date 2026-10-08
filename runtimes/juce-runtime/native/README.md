@@ -321,17 +321,25 @@ A frame goes through three stages, each with its own owner:
 3. **Compositing (the backend).** A `render::Compositor` puts the layers
    together and presents them, again drawing only what changed (the layers'
    damage, and wherever a layer appeared, moved, went away or changed order).
-   The backend owns it, so it outlives a reloaded runtime.
-   `render::RasterCompositor` composites on the CPU with Skia into a
-   `render::RasterTarget` (pixels the platform shows); `capabilities()` and
-   `statistics()` say what it is and what the last frame cost.
+   The backend owns it, so it outlives a reloaded runtime; `capabilities()`
+   and `statistics()` say what it is and what the last frame cost (layers,
+   bytes uploaded, texture allocations, draw calls, readbacks).
+   - `render::GpuCompositor` composites on the GPU and presents into a native
+     view (see "The GPU"). CPU layers become textures, uploaded only where
+     they changed; an unchanged frame uploads, draws and presents nothing.
+   - `render::RasterCompositor` composites on the CPU with Skia into a
+     `render::RasterTarget` (pixels the platform shows). It is the fallback
+     that always works.
 
 The generated JUCE editor renders a frame from its 60 Hz timer when
 `RuntimeHost::needsRender()` says the picture changed (a blinking caret
-counts, twice a second). Its compositor presents into a
-`backend::JuceImageTarget`: a `juce::Image` at device resolution, of which only
-the damaged parts are repainted. `RuntimeHost::render(bitmap)` still draws the
-whole view in one go, for tests and tools.
+counts, twice a second). Once it has a native view, it asks for a
+`GpuCompositor` and logs which renderer it got, and why when it is the CPU
+(`renderer: GPU compositor, ANGLE / Metal (…)`). Otherwise, and if the GPU is
+lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
+`juce::Image` at device resolution, of which only the damaged parts are
+repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
+still draws the whole view in one go, for tests and tools.
 
 `ui::Renderer` draws nodes with [Skia](https://skia.org) on the CPU:
 
@@ -351,8 +359,7 @@ whole view in one go, for tests and tools.
 ### The GPU
 
 `src/gpu/` wraps ANGLE (see "Dependencies"), the only directory that includes
-its headers. Nothing renders with it yet: it is the foundation the GPU
-compositor and WebGL build on.
+its headers.
 
 - **`gpu::Device`:** a GPU device and ANGLE's EGL display over it. Each device
   has a display of its own, so destroying one never affects another editor's
@@ -375,10 +382,34 @@ compositor and WebGL build on.
   resource initialization, and extensions only once requested.
   `gpu::CurrentContext` makes one current for a scope and restores what was
   current before.
+- **The GPU compositor:** `render::GpuCompositor` (public, no GPU types) is
+  a device, an ES context and an EGL window surface in a presentation. Its
+  `gpu::LayerRenderer` is deliberately small: one textured quad per layer
+  with the layer's transform, opacity and rounded clip (antialiased by
+  distance; within a few levels of Skia's except along a clip's curves),
+  premultiplied alpha, `GL_BGRA` textures uploaded row by row from the CPU
+  surfaces' damage. It never waits for the GPU (`glFinish`). It wants a
+  hardware device (`allowSoftware` is for tests) and reports a lost GPU
+  through `healthy()`.
+- **Presentation:** what the compositor presents into, inside the view the
+  backend gives, without registering or subclassing anything:
+  - macOS: a plain `CALayer` added on top of the `NSView`'s layer (ANGLE puts
+    its `CAMetalLayer` inside). The view keeps its input and its own drawing
+    underneath.
+  - Windows: a child window of the system's `STATIC` class over the `HWND`,
+    for ANGLE's Direct3D 11 swap chain; it answers `HTTRANSPARENT` to hit
+    tests, so input goes to the view's window.
+  - Linux: none. Presenting from Vulkan into the host's X11 window would need
+    ANGLE built with X11 and xcb, linked into every plugin, and a plugin must
+    load where they are missing (JUCE loads X11 at run time for this reason).
+    So Linux composites on the CPU, and the GPU's work (WebGL) is read back.
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
-  `SOUNDOR_REQUIRE_GPU=1`, which turns a missing device into a failure.
+  `SOUNDOR_REQUIRE_GPU=1`, which turns a missing device into a failure. The
+  GPU compositor's output is compared with the CPU compositor's (order,
+  alpha, opacity, transforms, clips), its uploads are counted, and on macOS
+  and Windows it presents into a real window.
 
 ### Accessibility
 

@@ -406,6 +406,7 @@ function renderEditorHeader(): string {
 #include <soundor/a11y/Platform.h>
 #include <soundor/backend/JucePresentation.h>
 #include <soundor/render/Compositor.h>
+#include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -421,7 +422,7 @@ namespace ${NS}
     // runtime. The runtime is created with the view and destroyed with it;
     // ~60 times a second it receives parameter changes, runs pending jobs and,
     // when the picture changed, renders a frame: the runtime rasterizes what
-    // changed and the compositor presents it.
+    // changed and the compositor presents it, on the GPU where there is one.
     // Under \`soundor dev\` it is replaced by a fresh one on every UI build, so
     // do not keep the reference runtimeHost() returns.
     // Derive your plugin's editor from this.
@@ -459,6 +460,9 @@ namespace ${NS}
         void timerCallback() override;
         // Gives the UI the view's size and pixel density.
         void sizeSurface();
+        // Picks the compositor: on the GPU, presenting in this view's native
+        // view, where there is one; on the CPU into \`image\` otherwise.
+        void updateCompositor();
         void renderFrame();
         void deliver(const ui::PointerInput& input);
         // Presents the UI to the platform's assistive technology, in the
@@ -468,10 +472,16 @@ namespace ${NS}
         void updateAccessibility();
         void detachAccessibility();
 
-        // The UI's frames go to the compositor, which presents them in this
+        // The UI's frames go to a compositor, which presents them in this
         // view. It outlives a reloaded runtime (soundor dev).
-        backend::JuceImageTarget presentation { *this };
-        render::RasterCompositor compositor { presentation };
+        backend::JuceImageTarget image { *this };
+        std::unique_ptr<render::Compositor> compositor = std::make_unique<render::RasterCompositor>(image);
+        // The compositor while it is the GPU one, and the view it presents in.
+        render::GpuCompositor* gpu = nullptr;
+        void* compositorView = nullptr;
+        bool gpuLost = false;
+        // Where the runtime's log goes: diagnostics go there too.
+        js::LogSink log;
         bool releaseKeys(bool all);
 
         // Keys held down, by JUCE key code, with their Web names: JUCE reports
@@ -572,6 +582,7 @@ namespace ${NS}
             logToJuce(level, message);
             file(level, message);
         };
+        log = options.runtime.log;
         session = std::make_unique<DevSession>(DevSession::Options {
             .host = std::move(options),
             .bundleDirectory = pathFromHex(SOUNDOR_UI_DEV_DIR_HEX),
@@ -581,6 +592,7 @@ namespace ${NS}
         options.resources = std::make_shared<platform::EmbeddedResources>(embedded::pluginUi());
         options.entry = "/bundle.js";
     #endif
+        log = options.runtime.log;
         host = std::make_unique<RuntimeHost>(std::move(options));
 #endif
 
@@ -595,6 +607,9 @@ namespace ${NS}
         stopTimer();
         // Before the host whose tree it presents.
         detachAccessibility();
+        // While the native view it presents in still exists.
+        gpu = nullptr;
+        compositor.reset();
 #if SOUNDOR_UI_DEV
         session.reset();
 #else
@@ -611,9 +626,60 @@ namespace ${NS}
         surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this)));
     }
 
+    void AudioProcessorEditor::updateCompositor()
+    {
+        auto* peer = getPeer();
+        void* view = peer != nullptr ? peer->getNativeHandle() : nullptr;
+        if (gpu != nullptr && ! gpu->healthy())
+        {
+            log(js::LogLevel::Warn, "the GPU was lost: rendering on the CPU from now on");
+            gpuLost = true;
+            compositorView = nullptr;
+        }
+        if (view != compositorView)
+        {
+            // A new native view (or none): a compositor for it.
+            compositorView = view;
+            gpu = nullptr;
+            compositor.reset();
+            std::string why = "no native view";
+            if (view != nullptr && ! gpuLost)
+            {
+                const auto background = getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId);
+                if (auto created = render::GpuCompositor::create({ .view = { view }, .background = background.getARGB() }, &why))
+                {
+                    gpu = created.get();
+                    compositor = std::move(created);
+                }
+            }
+            if (compositor == nullptr)
+                compositor = std::make_unique<render::RasterCompositor>(image);
+            const render::Capabilities capabilities = compositor->capabilities();
+            log(js::LogLevel::Info, capabilities.gpu ? "renderer: GPU compositor, " + capabilities.backend
+                                                     : "renderer: CPU, " + capabilities.backend + " (" + why + ")");
+            // A new compositor has nothing yet: it draws everything.
+            if (view != nullptr)
+                renderFrame();
+        }
+        if (gpu != nullptr && peer != nullptr)
+        {
+            const auto area = peer->getComponent().getLocalArea(this, getLocalBounds().toFloat());
+    #if JUCE_MAC
+            // The native view's points.
+            gpu->setBounds(area.getX(), area.getY(), area.getWidth(), area.getHeight(), runtimeHost().surface().scale());
+    #else
+            // The native window's physical pixels.
+            const auto physical = area * static_cast<float>(peer->getPlatformScaleFactor());
+            gpu->setBounds(physical.getX(), physical.getY(), physical.getWidth(), physical.getHeight(),
+                           runtimeHost().surface().scale());
+    #endif
+            gpu->setVisible(isShowing());
+        }
+    }
+
     void AudioProcessorEditor::renderFrame()
     {
-        compositor.composite(runtimeHost().frame());
+        compositor->composite(runtimeHost().frame());
     }
 
     void AudioProcessorEditor::timerCallback()
@@ -626,6 +692,7 @@ namespace ${NS}
         host->tick();
 #endif
         updateAccessibility();
+        updateCompositor();
         if (runtimeHost().needsRender())
             renderFrame();
     }
@@ -785,6 +852,9 @@ namespace ${NS}
     void AudioProcessorEditor::paint(juce::Graphics& g)
     {
         g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
+        // The GPU compositor presents over this view, in a layer or window of its own.
+        if (gpu != nullptr)
+            return;
         // Resized since the last frame: render one at the new size first.
         sizeSurface();
         const float scale = runtimeHost().surface().scale();
@@ -792,9 +862,9 @@ namespace ${NS}
         const int height = juce::roundToInt(static_cast<float>(getHeight()) * scale);
         if (width <= 0 || height <= 0)
             return;
-        if (! presentation.matches(width, height))
+        if (! image.matches(width, height))
             renderFrame();
-        presentation.paint(g);
+        image.paint(g);
     }
 } // namespace ${NS}
 `;

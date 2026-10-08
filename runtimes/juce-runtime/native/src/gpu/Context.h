@@ -37,12 +37,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         void* eglContext = nullptr;
     };
 
-    // Makes a context current on this thread for a scope, then restores what
-    // was current before.
+    // Makes a context current on this thread for a scope (drawing to
+    // `surface`, an EGLSurface, if given), then restores what was current
+    // before.
     class CurrentContext
     {
     public:
-        explicit CurrentContext(const Context& context);
+        explicit CurrentContext(const Context& context, void* surface = nullptr);
         ~CurrentContext();
         CurrentContext(const CurrentContext&) = delete;
         CurrentContext& operator=(const CurrentContext&) = delete;

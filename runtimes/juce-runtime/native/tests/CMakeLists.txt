@@ -48,7 +48,12 @@ soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_D
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 if(SOUNDOR_HAS_GPU)
-  target_sources(soundor_runtime_tests PRIVATE gpu/DeviceTests.cpp)
+  target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp)
+  if(APPLE)
+    target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.mm)
+  else()
+    target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.cpp)
+  endif()
   target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
 endif()
 
