@@ -114,9 +114,9 @@ TEST_SUITE("gpu::Device")
         if (device->info().software)
         {
             std::string failure;
-            CHECK(gpu::Device::create({ .policy = gpu::DevicePolicy::HardwareOnly, .backend = device->info().backend },
-                                      &failure)
-                  == nullptr);
+            const auto hardware = gpu::Device::create(
+                { .policy = gpu::DevicePolicy::HardwareOnly, .backend = device->info().backend }, &failure);
+            CHECK(hardware.get() == nullptr);
             CHECK(failure.find("software renderer") != std::string::npos);
         }
     }
