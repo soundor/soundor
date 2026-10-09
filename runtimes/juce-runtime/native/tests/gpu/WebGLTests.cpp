@@ -407,6 +407,12 @@ TEST_SUITE("WebGL 2")
         CHECK(f.boolean("typeof gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL)"
                         " === 'string'"));
         CHECK(f.boolean("gl.getExtension('NOT_AN_EXTENSION') === null"));
+        // Everywhere, emulated where the driver lacks it.
+        CHECK(f.boolean("gl.getSupportedExtensions().includes('KHR_parallel_shader_compile')"));
+        CHECK(f.boolean(
+            "(() => { const ext = gl.getExtension('KHR_parallel_shader_compile');"
+            " const p = gl.createProgram();"
+            " return gl.getProgramParameter(p, ext.COMPLETION_STATUS_KHR) === true && gl.getError() === 0; })()"));
     }
 
     TEST_CASE("resizing the canvas resizes and clears the drawing buffer")

@@ -334,8 +334,11 @@ const EXTENSIONS = {
       RGBA16_SNORM_EXT: 0x8f9b,
     },
   },
+  // Offered everywhere: without the driver's, compiling and linking are
+  // done when they return, so COMPLETION_STATUS_KHR is always true.
   KHR_parallel_shader_compile: {
-    requires: ['GL_KHR_parallel_shader_compile'],
+    requires: [],
+    optional: ['GL_KHR_parallel_shader_compile'],
     constants: { COMPLETION_STATUS_KHR },
   },
   OES_texture_float_linear: { requires: ['GL_OES_texture_float_linear'] },
@@ -547,6 +550,8 @@ class ContextState {
     this.colorspaceConversion = BROWSER_DEFAULT_WEBGL;
     this.size = null;
     this.extensions = new Map();
+    // Extensions' OpenGL ES parts Soundor stands in for.
+    this.emulated = new Set();
     this.available = null;
   }
 
@@ -873,6 +878,10 @@ export class WebGL2RenderingContext {
     if (!this.getSupportedExtensions().includes(key)) return null;
     for (const required of extension.requires)
       if (!state.call(OP.requestExtension, required)) return null;
+    for (const optional of extension.optional ?? [])
+      if (state.available.has(optional))
+        state.call(OP.requestExtension, optional);
+      else state.emulated.add(optional);
     const object = { ...extension.constants, ...extension.methods?.(this) };
     state.extensions.set(key, object);
     return object;
@@ -1156,6 +1165,11 @@ export class WebGL2RenderingContext {
     );
     if (name < 0) return null;
     const p = gl.u32(pname);
+    if (
+      p === COMPLETION_STATUS_KHR &&
+      this.#state.emulated.has('GL_KHR_parallel_shader_compile')
+    )
+      return true;
     const value = this.#state.call(OP.getShaderParameter, name, p);
     if (value === null) return null;
     return p === C.SHADER_TYPE ? value : value !== 0;
@@ -1172,6 +1186,11 @@ export class WebGL2RenderingContext {
     );
     if (name < 0) return null;
     const p = gl.u32(pname);
+    if (
+      p === COMPLETION_STATUS_KHR &&
+      this.#state.emulated.has('GL_KHR_parallel_shader_compile')
+    )
+      return true;
     const value = this.#state.call(OP.getProgramParameter, name, p);
     if (value === null) return null;
     return p === C.DELETE_STATUS ||

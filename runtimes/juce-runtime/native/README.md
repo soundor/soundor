@@ -493,7 +493,9 @@ its headers.
   - **Extensions,** where the device has them: `EXT_color_buffer_float`,
     `EXT_color_buffer_half_float`, `EXT_float_blend`,
     `EXT_texture_filter_anisotropic`, `EXT_texture_norm16`,
-    `KHR_parallel_shader_compile`, `OES_texture_float_linear`,
+    `KHR_parallel_shader_compile` (everywhere: where the driver lacks it,
+    compiling is done when it returns, and its status is always true),
+    `OES_texture_float_linear`,
     `WEBGL_debug_renderer_info` and `WEBGL_lose_context`.
   - **Objects** live until deleted, or until their context goes. Dropping a
     wrapper does not delete the OpenGL object, because OpenGL keeps it in
