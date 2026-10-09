@@ -11,6 +11,7 @@ catalog:
   '@types/node': ^24.19.1
   '@types/react': ^19.2.17
   '@types/react-reconciler': ^0.33.1
+  '@types/three': 0.186.0
   citty: ^0.2.2
   fake-indexeddb: ^6.2.5
   happy-dom: ^20.14.5
@@ -21,6 +22,8 @@ catalog:
   react: ^19.3.0
   react-reconciler: ^0.34.0
   rolldown: ^1.2.12
+  # Exact: the native tests pin the same release (SoundorDependencies.cmake).
+  three: 0.186.1
   tsdown: ^0.23.0
   turbo: ^2.11.6
   typescript: ^7.0.2

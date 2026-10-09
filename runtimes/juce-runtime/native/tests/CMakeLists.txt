@@ -271,3 +271,11 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   endforeach()
 endif()
 
+
+# soundor_run_ui: a UI bundle run headless on the GPU (see tools/RunUi.cpp).
+if(SOUNDOR_HAS_GPU)
+  add_executable(soundor_run_ui tools/RunUi.cpp)
+  target_include_directories(soundor_run_ui PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  target_link_libraries(soundor_run_ui PRIVATE soundor::runtime soundor_angle)
+  soundor_configure_target(soundor_run_ui)
+endif()

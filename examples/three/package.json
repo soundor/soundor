@@ -1,0 +1,31 @@
+{
+  "name": "three-benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "soundor build",
+    "build:web": "soundor build web",
+    "dev": "soundor dev",
+    "dev:web": "soundor dev web",
+    "doctor": "soundor doctor",
+    "gen": "soundor gen",
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+  },
+  "dependencies": {
+    "@soundor/juce-runtime": "workspace:*",
+    "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
+    "react": "catalog:",
+    "three": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/config": "workspace:*",
+    "@soundor/core": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/three": "catalog:",
+    "soundor": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
