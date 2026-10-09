@@ -701,13 +701,17 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 | ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)      |
 | accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt) |
 | doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                              |
+| three       | 0.186.1 (npm)       | MIT              | WebGL compatibility tests (tests only)                   |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
 sources into a static `soundor_quickjs` target with hidden visibility and links
 it `PRIVATE`. This leaves out `quickjs-libc` (file/process access), the `qjs`/`qjsc`
 executables and the install rules, and keeps `quickjs.h` off consumers' include
-paths. To build offline, set `FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a
-checkout of the same revision.
+paths. It is compiled optimized even in Debug builds: an unoptimized
+interpreter's frames are several times larger, so Three.js, which runs in a
+release build, would hit the 512 KiB stack limit in an MSVC debug build. Its
+assertions still follow the configuration. To build offline, set
+`FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a checkout of the same revision.
 
 Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
 Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`
