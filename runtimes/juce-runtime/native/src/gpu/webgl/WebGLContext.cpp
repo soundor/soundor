@@ -186,6 +186,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             canvas->gpuImage.reset();
             canvas->drawn = true;
         }
+        for (const auto& [id, fence] : syncs)
+            glDeleteSync(fence);
         freeDrawingBuffer();
         // The context itself goes with `context`: not current anywhere after.
     }
@@ -489,6 +491,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             }
         }
         return true;
+    }
+
+    std::uint32_t WebGLContext::addSync(GLsync fence)
+    {
+        const std::uint32_t id = nextSync++;
+        syncs.emplace(id, fence);
+        return id;
+    }
+
+    GLsync WebGLContext::sync(std::uint32_t id) const
+    {
+        const auto found = syncs.find(id);
+        return found != syncs.end() ? found->second : nullptr;
+    }
+
+    void WebGLContext::deleteSync(std::uint32_t id)
+    {
+        const auto found = syncs.find(id);
+        if (found == syncs.end())
+            return;
+        glDeleteSync(found->second);
+        syncs.erase(found);
     }
 
     bool WebGLContext::lost() const noexcept

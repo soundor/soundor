@@ -74,12 +74,19 @@ namespace
 
         std::string string(const std::string& expression) { return eval(expression).asString(); }
 
-        // Nothing went wrong, and Three logged no error or warning.
+        // Nothing went wrong, and Three logged no error or warning. Three
+        // passes on the GPU compiler's own notes as warnings ("Program Info
+        // Log", e.g. HLSL precision notes under Direct3D), as in a browser on
+        // that GPU: they are not Soundor's.
         void expectClean()
         {
             CHECK_MESSAGE(string("problems.join('; ')").empty(), string("problems.join('; ')"));
             for (const auto& [level, message] : logs)
-                CHECK_MESSAGE((level != js::LogLevel::Error && level != js::LogLevel::Warn), message);
+            {
+                const bool compilerNote = level == js::LogLevel::Warn
+                                          && message.find("THREE.WebGLProgram: Program Info Log:") != std::string::npos;
+                CHECK_MESSAGE((compilerNote || (level != js::LogLevel::Error && level != js::LogLevel::Warn)), message);
+            }
         }
     };
 } // namespace
