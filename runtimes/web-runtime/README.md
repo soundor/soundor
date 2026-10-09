@@ -327,6 +327,9 @@ plugin shares its storage. There is no parent-page control protocol yet.
 - The host is a test bench, not a DAW: no tracks, automation lanes, MIDI or
   recording. `beginGesture()`/`endGesture()` are tracked but not recorded.
 - No microphone input yet.
+- `node.style.width = 120` changes one style property and `'120px'` lengths
+  are numbers, as in the JUCE runtime (Three.js's `setSize()` writes the
+  canvas's style this way).
 - Images and canvases are leaves, as natively: their children are not shown.
 - A canvas node is a real `<canvas>`, so its contexts are the browser's: it
   draws what browsers draw (shadows, `Path2D`, …) where the JUCE runtime's

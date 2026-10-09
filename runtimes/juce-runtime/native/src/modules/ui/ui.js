@@ -28,6 +28,25 @@ import {
 } from 'soundor:internal/web/events';
 
 const CONSTRUCTING = Symbol('constructing');
+
+/** CSS pixel lengths ('120px') as the numbers Soundor's lengths are. */
+function cssPixels(style) {
+  const result = {};
+  for (const [key, value] of Object.entries(style))
+    result[key] =
+      typeof value === 'string' && /^-?(\d+\.?\d*|\.\d+)px$/.test(value)
+        ? Number.parseFloat(value)
+        : value;
+  return result;
+}
+
+/** `style` with `key` set to `value`, or without it for '', null or undefined. */
+function withProperty(style, key, value) {
+  const next = { ...style };
+  if (value === '' || value === null || value === undefined) delete next[key];
+  else next[key] = value;
+  return next;
+}
 /** The native node types, by name. */
 const TYPES = ['view', 'text', 'image', 'scroll', 'input', 'canvas'];
 
@@ -189,6 +208,7 @@ export class UiNode extends EventTarget {
   #parent = null;
   #children = [];
   #style = Object.freeze({});
+  #styleView = null;
   #text = '';
   #focusable = false;
   #source = '';
@@ -253,17 +273,50 @@ export class UiNode extends EventTarget {
   }
 
   /** The style last set; assigning replaces it as a whole. */
+  /**
+   * The node's style. Setting it replaces the whole style; setting one of its
+   * properties (`node.style.width = 120`, as on the Web) restyles the node with
+   * that property changed, and '' or null removes it. Lengths may be written
+   * as CSS pixels ('120px').
+   */
   get style() {
-    return this.#style;
+    this.#styleView ??= new Proxy(
+      {},
+      {
+        get: (_, key) => this.#style[key],
+        has: (_, key) => key in this.#style,
+        ownKeys: () => Reflect.ownKeys(this.#style),
+        getOwnPropertyDescriptor: (_, key) =>
+          Object.hasOwn(this.#style, key)
+            ? {
+                value: this.#style[key],
+                writable: true,
+                enumerable: true,
+                configurable: true,
+              }
+            : undefined,
+        set: (_, key, value) => {
+          this.style = withProperty(this.#style, key, value);
+          return true;
+        },
+        deleteProperty: (_, key) => {
+          this.style = withProperty(this.#style, key, null);
+          return true;
+        },
+        defineProperty: () => false,
+      },
+    );
+    return this.#styleView;
   }
 
   set style(value) {
-    const style = value ?? {};
-    if (typeof style !== 'object') {
+    const given = value ?? {};
+    if (typeof given !== 'object') {
       throw new TypeError(`style must be an object, got ${describe(value)}`);
     }
+    const style = cssPixels(given);
     native.setStyle(this.#id, style);
-    this.#style = Object.freeze({ ...style });
+    this.#style = Object.freeze(style);
   }
 
   /** The text of a text node, or the value of an input. */

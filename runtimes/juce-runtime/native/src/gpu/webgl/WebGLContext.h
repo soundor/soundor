@@ -11,7 +11,9 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -78,6 +80,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         [[nodiscard]] bool lost() const noexcept;
         void lose() noexcept { forcedLoss = true; }
 
+        // ── Textures ─────────────────────────────────────────────────────────
+        // The textures its code made and has not deleted. They belong to the
+        // device (all its contexts share textures), so the context deletes
+        // them when it goes; nothing of a released canvas stays behind.
+        void ownTexture(GLuint name) { textures.insert(name); }
+        void disownTexture(GLuint name) { textures.erase(name); }
+
+        // ── Fences ───────────────────────────────────────────────────────────
+        // fenceSync()'s, by the id WebGL code knows them by; deleted with the
+        // context at the latest.
+        std::uint32_t addSync(GLsync fence);
+        [[nodiscard]] GLsync sync(std::uint32_t id) const;
+        void deleteSync(std::uint32_t id);
+
         // Read-backs of its picture to the CPU so far (diagnostics).
         [[nodiscard]] long long readbacks() const noexcept { return readbackCount; }
 
@@ -130,5 +146,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // The fence the shown picture is complete behind.
         EGLSyncKHR ready = EGL_NO_SYNC_KHR;
         std::shared_ptr<Image> image;
+        std::map<std::uint32_t, GLsync> syncs;
+        std::set<GLuint> textures;
+        std::uint32_t nextSync = 1;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

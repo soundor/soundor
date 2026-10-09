@@ -254,8 +254,11 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   garbage-collected.
 - **Style:** React Native's flexbox: column by default, `flex: n`, the margin,
   padding and border shorthands, percentages, absolute positioning, gaps,
-  `pointerEvents`, and the text properties used to measure text. An invalid
-  value throws a `TypeError` naming the property.
+  `pointerEvents`, and the text properties used to measure text. Lengths are
+  numbers (logical pixels), CSS pixels (`'120px'`, kept as the number) or
+  percentages. An invalid value throws a `TypeError` naming the property.
+  `node.style = {…}` replaces the style. `node.style.width = 120` changes one
+  property, as on the Web; `''`, `null` or `delete` removes it.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
   Positions are in logical pixels, and buttons and keys use their Web names.
   The surface routes the input:
@@ -490,15 +493,33 @@ its headers.
   - **Extensions,** where the device has them: `EXT_color_buffer_float`,
     `EXT_color_buffer_half_float`, `EXT_float_blend`,
     `EXT_texture_filter_anisotropic`, `EXT_texture_norm16`,
-    `KHR_parallel_shader_compile`, `OES_texture_float_linear`,
+    `KHR_parallel_shader_compile` (everywhere: where the driver lacks it,
+    compiling is done when it returns, and its status is always true),
+    `OES_texture_float_linear`,
     `WEBGL_debug_renderer_info` and `WEBGL_lose_context`.
-  - **Objects** live until deleted, or until their context goes. Dropping a
+  - **Objects** live until deleted, or until their context goes. Textures
+    included: a device's contexts share textures (see "Showing it"), so each
+    WebGL context deletes the ones its code made when it goes. A released
+    canvas, or a reloaded UI, leaves nothing on the editor's device. Dropping a
     wrapper does not delete the OpenGL object, because OpenGL keeps it in
     use while it is bound.
   - **Not there:** WebGL 1, `restoreContext()`, `drawingBufferStorage()`,
     color spaces other than sRGB, XR, and uploads from image nodes. They
     throw a `TypeError` saying so. `finish()` only flushes, because Soundor
     never waits for the GPU on the UI thread.
+- **Three.js:** WebGL is tested against Three.js's `WebGLRenderer`, the
+  unmodified npm package pinned in `cmake/SoundorDependencies.cmake`
+  (`tests/gpu/ThreeTests.cpp`). The tests cover lights and shadows, physical
+  materials, tone mapping, PMREM environments, multisampled, float, cube and
+  depth render targets, instancing, morph targets, skinning, points, lines
+  and sprites, transmission, and canvas, data, array and 3D textures. They
+  also cover GLSL 3 shader materials with uniform blocks, clipping planes, a
+  logarithmic depth buffer, `setSize()`, the animation loop, and
+  asynchronous compiling and reading. Each case checks for no WebGL errors
+  and no warnings from Three, and checks pixels where they are defined. An
+  animated scene is composited without read-backs. Three needs nothing from
+  the DOM for these. Its image loaders do (`document`), so images reach
+  Three as canvas nodes or `ImageData` instead.
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
@@ -685,13 +706,17 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 | ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)      |
 | accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt) |
 | doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                              |
+| three       | 0.186.1 (npm)       | MIT              | WebGL compatibility tests (tests only)                   |
 
 QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
 sources into a static `soundor_quickjs` target with hidden visibility and links
 it `PRIVATE`. This leaves out `quickjs-libc` (file/process access), the `qjs`/`qjsc`
 executables and the install rules, and keeps `quickjs.h` off consumers' include
-paths. To build offline, set `FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a
-checkout of the same revision.
+paths. It is compiled optimized even in Debug builds: an unoptimized
+interpreter's frames are several times larger, so Three.js, which runs in a
+release build, would hit the 512 KiB stack limit in an MSVC debug build. Its
+assertions still follow the configuration. To build offline, set
+`FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a checkout of the same revision.
 
 Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
 Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`

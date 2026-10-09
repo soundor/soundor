@@ -139,6 +139,7 @@ JSValue callGenerated(JSContext* ctx, WebGLContext& context, int op, const Args&
         {
             GLuint name = 0;
             glGenTextures(1, &name);
+            context.ownTexture(name);
             return JS_NewUint32(ctx, name);
         }
         case 25: // cullFace
@@ -172,6 +173,7 @@ JSValue callGenerated(JSContext* ctx, WebGLContext& context, int op, const Args&
         {
             const GLuint name = args.u32(0);
             glDeleteTextures(1, &name);
+            context.disownTexture(name);
             return JS_UNDEFINED;
         }
         case 31: // depthFunc

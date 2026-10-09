@@ -30,9 +30,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             std::map<std::uint32_t, std::unique_ptr<WebGLContext>> contexts;
             std::map<std::uint32_t, std::shared_ptr<ui::CanvasBuffer>> canvases;
             std::map<std::uint32_t, WebGLContext::Attributes> attributes;
-            std::map<std::uint32_t, GLsync> syncs;
             std::uint32_t nextContext = 1;
-            std::uint32_t nextSync = 1;
             std::vector<std::uint8_t> scratch;
         };
 
@@ -981,12 +979,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 }
                 case HandOp::GetSyncParameter:
                 {
-                    const auto found = webgl.syncs.find(a.u32(0));
-                    if (found == webgl.syncs.end())
+                    GLsync fence = context.sync(a.u32(0));
+                    if (fence == nullptr)
                         return JS_NULL;
                     GLint value = 0;
                     GLsizei length = 0;
-                    glGetSynciv(found->second, a.u32(1), 1, &length, &value);
+                    glGetSynciv(fence, a.u32(1), 1, &length, &value);
                     return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
                 }
                 case HandOp::GetInternalformatParameter:
@@ -1094,42 +1092,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 }
                 case HandOp::FenceSync:
                 {
-                    GLsync sync = glFenceSync(a.u32(0), a.u32(1));
-                    if (sync == nullptr)
-                        return JS_NewUint32(ctx, 0);
-                    const std::uint32_t id = webgl.nextSync++;
-                    webgl.syncs.emplace(id, sync);
-                    return JS_NewUint32(ctx, id);
+                    GLsync fence = glFenceSync(a.u32(0), a.u32(1));
+                    return JS_NewUint32(ctx, fence != nullptr ? context.addSync(fence) : 0);
                 }
                 case HandOp::ClientWaitSync:
                 {
-                    const auto found = webgl.syncs.find(a.u32(0));
-                    if (found == webgl.syncs.end())
+                    GLsync fence = context.sync(a.u32(0));
+                    if (fence == nullptr)
                         return JS_NewUint32(ctx, GL_WAIT_FAILED);
                     // WebGL never blocks: the timeout must be 0.
-                    return JS_NewUint32(ctx, glClientWaitSync(found->second, a.u32(1), 0));
+                    return JS_NewUint32(ctx, glClientWaitSync(fence, a.u32(1), 0));
                 }
                 case HandOp::WaitSync:
                 {
-                    const auto found = webgl.syncs.find(a.u32(0));
-                    if (found != webgl.syncs.end())
-                        glWaitSync(found->second, a.u32(1), GL_TIMEOUT_IGNORED);
+                    if (GLsync fence = context.sync(a.u32(0)); fence != nullptr)
+                        glWaitSync(fence, a.u32(1), GL_TIMEOUT_IGNORED);
                     return JS_UNDEFINED;
                 }
                 case HandOp::DeleteSync:
                 {
-                    const auto found = webgl.syncs.find(a.u32(0));
-                    if (found != webgl.syncs.end())
-                    {
-                        glDeleteSync(found->second);
-                        webgl.syncs.erase(found);
-                    }
+                    context.deleteSync(a.u32(0));
                     return JS_UNDEFINED;
                 }
                 case HandOp::IsSync:
                 {
-                    const auto found = webgl.syncs.find(a.u32(0));
-                    return JS_NewBool(ctx, found != webgl.syncs.end() && glIsSync(found->second) == GL_TRUE);
+                    GLsync fence = context.sync(a.u32(0));
+                    return JS_NewBool(ctx, fence != nullptr && glIsSync(fence) == GL_TRUE);
                 }
                 case HandOp::GetShaderPrecisionFormat:
                 {

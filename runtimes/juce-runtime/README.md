@@ -141,7 +141,8 @@ A canvas node draws with `getContext('2d')`, which uses Skia on the CPU, or
 with `getContext('webgl2')`, which uses ANGLE on the GPU. WebGL needs a
 hardware GPU. Where there is none (a VM, a headless Linux machine),
 `getContext('webgl2')` returns null and the plugin log says why, so code
-should fall back. The GPU compositor shows WebGL as it is, without copies;
+should fall back. Three.js's `WebGLRenderer` runs on it unmodified, and the
+native tests check that. The GPU compositor shows WebGL as it is, without copies;
 where the UI is composited on the CPU (Linux), WebGL is read back. See
 [`native/README.md`](./native/README.md).
 

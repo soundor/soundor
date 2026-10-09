@@ -46,6 +46,19 @@ else()
   target_compile_options(soundor_quickjs PRIVATE -funsigned-char -w)
 endif()
 
+# Optimized in every configuration. An unoptimized interpreter is several
+# times slower, and its frames several times larger: plugin code that runs in
+# a release build (Three.js) would exhaust the engine's stack limit in a debug
+# one, MSVC's especially. Assertions and leak checks still follow the
+# configuration (NDEBUG). The only C sources here are QuickJS's, so MSVC's
+# debug run-time checks, which /O2 refuses, are dropped for C.
+if(MSVC)
+  string(REPLACE "/RTC1" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+  target_compile_options(soundor_quickjs PRIVATE "$<$<CONFIG:Debug>:/O2;/Ob2>")
+else()
+  target_compile_options(soundor_quickjs PRIVATE "$<$<CONFIG:Debug>:-O2>")
+endif()
+
 if(NOT WIN32)
   target_link_libraries(soundor_quickjs PRIVATE m)
 endif()

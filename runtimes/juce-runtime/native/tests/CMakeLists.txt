@@ -49,8 +49,17 @@ soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_D
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 if(SOUNDOR_HAS_GPU)
+  # Three.js, unmodified, from npm: its build/ is loaded as the tests' UI files.
+  FetchContent_Declare(
+    SOUNDOR_THREE
+    URL "https://registry.npmjs.org/three/-/three-${SOUNDOR_THREE_VERSION}.tgz"
+    URL_HASH "SHA256=${SOUNDOR_THREE_SHA256}"
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR "soundor-populate-only")
+  FetchContent_MakeAvailable(SOUNDOR_THREE)
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_SOURCE_DIR}/build")
   target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp
-    gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp)
+    gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp gpu/ThreeTests.cpp)
   if(APPLE)
     target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.mm)
   else()
