@@ -506,6 +506,17 @@ its headers.
     canvas, or a reloaded UI, leaves nothing on the editor's device. Dropping a
     wrapper does not delete the OpenGL object, because OpenGL keeps it in
     use while it is bound.
+  - **Losing the GPU:** contexts are made to be lost on a GPU reset
+    (`EGL_EXT_create_context_robustness`), and each tick asks whether they
+    were. A lost context is reported to JavaScript at the next tick: calls
+    then do nothing, `getError()` says `CONTEXT_LOST_WEBGL` once, and the
+    canvas gets `webglcontextlost`. `WEBGL_lose_context`'s `loseContext()`
+    loses the context the same way (`GL_CHROMIUM_lose_context`). The GPU
+    compositor notices the reset too, and the editor composites on the CPU
+    from then on.
+  - **Diagnostics:** the first context logs which GPU WebGL runs on, and
+    whether it can be composited without copies. Without an acceptable GPU,
+    `getContext('webgl2')` logs why it returns null.
   - **Not there:** WebGL 1, `restoreContext()`, `drawingBufferStorage()`,
     color spaces other than sRGB, XR, and uploads from image nodes. They
     throw a `TypeError` saying so. `finish()` only flushes, because Soundor
@@ -900,6 +911,7 @@ Or directly, from this directory:
 cmake --workflow --preset dev        # Debug, -Werror, tests
 cmake --workflow --preset sanitize   # + AddressSanitizer / UBSan / LeakSanitizer
 cmake --workflow --preset tidy       # + clang-tidy (build only)
+cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
 JUCE_DIR=/path/to/JUCE cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 

@@ -14,6 +14,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return JS_NewStringLen(ctx, why.data(), why.size());
         }
 
+        // Nothing to lose: no context is ever made.
+        JSValue webglIgnored(JSContext*, JSValueConst, int, JSValueConst*)
+        {
+            return JS_UNDEFINED;
+        }
+
         JSValue webglUnavailable(JSContext* ctx, JSValueConst, int, JSValueConst*)
         {
             return JS_ThrowTypeError(ctx, "WebGL is not available in this build of Soundor");
@@ -23,9 +29,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     std::span<const ui::NativeFunction> webglFunctions()
     {
         static constexpr ui::NativeFunction functions[] = {
-            { "webglCreate", webglCreate, 2 },    { "webglAttributes", webglUnavailable, 1 },
-            { "webglCall", webglUnavailable, 2 }, { "webglResize", webglUnavailable, 1 },
-            { "webglLose", webglUnavailable, 1 }, { "webglRelease", webglUnavailable, 1 },
+            { "webglCreate", webglCreate, 2 },           { "webglAttributes", webglUnavailable, 1 },
+            { "webglCall", webglUnavailable, 2 },        { "webglResize", webglUnavailable, 1 },
+            { "webglLose", webglUnavailable, 1 },        { "webglRelease", webglUnavailable, 1 },
+            { "webglSetLostListener", webglIgnored, 1 },
         };
         return functions;
     }
@@ -33,4 +40,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     void installWebGL(js::Context&, std::shared_ptr<Device>, bool) {}
 
     void presentWebGL(js::Context&) {}
+
+    void loseWebGL(js::Context&) {}
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

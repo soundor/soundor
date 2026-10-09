@@ -95,6 +95,13 @@ jobs:
             preset: sanitize
             cc: clang
             cxx: clang++
+          # Without ANGLE, as on iOS: canvases have no WebGL, and nothing
+          # else may depend on the GPU.
+          - name: linux-nogpu
+            os: ubuntu-24.04
+            preset: nogpu
+            cc: clang
+            cxx: clang++
           - name: macos
             os: macos-15
             preset: dev

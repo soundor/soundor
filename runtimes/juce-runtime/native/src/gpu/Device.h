@@ -46,6 +46,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // Whether it has EGL fences the GPU can wait on (EGL_KHR_fence_sync,
         // EGL_KHR_wait_sync).
         bool fences = false;
+        // Whether its contexts can learn of a GPU reset
+        // (EGL_EXT_create_context_robustness): they are made to be lost then.
+        bool resets = false;
     };
 
     // A GPU device and ANGLE's EGL display over it. It belongs to the thread

@@ -12,7 +12,11 @@ same lifecycle phases. Two runtimes exist:
 
 - `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
   hosting an embedded QuickJS runtime that runs the UI bundle, laid out with
-  Yoga and drawn with Skia on the CPU.
+  Yoga and drawn with Skia on the CPU into layers. Soundor's own compositor
+  puts the layers together on the GPU (ANGLE: Metal, Direct3D 11) where it
+  can, and on the CPU otherwise (Linux, fallback). Canvas nodes have a 2D
+  context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
+  shows without copies; Three.js runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio. Nothing native runs there (no WASM, QuickJS, Yoga or Skia).
 
@@ -55,6 +59,7 @@ Native runtime (`runtimes/juce-runtime/native`, from that directory):
 cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build/dev
 cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build/sanitize
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
+cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g. /opt/JUCE)
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
@@ -159,6 +164,11 @@ generated framework or the runtime package, not in `init` templates.
   the cache (ANGLE: gn decides what to compile, Soundor's CMake compiles it).
 - GPU code has a device only where there is one: tests skip without one,
   except under `SOUNDOR_REQUIRE_GPU=1` (CI), where they fail.
+- GPU invariants: no WebGL read-back when the GPU compositor runs (frames
+  count read-backs); static CPU layers are not re-rasterized or re-uploaded
+  every frame; nothing waits for the GPU on the CPU (no `glFinish`); all of
+  a device's contexts share textures, so WebGL contexts delete their own
+  when they go; Apple code adds no Objective-C classes or categories.
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug QuickJS aborts on leaks).
 - Plugin builds (`soundor dev`/`build`) use Ninja on macOS and Linux and

@@ -78,7 +78,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // ── Loss ─────────────────────────────────────────────────────────────
         // Whether the context is lost (the GPU reset, or loseContext()).
         [[nodiscard]] bool lost() const noexcept;
-        void lose() noexcept { forcedLoss = true; }
+        // loseContext(): the context is lost as by a GPU reset where ANGLE
+        // can (GL_CHROMIUM_lose_context), and reported as one.
+        void lose();
+        // Asks the GPU whether it reset (or the context was lost otherwise),
+        // once per tick: true when it is newly lost.
+        bool checkReset();
 
         // ── Textures ─────────────────────────────────────────────────────────
         // The textures its code made and has not deleted. They belong to the
