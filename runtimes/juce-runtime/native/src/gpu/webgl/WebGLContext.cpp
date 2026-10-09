@@ -6,6 +6,7 @@
 #include <array>
 #include <cmath>
 #include <cstring>
+#include <string_view>
 #include <utility>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
@@ -492,6 +493,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 target[x] = (a << 24) | (std::min(r, a) << 16) | (std::min(g, a) << 8) | std::min(b, a);
             }
         }
+        return true;
+    }
+
+    void WebGLContext::lose()
+    {
+        if (forcedLoss || resetLoss)
+            return;
+        makeCurrent();
+        const auto* extensions = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
+        const auto* requestable = reinterpret_cast<const char*>(glGetString(GL_REQUESTABLE_EXTENSIONS_ANGLE));
+        const auto has = [](const char* list) {
+            return list != nullptr && std::string_view(list).find("GL_CHROMIUM_lose_context") != std::string_view::npos;
+        };
+        if (! has(extensions) && has(requestable))
+            glRequestExtensionANGLE("GL_CHROMIUM_lose_context");
+        if (has(reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS))))
+            glLoseContextCHROMIUM(GL_GUILTY_CONTEXT_RESET_EXT, GL_INNOCENT_CONTEXT_RESET_EXT);
+        else
+            forcedLoss = true;
+    }
+
+    bool WebGLContext::checkReset()
+    {
+        if (resetLoss)
+            return false;
+        if (forcedLoss)
+        {
+            resetLoss = true;
+            return true;
+        }
+        makeCurrent();
+        if (glGetGraphicsResetStatusEXT() == GL_NO_ERROR)
+            return false;
+        resetLoss = true;
         return true;
     }
 

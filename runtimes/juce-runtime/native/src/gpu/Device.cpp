@@ -153,6 +153,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             { return (" " + extensions + " ").find(" " + extension + " ") != std::string::npos; };
             device->deviceInfo.sharesTextures = has("EGL_ANGLE_display_texture_share_group");
             device->deviceInfo.fences = has("EGL_KHR_fence_sync") && has("EGL_KHR_wait_sync");
+            device->deviceInfo.resets = has("EGL_EXT_create_context_robustness");
             if (! describe(display, device->deviceInfo))
             {
                 reasons +=

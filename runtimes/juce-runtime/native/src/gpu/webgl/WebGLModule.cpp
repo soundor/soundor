@@ -2,6 +2,7 @@
 
 #include "gpu/webgl/WebGLContext.h"
 #include "js/Bindings.h"
+#include "js/Internal.h"
 
 #include <algorithm>
 #include <cmath>
@@ -19,6 +20,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         namespace bind = js::bind;
 
         const char webglKey = 0;
+        // webgl.js's listener for contexts the GPU lost: (id) => void.
+        const char lostListenerKey = 0;
 
         // A context's WebGL world: its device, its contexts by id, and the
         // fences their code made (OpenGL's are pointers), by id.
@@ -31,6 +34,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             std::map<std::uint32_t, std::shared_ptr<ui::CanvasBuffer>> canvases;
             std::map<std::uint32_t, WebGLContext::Attributes> attributes;
             std::uint32_t nextContext = 1;
+            bool announced = false; // the log said which GPU
             std::vector<std::uint8_t> scratch;
         };
 
@@ -1335,6 +1339,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     auto context = WebGLContext::create(webgl.device, canvas, attributes, &why);
                     if (context == nullptr)
                         return string(ctx, "WebGL 2 is not available: " + why);
+                    if (! webgl.announced)
+                    {
+                        // Once: where WebGL runs, for diagnosing what users see.
+                        webgl.announced = true;
+                        const DeviceInfo& info = webgl.device->info();
+                        if (auto* state = js::detail::contextStateOf(ctx); state != nullptr)
+                            state->runtime->log(
+                                js::LogLevel::Info,
+                                std::string("WebGL 2: ANGLE / ") + name(info.backend) + " (" + info.renderer + ")"
+                                    + (info.sharesTextures ? ", composited without copies where the GPU compositor runs"
+                                                           : ", read back for compositing"));
+                    }
                     const std::uint32_t id = webgl.nextContext++;
                     webgl.attributes.emplace(id, context->attributes());
                     webgl.contexts.emplace(id, std::move(context));
@@ -1425,6 +1441,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                 });
         }
 
+        // webglSetLostListener(fn): called with a context's id when it is lost.
+        JSValue webglSetLostListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        {
+            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
+                return JS_ThrowTypeError(ctx, "webglSetLostListener() expects a function");
+            bind::retainValue(ctx, &lostListenerKey, JS_DupValue(ctx, argv[0]));
+            return JS_UNDEFINED;
+        }
+
         JSValue webglRelease(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
             if (! bind::expectArgumentCount(ctx, "webglRelease", argc, 1))
@@ -1445,9 +1470,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     std::span<const ui::NativeFunction> webglFunctions()
     {
         static constexpr ui::NativeFunction functions[] = {
-            { "webglCreate", webglCreate, 2 }, { "webglAttributes", webglAttributes, 1 },
-            { "webglCall", webglCall, 2 },     { "webglResize", webglResize, 1 },
-            { "webglLose", webglLose, 1 },     { "webglRelease", webglRelease, 1 },
+            { "webglCreate", webglCreate, 2 },
+            { "webglAttributes", webglAttributes, 1 },
+            { "webglCall", webglCall, 2 },
+            { "webglResize", webglResize, 1 },
+            { "webglLose", webglLose, 1 },
+            { "webglRelease", webglRelease, 1 },
+            { "webglSetLostListener", webglSetLostListener, 1 },
         };
         return functions;
     }
@@ -1465,7 +1494,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         auto* webgl = bind::contextData<WebGL>(js::rawContext(context), &webglKey);
         if (webgl == nullptr)
             return;
+        // Contexts the GPU lost since the last tick (a reset, a removed GPU,
+        // loseContext()) are reported to webgl.js; the others are shown.
+        std::vector<std::uint32_t> lost;
         for (auto& [id, webglContext] : webgl->contexts)
-            webglContext->present();
+        {
+            if (webglContext->checkReset())
+                lost.push_back(id);
+            else
+                webglContext->present();
+        }
+        if (lost.empty())
+            return;
+        JSContext* ctx = js::rawContext(context);
+        JSValue listener = JS_DupValue(ctx, bind::retainedValue(ctx, &lostListenerKey));
+        if (JS_IsFunction(ctx, listener))
+            for (const std::uint32_t id : lost)
+            {
+                JSValue argument = JS_NewUint32(ctx, id);
+                JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 1, &argument);
+                if (JS_IsException(result))
+                    JS_FreeValue(ctx, JS_GetException(ctx));
+                JS_FreeValue(ctx, result);
+            }
+        JS_FreeValue(ctx, listener);
+    }
+
+    void loseWebGL(js::Context& context)
+    {
+        auto* webgl = bind::contextData<WebGL>(js::rawContext(context), &webglKey);
+        if (webgl == nullptr)
+            return;
+        for (auto& [id, webglContext] : webgl->contexts)
+            webglContext->lose();
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

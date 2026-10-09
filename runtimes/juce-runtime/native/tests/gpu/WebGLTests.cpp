@@ -1,5 +1,6 @@
 #include "../web/WebTestSupport.h"
 #include "GpuTestSupport.h"
+#include "gpu/webgl/WebGLModule.h"
 
 #include <cstdint>
 #include <string>
@@ -445,6 +446,30 @@ TEST_SUITE("WebGL 2")
         CHECK(f.boolean("gl.createBuffer() === null && gl.getParameter(gl.VIEWPORT) === null"));
         CHECK(f.tickUntil("events === 1"));
         CHECK(f.boolean("gl.getContextAttributes() === null"));
+    }
+
+    TEST_CASE("a context the GPU loses is reported lost at the next tick")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        WebGLFixture f(device);
+        f.run(R"(
+            globalThis.events = 0;
+            c.addEventListener('webglcontextlost', () => { globalThis.events += 1; });
+            gl.clearColor(1, 0, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+        )");
+        // As a GPU reset would: native code loses it, JavaScript does not know.
+        gpu::loseWebGL(f.host.context());
+        CHECK_FALSE(f.boolean("gl.isContextLost()"));
+        CHECK(f.tickUntil("gl.isContextLost() && events === 1"));
+        CHECK(f.number("gl.getError()") == f.number("gl.CONTEXT_LOST_WEBGL"));
+        // Nothing more is drawn or shown, and nothing fails.
+        f.run("gl.clear(gl.COLOR_BUFFER_BIT); globalThis.result = gl.createBuffer();");
+        CHECK(f.eval("result === null").asBoolean());
+        f.host.tick();
+        CHECK(f.number("events") == 1);
     }
 
     TEST_CASE("textures go with the context that made them, though the device's contexts share them")

@@ -295,8 +295,21 @@ function typed(value, Type, what) {
 
 // ── The context ──────────────────────────────────────────────────────────
 
+/** The contexts by native id, while they live. */
+const live = new Map();
+
 /** The contexts' native counterparts go when they do. */
-const contexts = new FinalizationRegistry((id) => native.webglRelease(id));
+const contexts = new FinalizationRegistry((id) => {
+  live.delete(id);
+  native.webglRelease(id);
+});
+
+// The GPU lost a context (it reset, went away, or loseContext() was
+// called): it is lost from now on, and its canvas hears of it.
+native.webglSetLostListener((id) => {
+  const context = live.get(id)?.deref();
+  if (context !== undefined) stateOf(context).lose(false);
+});
 
 let stateOf;
 // A context's uniform*v() and vertexAttrib*v(), defined below the class.
@@ -2626,6 +2639,7 @@ export function createWebGL2(canvas, node, options) {
   }
   const context = new WebGL2RenderingContext(CONSTRUCTING, canvas, node, id);
   contexts.register(context, id);
+  live.set(id, new WeakRef(context));
   return context;
 }
 

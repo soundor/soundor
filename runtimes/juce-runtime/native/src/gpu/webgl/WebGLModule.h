@@ -23,6 +23,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     // unless `allowSoftware`.
     void installWebGL(js::Context& context, std::shared_ptr<Device> device, bool allowSoftware);
 
-    // Shows what WebGL contexts drew since the last call in their canvases.
+    // Shows what WebGL contexts drew since the last call in their canvases;
+    // reports those the GPU lost to JavaScript.
     void presentWebGL(js::Context& context);
+
+    // Loses every WebGL context of `context` as a GPU reset would: they are
+    // reported lost at the next presentWebGL() (for tests).
+    void loseWebGL(js::Context& context);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

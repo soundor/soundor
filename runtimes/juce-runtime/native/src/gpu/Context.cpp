@@ -28,6 +28,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // (it names objects through its context's wrappers).
         if (device->info().sharesTextures)
             attributes.insert(attributes.end(), { EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE, EGL_TRUE });
+        // A GPU reset loses the context (glGetGraphicsResetStatusEXT says so)
+        // instead of leaving it undefined.
+        if (device->info().resets)
+            attributes.insert(attributes.end(),
+                              { EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_EXT, EGL_LOSE_CONTEXT_ON_RESET_EXT });
         attributes.push_back(EGL_NONE);
         EGLContext context = eglCreateContext(device->display(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, attributes.data());
         if (context == EGL_NO_CONTEXT)

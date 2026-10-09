@@ -66,7 +66,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 if (! working || frame.width <= 0 || frame.height <= 0)
                     return;
                 const gpu::CurrentContext current(*context, surface);
-                if (! current.ok())
+                // A GPU reset (or a removed GPU) loses its contexts: the
+                // editor falls back to the CPU.
+                if (! current.ok() || glGetGraphicsResetStatusEXT() != GL_NO_ERROR)
                 {
                     lose();
                     return;
