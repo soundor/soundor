@@ -63,7 +63,8 @@ The first native configure builds Skia and ANGLE from source (minutes) and
 caches them in the user cache dir (`SOUNDOR_CACHE` overrides); later
 configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE.
 
-Examples (`examples/basic`, `examples/primitives`) are real projects using the
+Examples (`examples/basic`, `examples/primitives`, `examples/three`: a
+Three.js benchmark) are real projects using the
 workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
 `... soundor build web|juce`.
 

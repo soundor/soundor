@@ -520,6 +520,12 @@ its headers.
   animated scene is composited without read-backs. Three needs nothing from
   the DOM for these. Its image loaders do (`document`), so images reach
   Three as canvas nodes or `ImageData` instead.
+- **`soundor_run_ui`** (`tests/tools/RunUi.cpp`, built with the tests) runs
+  a built UI bundle headless on the GPU, as the editor would. It uses an
+  offscreen GPU compositor on the UI's device, evaluates an expression
+  (awaiting a promise), and reports frames, GPU read-backs, CPU layers
+  rasterized and bytes uploaded. `examples/three` uses it as its native
+  benchmark.
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
