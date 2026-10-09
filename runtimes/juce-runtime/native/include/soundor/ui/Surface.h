@@ -49,6 +49,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t resets = 0;
         // Something was drawn since the surface last looked.
         bool drawn = false;
+        // Drawn on the GPU instead (WebGL): the image, and whether it changed
+        // since the view last made a frame. A GPU compositor shows it as a
+        // layer of its own; otherwise it is read back into `pixels`.
+        std::shared_ptr<render::GpuImage> gpuImage;
+        bool gpuDrawn = false;
     };
 
     struct Rect
@@ -296,6 +301,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // pointer events through where none of its descendants takes them.
         [[nodiscard]] Node& overlay() noexcept { return *overlayNode; }
         [[nodiscard]] Node* find(NodeId id) noexcept;
+        // The canvas nodes, in the order they were made.
+        [[nodiscard]] std::span<const NodeId> canvases() const noexcept { return canvasNodes; }
         // Whether `id` is in one of the trees (a root or a descendant of one).
         [[nodiscard]] bool isConnected(NodeId id) noexcept;
 

@@ -68,4 +68,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         SetWindowLongPtrW(child, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&passInput));
         return std::make_unique<ChildWindowPresentation>(child);
     }
+
+    bool presentationAvailable() noexcept
+    {
+        return true;
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

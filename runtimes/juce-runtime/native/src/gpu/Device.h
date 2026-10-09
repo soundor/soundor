@@ -39,6 +39,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         std::string renderer; // GL_RENDERER, e.g. "ANGLE (Apple, Apple M2, ...)"
         std::string vendor;
         bool software = false;
+        // Whether its contexts share one texture namespace
+        // (EGL_ANGLE_display_texture_share_group): how WebGL's images reach
+        // the compositor without copies.
+        bool sharesTextures = false;
+        // Whether it has EGL fences the GPU can wait on (EGL_KHR_fence_sync,
+        // EGL_KHR_wait_sync).
+        bool fences = false;
     };
 
     // A GPU device and ANGLE's EGL display over it. It belongs to the thread

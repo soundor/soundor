@@ -44,7 +44,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
                 // Whether a software renderer (WARP, SwiftShader) will do:
                 // for tests and debugging, never by default.
                 bool allowSoftware = false;
+                // The device to draw on, from createDevice(); default: one
+                // of its own.
+                std::shared_ptr<gpu::Device> device;
             };
+
+            // The device a GPU compositor would draw on, made before there is
+            // a view: give it to the RuntimeHost too, so that WebGL draws on
+            // it and the compositor shows WebGL without copies. Null (and why
+            // in `failure`) where there is no GPU composition.
+            [[nodiscard]] static std::shared_ptr<gpu::Device> createDevice(bool allowSoftware = false,
+                                                                           std::string* failure = nullptr);
 
             // A GPU compositor presenting into `options.view`, or null, with
             // the reason in `failure`.

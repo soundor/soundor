@@ -9,6 +9,7 @@
 
 #include <soundor/ui/Surface.h>
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -66,8 +67,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // is resolved into the one that is read.
         void prepareRead();
 
-        // Shows the drawing buffer in the canvas if it changed since: its
-        // pixels are read back into the canvas's buffer. True when they were.
+        // Shows the drawing buffer in the canvas if it changed since: it is
+        // copied on the GPU into a presentation texture, the canvas's
+        // gpuImage, which the GPU compositor draws as it is and anything else
+        // reads back. True when there was something to show.
         bool present();
 
         // ── Loss ─────────────────────────────────────────────────────────────
@@ -75,10 +78,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         [[nodiscard]] bool lost() const noexcept;
         void lose() noexcept { forcedLoss = true; }
 
-        // Readbacks so far (diagnostics).
+        // Read-backs of its picture to the CPU so far (diagnostics).
         [[nodiscard]] long long readbacks() const noexcept { return readbackCount; }
 
     private:
+        class Image;
+        // A presentation texture, and the fence of the compositor's last
+        // drawing of it.
+        struct Front
+        {
+            GLuint texture = 0;
+            GLuint framebuffer = 0;
+            EGLSyncKHR released = EGL_NO_SYNC_KHR;
+        };
+        bool makeFronts();
+        void freeFronts();
+        bool readBack(render::RasterSurface& pixels);
+
         WebGLContext() = default;
         bool makeDrawingBuffer();
         void freeDrawingBuffer();
@@ -108,5 +124,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         bool resetLoss = false;
         std::vector<std::uint8_t> readback;
         long long readbackCount = 0;
+        // Shown alternately: the compositor draws one while the next is made.
+        std::array<Front, 2> fronts {};
+        int shown = -1;
+        // The fence the shown picture is complete behind.
+        EGLSyncKHR ready = EGL_NO_SYNC_KHR;
+        std::shared_ptr<Image> image;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

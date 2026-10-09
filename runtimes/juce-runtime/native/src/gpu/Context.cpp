@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <utility>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 {
@@ -11,7 +12,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                              std::string* failure)
     {
         assert(device != nullptr && device->onOwnerThread());
-        const EGLint attributes[] = {
+        std::vector<EGLint> attributes {
             EGL_CONTEXT_MAJOR_VERSION,
             3,
             EGL_CONTEXT_MINOR_VERSION,
@@ -21,9 +22,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             // WebGL never shows memory it did not write.
             EGL_ROBUST_RESOURCE_INITIALIZATION_ANGLE,
             options.webgl ? EGL_TRUE : EGL_FALSE,
-            EGL_NONE,
         };
-        EGLContext context = eglCreateContext(device->display(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, attributes);
+        // Every context of a device sees the same textures: the GPU compositor
+        // draws WebGL's from where they are. WebGL code reaches only its own
+        // (it names objects through its context's wrappers).
+        if (device->info().sharesTextures)
+            attributes.insert(attributes.end(), { EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE, EGL_TRUE });
+        attributes.push_back(EGL_NONE);
+        EGLContext context = eglCreateContext(device->display(), EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, attributes.data());
         if (context == EGL_NO_CONTEXT)
         {
             if (failure != nullptr)

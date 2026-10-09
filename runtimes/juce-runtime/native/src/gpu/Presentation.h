@@ -25,4 +25,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     // The platform's presentation in `view` (an NSView*, an HWND), or null
     // with the reason in `failure` where there is none (Linux).
     [[nodiscard]] std::unique_ptr<Presentation> createPresentation(void* view, std::string* failure);
+    // Whether this platform has a presentation at all.
+    [[nodiscard]] bool presentationAvailable() noexcept;
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

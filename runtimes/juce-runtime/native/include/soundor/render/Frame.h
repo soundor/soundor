@@ -11,6 +11,11 @@
 #include <variant>
 #include <vector>
 
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
+{
+    class Device;
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
+
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
     // Pixels to draw into: 32 bits each, premultiplied alpha, B, G, R, A in
@@ -91,6 +96,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         Region damage;
     };
 
+    // An image on the GPU that something else drew (a WebGL canvas's drawing
+    // buffer, as last shown). A GPU compositor on its device draws it as it
+    // is, without a copy; anything else reads it back into pixels.
+    class GpuImage
+    {
+    public:
+        GpuImage() = default;
+        virtual ~GpuImage() = default;
+        GpuImage(const GpuImage&) = delete;
+        GpuImage& operator=(const GpuImage&) = delete;
+
+        [[nodiscard]] virtual int width() const noexcept = 0;
+        [[nodiscard]] virtual int height() const noexcept = 0;
+        // The device it is on; a compositor on another one cannot draw it.
+        [[nodiscard]] virtual const gpu::Device* device() const noexcept = 0;
+        // Whether its alpha is to be ignored (WebGL's `alpha: false`).
+        [[nodiscard]] virtual bool opaque() const noexcept = 0;
+        // Whether its colors are premultiplied by their alpha.
+        [[nodiscard]] virtual bool premultiplied() const noexcept = 0;
+        // Reads it back into `pixels` (resized to it; premultiplied, opaque
+        // where it is, rows top first). Costly: it waits for the GPU.
+        virtual bool read(RasterSurface& pixels) = 0;
+    };
+
+    // Content drawn on the GPU elsewhere: an image the layer shows with its
+    // first row at the bottom (OpenGL's way), and whether it changed since
+    // the previous frame.
+    struct GpuContent
+    {
+        std::shared_ptr<GpuImage> image;
+        bool changed = false;
+    };
+
     using LayerId = std::uint64_t;
 
     // A new id, unique in the process: compositors key what they cache for
@@ -108,17 +146,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         Transform transform;
         float opacity = 1;
         std::optional<Clip> clip;
-        std::variant<RasterContent> content;
+        std::variant<RasterContent, GpuContent> content;
 
         // Whether everything but the content is the same.
         [[nodiscard]] bool samePlacement(const Layer& other) const noexcept;
     };
 
-    // What producing a frame cost: the CPU rasterization behind it.
+    // What producing a frame cost: the CPU rasterization behind it, and the
+    // GPU images read back because the compositor could not draw them.
     struct FrameStatistics
     {
         int layersRasterized = 0;
         long long pixelsRasterized = 0;
+        int gpuLayers = 0;
+        int gpuReadbacks = 0;
     };
 
     // A view as a compositor sees it: its size in device pixels and its

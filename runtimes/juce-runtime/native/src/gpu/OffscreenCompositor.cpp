@@ -28,7 +28,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
     render::Capabilities OffscreenCompositor::capabilities() const
     {
-        return { .gpu = true, .backend = std::string("ANGLE offscreen / ") + name(owner->info().backend) };
+        return { .gpu = true,
+                 .backend = std::string("ANGLE offscreen / ") + name(owner->info().backend),
+                 .device = owner.get() };
     }
 
     void OffscreenCompositor::composite(const render::Frame& frame)

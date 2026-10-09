@@ -1,5 +1,7 @@
 #include "gpu/webgl/WebGLContext.h"
 
+#include "gpu/SharedImage.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -82,6 +84,57 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         };
     } // namespace
 
+    // The canvas's GPU image: the presentation texture last shown, through
+    // a texture the GPU compositor (sharing the device's textures) draws directly.
+    class WebGLContext::Image final : public SharedImage
+    {
+    public:
+        explicit Image(WebGLContext& context) : owner(&context) {}
+
+        void detach() noexcept { owner = nullptr; }
+
+        [[nodiscard]] int width() const noexcept override { return owner != nullptr ? owner->width : 0; }
+        [[nodiscard]] int height() const noexcept override { return owner != nullptr ? owner->height : 0; }
+        // Drawn without a copy only by contexts sharing its textures.
+        [[nodiscard]] const Device* device() const noexcept override
+        {
+            return owner != nullptr && owner->device().info().sharesTextures ? &owner->device() : nullptr;
+        }
+        [[nodiscard]] bool opaque() const noexcept override { return owner != nullptr && ! owner->granted.alpha; }
+        [[nodiscard]] bool premultiplied() const noexcept override
+        {
+            return owner == nullptr || owner->granted.premultipliedAlpha;
+        }
+        bool read(render::RasterSurface& pixels) override { return owner != nullptr && owner->readBack(pixels); }
+
+        [[nodiscard]] GLuint texture() const noexcept override
+        {
+            return owner != nullptr && owner->shown >= 0 ? owner->fronts[static_cast<std::size_t>(owner->shown)].texture
+                                                         : 0;
+        }
+        [[nodiscard]] EGLSyncKHR takeReady() noexcept override
+        {
+            return owner != nullptr ? std::exchange(owner->ready, EGL_NO_SYNC_KHR) : EGL_NO_SYNC_KHR;
+        }
+        void released(EGLSyncKHR fence) noexcept override
+        {
+            if (owner == nullptr || owner->shown < 0)
+            {
+                // Nothing will wait for it.
+                if (owner != nullptr && fence != EGL_NO_SYNC_KHR)
+                    eglDestroySyncKHR(owner->device().display(), fence);
+                return;
+            }
+            Front& front = owner->fronts[static_cast<std::size_t>(owner->shown)];
+            if (front.released != EGL_NO_SYNC_KHR)
+                eglDestroySyncKHR(owner->device().display(), front.released);
+            front.released = fence;
+        }
+
+    private:
+        WebGLContext* owner;
+    };
+
     std::unique_ptr<WebGLContext> WebGLContext::create(std::shared_ptr<Device> device,
                                                        std::shared_ptr<ui::CanvasBuffer> canvas,
                                                        const Attributes& attributes, std::string* failure)
@@ -125,6 +178,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     WebGLContext::~WebGLContext()
     {
         makeCurrent();
+        if (image != nullptr)
+            image->detach();
+        // The canvas shows its own pixels again.
+        if (canvas->gpuImage == image)
+        {
+            canvas->gpuImage.reset();
+            canvas->drawn = true;
+        }
         freeDrawingBuffer();
         // The context itself goes with `context`: not current anywhere after.
     }
@@ -216,6 +277,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glDeleteRenderbuffers(1, &colorBuffer);
         glDeleteRenderbuffers(1, &depthStencilBuffer);
         drawFramebuffer = resolveFramebuffer = resolveTexture = colorBuffer = depthStencilBuffer = 0;
+        freeFronts();
     }
 
     void WebGLContext::resize()
@@ -305,14 +367,92 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glBindFramebuffer(GL_READ_FRAMEBUFFER, resolveFramebuffer);
     }
 
+    bool WebGLContext::makeFronts()
+    {
+        const GLenum colorFormat = granted.alpha ? GL_RGBA8 : GL_RGB8;
+        for (Front& front : fronts)
+        {
+            glGenTextures(1, &front.texture);
+            glBindTexture(GL_TEXTURE_2D, front.texture);
+            glTexStorage2D(GL_TEXTURE_2D, 1, colorFormat, width, height);
+            glGenFramebuffers(1, &front.framebuffer);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, front.framebuffer);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, front.texture, 0);
+        }
+        return true;
+    }
+
+    void WebGLContext::freeFronts()
+    {
+        EGLDisplay display = device().display();
+        for (Front& front : fronts)
+        {
+            if (front.released != EGL_NO_SYNC_KHR)
+                eglDestroySyncKHR(display, front.released);
+            glDeleteFramebuffers(1, &front.framebuffer);
+            glDeleteTextures(1, &front.texture);
+            front = {};
+        }
+        if (ready != EGL_NO_SYNC_KHR)
+            eglDestroySyncKHR(display, ready);
+        ready = EGL_NO_SYNC_KHR;
+        shown = -1;
+    }
+
     bool WebGLContext::present()
     {
         if (! changed || lost())
             return false;
         makeCurrent();
         const SavedState saved;
-        resolve();
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, resolveFramebuffer);
+        EGLDisplay display = device().display();
+        if (fronts[0].texture == 0 && ! makeFronts())
+        {
+            freeFronts();
+            return false;
+        }
+        // The other presentation texture, once the compositor is done with it.
+        const int next = shown == 0 ? 1 : 0;
+        Front& front = fronts[static_cast<std::size_t>(next)];
+        if (front.released != EGL_NO_SYNC_KHR)
+        {
+            eglWaitSyncKHR(display, front.released, 0);
+            eglDestroySyncKHR(display, front.released);
+            front.released = EGL_NO_SYNC_KHR;
+        }
+        // The drawing buffer into it, on the GPU (a multisampled one resolved
+        // on the way): nothing comes back to the CPU.
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFramebuffer);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, front.framebuffer);
+        glDisable(GL_SCISSOR_TEST);
+        glDisable(GL_RASTERIZER_DISCARD);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (ready != EGL_NO_SYNC_KHR)
+            eglDestroySyncKHR(display, ready);
+        ready = device().info().fences ? eglCreateSyncKHR(display, EGL_SYNC_FENCE_KHR, nullptr) : EGL_NO_SYNC_KHR;
+        glFlush();
+        shown = next;
+
+        if (image == nullptr)
+            image = std::make_shared<Image>(*this);
+        canvas->gpuImage = image;
+        canvas->gpuDrawn = true;
+        changed = false;
+        if (! granted.preserveDrawingBuffer)
+            needsClear = true;
+        return true;
+    }
+
+    bool WebGLContext::readBack(render::RasterSurface& pixels)
+    {
+        if (shown < 0)
+            return false;
+        const CurrentContext current(*context);
+        if (! current.ok())
+            return false;
+        const SavedState saved;
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, fronts[static_cast<std::size_t>(shown)].framebuffer);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
         glPixelStorei(GL_PACK_ROW_LENGTH, 0);
@@ -322,8 +462,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, readback.data());
         ++readbackCount;
 
-        // Into the canvas: rows top first, BGRA, premultiplied.
-        render::RasterSurface& pixels = canvas->pixels;
+        // Into the pixels: rows top first, BGRA, premultiplied.
         const int w = std::min(width, pixels.width());
         const int h = std::min(height, pixels.height());
         auto* out = static_cast<std::uint32_t*>(pixels.bitmap().pixels);
@@ -349,10 +488,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 target[x] = (a << 24) | (std::min(r, a) << 16) | (std::min(g, a) << 8) | std::min(b, a);
             }
         }
-        canvas->drawn = true;
-        changed = false;
-        if (! granted.preserveDrawingBuffer)
-            needsClear = true;
         return true;
     }
 

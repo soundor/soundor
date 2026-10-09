@@ -148,6 +148,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             std::shared_ptr<Device> device(new Device());
             device->eglDisplay = display;
             device->deviceInfo.backend = candidate.backend;
+            const std::string extensions = eglQueryString(display, EGL_EXTENSIONS);
+            const auto has = [&](const std::string& extension)
+            { return (" " + extensions + " ").find(" " + extension + " ") != std::string::npos; };
+            device->deviceInfo.sharesTextures = has("EGL_ANGLE_display_texture_share_group");
+            device->deviceInfo.fences = has("EGL_KHR_fence_sync") && has("EGL_KHR_wait_sync");
             if (! describe(display, device->deviceInfo))
             {
                 reasons +=

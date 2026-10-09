@@ -6,6 +6,7 @@
 #include <soundor/parameters/Parameters.h>
 #include <soundor/platform/Platform.h>
 #include <soundor/platform/Resources.h>
+#include <soundor/render/Compositor.h>
 #include <soundor/render/Frame.h>
 #include <soundor/ui/Renderer.h>
 #include <soundor/ui/Surface.h>
@@ -93,8 +94,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         [[nodiscard]] bool needsRender();
         // The view as layers for a compositor (render::Compositor), with what
         // changed since the previous frame; only that is rasterized again.
-        // The frame and its pixels stay valid until the next call.
-        [[nodiscard]] const render::Frame& frame();
+        // Canvases drawn on the GPU are layers of their own where the
+        // compositor draws on their device (`compositor.device`), and are
+        // read back into CPU layers otherwise. The frame and its pixels stay
+        // valid until the next call.
+        [[nodiscard]] const render::Frame& frame(const render::Capabilities& compositor = {});
         // Draws the whole view into `target` (sized to the surface at its
         // scale), apart from frame().
         void render(const render::Bitmap& target);

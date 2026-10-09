@@ -118,14 +118,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         return uiSurface->takeChanges() || blinked;
     }
 
-    const render::Frame& RuntimeHost::frame()
+    const render::Frame& RuntimeHost::frame(const render::Capabilities& compositor)
     {
         blink();
-        return view->update(*uiSurface, seconds());
+        return view->update(*uiSurface, seconds(), compositor.device);
     }
 
     void RuntimeHost::render(const render::Bitmap& target)
     {
+        render::ViewRenderer::readBackCanvases(*uiSurface);
         renderer->render(*uiSurface, target, seconds());
     }
 

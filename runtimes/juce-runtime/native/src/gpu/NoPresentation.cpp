@@ -14,4 +14,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             *failure = "no GPU presentation on Linux: it would link X11 into the plugin";
         return nullptr;
     }
+
+    bool presentationAvailable() noexcept
+    {
+        return false;
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

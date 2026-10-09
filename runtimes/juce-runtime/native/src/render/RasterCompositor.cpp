@@ -140,6 +140,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                     damage.add(footprint(layer));
                 }
             }
+            // GPU images never reach a CPU compositor (they are read back
+            // into CPU layers first); a changed one still damages its place.
+            if (const auto* gpuContent = std::get_if<GpuContent>(&layer.content);
+                gpuContent != nullptr && gpuContent->changed)
+                damage.add(footprint(layer));
             if (const auto* raster = std::get_if<RasterContent>(&layer.content))
                 for (const IntRect& rect : raster->damage.rects())
                     damage.add(layer.transform.mapBounds(

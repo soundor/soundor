@@ -164,7 +164,10 @@ describe('generateJuceSources', () => {
     // Rendered by the runtime, only when the picture changed, and presented
     // by a compositor that outlives a reloaded runtime.
     expect(editor).toContain('if (runtimeHost().needsRender())');
-    expect(editor).toContain('compositor->composite(runtimeHost().frame());');
+    expect(editor).toContain(
+      'compositor->composite(runtimeHost().frame(compositorCapabilities));',
+    );
+    expect(editor).toContain('options.gpuDevice = gpuDevice;');
     // On the GPU where there is one, otherwise on the CPU.
     expect(editor).toContain('render::GpuCompositor::create(');
     expect(editor).toContain(
