@@ -71,6 +71,29 @@ function expectNode(value: unknown, what: string): UiNode {
   return value;
 }
 
+/** CSS pixel lengths ('120px') as the numbers Soundor's lengths are. */
+function cssPixels(style: Readonly<Style>): Style {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(style ?? {}))
+    result[key] =
+      typeof value === 'string' && /^-?(\d+\.?\d*|\.\d+)px$/.test(value)
+        ? Number.parseFloat(value)
+        : value;
+  return result as Style;
+}
+
+/** `style` with `key` set to `value`, or without it for '', null or undefined. */
+function withProperty(
+  style: Readonly<Style>,
+  key: PropertyKey,
+  value: unknown,
+): Style {
+  const next: Record<PropertyKey, unknown> = { ...style };
+  if (value === '' || value === null || value === undefined) delete next[key];
+  else next[key] = value;
+  return next as Style;
+}
+
 /** Context methods that take an image source, by context type. */
 const SOURCE_METHODS: Record<string, readonly string[] | undefined> = {
   '2d': ['drawImage', 'createPattern'],
@@ -99,6 +122,7 @@ export class UiNode extends TreeEventTarget {
   #parent: UiNode | null = null;
   #children: UiNode[] = [];
   #style: Readonly<Style> = Object.freeze({});
+  #styleView: Style | null = null;
   #text = '';
   #focusable = false;
   #source = '';
@@ -196,12 +220,41 @@ export class UiNode extends TreeEventTarget {
   // ── Style and content ──────────────────────────────────────────────────────
 
   /** The style last set; assigning replaces it as a whole. */
-  get style(): Readonly<Style> {
-    return this.#style;
+  /**
+   * The node's style. Setting it replaces the whole style; setting one of its
+   * properties (`node.style.width = 120`, as on the Web) restyles the node
+   * with that property changed, and '' or null removes it. Lengths may be
+   * written as CSS pixels ('120px'), like in the JUCE runtime.
+   */
+  get style(): Style {
+    this.#styleView ??= new Proxy({} as Style, {
+      get: (_, key) => (this.#style as Record<PropertyKey, unknown>)[key],
+      has: (_, key) => key in this.#style,
+      ownKeys: () => Reflect.ownKeys(this.#style),
+      getOwnPropertyDescriptor: (_, key) =>
+        Object.hasOwn(this.#style, key)
+          ? {
+              value: (this.#style as Record<PropertyKey, unknown>)[key],
+              writable: true,
+              enumerable: true,
+              configurable: true,
+            }
+          : undefined,
+      set: (_, key, value) => {
+        this.style = withProperty(this.#style, key, value);
+        return true;
+      },
+      deleteProperty: (_, key) => {
+        this.style = withProperty(this.#style, key, null);
+        return true;
+      },
+      defineProperty: () => false,
+    });
+    return this.#styleView;
   }
 
   set style(value: Readonly<Style>) {
-    const style = readStyle(value);
+    const style = readStyle(cssPixels(value));
     this.#element.style.cssText = cssText(cssFor(style, this.#type));
     const { className } = ELEMENTS[this.#type];
     this.#element.className = [className, this.#rootClass, pointerClass(style)]

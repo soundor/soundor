@@ -16,6 +16,7 @@
 # | accesskit-c | 0.23.1 | MIT/Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt, see SoundorAccessKit.cmake) |
 # | ANGLE      | chromium/7922 (M151) | BSD-3-Clause | OpenGL ES 3 / WebGL 2 over Metal, D3D11, Vulkan (shipped; built from source, see SoundorAngle.cmake) |
 # | doctest    | v2.5.3  | MIT     | native unit tests (tests)   |
+# | three      | 0.186.1 | MIT     | WebGL compatibility tests (tests; the npm package, unmodified) |
 
 include_guard(GLOBAL)
 
@@ -80,6 +81,11 @@ set(SOUNDOR_ANGLE_GN_SHA256_windows_amd64 "bcc61349a63d26d9179c81b84a039ea03af1b
 set(SOUNDOR_DOCTEST_VERSION "2.5.3")
 set(SOUNDOR_DOCTEST_REVISION "2d0a9359a60c51affe2a9bebb1be1dca47868151")
 set(SOUNDOR_DOCTEST_SHA256 "e64542c4ea68e9f381ccf6eae924cfdd652567c87c142d76fe92644fb4608149")
+
+# The npm package, as `pnpm add three` gets it: Three.js's WebGLRenderer is
+# what Soundor's WebGL is tested against. Keep in step with the catalog's.
+set(SOUNDOR_THREE_VERSION "0.186.1")
+set(SOUNDOR_THREE_SHA256 "8cd068708ea44f2c73c944b1cead2ba2f0d5c15c8fc194e5700f4e4f4a033fe7")
 
 # Where Soundor keeps what it builds or downloads once per machine: the
 # SOUNDOR_CACHE environment variable, or the user cache directory

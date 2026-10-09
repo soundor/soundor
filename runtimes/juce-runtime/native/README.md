@@ -254,8 +254,11 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   garbage-collected.
 - **Style:** React Native's flexbox: column by default, `flex: n`, the margin,
   padding and border shorthands, percentages, absolute positioning, gaps,
-  `pointerEvents`, and the text properties used to measure text. An invalid
-  value throws a `TypeError` naming the property.
+  `pointerEvents`, and the text properties used to measure text. Lengths are
+  numbers (logical pixels), CSS pixels (`'120px'`, kept as the number) or
+  percentages. An invalid value throws a `TypeError` naming the property.
+  `node.style = {…}` replaces the style. `node.style.width = 120` changes one
+  property, as on the Web; `''`, `null` or `delete` removes it.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
   Positions are in logical pixels, and buttons and keys use their Web names.
   The surface routes the input:
@@ -499,6 +502,19 @@ its headers.
     color spaces other than sRGB, XR, and uploads from image nodes. They
     throw a `TypeError` saying so. `finish()` only flushes, because Soundor
     never waits for the GPU on the UI thread.
+- **Three.js:** WebGL is tested against Three.js's `WebGLRenderer`, the
+  unmodified npm package pinned in `cmake/SoundorDependencies.cmake`
+  (`tests/gpu/ThreeTests.cpp`). The tests cover lights and shadows, physical
+  materials, tone mapping, PMREM environments, multisampled, float, cube and
+  depth render targets, instancing, morph targets, skinning, points, lines
+  and sprites, transmission, and canvas, data, array and 3D textures. They
+  also cover GLSL 3 shader materials with uniform blocks, clipping planes, a
+  logarithmic depth buffer, `setSize()`, the animation loop, and
+  asynchronous compiling and reading. Each case checks for no WebGL errors
+  and no warnings from Three, and checks pixels where they are defined. An
+  animated scene is composited without read-backs. Three needs nothing from
+  the DOM for these. Its image loaders do (`document`), so images reach
+  Three as canvas nodes or `ImageData` instead.
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets

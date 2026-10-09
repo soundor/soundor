@@ -5,9 +5,9 @@
  * the two in step.
  */
 
-/** Logical pixels, a percentage of the parent, or (where allowed) 'auto'. */
-export type Dimension = number | `${number}%` | 'auto';
-export type Percentage = number | `${number}%`;
+/** Logical pixels (a number, or CSS pixels: '120px'), a percentage of the parent, or (where allowed) 'auto'. */
+export type Dimension = number | `${number}px` | `${number}%` | 'auto';
+export type Percentage = number | `${number}px` | `${number}%`;
 export type FlexAlign =
   | 'auto'
   | 'flex-start'

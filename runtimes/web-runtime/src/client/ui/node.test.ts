@@ -125,7 +125,12 @@ describe('UiNode content', () => {
     expect(el(box).style.width).toBe('40px');
     expect(el(box).style.backgroundColor).toBe('red');
     expect(el(box).classList.contains('sd-pe-box-none')).toBe(true);
-    expect(Object.isFrozen(box.style)).toBe(true);
+    // Writing one property restyles the node, as on the Web.
+    box.style.width = '30px';
+    expect(box.style.width).toBe(30);
+    expect(el(box).style.width).toBe('30px');
+    delete box.style.width;
+    expect('width' in box.style).toBe(false);
 
     box.style = { display: 'none' };
     expect(el(box).style.width).toBe('');

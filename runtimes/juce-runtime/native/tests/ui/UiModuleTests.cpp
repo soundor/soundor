@@ -125,6 +125,24 @@ TEST_SUITE("soundor:ui")
         CHECK(f.eval("result").asString() == R"([{"x":10,"y":5,"width":85,"height":90},"red"])");
     }
 
+    TEST_CASE("style properties are written one at a time, and lengths in CSS pixels")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            a.style = { width: 40, height: 20 };
+            a.style.width = '30px';
+            a.style.marginLeft = 5;
+            const kept = a.style.height;
+            delete a.style.height;
+            a.style.backgroundColor = '';
+            globalThis.result = JSON.stringify([a.style, kept, { ...a.style }, a.layout.width, a.layout.x,
+                                                Object.keys(a.style)]);
+        )");
+        CHECK(f.eval("result").asString()
+              == R"([{"width":30,"marginLeft":5},20,{"width":30,"marginLeft":5},30,5,["width","marginLeft"]])");
+        CHECK(f.error(std::string(imports) + "a.style.width = 'wide';").find("style.width") != std::string::npos);
+    }
+
     TEST_CASE("events capture and bubble along the tree")
     {
         UiFixture f;
