@@ -11,7 +11,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         ui::Surface& surface;
         const ui::Surface::Invalidation& invalidation;
         float scale = 1;
-        Region damage;
+        const std::unordered_map<ui::NodeId, int>* layerOf = nullptr;
+        std::vector<Region> damage;
+
+        [[nodiscard]] int layer(ui::NodeId id) const
+        {
+            if (layerOf == nullptr)
+                return 0;
+            const auto found = layerOf->find(id);
+            return found != layerOf->end() ? found->second : 0;
+        }
+
+        void add(const IntRect& rect, int first, int last)
+        {
+            for (int i = first; i <= last && i < static_cast<int>(damage.size()); ++i)
+                damage[static_cast<std::size_t>(i)].add(rect);
+        }
 
         [[nodiscard]] bool invalidated(ui::NodeId id) const
         {
@@ -54,8 +69,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     Region DamageTracker::update(ui::Surface& surface, const ui::Surface::Invalidation& invalidation,
                                  const IntRect& view)
     {
+        return std::move(update(surface, invalidation, view, {}, 1).front());
+    }
+
+    std::vector<Region> DamageTracker::update(ui::Surface& surface, const ui::Surface::Invalidation& invalidation,
+                                              const IntRect& view, const std::unordered_map<ui::NodeId, int>& layerOf,
+                                              int layers)
+    {
         surface.layout();
-        Pass pass { surface, invalidation, surface.scale(), {} };
+        Pass pass { surface, invalidation, surface.scale(), &layerOf,
+                    std::vector<Region>(static_cast<std::size_t>(std::max(layers, 1))) };
         ++passes;
         visit(pass, surface.root(), 0, 0, view);
         visit(pass, surface.overlay(), 0, 0, view);
@@ -67,25 +90,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 ++record;
                 continue;
             }
-            pass.damage.add(record->second.own);
+            pass.add(record->second.own, record->second.first, record->second.last);
             record = records.erase(record);
         }
         if (! known || invalidation.everything)
         {
             known = true;
-            return Region(view);
+            for (Region& region : pass.damage)
+                region = Region(view);
+            return std::move(pass.damage);
         }
-        pass.damage.clip(view);
-        return pass.damage;
+        for (Region& region : pass.damage)
+            region.clip(view);
+        return std::move(pass.damage);
     }
 
-    IntRect DamageTracker::visit(Pass& pass, const ui::Node& node, float originX, float originY, const IntRect& clip)
+    DamageTracker::Visited DamageTracker::visit(Pass& pass, const ui::Node& node, float originX, float originY,
+                                                const IntRect& clip)
     {
         const ui::Style& style = node.style();
         // Not drawn (nor anything in it): not recorded either, so where it
         // was is damaged as gone.
+        const int first = pass.layer(node.id());
         if (style.display == ui::Display::None || style.opacity <= 0)
-            return {};
+            return { {}, first };
 
         const ui::Rect frame = node.frame();
         const float x = originX + frame.x;
@@ -125,27 +153,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                                              frame.height - border.top - border.bottom));
         }
         IntRect extent = own;
+        int last = first;
         const ui::Point scroll = node.scrollOffset();
         for (const ui::Node* child : node.stackedChildren())
-            extent = extent.united(visit(pass, *child, x - scroll.x, y - scroll.y, childClip));
+        {
+            const Visited visited = visit(pass, *child, x - scroll.x, y - scroll.y, childClip);
+            extent = extent.united(visited.extent);
+            last = std::max(last, visited.last);
+        }
 
         auto [found, inserted] = records.try_emplace(node.id());
         Record& record = found->second;
         if (inserted)
-            pass.damage.add(pass.invalidated(node.id()) ? extent : own);
+            pass.add(pass.invalidated(node.id()) ? extent : own, first, last);
         else if (pass.invalidated(node.id()))
         {
-            pass.damage.add(record.extent);
-            pass.damage.add(extent);
+            pass.add(record.extent, std::min(first, record.first), std::max(last, record.last));
+            pass.add(extent, first, last);
         }
         else if (record.own != own || record.key != key || record.box.x != x || record.box.y != y
                  || record.box.width != frame.width || record.box.height != frame.height)
         {
             // Moving by a fraction of a pixel changes its edges too.
-            pass.damage.add(record.own);
-            pass.damage.add(own);
+            pass.add(record.own, std::min(first, record.first), std::max(last, record.last));
+            pass.add(own, first, last);
         }
-        record = { { x, y, frame.width, frame.height }, own, extent, key, passes };
-        return extent;
+        record = { { x, y, frame.width, frame.height }, own, extent, key, passes, first, last };
+        return { extent, last };
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render

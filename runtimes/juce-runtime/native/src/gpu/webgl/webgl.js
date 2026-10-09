@@ -171,8 +171,12 @@ const TYPES = {
   WebGLVertexArrayObject,
 };
 
-/** A WebGLUniformLocation's program, link and location; null for anything else. */
-let locationOf;
+/**
+ * The location `value` holds if it is of `program`'s link `generation`;
+ * -2 if it is of another program or link; -3 if it is no location at all.
+ * Allocates nothing: uniforms are set thousands of times a frame.
+ */
+let locationIn;
 
 export class WebGLUniformLocation {
   #program;
@@ -187,14 +191,12 @@ export class WebGLUniformLocation {
   }
 
   static {
-    locationOf = (value) =>
-      value instanceof WebGLUniformLocation
-        ? {
-            program: value.#program,
-            generation: value.#generation,
-            location: value.#location,
-          }
-        : null;
+    locationIn = (value, program, generation) => {
+      if (!(value instanceof WebGLUniformLocation)) return -3;
+      return value.#program === program && value.#generation === generation
+        ? value.#location
+        : -2;
+    };
   }
 }
 export class WebGLActiveInfo {
@@ -659,21 +661,26 @@ const gl = {
   location(context, location, method) {
     const state = stateOf(context);
     if (location === null || location === undefined) return -2;
-    const at = locationOf(location);
-    if (at === null)
+    const program = state.program;
+    const at = locationIn(
+      location,
+      program,
+      program === null ? undefined : state.generations.get(program),
+    );
+    if (at === -3)
       throw new TypeError(
         `Failed to execute '${method}' on 'WebGL2RenderingContext': parameter is not of type 'WebGLUniformLocation'.`,
       );
     if (state.lost) return -2;
-    if (
-      at.program !== state.program ||
-      state.generations.get(at.program) !== at.generation
-    ) {
-      state.synthesize(C.INVALID_OPERATION);
-      return -2;
-    }
-    return at.location;
+    if (at === -2) state.synthesize(C.INVALID_OPERATION);
+    return at;
   },
+  /** The native context of a context, or -1 when it is lost. */
+  id(context) {
+    const state = stateOf(context);
+    return state.lost ? -1 : state.id;
+  },
+  native: native.webglCall,
   wrap: (context, type, name) => stateOf(context).wrap(type, name),
   delete(context, object, type, op) {
     const state = stateOf(context);
@@ -773,13 +780,28 @@ export class WebGL2RenderingContext {
         throw new TypeError('Illegal invocation');
       return context.#state;
     };
-    uniformv = (context, ...args) => {
+    uniformv = (
+      context,
+      method,
+      location,
+      transpose,
+      data,
+      srcOffset,
+      srcLength,
+    ) => {
       stateOf(context);
-      context.#uniformv(...args);
+      context.#uniformv(
+        method,
+        location,
+        transpose,
+        data,
+        srcOffset,
+        srcLength,
+      );
     };
-    vertexAttribv = (context, ...args) => {
+    vertexAttribv = (context, method, index, data) => {
       stateOf(context);
-      context.#vertexAttribv(...args);
+      context.#vertexAttribv(method, index, data);
     };
   }
 
@@ -1350,19 +1372,16 @@ export class WebGL2RenderingContext {
     const state = this.#state;
     const name = nameOf(this, program, 'WebGLProgram', false, 'getUniform');
     if (name < 0) return null;
-    const at = locationOf(location);
-    if (at === null)
+    const at = locationIn(location, program, state.generations.get(program));
+    if (at === -3)
       throw new TypeError(
         "Failed to execute 'getUniform' on 'WebGL2RenderingContext': parameter 2 is not of type 'WebGLUniformLocation'.",
       );
-    if (
-      at.program !== program ||
-      state.generations.get(program) !== at.generation
-    ) {
+    if (at === -2) {
       state.synthesize(C.INVALID_OPERATION);
       return null;
     }
-    const value = state.call(OP.getUniform, name, at.location);
+    const value = state.call(OP.getUniform, name, at);
     return value === null ? null : uniformValue(value);
   }
 
@@ -1483,27 +1502,36 @@ export class WebGL2RenderingContext {
   // ── Uniforms and attributes ────────────────────────────────────────────
 
   #uniformv(method, location, transpose, data, srcOffset, srcLength) {
-    const [kind, size, Type] = UNIFORM_KINDS[method];
+    // Hot: thousands a frame. No destructuring, no ranges as objects, and
+    // one native call with its arguments as they are.
+    const shape = UNIFORM_KINDS[method];
+    const size = shape[1];
+    const Type = shape[2];
     const state = this.#state;
     const at = gl.location(this, location, method);
     if (at === -2) return;
-    const values = typed(data, Type, method);
-    const range = rangeOf(values, srcOffset, srcLength);
+    const values = data instanceof Type ? data : typed(data, Type, method);
+    const elements = values.length;
+    const offset = srcOffset === undefined ? 0 : Number(srcOffset) >>> 0;
+    const requested = srcLength === undefined ? 0 : Number(srcLength) >>> 0;
+    const count = requested === 0 ? elements - offset : requested;
     if (
-      range === null ||
-      range.length === 0 ||
-      (range.length / Type.BYTES_PER_ELEMENT) % size !== 0
+      offset > elements ||
+      count === 0 ||
+      offset + count > elements ||
+      count % size !== 0
     ) {
       state.synthesize(C.INVALID_VALUE);
       return;
     }
-    state.call(
+    native.webglCall(
+      state.id,
       OP.uniformv,
-      kind,
+      shape[0],
       at,
       values,
-      range.offset,
-      range.length,
+      offset * Type.BYTES_PER_ELEMENT,
+      count * Type.BYTES_PER_ELEMENT,
       transpose,
     );
   }

@@ -7,6 +7,7 @@
 #include <soundor/ui/Surface.h>
 
 #include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
@@ -49,6 +50,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         {
             LayerId id = newLayerId();
             RasterSurface pixels;
+            // Where it painted in the previous frame (device pixels).
+            Region painted;
         };
 
         void promote(ui::Surface& surface, const gpu::Device* gpuDevice);
@@ -58,6 +61,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         std::vector<Segment> segments { 1 };
         std::vector<Promoted> promoted;
         std::vector<ui::NodeId> holes;
+        // Where each segment paints in this frame.
+        std::vector<Region> painting;
+        // The layer each visible node starts painting in, this frame.
+        std::unordered_map<ui::NodeId, int> layerOf;
         // Canvas layers' ids by node, kept while promoted.
         std::vector<std::pair<ui::NodeId, LayerId>> canvasLayers;
         std::uint64_t revision = 0;

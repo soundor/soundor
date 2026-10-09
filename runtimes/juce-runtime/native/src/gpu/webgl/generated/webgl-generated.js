@@ -569,10 +569,13 @@ export const CONSTANTS = Object.freeze({
  * convert arguments and call native code with (webgl.js).
  */
 export function generatedMethods(gl) {
+  const webglCall = gl.native;
   return {
   activeTexture(texture) {
     gl.require(this, 'activeTexture', arguments.length, 1);
-    gl.call(this, 0, gl.u32(texture));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 0, gl.u32(texture));
   },
   attachShader(program, shader) {
     gl.require(this, 'attachShader', arguments.length, 2);
@@ -580,106 +583,156 @@ export function generatedMethods(gl) {
     if (programName < 0) return;
     const shaderName = gl.name(this, shader, 'WebGLShader', false, 'attachShader');
     if (shaderName < 0) return;
-    gl.call(this, 1, programName, shaderName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 1, programName, shaderName);
   },
   bindBuffer(target, buffer) {
     gl.require(this, 'bindBuffer', arguments.length, 2);
     const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBuffer');
     if (bufferName < 0) return;
-    gl.call(this, 2, gl.u32(target), bufferName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 2, gl.u32(target), bufferName);
   },
   bindRenderbuffer(target, renderbuffer) {
     gl.require(this, 'bindRenderbuffer', arguments.length, 2);
     const renderbufferName = gl.name(this, renderbuffer, 'WebGLRenderbuffer', true, 'bindRenderbuffer');
     if (renderbufferName < 0) return;
-    gl.call(this, 3, gl.u32(target), renderbufferName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 3, gl.u32(target), renderbufferName);
   },
   bindTexture(target, texture) {
     gl.require(this, 'bindTexture', arguments.length, 2);
     const textureName = gl.name(this, texture, 'WebGLTexture', true, 'bindTexture');
     if (textureName < 0) return;
-    gl.call(this, 4, gl.u32(target), textureName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 4, gl.u32(target), textureName);
   },
   blendColor(red, green, blue, alpha) {
     gl.require(this, 'blendColor', arguments.length, 4);
-    gl.call(this, 5, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 5, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
   },
   blendEquation(mode) {
     gl.require(this, 'blendEquation', arguments.length, 1);
-    gl.call(this, 6, gl.u32(mode));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 6, gl.u32(mode));
   },
   blendEquationSeparate(modeRGB, modeAlpha) {
     gl.require(this, 'blendEquationSeparate', arguments.length, 2);
-    gl.call(this, 7, gl.u32(modeRGB), gl.u32(modeAlpha));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 7, gl.u32(modeRGB), gl.u32(modeAlpha));
   },
   blendFunc(sfactor, dfactor) {
     gl.require(this, 'blendFunc', arguments.length, 2);
-    gl.call(this, 8, gl.u32(sfactor), gl.u32(dfactor));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 8, gl.u32(sfactor), gl.u32(dfactor));
   },
   blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha) {
     gl.require(this, 'blendFuncSeparate', arguments.length, 4);
-    gl.call(this, 9, gl.u32(srcRGB), gl.u32(dstRGB), gl.u32(srcAlpha), gl.u32(dstAlpha));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 9, gl.u32(srcRGB), gl.u32(dstRGB), gl.u32(srcAlpha), gl.u32(dstAlpha));
   },
   checkFramebufferStatus(target) {
     gl.require(this, 'checkFramebufferStatus', arguments.length, 1);
-    return gl.call(this, 10, gl.u32(target));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return webglCall(id, 10, gl.u32(target));
   },
   clear(mask) {
     gl.require(this, 'clear', arguments.length, 1);
-    gl.call(this, 11, gl.u32(mask));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 11, gl.u32(mask));
   },
   clearColor(red, green, blue, alpha) {
     gl.require(this, 'clearColor', arguments.length, 4);
-    gl.call(this, 12, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 12, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
   },
   clearDepth(depth) {
     gl.require(this, 'clearDepth', arguments.length, 1);
-    gl.call(this, 13, gl.f32(depth));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 13, gl.f32(depth));
   },
   clearStencil(s) {
     gl.require(this, 'clearStencil', arguments.length, 1);
-    gl.call(this, 14, gl.i32(s));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 14, gl.i32(s));
   },
   colorMask(red, green, blue, alpha) {
     gl.require(this, 'colorMask', arguments.length, 4);
-    gl.call(this, 15, gl.bool(red), gl.bool(green), gl.bool(blue), gl.bool(alpha));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 15, gl.bool(red), gl.bool(green), gl.bool(blue), gl.bool(alpha));
   },
   compileShader(shader) {
     gl.require(this, 'compileShader', arguments.length, 1);
     const shaderName = gl.name(this, shader, 'WebGLShader', false, 'compileShader');
     if (shaderName < 0) return;
-    gl.call(this, 16, shaderName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 16, shaderName);
   },
   copyTexImage2D(target, level, internalformat, x, y, width, height, border) {
     gl.require(this, 'copyTexImage2D', arguments.length, 8);
-    gl.call(this, 17, gl.u32(target), gl.i32(level), gl.u32(internalformat), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height), gl.i32(border));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 17, gl.u32(target), gl.i32(level), gl.u32(internalformat), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height), gl.i32(border));
   },
   copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height) {
     gl.require(this, 'copyTexSubImage2D', arguments.length, 8);
-    gl.call(this, 18, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 18, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
   },
   createBuffer() {
-    return gl.wrap(this, 'WebGLBuffer', gl.call(this, 19));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLBuffer', webglCall(id, 19));
   },
   createFramebuffer() {
-    return gl.wrap(this, 'WebGLFramebuffer', gl.call(this, 20));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLFramebuffer', webglCall(id, 20));
   },
   createProgram() {
-    return gl.wrap(this, 'WebGLProgram', gl.call(this, 21));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLProgram', webglCall(id, 21));
   },
   createRenderbuffer() {
-    return gl.wrap(this, 'WebGLRenderbuffer', gl.call(this, 22));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLRenderbuffer', webglCall(id, 22));
   },
   createShader(type) {
     gl.require(this, 'createShader', arguments.length, 1);
-    return gl.wrap(this, 'WebGLShader', gl.call(this, 23, gl.u32(type)));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLShader', webglCall(id, 23, gl.u32(type)));
   },
   createTexture() {
-    return gl.wrap(this, 'WebGLTexture', gl.call(this, 24));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLTexture', webglCall(id, 24));
   },
   cullFace(mode) {
     gl.require(this, 'cullFace', arguments.length, 1);
-    gl.call(this, 25, gl.u32(mode));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 25, gl.u32(mode));
   },
   deleteBuffer(buffer) {
     gl.require(this, 'deleteBuffer', arguments.length, 1);
@@ -703,15 +756,21 @@ export function generatedMethods(gl) {
   },
   depthFunc(func) {
     gl.require(this, 'depthFunc', arguments.length, 1);
-    gl.call(this, 31, gl.u32(func));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 31, gl.u32(func));
   },
   depthMask(flag) {
     gl.require(this, 'depthMask', arguments.length, 1);
-    gl.call(this, 32, gl.bool(flag));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 32, gl.bool(flag));
   },
   depthRange(zNear, zFar) {
     gl.require(this, 'depthRange', arguments.length, 2);
-    gl.call(this, 33, gl.f32(zNear), gl.f32(zFar));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 33, gl.f32(zNear), gl.f32(zFar));
   },
   detachShader(program, shader) {
     gl.require(this, 'detachShader', arguments.length, 2);
@@ -719,310 +778,436 @@ export function generatedMethods(gl) {
     if (programName < 0) return;
     const shaderName = gl.name(this, shader, 'WebGLShader', false, 'detachShader');
     if (shaderName < 0) return;
-    gl.call(this, 34, programName, shaderName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 34, programName, shaderName);
   },
   disable(cap) {
     gl.require(this, 'disable', arguments.length, 1);
-    gl.call(this, 35, gl.u32(cap));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 35, gl.u32(cap));
   },
   disableVertexAttribArray(index) {
     gl.require(this, 'disableVertexAttribArray', arguments.length, 1);
-    gl.call(this, 36, gl.u32(index));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 36, gl.u32(index));
   },
   drawArrays(mode, first, count) {
     gl.require(this, 'drawArrays', arguments.length, 3);
-    gl.call(this, 37, gl.u32(mode), gl.i32(first), gl.i32(count));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 37, gl.u32(mode), gl.i32(first), gl.i32(count));
   },
   drawElements(mode, count, type, offset) {
     gl.require(this, 'drawElements', arguments.length, 4);
-    gl.call(this, 38, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 38, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset));
   },
   enable(cap) {
     gl.require(this, 'enable', arguments.length, 1);
-    gl.call(this, 39, gl.u32(cap));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 39, gl.u32(cap));
   },
   enableVertexAttribArray(index) {
     gl.require(this, 'enableVertexAttribArray', arguments.length, 1);
-    gl.call(this, 40, gl.u32(index));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 40, gl.u32(index));
   },
   finish() {
-    gl.call(this, 41);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 41);
   },
   flush() {
-    gl.call(this, 42);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 42);
   },
   frontFace(mode) {
     gl.require(this, 'frontFace', arguments.length, 1);
-    gl.call(this, 43, gl.u32(mode));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 43, gl.u32(mode));
   },
   generateMipmap(target) {
     gl.require(this, 'generateMipmap', arguments.length, 1);
-    gl.call(this, 44, gl.u32(target));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 44, gl.u32(target));
   },
   hint(target, mode) {
     gl.require(this, 'hint', arguments.length, 2);
-    gl.call(this, 45, gl.u32(target), gl.u32(mode));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 45, gl.u32(target), gl.u32(mode));
   },
   isBuffer(buffer) {
     gl.require(this, 'isBuffer', arguments.length, 1);
     const name = gl.nameIfLive(this, buffer, 'WebGLBuffer');
-    return name > 0 && gl.call(this, 46, name);
+    return name > 0 && webglCall(gl.id(this), 46, name);
   },
   isEnabled(cap) {
     gl.require(this, 'isEnabled', arguments.length, 1);
-    return gl.call(this, 47, gl.u32(cap));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return webglCall(id, 47, gl.u32(cap));
   },
   isFramebuffer(framebuffer) {
     gl.require(this, 'isFramebuffer', arguments.length, 1);
     const name = gl.nameIfLive(this, framebuffer, 'WebGLFramebuffer');
-    return name > 0 && gl.call(this, 48, name);
+    return name > 0 && webglCall(gl.id(this), 48, name);
   },
   isProgram(program) {
     gl.require(this, 'isProgram', arguments.length, 1);
     const name = gl.nameIfLive(this, program, 'WebGLProgram');
-    return name > 0 && gl.call(this, 49, name);
+    return name > 0 && webglCall(gl.id(this), 49, name);
   },
   isRenderbuffer(renderbuffer) {
     gl.require(this, 'isRenderbuffer', arguments.length, 1);
     const name = gl.nameIfLive(this, renderbuffer, 'WebGLRenderbuffer');
-    return name > 0 && gl.call(this, 50, name);
+    return name > 0 && webglCall(gl.id(this), 50, name);
   },
   isShader(shader) {
     gl.require(this, 'isShader', arguments.length, 1);
     const name = gl.nameIfLive(this, shader, 'WebGLShader');
-    return name > 0 && gl.call(this, 51, name);
+    return name > 0 && webglCall(gl.id(this), 51, name);
   },
   isTexture(texture) {
     gl.require(this, 'isTexture', arguments.length, 1);
     const name = gl.nameIfLive(this, texture, 'WebGLTexture');
-    return name > 0 && gl.call(this, 52, name);
+    return name > 0 && webglCall(gl.id(this), 52, name);
   },
   lineWidth(width) {
     gl.require(this, 'lineWidth', arguments.length, 1);
-    gl.call(this, 53, gl.f32(width));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 53, gl.f32(width));
   },
   pixelStorei(pname, param) {
     gl.require(this, 'pixelStorei', arguments.length, 2);
-    gl.call(this, 54, gl.u32(pname), gl.i32(param));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 54, gl.u32(pname), gl.i32(param));
   },
   polygonOffset(factor, units) {
     gl.require(this, 'polygonOffset', arguments.length, 2);
-    gl.call(this, 55, gl.f32(factor), gl.f32(units));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 55, gl.f32(factor), gl.f32(units));
   },
   renderbufferStorage(target, internalformat, width, height) {
     gl.require(this, 'renderbufferStorage', arguments.length, 4);
-    gl.call(this, 56, gl.u32(target), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 56, gl.u32(target), gl.u32(internalformat), gl.i32(width), gl.i32(height));
   },
   sampleCoverage(value, invert) {
     gl.require(this, 'sampleCoverage', arguments.length, 2);
-    gl.call(this, 57, gl.f32(value), gl.bool(invert));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 57, gl.f32(value), gl.bool(invert));
   },
   scissor(x, y, width, height) {
     gl.require(this, 'scissor', arguments.length, 4);
-    gl.call(this, 58, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 58, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
   },
   stencilFunc(func, ref, mask) {
     gl.require(this, 'stencilFunc', arguments.length, 3);
-    gl.call(this, 59, gl.u32(func), gl.i32(ref), gl.u32(mask));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 59, gl.u32(func), gl.i32(ref), gl.u32(mask));
   },
   stencilFuncSeparate(face, func, ref, mask) {
     gl.require(this, 'stencilFuncSeparate', arguments.length, 4);
-    gl.call(this, 60, gl.u32(face), gl.u32(func), gl.i32(ref), gl.u32(mask));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 60, gl.u32(face), gl.u32(func), gl.i32(ref), gl.u32(mask));
   },
   stencilMask(mask) {
     gl.require(this, 'stencilMask', arguments.length, 1);
-    gl.call(this, 61, gl.u32(mask));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 61, gl.u32(mask));
   },
   stencilMaskSeparate(face, mask) {
     gl.require(this, 'stencilMaskSeparate', arguments.length, 2);
-    gl.call(this, 62, gl.u32(face), gl.u32(mask));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 62, gl.u32(face), gl.u32(mask));
   },
   stencilOp(fail, zfail, zpass) {
     gl.require(this, 'stencilOp', arguments.length, 3);
-    gl.call(this, 63, gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 63, gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
   },
   stencilOpSeparate(face, fail, zfail, zpass) {
     gl.require(this, 'stencilOpSeparate', arguments.length, 4);
-    gl.call(this, 64, gl.u32(face), gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 64, gl.u32(face), gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
   },
   texParameterf(target, pname, param) {
     gl.require(this, 'texParameterf', arguments.length, 3);
-    gl.call(this, 65, gl.u32(target), gl.u32(pname), gl.f32(param));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 65, gl.u32(target), gl.u32(pname), gl.f32(param));
   },
   texParameteri(target, pname, param) {
     gl.require(this, 'texParameteri', arguments.length, 3);
-    gl.call(this, 66, gl.u32(target), gl.u32(pname), gl.i32(param));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 66, gl.u32(target), gl.u32(pname), gl.i32(param));
   },
   uniform1f(location, x) {
     gl.require(this, 'uniform1f', arguments.length, 2);
     const locationAt = gl.location(this, location, 'uniform1f');
     if (locationAt === -2) return;
-    gl.call(this, 67, locationAt, gl.f32(x));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 67, locationAt, gl.f32(x));
   },
   uniform2f(location, x, y) {
     gl.require(this, 'uniform2f', arguments.length, 3);
     const locationAt = gl.location(this, location, 'uniform2f');
     if (locationAt === -2) return;
-    gl.call(this, 68, locationAt, gl.f32(x), gl.f32(y));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 68, locationAt, gl.f32(x), gl.f32(y));
   },
   uniform3f(location, x, y, z) {
     gl.require(this, 'uniform3f', arguments.length, 4);
     const locationAt = gl.location(this, location, 'uniform3f');
     if (locationAt === -2) return;
-    gl.call(this, 69, locationAt, gl.f32(x), gl.f32(y), gl.f32(z));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 69, locationAt, gl.f32(x), gl.f32(y), gl.f32(z));
   },
   uniform4f(location, x, y, z, w) {
     gl.require(this, 'uniform4f', arguments.length, 5);
     const locationAt = gl.location(this, location, 'uniform4f');
     if (locationAt === -2) return;
-    gl.call(this, 70, locationAt, gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 70, locationAt, gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
   },
   uniform1i(location, x) {
     gl.require(this, 'uniform1i', arguments.length, 2);
     const locationAt = gl.location(this, location, 'uniform1i');
     if (locationAt === -2) return;
-    gl.call(this, 71, locationAt, gl.i32(x));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 71, locationAt, gl.i32(x));
   },
   uniform2i(location, x, y) {
     gl.require(this, 'uniform2i', arguments.length, 3);
     const locationAt = gl.location(this, location, 'uniform2i');
     if (locationAt === -2) return;
-    gl.call(this, 72, locationAt, gl.i32(x), gl.i32(y));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 72, locationAt, gl.i32(x), gl.i32(y));
   },
   uniform3i(location, x, y, z) {
     gl.require(this, 'uniform3i', arguments.length, 4);
     const locationAt = gl.location(this, location, 'uniform3i');
     if (locationAt === -2) return;
-    gl.call(this, 73, locationAt, gl.i32(x), gl.i32(y), gl.i32(z));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 73, locationAt, gl.i32(x), gl.i32(y), gl.i32(z));
   },
   uniform4i(location, x, y, z, w) {
     gl.require(this, 'uniform4i', arguments.length, 5);
     const locationAt = gl.location(this, location, 'uniform4i');
     if (locationAt === -2) return;
-    gl.call(this, 74, locationAt, gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 74, locationAt, gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
   },
   validateProgram(program) {
     gl.require(this, 'validateProgram', arguments.length, 1);
     const programName = gl.name(this, program, 'WebGLProgram', false, 'validateProgram');
     if (programName < 0) return;
-    gl.call(this, 75, programName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 75, programName);
   },
   vertexAttrib1f(index, x) {
     gl.require(this, 'vertexAttrib1f', arguments.length, 2);
-    gl.call(this, 76, gl.u32(index), gl.f32(x));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 76, gl.u32(index), gl.f32(x));
   },
   vertexAttrib2f(index, x, y) {
     gl.require(this, 'vertexAttrib2f', arguments.length, 3);
-    gl.call(this, 77, gl.u32(index), gl.f32(x), gl.f32(y));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 77, gl.u32(index), gl.f32(x), gl.f32(y));
   },
   vertexAttrib3f(index, x, y, z) {
     gl.require(this, 'vertexAttrib3f', arguments.length, 4);
-    gl.call(this, 78, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 78, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z));
   },
   vertexAttrib4f(index, x, y, z, w) {
     gl.require(this, 'vertexAttrib4f', arguments.length, 5);
-    gl.call(this, 79, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 79, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
   },
   vertexAttribPointer(index, size, type, normalized, stride, offset) {
     gl.require(this, 'vertexAttribPointer', arguments.length, 6);
-    gl.call(this, 80, gl.u32(index), gl.i32(size), gl.u32(type), gl.bool(normalized), gl.i32(stride), gl.i64(offset));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 80, gl.u32(index), gl.i32(size), gl.u32(type), gl.bool(normalized), gl.i32(stride), gl.i64(offset));
   },
   viewport(x, y, width, height) {
     gl.require(this, 'viewport', arguments.length, 4);
-    gl.call(this, 81, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 81, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
   },
   copyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size) {
     gl.require(this, 'copyBufferSubData', arguments.length, 5);
-    gl.call(this, 82, gl.u32(readTarget), gl.u32(writeTarget), gl.i64(readOffset), gl.i64(writeOffset), gl.i64(size));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 82, gl.u32(readTarget), gl.u32(writeTarget), gl.i64(readOffset), gl.i64(writeOffset), gl.i64(size));
   },
   blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter) {
     gl.require(this, 'blitFramebuffer', arguments.length, 10);
-    gl.call(this, 83, gl.i32(srcX0), gl.i32(srcY0), gl.i32(srcX1), gl.i32(srcY1), gl.i32(dstX0), gl.i32(dstY0), gl.i32(dstX1), gl.i32(dstY1), gl.u32(mask), gl.u32(filter));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 83, gl.i32(srcX0), gl.i32(srcY0), gl.i32(srcX1), gl.i32(srcY1), gl.i32(dstX0), gl.i32(dstY0), gl.i32(dstX1), gl.i32(dstY1), gl.u32(mask), gl.u32(filter));
   },
   framebufferTextureLayer(target, attachment, texture, level, layer) {
     gl.require(this, 'framebufferTextureLayer', arguments.length, 5);
     const textureName = gl.name(this, texture, 'WebGLTexture', true, 'framebufferTextureLayer');
     if (textureName < 0) return;
-    gl.call(this, 84, gl.u32(target), gl.u32(attachment), textureName, gl.i32(level), gl.i32(layer));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 84, gl.u32(target), gl.u32(attachment), textureName, gl.i32(level), gl.i32(layer));
   },
   readBuffer(src) {
     gl.require(this, 'readBuffer', arguments.length, 1);
-    gl.call(this, 85, gl.u32(src));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 85, gl.u32(src));
   },
   renderbufferStorageMultisample(target, samples, internalformat, width, height) {
     gl.require(this, 'renderbufferStorageMultisample', arguments.length, 5);
-    gl.call(this, 86, gl.u32(target), gl.i32(samples), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 86, gl.u32(target), gl.i32(samples), gl.u32(internalformat), gl.i32(width), gl.i32(height));
   },
   texStorage2D(target, levels, internalformat, width, height) {
     gl.require(this, 'texStorage2D', arguments.length, 5);
-    gl.call(this, 87, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 87, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height));
   },
   texStorage3D(target, levels, internalformat, width, height, depth) {
     gl.require(this, 'texStorage3D', arguments.length, 6);
-    gl.call(this, 88, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height), gl.i32(depth));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 88, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height), gl.i32(depth));
   },
   copyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height) {
     gl.require(this, 'copyTexSubImage3D', arguments.length, 9);
-    gl.call(this, 89, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(zoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 89, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(zoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
   },
   uniform1ui(location, v0) {
     gl.require(this, 'uniform1ui', arguments.length, 2);
     const locationAt = gl.location(this, location, 'uniform1ui');
     if (locationAt === -2) return;
-    gl.call(this, 90, locationAt, gl.u32(v0));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 90, locationAt, gl.u32(v0));
   },
   uniform2ui(location, v0, v1) {
     gl.require(this, 'uniform2ui', arguments.length, 3);
     const locationAt = gl.location(this, location, 'uniform2ui');
     if (locationAt === -2) return;
-    gl.call(this, 91, locationAt, gl.u32(v0), gl.u32(v1));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 91, locationAt, gl.u32(v0), gl.u32(v1));
   },
   uniform3ui(location, v0, v1, v2) {
     gl.require(this, 'uniform3ui', arguments.length, 4);
     const locationAt = gl.location(this, location, 'uniform3ui');
     if (locationAt === -2) return;
-    gl.call(this, 92, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 92, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2));
   },
   uniform4ui(location, v0, v1, v2, v3) {
     gl.require(this, 'uniform4ui', arguments.length, 5);
     const locationAt = gl.location(this, location, 'uniform4ui');
     if (locationAt === -2) return;
-    gl.call(this, 93, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2), gl.u32(v3));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 93, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2), gl.u32(v3));
   },
   vertexAttribI4i(index, x, y, z, w) {
     gl.require(this, 'vertexAttribI4i', arguments.length, 5);
-    gl.call(this, 94, gl.u32(index), gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 94, gl.u32(index), gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
   },
   vertexAttribI4ui(index, x, y, z, w) {
     gl.require(this, 'vertexAttribI4ui', arguments.length, 5);
-    gl.call(this, 95, gl.u32(index), gl.u32(x), gl.u32(y), gl.u32(z), gl.u32(w));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 95, gl.u32(index), gl.u32(x), gl.u32(y), gl.u32(z), gl.u32(w));
   },
   vertexAttribIPointer(index, size, type, stride, offset) {
     gl.require(this, 'vertexAttribIPointer', arguments.length, 5);
-    gl.call(this, 96, gl.u32(index), gl.i32(size), gl.u32(type), gl.i32(stride), gl.i64(offset));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 96, gl.u32(index), gl.i32(size), gl.u32(type), gl.i32(stride), gl.i64(offset));
   },
   vertexAttribDivisor(index, divisor) {
     gl.require(this, 'vertexAttribDivisor', arguments.length, 2);
-    gl.call(this, 97, gl.u32(index), gl.u32(divisor));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 97, gl.u32(index), gl.u32(divisor));
   },
   drawArraysInstanced(mode, first, count, instanceCount) {
     gl.require(this, 'drawArraysInstanced', arguments.length, 4);
-    gl.call(this, 98, gl.u32(mode), gl.i32(first), gl.i32(count), gl.i32(instanceCount));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 98, gl.u32(mode), gl.i32(first), gl.i32(count), gl.i32(instanceCount));
   },
   drawElementsInstanced(mode, count, type, offset, instanceCount) {
     gl.require(this, 'drawElementsInstanced', arguments.length, 5);
-    gl.call(this, 99, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset), gl.i32(instanceCount));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 99, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset), gl.i32(instanceCount));
   },
   drawRangeElements(mode, start, end, count, type, offset) {
     gl.require(this, 'drawRangeElements', arguments.length, 6);
-    gl.call(this, 100, gl.u32(mode), gl.u32(start), gl.u32(end), gl.i32(count), gl.u32(type), gl.i64(offset));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 100, gl.u32(mode), gl.u32(start), gl.u32(end), gl.i32(count), gl.u32(type), gl.i64(offset));
   },
   clearBufferfi(buffer, drawbuffer, depth, stencil) {
     gl.require(this, 'clearBufferfi', arguments.length, 4);
-    gl.call(this, 101, gl.u32(buffer), gl.i32(drawbuffer), gl.f32(depth), gl.i32(stencil));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 101, gl.u32(buffer), gl.i32(drawbuffer), gl.f32(depth), gl.i32(stencil));
   },
   createQuery() {
-    return gl.wrap(this, 'WebGLQuery', gl.call(this, 102));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLQuery', webglCall(id, 102));
   },
   deleteQuery(query) {
     gl.require(this, 'deleteQuery', arguments.length, 1);
@@ -1031,20 +1216,26 @@ export function generatedMethods(gl) {
   isQuery(query) {
     gl.require(this, 'isQuery', arguments.length, 1);
     const name = gl.nameIfLive(this, query, 'WebGLQuery');
-    return name > 0 && gl.call(this, 104, name);
+    return name > 0 && webglCall(gl.id(this), 104, name);
   },
   beginQuery(target, query) {
     gl.require(this, 'beginQuery', arguments.length, 2);
     const queryName = gl.name(this, query, 'WebGLQuery', false, 'beginQuery');
     if (queryName < 0) return;
-    gl.call(this, 105, gl.u32(target), queryName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 105, gl.u32(target), queryName);
   },
   endQuery(target) {
     gl.require(this, 'endQuery', arguments.length, 1);
-    gl.call(this, 106, gl.u32(target));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 106, gl.u32(target));
   },
   createSampler() {
-    return gl.wrap(this, 'WebGLSampler', gl.call(this, 107));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLSampler', webglCall(id, 107));
   },
   deleteSampler(sampler) {
     gl.require(this, 'deleteSampler', arguments.length, 1);
@@ -1053,16 +1244,20 @@ export function generatedMethods(gl) {
   isSampler(sampler) {
     gl.require(this, 'isSampler', arguments.length, 1);
     const name = gl.nameIfLive(this, sampler, 'WebGLSampler');
-    return name > 0 && gl.call(this, 109, name);
+    return name > 0 && webglCall(gl.id(this), 109, name);
   },
   bindSampler(unit, sampler) {
     gl.require(this, 'bindSampler', arguments.length, 2);
     const samplerName = gl.name(this, sampler, 'WebGLSampler', true, 'bindSampler');
     if (samplerName < 0) return;
-    gl.call(this, 110, gl.u32(unit), samplerName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 110, gl.u32(unit), samplerName);
   },
   createTransformFeedback() {
-    return gl.wrap(this, 'WebGLTransformFeedback', gl.call(this, 111));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLTransformFeedback', webglCall(id, 111));
   },
   deleteTransformFeedback(tf) {
     gl.require(this, 'deleteTransformFeedback', arguments.length, 1);
@@ -1071,47 +1266,65 @@ export function generatedMethods(gl) {
   isTransformFeedback(tf) {
     gl.require(this, 'isTransformFeedback', arguments.length, 1);
     const name = gl.nameIfLive(this, tf, 'WebGLTransformFeedback');
-    return name > 0 && gl.call(this, 113, name);
+    return name > 0 && webglCall(gl.id(this), 113, name);
   },
   bindTransformFeedback(target, tf) {
     gl.require(this, 'bindTransformFeedback', arguments.length, 2);
     const tfName = gl.name(this, tf, 'WebGLTransformFeedback', true, 'bindTransformFeedback');
     if (tfName < 0) return;
-    gl.call(this, 114, gl.u32(target), tfName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 114, gl.u32(target), tfName);
   },
   beginTransformFeedback(primitiveMode) {
     gl.require(this, 'beginTransformFeedback', arguments.length, 1);
-    gl.call(this, 115, gl.u32(primitiveMode));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 115, gl.u32(primitiveMode));
   },
   endTransformFeedback() {
-    gl.call(this, 116);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 116);
   },
   pauseTransformFeedback() {
-    gl.call(this, 117);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 117);
   },
   resumeTransformFeedback() {
-    gl.call(this, 118);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 118);
   },
   bindBufferBase(target, index, buffer) {
     gl.require(this, 'bindBufferBase', arguments.length, 3);
     const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBufferBase');
     if (bufferName < 0) return;
-    gl.call(this, 119, gl.u32(target), gl.u32(index), bufferName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 119, gl.u32(target), gl.u32(index), bufferName);
   },
   bindBufferRange(target, index, buffer, offset, size) {
     gl.require(this, 'bindBufferRange', arguments.length, 5);
     const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBufferRange');
     if (bufferName < 0) return;
-    gl.call(this, 120, gl.u32(target), gl.u32(index), bufferName, gl.i64(offset), gl.i64(size));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 120, gl.u32(target), gl.u32(index), bufferName, gl.i64(offset), gl.i64(size));
   },
   uniformBlockBinding(program, uniformBlockIndex, uniformBlockBinding) {
     gl.require(this, 'uniformBlockBinding', arguments.length, 3);
     const programName = gl.name(this, program, 'WebGLProgram', false, 'uniformBlockBinding');
     if (programName < 0) return;
-    gl.call(this, 121, programName, gl.u32(uniformBlockIndex), gl.u32(uniformBlockBinding));
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 121, programName, gl.u32(uniformBlockIndex), gl.u32(uniformBlockBinding));
   },
   createVertexArray() {
-    return gl.wrap(this, 'WebGLVertexArrayObject', gl.call(this, 122));
+    const id = gl.id(this);
+    if (id < 0) return null;
+    return gl.wrap(this, 'WebGLVertexArrayObject', webglCall(id, 122));
   },
   deleteVertexArray(vertexArray) {
     gl.require(this, 'deleteVertexArray', arguments.length, 1);
@@ -1120,13 +1333,15 @@ export function generatedMethods(gl) {
   isVertexArray(vertexArray) {
     gl.require(this, 'isVertexArray', arguments.length, 1);
     const name = gl.nameIfLive(this, vertexArray, 'WebGLVertexArrayObject');
-    return name > 0 && gl.call(this, 124, name);
+    return name > 0 && webglCall(gl.id(this), 124, name);
   },
   bindVertexArray(array) {
     gl.require(this, 'bindVertexArray', arguments.length, 1);
     const arrayName = gl.name(this, array, 'WebGLVertexArrayObject', true, 'bindVertexArray');
     if (arrayName < 0) return;
-    gl.call(this, 125, arrayName);
+    const id = gl.id(this);
+    if (id < 0) return;
+    webglCall(id, 125, arrayName);
   },
   };
 }
