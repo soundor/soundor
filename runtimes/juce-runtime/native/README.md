@@ -497,7 +497,10 @@ its headers.
     compiling is done when it returns, and its status is always true),
     `OES_texture_float_linear`,
     `WEBGL_debug_renderer_info` and `WEBGL_lose_context`.
-  - **Objects** live until deleted, or until their context goes. Dropping a
+  - **Objects** live until deleted, or until their context goes. Textures
+    included: a device's contexts share textures (see "Showing it"), so each
+    WebGL context deletes the ones its code made when it goes. A released
+    canvas, or a reloaded UI, leaves nothing on the editor's device. Dropping a
     wrapper does not delete the OpenGL object, because OpenGL keeps it in
     use while it is bound.
   - **Not there:** WebGL 1, `restoreContext()`, `drawingBufferStorage()`,

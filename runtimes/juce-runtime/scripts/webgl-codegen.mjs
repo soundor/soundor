@@ -57,6 +57,9 @@ export const OBJECTS = {
     gen: 'glGenTextures',
     del: 'glDeleteTextures',
     is: 'glIsTexture',
+    // Textures belong to the device (its contexts share them), not to the
+    // context: the context keeps track of its own, to delete them with it.
+    owned: true,
   },
   WebGLQuery: { gen: 'glGenQueries', del: 'glDeleteQueries', is: 'glIsQuery' },
   WebGLSampler: {
@@ -350,6 +353,7 @@ function cppCase(operation, op) {
     else {
       lines.push('            GLuint name = 0;');
       lines.push(`            ${object.gen}(1, &name);`);
+      if (object.owned) lines.push('            context.ownTexture(name);');
       lines.push('            return JS_NewUint32(ctx, name);');
     }
   } else if (operation.deletes) {
@@ -358,6 +362,7 @@ function cppCase(operation, op) {
     else {
       lines.push('            const GLuint name = args.u32(0);');
       lines.push(`            ${object.del}(1, &name);`);
+      if (object.owned) lines.push('            context.disownTexture(name);');
     }
     lines.push('            return JS_UNDEFINED;');
   } else if (operation.is) {

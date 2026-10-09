@@ -447,6 +447,38 @@ TEST_SUITE("WebGL 2")
         CHECK(f.boolean("gl.getContextAttributes() === null"));
     }
 
+    TEST_CASE("textures go with the context that made them, though the device's contexts share them")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr || ! device->info().sharesTextures)
+            return;
+        // A context that outlives the WebGL, as the GPU compositor's does.
+        const auto compositor = gpu::Context::create(device, {});
+        std::vector<GLuint> alive;
+        {
+            WebGLFixture f(device);
+            f.run(R"(
+                for (let i = 0; i < 3; i++) {
+                    const t = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, t);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+                }
+            )");
+            // Every texture on the device while it runs, as another context
+            // of the device sees them: its drawing buffer's and its code's.
+            const gpu::CurrentContext current(*compositor);
+            for (GLuint name = 1; name < 256; ++name)
+                if (glIsTexture(name) == GL_TRUE)
+                    alive.push_back(name);
+        }
+        REQUIRE(alive.size() >= 3);
+        // The host (and its WebGL) is gone; the device is not, and keeps
+        // none of them.
+        const gpu::CurrentContext current(*compositor);
+        for (const GLuint name : alive)
+            CHECK_MESSAGE(glIsTexture(name) == GL_FALSE, "texture " << name << " outlived its context");
+    }
+
     TEST_CASE("unsupported features fail clearly")
     {
         const auto device = test::testDevice();

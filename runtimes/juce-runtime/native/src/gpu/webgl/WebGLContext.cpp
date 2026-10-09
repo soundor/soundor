@@ -188,6 +188,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         }
         for (const auto& [id, fence] : syncs)
             glDeleteSync(fence);
+        for (const GLuint texture : textures)
+            glDeleteTextures(1, &texture);
         freeDrawingBuffer();
         // The context itself goes with `context`: not current anywhere after.
     }
