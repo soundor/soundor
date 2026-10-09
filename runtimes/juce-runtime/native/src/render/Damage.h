@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <unordered_map>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
@@ -25,6 +26,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         // `invalidation` says so.
         [[nodiscard]] Region update(ui::Surface& surface, const ui::Surface::Invalidation& invalidation,
                                     const IntRect& view);
+        // The same, split by the layers the view is drawn in: `layerOf` gives
+        // the layer each node starts painting in (in paint order, so a
+        // node's subtree paints in its layer and the ones after it), for
+        // `layers` layers. A node's damage goes to the layers it and what is
+        // in it paint in.
+        [[nodiscard]] std::vector<Region> update(ui::Surface& surface, const ui::Surface::Invalidation& invalidation,
+                                                 const IntRect& view,
+                                                 const std::unordered_map<ui::NodeId, int>& layerOf, int layers);
         // Forgets everything: the next update() damages the whole view.
         void reset() noexcept;
 
@@ -37,10 +46,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             // What else its drawing depends on (a scroll view's content size).
             std::uint64_t key = 0;
             std::uint32_t pass = 0;
+            // The layers it and what is in it painted in.
+            int first = 0;
+            int last = 0;
+        };
+        // What visit() found of a subtree.
+        struct Visited
+        {
+            IntRect extent;
+            int last = 0;
         };
 
         struct Pass;
-        IntRect visit(Pass& pass, const ui::Node& node, float originX, float originY, const IntRect& clip);
+        Visited visit(Pass& pass, const ui::Node& node, float originX, float originY, const IntRect& clip);
 
         std::unordered_map<ui::NodeId, Record> records;
         std::uint32_t passes = 0;

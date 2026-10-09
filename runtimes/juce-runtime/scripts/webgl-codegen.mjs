@@ -298,7 +298,7 @@ function jsMethod(operation, op) {
     lines.push(
       `    const name = gl.nameIfLive(this, ${names[0]}, '${operation.parameters[0].object}');`,
     );
-    lines.push(`    return name > 0 && gl.call(this, ${op}, name);`);
+    lines.push(`    return name > 0 && webglCall(gl.id(this), ${op}, name);`);
     lines.push('  },');
     return lines.join('\n');
   }
@@ -326,7 +326,13 @@ function jsMethod(operation, op) {
       args.push(`${name}At`);
     }
   });
-  const call = `gl.call(this, ${op}${args.length ? ', ' + args.join(', ') : ''})`;
+  // Straight to native code, with no array of arguments in between; a lost
+  // context does nothing.
+  lines.push('    const id = gl.id(this);');
+  lines.push(
+    `    if (id < 0) return${operation.result.kind === 'void' ? '' : ' null'};`,
+  );
+  const call = `webglCall(id, ${op}${args.length ? ', ' + args.join(', ') : ''})`;
   if (operation.creates)
     lines.push(
       `    return gl.wrap(this, '${operation.result.object}', ${call});`,
@@ -420,6 +426,7 @@ export function generate(sources) {
     ' * convert arguments and call native code with (webgl.js).',
     ' */',
     'export function generatedMethods(gl) {',
+    '  const webglCall = gl.native;',
     '  return {',
     generated.map((operation, op) => jsMethod(operation, op)).join('\n'),
     '  };',

@@ -343,6 +343,9 @@ A frame goes through three stages, each with its own owner:
    compositor can draw (see "WebGL") becomes a layer of its own, and the UI
    is cut around it, into what paints before it and what paints after. So a
    canvas drawing every frame re-rasterizes and re-uploads none of the UI.
+   Damage is split the same way: a change to what paints above a canvas
+   redraws only the layer above it, and only there. A CPU layer that paints
+   nothing (often the one above a canvas) is left out of the frame.
    `frame(capabilities)` takes the compositor's capabilities to know which
    GPU images it can draw.
 2. **Damage.** Each layer says what changed since the previous frame, in

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <unordered_map>
 #include <utility>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
@@ -48,6 +49,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const gpu::Device* device;
             float scale;
             std::vector<std::pair<ui::NodeId, Layer>> found;
+            // Where each CPU layer paints (device pixels): what paints
+            // before the first promoted canvas, between it and the next, …
+            std::vector<Region> painted = std::vector<Region>(1);
+            // The layer each visible node starts painting in.
+            std::unordered_map<ui::NodeId, int> layerOf;
+
+            // A node's box, out to whole device pixels with a margin for
+            // antialiasing, as painted in the current layer.
+            void paint(float x, float y, float width, float height)
+            {
+                constexpr float margin = 2;
+                const auto left = static_cast<int>(std::floor((x * scale) - margin));
+                const auto top = static_cast<int>(std::floor((y * scale) - margin));
+                const auto right = static_cast<int>(std::ceil(((x + width) * scale) + margin));
+                const auto bottom = static_cast<int>(std::ceil(((y + height) * scale) + margin));
+                painted.back().add({ left, top, right - left, bottom - top });
+            }
 
             void walk(const ui::Node& node, float originX, float originY, float opacity,
                       const std::optional<AncestorClip>& clip)
@@ -59,6 +77,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const float x = originX + frame.x;
                 const float y = originY + frame.y;
                 const float seen = opacity * std::min(style.opacity, 1.0f);
+                layerOf[node.id()] = static_cast<int>(painted.size()) - 1;
+                const ui::Edges<float>& border = style.borderWidth;
+                const bool bordered = (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0)
+                                      && style.borderColor.visible();
+                // What it draws itself (a plain view draws nothing).
+                if (style.backgroundColor.visible() || bordered || node.type() != ui::NodeType::View)
+                    paint(x, y, frame.width, frame.height);
+                const std::size_t layers = painted.size();
                 if (node.type() == ui::NodeType::Canvas)
                     canvas(node, x, y, seen, clip);
                 if (node.children().empty())
@@ -66,7 +92,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 std::optional<AncestorClip> inner = clip;
                 if (style.overflow != ui::Overflow::Visible || node.type() == ui::NodeType::Scroll)
                 {
-                    const ui::Edges<float>& border = style.borderWidth;
                     const Box box { x + border.left, y + border.top, x + frame.width - border.right,
                                     y + frame.height - border.bottom };
                     const bool rounded = hasRadius(style.borderRadius);
@@ -76,6 +101,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const ui::Point scrolled = node.scrollOffset();
                 for (const ui::Node* child : node.stackedChildren())
                     walk(*child, x - scrolled.x, y - scrolled.y, seen, inner);
+                // Its border and scroll indicators paint after its children:
+                // in a later layer when a canvas among them is promoted.
+                if (painted.size() != layers && (bordered || node.type() == ui::NodeType::Scroll))
+                    paint(x, y, frame.width, frame.height);
             }
 
             void canvas(const ui::Node& node, float x, float y, float opacity, const std::optional<AncestorClip>& clip)
@@ -120,6 +149,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 layer.opacity = opacity;
                 layer.clip = shown;
                 found.emplace_back(node.id(), std::move(layer));
+                painted.emplace_back();
             }
         };
     } // namespace
@@ -144,7 +174,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
     void ViewRenderer::promote(ui::Surface& surface, const gpu::Device* gpuDevice)
     {
-        Planner planner { surface, gpuDevice, surface.scale(), {} };
+        Planner planner { surface, gpuDevice, surface.scale(), {}, std::vector<Region>(1) };
         planner.walk(surface.root(), 0, 0, 1, std::nullopt);
         planner.walk(surface.overlay(), 0, 0, 1, std::nullopt);
 
@@ -159,6 +189,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         for (const Promoted& canvas : now)
             canvasLayers.emplace_back(canvas.node, canvas.layer.id);
         promoted = std::move(now);
+        painting = std::move(planner.painted);
+        layerOf = std::move(planner.layerOf);
     }
 
     const Frame& ViewRenderer::update(ui::Surface& surface, double seconds, const gpu::Device* gpuDevice)
@@ -205,29 +237,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         frame.height = height;
         frame.scale = scale;
         const IntRect bounds { 0, 0, width, height };
-        Region changed;
-        // Nothing the layout depends on changed, nor anything drawn: no
-        // need to look.
+        // What changed, per CPU layer: a change above a canvas leaves the
+        // layer below it alone, and the other way round.
+        std::vector<Region> damages(segments.size());
         if (invalid.everything || ! invalid.nodes.empty() || surface.revision() != revision)
-            changed = damage.update(surface, invalid, bounds);
+            damages = damage.update(surface, invalid, bounds, layerOf, static_cast<int>(segments.size()));
         revision = surface.revision();
-
-        if (! changed.empty())
-            for (std::size_t i = 0; i < segments.size(); ++i)
-            {
-                const ui::Renderer::Layering layering { holes, static_cast<int>(i) };
-                painter.render(surface, segments[i].pixels.bitmap(), seconds, &changed,
-                               holes.empty() ? nullptr : &layering);
-                ++frame.statistics.layersRasterized;
-                frame.statistics.pixelsRasterized += changed.area();
-            }
+        Region changed;
+        for (std::size_t i = 0; i < segments.size(); ++i)
+        {
+            Segment& segment = segments[i];
+            const Region& redraw = damages[i];
+            changed.add(redraw);
+            segment.painted = painting[i];
+            if (redraw.empty())
+                continue;
+            const ui::Renderer::Layering layering { holes, static_cast<int>(i) };
+            painter.render(surface, segment.pixels.bitmap(), seconds, &redraw, holes.empty() ? nullptr : &layering);
+            ++frame.statistics.layersRasterized;
+            frame.statistics.pixelsRasterized += redraw.area();
+        }
 
         frame.layers.clear();
         Region damaged = changed;
         for (std::size_t i = 0; i < segments.size(); ++i)
         {
-            frame.layers.push_back(
-                { .id = segments[i].id, .bounds = bounds, .content = RasterContent { &segments[i].pixels, changed } });
+            // A layer that paints nothing is left out (most often the one
+            // above a canvas with nothing over it).
+            if (holes.empty() || ! segments[i].painted.empty())
+                frame.layers.push_back({ .id = segments[i].id,
+                                         .bounds = bounds,
+                                         .content = RasterContent { &segments[i].pixels, damages[i] } });
             if (i < promoted.size())
             {
                 Layer layer = promoted[i].layer;
