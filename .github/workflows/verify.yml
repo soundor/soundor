@@ -102,6 +102,7 @@ jobs:
             preset: nogpu
             cc: clang
             cxx: clang++
+            require-gpu: '0'
           - name: macos
             os: macos-15
             preset: dev
@@ -116,8 +117,8 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       # GPU tests need a device (lavapipe on Linux, WARP on Windows, Metal on
-      # macOS); without one they fail, not skip.
-      SOUNDOR_REQUIRE_GPU: '1'
+      # macOS); without one they fail, not skip. Not in the build without one.
+      SOUNDOR_REQUIRE_GPU: ${{ matrix.require-gpu || '1' }}
     defaults:
       run:
         working-directory: runtimes/juce-runtime/native
