@@ -1,9 +1,11 @@
-// The Three.js benchmark in the JUCE runtime, headless: builds the UI bundle
-// and soundor_run_ui (the native `bench` preset, Release), runs every scene
+// The benchmark in the JUCE runtime, headless: builds the UI bundle and
+// soundor_run_ui (the native `bench` preset, Release), runs the scenarios
 // several times, and prints the median of each measure with its spread
-// across runs.
+// across runs: what a frame cost (time), and what it did (work: native calls,
+// style changes, layouts, uploads...).
 //
-//   pnpm bench [--runs 5] [--frames 120] [--warmup 30] [--size 700x480]
+//   pnpm bench [--only <group or scenario>,...] [--runs 5] [--frames 120]
+//              [--warmup 30] [--size 700x520]
 //              [--backend vulkan|opengl|metal|d3d11] [--software]
 //              [--save <name>] [--against <name>] [--baseline <report.json>]
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
@@ -37,10 +39,11 @@ const native = path.resolve(example, '../../runtimes/juce-runtime/native');
 
 const { values: options } = parseArgs({
   options: {
+    only: { type: 'string' },
     runs: { type: 'string', default: '5' },
     frames: { type: 'string', default: '120' },
     warmup: { type: 'string', default: '30' },
-    size: { type: 'string', default: '700x480' },
+    size: { type: 'string', default: '700x520' },
     backend: { type: 'string' },
     software: { type: 'boolean', default: false },
     save: { type: 'string' },
@@ -57,6 +60,10 @@ const runs = Number(options.runs);
 const frames = Number(options.frames);
 const warmup = Number(options.warmup);
 const threshold = Number(options.threshold);
+const only = options.only
+  ?.split(',')
+  .map((each) => each.trim())
+  .filter(Boolean);
 
 /** soundor_run_ui's --json report (see tests/tools/RunUi.cpp). */
 interface Distribution {
@@ -65,9 +72,16 @@ interface Distribution {
   p95: number;
   max: number;
 }
+interface NativeCalls {
+  perFrame: number;
+  ms: number;
+}
 interface Phase {
   name: string;
   frames: number;
+  ticks: number;
+  idleTicks: number;
+  idleTickMs: number;
   fps: number;
   frameMs: Distribution;
   tickMs: Distribution;
@@ -77,10 +91,19 @@ interface Phase {
   gpuReadbacks: number;
   bytesUploaded: number;
   textureAllocations: number;
+  nativeCalls: { ui: NativeCalls; canvas: NativeCalls; webgl: NativeCalls };
+  surface: {
+    styleChanges: number;
+    layoutPasses: number;
+    layoutMs: number;
+    invalidations: number;
+  };
+  engine: { allocations: number; allocatedBytes: number; heapBytesMax: number };
 }
-/** What the benchmark's soundorBenchmark.run() resolves to, per scene. */
-interface SceneResult {
-  scene: string;
+/** What the benchmark's soundorBenchmark.run() resolves to, per scenario. */
+interface ScenarioResult {
+  scenario: string;
+  scriptAverage: number;
   updateAverage: number;
   renderAverage: number;
   drawCalls: number;
@@ -95,23 +118,40 @@ interface RunReport {
   };
   outcome: string;
   phases: Phase[];
-  value: SceneResult[] | null;
+  value: ScenarioResult[] | null;
 }
 
-/** The measures compared between runs, per scene. */
+/**
+ * The measures compared between runs, per scenario: times in milliseconds
+ * per frame, and counts of work per frame (which do not depend on timing).
+ * `compare: false`: shown, not compared (derived, or constant).
+ */
 const MEASURES = {
-  frame: { label: 'frame ms', unit: 'ms', timing: true },
-  frameP95: { label: 'p95', unit: 'ms', timing: true },
-  tick: { label: 'tick', unit: 'ms', timing: true },
-  build: { label: 'build', unit: 'ms', timing: true },
-  composite: { label: 'composite', unit: 'ms', timing: true },
-  update: { label: 'update', unit: 'ms', timing: true },
-  render: { label: 'render', unit: 'ms', timing: true },
-  fps: { label: 'fps', unit: '', timing: false },
-  readbacks: { label: 'read-backs/f', unit: '', timing: false },
-  rasterized: { label: 'rasterized/f', unit: '', timing: false },
-  uploadedKB: { label: 'uploaded KB/f', unit: 'KB', timing: false },
-  drawCalls: { label: 'draw calls', unit: '', timing: false },
+  frame: { label: 'frame ms', timing: true, compare: true },
+  frameP95: { label: 'p95', timing: true, compare: true },
+  tick: { label: 'tick', timing: true, compare: true },
+  build: { label: 'build', timing: true, compare: true },
+  composite: { label: 'composite', timing: true, compare: true },
+  script: { label: 'JS', timing: true, compare: true },
+  update: { label: 'update', timing: true, compare: true },
+  render: { label: 'render', timing: true, compare: true },
+  nativeMs: { label: 'native calls', timing: true, compare: true },
+  layoutMs: { label: 'layout', timing: true, compare: true },
+  // A tick that renders nothing (a UI that does not change), per such tick.
+  idleTick: { label: 'idle tick', timing: true, compare: true },
+  fps: { label: 'fps', timing: false, compare: false },
+  uiCalls: { label: 'ui calls', timing: false, compare: true },
+  canvasCalls: { label: 'canvas calls', timing: false, compare: true },
+  webglCalls: { label: 'WebGL calls', timing: false, compare: true },
+  styleChanges: { label: 'styles', timing: false, compare: true },
+  layouts: { label: 'layouts', timing: false, compare: true },
+  invalidations: { label: 'invalidations', timing: false, compare: true },
+  allocations: { label: 'allocations', timing: false, compare: true },
+  allocatedKB: { label: 'allocated KB', timing: false, compare: true },
+  rasterized: { label: 'rasterized', timing: false, compare: true },
+  uploadedKB: { label: 'uploaded KB', timing: false, compare: true },
+  readbacks: { label: 'read-backs', timing: false, compare: true },
+  drawCalls: { label: 'draw calls', timing: false, compare: false },
 } as const;
 type Measure = keyof typeof MEASURES;
 
@@ -137,7 +177,13 @@ interface Report {
     cores: number;
     platform: string;
   };
-  config: { runs: number; frames: number; warmup: number; size: string };
+  config: {
+    runs: number;
+    frames: number;
+    warmup: number;
+    size: string;
+    only?: string[];
+  };
   summary: Summary;
   runs: RunReport[];
   /** The saved build run alternately with this one (--against). */
@@ -205,35 +251,48 @@ function statistic(values: number[]): Statistic {
   };
 }
 
-function measures(phase: Phase, scene: SceneResult | undefined) {
+function measures(phase: Phase, scenario: ScenarioResult | undefined) {
   const perFrame = (value: number) =>
     phase.frames > 0 ? value / phase.frames : 0;
+  const calls = phase.nativeCalls;
   return {
     frame: phase.frameMs.mean,
     frameP95: phase.frameMs.p95,
     tick: phase.tickMs.mean,
     build: phase.buildMs.mean,
     composite: phase.compositeMs.mean,
-    update: scene?.updateAverage ?? 0,
-    render: scene?.renderAverage ?? 0,
+    script: scenario?.scriptAverage ?? 0,
+    update: scenario?.updateAverage ?? 0,
+    render: scenario?.renderAverage ?? 0,
+    nativeMs: calls.ui.ms + calls.canvas.ms + calls.webgl.ms,
+    layoutMs: phase.surface.layoutMs,
+    idleTick: phase.idleTickMs,
     fps: phase.fps,
-    readbacks: perFrame(phase.gpuReadbacks),
+    uiCalls: calls.ui.perFrame,
+    canvasCalls: calls.canvas.perFrame,
+    webglCalls: calls.webgl.perFrame,
+    styleChanges: phase.surface.styleChanges,
+    layouts: phase.surface.layoutPasses,
+    invalidations: phase.surface.invalidations,
+    allocations: phase.engine.allocations,
+    allocatedKB: phase.engine.allocatedBytes / 1024,
     rasterized: perFrame(phase.layersRasterized),
     uploadedKB: perFrame(phase.bytesUploaded) / 1024,
-    drawCalls: scene?.drawCalls ?? 0,
+    readbacks: perFrame(phase.gpuReadbacks),
+    drawCalls: scenario?.drawCalls ?? 0,
   } satisfies Record<Measure, number>;
 }
 
 function summarize(reports: RunReport[]): Summary {
-  const scenes = reports[0]!.phases.map((phase) => phase.name);
+  const scenarios = reports[0]!.phases.map((phase) => phase.name);
   const summary: Summary = {};
-  for (const name of scenes) {
+  for (const name of scenarios) {
     const perRun = reports.map((report) => {
       const phase = report.phases.find((candidate) => candidate.name === name);
       if (!phase) throw new Error(`a run has no phase "${name}"`);
       return measures(
         phase,
-        report.value?.find((result) => result.scene === name),
+        report.value?.find((result) => result.scenario === name),
       );
     });
     summary[name] = Object.fromEntries(
@@ -271,22 +330,33 @@ function table(rows: string[][]): string {
 }
 
 function printSummary(summary: Summary): void {
-  const measuresShown = Object.keys(MEASURES) as Measure[];
-  const rows = [
-    ['scene', ...measuresShown.map((measure) => MEASURES[measure].label)],
-  ];
-  for (const [scene, values] of Object.entries(summary)) {
-    rows.push([
-      scene,
-      ...measuresShown.map((measure) => {
-        const { median, spread } = values[measure];
-        return MEASURES[measure].timing
-          ? `${format(median)} ±${spread.toFixed(0)}%`
-          : format(median);
-      }),
-    ]);
+  const all = Object.keys(MEASURES) as Measure[];
+  for (const [title, shown] of [
+    [
+      'Time per frame (ms; median ± spread across runs)',
+      all.filter((measure) => MEASURES[measure].timing || measure === 'fps'),
+    ],
+    [
+      'Work per frame',
+      all.filter((measure) => !MEASURES[measure].timing && measure !== 'fps'),
+    ],
+  ] as const) {
+    const rows = [
+      ['scenario', ...shown.map((measure) => MEASURES[measure].label)],
+    ];
+    for (const [scenario, values] of Object.entries(summary)) {
+      rows.push([
+        scenario,
+        ...shown.map((measure) => {
+          const { median, spread } = values[measure];
+          return MEASURES[measure].timing
+            ? `${format(median)} ±${spread.toFixed(0)}%`
+            : format(median);
+        }),
+      ]);
+    }
+    console.log(`\n${title}:\n${table(rows)}`);
   }
-  console.log(table(rows));
 }
 
 /** What changed from `before` to `now`: the rows, and whether anything got worse. */
@@ -294,16 +364,22 @@ function compare(
   now: Summary,
   before: Summary,
 ): { rows: string[][]; regressed: boolean } {
-  const rows = [['scene', 'measure', 'before', 'now', 'change', 'noise', '']];
+  const rows = [
+    ['scenario', 'measure', 'before', 'now', 'change', 'noise', ''],
+  ];
   let regressed = false;
-  for (const [scene, values] of Object.entries(now)) {
-    const previous = before[scene];
+  for (const [scenario, values] of Object.entries(now)) {
+    const previous = before[scenario];
     if (!previous) continue;
     for (const measure of Object.keys(MEASURES) as Measure[]) {
-      if (measure === 'fps' || measure === 'drawCalls') continue;
+      if (!MEASURES[measure].compare) continue;
       const after = values[measure];
       const then = previous[measure];
-      if (then.median === 0 && after.median === 0) continue;
+      if (then === undefined) continue;
+      // Below a hundredth of what is measured, a change is not one.
+      if (Math.abs(then.median) < 0.01 && Math.abs(after.median) < 0.01) {
+        continue;
+      }
       const change =
         then.median === 0
           ? Infinity
@@ -319,7 +395,7 @@ function compare(
       const worse = change > 0;
       if (significant && worse) regressed = true;
       rows.push([
-        scene,
+        scenario,
         MEASURES[measure].label,
         format(then.median),
         format(after.median),
@@ -362,9 +438,11 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     '--size',
     options.size,
     '--eval',
-    `soundorBenchmark.run(${frames}, ${warmup})`,
+    `soundorBenchmark.run(${frames}, ${warmup}${only ? `, ${JSON.stringify(only)}` : ''})`,
     '--json',
     file,
+    // Costs nothing measurable (a clock read per call), so always on.
+    '--time-native-calls',
   ];
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
@@ -472,7 +550,7 @@ const report: Report = {
     cores: os.availableParallelism(),
     platform: `${process.platform} ${os.release()}`,
   },
-  config: { runs, frames, warmup, size: options.size },
+  config: { runs, frames, warmup, size: options.size, only },
   summary: summarize(reports),
   runs: reports,
 };

@@ -1,10 +1,10 @@
 // soundor_run_ui: runs a plugin UI bundle headless, on the GPU, the way the
 // generated editor would, and reports what its frames cost. For benchmarks
-// (examples/three) and for looking at a UI without building a plugin.
+// (examples/benchmark) and for looking at a UI without building a plugin.
 //
 //   soundor_run_ui <ui directory> [--size 800x600] [--scale 1] [--seconds N]
 //                  [--eval <expression>] [--backend <name>] [--software]
-//                  [--json <file>]
+//                  [--json <file>] [--time-native-calls]
 //
 // <ui directory> is a built bundle (.soundor/ui/production after
 // `soundor build web`). With --eval, the expression is evaluated once the UI
@@ -22,7 +22,11 @@
 // GPU, so these are CPU times. A UI can name what it is doing by setting
 // `globalThis.soundorRunUiPhase` to a string (empty or unset: no phase); the
 // frames are then also reported per phase, in the order the phases appear.
-// --json writes the report (device, value, totals, phases) to a file.
+// With each frame come the host's statistics (RuntimeHost::Statistics): the
+// steps of tick(), native calls per API, style changes, layout passes,
+// invalidations and engine allocations. --time-native-calls also times the
+// native calls (a clock read per call). --json writes the report (device,
+// value, totals, phases) to a file.
 
 #include "gpu/Device.h"
 #include "gpu/OffscreenCompositor.h"
@@ -54,13 +58,18 @@ namespace
     int usage()
     {
         std::cerr << "usage: soundor_run_ui <ui directory> [--size WxH] [--scale S] [--seconds N] [--eval EXPR] "
-                     "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE]\n";
+                     "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE] [--time-native-calls]\n";
         return 2;
     }
 
     double milliseconds(Clock::time_point from, Clock::time_point to)
     {
         return std::chrono::duration<double, std::milli>(to - from).count();
+    }
+
+    double milliseconds(std::uint64_t nanoseconds)
+    {
+        return static_cast<double>(nanoseconds) / 1e6;
     }
 
     // What one frame cost.
@@ -76,12 +85,60 @@ namespace
         long long bytesUploaded = 0;
         int textureAllocations = 0;
         int compositorDrawCalls = 0;
+        // The steps of tick(), in milliseconds.
+        double web = 0;
+        double jobs = 0;
+        double animationFrames = 0;
+        double presentWebGL = 0;
+        // Native calls, and their time (with --time-native-calls).
+        long long uiCalls = 0;
+        long long canvasCalls = 0;
+        long long webglCalls = 0;
+        double uiCallMs = 0;
+        double canvasCallMs = 0;
+        double webglCallMs = 0;
+        long long styleChanges = 0;
+        long long layoutPasses = 0;
+        double layoutMs = 0;
+        long long invalidations = 0;
+        long long allocations = 0;
+        long long allocatedBytes = 0;
+        long long heapBytes = 0; // at the end of the frame
     };
+
+    // What the host did between `before` and `after`, into `sample`.
+    void difference(const RuntimeHost::Statistics& before, const RuntimeHost::Statistics& after, Sample& sample)
+    {
+        const auto count = [](std::uint64_t from, std::uint64_t to) { return static_cast<long long>(to - from); };
+        const auto time = [](std::uint64_t from, std::uint64_t to) { return milliseconds(to - from); };
+        sample.web = time(before.tick.web, after.tick.web);
+        sample.jobs = time(before.tick.jobs, after.tick.jobs);
+        sample.animationFrames = time(before.tick.animationFrames, after.tick.animationFrames);
+        sample.presentWebGL = time(before.tick.presentWebGL, after.tick.presentWebGL);
+        sample.uiCalls = count(before.runtime.ui.calls, after.runtime.ui.calls);
+        sample.canvasCalls = count(before.runtime.canvas.calls, after.runtime.canvas.calls);
+        sample.webglCalls = count(before.runtime.webgl.calls, after.runtime.webgl.calls);
+        sample.uiCallMs = time(before.runtime.ui.nanoseconds, after.runtime.ui.nanoseconds);
+        sample.canvasCallMs = time(before.runtime.canvas.nanoseconds, after.runtime.canvas.nanoseconds);
+        sample.webglCallMs = time(before.runtime.webgl.nanoseconds, after.runtime.webgl.nanoseconds);
+        sample.styleChanges = count(before.surface.styleChanges, after.surface.styleChanges);
+        sample.layoutPasses = count(before.surface.layoutPasses, after.surface.layoutPasses);
+        sample.layoutMs = time(before.surface.layoutNanoseconds, after.surface.layoutNanoseconds);
+        sample.invalidations = count(before.surface.invalidations, after.surface.invalidations);
+        sample.allocations = count(before.runtime.allocations, after.runtime.allocations);
+        sample.allocatedBytes = count(before.runtime.allocatedBytes, after.runtime.allocatedBytes);
+        sample.heapBytes = static_cast<long long>(after.runtime.heapBytes);
+    }
 
     struct Phase
     {
         std::string name;
         std::vector<Sample> samples;
+        // Every tick in the phase, and those that rendered nothing (a UI that
+        // does not change) with their time.
+        long long ticks = 0;
+        long long idleTicks = 0;
+        double idleTickMs = 0;
     };
 
     struct Distribution
@@ -122,6 +179,25 @@ namespace
         return sum;
     }
 
+    template <typename T>
+    double perFrame(const std::vector<Sample>& samples, T Sample::*field)
+    {
+        if (samples.empty())
+            return 0;
+        double sum = 0;
+        for (const Sample& sample : samples)
+            sum += static_cast<double>(sample.*field);
+        return sum / static_cast<double>(samples.size());
+    }
+
+    long long largest(const std::vector<Sample>& samples, long long Sample::*field)
+    {
+        long long most = 0;
+        for (const Sample& sample : samples)
+            most = std::max(most, sample.*field);
+        return most;
+    }
+
     double seconds(const std::vector<Sample>& samples)
     {
         double sum = 0;
@@ -158,6 +234,12 @@ namespace
         return out.str();
     }
 
+    // `"name": value`, a member of a JSON object.
+    std::string field(std::string_view name, const std::string& value)
+    {
+        return jsonString(name) + ": " + value;
+    }
+
     std::string json(const Distribution& d)
     {
         return "{ \"mean\": " + number(d.mean) + ", \"p50\": " + number(d.p50) + ", \"p95\": " + number(d.p95)
@@ -170,6 +252,10 @@ namespace
         const double time = seconds(s);
         std::string out = "{ \"name\": " + jsonString(phase.name);
         out += ", \"frames\": " + std::to_string(s.size());
+        out += ", \"ticks\": " + std::to_string(phase.ticks);
+        out += ", \"idleTicks\": " + std::to_string(phase.idleTicks);
+        out += ", \"idleTickMs\": "
+               + number(phase.idleTicks > 0 ? phase.idleTickMs / static_cast<double>(phase.idleTicks) : 0);
         out += ", \"seconds\": " + number(time);
         out += ", \"fps\": " + number(time > 0 ? static_cast<double>(s.size()) / time : 0);
         out += ", \"frameMs\": " + json(distribution(s, &Sample::frame));
@@ -182,6 +268,27 @@ namespace
         out += ", \"bytesUploaded\": " + std::to_string(total(s, &Sample::bytesUploaded));
         out += ", \"textureAllocations\": " + std::to_string(total(s, &Sample::textureAllocations));
         out += ", \"compositorDrawCalls\": " + std::to_string(total(s, &Sample::compositorDrawCalls));
+        // Per frame, as means.
+        const auto mean = [&](auto field) { return number(perFrame(s, field)); };
+        out += ", "
+               + field("tickSteps", "{ " + field("web", mean(&Sample::web)) + ", " + field("jobs", mean(&Sample::jobs))
+                                        + ", " + field("animationFrames", mean(&Sample::animationFrames)) + ", "
+                                        + field("presentWebGL", mean(&Sample::presentWebGL)) + " }");
+        const auto calls = [&](long long Sample::*count, double Sample::*spent)
+        { return "{ " + field("perFrame", mean(count)) + ", " + field("ms", mean(spent)) + " }"; };
+        out += ", "
+               + field("nativeCalls", "{ " + field("ui", calls(&Sample::uiCalls, &Sample::uiCallMs)) + ", "
+                                          + field("canvas", calls(&Sample::canvasCalls, &Sample::canvasCallMs)) + ", "
+                                          + field("webgl", calls(&Sample::webglCalls, &Sample::webglCallMs)) + " }");
+        out += ", "
+               + field("surface", "{ " + field("styleChanges", mean(&Sample::styleChanges)) + ", "
+                                      + field("layoutPasses", mean(&Sample::layoutPasses)) + ", "
+                                      + field("layoutMs", mean(&Sample::layoutMs)) + ", "
+                                      + field("invalidations", mean(&Sample::invalidations)) + " }");
+        out += ", "
+               + field("engine", "{ " + field("allocations", mean(&Sample::allocations)) + ", "
+                                     + field("allocatedBytes", mean(&Sample::allocatedBytes)) + ", "
+                                     + field("heapBytesMax", std::to_string(largest(s, &Sample::heapBytes))) + " }");
         return out + " }";
     }
 
@@ -196,7 +303,14 @@ namespace
                   << number(distribution(s, &Sample::frame).p95) << "): tick " << mean(&Sample::tick) << ", build "
                   << mean(&Sample::build) << ", composite " << mean(&Sample::composite) << "; "
                   << total(s, &Sample::gpuReadbacks) << " GPU read-backs, " << total(s, &Sample::layersRasterized)
-                  << " CPU layers rasterized, " << total(s, &Sample::bytesUploaded) << " bytes uploaded\n";
+                  << " CPU layers rasterized, " << total(s, &Sample::bytesUploaded) << " bytes uploaded\n"
+                  << "  per frame: " << number(perFrame(s, &Sample::uiCalls)) << " ui, "
+                  << number(perFrame(s, &Sample::canvasCalls)) << " canvas, "
+                  << number(perFrame(s, &Sample::webglCalls)) << " WebGL calls; "
+                  << number(perFrame(s, &Sample::styleChanges)) << " style changes, "
+                  << number(perFrame(s, &Sample::layoutPasses)) << " layouts, "
+                  << number(perFrame(s, &Sample::invalidations)) << " invalidations, "
+                  << number(perFrame(s, &Sample::allocations)) << " engine allocations\n";
     }
 
     std::optional<gpu::Backend> backendNamed(std::string_view name)
@@ -226,11 +340,12 @@ int main(int argc, char** argv)
     std::optional<gpu::Backend> backend;
     bool software = false;
     std::string jsonPath;
+    bool timeNativeCalls = false;
     for (int i = 2; i < argc; ++i)
     {
         const std::string_view flag = argv[i];
-        // Every flag but --software takes a value.
-        if (flag != "--software" && i + 1 >= argc)
+        const bool takesValue = flag != "--software" && flag != "--time-native-calls";
+        if (takesValue && i + 1 >= argc)
             return usage();
         const auto value = [&] { return std::string(argv[++i]); };
         if (flag == "--size")
@@ -258,6 +373,8 @@ int main(int argc, char** argv)
             software = true;
         else if (flag == "--json")
             jsonPath = value();
+        else if (flag == "--time-native-calls")
+            timeNativeCalls = true;
         else
             return usage();
     }
@@ -293,6 +410,7 @@ int main(int argc, char** argv)
     options.entry = "/bundle.js";
     options.gpuDevice = device;
     options.allowSoftwareGpu = software;
+    options.runtime.timeNativeCalls = timeNativeCalls;
     options.runtime.log = [](js::LogLevel, std::string_view message) { std::cerr << message << "\n"; };
     RuntimeHost host(std::move(options));
     host.surface().setSize({ width, height });
@@ -306,10 +424,24 @@ int main(int argc, char** argv)
     std::vector<Phase> phases;
     bool measuring = false;
     auto previous = Clock::now();
+    RuntimeHost::Statistics previousStatistics = host.statistics();
     const auto currentPhase = [&]
     {
         auto phase = host.context().evaluateScript("typeof soundorRunUiPhase === 'string' ? soundorRunUiPhase : ''");
         return phase && phase.value().isString() ? phase.value().asString() : std::string();
+    };
+    // The phases a tick counts in: the total, and the named one, if any.
+    const auto phasesOf = [&](const std::string& name)
+    {
+        std::vector<Phase*> counted { &all };
+        if (! name.empty())
+        {
+            auto named = std::ranges::find(phases, name, &Phase::name);
+            if (named == phases.end())
+                named = phases.insert(phases.end(), Phase { name, {} });
+            counted.push_back(&*named);
+        }
+        return counted;
     };
     const auto frame = [&]
     {
@@ -318,14 +450,25 @@ int main(int argc, char** argv)
         const auto begin = Clock::now();
         host.tick();
         const auto ticked = Clock::now();
-        if (! host.needsRender())
+        const bool renders = host.needsRender();
+        if (measuring)
+            for (Phase* counted : phasesOf(phase))
+            {
+                ++counted->ticks;
+                if (! renders)
+                {
+                    ++counted->idleTicks;
+                    counted->idleTickMs += milliseconds(begin, ticked);
+                }
+            }
+        if (! renders)
             return;
         const render::Frame& made = host.frame(capabilities);
         const auto built = Clock::now();
         compositor.composite(made);
         const auto composited = Clock::now();
         const render::CompositorStatistics& composition = compositor.statistics();
-        const Sample sample {
+        Sample sample {
             .frame = milliseconds(previous, composited),
             .tick = milliseconds(begin, ticked),
             .build = milliseconds(ticked, built),
@@ -337,16 +480,15 @@ int main(int argc, char** argv)
             .textureAllocations = composition.textureAllocations,
             .compositorDrawCalls = composition.drawCalls,
         };
+        // Since the previous frame too, ticks that rendered nothing included.
+        const RuntimeHost::Statistics statistics = host.statistics();
+        difference(previousStatistics, statistics, sample);
+        previousStatistics = statistics;
         previous = composited;
         if (! measuring)
             return;
-        all.samples.push_back(sample);
-        if (phase.empty())
-            return;
-        auto named = std::ranges::find(phases, phase, &Phase::name);
-        if (named == phases.end())
-            named = phases.insert(phases.end(), Phase { phase, {} });
-        named->samples.push_back(sample);
+        for (Phase* counted : phasesOf(phase))
+            counted->samples.push_back(sample);
     };
 
     // The UI starts (and settles its first frames) before it is measured.
@@ -354,6 +496,7 @@ int main(int argc, char** argv)
         frame();
     measuring = true;
     previous = Clock::now();
+    previousStatistics = host.statistics();
     int status = 0;
     std::string outcome = "ok";
     std::string value = "null";

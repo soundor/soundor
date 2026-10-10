@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(SoundorThree)
+project(SoundorBenchmark)
 
 # Soundor injects only the generated JUCE setup below (plugin identity and
 # formats, parameters, the Soundor base classes). Everything else in this file

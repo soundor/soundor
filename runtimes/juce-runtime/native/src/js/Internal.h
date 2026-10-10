@@ -65,6 +65,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
             JSValue reason;
         };
 
+        // Declared before `rt`: the engine's allocator counts into it from
+        // the moment the runtime is created.
+        RuntimeStatistics statistics;
+        bool timeNativeCalls = false;
+        // Native calls in progress (one calling back into JavaScript that
+        // calls another): only the outermost is timed.
+        int nativeCallDepth = 0;
         JSRuntime* rt = nullptr;
         // Module data of destroyed contexts. Handle finalizers may still need it
         // (a native object can refer to the API that created it), so it is only

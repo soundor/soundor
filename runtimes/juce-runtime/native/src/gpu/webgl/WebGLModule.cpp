@@ -1306,6 +1306,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // or why there is none (a string).
         JSValue webglCreate(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglCreate", argc, 2))
                 return JS_EXCEPTION;
             return bind::invoke(
@@ -1362,6 +1363,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // webglAttributes(id): what was granted, in webglCreate's order.
         JSValue webglAttributes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglAttributes", argc, 1))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "webglAttributes",
@@ -1388,6 +1390,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // webglCall(id, op, ...): one native entry for every method.
         JSValue webglCall(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglCall", argc, 2))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "webglCall",
@@ -1412,6 +1415,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // webglResize(id): the canvas was resized; the drawing buffer follows.
         JSValue webglResize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglResize", argc, 1))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "webglResize",
@@ -1428,6 +1432,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // webglLose(id): loseContext(); webglRelease(id): the canvas is gone.
         JSValue webglLose(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglLose", argc, 1))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "webglLose",
@@ -1452,6 +1457,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
         JSValue webglRelease(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
             if (! bind::expectArgumentCount(ctx, "webglRelease", argc, 1))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "webglRelease",

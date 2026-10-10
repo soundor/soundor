@@ -4,8 +4,8 @@ import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
   plugin: {
-    id: 'dev.soundor.three',
-    name: 'Soundor Three',
+    id: 'dev.soundor.benchmark',
+    name: 'Soundor Benchmark',
   },
   // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
   // and in the browser.

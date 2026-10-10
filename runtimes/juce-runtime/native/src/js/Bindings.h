@@ -15,6 +15,7 @@
 
 #include <soundor/js/Promise.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -197,6 +198,61 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     }
 
     // ── Calls ────────────────────────────────────────────────────────────────
+
+    // Which of Soundor's native APIs a call goes to (RuntimeStatistics).
+    enum class NativeApi
+    {
+        Ui,
+        Canvas,
+        WebGL,
+    };
+
+    // Counts one call into `api`, and times it when the runtime times native
+    // calls; declared first in a binding entry point, so it covers the
+    // argument checks too. Only the outermost of nested calls is timed.
+    class NativeCall
+    {
+    public:
+        NativeCall(JSContext* ctx, NativeApi api) noexcept
+        {
+            detail::ContextState* context = detail::contextStateOf(ctx);
+            if (context == nullptr)
+                return;
+            state = context->runtime.get();
+            RuntimeStatistics& statistics = state->statistics;
+            counter = api == NativeApi::Ui       ? &statistics.ui
+                      : api == NativeApi::Canvas ? &statistics.canvas
+                                                 : &statistics.webgl;
+            ++counter->calls;
+            if (state->nativeCallDepth++ == 0 && state->timeNativeCalls)
+            {
+                timed = true;
+                started = std::chrono::steady_clock::now();
+            }
+        }
+
+        ~NativeCall()
+        {
+            if (state == nullptr)
+                return;
+            --state->nativeCallDepth;
+            if (timed)
+                counter->nanoseconds += static_cast<std::uint64_t>(
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - started)
+                        .count());
+        }
+
+        NativeCall(const NativeCall&) = delete;
+        NativeCall& operator=(const NativeCall&) = delete;
+        NativeCall(NativeCall&&) = delete;
+        NativeCall& operator=(NativeCall&&) = delete;
+
+    private:
+        detail::RuntimeState* state = nullptr;
+        NativeCallStatistics* counter = nullptr;
+        bool timed = false;
+        std::chrono::steady_clock::time_point started;
+    };
 
     // Requires at least `expected` arguments; extras are ignored.
     bool expectArgumentCount(JSContext* ctx, const char* method, int argc, int expected);

@@ -540,10 +540,13 @@ its headers.
   UI's device, evaluates an expression (awaiting a promise), and times every
   frame in three parts: `tick()`, `frame()` and compositing (CPU times;
   nothing waits for the GPU). It reports them with GPU read-backs, CPU layers
-  rasterized and bytes uploaded, in total and per phase: a UI names what it
-  is doing in `globalThis.soundorRunUiPhase`. `--json` writes the report,
-  `--backend` picks ANGLE's backend. `examples/three` uses it for its
-  benchmark (`pnpm bench` there).
+  rasterized, bytes uploaded and the host's statistics (native calls, style
+  changes, layouts, invalidations, engine allocations; see `RuntimeHost`), in
+  total and per phase: a UI names what it is doing in
+  `globalThis.soundorRunUiPhase`. Ticks that render nothing are counted and
+  timed apart. `--json` writes the report, `--backend` picks ANGLE's backend,
+  `--time-native-calls` times native calls. `examples/benchmark` uses it
+  (`pnpm bench` there).
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
   (lavapipe on Linux, WARP on Windows, Metal on macOS) and sets
@@ -692,6 +695,23 @@ installing the modules. A failing entry is logged and leaves the host usable.
 `RuntimeHost::frame()` renders the view for a compositor (see "Rendering").
 `Options::gpuDevice` is the device canvases' WebGL contexts use (see "WebGL"),
 and `tick()` shows what they drew.
+
+`RuntimeHost::statistics()` says what the host did since it was created, for
+profiling and benchmarks; take differences for a frame or a phase. Counting is
+always on and costs an increment:
+
+- **`tick`:** the time each step of `tick()` took: Web timers and finished
+  async work, parameter changes, promise jobs, animation frame callbacks,
+  showing what WebGL drew.
+- **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
+  and WebGL, counted at their native entry points. With
+  `RuntimeOptions::timeNativeCalls` they are timed too (a clock read on entry
+  and exit; only the outermost of nested calls). And the engine's memory: what
+  it took from the C allocator and holds now. The engine serves blocks of up
+  to 512 bytes from arenas of its own, so the count is its arenas and every
+  larger block (typed arrays, arrays' storage, long strings).
+- **`surface`** (`ui::SurfaceStatistics`): style changes, Yoga layout passes
+  and their time, nodes invalidated.
 
 ### `DevSession`
 
