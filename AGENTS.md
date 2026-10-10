@@ -60,6 +60,7 @@ cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build
 cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build/sanitize
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
+cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
 cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g. /opt/JUCE)
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
@@ -72,6 +73,16 @@ Examples (`examples/basic`, `examples/primitives`, `examples/three`: a
 Three.js benchmark) are real projects using the
 workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
 `... soundor build web|juce`.
+
+Benchmarks (rendering performance, JUCE runtime, headless; see
+`examples/three/README.md`). Measure an optimization against a saved build
+run alternately in the same session, not against an old report: machines
+drift by several percent between sessions.
+
+```sh
+pnpm --filter three-benchmark bench --save main      # on main
+pnpm --filter three-benchmark bench --against main   # on the branch: what changed, beyond noise
+```
 
 Regenerating checked-in generated files:
 

@@ -13,5 +13,5 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
   },
-  "include": ["soundor.config.ts"]
+  "include": ["soundor.config.ts", "scripts"]
 }
