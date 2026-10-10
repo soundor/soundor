@@ -25,6 +25,7 @@ add_executable(soundor_runtime_tests
   render/RegionTests.cpp
   runtime/DevSessionTests.cpp
   runtime/ResourcesTests.cpp
+  runtime/StatisticsTests.cpp
   ui/SurfaceTests.cpp
   ui/PrimitivesTests.cpp
   ui/RendererTests.cpp

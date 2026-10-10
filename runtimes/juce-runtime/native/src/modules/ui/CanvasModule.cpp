@@ -126,6 +126,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // so a drawing call costs one crossing.
         JSValue call2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
             if (! bind::expectArgumentCount(ctx, "call2d", argc, 2))
                 return JS_EXCEPTION;
             return bind::invoke(
@@ -347,6 +348,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // gradient2d(kind, ...numbers): a new gradient's id.
         JSValue gradient2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
             if (! bind::expectArgumentCount(ctx, "gradient2d", argc, 1))
                 return JS_EXCEPTION;
             return bind::invoke(
@@ -371,6 +373,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // colorStop2d(paint, offset, color): false when the color is not one.
         JSValue colorStop2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
             if (! bind::expectArgumentCount(ctx, "colorStop2d", argc, 3))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "colorStop2d",
@@ -385,6 +388,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // pattern2d(context node, source node, repetition): a new pattern's id.
         JSValue pattern2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
             if (! bind::expectArgumentCount(ctx, "pattern2d", argc, 3))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "pattern2d",
@@ -400,6 +404,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // paint (0: none), once their JavaScript objects are collected.
         JSValue release2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
             if (! bind::expectArgumentCount(ctx, "release2d", argc, 2))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, "release2d",

@@ -230,6 +230,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     // Delivers an event; returns true when a listener called preventDefault().
     using EventSink = std::function<bool(const Event&)>;
 
+    // What the surface did since it was created, for profiling: counting is
+    // always on. Take differences for a frame or a phase.
+    struct SurfaceStatistics
+    {
+        std::uint64_t styleChanges = 0;      // setStyle() calls
+        std::uint64_t layoutPasses = 0;      // trees laid out by Yoga
+        std::uint64_t layoutNanoseconds = 0; // ... and the time it took
+        std::uint64_t invalidations = 0;     // nodes marked as looking different
+    };
+
     // The UI of one plugin view: a tree of nodes with flexbox layout, and the
     // routing of the view's input to them (hit testing, pointer capture,
     // hover, clicks, focus and keyboard).
@@ -331,6 +341,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Changes since the last call: the tree, a style, a size, a scroll.
         [[nodiscard]] bool takeChanges() noexcept;
 
+        [[nodiscard]] const SurfaceStatistics& statistics() const noexcept { return counted; }
+
         // What may look different since the last call, for drawing only
         // that: nodes whose own drawing or anything in them changed, or
         // everything (the size or scale changed). Nodes that only moved are
@@ -417,6 +429,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId nextId = 1;
         Size viewSize;
         float pixelScale = 1;
+        SurfaceStatistics counted;
         bool changed = true;
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;

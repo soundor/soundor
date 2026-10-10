@@ -77,6 +77,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             bool allowSoftwareGpu = false;
         };
 
+        // Where tick() spent its time since the host was created, in
+        // nanoseconds, by step.
+        struct TickStatistics
+        {
+            std::uint64_t ticks = 0;
+            std::uint64_t web = 0;             // timers, finished async work (fetch, files)
+            std::uint64_t parameters = 0;      // parameter and host changes
+            std::uint64_t jobs = 0;            // promise jobs
+            std::uint64_t animationFrames = 0; // requestAnimationFrame callbacks
+            std::uint64_t presentWebGL = 0;    // showing what WebGL drew
+        };
+
+        // What the host did since it was created, for profiling (frame
+        // timings, benchmarks): counting is always on and cheap. Take
+        // differences for a frame or a phase.
+        struct Statistics
+        {
+            TickStatistics tick;
+            js::RuntimeStatistics runtime;
+            ui::SurfaceStatistics surface;
+        };
+
         explicit RuntimeHost(Options options);
         ~RuntimeHost();
 
@@ -123,6 +145,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // The bytes of a bundled asset ("9f86d081884c7d65.png"), if any.
         [[nodiscard]] std::optional<std::span<const std::uint8_t>> asset(std::string_view id) const;
 
+        [[nodiscard]] Statistics statistics() const;
+
     private:
         [[nodiscard]] double seconds() const;
         // Whether the caret's blink phase changed (and so its look).
@@ -139,5 +163,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         bool hasParameters;
         std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         long long blinkPhase = -1;
+        TickStatistics ticked;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE

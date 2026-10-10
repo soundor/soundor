@@ -515,6 +515,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         template <typename Body>
         JSValue call(JSContext* ctx, const char* method, int argc, int expected, Body&& body)
         {
+            const bind::NativeCall counted(ctx, bind::NativeApi::Ui);
             if (! bind::expectArgumentCount(ctx, method, argc, expected))
                 return JS_EXCEPTION;
             return bind::invoke(ctx, method, [&]() -> JSValue { return body(surfaceOf(ctx)); });

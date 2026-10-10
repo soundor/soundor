@@ -6,11 +6,11 @@
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
 // parameter tree generated from soundor.config. Add your DSP here.
-class SoundorThreeProcessor final : public soundor::AudioProcessor
+class SoundorBenchmarkProcessor final : public soundor::AudioProcessor
 {
 public:
-    SoundorThreeProcessor();
-    ~SoundorThreeProcessor() override = default;
+    SoundorBenchmarkProcessor();
+    ~SoundorBenchmarkProcessor() override = default;
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -36,5 +36,5 @@ private:
     // value instead of stepping (which would click on fast automation).
     float previousGain { 0.5f };
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundorThreeProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundorBenchmarkProcessor)
 };

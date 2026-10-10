@@ -3,6 +3,7 @@
 #include <soundor/Config.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string_view>
@@ -38,6 +39,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
         // Where diagnostics go. Without a sink they are dropped.
         LogSink log;
+        // Whether native calls are timed as well as counted (see
+        // RuntimeStatistics): a clock read on entry and exit of each call,
+        // for profiling.
+        bool timeNativeCalls = false;
+    };
+
+    // Calls from JavaScript into one of Soundor's native APIs.
+    struct NativeCallStatistics
+    {
+        std::uint64_t calls = 0;
+        // Time spent in the outermost of nested calls (RuntimeOptions::
+        // timeNativeCalls), so nothing is counted twice.
+        std::uint64_t nanoseconds = 0;
+    };
+
+    // What the engine did since the runtime was created; counting is always
+    // on and costs an increment. Take differences for a frame or a phase.
+    struct RuntimeStatistics
+    {
+        NativeCallStatistics ui;     // soundor:ui (nodes, styles, text, events)
+        NativeCallStatistics canvas; // Canvas 2D
+        NativeCallStatistics webgl;  // WebGL
+        // Memory the engine took from the C allocator (reallocations
+        // included), and its bytes. The engine serves blocks of up to 512
+        // bytes from arenas of its own, so these are its arenas and every
+        // larger block: typed arrays, arrays' storage, long strings.
+        std::uint64_t allocations = 0;
+        std::uint64_t allocatedBytes = 0;
+        // Memory the engine holds now (its arenas included).
+        std::uint64_t heapBytes = 0;
     };
 
     struct MemoryUsage
@@ -74,7 +105,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
         void collectGarbage();
 
+        // Walks the whole heap: not for every frame (see statistics()).
         [[nodiscard]] MemoryUsage memoryUsage() const;
+        [[nodiscard]] const RuntimeStatistics& statistics() const noexcept;
 
     private:
         friend class Context;

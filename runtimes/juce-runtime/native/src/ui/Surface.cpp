@@ -3,6 +3,7 @@
 #include <yoga/Yoga.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <ranges>
@@ -416,6 +417,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     void Surface::setStyle(NodeId id, const Style& style)
     {
         Node& node = get(id);
+        ++counted.styleChanges;
         const bool textChanged = node.nodeStyle.text != style.text;
         const bool zIndexChanged = node.nodeStyle.zIndex != style.zIndex;
         node.nodeStyle = style;
@@ -676,7 +678,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeStyleSetHeight(tree->yoga, viewSize.height);
             if (! YGNodeIsDirty(tree->yoga))
                 continue;
+            const auto started = std::chrono::steady_clock::now();
             YGNodeCalculateLayout(tree->yoga, viewSize.width, viewSize.height, YGDirectionLTR);
+            ++counted.layoutPasses;
+            counted.layoutNanoseconds += static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - started)
+                    .count());
             laidOut = true;
         }
         if (! laidOut)
@@ -794,6 +801,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         if (id == noNode)
             return;
+        ++counted.invalidations;
         changed = true;
         if (invalidAll)
             return;

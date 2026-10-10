@@ -79,14 +79,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     void RuntimeHost::tick()
     {
+        auto last = std::chrono::steady_clock::now();
+        // Adds the time since the previous step to `step`.
+        const auto lap = [&last](std::uint64_t& step)
+        {
+            const auto now = std::chrono::steady_clock::now();
+            step +=
+                static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now - last).count());
+            last = now;
+        };
+        ++ticked.ticks;
         web::tick(*jsContext);
+        lap(ticked.web);
         if (hasParameters)
+        {
             parameters::dispatchChanges(*jsContext);
+            lap(ticked.parameters);
+        }
         jsRuntime->runPendingJobs();
+        lap(ticked.jobs);
         ui::frame(*jsContext);
+        lap(ticked.animationFrames);
         jsRuntime->runPendingJobs();
+        lap(ticked.jobs);
         // What WebGL drew this tick shows in its canvases.
         gpu::presentWebGL(*jsContext);
+        lap(ticked.presentWebGL);
+    }
+
+    RuntimeHost::Statistics RuntimeHost::statistics() const
+    {
+        return { ticked, jsRuntime->statistics(), uiSurface->statistics() };
     }
 
     bool RuntimeHost::performAccessibilityAction(const a11y::ActionRequest& request)

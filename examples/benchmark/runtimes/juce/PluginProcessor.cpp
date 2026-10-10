@@ -2,14 +2,14 @@
 
 #include "PluginEditor.h"
 
-SoundorThreeProcessor::SoundorThreeProcessor()
+SoundorBenchmarkProcessor::SoundorBenchmarkProcessor()
     : soundor::AudioProcessor(BusesProperties()
                                   .withInput("Input", juce::AudioChannelSet::stereo(), true)
                                   .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
 
-void SoundorThreeProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+void SoundorBenchmarkProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
     juce::ignoreUnused(sampleRate, samplesPerBlock);
 
@@ -18,7 +18,7 @@ void SoundorThreeProcessor::prepareToPlay(double sampleRate, int samplesPerBlock
     previousGain = gainParameter->load();
 }
 
-bool SoundorThreeProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+bool SoundorBenchmarkProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     // Standalone always runs stereo, but a DAW (e.g. Reaper) negotiates the bus
     // layout and, without this guard, JUCE would accept any arrangement — then
@@ -33,7 +33,7 @@ bool SoundorThreeProcessor::isBusesLayoutSupported(const BusesLayout& layouts) c
     return mainInput == mainOutput;
 }
 
-void SoundorThreeProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void SoundorBenchmarkProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
 {
     juce::ScopedNoDenormals noDenormals;
 
@@ -46,13 +46,13 @@ void SoundorThreeProcessor::process(juce::AudioBuffer<float>& buffer, juce::Midi
     previousGain = targetGain;
 }
 
-juce::AudioProcessorEditor* SoundorThreeProcessor::createEditor()
+juce::AudioProcessorEditor* SoundorBenchmarkProcessor::createEditor()
 {
-    return new SoundorThreeEditor(*this);
+    return new SoundorBenchmarkEditor(*this);
 }
 
 // Plugin entry point.
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new SoundorThreeProcessor();
+    return new SoundorBenchmarkProcessor();
 }

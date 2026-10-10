@@ -69,19 +69,22 @@ The first native configure builds Skia and ANGLE from source (minutes) and
 caches them in the user cache dir (`SOUNDOR_CACHE` overrides); later
 configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE.
 
-Examples (`examples/basic`, `examples/primitives`, `examples/three`: a
-Three.js benchmark) are real projects using the
-workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
+Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
+rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
+using the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
 `... soundor build web|juce`.
 
 Benchmarks (rendering performance, JUCE runtime, headless; see
-`examples/three/README.md`). Measure an optimization against a saved build
-run alternately in the same session, not against an old report: machines
-drift by several percent between sessions.
+`examples/benchmark/README.md`). Measure an optimization against a saved
+build run alternately in the same session, not against an old report:
+machines drift by several percent between sessions. The "work per frame"
+counts (native calls, style changes, layouts, uploads) do not depend on
+timing: a change in them is real.
 
 ```sh
-pnpm --filter three-benchmark bench --save main      # on main
-pnpm --filter three-benchmark bench --against main   # on the branch: what changed, beyond noise
+pnpm --filter soundor-benchmark bench --save main      # on main
+pnpm --filter soundor-benchmark bench --against main   # on the branch: what changed, beyond noise
+pnpm --filter soundor-benchmark bench --only ui,canvas # some groups or scenarios
 ```
 
 Regenerating checked-in generated files:

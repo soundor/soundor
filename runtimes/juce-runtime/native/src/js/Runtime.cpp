@@ -1,8 +1,16 @@
 #include "Internal.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <new>
+
+#if defined(__APPLE__)
+    #include <malloc/malloc.h>
+#else
+    #include <malloc.h>
+#endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 {
@@ -205,6 +213,75 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 if (JS_NewClass(rt, classId, &definition) < 0)
                     throw std::bad_alloc();
             }
+
+            // The engine's allocator: the C runtime's, counting allocations and
+            // the heap in use into the runtime's statistics (see
+            // RuntimeStatistics).
+            std::size_t usableSize(const void* block)
+            {
+                if (block == nullptr)
+                    return 0;
+#if defined(__APPLE__)
+                return malloc_size(block);
+#elif defined(_WIN32)
+                return _msize(const_cast<void*>(block));
+#else
+                return malloc_usable_size(const_cast<void*>(block));
+#endif
+            }
+
+            void counted(void* opaque, void* block)
+            {
+                if (block == nullptr)
+                    return;
+                auto& statistics = *static_cast<RuntimeStatistics*>(opaque);
+                const std::size_t size = usableSize(block);
+                ++statistics.allocations;
+                statistics.allocatedBytes += size;
+                statistics.heapBytes += size;
+            }
+
+            void* engineCalloc(void* opaque, std::size_t count, std::size_t size)
+            {
+                void* block = std::calloc(count, size);
+                counted(opaque, block);
+                return block;
+            }
+
+            void* engineMalloc(void* opaque, std::size_t size)
+            {
+                void* block = std::malloc(size);
+                counted(opaque, block);
+                return block;
+            }
+
+            void engineFree(void* opaque, void* block)
+            {
+                if (block == nullptr)
+                    return;
+                static_cast<RuntimeStatistics*>(opaque)->heapBytes -= usableSize(block);
+                std::free(block);
+            }
+
+            void* engineRealloc(void* opaque, void* block, std::size_t size)
+            {
+                if (size == 0)
+                {
+                    engineFree(opaque, block);
+                    return nullptr;
+                }
+                const std::size_t previous = usableSize(block);
+                void* resized = std::realloc(block, size);
+                if (resized == nullptr)
+                    return nullptr;
+                static_cast<RuntimeStatistics*>(opaque)->heapBytes -= previous;
+                counted(opaque, resized);
+                return resized;
+            }
+
+            constexpr JSMallocFunctions engineAllocator {
+                engineCalloc, engineMalloc, engineFree, engineRealloc, usableSize,
+            };
         } // namespace
 
         // AddressSanitizer makes native frames several times larger, so the same
@@ -222,7 +299,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 #endif
 
         RuntimeState::RuntimeState(const RuntimeOptions& options)
-            : rt(JS_NewRuntime()), logSink(options.log), owner(std::this_thread::get_id())
+            : timeNativeCalls(options.timeNativeCalls),
+              rt(JS_NewRuntime2(&engineAllocator, &statistics)),
+              logSink(options.log),
+              owner(std::this_thread::get_id())
         {
             if (rt == nullptr)
                 throw std::bad_alloc();
@@ -350,6 +430,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
     {
         state->enter();
         JS_RunGC(state->rt);
+    }
+
+    const RuntimeStatistics& Runtime::statistics() const noexcept
+    {
+        return state->statistics;
     }
 
     MemoryUsage Runtime::memoryUsage() const
