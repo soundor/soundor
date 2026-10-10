@@ -308,7 +308,12 @@ Beyond views and text there are the primitives a plugin UI is made of:
     the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
     types give null, as on the Web for a canvas that already has a
     context. The JavaScript side (`canvas.js`) converts arguments as WebIDL
-    does and makes one native call per method.
+    does and makes one native call per method, except for path commands
+    (`beginPath` through `ellipse`, not `roundRect`): they draw nothing by
+    themselves, so they are checked as they are made, gathered in a
+    `Float64Array` and sent in one call before whatever comes next (or once
+    65,536 numbers wait). Resizing the canvas drops those not sent, with the
+    path. A waveform of 10,000 points is 7 native calls a frame, not 10,007.
   - **What it draws:** state (`save`/`restore`/`reset`, `globalAlpha`, every
     `globalCompositeOperation`), transforms, rectangles, paths (lines, curves,
     `arc`, `arcTo`, `ellipse`, `rect`, `roundRect`; `fill`, `stroke`, `clip`
@@ -465,7 +470,9 @@ its headers.
     checks WebGL objects: one from another context or a deleted one is an
     `INVALID_OPERATION`, and so is a uniform location of another program or
     an earlier link. Each method makes one native call
-    (`webglCall(id, op, …)`). Methods whose arguments are only numbers,
+    (`webglCall(id, op, …)`), with no arrays made on the way; the generated
+    ones look the context up once and convert their numbers inline. Methods
+    whose arguments are only numbers,
     booleans and objects are generated from the Khronos IDL in `idl/`
     (`scripts/webgl-codegen.mjs`, `pnpm gen:webgl`, kept current by a test),
     and so are the TypeScript declarations. The rest are hand-written, in

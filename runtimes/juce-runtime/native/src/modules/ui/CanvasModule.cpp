@@ -3,10 +3,12 @@
 #include "js/Bindings.h"
 #include "render/Canvas2D.h"
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -76,7 +78,95 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 return out;
             }
             [[nodiscard]] NodeId node(int at) const { return static_cast<NodeId>(number(at)); }
+            // A Float64Array's numbers, borrowed for the call.
+            [[nodiscard]] std::span<const double> doubles(int at) const
+            {
+                std::span<const double> out;
+                if (at >= argc || ! bind::read(ctx, argv[at], bind::Path { "canvas" }, out))
+                    throw std::invalid_argument("expected a Float64Array");
+                return out;
+            }
         };
+
+        // Runs the path commands canvas.js gathered (Canvas2DOp::Path), in
+        // order. They were checked as they were made; a batch that does not
+        // decode is refused before anything of it runs.
+        void runPath(render::Canvas2D& c, std::span<const double> commands)
+        {
+            const auto arity = [](double op) -> int
+            {
+                switch (static_cast<Canvas2DOp>(static_cast<int>(op)))
+                {
+                    case Canvas2DOp::BeginPath:
+                    case Canvas2DOp::ClosePath:
+                        return 0;
+                    case Canvas2DOp::MoveTo:
+                    case Canvas2DOp::LineTo:
+                        return 2;
+                    case Canvas2DOp::QuadraticCurveTo:
+                    case Canvas2DOp::Rect:
+                        return 4;
+                    case Canvas2DOp::ArcTo:
+                        return 5;
+                    case Canvas2DOp::BezierCurveTo:
+                    case Canvas2DOp::Arc:
+                        return 6;
+                    case Canvas2DOp::Ellipse:
+                        return 8;
+                    default:
+                        return -1;
+                }
+            };
+            for (std::size_t at = 0; at < commands.size();)
+            {
+                const double op = commands[at];
+                const int count = op == std::trunc(op) && op >= 0 && op < 256 ? arity(op) : -1;
+                if (count < 0 || at + 1 + static_cast<std::size_t>(count) > commands.size())
+                    throw std::invalid_argument("malformed path commands");
+                at += 1 + static_cast<std::size_t>(count);
+            }
+            for (std::size_t at = 0; at < commands.size();)
+            {
+                const auto op = static_cast<Canvas2DOp>(static_cast<int>(commands[at]));
+                const double* v = commands.data() + at + 1;
+                switch (op)
+                {
+                    case Canvas2DOp::BeginPath:
+                        c.beginPath();
+                        break;
+                    case Canvas2DOp::ClosePath:
+                        c.closePath();
+                        break;
+                    case Canvas2DOp::MoveTo:
+                        c.moveTo(v[0], v[1]);
+                        break;
+                    case Canvas2DOp::LineTo:
+                        c.lineTo(v[0], v[1]);
+                        break;
+                    case Canvas2DOp::QuadraticCurveTo:
+                        c.quadraticCurveTo(v[0], v[1], v[2], v[3]);
+                        break;
+                    case Canvas2DOp::BezierCurveTo:
+                        c.bezierCurveTo(v[0], v[1], v[2], v[3], v[4], v[5]);
+                        break;
+                    case Canvas2DOp::ArcTo:
+                        c.arcTo(v[0], v[1], v[2], v[3], v[4]);
+                        break;
+                    case Canvas2DOp::Rect:
+                        c.rect(v[0], v[1], v[2], v[3]);
+                        break;
+                    case Canvas2DOp::Arc:
+                        c.arc(v[0], v[1], v[2], v[3], v[4], v[5] != 0);
+                        break;
+                    case Canvas2DOp::Ellipse:
+                        c.ellipse(v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7] != 0);
+                        break;
+                    default:
+                        break; // refused above
+                }
+                at += 1 + static_cast<std::size_t>(arity(commands[at]));
+            }
+        }
 
         render::Canvas2D& contextOf(JSContext* ctx, NodeId node)
         {
@@ -271,6 +361,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             c.ellipse(a.number(0), a.number(1), a.number(2), a.number(3), a.number(4), a.number(5),
                                       a.number(6), a.flag(7));
                             break;
+                        case Canvas2DOp::Path:
+                        {
+                            const std::span<const double> commands = a.doubles(0);
+                            const auto count = static_cast<std::size_t>(std::max(0, a.integer(1)));
+                            if (count > commands.size())
+                                throw std::invalid_argument("malformed path commands");
+                            runPath(c, commands.first(count));
+                            break;
+                        }
                         case Canvas2DOp::Fill:
                             c.fill(a.flag(0));
                             break;

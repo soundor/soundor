@@ -82,6 +82,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         DrawAsset = 63,
         GetImageData = 64,
         PutImageData = 65,
+        // Path commands canvas.js gathered, in one call: a Float64Array of
+        // [op, arguments...] for BeginPath through Ellipse (not RoundRect),
+        // and how many of its numbers are commands.
+        Path = 66,
     };
 
     struct NativeFunction

@@ -572,167 +572,146 @@ export function generatedMethods(gl) {
   const webglCall = gl.native;
   return {
   activeTexture(texture) {
-    gl.require(this, 'activeTexture', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 0, gl.u32(texture));
+    const state = gl.enter(this, 'activeTexture', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 0, Number(texture) >>> 0);
   },
   attachShader(program, shader) {
-    gl.require(this, 'attachShader', arguments.length, 2);
-    const programName = gl.name(this, program, 'WebGLProgram', false, 'attachShader');
+    const state = gl.enter(this, 'attachShader', arguments.length, 2);
+    const programName = gl.nameOf(state, program, 'WebGLProgram', false, 'attachShader');
     if (programName < 0) return;
-    const shaderName = gl.name(this, shader, 'WebGLShader', false, 'attachShader');
+    const shaderName = gl.nameOf(state, shader, 'WebGLShader', false, 'attachShader');
     if (shaderName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 1, programName, shaderName);
+    if (state.lost) return;
+    webglCall(state.id, 1, programName, shaderName);
   },
   bindBuffer(target, buffer) {
-    gl.require(this, 'bindBuffer', arguments.length, 2);
-    const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBuffer');
+    const state = gl.enter(this, 'bindBuffer', arguments.length, 2);
+    const bufferName = gl.nameOf(state, buffer, 'WebGLBuffer', true, 'bindBuffer');
     if (bufferName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 2, gl.u32(target), bufferName);
+    if (state.lost) return;
+    webglCall(state.id, 2, Number(target) >>> 0, bufferName);
   },
   bindRenderbuffer(target, renderbuffer) {
-    gl.require(this, 'bindRenderbuffer', arguments.length, 2);
-    const renderbufferName = gl.name(this, renderbuffer, 'WebGLRenderbuffer', true, 'bindRenderbuffer');
+    const state = gl.enter(this, 'bindRenderbuffer', arguments.length, 2);
+    const renderbufferName = gl.nameOf(state, renderbuffer, 'WebGLRenderbuffer', true, 'bindRenderbuffer');
     if (renderbufferName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 3, gl.u32(target), renderbufferName);
+    if (state.lost) return;
+    webglCall(state.id, 3, Number(target) >>> 0, renderbufferName);
   },
   bindTexture(target, texture) {
-    gl.require(this, 'bindTexture', arguments.length, 2);
-    const textureName = gl.name(this, texture, 'WebGLTexture', true, 'bindTexture');
+    const state = gl.enter(this, 'bindTexture', arguments.length, 2);
+    const textureName = gl.nameOf(state, texture, 'WebGLTexture', true, 'bindTexture');
     if (textureName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 4, gl.u32(target), textureName);
+    if (state.lost) return;
+    webglCall(state.id, 4, Number(target) >>> 0, textureName);
   },
   blendColor(red, green, blue, alpha) {
-    gl.require(this, 'blendColor', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 5, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
+    const state = gl.enter(this, 'blendColor', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 5, Number(red), Number(green), Number(blue), Number(alpha));
   },
   blendEquation(mode) {
-    gl.require(this, 'blendEquation', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 6, gl.u32(mode));
+    const state = gl.enter(this, 'blendEquation', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 6, Number(mode) >>> 0);
   },
   blendEquationSeparate(modeRGB, modeAlpha) {
-    gl.require(this, 'blendEquationSeparate', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 7, gl.u32(modeRGB), gl.u32(modeAlpha));
+    const state = gl.enter(this, 'blendEquationSeparate', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 7, Number(modeRGB) >>> 0, Number(modeAlpha) >>> 0);
   },
   blendFunc(sfactor, dfactor) {
-    gl.require(this, 'blendFunc', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 8, gl.u32(sfactor), gl.u32(dfactor));
+    const state = gl.enter(this, 'blendFunc', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 8, Number(sfactor) >>> 0, Number(dfactor) >>> 0);
   },
   blendFuncSeparate(srcRGB, dstRGB, srcAlpha, dstAlpha) {
-    gl.require(this, 'blendFuncSeparate', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 9, gl.u32(srcRGB), gl.u32(dstRGB), gl.u32(srcAlpha), gl.u32(dstAlpha));
+    const state = gl.enter(this, 'blendFuncSeparate', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 9, Number(srcRGB) >>> 0, Number(dstRGB) >>> 0, Number(srcAlpha) >>> 0, Number(dstAlpha) >>> 0);
   },
   checkFramebufferStatus(target) {
-    gl.require(this, 'checkFramebufferStatus', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return webglCall(id, 10, gl.u32(target));
+    const state = gl.enter(this, 'checkFramebufferStatus', arguments.length, 1);
+    if (state.lost) return null;
+    return webglCall(state.id, 10, Number(target) >>> 0);
   },
   clear(mask) {
-    gl.require(this, 'clear', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 11, gl.u32(mask));
+    const state = gl.enter(this, 'clear', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 11, Number(mask) >>> 0);
   },
   clearColor(red, green, blue, alpha) {
-    gl.require(this, 'clearColor', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 12, gl.f32(red), gl.f32(green), gl.f32(blue), gl.f32(alpha));
+    const state = gl.enter(this, 'clearColor', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 12, Number(red), Number(green), Number(blue), Number(alpha));
   },
   clearDepth(depth) {
-    gl.require(this, 'clearDepth', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 13, gl.f32(depth));
+    const state = gl.enter(this, 'clearDepth', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 13, Number(depth));
   },
   clearStencil(s) {
-    gl.require(this, 'clearStencil', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 14, gl.i32(s));
+    const state = gl.enter(this, 'clearStencil', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 14, Number(s) | 0);
   },
   colorMask(red, green, blue, alpha) {
-    gl.require(this, 'colorMask', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 15, gl.bool(red), gl.bool(green), gl.bool(blue), gl.bool(alpha));
+    const state = gl.enter(this, 'colorMask', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 15, Boolean(red), Boolean(green), Boolean(blue), Boolean(alpha));
   },
   compileShader(shader) {
-    gl.require(this, 'compileShader', arguments.length, 1);
-    const shaderName = gl.name(this, shader, 'WebGLShader', false, 'compileShader');
+    const state = gl.enter(this, 'compileShader', arguments.length, 1);
+    const shaderName = gl.nameOf(state, shader, 'WebGLShader', false, 'compileShader');
     if (shaderName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 16, shaderName);
+    if (state.lost) return;
+    webglCall(state.id, 16, shaderName);
   },
   copyTexImage2D(target, level, internalformat, x, y, width, height, border) {
-    gl.require(this, 'copyTexImage2D', arguments.length, 8);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 17, gl.u32(target), gl.i32(level), gl.u32(internalformat), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height), gl.i32(border));
+    const state = gl.enter(this, 'copyTexImage2D', arguments.length, 8);
+    if (state.lost) return;
+    webglCall(state.id, 17, Number(target) >>> 0, Number(level) | 0, Number(internalformat) >>> 0, Number(x) | 0, Number(y) | 0, Number(width) | 0, Number(height) | 0, Number(border) | 0);
   },
   copyTexSubImage2D(target, level, xoffset, yoffset, x, y, width, height) {
-    gl.require(this, 'copyTexSubImage2D', arguments.length, 8);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 18, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'copyTexSubImage2D', arguments.length, 8);
+    if (state.lost) return;
+    webglCall(state.id, 18, Number(target) >>> 0, Number(level) | 0, Number(xoffset) | 0, Number(yoffset) | 0, Number(x) | 0, Number(y) | 0, Number(width) | 0, Number(height) | 0);
   },
   createBuffer() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLBuffer', webglCall(id, 19));
+    const state = gl.enter(this, 'createBuffer', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLBuffer', webglCall(state.id, 19));
   },
   createFramebuffer() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLFramebuffer', webglCall(id, 20));
+    const state = gl.enter(this, 'createFramebuffer', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLFramebuffer', webglCall(state.id, 20));
   },
   createProgram() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLProgram', webglCall(id, 21));
+    const state = gl.enter(this, 'createProgram', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLProgram', webglCall(state.id, 21));
   },
   createRenderbuffer() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLRenderbuffer', webglCall(id, 22));
+    const state = gl.enter(this, 'createRenderbuffer', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLRenderbuffer', webglCall(state.id, 22));
   },
   createShader(type) {
-    gl.require(this, 'createShader', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLShader', webglCall(id, 23, gl.u32(type)));
+    const state = gl.enter(this, 'createShader', arguments.length, 1);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLShader', webglCall(state.id, 23, Number(type) >>> 0));
   },
   createTexture() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLTexture', webglCall(id, 24));
+    const state = gl.enter(this, 'createTexture', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLTexture', webglCall(state.id, 24));
   },
   cullFace(mode) {
-    gl.require(this, 'cullFace', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 25, gl.u32(mode));
+    const state = gl.enter(this, 'cullFace', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 25, Number(mode) >>> 0);
   },
   deleteBuffer(buffer) {
     gl.require(this, 'deleteBuffer', arguments.length, 1);
@@ -755,96 +734,83 @@ export function generatedMethods(gl) {
     gl.delete(this, texture, 'WebGLTexture', 30);
   },
   depthFunc(func) {
-    gl.require(this, 'depthFunc', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 31, gl.u32(func));
+    const state = gl.enter(this, 'depthFunc', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 31, Number(func) >>> 0);
   },
   depthMask(flag) {
-    gl.require(this, 'depthMask', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 32, gl.bool(flag));
+    const state = gl.enter(this, 'depthMask', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 32, Boolean(flag));
   },
   depthRange(zNear, zFar) {
-    gl.require(this, 'depthRange', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 33, gl.f32(zNear), gl.f32(zFar));
+    const state = gl.enter(this, 'depthRange', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 33, Number(zNear), Number(zFar));
   },
   detachShader(program, shader) {
-    gl.require(this, 'detachShader', arguments.length, 2);
-    const programName = gl.name(this, program, 'WebGLProgram', false, 'detachShader');
+    const state = gl.enter(this, 'detachShader', arguments.length, 2);
+    const programName = gl.nameOf(state, program, 'WebGLProgram', false, 'detachShader');
     if (programName < 0) return;
-    const shaderName = gl.name(this, shader, 'WebGLShader', false, 'detachShader');
+    const shaderName = gl.nameOf(state, shader, 'WebGLShader', false, 'detachShader');
     if (shaderName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 34, programName, shaderName);
+    if (state.lost) return;
+    webglCall(state.id, 34, programName, shaderName);
   },
   disable(cap) {
-    gl.require(this, 'disable', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 35, gl.u32(cap));
+    const state = gl.enter(this, 'disable', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 35, Number(cap) >>> 0);
   },
   disableVertexAttribArray(index) {
-    gl.require(this, 'disableVertexAttribArray', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 36, gl.u32(index));
+    const state = gl.enter(this, 'disableVertexAttribArray', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 36, Number(index) >>> 0);
   },
   drawArrays(mode, first, count) {
-    gl.require(this, 'drawArrays', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 37, gl.u32(mode), gl.i32(first), gl.i32(count));
+    const state = gl.enter(this, 'drawArrays', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 37, Number(mode) >>> 0, Number(first) | 0, Number(count) | 0);
   },
   drawElements(mode, count, type, offset) {
-    gl.require(this, 'drawElements', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 38, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset));
+    const state = gl.enter(this, 'drawElements', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 38, Number(mode) >>> 0, Number(count) | 0, Number(type) >>> 0, gl.i64(offset));
   },
   enable(cap) {
-    gl.require(this, 'enable', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 39, gl.u32(cap));
+    const state = gl.enter(this, 'enable', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 39, Number(cap) >>> 0);
   },
   enableVertexAttribArray(index) {
-    gl.require(this, 'enableVertexAttribArray', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 40, gl.u32(index));
+    const state = gl.enter(this, 'enableVertexAttribArray', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 40, Number(index) >>> 0);
   },
   finish() {
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 41);
+    const state = gl.enter(this, 'finish', arguments.length, 0);
+    if (state.lost) return;
+    webglCall(state.id, 41);
   },
   flush() {
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 42);
+    const state = gl.enter(this, 'flush', arguments.length, 0);
+    if (state.lost) return;
+    webglCall(state.id, 42);
   },
   frontFace(mode) {
-    gl.require(this, 'frontFace', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 43, gl.u32(mode));
+    const state = gl.enter(this, 'frontFace', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 43, Number(mode) >>> 0);
   },
   generateMipmap(target) {
-    gl.require(this, 'generateMipmap', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 44, gl.u32(target));
+    const state = gl.enter(this, 'generateMipmap', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 44, Number(target) >>> 0);
   },
   hint(target, mode) {
-    gl.require(this, 'hint', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 45, gl.u32(target), gl.u32(mode));
+    const state = gl.enter(this, 'hint', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 45, Number(target) >>> 0, Number(mode) >>> 0);
   },
   isBuffer(buffer) {
     gl.require(this, 'isBuffer', arguments.length, 1);
@@ -852,10 +818,9 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 46, name);
   },
   isEnabled(cap) {
-    gl.require(this, 'isEnabled', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return webglCall(id, 47, gl.u32(cap));
+    const state = gl.enter(this, 'isEnabled', arguments.length, 1);
+    if (state.lost) return null;
+    return webglCall(state.id, 47, Number(cap) >>> 0);
   },
   isFramebuffer(framebuffer) {
     gl.require(this, 'isFramebuffer', arguments.length, 1);
@@ -883,331 +848,282 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 52, name);
   },
   lineWidth(width) {
-    gl.require(this, 'lineWidth', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 53, gl.f32(width));
+    const state = gl.enter(this, 'lineWidth', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 53, Number(width));
   },
   pixelStorei(pname, param) {
-    gl.require(this, 'pixelStorei', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 54, gl.u32(pname), gl.i32(param));
+    const state = gl.enter(this, 'pixelStorei', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 54, Number(pname) >>> 0, Number(param) | 0);
   },
   polygonOffset(factor, units) {
-    gl.require(this, 'polygonOffset', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 55, gl.f32(factor), gl.f32(units));
+    const state = gl.enter(this, 'polygonOffset', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 55, Number(factor), Number(units));
   },
   renderbufferStorage(target, internalformat, width, height) {
-    gl.require(this, 'renderbufferStorage', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 56, gl.u32(target), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'renderbufferStorage', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 56, Number(target) >>> 0, Number(internalformat) >>> 0, Number(width) | 0, Number(height) | 0);
   },
   sampleCoverage(value, invert) {
-    gl.require(this, 'sampleCoverage', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 57, gl.f32(value), gl.bool(invert));
+    const state = gl.enter(this, 'sampleCoverage', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 57, Number(value), Boolean(invert));
   },
   scissor(x, y, width, height) {
-    gl.require(this, 'scissor', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 58, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'scissor', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 58, Number(x) | 0, Number(y) | 0, Number(width) | 0, Number(height) | 0);
   },
   stencilFunc(func, ref, mask) {
-    gl.require(this, 'stencilFunc', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 59, gl.u32(func), gl.i32(ref), gl.u32(mask));
+    const state = gl.enter(this, 'stencilFunc', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 59, Number(func) >>> 0, Number(ref) | 0, Number(mask) >>> 0);
   },
   stencilFuncSeparate(face, func, ref, mask) {
-    gl.require(this, 'stencilFuncSeparate', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 60, gl.u32(face), gl.u32(func), gl.i32(ref), gl.u32(mask));
+    const state = gl.enter(this, 'stencilFuncSeparate', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 60, Number(face) >>> 0, Number(func) >>> 0, Number(ref) | 0, Number(mask) >>> 0);
   },
   stencilMask(mask) {
-    gl.require(this, 'stencilMask', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 61, gl.u32(mask));
+    const state = gl.enter(this, 'stencilMask', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 61, Number(mask) >>> 0);
   },
   stencilMaskSeparate(face, mask) {
-    gl.require(this, 'stencilMaskSeparate', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 62, gl.u32(face), gl.u32(mask));
+    const state = gl.enter(this, 'stencilMaskSeparate', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 62, Number(face) >>> 0, Number(mask) >>> 0);
   },
   stencilOp(fail, zfail, zpass) {
-    gl.require(this, 'stencilOp', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 63, gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
+    const state = gl.enter(this, 'stencilOp', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 63, Number(fail) >>> 0, Number(zfail) >>> 0, Number(zpass) >>> 0);
   },
   stencilOpSeparate(face, fail, zfail, zpass) {
-    gl.require(this, 'stencilOpSeparate', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 64, gl.u32(face), gl.u32(fail), gl.u32(zfail), gl.u32(zpass));
+    const state = gl.enter(this, 'stencilOpSeparate', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 64, Number(face) >>> 0, Number(fail) >>> 0, Number(zfail) >>> 0, Number(zpass) >>> 0);
   },
   texParameterf(target, pname, param) {
-    gl.require(this, 'texParameterf', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 65, gl.u32(target), gl.u32(pname), gl.f32(param));
+    const state = gl.enter(this, 'texParameterf', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 65, Number(target) >>> 0, Number(pname) >>> 0, Number(param));
   },
   texParameteri(target, pname, param) {
-    gl.require(this, 'texParameteri', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 66, gl.u32(target), gl.u32(pname), gl.i32(param));
+    const state = gl.enter(this, 'texParameteri', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 66, Number(target) >>> 0, Number(pname) >>> 0, Number(param) | 0);
   },
   uniform1f(location, x) {
-    gl.require(this, 'uniform1f', arguments.length, 2);
-    const locationAt = gl.location(this, location, 'uniform1f');
+    const state = gl.enter(this, 'uniform1f', arguments.length, 2);
+    const locationAt = gl.locationOf(state, location, 'uniform1f');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 67, locationAt, gl.f32(x));
+    if (state.lost) return;
+    webglCall(state.id, 67, locationAt, Number(x));
   },
   uniform2f(location, x, y) {
-    gl.require(this, 'uniform2f', arguments.length, 3);
-    const locationAt = gl.location(this, location, 'uniform2f');
+    const state = gl.enter(this, 'uniform2f', arguments.length, 3);
+    const locationAt = gl.locationOf(state, location, 'uniform2f');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 68, locationAt, gl.f32(x), gl.f32(y));
+    if (state.lost) return;
+    webglCall(state.id, 68, locationAt, Number(x), Number(y));
   },
   uniform3f(location, x, y, z) {
-    gl.require(this, 'uniform3f', arguments.length, 4);
-    const locationAt = gl.location(this, location, 'uniform3f');
+    const state = gl.enter(this, 'uniform3f', arguments.length, 4);
+    const locationAt = gl.locationOf(state, location, 'uniform3f');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 69, locationAt, gl.f32(x), gl.f32(y), gl.f32(z));
+    if (state.lost) return;
+    webglCall(state.id, 69, locationAt, Number(x), Number(y), Number(z));
   },
   uniform4f(location, x, y, z, w) {
-    gl.require(this, 'uniform4f', arguments.length, 5);
-    const locationAt = gl.location(this, location, 'uniform4f');
+    const state = gl.enter(this, 'uniform4f', arguments.length, 5);
+    const locationAt = gl.locationOf(state, location, 'uniform4f');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 70, locationAt, gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
+    if (state.lost) return;
+    webglCall(state.id, 70, locationAt, Number(x), Number(y), Number(z), Number(w));
   },
   uniform1i(location, x) {
-    gl.require(this, 'uniform1i', arguments.length, 2);
-    const locationAt = gl.location(this, location, 'uniform1i');
+    const state = gl.enter(this, 'uniform1i', arguments.length, 2);
+    const locationAt = gl.locationOf(state, location, 'uniform1i');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 71, locationAt, gl.i32(x));
+    if (state.lost) return;
+    webglCall(state.id, 71, locationAt, Number(x) | 0);
   },
   uniform2i(location, x, y) {
-    gl.require(this, 'uniform2i', arguments.length, 3);
-    const locationAt = gl.location(this, location, 'uniform2i');
+    const state = gl.enter(this, 'uniform2i', arguments.length, 3);
+    const locationAt = gl.locationOf(state, location, 'uniform2i');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 72, locationAt, gl.i32(x), gl.i32(y));
+    if (state.lost) return;
+    webglCall(state.id, 72, locationAt, Number(x) | 0, Number(y) | 0);
   },
   uniform3i(location, x, y, z) {
-    gl.require(this, 'uniform3i', arguments.length, 4);
-    const locationAt = gl.location(this, location, 'uniform3i');
+    const state = gl.enter(this, 'uniform3i', arguments.length, 4);
+    const locationAt = gl.locationOf(state, location, 'uniform3i');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 73, locationAt, gl.i32(x), gl.i32(y), gl.i32(z));
+    if (state.lost) return;
+    webglCall(state.id, 73, locationAt, Number(x) | 0, Number(y) | 0, Number(z) | 0);
   },
   uniform4i(location, x, y, z, w) {
-    gl.require(this, 'uniform4i', arguments.length, 5);
-    const locationAt = gl.location(this, location, 'uniform4i');
+    const state = gl.enter(this, 'uniform4i', arguments.length, 5);
+    const locationAt = gl.locationOf(state, location, 'uniform4i');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 74, locationAt, gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
+    if (state.lost) return;
+    webglCall(state.id, 74, locationAt, Number(x) | 0, Number(y) | 0, Number(z) | 0, Number(w) | 0);
   },
   validateProgram(program) {
-    gl.require(this, 'validateProgram', arguments.length, 1);
-    const programName = gl.name(this, program, 'WebGLProgram', false, 'validateProgram');
+    const state = gl.enter(this, 'validateProgram', arguments.length, 1);
+    const programName = gl.nameOf(state, program, 'WebGLProgram', false, 'validateProgram');
     if (programName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 75, programName);
+    if (state.lost) return;
+    webglCall(state.id, 75, programName);
   },
   vertexAttrib1f(index, x) {
-    gl.require(this, 'vertexAttrib1f', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 76, gl.u32(index), gl.f32(x));
+    const state = gl.enter(this, 'vertexAttrib1f', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 76, Number(index) >>> 0, Number(x));
   },
   vertexAttrib2f(index, x, y) {
-    gl.require(this, 'vertexAttrib2f', arguments.length, 3);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 77, gl.u32(index), gl.f32(x), gl.f32(y));
+    const state = gl.enter(this, 'vertexAttrib2f', arguments.length, 3);
+    if (state.lost) return;
+    webglCall(state.id, 77, Number(index) >>> 0, Number(x), Number(y));
   },
   vertexAttrib3f(index, x, y, z) {
-    gl.require(this, 'vertexAttrib3f', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 78, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z));
+    const state = gl.enter(this, 'vertexAttrib3f', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 78, Number(index) >>> 0, Number(x), Number(y), Number(z));
   },
   vertexAttrib4f(index, x, y, z, w) {
-    gl.require(this, 'vertexAttrib4f', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 79, gl.u32(index), gl.f32(x), gl.f32(y), gl.f32(z), gl.f32(w));
+    const state = gl.enter(this, 'vertexAttrib4f', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 79, Number(index) >>> 0, Number(x), Number(y), Number(z), Number(w));
   },
   vertexAttribPointer(index, size, type, normalized, stride, offset) {
-    gl.require(this, 'vertexAttribPointer', arguments.length, 6);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 80, gl.u32(index), gl.i32(size), gl.u32(type), gl.bool(normalized), gl.i32(stride), gl.i64(offset));
+    const state = gl.enter(this, 'vertexAttribPointer', arguments.length, 6);
+    if (state.lost) return;
+    webglCall(state.id, 80, Number(index) >>> 0, Number(size) | 0, Number(type) >>> 0, Boolean(normalized), Number(stride) | 0, gl.i64(offset));
   },
   viewport(x, y, width, height) {
-    gl.require(this, 'viewport', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 81, gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'viewport', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 81, Number(x) | 0, Number(y) | 0, Number(width) | 0, Number(height) | 0);
   },
   copyBufferSubData(readTarget, writeTarget, readOffset, writeOffset, size) {
-    gl.require(this, 'copyBufferSubData', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 82, gl.u32(readTarget), gl.u32(writeTarget), gl.i64(readOffset), gl.i64(writeOffset), gl.i64(size));
+    const state = gl.enter(this, 'copyBufferSubData', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 82, Number(readTarget) >>> 0, Number(writeTarget) >>> 0, gl.i64(readOffset), gl.i64(writeOffset), gl.i64(size));
   },
   blitFramebuffer(srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter) {
-    gl.require(this, 'blitFramebuffer', arguments.length, 10);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 83, gl.i32(srcX0), gl.i32(srcY0), gl.i32(srcX1), gl.i32(srcY1), gl.i32(dstX0), gl.i32(dstY0), gl.i32(dstX1), gl.i32(dstY1), gl.u32(mask), gl.u32(filter));
+    const state = gl.enter(this, 'blitFramebuffer', arguments.length, 10);
+    if (state.lost) return;
+    webglCall(state.id, 83, Number(srcX0) | 0, Number(srcY0) | 0, Number(srcX1) | 0, Number(srcY1) | 0, Number(dstX0) | 0, Number(dstY0) | 0, Number(dstX1) | 0, Number(dstY1) | 0, Number(mask) >>> 0, Number(filter) >>> 0);
   },
   framebufferTextureLayer(target, attachment, texture, level, layer) {
-    gl.require(this, 'framebufferTextureLayer', arguments.length, 5);
-    const textureName = gl.name(this, texture, 'WebGLTexture', true, 'framebufferTextureLayer');
+    const state = gl.enter(this, 'framebufferTextureLayer', arguments.length, 5);
+    const textureName = gl.nameOf(state, texture, 'WebGLTexture', true, 'framebufferTextureLayer');
     if (textureName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 84, gl.u32(target), gl.u32(attachment), textureName, gl.i32(level), gl.i32(layer));
+    if (state.lost) return;
+    webglCall(state.id, 84, Number(target) >>> 0, Number(attachment) >>> 0, textureName, Number(level) | 0, Number(layer) | 0);
   },
   readBuffer(src) {
-    gl.require(this, 'readBuffer', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 85, gl.u32(src));
+    const state = gl.enter(this, 'readBuffer', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 85, Number(src) >>> 0);
   },
   renderbufferStorageMultisample(target, samples, internalformat, width, height) {
-    gl.require(this, 'renderbufferStorageMultisample', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 86, gl.u32(target), gl.i32(samples), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'renderbufferStorageMultisample', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 86, Number(target) >>> 0, Number(samples) | 0, Number(internalformat) >>> 0, Number(width) | 0, Number(height) | 0);
   },
   texStorage2D(target, levels, internalformat, width, height) {
-    gl.require(this, 'texStorage2D', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 87, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'texStorage2D', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 87, Number(target) >>> 0, Number(levels) | 0, Number(internalformat) >>> 0, Number(width) | 0, Number(height) | 0);
   },
   texStorage3D(target, levels, internalformat, width, height, depth) {
-    gl.require(this, 'texStorage3D', arguments.length, 6);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 88, gl.u32(target), gl.i32(levels), gl.u32(internalformat), gl.i32(width), gl.i32(height), gl.i32(depth));
+    const state = gl.enter(this, 'texStorage3D', arguments.length, 6);
+    if (state.lost) return;
+    webglCall(state.id, 88, Number(target) >>> 0, Number(levels) | 0, Number(internalformat) >>> 0, Number(width) | 0, Number(height) | 0, Number(depth) | 0);
   },
   copyTexSubImage3D(target, level, xoffset, yoffset, zoffset, x, y, width, height) {
-    gl.require(this, 'copyTexSubImage3D', arguments.length, 9);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 89, gl.u32(target), gl.i32(level), gl.i32(xoffset), gl.i32(yoffset), gl.i32(zoffset), gl.i32(x), gl.i32(y), gl.i32(width), gl.i32(height));
+    const state = gl.enter(this, 'copyTexSubImage3D', arguments.length, 9);
+    if (state.lost) return;
+    webglCall(state.id, 89, Number(target) >>> 0, Number(level) | 0, Number(xoffset) | 0, Number(yoffset) | 0, Number(zoffset) | 0, Number(x) | 0, Number(y) | 0, Number(width) | 0, Number(height) | 0);
   },
   uniform1ui(location, v0) {
-    gl.require(this, 'uniform1ui', arguments.length, 2);
-    const locationAt = gl.location(this, location, 'uniform1ui');
+    const state = gl.enter(this, 'uniform1ui', arguments.length, 2);
+    const locationAt = gl.locationOf(state, location, 'uniform1ui');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 90, locationAt, gl.u32(v0));
+    if (state.lost) return;
+    webglCall(state.id, 90, locationAt, Number(v0) >>> 0);
   },
   uniform2ui(location, v0, v1) {
-    gl.require(this, 'uniform2ui', arguments.length, 3);
-    const locationAt = gl.location(this, location, 'uniform2ui');
+    const state = gl.enter(this, 'uniform2ui', arguments.length, 3);
+    const locationAt = gl.locationOf(state, location, 'uniform2ui');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 91, locationAt, gl.u32(v0), gl.u32(v1));
+    if (state.lost) return;
+    webglCall(state.id, 91, locationAt, Number(v0) >>> 0, Number(v1) >>> 0);
   },
   uniform3ui(location, v0, v1, v2) {
-    gl.require(this, 'uniform3ui', arguments.length, 4);
-    const locationAt = gl.location(this, location, 'uniform3ui');
+    const state = gl.enter(this, 'uniform3ui', arguments.length, 4);
+    const locationAt = gl.locationOf(state, location, 'uniform3ui');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 92, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2));
+    if (state.lost) return;
+    webglCall(state.id, 92, locationAt, Number(v0) >>> 0, Number(v1) >>> 0, Number(v2) >>> 0);
   },
   uniform4ui(location, v0, v1, v2, v3) {
-    gl.require(this, 'uniform4ui', arguments.length, 5);
-    const locationAt = gl.location(this, location, 'uniform4ui');
+    const state = gl.enter(this, 'uniform4ui', arguments.length, 5);
+    const locationAt = gl.locationOf(state, location, 'uniform4ui');
     if (locationAt === -2) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 93, locationAt, gl.u32(v0), gl.u32(v1), gl.u32(v2), gl.u32(v3));
+    if (state.lost) return;
+    webglCall(state.id, 93, locationAt, Number(v0) >>> 0, Number(v1) >>> 0, Number(v2) >>> 0, Number(v3) >>> 0);
   },
   vertexAttribI4i(index, x, y, z, w) {
-    gl.require(this, 'vertexAttribI4i', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 94, gl.u32(index), gl.i32(x), gl.i32(y), gl.i32(z), gl.i32(w));
+    const state = gl.enter(this, 'vertexAttribI4i', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 94, Number(index) >>> 0, Number(x) | 0, Number(y) | 0, Number(z) | 0, Number(w) | 0);
   },
   vertexAttribI4ui(index, x, y, z, w) {
-    gl.require(this, 'vertexAttribI4ui', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 95, gl.u32(index), gl.u32(x), gl.u32(y), gl.u32(z), gl.u32(w));
+    const state = gl.enter(this, 'vertexAttribI4ui', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 95, Number(index) >>> 0, Number(x) >>> 0, Number(y) >>> 0, Number(z) >>> 0, Number(w) >>> 0);
   },
   vertexAttribIPointer(index, size, type, stride, offset) {
-    gl.require(this, 'vertexAttribIPointer', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 96, gl.u32(index), gl.i32(size), gl.u32(type), gl.i32(stride), gl.i64(offset));
+    const state = gl.enter(this, 'vertexAttribIPointer', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 96, Number(index) >>> 0, Number(size) | 0, Number(type) >>> 0, Number(stride) | 0, gl.i64(offset));
   },
   vertexAttribDivisor(index, divisor) {
-    gl.require(this, 'vertexAttribDivisor', arguments.length, 2);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 97, gl.u32(index), gl.u32(divisor));
+    const state = gl.enter(this, 'vertexAttribDivisor', arguments.length, 2);
+    if (state.lost) return;
+    webglCall(state.id, 97, Number(index) >>> 0, Number(divisor) >>> 0);
   },
   drawArraysInstanced(mode, first, count, instanceCount) {
-    gl.require(this, 'drawArraysInstanced', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 98, gl.u32(mode), gl.i32(first), gl.i32(count), gl.i32(instanceCount));
+    const state = gl.enter(this, 'drawArraysInstanced', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 98, Number(mode) >>> 0, Number(first) | 0, Number(count) | 0, Number(instanceCount) | 0);
   },
   drawElementsInstanced(mode, count, type, offset, instanceCount) {
-    gl.require(this, 'drawElementsInstanced', arguments.length, 5);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 99, gl.u32(mode), gl.i32(count), gl.u32(type), gl.i64(offset), gl.i32(instanceCount));
+    const state = gl.enter(this, 'drawElementsInstanced', arguments.length, 5);
+    if (state.lost) return;
+    webglCall(state.id, 99, Number(mode) >>> 0, Number(count) | 0, Number(type) >>> 0, gl.i64(offset), Number(instanceCount) | 0);
   },
   drawRangeElements(mode, start, end, count, type, offset) {
-    gl.require(this, 'drawRangeElements', arguments.length, 6);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 100, gl.u32(mode), gl.u32(start), gl.u32(end), gl.i32(count), gl.u32(type), gl.i64(offset));
+    const state = gl.enter(this, 'drawRangeElements', arguments.length, 6);
+    if (state.lost) return;
+    webglCall(state.id, 100, Number(mode) >>> 0, Number(start) >>> 0, Number(end) >>> 0, Number(count) | 0, Number(type) >>> 0, gl.i64(offset));
   },
   clearBufferfi(buffer, drawbuffer, depth, stencil) {
-    gl.require(this, 'clearBufferfi', arguments.length, 4);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 101, gl.u32(buffer), gl.i32(drawbuffer), gl.f32(depth), gl.i32(stencil));
+    const state = gl.enter(this, 'clearBufferfi', arguments.length, 4);
+    if (state.lost) return;
+    webglCall(state.id, 101, Number(buffer) >>> 0, Number(drawbuffer) | 0, Number(depth), Number(stencil) | 0);
   },
   createQuery() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLQuery', webglCall(id, 102));
+    const state = gl.enter(this, 'createQuery', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLQuery', webglCall(state.id, 102));
   },
   deleteQuery(query) {
     gl.require(this, 'deleteQuery', arguments.length, 1);
@@ -1219,23 +1135,21 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 104, name);
   },
   beginQuery(target, query) {
-    gl.require(this, 'beginQuery', arguments.length, 2);
-    const queryName = gl.name(this, query, 'WebGLQuery', false, 'beginQuery');
+    const state = gl.enter(this, 'beginQuery', arguments.length, 2);
+    const queryName = gl.nameOf(state, query, 'WebGLQuery', false, 'beginQuery');
     if (queryName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 105, gl.u32(target), queryName);
+    if (state.lost) return;
+    webglCall(state.id, 105, Number(target) >>> 0, queryName);
   },
   endQuery(target) {
-    gl.require(this, 'endQuery', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 106, gl.u32(target));
+    const state = gl.enter(this, 'endQuery', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 106, Number(target) >>> 0);
   },
   createSampler() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLSampler', webglCall(id, 107));
+    const state = gl.enter(this, 'createSampler', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLSampler', webglCall(state.id, 107));
   },
   deleteSampler(sampler) {
     gl.require(this, 'deleteSampler', arguments.length, 1);
@@ -1247,17 +1161,16 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 109, name);
   },
   bindSampler(unit, sampler) {
-    gl.require(this, 'bindSampler', arguments.length, 2);
-    const samplerName = gl.name(this, sampler, 'WebGLSampler', true, 'bindSampler');
+    const state = gl.enter(this, 'bindSampler', arguments.length, 2);
+    const samplerName = gl.nameOf(state, sampler, 'WebGLSampler', true, 'bindSampler');
     if (samplerName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 110, gl.u32(unit), samplerName);
+    if (state.lost) return;
+    webglCall(state.id, 110, Number(unit) >>> 0, samplerName);
   },
   createTransformFeedback() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLTransformFeedback', webglCall(id, 111));
+    const state = gl.enter(this, 'createTransformFeedback', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLTransformFeedback', webglCall(state.id, 111));
   },
   deleteTransformFeedback(tf) {
     gl.require(this, 'deleteTransformFeedback', arguments.length, 1);
@@ -1269,62 +1182,57 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 113, name);
   },
   bindTransformFeedback(target, tf) {
-    gl.require(this, 'bindTransformFeedback', arguments.length, 2);
-    const tfName = gl.name(this, tf, 'WebGLTransformFeedback', true, 'bindTransformFeedback');
+    const state = gl.enter(this, 'bindTransformFeedback', arguments.length, 2);
+    const tfName = gl.nameOf(state, tf, 'WebGLTransformFeedback', true, 'bindTransformFeedback');
     if (tfName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 114, gl.u32(target), tfName);
+    if (state.lost) return;
+    webglCall(state.id, 114, Number(target) >>> 0, tfName);
   },
   beginTransformFeedback(primitiveMode) {
-    gl.require(this, 'beginTransformFeedback', arguments.length, 1);
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 115, gl.u32(primitiveMode));
+    const state = gl.enter(this, 'beginTransformFeedback', arguments.length, 1);
+    if (state.lost) return;
+    webglCall(state.id, 115, Number(primitiveMode) >>> 0);
   },
   endTransformFeedback() {
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 116);
+    const state = gl.enter(this, 'endTransformFeedback', arguments.length, 0);
+    if (state.lost) return;
+    webglCall(state.id, 116);
   },
   pauseTransformFeedback() {
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 117);
+    const state = gl.enter(this, 'pauseTransformFeedback', arguments.length, 0);
+    if (state.lost) return;
+    webglCall(state.id, 117);
   },
   resumeTransformFeedback() {
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 118);
+    const state = gl.enter(this, 'resumeTransformFeedback', arguments.length, 0);
+    if (state.lost) return;
+    webglCall(state.id, 118);
   },
   bindBufferBase(target, index, buffer) {
-    gl.require(this, 'bindBufferBase', arguments.length, 3);
-    const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBufferBase');
+    const state = gl.enter(this, 'bindBufferBase', arguments.length, 3);
+    const bufferName = gl.nameOf(state, buffer, 'WebGLBuffer', true, 'bindBufferBase');
     if (bufferName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 119, gl.u32(target), gl.u32(index), bufferName);
+    if (state.lost) return;
+    webglCall(state.id, 119, Number(target) >>> 0, Number(index) >>> 0, bufferName);
   },
   bindBufferRange(target, index, buffer, offset, size) {
-    gl.require(this, 'bindBufferRange', arguments.length, 5);
-    const bufferName = gl.name(this, buffer, 'WebGLBuffer', true, 'bindBufferRange');
+    const state = gl.enter(this, 'bindBufferRange', arguments.length, 5);
+    const bufferName = gl.nameOf(state, buffer, 'WebGLBuffer', true, 'bindBufferRange');
     if (bufferName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 120, gl.u32(target), gl.u32(index), bufferName, gl.i64(offset), gl.i64(size));
+    if (state.lost) return;
+    webglCall(state.id, 120, Number(target) >>> 0, Number(index) >>> 0, bufferName, gl.i64(offset), gl.i64(size));
   },
   uniformBlockBinding(program, uniformBlockIndex, uniformBlockBinding) {
-    gl.require(this, 'uniformBlockBinding', arguments.length, 3);
-    const programName = gl.name(this, program, 'WebGLProgram', false, 'uniformBlockBinding');
+    const state = gl.enter(this, 'uniformBlockBinding', arguments.length, 3);
+    const programName = gl.nameOf(state, program, 'WebGLProgram', false, 'uniformBlockBinding');
     if (programName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 121, programName, gl.u32(uniformBlockIndex), gl.u32(uniformBlockBinding));
+    if (state.lost) return;
+    webglCall(state.id, 121, programName, Number(uniformBlockIndex) >>> 0, Number(uniformBlockBinding) >>> 0);
   },
   createVertexArray() {
-    const id = gl.id(this);
-    if (id < 0) return null;
-    return gl.wrap(this, 'WebGLVertexArrayObject', webglCall(id, 122));
+    const state = gl.enter(this, 'createVertexArray', arguments.length, 0);
+    if (state.lost) return null;
+    return gl.wrap(this, 'WebGLVertexArrayObject', webglCall(state.id, 122));
   },
   deleteVertexArray(vertexArray) {
     gl.require(this, 'deleteVertexArray', arguments.length, 1);
@@ -1336,12 +1244,11 @@ export function generatedMethods(gl) {
     return name > 0 && webglCall(gl.id(this), 124, name);
   },
   bindVertexArray(array) {
-    gl.require(this, 'bindVertexArray', arguments.length, 1);
-    const arrayName = gl.name(this, array, 'WebGLVertexArrayObject', true, 'bindVertexArray');
+    const state = gl.enter(this, 'bindVertexArray', arguments.length, 1);
+    const arrayName = gl.nameOf(state, array, 'WebGLVertexArrayObject', true, 'bindVertexArray');
     if (arrayName < 0) return;
-    const id = gl.id(this);
-    if (id < 0) return;
-    webglCall(id, 125, arrayName);
+    if (state.lost) return;
+    webglCall(state.id, 125, arrayName);
   },
   };
 }

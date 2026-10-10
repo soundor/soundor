@@ -276,6 +276,25 @@ function capitalize(name) {
   return name[0].toUpperCase() + name.slice(1);
 }
 
+/**
+ * A WebIDL scalar conversion, written inline (as gl.u32() and the others in
+ * webgl.js would do it): a function call per argument costs, interpreted.
+ */
+function convert(kind, value) {
+  switch (kind) {
+    case 'u32':
+      return `Number(${value}) >>> 0`;
+    case 'i32':
+      return `Number(${value}) | 0`;
+    case 'f32':
+      return `Number(${value})`;
+    case 'bool':
+      return `Boolean(${value})`;
+    default:
+      return `gl.${kind}(${value})`;
+  }
+}
+
 function jsMethod(operation, op) {
   const required = operation.parameters.filter(
     (parameter) => !parameter.optional,
@@ -283,10 +302,17 @@ function jsMethod(operation, op) {
   const names = operation.parameters.map((parameter) => parameter.name);
   const lines = [];
   lines.push(`  ${operation.name}(${names.join(', ')}) {`);
-  if (required > 0)
+  if (operation.deletes || operation.is) {
+    if (required > 0)
+      lines.push(
+        `    gl.require(this, '${operation.name}', arguments.length, ${required});`,
+      );
+  } else {
+    // The context's state, looked up once for the whole call.
     lines.push(
-      `    gl.require(this, '${operation.name}', arguments.length, ${required});`,
+      `    const state = gl.enter(this, '${operation.name}', arguments.length, ${required});`,
     );
+  }
   if (operation.deletes) {
     lines.push(
       `    gl.delete(this, ${names[0]}, '${operation.parameters[0].object}', ${op});`,
@@ -309,10 +335,10 @@ function jsMethod(operation, op) {
       parameter.default !== undefined && parameter.optional
         ? `(${name} === undefined ? ${parameter.default} : ${name})`
         : name;
-    if (parameter.kind === 'scalar') args.push(`gl.${parameter.js}(${value})`);
+    if (parameter.kind === 'scalar') args.push(convert(parameter.js, value));
     else if (parameter.kind === 'object') {
       lines.push(
-        `    const ${name}Name = gl.name(this, ${name}, '${parameter.object}', ${parameter.nullable}, '${operation.name}');`,
+        `    const ${name}Name = gl.nameOf(state, ${name}, '${parameter.object}', ${parameter.nullable}, '${operation.name}');`,
       );
       lines.push(
         `    if (${name}Name < 0) return${operation.result.kind === 'void' ? '' : ' null'};`,
@@ -320,7 +346,7 @@ function jsMethod(operation, op) {
       args.push(`${name}Name`);
     } else {
       lines.push(
-        `    const ${name}At = gl.location(this, ${name}, '${operation.name}');`,
+        `    const ${name}At = gl.locationOf(state, ${name}, '${operation.name}');`,
       );
       lines.push(`    if (${name}At === -2) return;`);
       args.push(`${name}At`);
@@ -328,11 +354,10 @@ function jsMethod(operation, op) {
   });
   // Straight to native code, with no array of arguments in between; a lost
   // context does nothing.
-  lines.push('    const id = gl.id(this);');
   lines.push(
-    `    if (id < 0) return${operation.result.kind === 'void' ? '' : ' null'};`,
+    `    if (state.lost) return${operation.result.kind === 'void' ? '' : ' null'};`,
   );
-  const call = `webglCall(id, ${op}${args.length ? ', ' + args.join(', ') : ''})`;
+  const call = `webglCall(state.id, ${op}${args.length ? ', ' + args.join(', ') : ''})`;
   if (operation.creates)
     lines.push(
       `    return gl.wrap(this, '${operation.result.object}', ${call});`,

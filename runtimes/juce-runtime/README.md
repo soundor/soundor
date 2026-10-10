@@ -146,6 +146,32 @@ native tests check that. The GPU compositor shows WebGL as it is, without copies
 where the UI is composited on the CPU (Linux), WebGL is read back. See
 [`native/README.md`](./native/README.md).
 
+### Performance: what a frame costs
+
+The UI's JavaScript runs in an interpreter (QuickJS, with no JIT: plugin hosts
+do not all allow one), on the host's message thread, so a slow frame also
+stalls the host's own UI. Layout, drawing and compositing are native and cheap;
+what costs is JavaScript run every frame. Measured with
+[`examples/benchmark`](../../examples/benchmark) (Linux, an RTX 4050), per
+frame:
+
+- **Give per-frame work to the GPU.** 200,000 points moved by JavaScript: 41
+  ms. The same points moved by the vertex shader, JavaScript setting one
+  `time` uniform: 0.1 ms.
+- **Compute in C++.** FFTs, peaks, envelopes belong in the plugin's native API
+  (`soundor:native`), or on the audio side; JavaScript draws the result.
+- **Draw what is visible.** A 1.5-pixel stroke through 10,000 points takes Skia
+  7.3 ms, a 1-pixel one 0.4 ms; a waveform needs a point or two per pixel
+  column (its minimum and maximum), not fifteen. Path commands themselves are
+  cheap: they reach native code in one call.
+- **Animate how things look, not where they are.** Opacity and colors are
+  drawn again without layout; a view that only paints a background costs
+  nothing more with opacity. Assigning a value a style already has costs
+  nothing.
+- **Animate nodes, not React trees.** Setting `node.style.opacity` on 500 nodes
+  through refs: 2.4 ms of JavaScript. Re-rendering 500 React elements to do
+  it: 7.4 ms.
+
 ### Accessibility
 
 The view is accessible to screen readers through Soundor's own semantics

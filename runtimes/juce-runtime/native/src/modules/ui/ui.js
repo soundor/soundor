@@ -16,7 +16,7 @@
 import * as native from 'soundor:internal/ui';
 import {
   createContext2D,
-  forgetStyles,
+  resetContext,
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
 import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
@@ -468,7 +468,7 @@ export class UiNode extends EventTarget {
     native.setCanvasSize(this.#id, w, h);
     this.#canvasWidth = w;
     this.#canvasHeight = h;
-    if (this.#context?.kind === '2d') forgetStyles(this.#context.value);
+    if (this.#context?.kind === '2d') resetContext(this.#context.value);
     else if (this.#context?.kind === 'webgl2' && this.#context.value !== null)
       resizeWebGL(this.#context.value);
   }

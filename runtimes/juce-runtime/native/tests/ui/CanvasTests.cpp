@@ -298,6 +298,53 @@ TEST_SUITE("soundor:ui canvas")
         CHECK(f.string("JSON.stringify(ctx.getTransform())").find("\"e\":0") != std::string::npos);
     }
 
+    TEST_CASE("path commands are sent together, in order, without changing what they draw")
+    {
+        CanvasFixture f;
+        const auto calls = [&] { return f.host.statistics().runtime.canvas.calls; };
+
+        // Each point takes the transform current when it is added.
+        f.eval("ctx.lineWidth = 4; ctx.strokeStyle = 'red'; ctx.beginPath(); ctx.moveTo(0, 10); ctx.translate(50, 0); "
+               "ctx.lineTo(40, 10); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.stroke(); 0");
+        CHECK(f.pixel(70, 10) == "255,0,0,255");
+        CHECK(f.pixel(95, 10) == "0,0,0,0"); // the line ends at x = 90
+
+        // isPointInPath() sees commands not sent yet.
+        CHECK(f.boolean("ctx.beginPath(); ctx.rect(10, 30, 10, 10); ctx.isPointInPath(15, 35)"));
+
+        // Errors come as the command is made.
+        CHECK(f.error("ctx.arc(10, 10, -1, 0, 1);").find("IndexSizeError") != std::string::npos);
+
+        // Many commands, in a few native calls.
+        const auto before = calls();
+        f.eval(R"(
+            ctx.beginPath();
+            for (let i = 0; i < 1000; i++) ctx.lineTo(i % 100, (i * 7) % 50);
+            ctx.stroke(); 0
+        )");
+        CHECK(calls() - before <= 3);
+
+        // More than one batch holds: all of it is drawn.
+        f.eval(R"(
+            ctx.clearRect(0, 0, 100, 50);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < 30000; i++) ctx.moveTo(0, 0), ctx.lineTo(1, 1);
+            ctx.moveTo(80, 45);
+            ctx.lineTo(99, 45);
+            ctx.stroke(); 0
+        )");
+        CHECK(f.pixel(90, 45) != "0,0,0,0");
+    }
+
+    TEST_CASE("resizing a canvas drops the path commands not sent yet")
+    {
+        CanvasFixture f;
+        f.eval("ctx.beginPath(); ctx.moveTo(0, 25); ctx.lineTo(100, 25); c.width = 100; ctx.lineWidth = 10; "
+               "ctx.strokeStyle = 'red'; ctx.stroke(); 0");
+        CHECK(f.pixel(50, 25) == "0,0,0,0");
+    }
+
     TEST_CASE("what Soundor does not draw fails clearly")
     {
         CanvasFixture f;
