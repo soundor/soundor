@@ -1,5 +1,15 @@
 # @soundor/react
 
+## 0.6.0
+
+### Minor Changes
+
+- [#87](https://github.com/soundor/soundor/pull/87) [`77a3db1`](https://github.com/soundor/soundor/commit/77a3db1c1079402db7f9b889ae797032e0284c6d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `Modal` with `onRequestClose` offers assistive technology's `escape` (VoiceOver's scrub), which asks the topmost modal to close as Escape does. Activating a `TextInput` through assistive technology starts editing it (keyboard focus). The README documents the accessibility architecture: the three trees, the backend matrix, framework independence and coordinates, with examples for a button, a toggle, an adjustable gain control, a text input and a modal. The `primitives` example gains an accessible knob.
+
+- [#94](https://github.com/soundor/soundor/pull/94) [`d9df7bf`](https://github.com/soundor/soundor/commit/d9df7bf9539b1483fa9e172dd0111a77eac463d6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Canvas nodes and a 2D context. `createCanvas()` (and `<Canvas>` in `@soundor/react`) makes a node code draws on, with `width`/`height` and `getContext('2d')` as on the Web, plus the `devicePixelRatio`, `ImageData` and canvas globals. The JUCE runtime draws with Skia on the CPU: state and compositing, transforms, paths, line styles, gradients and patterns, text, `drawImage` and `ImageData`; what it does not draw yet (shadows, filters, `Path2D`) throws instead of drawing something else. The web runtime's canvas is a real `<canvas>`.
+
+- [#95](https://github.com/soundor/soundor/pull/95) [`8118dab`](https://github.com/soundor/soundor/commit/8118dabc143da1313ae1b81a12f91a5083bdc834) Thanks [@dm-balakin](https://github.com/dm-balakin)! - WebGL 2 on canvas nodes. `getContext('webgl2')` gives a `WebGL2RenderingContext` in both runtimes, typed from the Khronos IDL. The JUCE runtime runs it on the GPU through ANGLE's WebGL-compatible OpenGL ES 3.0 context, so calls are validated as in a browser. It returns null where there is no hardware GPU, and the log says why. What it draws is read back into the canvas for now. Texture uploads take arrays, `ImageData` and canvas nodes. `getContext()` now returns null for types other than `'2d'` and `'webgl2'` in both runtimes, and the web runtime's contexts take canvas and image nodes wherever they take an image.
+
 ## 0.5.0
 
 ### Minor Changes
