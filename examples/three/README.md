@@ -8,6 +8,7 @@ composited on the GPU without copies) and in the browser.
 soundor.config.ts   identity, a `gain` parameter, both runtimes
 src/scenes.ts       the scenes: plain Three.js
 src/main.tsx        the UI: scene picker, live statistics, "Run all"
+scripts/bench.ts    `pnpm bench`: the headless benchmark in the JUCE runtime
 runtimes/juce/      JUCE (C++): applies `gain`
 runtimes/web/       Web (TypeScript): applies `gain` with a GainNode
 ```
@@ -35,16 +36,49 @@ pnpm dev         # in the JUCE plugin (Standalone)
 shows a table and logs it (`soundor-three-benchmark [...]`).
 `globalThis.soundorBenchmark.run(frames, warmup)` does the same from code.
 
-Headless, in the JUCE runtime, without building the plugin (after building
-the native tests, `cmake --workflow --preset dev` in
-`runtimes/juce-runtime/native`):
+## Benchmarking
+
+`pnpm bench` measures the JUCE runtime headless, without building the
+plugin: it builds the UI bundle and `soundor_run_ui` (a Release build, the
+`bench` preset of `runtimes/juce-runtime/native`), runs every scene 5 times
+and prints the median of each measure with its spread across runs:
+
+| Measure                            | What it is                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| frame ms, p95, fps                 | time from one composited frame to the next, as fast as frames come          |
+| tick                               | `RuntimeHost::tick()`: the UI's JavaScript and the WebGL calls it makes     |
+| build                              | `RuntimeHost::frame()`: layout, CPU rasterization, layers                   |
+| composite                          | the GPU compositor's work on the CPU                                        |
+| update, render                     | the scene's `update()`, and Three's `render()` with its WebGL calls (in JS) |
+| read-backs, rasterized, uploaded/f | per frame: GPU read-backs, CPU layers rasterized, KB sent to the GPU        |
+
+All are CPU times: nothing waits for the GPU. The counts do not depend on
+timing (the live statistics update every 15 frames, not on a clock), so any
+change in them is real.
+
+To see what a change does, compare it with a saved build, run alternately in
+the same session:
+
+```sh
+pnpm bench --save main       # on main: also keeps this build as "main"
+pnpm bench --against main    # on your branch: both builds, run in turn
+pnpm bench --against main --check   # exits with 1 if anything got worse
+```
+
+Only differences larger than both sides' spread (and 3%, `--threshold`, for
+timings) are marked. Comparing with an earlier session's report
+(`--baseline <report.json>`) works too, but a machine drifts by several
+percent between sessions, so trust only large differences there. Every run's
+report is kept in `.soundor/bench/`. Other options: `--runs`, `--frames`,
+`--warmup`, `--size`, `--backend vulkan|opengl|metal|d3d11`, `--software`
+(allow a software GPU), `--no-build`.
+
+Under the hood, `soundor_run_ui` runs a bundle on the GPU like the editor
+would, and times its frames, per scene (the benchmark names each measured
+scene in `globalThis.soundorRunUiPhase`):
 
 ```sh
 pnpm build:web   # also bundles the UI into .soundor/ui/production
-../../runtimes/juce-runtime/native/build/dev/tests/soundor_run_ui \
-  .soundor/ui/production --size 700x480 --eval 'soundorBenchmark.run()'
+../../runtimes/juce-runtime/native/build/bench/tests/soundor_run_ui \
+  .soundor/ui/production --size 700x480 --eval 'soundorBenchmark.run()' --json report.json
 ```
-
-It prints the results as JSON, then what the frames cost the compositor:
-GPU read-backs (0 when WebGL is composited without copies), CPU layers
-rasterized and bytes uploaded. `--software` allows a software GPU.

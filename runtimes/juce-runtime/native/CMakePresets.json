@@ -52,6 +52,15 @@
       "cacheVariables": {
         "SOUNDOR_ENABLE_GPU": "OFF"
       }
+    },
+    {
+      "name": "bench",
+      "displayName": "Release build of soundor_run_ui, for benchmarks",
+      "binaryDir": "${sourceDir}/build/bench",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_BUILD_TESTS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -79,6 +88,12 @@
       "name": "nogpu",
       "configurePreset": "nogpu",
       "configuration": "Debug"
+    },
+    {
+      "name": "bench",
+      "configurePreset": "bench",
+      "configuration": "Release",
+      "targets": ["soundor_run_ui"]
     }
   ],
   "testPresets": [
@@ -199,6 +214,19 @@
         {
           "type": "test",
           "name": "nogpu"
+        }
+      ]
+    },
+    {
+      "name": "bench",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "bench"
+        },
+        {
+          "type": "build",
+          "name": "bench"
         }
       ]
     }

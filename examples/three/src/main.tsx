@@ -20,6 +20,8 @@ import { SCENES, type BenchScene, type SceneEntry } from './scenes';
 
 const WIDTH = 640;
 const HEIGHT = 360;
+/** Frames between updates of the live statistics (4 per second at 60 fps). */
+const STATS_INTERVAL = 15;
 
 /** What one scene cost over a run of frames. */
 interface Result {
@@ -29,6 +31,10 @@ interface Result {
   /** CPU time spent per frame in update() and render(), in milliseconds. */
   cpuAverage: number;
   cpuP95: number;
+  /** ... of which in update() (the scene's own JavaScript). */
+  updateAverage: number;
+  /** ... and in render() (Three, and the WebGL calls it makes). */
+  renderAverage: number;
   drawCalls: number;
   triangles: number;
 }
@@ -36,14 +42,17 @@ interface Result {
 /** Frame timings, kept for one scene. */
 class Meter {
   cpu: number[] = [];
+  update: number[] = [];
   intervals: number[] = [];
   last = 0;
 
-  add(cpu: number, now: number): void {
-    this.cpu.push(cpu);
+  add(update: number, render: number, now: number): void {
+    this.cpu.push(update + render);
+    this.update.push(update);
     if (this.last > 0) this.intervals.push(now - this.last);
     this.last = now;
     if (this.cpu.length > 600) this.cpu.shift();
+    if (this.update.length > 600) this.update.shift();
     if (this.intervals.length > 600) this.intervals.shift();
   }
 
@@ -58,12 +67,15 @@ class Meter {
         ? 0
         : values.reduce((sum, value) => sum + value, 0) / values.length;
     const interval = average(this.intervals);
+    const update = average(this.update);
     return {
       scene,
       frames,
       fps: interval > 0 ? 1000 / interval : 0,
       cpuAverage: average(cpu),
       cpuP95: cpu[Math.min(cpu.length - 1, Math.floor(cpu.length * 0.95))] ?? 0,
+      updateAverage: update,
+      renderAverage: average(cpu) - update,
       drawCalls: info.render.calls,
       triangles: info.render.triangles,
     };
@@ -78,6 +90,13 @@ class Bench {
   started = 0;
   /** Called after each frame (for a run of the whole suite). */
   onFrame: (() => void) | null = null;
+  /**
+   * Called every STATS_INTERVAL frames, for the live statistics: counted in
+   * frames, not time, so that what the UI redraws per frame does not depend
+   * on how fast the scene runs.
+   */
+  onStats: (() => void) | null = null;
+  frames = 0;
 
   constructor(canvas: UiNode, pixelRatio: number) {
     // A Soundor canvas node stands where Three expects an HTML canvas.
@@ -109,10 +128,12 @@ class Bench {
     this.renderer.info.reset();
     const begin = performance.now();
     scene.update((time - this.started) / 1000);
+    const updated = performance.now();
     if (scene.render) scene.render(this.renderer);
     else this.renderer.render(scene.scene, scene.camera);
     const end = performance.now();
-    this.meter.add(end - begin, end);
+    this.meter.add(updated - begin, end - updated, end);
+    if (++this.frames % STATS_INTERVAL === 0) this.onStats?.();
     this.onFrame?.();
   }
 
@@ -128,6 +149,7 @@ class Bench {
     return new Promise((resolve) => {
       const next = () => {
         index++;
+        globalThis.soundorRunUiPhase = undefined;
         if (index >= SCENES.length) {
           this.onFrame = null;
           resolve(results);
@@ -139,7 +161,11 @@ class Bench {
       this.onFrame = () => {
         count++;
         // The warm-up (compiling shaders, first uploads) is not measured.
-        if (count === warmup) this.meter = new Meter();
+        // soundor_run_ui reports its own timings of these frames per phase.
+        if (count === warmup) {
+          this.meter = new Meter();
+          globalThis.soundorRunUiPhase = SCENES[index]!.id;
+        }
         if (count === warmup + frames) {
           results.push(this.result());
           next();
@@ -155,6 +181,8 @@ declare global {
   var soundorBenchmark:
     | { run(frames?: number, warmup?: number): Promise<Result[]> }
     | undefined;
+  // What soundor_run_ui reports the frames under (a scene being measured).
+  var soundorRunUiPhase: string | undefined;
 }
 
 function Button({
@@ -212,9 +240,9 @@ function App() {
         return all;
       },
     };
-    const timer = setInterval(() => setLive(created.result()), 250);
+    created.onStats = () => setLive(created.result());
     return () => {
-      clearInterval(timer);
+      created.onStats = null;
       created.renderer.setAnimationLoop(null);
       created.current?.scene.dispose();
       created.renderer.dispose();

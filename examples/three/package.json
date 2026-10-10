@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "bench": "node scripts/bench.ts",
     "build": "soundor build",
     "build:web": "soundor build web",
     "dev": "soundor dev",

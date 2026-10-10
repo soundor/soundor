@@ -80,7 +80,11 @@ namespace
         // that GPU: they are not Soundor's.
         void expectClean()
         {
-            CHECK_MESSAGE(string("problems.join('; ')").empty(), string("problems.join('; ')"));
+            // Evaluated once, here: doctest builds a message lazily, under the
+            // lock it logs with, and eval() asserts, which would take it again
+            // (a deadlock with --success).
+            const std::string problems = string("problems.join('; ')");
+            CHECK_MESSAGE(problems.empty(), problems);
             for (const auto& [level, message] : logs)
             {
                 const bool compilerNote = level == js::LogLevel::Warn
@@ -193,7 +197,8 @@ TEST_SUITE("Three.js")
             });
         )");
         // The clear color, in linear space as given.
-        CHECK_MESSAGE(f.string("cleared").starts_with("0.25,0.50,1.00,1.00"), f.string("cleared"));
+        const std::string cleared = f.string("cleared");
+        CHECK_MESSAGE(cleared.starts_with("0.25,0.50,1.00,1.00"), cleared);
         f.expectClean();
     }
 
