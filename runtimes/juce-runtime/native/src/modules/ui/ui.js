@@ -29,21 +29,46 @@ import {
 
 const CONSTRUCTING = Symbol('constructing');
 
-/** CSS pixel lengths ('120px') as the numbers Soundor's lengths are. */
+const CSS_PIXELS = /^-?(\d+\.?\d*|\.\d+)px$/;
+
+/** A CSS pixel length ('120px') as the number Soundor's lengths are. */
+function cssPixel(value) {
+  return typeof value === 'string' &&
+    value.endsWith('px') &&
+    CSS_PIXELS.test(value)
+    ? Number.parseFloat(value)
+    : value;
+}
+
+/** `style` with CSS pixel lengths as numbers. */
 function cssPixels(style) {
   const result = {};
-  for (const [key, value] of Object.entries(style))
-    result[key] =
-      typeof value === 'string' && /^-?(\d+\.?\d*|\.\d+)px$/.test(value)
-        ? Number.parseFloat(value)
-        : value;
+  for (const key in style)
+    if (Object.hasOwn(style, key)) result[key] = cssPixel(style[key]);
   return result;
+}
+
+/** Whether two styles have the same properties with the same values. */
+function sameStyle(a, b) {
+  let count = 0;
+  for (const key in b) {
+    if (!Object.hasOwn(b, key)) continue;
+    if (!Object.hasOwn(a, key) || a[key] !== b[key]) return false;
+    count++;
+  }
+  for (const key in a) if (Object.hasOwn(a, key)) count--;
+  return count === 0;
+}
+
+/** Whether assigning `value` to a style property removes it. */
+function removes(value) {
+  return value === '' || value === null || value === undefined;
 }
 
 /** `style` with `key` set to `value`, or without it for '', null or undefined. */
 function withProperty(style, key, value) {
   const next = { ...style };
-  if (value === '' || value === null || value === undefined) delete next[key];
+  if (removes(value)) delete next[key];
   else next[key] = value;
   return next;
 }
@@ -296,11 +321,17 @@ export class UiNode extends EventTarget {
               }
             : undefined,
         set: (_, key, value) => {
-          this.style = withProperty(this.#style, key, value);
+          // What it already is (or not there to remove): nothing to do.
+          const unchanged = removes(value)
+            ? !Object.hasOwn(this.#style, key)
+            : Object.hasOwn(this.#style, key) &&
+              this.#style[key] === cssPixel(value);
+          if (!unchanged) this.style = withProperty(this.#style, key, value);
           return true;
         },
         deleteProperty: (_, key) => {
-          this.style = withProperty(this.#style, key, null);
+          if (Object.hasOwn(this.#style, key))
+            this.style = withProperty(this.#style, key, null);
           return true;
         },
         defineProperty: () => false,
@@ -315,6 +346,8 @@ export class UiNode extends EventTarget {
       throw new TypeError(`style must be an object, got ${describe(value)}`);
     }
     const style = cssPixels(given);
+    // The same style again: it was valid, and nothing would change.
+    if (sameStyle(this.#style, style)) return;
     native.setStyle(this.#id, style);
     this.#style = Object.freeze(style);
   }

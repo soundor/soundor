@@ -56,6 +56,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
 
+        // `style` without what only changes how a node looks or stacks: the
+        // rest decides its layout (and its text's measurements). Anything not
+        // named here counts as layout, so a new property is laid out until
+        // it is known not to need it.
+        Style layoutPart(Style style)
+        {
+            style.backgroundColor = {};
+            style.borderColor = {};
+            style.borderRadius = {};
+            style.opacity = 1;
+            style.resizeMode = {};
+            style.pointerEvents = {};
+            style.zIndex = 0; // restacks siblings, see setStyle()
+            style.text.color = {};
+            return style;
+        }
+
         void applyStyle(YGNodeRef node, const Style& style)
         {
             constexpr YGDisplay displays[] = { YGDisplayFlex, YGDisplayNone };
@@ -105,7 +122,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             setLength(
                 style.maxHeight, [&](float v) { YGNodeStyleSetMaxHeight(node, v); }, [&](float v)
                 { YGNodeStyleSetMaxHeightPercent(node, v); }, [&] { YGNodeStyleSetMaxHeight(node, YGUndefined); });
-            YGNodeStyleSetAspectRatio(node, std::isnan(style.aspectRatio) ? YGUndefined : style.aspectRatio);
+            YGNodeStyleSetAspectRatio(node, style.aspectRatio.value_or(YGUndefined));
             YGNodeStyleSetBoxSizing(node, boxSizings[index(style.boxSizing)]);
 
             for (std::size_t i = 0; i < 4; ++i)
@@ -418,13 +435,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         Node& node = get(id);
         ++counted.styleChanges;
-        const bool textChanged = node.nodeStyle.text != style.text;
-        const bool zIndexChanged = node.nodeStyle.zIndex != style.zIndex;
-        node.nodeStyle = style;
-        applyStyle(node.yoga, style);
-        if (zIndexChanged && node.parentNode != nullptr)
+        if (node.nodeStyle == style)
+            return;
+        const Style before = std::exchange(node.nodeStyle, style);
+        // Only what decides sizes and positions goes to Yoga; a change that
+        // only looks different (a color, opacity) is drawn, not laid out.
+        const Style layoutBefore = layoutPart(before);
+        const Style layoutAfter = layoutPart(style);
+        if (layoutBefore != layoutAfter)
+            applyStyle(node.yoga, style);
+        if (before.zIndex != style.zIndex && node.parentNode != nullptr)
             restack(*node.parentNode);
-        if (textChanged && (node.nodeType == NodeType::Text || node.nodeType == NodeType::Input))
+        if (layoutBefore.text != layoutAfter.text
+            && (node.nodeType == NodeType::Text || node.nodeType == NodeType::Input))
         {
             YGNodeMarkDirty(node.yoga);
             node.layoutWidth = -1;

@@ -196,14 +196,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Rect frame = node.frame();
         canvas.save();
         canvas.translate(frame.x, frame.y);
-        if (style.opacity < 1)
-            canvas.saveLayerAlphaf(nullptr, style.opacity);
-
         const SkRect box = SkRect::MakeWH(frame.width, frame.height);
+        const Edges<float>& border = style.borderWidth;
+        const bool bordered =
+            (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible();
+        // Opacity applies to the node and everything in it as one picture,
+        // drawn into a layer. A view that paints a single shape (its
+        // background: no border, nothing in it) looks the same with the
+        // opacity in its paint, without a layer. A leaf that paints only
+        // inside its box gets a layer of that size; others, one the size
+        // of what is drawn.
+        const bool leaf = node.children().empty();
+        const bool singleShape = style.opacity < 1 && leaf && ! bordered && node.type() == NodeType::View;
+        const bool layered = style.opacity < 1 && ! singleShape;
+        if (layered)
+        {
+            const bool insideBox =
+                leaf
+                && (node.type() == NodeType::View || node.type() == NodeType::Image || node.type() == NodeType::Canvas);
+            canvas.saveLayerAlphaf(insideBox ? &box : nullptr, style.opacity);
+        }
+
         const SkRRect outer = roundedRect(box, style.borderRadius);
         if (style.backgroundColor.visible() && painting())
         {
-            SkPaint paint(SkColor4f::FromColor(skColor(style.backgroundColor)));
+            SkColor4f color = SkColor4f::FromColor(skColor(style.backgroundColor));
+            if (singleShape)
+                color.fA *= style.opacity;
+            SkPaint paint(color);
             paint.setAntiAlias(true);
             canvas.drawRRect(outer, paint);
         }
@@ -236,7 +256,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             canvas.save();
             if (style.overflow != Overflow::Visible || node.type() == NodeType::Scroll)
             {
-                const Edges<float>& border = style.borderWidth;
                 const SkRect inner =
                     SkRect::MakeLTRB(border.left, border.top, frame.width - border.right, frame.height - border.bottom);
                 canvas.clipRRect(roundedRect(inner, style.borderRadius, border), true);
@@ -249,9 +268,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.type() == NodeType::Scroll && painting())
             drawScrollIndicators(canvas, node);
 
-        const Edges<float>& border = style.borderWidth;
-        if ((border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible()
-            && painting())
+        if (bordered && painting())
         {
             const SkRect inner =
                 SkRect::MakeLTRB(border.left, border.top, frame.width - border.right, frame.height - border.bottom);
@@ -263,7 +280,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 canvas.drawDRRect(outer, roundedRect(inner, style.borderRadius, border), paint);
         }
 
-        if (style.opacity < 1)
+        if (layered)
             canvas.restore();
         canvas.restore();
     }

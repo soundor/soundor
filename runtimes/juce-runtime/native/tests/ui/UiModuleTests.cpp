@@ -143,6 +143,32 @@ TEST_SUITE("soundor:ui")
         CHECK(f.error(std::string(imports) + "a.style.width = 'wide';").find("style.width") != std::string::npos);
     }
 
+    TEST_CASE("assigning what a style already is does not reach native code")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + "a.style = { width: 40, height: 20, opacity: 0.5 };");
+        const auto calls = [&] { return f.host.statistics().runtime.ui.calls; };
+        const auto before = calls();
+        f.run(std::string(imports) + R"(
+            a.style = { width: 40, height: 20, opacity: 0.5 };
+            a.style = { opacity: 0.5, height: '20px', width: 40 }; // another order, CSS pixels
+            a.style.width = 40;
+            a.style.width = '40px';
+            a.style.margin = null; // not there to remove
+            delete a.style.padding;
+        )");
+        CHECK(calls() == before);
+
+        // A change still goes through, and a failed one still changes nothing.
+        f.run(std::string(imports) + "a.style.opacity = 0.25;");
+        CHECK(calls() == before + 1);
+        CHECK(f.error(std::string(imports) + "a.style.width = 'wide';").find("style.width") != std::string::npos);
+        CHECK(f.run(std::string(imports) + "globalThis.result = JSON.stringify(a.style);").asString()
+              == R"({"width":40,"height":20,"opacity":0.25})");
+        f.run(std::string(imports) + "a.style = {};");
+        CHECK(f.run(std::string(imports) + "globalThis.result = Object.keys(a.style).length;").asNumber() == 0);
+    }
+
     TEST_CASE("events capture and bubble along the tree")
     {
         UiFixture f;

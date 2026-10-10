@@ -76,9 +76,13 @@ GPU.
 
 **Work per frame** (counts, which do not depend on timing, so any change in
 them is real): native calls by API, style changes, layout passes,
-invalidations, engine allocations (blocks over 512 bytes and the engine's
-arenas, and their KB), CPU layers rasterized, KB uploaded to the GPU, GPU
-read-backs, and Three's draw calls.
+invalidations, CPU layers rasterized, KB uploaded to the GPU, GPU read-backs,
+and Three's draw calls. Also the engine's allocations (blocks over 512 bytes
+and the engine's arenas, and their KB): these depend on the heap they are
+made in, and so on the scenarios that ran before, and are shown but not
+compared. During a run of scenarios ("Run all", `pnpm bench`) the live
+statistics do not update, so what the view draws depends on the scenario
+alone.
 
 JS minus native calls is JavaScript's own time: in `webgl-calls`, what the
 WebGL wrappers cost per call; in `meshes`, mostly Three's own code.
