@@ -1,5 +1,17 @@
 # @soundor/juce-runtime
 
+## 0.6.1
+
+### Patch Changes
+
+- [#101](https://github.com/soundor/soundor/pull/101) [`4aa15cd`](https://github.com/soundor/soundor/commit/4aa15cd697ae970dc6a85a3143a6027e4cfd7f3f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Releasing the GPU no longer crashes on Linux with Vulkan drivers that clean up when a thread exits, such as Mesa's Venus (virtual machines). ANGLE now stops its worker threads before it destroys the Vulkan instance, not after the Vulkan loader has unloaded the driver.
+
+- [#106](https://github.com/soundor/soundor/pull/106) [`6616121`](https://github.com/soundor/soundor/commit/6616121b2d3ee864386ffb8611632a467074b469) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Canvas 2D path commands (`moveTo`, `lineTo`, curves, `arc`, `rect`…) are gathered and sent to native code in one call before the next other call, instead of one call each: a 10,000-point waveform makes 7 native calls a frame instead of 10,007 and draws 23% faster. The most frequent 2D methods no longer make arrays, and the generated WebGL methods look their context up once and convert numbers inline (raw WebGL calls 15% faster).
+
+- [#104](https://github.com/soundor/soundor/pull/104) [`54c950c`](https://github.com/soundor/soundor/commit/54c950c29530b65e0e60828fb668f928dae110c9) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `RuntimeHost::statistics()` says what a host did, for profiling: the time each step of `tick()` took, calls into `soundor:ui`, Canvas 2D and WebGL (timed too with `RuntimeOptions::timeNativeCalls`), the engine's allocations and heap, style changes, layout passes and invalidations. `soundor_run_ui` reports them per frame and per phase, and counts ticks that render nothing.
+
+- [#105](https://github.com/soundor/soundor/pull/105) [`a436b85`](https://github.com/soundor/soundor/commit/a436b858e0bd5680dc6b0b820769c6aa44dffb51) Thanks [@dm-balakin](https://github.com/dm-balakin)! - UI updates cost what changed. Assigning a style it already has does not reach native code. A change that only looks different (a color, opacity) is drawn again but not laid out, text is measured again only when its font changes, and reading a style natively looks up only the properties it has. A view drawing a single shape with opacity needs no offscreen layer, and others a layer only the size of their box: 500 animated cells went from 22 ms to under 1 ms of rendering. The React renderer compares styles with what it set, not through `node.style`, and re-binds listeners or recomputes accessibility only when those props change.
+
 ## 0.6.0
 
 ### Minor Changes
