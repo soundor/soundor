@@ -124,6 +124,58 @@ TEST_SUITE("ui::Surface layout")
         CHECK(f.surface.bounds(f.inner).y == 25);
     }
 
+    TEST_CASE("an unchanged style does nothing; one that only looks different is drawn, not laid out")
+    {
+        Row f;
+        f.surface.layout();
+        (void)f.surface.takeChanges();
+        const SurfaceStatistics before = f.surface.statistics();
+
+        f.surface.setStyle(f.a, sized(100, 100)); // what it has
+        CHECK_FALSE(f.surface.takeChanges());
+        CHECK(f.surface.statistics().invalidations == before.invalidations);
+
+        Style faded = sized(100, 100);
+        faded.opacity = 0.5;
+        faded.backgroundColor = Color { 255, 0, 0, 255 };
+        faded.borderRadius = Corners { 4, 4, 4, 4 };
+        f.surface.setStyle(f.a, faded);
+        CHECK(f.surface.takeChanges());
+        CHECK(f.surface.statistics().invalidations > before.invalidations);
+        f.surface.layout();
+        CHECK(f.surface.statistics().layoutPasses == before.layoutPasses);
+
+        f.surface.setStyle(f.a, sized(120, 100));
+        f.surface.layout();
+        CHECK(f.surface.statistics().layoutPasses == before.layoutPasses + 1);
+        CHECK(f.surface.find(f.b)->frame().x == 120);
+    }
+
+    TEST_CASE("text is measured again when its font changes, not its color")
+    {
+        Surface surface;
+        surface.setSize({ 300, 100 });
+        const NodeId text = surface.createNode(NodeType::Text);
+        surface.setText(text, "Hello");
+        surface.insertChild(surface.root().id(), text);
+        surface.layout();
+        const auto passes = surface.statistics().layoutPasses;
+        const float height = surface.bounds(text).height;
+
+        Style colored;
+        colored.text.color = Color { 255, 0, 0, 255 };
+        surface.setStyle(text, colored);
+        surface.layout();
+        CHECK(surface.statistics().layoutPasses == passes);
+
+        Style larger = colored;
+        larger.text.fontSize = 28;
+        surface.setStyle(text, larger);
+        surface.layout();
+        CHECK(surface.statistics().layoutPasses == passes + 1);
+        CHECK(surface.bounds(text).height > height);
+    }
+
     TEST_CASE("the root fills the view and follows its size")
     {
         Surface surface;

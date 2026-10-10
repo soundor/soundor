@@ -3,7 +3,7 @@
 #include <soundor/Config.h>
 
 #include <cstdint>
-#include <limits>
+#include <optional>
 #include <string>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
@@ -203,8 +203,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Length minHeight;
         Length maxWidth;
         Length maxHeight;
-        // Width / height; NaN: none.
-        float aspectRatio = std::numeric_limits<float>::quiet_NaN();
+        // Width / height; none when unset.
+        std::optional<float> aspectRatio;
         BoxSizing boxSizing = BoxSizing::BorderBox;
 
         Edges<Length> margin { Length::points(0), Length::points(0), Length::points(0), Length::points(0) };
@@ -229,5 +229,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;
+
+        friend bool operator==(const Style&, const Style&) = default;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

@@ -146,8 +146,11 @@ const MEASURES = {
   styleChanges: { label: 'styles', timing: false, compare: true },
   layouts: { label: 'layouts', timing: false, compare: true },
   invalidations: { label: 'invalidations', timing: false, compare: true },
-  allocations: { label: 'allocations', timing: false, compare: true },
-  allocatedKB: { label: 'allocated KB', timing: false, compare: true },
+  // What the engine takes from the C allocator depends on the heap it is
+  // in (arenas, when the garbage collector last ran), and so on what ran
+  // before: shown, not compared.
+  allocations: { label: 'allocations', timing: false, compare: false },
+  allocatedKB: { label: 'allocated KB', timing: false, compare: false },
   rasterized: { label: 'rasterized', timing: false, compare: true },
   uploadedKB: { label: 'uploaded KB', timing: false, compare: true },
   readbacks: { label: 'read-backs', timing: false, compare: true },
@@ -461,6 +464,13 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
 const bench = path.join(example, '.soundor/bench');
 if (!options['no-build']) {
   console.log('Building the UI bundle and soundor_run_ui (Release)…');
+  // The bundle takes the workspace packages (@soundor/react…) as built:
+  // build them first, or a change to one would not be measured.
+  run(
+    'pnpm',
+    ['turbo', 'run', 'build', '--filter=soundor-benchmark^...'],
+    example,
+  );
   run('soundor', ['build', 'web'], example);
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }

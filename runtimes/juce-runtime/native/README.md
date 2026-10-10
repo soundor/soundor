@@ -259,6 +259,10 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   percentages. An invalid value throws a `TypeError` naming the property.
   `node.style = {…}` replaces the style. `node.style.width = 120` changes one
   property, as on the Web; `''`, `null` or `delete` removes it.
+- **Restyling costs what changed:** assigning what a style already is does
+  not reach native code. A change that only looks different (colors, border
+  radius, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
+  not laid out; text is measured again only when its font changes.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
   Positions are in logical pixels, and buttons and keys use their Web names.
   The surface routes the input:
@@ -392,6 +396,11 @@ still draws the whole view in one go, for tests and tools.
   (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
 - **Boxes:** backgrounds, borders, per-corner radii, opacity, overflow
   clipping, scrolling, text, images, and inputs with selection and a caret.
+- **Opacity** is a node's and everything in it, drawn as one picture into a
+  layer. A view that paints a single shape (a background, without a border
+  or children) is drawn with the opacity in its paint instead, which looks
+  the same; a view, image or canvas without children gets a layer only the
+  size of its box.
 - **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
   invalid one is a `TypeError` naming the property.
 - **Text:** the platform's fonts (CoreText, DirectWrite, fontconfig/FreeType),

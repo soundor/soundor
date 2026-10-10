@@ -3,6 +3,7 @@
 #include <soundor/platform/Resources.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -132,6 +133,37 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(10, 60)));
         CHECK(isClear(f.at(40, 60))); // clipped
         CHECK(isBlue(f.at(40, 85)));  // overflow visible
+    }
+
+    TEST_CASE("opacity is the whole node's, whether it is drawn with a layer or without")
+    {
+        RenderFixture f(160, 50);
+        f.run(std::string(imports) + R"(
+            root.appendChild(createView({ position: 'absolute', left: 0, top: 0, width: 160, height: 50,
+                                          backgroundColor: 'white' }));
+            // A single shape: drawn with the opacity in its paint.
+            root.appendChild(createView({ position: 'absolute', left: 0, top: 0, width: 40, height: 40,
+                                          backgroundColor: 'red', borderRadius: 10, opacity: 0.5 }));
+            // A border over the background: one picture, then the opacity.
+            root.appendChild(createView({ position: 'absolute', left: 50, top: 0, width: 40, height: 40,
+                                          backgroundColor: 'red', borderWidth: 8, borderColor: 'blue',
+                                          opacity: 0.5 }));
+            // A child over its parent's background: the same.
+            const parent = createView({ position: 'absolute', left: 100, top: 0, width: 40, height: 40,
+                                        backgroundColor: 'red', opacity: 0.5 });
+            parent.appendChild(createView({ width: 20, height: 40, backgroundColor: 'blue' }));
+            root.appendChild(parent);
+        )");
+        f.render();
+        const auto near = [](const Pixel& p, int r, int g, int b)
+        { return std::abs(p.r - r) <= 3 && std::abs(p.g - g) <= 3 && std::abs(p.b - b) <= 3 && p.a == 255; };
+        CHECK(near(f.at(20, 20), 255, 128, 128));
+        CHECK(near(f.at(1, 1), 255, 255, 255)); // outside the rounded corner
+        // Blue at half opacity over white, not over the red under it.
+        CHECK(near(f.at(52, 20), 128, 128, 255));
+        CHECK(near(f.at(70, 20), 255, 128, 128));
+        CHECK(near(f.at(110, 20), 128, 128, 255));
+        CHECK(near(f.at(130, 20), 255, 128, 128));
     }
 
     TEST_CASE("renders at the device scale")

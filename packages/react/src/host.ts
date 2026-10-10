@@ -27,7 +27,7 @@ import {
   type UiNode,
 } from 'soundor:ui';
 
-import { accessibilityOf } from './accessibility';
+import { ACCESSIBILITY_PROPS, accessibilityOf } from './accessibility';
 import { tagScope, type Scope } from './focus';
 import { flattenStyle } from './style';
 
@@ -64,6 +64,11 @@ export class NodeInstance {
   hidden = false;
   /** The node's accessibility as last set, to set it only when it changes. */
   accessibility = '{}';
+  /**
+   * The style as last set: a plain object, to compare with without going
+   * through `node.style` (a view of the node's style).
+   */
+  style: Style | null = null;
 
   constructor(
     readonly type: HostType,
@@ -241,15 +246,58 @@ function styleOf(instance: NodeInstance, props: Props): Style {
 }
 
 function sameStyle(a: Style, b: Style): boolean {
-  const keys = Object.keys(a);
-  return (
-    keys.length === Object.keys(b).length &&
-    keys.every(
-      (key) =>
-        (a as Record<string, unknown>)[key] ===
-        (b as Record<string, unknown>)[key],
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  let count = 0;
+  for (const key in right) {
+    if (!Object.hasOwn(right, key)) continue;
+    if (!Object.hasOwn(left, key) || left[key] !== right[key]) return false;
+    count++;
+  }
+  for (const key in left) if (Object.hasOwn(left, key)) count--;
+  return count === 0;
+}
+
+/** Sets the node's style, remembering it (only once the node took it). */
+function setStyle(instance: NodeInstance, style: Style): void {
+  instance.node.style = style;
+  instance.style = style;
+}
+
+/**
+ * Whether the accessibility props are the same: the same primitives. An
+ * object (a state, a value, actions) may have changed inside, so it is
+ * compared by what it says instead.
+ */
+function sameAccessibilityProps(previous: Props, next: Props): boolean {
+  for (const prop in ACCESSIBILITY_PROPS) {
+    const value = next[prop];
+    if (value !== previous[prop]) return false;
+    if (typeof value === 'object' && value !== null) return false;
+  }
+  return true;
+}
+
+/**
+ * Whether the same props are functions: listeners call the prop as it is
+ * now, so only which handlers there are needs listeners added or removed.
+ */
+function sameHandlers(previous: Props, next: Props): boolean {
+  for (const name in next) {
+    if (
+      typeof next[name] === 'function' &&
+      typeof previous[name] !== 'function'
     )
-  );
+      return false;
+  }
+  for (const name in previous) {
+    if (
+      typeof previous[name] === 'function' &&
+      typeof next[name] !== 'function'
+    )
+      return false;
+  }
+  return true;
 }
 
 function applyProps(
@@ -262,7 +310,8 @@ function applyProps(
   if (previous === null || next[SCOPE_PROP] !== previous[SCOPE_PROP])
     tagScope(node, (next[SCOPE_PROP] as Scope | undefined) ?? null);
   const style = styleOf(instance, next);
-  if (previous === null || !sameStyle(node.style, style)) node.style = style;
+  if (instance.style === null || !sameStyle(instance.style, style))
+    setStyle(instance, style);
 
   if (
     next['focusable'] !== previous?.['focusable'] &&
@@ -270,11 +319,13 @@ function applyProps(
   )
     node.focusable = Boolean(next['focusable']);
 
-  const accessibility = accessibilityOf(next);
-  const key = JSON.stringify(accessibility);
-  if (key !== instance.accessibility) {
-    node.accessibility = accessibility;
-    instance.accessibility = key;
+  if (previous === null || !sameAccessibilityProps(previous, next)) {
+    const accessibility = accessibilityOf(next);
+    const key = JSON.stringify(accessibility);
+    if (key !== instance.accessibility) {
+      node.accessibility = accessibility;
+      instance.accessibility = key;
+    }
   }
 
   switch (instance.type) {
@@ -308,7 +359,8 @@ function applyProps(
     default:
       break;
   }
-  updateListeners(instance, next);
+  if (previous === null || !sameHandlers(previous, next))
+    updateListeners(instance, next);
 }
 
 // ── Text ────────────────────────────────────────────────────────────────────
@@ -508,13 +560,13 @@ export const hostConfig = {
   hideInstance(instance: Instance): void {
     instance.hidden = true;
     if (instance.kind === 'node')
-      instance.node.style = styleOf(instance, instance.props);
+      setStyle(instance, styleOf(instance, instance.props));
     else refreshText(instance);
   },
   unhideInstance(instance: Instance): void {
     instance.hidden = false;
     if (instance.kind === 'node')
-      instance.node.style = styleOf(instance, instance.props);
+      setStyle(instance, styleOf(instance, instance.props));
     else refreshText(instance);
   },
   hideTextInstance(span: SpanInstance): void {

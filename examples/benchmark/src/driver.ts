@@ -186,7 +186,10 @@ export class Driver {
     this.meter.add(end - begin, report.update ?? 0, end);
     if (report.drawCalls !== undefined) this.meter.drawCalls = report.drawCalls;
     if (report.triangles !== undefined) this.meter.triangles = report.triangles;
-    if (++this.frames % STATS_INTERVAL === 0) this.onStats?.();
+    // The live statistics are for watching; a run of scenarios does not
+    // update them, so what the view draws depends on the scenario alone.
+    if (++this.frames % STATS_INTERVAL === 0 && this.onFrame === null)
+      this.onStats?.();
     this.onFrame?.();
   }
 }

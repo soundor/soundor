@@ -55,20 +55,24 @@ export interface AccessibilityProps {
 }
 
 /** A node's `accessibility` from an element's props. */
+/** The props an element's accessibility comes from, and what each sets. */
+export const ACCESSIBILITY_PROPS = {
+  accessible: 'accessible',
+  accessibilityRole: 'role',
+  accessibilityLabel: 'label',
+  accessibilityHint: 'hint',
+  accessibilityState: 'state',
+  accessibilityValue: 'value',
+  accessibilityActions: 'actions',
+} as const satisfies Record<string, keyof Accessibility>;
+
 export function accessibilityOf(
   props: Readonly<Record<string, unknown>>,
 ): Accessibility {
   const out: Record<string, unknown> = {};
-  const map = (prop: string, key: keyof Accessibility) => {
+  for (const [prop, key] of Object.entries(ACCESSIBILITY_PROPS)) {
     if (props[prop] !== undefined) out[key] = props[prop];
-  };
-  map('accessible', 'accessible');
-  map('accessibilityRole', 'role');
-  map('accessibilityLabel', 'label');
-  map('accessibilityHint', 'hint');
-  map('accessibilityState', 'state');
-  map('accessibilityValue', 'value');
-  map('accessibilityActions', 'actions');
+  }
   return out as Accessibility;
 }
 

@@ -149,6 +149,69 @@ describe('rendering', () => {
   });
 });
 
+describe('updates do only what changed', () => {
+  /** Counts assignments to a fake node's property from now on. */
+  function countSets(node: FakeNode, property: 'style' | 'accessibility') {
+    let value: unknown = node[property];
+    let sets = 0;
+    Object.defineProperty(node, property, {
+      configurable: true,
+      get: () => value,
+      set: (next: unknown) => {
+        sets++;
+        value = next;
+      },
+    });
+    return () => sets;
+  }
+
+  it('re-rendering equal props sets no style or accessibility, and keeps listeners', () => {
+    const onClick = vi.fn();
+    // New style objects and a new handler every render, with the same content.
+    const Cell = ({ opacity }: { opacity: number }) => (
+      <View
+        style={[{ width: 10 }, { opacity }]}
+        accessibilityLabel="cell"
+        onClick={() => onClick(opacity)}
+      />
+    );
+    show(<Cell opacity={0.5} />);
+    const styles = countSets(child(0), 'style');
+    const accessibility = countSets(child(0), 'accessibility');
+    const listener = child(0).listeners.get('click')![0];
+
+    show(<Cell opacity={0.5} />);
+    expect(styles()).toBe(0);
+    expect(accessibility()).toBe(0);
+    expect(child(0).listeners.get('click')![0]).toBe(listener);
+
+    show(<Cell opacity={0.25} />);
+    expect(styles()).toBe(1);
+    expect(child(0).style).toEqual({ width: 10, opacity: 0.25 });
+    fire(child(0), 'click');
+    expect(onClick).toHaveBeenCalledWith(0.25);
+  });
+
+  it('accessibility objects are compared by what they say', () => {
+    const state = { checked: false };
+    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    const accessibility = countSets(child(0), 'accessibility');
+    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    expect(accessibility()).toBe(0);
+    state.checked = true; // changed in place
+    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    expect(accessibility()).toBe(1);
+  });
+
+  it('a handler that appears gets a listener', () => {
+    const onClick = vi.fn<() => void>();
+    show(<View />);
+    show(<View onClick={onClick} />);
+    fire(child(0), 'click');
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+});
+
 describe('events', () => {
   it('calls the latest handler, in capture and bubble phases', () => {
     const log: string[] = [];

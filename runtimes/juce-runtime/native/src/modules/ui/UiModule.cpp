@@ -94,7 +94,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         class StyleReader
         {
         public:
-            StyleReader(JSContext* context, JSValueConst object) : ctx(context), style(object) {}
+            // Throws JsError when the object's properties cannot be listed.
+            StyleReader(JSContext* context, JSValueConst object) : ctx(context), style(object)
+            {
+                // The style's own properties, listed once: most of the many
+                // it could have are absent, and looking each of those up
+                // would cost an engine lookup.
+                JSPropertyEnum* names = nullptr;
+                std::uint32_t count = 0;
+                if (JS_GetOwnPropertyNames(ctx, &names, &count, object, JS_GPN_STRING_MASK) < 0)
+                    throw JsError {};
+                present.reserve(count);
+                for (std::uint32_t i = 0; i < count; ++i)
+                {
+                    const char* name = JS_AtomToCString(ctx, names[i].atom);
+                    if (name != nullptr)
+                        present.emplace_back(name);
+                    JS_FreeCString(ctx, name);
+                }
+                JS_FreePropertyEnum(ctx, names, count);
+            }
 
             Style read()
             {
@@ -109,8 +128,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         private:
             struct Property
             {
-                Property(JSContext* context, JSValueConst object, const char* key)
-                    : ctx(context), name(key), value(JS_GetPropertyStr(context, object, key))
+                // `exists`: whether the style has the property; only then is
+                // it read.
+                Property(JSContext* context, JSValueConst object, const char* key, bool exists)
+                    : ctx(context), name(key), value(exists ? JS_GetPropertyStr(context, object, key) : JS_UNDEFINED)
                 {
                     if (JS_IsException(value))
                         throw JsError {};
@@ -133,6 +154,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             };
 
         private:
+            [[nodiscard]] bool has(std::string_view key) const
+            {
+                return std::ranges::find(present, key) != present.end();
+            }
+
             [[noreturn]] void fail(const Property& property, std::string_view expected)
             {
                 const char* actual = JS_ToCString(ctx, property.value);
@@ -146,7 +172,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             std::optional<float> number(const char* key)
             {
-                Property property(ctx, style, key);
+                Property property(ctx, style, key, has(key));
                 if (! property.present())
                     return std::nullopt;
                 double value = 0;
@@ -158,7 +184,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             std::optional<Length> length(const char* key, bool allowAuto)
             {
-                Property property(ctx, style, key);
+                Property property(ctx, style, key, has(key));
                 if (! property.present())
                     return std::nullopt;
                 const std::string_view expected =
@@ -198,7 +224,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             template <typename Enum, std::size_t Count>
             std::optional<Enum> choice(const char* key, const std::array<std::string_view, Count>& names)
             {
-                Property property(ctx, style, key);
+                Property property(ctx, style, key, has(key));
                 if (! property.present())
                     return std::nullopt;
                 if (JS_IsString(property.value))
@@ -256,7 +282,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.overflow, choice<Overflow>("overflow", overflows));
                 assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
                 assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
-                if (Property zIndex(ctx, style, "zIndex"); zIndex.present())
+                if (Property zIndex(ctx, style, "zIndex", has("zIndex")); zIndex.present())
                 {
                     double value = 0;
                     if (! JS_IsNumber(zIndex.value) || JS_ToFloat64(ctx, &value, zIndex.value) < 0
@@ -287,7 +313,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.minHeight, length("minHeight", false));
                 assign(out.maxWidth, length("maxWidth", false));
                 assign(out.maxHeight, length("maxHeight", false));
-                assign(out.aspectRatio, number("aspectRatio"));
+                out.aspectRatio = number("aspectRatio");
             }
 
             // Shorthand, then axis, then side: `margin`, `marginHorizontal`, `marginLeft`.
@@ -328,7 +354,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             std::optional<Color> color(const char* key)
             {
-                Property property(ctx, style, key);
+                Property property(ctx, style, key, has(key));
                 if (! property.present())
                     return std::nullopt;
                 if (JS_IsString(property.value))
@@ -365,7 +391,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 static constexpr std::array<std::string_view, 2> fontStyles { "normal", "italic" };
                 static constexpr std::array<std::string_view, 4> textAligns { "auto", "left", "center", "right" };
 
-                if (Property family(ctx, style, "fontFamily"); family.present())
+                if (Property family(ctx, style, "fontFamily", has("fontFamily")); family.present())
                 {
                     if (! JS_IsString(family.value))
                         fail(family, "a string");
@@ -375,7 +401,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 }
                 if (const auto size = number("fontSize"); size && *size > 0)
                     out.fontSize = *size;
-                if (Property weight(ctx, style, "fontWeight"); weight.present())
+                if (Property weight(ctx, style, "fontWeight", has("fontWeight")); weight.present())
                 {
                     double value = 0;
                     if (JS_IsNumber(weight.value))
@@ -401,6 +427,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             JSContext* ctx;
             JSValueConst style;
+            // The names of the style's own properties.
+            std::vector<std::string> present;
         };
 
         // ── Accessibility ────────────────────────────────────────────────────
