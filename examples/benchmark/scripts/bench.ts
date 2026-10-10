@@ -471,7 +471,7 @@ if (!options['no-build']) {
     ['turbo', 'run', 'build', '--filter=soundor-benchmark^...'],
     example,
   );
-  run('soundor', ['build', 'web'], example);
+  run('pnpm', ['exec', 'soundor', 'build', 'web'], example);
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
 const current: Build = {

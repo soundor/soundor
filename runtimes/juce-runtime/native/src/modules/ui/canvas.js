@@ -4,8 +4,10 @@
 // Embedded into the native runtime; part of soundor:ui. Drawing happens
 // natively (Skia, on the CPU) into the canvas's pixels: each method converts
 // its arguments the way WebIDL would, then makes one native call,
-// call2d(node, op, ...). What Soundor does not implement throws a TypeError
-// saying so, rather than drawing something else.
+// call2d(node, op, ...). Path commands are the exception: they draw nothing
+// by themselves, so they are gathered (in a Float64Array) and sent in one
+// call before whatever comes next. What Soundor does not implement throws a
+// TypeError saying so, rather than drawing something else.
 
 import * as native from 'soundor:internal/ui';
 
@@ -77,15 +79,22 @@ const OP = {
   drawAsset: 63,
   getImageData: 64,
   putImageData: 65,
+  path: 66,
 };
+
+/** At most this many numbers of path commands wait to be sent. */
+const PATH_LIMIT = 1 << 16;
 
 const CONSTRUCTING = Symbol('constructing');
 
 /** Gradients and patterns are native; they go when their objects do. */
 const paints = new FinalizationRegistry((id) => native.release2d(0, id));
 
-/** The canvas was resized: its context's styles went back to black. */
-export let forgetStyles;
+/**
+ * The canvas was resized: its context went back to its defaults (black
+ * styles, no path).
+ */
+export let resetContext;
 
 /** What a canvas source is, for drawImage() and createPattern(). */
 let sourceOf = () => null;
@@ -106,6 +115,21 @@ function number(value) {
 
 function finite(...values) {
   return values.every((value) => Number.isFinite(value));
+}
+
+/**
+ * Whether up to six numbers (already converted, so never undefined) are all
+ * finite; for the path methods, which call it without making an array.
+ */
+function finiteNumbers(a, b, c, d, e, f) {
+  return (
+    Number.isFinite(a) &&
+    (b === undefined || Number.isFinite(b)) &&
+    (c === undefined || Number.isFinite(c)) &&
+    (d === undefined || Number.isFinite(d)) &&
+    (e === undefined || Number.isFinite(e)) &&
+    (f === undefined || Number.isFinite(f))
+  );
 }
 
 function unsupported(what) {
@@ -267,6 +291,9 @@ export class CanvasRenderingContext2D {
   #node;
   #fillStyle = null;
   #strokeStyle = null;
+  // Path commands not sent yet: [op, arguments...] (see #flush()).
+  #path = new Float64Array(256);
+  #pathLength = 0;
 
   constructor(token, canvas, node) {
     if (token !== CONSTRUCTING) throw new TypeError('Illegal constructor');
@@ -275,13 +302,60 @@ export class CanvasRenderingContext2D {
   }
 
   #call(op, ...args) {
+    if (this.#pathLength > 0) this.#flush();
     return native.call2d(this.#node, op, ...args);
   }
 
+  /** Sends the path commands gathered so far, before anything else. */
+  #flush() {
+    const length = this.#pathLength;
+    this.#pathLength = 0;
+    native.call2d(this.#node, OP.path, this.#path, length);
+  }
+
+  /**
+   * Gathers a path command of `count` arguments (fixed arity, so that a
+   * call allocates nothing).
+   */
+  #addPath(count, op, a, b, c, d, e, f, g, h) {
+    let at = this.#pathLength;
+    if (at + count + 1 > this.#path.length) {
+      if (at + count + 1 > PATH_LIMIT) {
+        this.#flush();
+        at = 0;
+      } else {
+        const grown = new Float64Array(this.#path.length * 2);
+        grown.set(this.#path.subarray(0, at));
+        this.#path = grown;
+      }
+    }
+    const path = this.#path;
+    path[at++] = op;
+    if (count > 0) path[at++] = a;
+    if (count > 1) path[at++] = b;
+    if (count > 2) path[at++] = c;
+    if (count > 3) path[at++] = d;
+    if (count > 4) path[at++] = e;
+    if (count > 5) path[at++] = f;
+    if (count > 6) path[at++] = g;
+    if (count > 7) path[at++] = h;
+    this.#pathLength = at;
+  }
+
+  /**
+   * Before a direct native call (the most frequent methods call native code
+   * with their own arguments, making no arrays): sends the path first.
+   */
+  #ready() {
+    if (this.#pathLength > 0) this.#flush();
+  }
+
   static {
-    forgetStyles = (context) => {
+    resetContext = (context) => {
       context.#fillStyle = null;
       context.#strokeStyle = null;
+      // The resize cleared the path these were for.
+      context.#pathLength = 0;
     };
   }
 
@@ -301,11 +375,13 @@ export class CanvasRenderingContext2D {
   // ── State ──────────────────────────────────────────────────────────────
 
   save() {
-    this.#call(OP.save);
+    this.#ready();
+    native.call2d(this.#node, OP.save);
   }
 
   restore() {
-    this.#call(OP.restore);
+    this.#ready();
+    native.call2d(this.#node, OP.restore);
     // The styles may have changed back.
     this.#fillStyle = null;
     this.#strokeStyle = null;
@@ -340,26 +416,52 @@ export class CanvasRenderingContext2D {
     requireArguments('scale', arguments.length, 2);
     x = number(x);
     y = number(y);
-    if (finite(x, y)) this.#call(OP.scale, x, y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.#ready();
+    native.call2d(this.#node, OP.scale, x, y);
   }
 
   rotate(angle) {
     requireArguments('rotate', arguments.length, 1);
     angle = number(angle);
-    if (finite(angle)) this.#call(OP.rotate, angle);
+    if (!Number.isFinite(angle)) return;
+    this.#ready();
+    native.call2d(this.#node, OP.rotate, angle);
   }
 
   translate(x, y) {
     requireArguments('translate', arguments.length, 2);
     x = number(x);
     y = number(y);
-    if (finite(x, y)) this.#call(OP.translate, x, y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    this.#ready();
+    native.call2d(this.#node, OP.translate, x, y);
   }
 
   transform(a, b, c, d, e, f) {
     requireArguments('transform', arguments.length, 6);
-    const values = [a, b, c, d, e, f].map(number);
-    if (finite(...values)) this.#call(OP.transform, ...values);
+    this.#matrix(OP.transform, a, b, c, d, e, f);
+  }
+
+  /** transform() and setTransform() with six numbers: non-finite ones do nothing. */
+  #matrix(op, a, b, c, d, e, f) {
+    a = number(a);
+    b = number(b);
+    c = number(c);
+    d = number(d);
+    e = number(e);
+    f = number(f);
+    if (
+      !Number.isFinite(a) ||
+      !Number.isFinite(b) ||
+      !Number.isFinite(c) ||
+      !Number.isFinite(d) ||
+      !Number.isFinite(e) ||
+      !Number.isFinite(f)
+    )
+      return;
+    this.#ready();
+    native.call2d(this.#node, op, a, b, c, d, e, f);
   }
 
   setTransform(a, b, c, d, e, f) {
@@ -382,8 +484,7 @@ export class CanvasRenderingContext2D {
       return;
     }
     requireArguments('setTransform', arguments.length, 6);
-    const values = [a, b, c, d, e, f].map(number);
-    if (finite(...values)) this.#call(OP.setTransform, ...values);
+    this.#matrix(OP.setTransform, a, b, c, d, e, f);
   }
 
   resetTransform() {
@@ -584,74 +685,110 @@ export class CanvasRenderingContext2D {
 
   clearRect(x, y, width, height) {
     requireArguments('clearRect', arguments.length, 4);
-    const values = [x, y, width, height].map(number);
-    if (finite(...values)) this.#call(OP.clearRect, ...values);
+    this.#rectangle(OP.clearRect, x, y, width, height);
   }
 
   fillRect(x, y, width, height) {
     requireArguments('fillRect', arguments.length, 4);
-    const values = [x, y, width, height].map(number);
-    if (finite(...values)) this.#call(OP.fillRect, ...values);
+    this.#rectangle(OP.fillRect, x, y, width, height);
   }
 
   strokeRect(x, y, width, height) {
     requireArguments('strokeRect', arguments.length, 4);
-    const values = [x, y, width, height].map(number);
-    if (finite(...values)) this.#call(OP.strokeRect, ...values);
+    this.#rectangle(OP.strokeRect, x, y, width, height);
+  }
+
+  /** clearRect(), fillRect(), strokeRect(): non-finite numbers do nothing. */
+  #rectangle(op, x, y, width, height) {
+    x = number(x);
+    y = number(y);
+    width = number(width);
+    height = number(height);
+    if (
+      !Number.isFinite(x) ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height)
+    )
+      return;
+    this.#ready();
+    native.call2d(this.#node, op, x, y, width, height);
   }
 
   // ── Paths ──────────────────────────────────────────────────────────────
+  // Gathered and sent before the next other call (#addPath, #flush): checked
+  // and converted here, as they are made, so errors come at the same time.
 
   beginPath() {
-    this.#call(OP.beginPath);
+    this.#addPath(0, OP.beginPath);
   }
 
   closePath() {
-    this.#call(OP.closePath);
+    this.#addPath(0, OP.closePath);
   }
 
   moveTo(x, y) {
     requireArguments('moveTo', arguments.length, 2);
     x = number(x);
     y = number(y);
-    if (finite(x, y)) this.#call(OP.moveTo, x, y);
+    if (Number.isFinite(x) && Number.isFinite(y))
+      this.#addPath(2, OP.moveTo, x, y);
   }
 
   lineTo(x, y) {
     requireArguments('lineTo', arguments.length, 2);
     x = number(x);
     y = number(y);
-    if (finite(x, y)) this.#call(OP.lineTo, x, y);
+    if (Number.isFinite(x) && Number.isFinite(y))
+      this.#addPath(2, OP.lineTo, x, y);
   }
 
   quadraticCurveTo(cx, cy, x, y) {
     requireArguments('quadraticCurveTo', arguments.length, 4);
-    const values = [cx, cy, x, y].map(number);
-    if (finite(...values)) this.#call(OP.quadraticCurveTo, ...values);
+    cx = number(cx);
+    cy = number(cy);
+    x = number(x);
+    y = number(y);
+    if (finiteNumbers(cx, cy, x, y))
+      this.#addPath(4, OP.quadraticCurveTo, cx, cy, x, y);
   }
 
   bezierCurveTo(c1x, c1y, c2x, c2y, x, y) {
     requireArguments('bezierCurveTo', arguments.length, 6);
-    const values = [c1x, c1y, c2x, c2y, x, y].map(number);
-    if (finite(...values)) this.#call(OP.bezierCurveTo, ...values);
+    c1x = number(c1x);
+    c1y = number(c1y);
+    c2x = number(c2x);
+    c2y = number(c2y);
+    x = number(x);
+    y = number(y);
+    if (finiteNumbers(c1x, c1y, c2x, c2y, x, y))
+      this.#addPath(6, OP.bezierCurveTo, c1x, c1y, c2x, c2y, x, y);
   }
 
   arcTo(x1, y1, x2, y2, radius) {
     requireArguments('arcTo', arguments.length, 5);
-    const values = [x1, y1, x2, y2, radius].map(number);
-    if (!finite(...values)) return;
-    if (values[4] < 0)
+    x1 = number(x1);
+    y1 = number(y1);
+    x2 = number(x2);
+    y2 = number(y2);
+    radius = number(radius);
+    if (!finiteNumbers(x1, y1, x2, y2, radius)) return;
+    if (radius < 0)
       throw new DOMException(
-        `The radius provided (${values[4]}) is negative.`,
+        `The radius provided (${radius}) is negative.`,
         'IndexSizeError',
       );
-    this.#call(OP.arcTo, ...values);
+    this.#addPath(5, OP.arcTo, x1, y1, x2, y2, radius);
   }
 
   rect(x, y, width, height) {
     requireArguments('rect', arguments.length, 4);
-    const values = [x, y, width, height].map(number);
-    if (finite(...values)) this.#call(OP.rect, ...values);
+    x = number(x);
+    y = number(y);
+    width = number(width);
+    height = number(height);
+    if (finiteNumbers(x, y, width, height))
+      this.#addPath(4, OP.rect, x, y, width, height);
   }
 
   roundRect(x, y, width, height, radii = 0) {
@@ -674,14 +811,27 @@ export class CanvasRenderingContext2D {
 
   arc(x, y, radius, startAngle, endAngle, counterclockwise = false) {
     requireArguments('arc', arguments.length, 5);
-    const values = [x, y, radius, startAngle, endAngle].map(number);
-    if (!finite(...values)) return;
-    if (values[2] < 0)
+    x = number(x);
+    y = number(y);
+    radius = number(radius);
+    startAngle = number(startAngle);
+    endAngle = number(endAngle);
+    if (!finiteNumbers(x, y, radius, startAngle, endAngle)) return;
+    if (radius < 0)
       throw new DOMException(
-        `The radius provided (${values[2]}) is negative.`,
+        `The radius provided (${radius}) is negative.`,
         'IndexSizeError',
       );
-    this.#call(OP.arc, ...values, Boolean(counterclockwise));
+    this.#addPath(
+      6,
+      OP.arc,
+      x,
+      y,
+      radius,
+      startAngle,
+      endAngle,
+      counterclockwise ? 1 : 0,
+    );
   }
 
   ellipse(
@@ -704,16 +854,19 @@ export class CanvasRenderingContext2D {
         `The ${values[2] < 0 ? 'major' : 'minor'}-axis radius provided is negative.`,
         'IndexSizeError',
       );
-    this.#call(OP.ellipse, ...values, Boolean(counterclockwise));
+    this.#addPath(8, OP.ellipse, ...values, counterclockwise ? 1 : 0);
   }
 
   fill(rule) {
-    this.#call(OP.fill, fillRule(rule, 'fill'));
+    const evenOdd = fillRule(rule, 'fill');
+    this.#ready();
+    native.call2d(this.#node, OP.fill, evenOdd);
   }
 
   stroke(path) {
     if (path !== undefined) throw unsupported('stroke() with a Path2D');
-    this.#call(OP.stroke);
+    this.#ready();
+    native.call2d(this.#node, OP.stroke);
   }
 
   clip(rule) {

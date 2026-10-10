@@ -616,11 +616,19 @@ class ContextState {
 /** The helpers the generated methods call (webgl-generated.js). */
 const gl = {
   require(context, name, given, required) {
-    stateOf(context);
+    gl.enter(context, name, given, required);
+  },
+  /**
+   * require(), returning the context's state: a generated method looks it up
+   * once and passes it to nameOf() and locationOf().
+   */
+  enter(context, name, given, required) {
+    const state = stateOf(context);
     if (given < required)
       throw new TypeError(
         `Failed to execute '${name}' on 'WebGL2RenderingContext': ${required} argument${required === 1 ? '' : 's'} required, but only ${given} present.`,
       );
+    return state;
   },
   u32: (value) => Number(value) >>> 0,
   i32: (value) => Number(value) | 0,
@@ -636,7 +644,9 @@ const gl = {
    * was deleted (an INVALID_OPERATION).
    */
   name(context, object, type, nullable, method) {
-    const state = stateOf(context);
+    return gl.nameOf(stateOf(context), object, type, nullable, method);
+  },
+  nameOf(state, object, type, nullable, method) {
     if (object === null || object === undefined) {
       if (nullable) return 0;
       throw new TypeError(
@@ -672,7 +682,9 @@ const gl = {
    * or an older link (an INVALID_OPERATION).
    */
   location(context, location, method) {
-    const state = stateOf(context);
+    return gl.locationOf(stateOf(context), location, method);
+  },
+  locationOf(state, location, method) {
     if (location === null || location === undefined) return -2;
     const program = state.program;
     const at = locationIn(
@@ -1521,7 +1533,7 @@ export class WebGL2RenderingContext {
     const size = shape[1];
     const Type = shape[2];
     const state = this.#state;
-    const at = gl.location(this, location, method);
+    const at = gl.locationOf(state, location, method);
     if (at === -2) return;
     const values = data instanceof Type ? data : typed(data, Type, method);
     const elements = values.length;
