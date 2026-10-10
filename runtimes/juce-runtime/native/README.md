@@ -786,6 +786,14 @@ compositor and WebGL (see "The GPU").
   pins, downloaded from CIPD and checked against a SHA-256 per host platform.
   `cmake/SoundorAngleBuild.cmake` does all this during the first configure on
   a machine and caches the result in the user cache directory like Skia.
+- **Patched:** `cmake/SoundorAnglePatch.cmake` changes one thing after the
+  checkout. `Display::terminate` joins ANGLE's worker threads before the
+  backend terminates instead of after: on Vulkan, terminating destroys the
+  instance and the loader unloads the driver, and a worker that had made
+  Vulkan calls would then exit into the driver's unloaded thread-exit code
+  (Mesa's Venus driver crashes the process on every `eglTerminate`). The patch
+  fails the build when ANGLE's code no longer matches, so an ANGLE update has
+  to revisit it.
 - **Prerequisites:** git, Python 3 and ninja, as for Skia.
 - **Using your own build:** set `SOUNDOR_ANGLE_DIR` to an install made by that
   script. `-DSOUNDOR_ENABLE_GPU=OFF` builds without ANGLE (CPU only).
