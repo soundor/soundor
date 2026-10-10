@@ -7,7 +7,8 @@
 #         [-DGENERATOR=<the project's CMake generator>] -P SoundorAngleBuild.cmake
 #
 # ANGLE is fetched at REVISION and its third-party code only for DEPENDENCIES,
-# each at the commit ANGLE's own DEPS file pins. gn (pinned, SHA-256 verified)
+# each at the commit ANGLE's own DEPS file pins; SoundorAnglePatch.cmake makes
+# Soundor's changes to it. gn (pinned, SHA-256 verified)
 # works out what to compile for the platform; Soundor compiles it with the
 # given compilers into one static library (cmake/angle). The backends are the
 # platform's own: Metal on macOS, Direct3D 11 on Windows, Vulkan and OpenGL
@@ -53,6 +54,7 @@ run(${GIT_EXECUTABLE} init --quiet)
 run(${GIT_EXECUTABLE} fetch --quiet --depth 1 "${REPOSITORY}" "${REVISION}")
 run(${GIT_EXECUTABLE} -c advice.detachedHead=false checkout --quiet FETCH_HEAD)
 run(${Python3_EXECUTABLE} "${scripts}/deps.py" "${source}" ${DEPENDENCIES})
+run(${CMAKE_COMMAND} "-DSOURCE=${source}" -P "${CMAKE_CURRENT_LIST_DIR}/SoundorAnglePatch.cmake")
 
 # gn, at the version ANGLE's DEPS pins (a CIPD package).
 message(STATUS "ANGLE: fetching gn")

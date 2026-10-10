@@ -105,12 +105,13 @@ if(NOT SOUNDOR_ANGLE_DIR)
 
   # The cache key: anything that changes the build changes the directory.
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/SoundorAngleBuild.cmake" build_hash)
+  file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/SoundorAnglePatch.cmake" patch_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/CMakeLists.txt" project_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/targets.py" targets_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/deps.py" deps_hash)
   get_filename_component(angle_cxx_name "${angle_cxx}" NAME)
   string(SHA256 key
-    "${SOUNDOR_ANGLE_REVISION};${dependencies};${build_hash};${project_hash};${targets_hash};${deps_hash};${angle_cxx_name}")
+    "${SOUNDOR_ANGLE_REVISION};${dependencies};${build_hash};${patch_hash};${project_hash};${targets_hash};${deps_hash};${angle_cxx_name}")
   string(SUBSTRING "${key}" 0 12 key)
   string(SUBSTRING "${SOUNDOR_ANGLE_REVISION}" 0 10 short_revision)
   list(JOIN soundor_angle_cpus "-" cpu_names)
