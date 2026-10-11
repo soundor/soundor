@@ -12,7 +12,7 @@
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
-    "test": "node --experimental-transform-types --test tests/*.test.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
@@ -28,6 +28,7 @@
     "@types/react": "catalog:",
     "@types/three": "catalog:",
     "soundor": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
