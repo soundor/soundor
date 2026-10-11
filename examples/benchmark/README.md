@@ -197,3 +197,30 @@ not passed an unsupported flag. CI runs deterministic driver tests
 and a native bytecode smoke run without an FPS threshold. GPU measurements
 require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
 and select software rendering even when the host has a virtual GPU.
+
+### Recorded Hermes baseline
+
+[Machine-readable baseline](reports/hermes-animation.json), source commit
+`629fca5f447ca4dad6a86c9cad9fe2a911e5c69d`, Hermes
+`602befee340da188ea1560cde7a9cc33e6b180dc`: Linux 7.0.0-38-generic,
+Intel Core 5 210H (4 available cores), OpenGL/ANGLE through virgl on an
+NVIDIA RTX 4050 Laptop GPU, Mesa 25.2.8. Release, Hermes bytecode, five runs,
+600 measured frames after 30 warmup frames, 700×520 viewport. Phase-boundary
+GC/cleanup is excluded; steady-state GC is included. CPU/compositor timings
+are the median across runs of each run's statistic.
+
+| Scenario              | Frame mean ms | P95 ms | P99 ms | JS ms | UI calls/frame | Yoga/frame | Uploaded KB/frame |
+| --------------------- | ------------: | -----: | -----: | ----: | -------------: | ---------: | ----------------: |
+| animation-opacity-50  |         0.551 |  0.742 |  0.938 | 0.210 |         50.000 |      0.000 |           100.000 |
+| animation-opacity-500 |         3.113 |  3.441 |  8.887 | 2.035 |        500.000 |      0.000 |           800.000 |
+| animation-react-500   |         9.101 | 10.490 | 15.878 | 7.768 |        500.000 |      0.000 |           800.000 |
+| animation-mixed-20    |         4.554 |  4.991 | 11.146 | 1.796 |         84.000 |      1.000 |           474.366 |
+
+All four rasterize one CPU layer per intermediate frame and perform zero
+GPU readbacks. Static counterparts make no intermediate frames and cost
+idle ticks instead. The full report includes allocation/collection counts,
+peak engine heaps, per-run spreads and all other workloads. The saved
+`hermes-animation` runner and its matching bytecode remain local for PR 1
+comparisons; re-run them alternately with a candidate rather than treating
+these timings as a machine-independent target. No native-animation
+improvement is claimed by this baseline alone.
