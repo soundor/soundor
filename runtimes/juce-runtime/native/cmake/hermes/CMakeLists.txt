@@ -120,11 +120,16 @@ foreach(variant full lean)
   foreach(library IN LISTS order)
     string(APPEND content "$<TARGET_FILE:${library}>\n")
   endforeach()
-  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-${variant}.txt" CONTENT "${content}")
+  # Release only: SoundorHermesBuild.cmake builds no other configuration,
+  # and a multi-config generator (Visual Studio) would write one per
+  # configuration, each with its own paths.
+  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-${variant}.txt" CONTENT "${content}"
+       CONDITION "$<CONFIG:Release>")
 endforeach()
 
 get_property(system GLOBAL PROPERTY soundor_system)
 list(REMOVE_DUPLICATES system)
 list(JOIN system "\n" system)
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-system.txt" CONTENT "${system}\n")
-file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-hermesc.txt" CONTENT "$<TARGET_FILE:hermesc>\n")
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-hermesc.txt" CONTENT "$<TARGET_FILE:hermesc>\n"
+     CONDITION "$<CONFIG:Release>")
