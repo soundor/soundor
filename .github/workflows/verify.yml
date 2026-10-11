@@ -132,6 +132,14 @@ jobs:
         with:
           job: ${{ matrix.name }}
 
+      # Ninja, as local and plugin builds use on macOS and Linux (CMake's
+      # default there is Makefiles). Windows keeps Visual Studio, which finds
+      # MSVC without a developer environment, as plugin builds do.
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
       - name: Build and test the native runtime
         shell: bash
         run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"

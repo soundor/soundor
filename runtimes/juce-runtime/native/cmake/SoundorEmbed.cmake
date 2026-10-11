@@ -71,6 +71,7 @@ function(soundor_embed_module target symbol input name)
     set(compiled "${directory}/${symbol}.qjsbc")
     add_custom_command(
       OUTPUT "${compiled}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${directory}"
       COMMAND soundor_compile_js "${input}" "${compiled}" "${name}"
       DEPENDS "${input}" soundor_compile_js
       COMMENT "Compiling ${input}"
