@@ -149,6 +149,19 @@ jobs:
         shell: bash
         run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"
 
+      - name: Diagnose Windows runtime crash
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $debugger = Get-ChildItem 'C:\Program Files (x86)\Windows Kits' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+          if ($debugger) {
+            & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks, then sends the whole tree' '--no-breaks'
+          } else {
+            Write-Output 'Windows debugger unavailable; run the first JS runtime test in isolation.'
+            & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-suite=js Runtime' '--no-breaks'
+          }
+
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
       - name: Report the failure
