@@ -92,6 +92,8 @@ export class Driver {
   /** Called after each measured frame (for a run of several scenarios). */
   private onFrame: (() => void) | null = null;
   private pendingNext: (() => void) | null = null;
+  private lastFrame: FrameFunction | null = null;
+  private zeroWarmup = false;
 
   /** `current` is the scenario the app shows first. */
   constructor(public current: Scenario) {
@@ -117,6 +119,8 @@ export class Driver {
     this.meter = new Meter(this.sampleCapacity);
     this.simulationFrame = 0;
     this.started = performance.now();
+    if (this.onFrame && this.zeroWarmup)
+      globalThis.soundorRunUiPhase = this.current.id;
   };
 
   show(scenario: Scenario): void {
@@ -157,6 +161,7 @@ export class Driver {
       );
     if (this.onFrame) throw new Error('a benchmark run is already active');
     this.sampleCapacity = frames;
+    this.lastFrame = this.frame;
     const results: Result[] = [];
     let index = -1;
     let count = 0;
@@ -167,12 +172,17 @@ export class Driver {
         if (index >= scenarios.length) {
           this.onFrame = null;
           this.sampleCapacity = 600;
+          this.zeroWarmup = false;
+          this.frame = this.lastFrame;
+          this.lastFrame = null;
           resolve(results);
           return;
         }
         count = 0;
+        this.zeroWarmup = warmup === 0;
         this.show(scenarios[index]!);
-        if (warmup === 0) globalThis.soundorRunUiPhase = scenarios[index]!.id;
+        if (warmup === 0 && this.frame !== null)
+          globalThis.soundorRunUiPhase = scenarios[index]!.id;
       };
       this.onFrame = () => {
         count++;
@@ -186,6 +196,7 @@ export class Driver {
           // Mount the next stage on an unmeasured tick. Otherwise its setup
           // and Canvas/WebGL calls contaminate this scenario's last sample.
           globalThis.soundorRunUiPhase = undefined;
+          this.lastFrame = this.frame;
           this.frame = null;
           this.pendingNext = next;
         }
@@ -199,6 +210,7 @@ export class Driver {
     this.frame = null;
     this.onFrame = null;
     this.pendingNext = null;
+    this.lastFrame = null;
   }
 
   private run(): void {

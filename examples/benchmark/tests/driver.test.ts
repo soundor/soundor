@@ -40,6 +40,12 @@ test('warmup, phase labels and long runs count exactly the measured frames', asy
     assert.equal(times[0], 0);
     assert.ok(Math.abs(times.at(-1)! - (times.length - 1) / 60) < 1e-12);
     assert.equal(globalThis.soundorRunUiPhase, undefined);
+    callback!(warmup + 1001);
+    assert.equal(
+      times.length,
+      warmup + 1001,
+      'the last stage continues animating after measurement',
+    );
     driver.dispose();
   }
 });
@@ -52,6 +58,34 @@ test('empty selection completes and invalid frame counts fail immediately', asyn
   for (const frames of [0, -1, 1.5, NaN])
     assert.throws(() => driver.runAll([], frames), RangeError);
   assert.throws(() => driver.runAll([], 1, -1), RangeError);
+  driver.dispose();
+});
+
+test('zero warmup labels a newly mounted stage only after it registers', async () => {
+  let callback: ((time: number) => void) | undefined;
+  globalThis.requestAnimationFrame = (next) => {
+    callback = next;
+    return 1;
+  };
+  globalThis.cancelAnimationFrame = () => {};
+  const first = { id: 'first', group: 'animation' } as Scenario;
+  const second = { id: 'second', group: 'animation' } as Scenario;
+  const driver = new Driver(first);
+  driver.register(() => {});
+  driver.attach(
+    () => {},
+    () => {},
+  ); // Simulate an asynchronous mount.
+  const done = driver.runAll([second], 2, 0);
+  assert.equal(globalThis.soundorRunUiPhase, undefined);
+  callback!(0);
+  assert.equal(globalThis.soundorRunUiPhase, undefined);
+  driver.register(() => {});
+  assert.equal(globalThis.soundorRunUiPhase, 'second');
+  callback!(1);
+  callback!(2);
+  callback!(3);
+  assert.equal((await done)[0]!.frames, 2);
   driver.dispose();
 });
 
