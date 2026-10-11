@@ -71,22 +71,12 @@ if(SOUNDOR_HAS_GPU)
   FetchContent_MakeAvailable(SOUNDOR_THREE)
   # In the runtime's module form, as a plugin's bundle would have it: lowered
   # by @soundor/core's toNativeModule() (with Node, at build time).
-  find_program(SOUNDOR_NODE_EXE NAMES node REQUIRED)
   set(soundor_three_dir "${CMAKE_CURRENT_BINARY_DIR}/three")
-  set(soundor_three_files three.module.js three.core.js)
-  set(soundor_three_inputs "")
   set(soundor_three_outputs "")
-  foreach(file IN LISTS soundor_three_files)
-    list(APPEND soundor_three_inputs "${soundor_three_SOURCE_DIR}/build/${file}")
+  foreach(file three.module.js three.core.js)
+    soundor_lower_js_command("${soundor_three_SOURCE_DIR}/build/${file}" "${soundor_three_dir}/${file}" "${file}")
     list(APPEND soundor_three_outputs "${soundor_three_dir}/${file}")
   endforeach()
-  set(soundor_lowering "${PROJECT_SOURCE_DIR}/../scripts/native-module.mjs")
-  add_custom_command(
-    OUTPUT ${soundor_three_outputs}
-    COMMAND "${SOUNDOR_NODE_EXE}" "${soundor_lowering}" "${soundor_three_dir}" ${soundor_three_inputs}
-    DEPENDS ${soundor_three_inputs} "${soundor_lowering}" "${PROJECT_SOURCE_DIR}/../../../packages/core/src/native-module.ts"
-    COMMENT "Lowering Three.js for the tests"
-    VERBATIM)
   add_custom_target(soundor_three_modules DEPENDS ${soundor_three_outputs})
   add_dependencies(soundor_runtime_tests soundor_three_modules)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_dir}")

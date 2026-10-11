@@ -130,6 +130,8 @@ export async function juceDev(
     buildDir,
     ...generatorArgs(platform),
     `-DJUCE_DIR=${jucePath}`,
+    // The Node running the CLI lowers the runtime's own modules.
+    `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     // Always set, so a UI removed since the last configure is not kept cached.
     // A live UI (soundor dev) is loaded from disk and reloaded, not embedded.
     `-DSOUNDOR_UI_DIR=${live === undefined ? (ctx.ui?.dir ?? '') : ''}`,
@@ -196,6 +198,7 @@ export async function juceBuild(
     ...generatorArgs(platform),
     '-DCMAKE_BUILD_TYPE=Release',
     `-DJUCE_DIR=${jucePath}`,
+    `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
     ...signingArgs(platform, ctx.signing.macos),
   ];

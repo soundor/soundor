@@ -56,6 +56,35 @@ function(soundor_precompiles_js out)
   endif()
 endfunction()
 
+# Node, which lowers the runtime's modules (soundor_lower_js_command()). A
+# plugin build gets the one running the CLI.
+find_program(SOUNDOR_NODE_EXE NAMES node)
+
+# Lowers the ES module <input> to <output>, in the runtime's module form
+# (SoundorLowerJs.mjs, with @soundor/core's toNativeModule()). <name> is the
+# file name problems are reported under.
+function(soundor_lower_js_command input output name)
+  if(NOT SOUNDOR_NODE_EXE)
+    message(FATAL_ERROR "Soundor needs Node to build its runtime's JavaScript modules: put node on PATH, "
+                        "or set SOUNDOR_NODE_EXE")
+  endif()
+  set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorLowerJs.mjs")
+  set(depends "${input}" "${script}")
+  # In Soundor's repository, the lowering itself (what the script imports).
+  set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../../packages/core/src/native-module.ts")
+  if(EXISTS "${lowering}")
+    list(APPEND depends "${lowering}")
+  endif()
+  get_filename_component(directory "${output}" DIRECTORY)
+  add_custom_command(
+    OUTPUT "${output}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${directory}"
+    COMMAND "${SOUNDOR_NODE_EXE}" "${script}" "${input}" "${output}" "${name}"
+    DEPENDS ${depends}
+    COMMENT "Lowering ${input}"
+    VERBATIM)
+endfunction()
+
 # Compiles <input> to <output>, Hermes bytecode for the module <name>
 # (SoundorCompileJs.cmake).
 function(soundor_compile_js_command input output name)
@@ -74,13 +103,16 @@ endfunction()
 # module, defining
 #   const soundor::<abi>::embedded::ModuleCode soundor::<abi>::embedded::<symbol>
 # (src/modules/Embedded.h): its bytecode, compiled by hermesc under the module
-# name <name>, or its source where the build cannot compile it. <input> is in
-# the runtime's module form (src/generated/).
-function(soundor_embed_module target symbol input name)
+# name <name>, or its source where the build cannot compile it. <input> is an
+# ES module (src/), lowered to the runtime's module form first.
+function(soundor_embed_module target symbol source name)
   set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorEmbedModule.cmake")
-  get_filename_component(input "${input}" ABSOLUTE)
+  get_filename_component(source "${source}" ABSOLUTE)
   set(directory "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded")
   set(output "${directory}/${symbol}.cpp")
+  set(input "${directory}/${symbol}.js")
+  file(RELATIVE_PATH relative "${CMAKE_CURRENT_SOURCE_DIR}" "${source}")
+  soundor_lower_js_command("${source}" "${input}" "${relative}")
   soundor_precompiles_js(precompile)
   if(precompile)
     set(compiled "${directory}/${symbol}.hbc")

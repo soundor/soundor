@@ -32,8 +32,6 @@ native/
     js/                   the Hermes (JSI) wrapper, the module system and the
                           binding helpers generated code uses; the only place
                           Hermes's headers are included
-    generated/            the runtime's JavaScript modules in the native module
-                          form (scripts/native-modules.mjs makes them from src/)
     modules/              soundor:* modules (C++, plus embedded JavaScript)
     gpu/                  ANGLE: GPU devices and OpenGL ES contexts, the GPU
                           compositor, WebGL (webgl/); the only place its
@@ -188,10 +186,13 @@ without it gives `undefined` instead of throwing a TypeError. `let` and
 `const` become `var` without their temporal dead zone: a variable read before
 its declaration is `undefined`, where an engine running the ES module (the
 Web runtime) throws a ReferenceError. The CLI makes a plugin's bundle
-so (`bundle.js`); the runtime's own modules are generated into
-`src/generated/` by `scripts/native-modules.mjs` (`pnpm gen:native-modules`;
-a test checks they are up to date), each statement on the line it has in
-`src/`, so that their stack traces point at the module as written.
+so (`bundle.js`); the runtime's own modules (`src/**/*.js`) are lowered
+while building, into the build directory (`soundor_embed_module()`, with
+`cmake/SoundorLowerJs.mjs`), each statement on the line it has in `src/`, so
+that their stack traces point at the module as written. So a native build
+needs Node, with this repository's or a plugin project's dependencies
+installed: `SOUNDOR_NODE_EXE`, or the `node` on PATH (plugin builds pass the
+one running the CLI).
 
 Soundor resolves every `require`; the engine never touches the filesystem.
 

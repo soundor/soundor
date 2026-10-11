@@ -137,25 +137,24 @@ list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
 add_library(soundor::runtime ALIAS soundor_runtime)
-# Each with the name it is registered under, which its bytecode carries. The
-# modules run as scripts/native-modules.mjs generated them from src/ (see
-# src/generated/).
-soundor_embed_module(soundor_runtime languageModule src/generated/js/language.js soundor:internal/language)
+# Each with the name it is registered under, which its bytecode carries,
+# lowered from src/ while building (soundor_embed_module()).
+soundor_embed_module(soundor_runtime languageModule src/js/language.js soundor:internal/language)
 foreach(module fs host parameters storage)
-  soundor_embed_module(soundor_runtime ${module}Module src/generated/modules/${module}/${module}.js soundor:${module})
+  soundor_embed_module(soundor_runtime ${module}Module src/modules/${module}/${module}.js soundor:${module})
 endforeach()
-soundor_embed_module(soundor_runtime uiModule src/generated/modules/ui/ui.js soundor:ui)
+soundor_embed_module(soundor_runtime uiModule src/modules/ui/ui.js soundor:ui)
 foreach(module abort base64 blob clone console crypto encoding events fetch inspect timers url)
-  soundor_embed_module(soundor_runtime ${module}Module src/generated/web/js/${module}.js soundor:internal/web/${module})
+  soundor_embed_module(soundor_runtime ${module}Module src/web/js/${module}.js soundor:internal/web/${module})
 endforeach()
-soundor_embed_module(soundor_runtime webModule src/generated/web/js/web.js soundor:internal/web)
-soundor_embed_module(soundor_runtime formDataModule src/generated/web/js/form-data.js soundor:internal/web/form-data)
-soundor_embed_module(soundor_runtime domExceptionModule src/generated/web/js/dom-exception.js
+soundor_embed_module(soundor_runtime webModule src/web/js/web.js soundor:internal/web)
+soundor_embed_module(soundor_runtime formDataModule src/web/js/form-data.js soundor:internal/web/form-data)
+soundor_embed_module(soundor_runtime domExceptionModule src/web/js/dom-exception.js
                      soundor:internal/web/dom-exception)
-soundor_embed_module(soundor_runtime uiFramesModule src/generated/modules/ui/frames.js soundor:internal/ui/frames)
-soundor_embed_module(soundor_runtime uiCanvasModule src/generated/modules/ui/canvas.js soundor:internal/ui/canvas)
-soundor_embed_module(soundor_runtime uiWebGLModule src/generated/gpu/webgl/webgl.js soundor:internal/ui/webgl)
-soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/generated/gpu/webgl/generated/webgl-generated.js
+soundor_embed_module(soundor_runtime uiFramesModule src/modules/ui/frames.js soundor:internal/ui/frames)
+soundor_embed_module(soundor_runtime uiCanvasModule src/modules/ui/canvas.js soundor:internal/ui/canvas)
+soundor_embed_module(soundor_runtime uiWebGLModule src/gpu/webgl/webgl.js soundor:internal/ui/webgl)
+soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/generated/webgl-generated.js
                      soundor:internal/ui/webgl-generated)
 
 # Everything a runtime library is besides its sources: `namespace` is the

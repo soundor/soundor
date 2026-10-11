@@ -68,8 +68,9 @@ ctest --test-dir build/dev -R <name> # one native test after a dev build
 
 The first native configure builds Skia, ANGLE and Hermes from source
 (minutes) and caches them in the user cache dir (`SOUNDOR_CACHE` overrides);
-later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. The
-native tests need Node (they lower Three.js with `@soundor/core`'s source).
+later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
+builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
+tests' Three.js) are lowered with `@soundor/core`'s source while building.
 
 Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
 rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
@@ -97,9 +98,6 @@ Regenerating checked-in generated files:
 - `pnpm --filter @soundor/core build && pnpm --filter @soundor/core gen:runtime-types`
   — `packages/core/runtime/*.d.ts`, the `soundor:*` declarations `@soundor/react`
   compiles against.
-- `pnpm --filter @soundor/juce-runtime gen:native-modules` — the runtime's
-  JavaScript modules in Hermes's module form, `native/src/generated/`, after
-  any change to `native/src/**/*.js` (a juce-runtime test checks them).
 
 Turborepo here may be newer than what you know: before changing `turbo.json`,
 read the docs bundled with the installed package
@@ -179,10 +177,10 @@ generated framework or the runtime package, not in `init` templates.
   other C++ exception into one; engine errors come back as `Result<T>`.
 - JavaScript the runtime runs is in its module form (a CommonJS module
   function, lowered for Hermes by `@soundor/core`'s `toNativeModule()`): the
-  CLI's `bundle.js`, and the runtime's own modules, generated into
-  `native/src/generated/` from `native/src/**/*.js` (`pnpm --filter
-@soundor/juce-runtime gen:native-modules`). Production builds compile it
-  with `hermesc` and link the VM without its compiler.
+  CLI's `bundle.js`, and the runtime's own modules, lowered from
+  `native/src/**/*.js` while building (so native builds need Node and the
+  installed dependencies). Production builds compile it with `hermesc` and
+  link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
   everything is hidden-visibility, statically linked, and inside the inline
   namespace `soundor::SOUNDOR_ABI_NAMESPACE` (derived from `plugin.id`).
