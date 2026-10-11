@@ -1,9 +1,9 @@
 # cmake -DINPUT=<file> -DOUTPUT=<cpp> -DSYMBOL=<name> -P SoundorEmbedText.cmake
 #
-# Writes the file as adjacent raw string literals of at most ~4 KB each, cut at
-# line ends: MSVC limits a single literal's length. Past 60 KB, which is about
-# what compilers must accept after concatenation, the literals are joined at
-# load instead.
+# Writes the file as adjacent raw string literals of at most ~4 KB each, cut
+# after an ASCII character (a line end where there is one): MSVC limits a
+# single literal's length. Past 60 KB, which is about what compilers must
+# accept after concatenation, the literals are joined at load instead.
 
 file(READ "${INPUT}" content)
 string(FIND "${content}" ")SOUNDOR_EMBED\"" collision)
@@ -21,13 +21,21 @@ while(offset LESS length)
     set(size ${remaining})
   endif()
   string(SUBSTRING "${content}" ${offset} ${size} chunk)
-  # Cut after the last newline so a chunk never splits a UTF-8 sequence.
+  # Cut after an ASCII character, which is never inside a UTF-8 sequence:
+  # the last newline, or on a longer line the last space or semicolon.
   if(size EQUAL 4000)
-    string(FIND "${chunk}" "\n" newline REVERSE)
-    if(newline GREATER 0)
-      math(EXPR size "${newline} + 1")
-      string(SUBSTRING "${content}" ${offset} ${size} chunk)
+    set(cut -1)
+    foreach(separator "\n" " " ";")
+      string(FIND "${chunk}" "${separator}" cut REVERSE)
+      if(cut GREATER 0)
+        break()
+      endif()
+    endforeach()
+    if(NOT cut GREATER 0)
+      message(FATAL_ERROR "${INPUT}: 4000 bytes without a newline, space or semicolon at ${offset}")
     endif()
+    math(EXPR size "${cut} + 1")
+    string(SUBSTRING "${content}" ${offset} ${size} chunk)
   endif()
   string(APPEND chunks "    R\"SOUNDOR_EMBED(${chunk})SOUNDOR_EMBED\"\n")
   math(EXPR offset "${offset} + ${size}")
