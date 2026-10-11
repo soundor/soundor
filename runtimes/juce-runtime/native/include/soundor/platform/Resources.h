@@ -23,6 +23,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     public:
         virtual ~Resources() = default;
         [[nodiscard]] virtual std::optional<std::span<const std::uint8_t>> find(std::string_view path) const = 0;
+        // Whether these were compiled into the binary by its build, and so
+        // may hold bytecode the engine reads (see ResourceModuleLoader).
+        [[nodiscard]] virtual bool builtIn() const noexcept { return false; }
     };
 
     // Resources compiled into the binary (see soundor_embed_directory()).
@@ -38,6 +41,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         explicit EmbeddedResources(std::span<const EmbeddedFile> embedded) : files(embedded) {}
 
         [[nodiscard]] std::optional<std::span<const std::uint8_t>> find(std::string_view path) const override;
+        [[nodiscard]] bool builtIn() const noexcept override { return true; }
 
     private:
         std::span<const EmbeddedFile> files;
@@ -65,6 +69,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     // Serves JavaScript modules from Resources: module "/bundle.js" is the
     // resource "bundle.js". Relative imports resolve like MemoryModuleLoader;
     // bare specifiers are rejected (the bundle has already inlined packages).
+    // Resources built into the binary may hold a module's bytecode instead,
+    // as "bundle.js.qjsbc" (see soundor_embed_ui()); others are only read as
+    // source.
     class ResourceModuleLoader final : public js::ModuleLoader
     {
     public:
@@ -72,6 +79,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
 
         [[nodiscard]] js::Result<std::string> resolve(std::string_view specifier, std::string_view referrer) override;
         [[nodiscard]] js::Result<std::string> load(std::string_view name) override;
+        [[nodiscard]] std::optional<std::span<const std::uint8_t>> loadBytecode(std::string_view name) override;
 
     private:
         std::shared_ptr<const Resources> resources;

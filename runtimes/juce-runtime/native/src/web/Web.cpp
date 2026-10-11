@@ -18,7 +18,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         struct EmbeddedModule
         {
             const char* name;
-            const std::string_view* source;
+            const embedded::ModuleCode* code;
         };
 
         const EmbeddedModule embeddedModules[] = {
@@ -248,9 +248,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         js::bind::setContextData(context, &stateKey, std::make_shared<State>(std::move(services)));
         js::registerNativeModule(context, "soundor:internal/platform", { platformExports(), exportPlatform, {} });
         for (const auto& module : embeddedModules)
-            js::registerNativeModule(context, module.name, { {}, {}, *module.source });
+            js::registerNativeModule(context, module.name, { {}, {}, module.code->text(), module.code->bytecode });
         for (const auto& module : publicModules())
-            js::registerNativeModule(context, module.name, { {}, {}, *module.source });
+            js::registerNativeModule(context, module.name, { {}, {}, module.code->text(), module.code->bytecode });
 
         auto bootstrap = context.evaluateModule("import 'soundor:internal/web';", "soundor:bootstrap");
         if (! bootstrap)

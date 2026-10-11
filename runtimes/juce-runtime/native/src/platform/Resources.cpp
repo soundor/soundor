@@ -79,4 +79,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
             return js::Error { "TypeError", "Cannot find module '" + std::string(name) + "'", {} };
         return std::string(bytes->begin(), bytes->end());
     }
+
+    std::optional<std::span<const std::uint8_t>> ResourceModuleLoader::loadBytecode(std::string_view name)
+    {
+        // Only what the build compiled into the binary: a file on disk could
+        // be anyone's.
+        if (! resources->builtIn())
+            return std::nullopt;
+        return resources->find(std::string(name) + ".qjsbc");
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform

@@ -176,9 +176,10 @@ target_sources(\${PROJECT_NAME}
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
-# into the plugin so it needs no files at runtime.
+# into the plugin so it needs no files at runtime: its JavaScript as QuickJS
+# bytecode, where the build can compile it.
 if(SOUNDOR_UI_DIR)
-  soundor_embed_directory(soundor_generated pluginUi "\${SOUNDOR_UI_DIR}")
+  soundor_embed_ui(soundor_generated pluginUi "\${SOUNDOR_UI_DIR}")
   target_compile_definitions(\${PROJECT_NAME} PRIVATE SOUNDOR_HAS_UI=1)
 endif()
 

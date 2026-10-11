@@ -3,6 +3,7 @@
 // Private to soundor_runtime: the native functions behind the Web platform
 // layer, all exported by the internal module `soundor:internal/platform`.
 
+#include "modules/Embedded.h"
 #include "web/WebState.h"
 
 #include <span>
@@ -36,7 +37,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     struct PublicModule
     {
         const char* name;
-        const std::string_view* source;
+        const embedded::ModuleCode* code;
     };
     [[nodiscard]] std::span<const PublicModule> publicModules();
 

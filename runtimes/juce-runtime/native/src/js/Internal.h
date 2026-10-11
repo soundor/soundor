@@ -11,7 +11,9 @@
 #include <quickjs.h>
 
 #include <cassert>
+#include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -106,6 +108,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
     {
         return static_cast<ContextState*>(JS_GetContextOpaque(ctx));
     }
+
+    // A module compiled ahead of time by soundor_compile_js (Bytecode.h), from
+    // the build itself: its module value, or JS_EXCEPTION after throwing
+    // (bytecode for another QuickJS is refused). Runtime.cpp.
+    JSValue readModule(JSContext* ctx, std::span<const std::uint8_t> compiled, const char* name);
 
     // ── Value conversion (ValueConversion.cpp) ──────────────────────────────
 

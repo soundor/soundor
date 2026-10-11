@@ -1041,12 +1041,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             for (const Function& function : list)
                 exports.emplace_back(function.name);
         js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });
-        js::registerNativeModule(context, "soundor:internal/ui/frames", { {}, {}, embedded::uiFramesModule });
-        js::registerNativeModule(context, "soundor:internal/ui/canvas", { {}, {}, embedded::uiCanvasModule });
-        js::registerNativeModule(context, "soundor:internal/ui/webgl-generated",
-                                 { {}, {}, embedded::uiWebGLGeneratedModule });
-        js::registerNativeModule(context, "soundor:internal/ui/webgl", { {}, {}, embedded::uiWebGLModule });
-        js::registerNativeModule(context, "soundor:ui", { {}, {}, embedded::uiModule });
+        js::registerNativeModule(context, "soundor:internal/ui/frames",
+                                 { {}, {}, embedded::uiFramesModule.text(), embedded::uiFramesModule.bytecode });
+        js::registerNativeModule(context, "soundor:internal/ui/canvas",
+                                 { {}, {}, embedded::uiCanvasModule.text(), embedded::uiCanvasModule.bytecode });
+        js::registerNativeModule(
+            context, "soundor:internal/ui/webgl-generated",
+            { {}, {}, embedded::uiWebGLGeneratedModule.text(), embedded::uiWebGLGeneratedModule.bytecode });
+        js::registerNativeModule(context, "soundor:internal/ui/webgl",
+                                 { {}, {}, embedded::uiWebGLModule.text(), embedded::uiWebGLModule.bytecode });
+        js::registerNativeModule(context, "soundor:ui",
+                                 { {}, {}, embedded::uiModule.text(), embedded::uiModule.bytecode });
 
         // requestAnimationFrame(), devicePixelRatio and the canvas and WebGL
         // classes are global, like on the Web.

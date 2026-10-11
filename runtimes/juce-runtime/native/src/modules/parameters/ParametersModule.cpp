@@ -221,7 +221,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             { { "infos", "get", "set", "beginGesture", "endGesture", "setListener", "reportError" },
               initializeInternalModule,
               {} });
-        js::registerNativeModule(context, "soundor:parameters", { {}, {}, embedded::parametersModule });
+        js::registerNativeModule(context, "soundor:parameters",
+                                 { {}, {}, embedded::parametersModule.text(), embedded::parametersModule.bytecode });
     }
 
     std::size_t dispatchChanges(js::Context& context)
