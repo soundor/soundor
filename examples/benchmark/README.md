@@ -186,6 +186,9 @@ No extra hot-path animation instrumentation is enabled in normal plugins.
 Transforms are absent from the current public style contract. Their JS baseline
 cannot yet be measured; PR 1 must add a comparable fixed-step workload when it
 introduces transforms. No transform feature is added by these benchmarks.
-CI runs deterministic driver tests without an FPS threshold. GPU measurements
+Startup uses the existing static UI rather than a discarded Three.js scene,
+so its later GPU resource collection cannot contaminate animation-only runs.
+Stage changes happen on unmeasured ticks. CI runs deterministic driver tests
+and a native bytecode smoke run without an FPS threshold. GPU measurements
 require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
 and select software rendering even when the host has a virtual GPU.

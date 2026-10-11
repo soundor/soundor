@@ -602,7 +602,10 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
       `soundor_run_ui failed (${result.status ?? result.signal})`,
     );
   }
-  return JSON.parse(readFileSync(file, 'utf8')) as RunReport;
+  const report = JSON.parse(readFileSync(file, 'utf8')) as RunReport;
+  if (report.outcome !== 'ok')
+    throw new Error(`benchmark outcome: ${report.outcome}`);
+  return report;
 }
 
 // --- main ---
@@ -712,6 +715,16 @@ try {
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
+}
+
+for (const run of [...reports, ...againstReports]) {
+  const device = reports[0]!.device;
+  if (
+    run.device.backend !== device.backend ||
+    run.device.renderer !== device.renderer ||
+    run.device.software !== device.software
+  )
+    throw new Error('refusing comparison across different graphics devices');
 }
 
 const report: Report = {
