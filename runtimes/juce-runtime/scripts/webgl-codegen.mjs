@@ -379,13 +379,13 @@ function cppCase(operation, op) {
     const object = OBJECTS[operation.result.object];
     if (object.single)
       lines.push(
-        `            return JS_NewUint32(ctx, ${object.create.replace('a.', 'args.')});`,
+        `            return { double(${object.create.replace('a.', 'args.')}) };`,
       );
     else {
       lines.push('            GLuint name = 0;');
       lines.push(`            ${object.gen}(1, &name);`);
       if (object.owned) lines.push('            context.ownTexture(name);');
-      lines.push('            return JS_NewUint32(ctx, name);');
+      lines.push('            return { double(name) };');
     }
   } else if (operation.deletes) {
     const object = OBJECTS[operation.parameters[0].object];
@@ -395,10 +395,10 @@ function cppCase(operation, op) {
       lines.push(`            ${object.del}(1, &name);`);
       if (object.owned) lines.push('            context.disownTexture(name);');
     }
-    lines.push('            return JS_UNDEFINED;');
+    lines.push('            return jsi::Value::undefined();');
   } else if (operation.is) {
     lines.push(
-      `            return JS_NewBool(ctx, ${OBJECTS[operation.parameters[0].object].is}(args.u32(0)) == GL_TRUE);`,
+      `            return { ${OBJECTS[operation.parameters[0].object].is}(args.u32(0)) == GL_TRUE };`,
     );
   } else {
     const args = operation.parameters
@@ -418,14 +418,14 @@ function cppCase(operation, op) {
     if (operation.result.kind === 'void') {
       lines.push(`            ${call};`);
       if (DRAWS.has(operation.name)) lines.push('            context.drew();');
-      lines.push('            return JS_UNDEFINED;');
+      lines.push('            return jsi::Value::undefined();');
     } else if (operation.result.cpp === 'boolean')
-      lines.push(`            return JS_NewBool(ctx, ${call} == GL_TRUE);`);
+      lines.push(`            return { ${call} == GL_TRUE };`);
     else if (operation.result.cpp === 'u32')
-      lines.push(`            return JS_NewUint32(ctx, ${call});`);
+      lines.push(`            return { double(${call}) };`);
     else if (operation.result.cpp === 'f32')
-      lines.push(`            return JS_NewFloat64(ctx, ${call});`);
-    else lines.push(`            return JS_NewInt64(ctx, ${call});`);
+      lines.push(`            return { double(${call}) };`);
+    else lines.push(`            return { double(${call}) };`);
   }
   lines.push('        }');
   return lines.join('\n');
@@ -469,7 +469,7 @@ export function generate(sources) {
     '',
     '// finish() and flush() are the same call.',
     '// NOLINTBEGIN(bugprone-branch-clone)',
-    'JSValue callGenerated(JSContext* ctx, WebGLContext& context, int op, const Args& args)',
+    'jsi::Value callGenerated(WebGLContext& context, int op, const Args& args)',
     '{',
     '    switch (op)',
     '    {',

@@ -1,9 +1,15 @@
-# cmake -DDIRECTORY=<dir> -DOUTPUT=<cpp> -DFUNCTION=<name> [-DCOMPILED=<dir>] -P SoundorEmbedDirectory.cmake
+# cmake -DDIRECTORY=<dir> -DOUTPUT=<cpp> -DFUNCTION=<name> [-DCOMPILED=<dir>] [-DUI=ON]
+#       -P SoundorEmbedDirectory.cmake
 #
 # With COMPILED (soundor_embed_ui()), a file that has a compiled counterpart
-# there, <COMPILED>/<file>.qjsbc, is embedded as that instead of itself.
+# there, <COMPILED>/<file>.hbc, is embedded as that instead of itself. With UI
+# (soundor_embed_ui()), the bundle's ES module form for the Web (*.mjs) and
+# source maps are left out.
 
 file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE "${DIRECTORY}" "${DIRECTORY}/*")
+if(UI)
+  list(FILTER files EXCLUDE REGEX "\\.(mjs|map)$")
+endif()
 list(SORT files)
 
 set(arrays "")
@@ -11,9 +17,9 @@ set(entries "")
 set(index 0)
 foreach(file IN LISTS files)
   set(path "${DIRECTORY}/${file}")
-  if(DEFINED COMPILED AND NOT COMPILED STREQUAL "" AND EXISTS "${COMPILED}/${file}.qjsbc")
-    set(path "${COMPILED}/${file}.qjsbc")
-    set(file "${file}.qjsbc")
+  if(DEFINED COMPILED AND NOT COMPILED STREQUAL "" AND EXISTS "${COMPILED}/${file}.hbc")
+    set(path "${COMPILED}/${file}.hbc")
+    set(file "${file}.hbc")
   endif()
   file(READ "${path}" hex HEX)
   string(LENGTH "${hex}" length)

@@ -1,8 +1,10 @@
 #pragma once
 
 // The JavaScript of the runtime-provided modules, embedded at build time (see
-// soundor_embed_module() in cmake/SoundorEmbed.cmake): each module's bytecode
-// when the build could compile it (soundor_compile_js), else its source.
+// soundor_embed_module() in cmake/SoundorEmbed.cmake): each module's Hermes
+// bytecode when the build could compile it (hermesc), else its source, in
+// the runtime's module form (src/generated/, made from the modules here by
+// scripts/native-modules.mjs).
 
 #include <soundor/Config.h>
 
@@ -25,6 +27,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
         }
     };
 
+    extern const ModuleCode languageModule;         // js/language.js
     extern const ModuleCode parametersModule;       // modules/parameters/parameters.js
     extern const ModuleCode fsModule;               // modules/fs/fs.js
     extern const ModuleCode hostModule;             // modules/host/host.js
@@ -37,10 +40,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 
     // web/js/*.js
     extern const ModuleCode abortModule;
+    extern const ModuleCode base64Module;
     extern const ModuleCode blobModule;
     extern const ModuleCode cloneModule;
     extern const ModuleCode consoleModule;
     extern const ModuleCode cryptoModule;
+    extern const ModuleCode domExceptionModule;
     extern const ModuleCode encodingModule;
     extern const ModuleCode eventsModule;
     extern const ModuleCode fetchModule;

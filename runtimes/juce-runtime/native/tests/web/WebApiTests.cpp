@@ -275,7 +275,8 @@ TEST_SUITE("structuredClone")
     TEST_CASE("class instances become plain objects")
     {
         WebFixture f;
-        CHECK(f.run("class Point { constructor() { this.x = 1; } get twice() { return 2; } }"
+        CHECK(f.run("function Point() { this.x = 1; }"
+                    "Object.defineProperty(Point.prototype, 'twice', { get() { return 2; } });"
                     "const copy = structuredClone(new Point());"
                     "globalThis.result = [Object.getPrototypeOf(copy) === Object.prototype, copy.x,"
                     "  copy.twice].join();")

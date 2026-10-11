@@ -131,6 +131,7 @@ describe('juceDev', () => {
 
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
+    expect(configure).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
     // No UI: the cached UI directory is cleared explicitly.
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');
     expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=');
@@ -152,6 +153,7 @@ describe('juceDev', () => {
       ui: {
         dir: join(root, 'ui'),
         entry: 'bundle.js',
+        module: 'bundle.mjs',
         live: { logFile: join(root, 'ui.log') },
       },
     };
@@ -241,6 +243,7 @@ describe('juceBuild', () => {
     await juceBuild(config, ctx, { run, probe: okProbe });
 
     expect(calls[0]).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
+    expect(calls[0]).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
     const copied = join(
       ctx.paths.dist,
       'Plugin_artefacts',

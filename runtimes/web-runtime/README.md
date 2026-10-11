@@ -20,7 +20,7 @@ same: the same `src/main.tsx`, the same `@soundor/react` components, the same
 ```
 
 This is not the JUCE plugin compiled for the Web. Nothing native runs in the
-browser: no WebAssembly, QuickJS, Yoga or Skia. The browser's own engine runs
+browser: no WebAssembly, Hermes, Yoga or Skia. The browser's own engine runs
 the plugin UI, and your own TypeScript provides the native API and the audio.
 
 ## Usage
@@ -97,7 +97,7 @@ Vite is the Web host's dev server and build system. It is not a second UI
 bundler.
 
 ```text
-src/main.tsx ──(soundor CLI bundler)──▶ bundle.js ──(Vite)──▶ browser
+src/main.tsx ──(soundor CLI bundler)──▶ bundle.mjs ──(Vite)──▶ browser
 ```
 
 The Soundor CLI bundles the plugin UI as it does for every runtime (`bundle.js`

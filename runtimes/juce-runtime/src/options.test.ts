@@ -15,7 +15,23 @@ describe('resolveJuceOptions', () => {
       companyName: 'acme',
       pluginCode: fourCharCode(undefined, 'com.acme.reverb'),
       manufacturerCode: fourCharCode(undefined, 'com.acme'),
+      timeLimit: 5000,
     });
+  });
+
+  it('takes a time limit in milliseconds, or none', () => {
+    expect(resolveJuceOptions({ timeLimit: 60_000 }, plugin).timeLimit).toBe(
+      60_000,
+    );
+    expect(resolveJuceOptions({ timeLimit: false }, plugin).timeLimit).toBe(0);
+  });
+
+  it('rejects a time limit that is not a whole number of milliseconds', () => {
+    for (const timeLimit of [0, -1, 1.5, Number.NaN, Infinity, 2 ** 32]) {
+      expect(() => resolveJuceOptions({ timeLimit }, plugin)).toThrow(
+        /juceRuntime\(\{ timeLimit \}\) must be a whole number of milliseconds/,
+      );
+    }
   });
 
   it('keeps explicit JUCE options', () => {

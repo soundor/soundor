@@ -21,7 +21,7 @@ TEST_SUITE("resources")
     {
         const platform::EmbeddedResources resources(embedded::fixtureUi());
         if (const auto bundle = resources.find("bundle.js"))
-            CHECK(std::string(bundle->begin(), bundle->end()).find("import { describe }") != std::string::npos);
+            CHECK(std::string(bundle->begin(), bundle->end()).find("require('./lib.js')") != std::string::npos);
         else
             FAIL("bundle.js is not embedded");
         if (const auto png = resources.find("/assets/0123456789abcdef.png"))

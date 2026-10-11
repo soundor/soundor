@@ -104,7 +104,11 @@ export async function runBuild(
         logger: logger.child(runtimeEntry.id),
         codegen: createCodegenSink(),
         mode: 'production',
-        ui: bundle && { dir: bundle.dir, entry: bundle.entry },
+        ui: bundle && {
+          dir: bundle.dir,
+          entry: bundle.entry,
+          module: bundle.module,
+        },
       });
       results.push({ runtime: runtimeEntry.id, status: 'built' });
     } catch (error) {

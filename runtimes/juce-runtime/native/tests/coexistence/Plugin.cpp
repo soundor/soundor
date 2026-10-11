@@ -31,13 +31,16 @@ namespace
         Instance()
         {
             host.surface().setSize({ size, size });
-            const std::string ui = std::string("const COLOR = '") + SOUNDOR_COEXIST_COLOR + "';\n" + R"(
-                import { root, createView } from 'soundor:ui';
+            // In the runtime's module form (no test helper here: a plugin
+            // binary must not pick up std::regex's exported statics).
+            const std::string ui =
+                std::string("(function (exports, require) { const COLOR = '") + SOUNDOR_COEXIST_COLOR + "';\n" + R"(
+                const { root, createView } = require('soundor:ui');
                 globalThis.count = 0;
                 const box = createView({ width: 64, height: 64, backgroundColor: COLOR });
                 box.addEventListener('click', () => { globalThis.count += 1; });
                 root.appendChild(box);
-            )";
+            }))";
             ok = host.context().evaluateModule(ui, "/coexist.js").ok();
         }
 

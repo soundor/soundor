@@ -1,4 +1,5 @@
-#include "js/Internal.h"
+#include "../support/Modules.h"
+#include "js/Bindings.h"
 
 #include <soundor/js/Context.h>
 #include <soundor/js/ModuleLoader.h>
@@ -10,15 +11,18 @@
 #include <string>
 
 using namespace soundor::js;
+namespace bind = soundor::js::bind;
+namespace jsi = facebook::jsi;
 
 namespace
 {
     std::shared_ptr<MemoryModuleLoader> makeLoader()
     {
         auto loader = std::make_shared<MemoryModuleLoader>();
-        loader->add("/app/math.js", "export const add = (a, b) => a + b;");
-        loader->add("/app/lib/greet.js", "import { add } from '../math.js';\n"
-                                         "export const greet = (n) => `hello ${n} (${add(1, 1)})`;");
+        loader->add("/app/math.js", soundor::test::module("export const add = (a, b) => a + b;"));
+        loader->add("/app/lib/greet.js",
+                    soundor::test::module("import { add } from '../math.js';\n"
+                                          "export const greet = (n) => `hello ${n} (${add(1, 1)})`;"));
         return loader;
     }
 
@@ -26,19 +30,20 @@ namespace
     detail::NativeModule answerModule()
     {
         return {
-            { "answer", "double" },
-            [](JSContext* ctx, JSModuleDef* module)
+            [](detail::ContextState& context, jsi::Object& exports)
             {
-                auto doubleIt = [](JSContext* c, JSValueConst, int argc, JSValueConst* argv) -> JSValue
+                const auto doubleIt = [](detail::ContextState& c, const jsi::Value&, const jsi::Value* args,
+                                         std::size_t count) -> jsi::Value
                 {
-                    double value = 0;
-                    if (argc < 1 || JS_ToFloat64(c, &value, argv[0]) < 0)
-                        return JS_ThrowTypeError(c, "double() expects a number");
-                    return JS_NewFloat64(c, value * 2);
+                    if (count < 1 || ! args[0].isNumber())
+                        bind::throwTypeError(c, "double() expects a number");
+                    return { args[0].getNumber() * 2 };
                 };
-                return JS_SetModuleExport(ctx, module, "answer", JS_NewInt32(ctx, 42)) == 0
-                       && JS_SetModuleExport(ctx, module, "double", JS_NewCFunction(ctx, doubleIt, "double", 1)) == 0;
+                bind::setProperty(context, exports, "answer", jsi::Value(42));
+                bind::setProperty(context, exports, "double", bind::function(context, "double", 1, doubleIt));
             },
+            {},
+            {},
         };
     }
 } // namespace
@@ -60,8 +65,8 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = makeLoader() });
-        auto result = context.evaluateModule("import { greet } from './lib/greet.js';\n"
-                                             "globalThis.out = greet('soundor');",
+        auto result = context.evaluateModule(soundor::test::module("import { greet } from './lib/greet.js';\n"
+                                                                   "globalThis.out = greet('soundor');"),
                                              "/app/main.js");
         REQUIRE_MESSAGE(result.ok(), (result.ok() ? "" : result.error().toString()));
         CHECK(context.evaluateScript("out").value().asString() == "hello soundor (2)");
@@ -70,8 +75,10 @@ TEST_SUITE("Modules")
     TEST_CASE("importModule loads an entry by name and evaluates each module once")
     {
         auto loader = makeLoader();
-        loader->add("/app/counter.js", "globalThis.loads = (globalThis.loads ?? 0) + 1; export const n = 1;");
-        loader->add("/app/entry.js", "import './counter.js'; import { n } from '/app/counter.js';");
+        loader->add("/app/counter.js",
+                    soundor::test::module("globalThis.loads = (globalThis.loads ?? 0) + 1; export const n = 1;"));
+        loader->add("/app/entry.js",
+                    soundor::test::module("import './counter.js'; import { n } from '/app/counter.js';"));
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = loader });
         REQUIRE(context.importModule("/app/entry.js").ok());
@@ -82,18 +89,20 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime);
-        REQUIRE(context.evaluateModule("globalThis.url = import.meta.url;", "/app/main.js").ok());
+        REQUIRE(
+            context.evaluateModule(soundor::test::module("globalThis.url = import.meta.url;"), "/app/main.js").ok());
         CHECK(context.evaluateScript("url").value().asString() == "/app/main.js");
     }
 
-    TEST_CASE("rejects bare specifiers and QuickJS host modules")
+    TEST_CASE("rejects bare specifiers and engine host modules")
     {
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = makeLoader() });
         for (const char* specifier : { "react", "std", "os", "qjs:std", "qjs:os", "node:fs" })
         {
             CAPTURE(specifier);
-            auto result = context.evaluateModule(std::string("import '") + specifier + "';", "/app/main.js");
+            auto result = context.evaluateModule(soundor::test::module(std::string("import '") + specifier + "';"),
+                                                 "/app/main.js");
             REQUIRE_FALSE(result.ok());
             CHECK(result.error().message.find(specifier) != std::string::npos);
         }
@@ -103,7 +112,7 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime);
-        auto result = context.evaluateModule("import './x.js';", "/app/main.js");
+        auto result = context.evaluateModule(soundor::test::module("import './x.js';"), "/app/main.js");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().message.find("no module loader") != std::string::npos);
         CHECK_FALSE(context.importModule("/app/main.js").ok());
@@ -113,7 +122,7 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = makeLoader() });
-        auto result = context.evaluateModule("import './missing.js';", "/app/main.js");
+        auto result = context.evaluateModule(soundor::test::module("import './missing.js';"), "/app/main.js");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().message == "Cannot find module '/app/missing.js'");
     }
@@ -123,13 +132,14 @@ TEST_SUITE("Modules")
         Runtime runtime;
         Context context(runtime);
         registerNativeModule(context, "soundor:test", answerModule());
-        auto result = context.evaluateModule("import { answer, double } from 'soundor:test';\n"
-                                             "globalThis.out = double(answer);",
+        auto result = context.evaluateModule(soundor::test::module("import { answer, double } from 'soundor:test';\n"
+                                                                   "globalThis.out = double(answer);"),
                                              "/app/main.js");
         REQUIRE_MESSAGE(result.ok(), (result.ok() ? "" : result.error().toString()));
         CHECK(context.evaluateScript("out").value().asNumber() == 84);
 
-        auto misuse = context.evaluateModule("import { double } from 'soundor:test'; double();", "/app/b.js");
+        auto misuse = context.evaluateModule(soundor::test::module("import { double } from 'soundor:test'; double();"),
+                                             "/app/b.js");
         REQUIRE_FALSE(misuse.ok());
         CHECK(misuse.error().toString() == "TypeError: double() expects a number");
     }
@@ -138,7 +148,7 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = makeLoader() });
-        auto result = context.evaluateModule("import 'soundor:missing';", "/app/main.js");
+        auto result = context.evaluateModule(soundor::test::module("import 'soundor:missing';"), "/app/main.js");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().message == "Unknown Soundor module 'soundor:missing'");
     }
@@ -148,15 +158,16 @@ TEST_SUITE("Modules")
         Runtime runtime;
         Context context(runtime);
 
-        auto thrown = context.evaluateModule("throw new Error('at load');", "/app/a.js");
+        auto thrown = context.evaluateModule(soundor::test::module("throw new Error('at load');"), "/app/a.js");
         REQUIRE_FALSE(thrown.ok());
         CHECK(thrown.error().toString() == "Error: at load");
 
-        auto awaited = context.evaluateModule("await Promise.reject(new Error('async'));", "/app/b.js");
+        auto awaited =
+            context.evaluateModule(soundor::test::module("await Promise.reject(new Error('async'));"), "/app/b.js");
         REQUIRE_FALSE(awaited.ok());
         CHECK(awaited.error().toString() == "Error: async");
 
-        auto syntax = context.evaluateModule("export default {", "/app/c.js");
+        auto syntax = context.evaluateModule(soundor::test::module("export default {"), "/app/c.js");
         REQUIRE_FALSE(syntax.ok());
         CHECK(syntax.error().name == "SyntaxError");
     }
@@ -165,7 +176,9 @@ TEST_SUITE("Modules")
     {
         Runtime runtime;
         Context context(runtime);
-        REQUIRE(context.evaluateModule("globalThis.v = await Promise.resolve(7);", "/app/main.js").ok());
+        REQUIRE(
+            context.evaluateModule(soundor::test::module("globalThis.v = await Promise.resolve(7);"), "/app/main.js")
+                .ok());
         CHECK(context.evaluateScript("v").value().asNumber() == 7);
     }
 
@@ -181,7 +194,7 @@ TEST_SUITE("Modules")
         };
         Runtime runtime;
         Context context(runtime, ContextOptions { .moduleLoader = std::make_shared<ThrowingLoader>() });
-        auto result = context.evaluateModule("import './x.js';", "/app/main.js");
+        auto result = context.evaluateModule(soundor::test::module("import './x.js';"), "/app/main.js");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().name == "InternalError");
     }

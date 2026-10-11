@@ -6,6 +6,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { RuntimeError } from '@soundor/core';
 import type { SoundorConfig } from '@soundor/runtime-sdk';
 
 /** Plugin binary formats JUCE can emit. */
@@ -33,6 +34,17 @@ export interface JuceOptions {
    * plugin of that vendor.
    */
   readonly manufacturerCode?: string;
+  /**
+   * How long, in milliseconds, one call into the UI's JavaScript may run (a
+   * frame, an event, startup) before the runtime stops it. JavaScript runs on
+   * the host's UI thread, so a script that never returns would freeze the
+   * host's whole UI; stopped, it throws a `TimeoutError` JavaScript cannot
+   * catch, the error is logged, and the UI stays as it was until the editor
+   * is opened again (or `soundor dev` reloads it). `false`: no limit.
+   * Defaults to 5000, about when an operating system shows a window as not
+   * responding.
+   */
+  readonly timeLimit?: number | false;
 }
 
 /** Everything the JUCE runtime needs, with defaults applied. */
@@ -46,9 +58,14 @@ export interface ResolvedJuceOptions {
   readonly companyName: string;
   readonly pluginCode: string;
   readonly manufacturerCode: string;
+  /** Milliseconds; 0: no limit. */
+  readonly timeLimit: number;
 }
 
 const DEFAULT_FORMATS: readonly JuceFormat[] = ['vst3'];
+const DEFAULT_TIME_LIMIT_MS = 5000;
+// What the engine's deadline holds (a 32-bit count of milliseconds).
+const MAX_TIME_LIMIT_MS = 2 ** 32 - 1;
 
 /** Applies defaults to a raw {@link JuceOptions} bag for the given plugin. */
 export function resolveJuceOptions(
@@ -68,7 +85,24 @@ export function resolveJuceOptions(
     companyName: options.companyName ?? vendor.name,
     pluginCode: fourCharCode(options.pluginCode, plugin.id),
     manufacturerCode: fourCharCode(options.manufacturerCode, vendor.id),
+    timeLimit: timeLimitOf(options.timeLimit),
   };
+}
+
+function timeLimitOf(value: number | false | undefined): number {
+  if (value === undefined) return DEFAULT_TIME_LIMIT_MS;
+  if (value === false) return 0;
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value <= 0 ||
+    value > MAX_TIME_LIMIT_MS
+  )
+    throw new RuntimeError(
+      `juceRuntime({ timeLimit }) must be a whole number of milliseconds from 1 to ${MAX_TIME_LIMIT_MS}, or false for no limit; got ${String(value)}.`,
+      { runtimeId: 'juce' },
+    );
+  return value;
 }
 
 /** `com.acme.reverb` → vendor id `com.acme`, name `acme`. */

@@ -1,6 +1,6 @@
 # soundor-benchmark
 
-Rendering scenarios for Soundor, the same code in the JUCE runtime (QuickJS,
+Rendering scenarios for Soundor, the same code in the JUCE runtime (Hermes,
 Skia, WebGL 2 on ANGLE, the GPU compositor) and in the browser: WebGL through
 Three.js (the expensive way and the GPU way) and raw calls, Canvas 2D, UI
 updates through React and `soundor:ui`, and a plugin-like mix. `pnpm bench`
@@ -110,9 +110,13 @@ bottleneck. With Mesa's Venus (Vulkan in a virtio-gpu VM) on an NVIDIA host,
 uploading a 640×360 canvas took about 38 ms (0.2 ms through virgl's OpenGL
 and on lavapipe), which hides everything else: use `--backend opengl` there.
 
-The bundle runs as a built plugin runs it: compiled to QuickJS bytecode by the
-same build's `soundor_compile_js`. `--source` runs its JavaScript source
-instead, as `soundor dev` does. Each run also reports startup: how long the
+The bundle runs as a built plugin runs it: compiled to Hermes bytecode by the
+same build's `hermesc` (`build/bench/soundor-compile-js.cmake`). `--source`
+runs its JavaScript source instead, as `soundor dev` does. A build saved
+before Hermes (QuickJS bytecode, `bundle.js.qjsbc`) runs as it was saved, so
+`--against` compares the engines too. The engine's work counts differ between
+them: Hermes reports garbage collections (GCs) and the bytes its heap
+allocated, QuickJS reported C allocator calls and their bytes. Each run also reports startup: how long the
 runtime took to start and run the bundle, and the engine's heap after it.
 
 Under the hood, `soundor_run_ui` runs a bundle on the GPU like the editor

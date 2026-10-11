@@ -5,6 +5,17 @@ packages:
   - examples/*
 
 catalog:
+  '@babel/core': ^8.0.7
+  '@babel/plugin-transform-async-generator-functions': ^8.0.6
+  '@babel/plugin-transform-async-to-generator': ^8.0.1
+  '@babel/plugin-transform-block-scoping': ^8.0.7
+  '@babel/plugin-transform-class-properties': ^8.0.1
+  '@babel/plugin-transform-class-static-block': ^8.0.5
+  '@babel/plugin-transform-classes': ^8.0.5
+  '@babel/plugin-transform-dynamic-import': ^8.0.1
+  '@babel/plugin-transform-modules-commonjs': ^8.0.1
+  '@babel/plugin-transform-private-methods': ^8.0.1
+  '@babel/plugin-transform-private-property-in-object': ^8.0.5
   '@changesets/changelog-github': ^1.0.1
   '@changesets/cli': ^3.0.3
   '@clack/prompts': ^1.8.1

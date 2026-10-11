@@ -14,9 +14,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 {
     namespace
     {
+        namespace bind = js::bind;
+        using bind::ContextState;
+
         // [href, origin, protocol, username, password, host, hostname, port,
         //  pathname, search, hash]
-        JSValue components(JSContext* ctx, const ada::url_aggregator& url)
+        jsi::Value components(ContextState& context, const ada::url_aggregator& url)
         {
             const std::array<std::string, 11> parts {
                 std::string(url.get_href()),     url.get_origin(),
@@ -26,67 +29,49 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                 std::string(url.get_pathname()), std::string(url.get_search()),
                 std::string(url.get_hash()),
             };
-            JSValue array = JS_NewArray(ctx);
+            jsi::Array array(context.rt, parts.size());
             for (std::size_t i = 0; i < parts.size(); ++i)
-                JS_SetPropertyUint32(ctx, array, static_cast<std::uint32_t>(i),
-                                     JS_NewStringLen(ctx, parts[i].data(), parts[i].size()));
+                array.setValueAtIndex(context.rt, i, bind::write(context, parts[i]));
             return array;
         }
 
-        std::string text(JSContext* ctx, JSValueConst value)
-        {
-            std::size_t length = 0;
-            const char* chars = JS_ToCStringLen(ctx, &length, value);
-            if (chars == nullptr)
-                return {};
-            std::string result(chars, length);
-            JS_FreeCString(ctx, chars);
-            return result;
-        }
-
         // urlParse(input, base?) → components, or null when invalid.
-        JSValue urlParse(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value urlParse(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 1)
-                return JS_ThrowTypeError(ctx, "urlParse() expects an input");
-            const std::string input = text(ctx, argv[0]);
-            if (JS_HasException(ctx))
-                return JS_EXCEPTION;
-            if (argc > 1 && ! JS_IsUndefined(argv[1]))
+            if (count < 1)
+                bind::throwTypeError(context, "urlParse() expects an input");
+            const std::string input = bind::toString(context, args[0]);
+            if (count > 1 && ! args[1].isUndefined())
             {
-                const std::string base = text(ctx, argv[1]);
-                if (JS_HasException(ctx))
-                    return JS_EXCEPTION;
+                const std::string base = bind::toString(context, args[1]);
                 auto parsedBase = ada::parse<ada::url_aggregator>(base);
                 if (! parsedBase)
-                    return JS_NULL;
+                    return jsi::Value::null();
                 auto url = ada::parse<ada::url_aggregator>(input, &*parsedBase);
-                return url ? components(ctx, *url) : JS_NULL;
+                return url ? components(context, *url) : jsi::Value::null();
             }
             auto url = ada::parse<ada::url_aggregator>(input);
-            return url ? components(ctx, *url) : JS_NULL;
+            return url ? components(context, *url) : jsi::Value::null();
         }
 
         // urlSet(href, component, value) → components after the setter, or
         // null if `href` itself must reject the value (only for "href").
-        JSValue urlSet(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value urlSet(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 3)
-                return JS_ThrowTypeError(ctx, "urlSet() expects href, component and value");
-            auto url = ada::parse<ada::url_aggregator>(text(ctx, argv[0]));
+            if (count < 3)
+                bind::throwTypeError(context, "urlSet() expects href, component and value");
+            auto url = ada::parse<ada::url_aggregator>(bind::toString(context, args[0]));
             if (! url)
-                return JS_ThrowTypeError(ctx, "invalid URL");
-            const std::string component = text(ctx, argv[1]);
-            const std::string value = text(ctx, argv[2]);
-            if (JS_HasException(ctx))
-                return JS_EXCEPTION;
+                bind::throwTypeError(context, "invalid URL");
+            const std::string component = bind::toString(context, args[1]);
+            const std::string value = bind::toString(context, args[2]);
 
             // Setters the URL standard ignores on failure simply leave the URL
             // unchanged; only href reports failure.
             if (component == "href")
             {
                 if (! url->set_href(value))
-                    return JS_NULL;
+                    return jsi::Value::null();
             }
             else if (component == "protocol")
                 url->set_protocol(value);
@@ -107,8 +92,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             else if (component == "hash")
                 url->set_hash(value);
             else
-                return JS_ThrowTypeError(ctx, "unknown URL component");
-            return components(ctx, *url);
+                bind::throwTypeError(context, "unknown URL component");
+            return components(context, *url);
         }
     } // namespace
 

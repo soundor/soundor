@@ -47,23 +47,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         }
 
         // fillRandom(Uint8Array): fills the view in place.
-        JSValue fillRandomValues(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value fillRandomValues(js::bind::ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                    std::size_t count)
         {
-            if (argc < 1 || JS_GetTypedArrayType(argv[0]) != JS_TYPED_ARRAY_UINT8)
-                return JS_ThrowTypeError(ctx, "fillRandom() expects a Uint8Array");
-            std::size_t offset = 0;
-            std::size_t length = 0;
-            JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, nullptr);
-            if (JS_IsException(buffer))
-                return JS_EXCEPTION;
-            std::size_t bufferSize = 0;
-            std::uint8_t* bytes = JS_GetArrayBuffer(ctx, &bufferSize, buffer);
-            JS_FreeValue(ctx, buffer);
-            if (bytes == nullptr && JS_HasException(ctx))
-                return JS_EXCEPTION;
-            if (length > 0 && ! fillRandom(bytes + offset, length))
-                return JS_ThrowInternalError(ctx, "the system random number generator failed");
-            return JS_UNDEFINED;
+            facebook::hermes::soundor::BufferView view;
+            if (count < 1 || ! js::bind::bufferView(context, args[0], view)
+                || view.kind != facebook::hermes::soundor::TypedArrayKind::Uint8)
+                js::bind::throwTypeError(context, "fillRandom() expects a Uint8Array");
+            if (view.detached)
+                js::bind::throwTypeError(context, "ArrayBuffer is detached");
+            if (view.byteLength > 0 && ! fillRandom(view.data, view.byteLength))
+                js::bind::throwInternalError(context, "the system random number generator failed");
+            return jsi::Value::undefined();
         }
     } // namespace
 

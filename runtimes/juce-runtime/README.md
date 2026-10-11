@@ -38,17 +38,38 @@ export default defineSoundorConfig({
 All options are JUCE-specific; the plugin's identity comes from the config's
 top-level `plugin`.
 
-| Option             | Default                                                                  |
-| ------------------ | ------------------------------------------------------------------------ |
-| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                        |
-| `formats`          | `['vst3']`                                                               |
-| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)           |
-| `pluginCode`       | a stable four-character code derived from `plugin.id`                    |
-| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id` |
+| Option             | Default                                                                       |
+| ------------------ | ----------------------------------------------------------------------------- |
+| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                             |
+| `formats`          | `['vst3']`                                                                    |
+| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                |
+| `pluginCode`       | a stable four-character code derived from `plugin.id`                         |
+| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`      |
+| `timeLimit`        | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none |
 
 `plugin.id` becomes the bundle identifier and `plugin.name` the product name.
 Deriving the four-character codes from the id keeps two Soundor plugins from
 ever sharing one in a host.
+
+`timeLimit` protects the host from a UI script that never returns. The UI's
+JavaScript runs on the host's UI thread, so a loop that never ends there would
+freeze the whole host (its audio keeps playing) until the user force-quits it.
+Past the limit, the runtime stops the script, whether a frame, an event, a
+timer or startup: it throws a `TimeoutError` that JavaScript cannot catch, the
+error is logged with its stack (in `soundor dev`, in your terminal, mapped to
+your source), and the UI keeps its last picture without responding until the
+editor is opened again or `soundor dev` reloads it. The default, 5 seconds, is
+about when an operating system shows a window as not responding; an ordinary
+frame takes a few milliseconds, and starting a UI from bytecode about ten.
+
+What counts is running, not waiting: `await` on a fetch, a file read or a
+timer ends the call, and the code after it runs in a later one with a limit of
+its own. A synchronous `soundor:native` call counts in full, though: the
+engine cannot stop C++, so a method that takes six seconds (loading a sample
+library, say) gets its script stopped as soon as it returns. Make such a
+method `async`, so that JavaScript awaits it, or do the work in the processor,
+which exists long before the editor opens; raise the limit only for a plugin
+that knowingly runs long in one call.
 
 ### Lifecycle phases
 
@@ -75,16 +96,22 @@ never overwrites existing files.
 ## The plugin's JavaScript runtime
 
 The generated `soundor::AudioProcessorEditor` owns a `soundor::RuntimeHost` for
-as long as the view is open: a QuickJS runtime on the message thread, ticked at
-60 Hz to deliver parameter changes and run pending jobs. Nothing JavaScript ever
-runs on the audio thread.
+as long as the view is open: a Hermes runtime (interpreted, no JIT) on the
+message thread, ticked at 60 Hz to deliver parameter changes and run pending
+jobs. Nothing JavaScript ever runs on the audio thread.
 
-A built plugin (`soundor build`) embeds its UI bundle compiled to QuickJS
-bytecode: it starts faster and the engine holds less (for the benchmark example,
-10 ms instead of 46 ms and 3.2 MB instead of 4.7 MB). The bytecode keeps line
-numbers, so stack traces point at lines, but not source text: a function's
-`toString()` cannot return its code. `soundor dev` runs the bundle from source.
-See [`native/README.md`](./native/README.md#bytecode).
+A built plugin (`soundor build`) embeds its UI bundle compiled to Hermes
+bytecode by the `hermesc` of the same Hermes build, and links the VM without
+its compiler. The bytecode keeps line and column numbers, so stack traces point
+at lines, but not source text: a function's `toString()` cannot return its
+code. `soundor dev` runs the bundle from source, with the compiler linked, but
+JavaScript compiles none in either: `eval()` and `new Function()` throw, so a
+dependency that generates code at run time (a schema validator compiling its
+checks, a template engine) needs its build-time form, and this shows up in
+development rather than in the built plugin. The bundle the CLI makes for this runtime (`bundle.js`) is a CommonJS module
+function with the syntax Hermes lacks lowered; see
+[`native/README.md`](./native/README.md#modules) for what that changes, and
+[the engine](./native/README.md#the-javascript-engine) for the language.
 
 ### `soundor:parameters`
 
@@ -155,14 +182,14 @@ where the UI is composited on the CPU (Linux), WebGL is read back. See
 
 ### Performance: what a frame costs
 
-The UI's JavaScript runs in an interpreter (QuickJS, with no JIT: plugin hosts
+The UI's JavaScript runs in an interpreter (Hermes, with no JIT: plugin hosts
 do not all allow one), on the host's message thread, so a slow frame also
 stalls the host's own UI. Layout, drawing and compositing are native and cheap;
 what costs is JavaScript run every frame. Measured with
 [`examples/benchmark`](../../examples/benchmark) (Linux, an RTX 4050), per
 frame:
 
-- **Give per-frame work to the GPU.** 200,000 points moved by JavaScript: 41
+- **Give per-frame work to the GPU.** 200,000 points moved by JavaScript: 28
   ms. The same points moved by the vertex shader, JavaScript setting one
   `time` uniform: 0.1 ms.
 - **Compute in C++.** FFTs, peaks, envelopes belong in the plugin's native API
@@ -176,8 +203,8 @@ frame:
   nothing more with opacity. Assigning a value a style already has costs
   nothing.
 - **Animate nodes, not React trees.** Setting `node.style.opacity` on 500 nodes
-  through refs: 2.4 ms of JavaScript. Re-rendering 500 React elements to do
-  it: 7.4 ms.
+  through refs: 2.0 ms of JavaScript. Re-rendering 500 React elements to do
+  it: 4.3 ms.
 
 ### Accessibility
 
@@ -199,8 +226,9 @@ BSD-3-Clause code): ship its notices with the plugin.
 ### Build integration
 
 `setup.cmake` builds the runtime from this package's `native/` sources into the
-plugin. QuickJS-NG is fetched by CMake at a pinned revision; no extra developer
-installs are needed. Every Soundor symbol is mangled into the plugin's own ABI
+plugin. Hermes is fetched at a pinned revision and built once per machine into
+Soundor's cache (several minutes, the first time); no extra developer installs
+are needed. Every Soundor symbol is mangled into the plugin's own ABI
 namespace, derived from `plugin.id`. The plugin binary exports only its format
 entry points.
 

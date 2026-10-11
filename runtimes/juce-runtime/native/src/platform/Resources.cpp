@@ -86,6 +86,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         // be anyone's.
         if (! resources->builtIn())
             return std::nullopt;
-        return resources->find(std::string(name) + ".qjsbc");
+        return resources->find(std::string(name) + ".hbc");
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform

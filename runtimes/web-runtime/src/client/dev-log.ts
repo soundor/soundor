@@ -66,7 +66,7 @@ function describe(value: unknown): string {
 
 /**
  * Stack frames name the dev server's URLs, which carry cache-busting queries
- * (`bundle.js?t=…:3:7`); without them the terminal maps frames to sources.
+ * (`bundle.mjs?t=…:3:7`); without them the terminal maps frames to sources.
  */
 function withoutQueries(message: string): string {
   return message.replace(/(\.[cm]?js)\?[^:\s)]*/g, '$1');

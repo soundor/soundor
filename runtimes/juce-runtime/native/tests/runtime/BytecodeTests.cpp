@@ -5,6 +5,7 @@
 #include <doctest/doctest.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +16,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 {
     // soundor_embed_ui() in tests/CMakeLists.txt.
     std::span<const platform::EmbeddedFile> fixtureUiCompiled();
+    std::span<const platform::EmbeddedFile> fixtureRunawayCompiled();
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 
 using namespace soundor;
@@ -27,8 +29,8 @@ TEST_SUITE("bytecode")
         const platform::EmbeddedResources resources(embedded::fixtureUiCompiled());
         CHECK_FALSE(resources.find("bundle.js").has_value());
         CHECK_FALSE(resources.find("lib.js").has_value());
-        CHECK(resources.find("bundle.js.qjsbc").has_value());
-        CHECK(resources.find("lib.js.qjsbc").has_value());
+        CHECK(resources.find("bundle.js.hbc").has_value());
+        CHECK(resources.find("lib.js.hbc").has_value());
         CHECK(resources.find("assets/0123456789abcdef.png").has_value());
     }
 
@@ -41,27 +43,42 @@ TEST_SUITE("bytecode")
                         (host.entryResult().ok() ? "" : host.entryResult().error().toString()));
         CHECK(host.context().evaluateScript("started").value().asString() == "bundle of Fixture");
     }
+
+    TEST_CASE("bytecode stops at the time limit too")
+    {
+        // hermesc compiled its loop with the checks the limit needs.
+        RuntimeHost host(
+            { .runtime = { .timeLimit = std::chrono::milliseconds(200) },
+              .pluginName = "Fixture",
+              .resources = std::make_shared<platform::EmbeddedResources>(embedded::fixtureRunawayCompiled()),
+              .entry = "/bundle.js" });
+        REQUIRE_FALSE(host.entryResult().ok());
+        CHECK(host.entryResult().error().name == "TimeoutError");
+        CHECK(host.entryResult().error().stack.find("/bundle.js") != std::string::npos);
+    }
 #endif
 
-    TEST_CASE("bytecode for another QuickJS is refused with a clear error")
+    TEST_CASE("bytecode for another Hermes is refused with a clear error")
     {
-        static constexpr std::string_view stale = "soundor-bytecode 0000000000000000000000000000000000000000\n\x01\x02";
+        // Not this build's epilogue (src/js/Bytecode.h).
+        static constexpr std::string_view stale =
+            "\xc6\x1f\xbc\x03\xc1\x03\x19\x1f\nsoundor-hermes 0000000000000000000000000000000000000000\n";
         const std::array<platform::EmbeddedFile, 1> files { {
-            { "bundle.js.qjsbc",
+            { "bundle.js.hbc",
               std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(stale.data()), stale.size()) },
         } };
         RuntimeHost host({ .resources = std::make_shared<platform::EmbeddedResources>(files), .entry = "/bundle.js" });
         REQUIRE_FALSE(host.entryResult().ok());
-        CHECK(host.entryResult().error().toString().find("compiled for another QuickJS") != std::string::npos);
+        CHECK(host.entryResult().error().toString().find("compiled for another Hermes") != std::string::npos);
     }
 
     TEST_CASE("bytecode in a directory is never read: only the source is")
     {
         const auto directory = std::filesystem::temp_directory_path() / "soundor-bytecode-test";
         std::filesystem::create_directories(directory);
-        std::ofstream(directory / "bundle.js") << "globalThis.started = 'from source';";
+        std::ofstream(directory / "bundle.js") << "(function () { globalThis.started = 'from source'; })";
         // Garbage that would crash the engine if it were read as bytecode.
-        std::ofstream(directory / "bundle.js.qjsbc", std::ios::binary) << "soundor-bytecode garbage\n\xff\xff\xff\xff";
+        std::ofstream(directory / "bundle.js.hbc", std::ios::binary) << "\xff\xff\xff\xff\nsoundor-hermes garbage\n";
         RuntimeHost host(
             { .resources = std::make_shared<platform::DirectoryResources>(directory), .entry = "/bundle.js" });
         REQUIRE(host.entryResult().ok());

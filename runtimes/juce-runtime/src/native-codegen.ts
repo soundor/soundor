@@ -5,10 +5,10 @@
  *   classes) and the `NativeApi` interface the plugin implements, plus
  *   `install()`, which makes the module importable in a JavaScript context.
  *   Plain C++: no engine headers, so plugin code including it never sees
- *   QuickJS.
- * - `soundor/native/SoundorNative.cpp` — the QuickJS bindings: argument
- *   validation, conversions, exception and promise plumbing, written against
- *   the runtime's internal `js/Bindings.h` helpers.
+ *   Hermes.
+ * - `soundor/native/SoundorNative.cpp` — the bindings (on Hermes's JSI):
+ *   argument validation, conversions, exception and promise plumbing,
+ *   written against the runtime's internal `js/Bindings.h` helpers.
  *
  * Output is deterministic and readable but not run through clang-format; like
  * all generated code it is excluded from the format and lint checks, and is
@@ -193,21 +193,14 @@ function renderSource(model: NativeApiModel): string {
     ),
   ];
 
-  const exportNames = model.methods.map((method) =>
-    JSON.stringify(method.name),
-  );
   const exportSetters = model.methods.map(
     (method) =>
-      `JS_SetModuleExport(ctx, module, ${JSON.stringify(method.name)}, JS_NewCFunction(ctx, ${bindingName(method)}, ${JSON.stringify(method.name)}, ${method.args.length})) == 0`,
+      `bind::setProperty(ctx, exports, ${JSON.stringify(method.name)}, bind::function(ctx, ${JSON.stringify(method.name)}, ${method.args.length}, ${bindingName(method)}));`,
   );
-  const initializeBody =
-    exportSetters.length > 0
-      ? `return ${exportSetters.join('\n                       && ')};`
-      : 'return true;';
   const initializeParams =
     exportSetters.length > 0
-      ? 'JSContext* ctx, JSModuleDef* module'
-      : 'JSContext*, JSModuleDef*';
+      ? 'bind::ContextState& ctx, jsi::Object& exports'
+      : 'bind::ContextState&, jsi::Object&';
 
   return `${HEADER}#include "SoundorNative.h"
 
@@ -236,11 +229,11 @@ ${sections.join('\n\n')}
         bind::setContextData(context, &apiKey, std::move(api));
         js::registerNativeModule(context, "soundor:native",
                                  {
-                                     { ${exportNames.join(', ')} },
                                      [](${initializeParams})
-                                     {
-                                         ${initializeBody}
+                                     {${exportSetters.map((setter) => `\n                                         ${setter}`).join('')}
                                      },
+                                     {},
+                                     {},
                                  });
     }
 } // namespace ${NAMESPACE}
@@ -291,17 +284,15 @@ function renderEnumConversions(
     `        constexpr std::array<std::string_view, ${type.values.length}> ${values} { ${type.values.map((value) => JSON.stringify(value)).join(', ')} };`,
   ];
   if (readable) {
-    parts.push(`        bool read(JSContext* ctx, JSValueConst value, const bind::Path& path, ${type.name}& out)
+    parts.push(`        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, ${type.name}& out)
         {
             std::size_t index = 0;
-            if (! bind::readEnum(ctx, value, path, ${values}, index))
-                return false;
+            bind::readEnum(ctx, value, path, ${values}, index);
             out = static_cast<${type.name}>(index);
-            return true;
         }`);
   }
   if (writable) {
-    parts.push(`        JSValue write(JSContext* ctx, ${type.name} value)
+    parts.push(`        jsi::Value write(bind::ContextState& ctx, ${type.name} value)
         {
             return bind::writeEnum(ctx, ${values}.at(static_cast<std::size_t>(value)));
         }`);
@@ -315,11 +306,8 @@ function renderStructConversions(
   writable: boolean,
 ): string {
   const reads = type.fields.map(
-    (field) => `            {
-                const bind::Field field(ctx, value, ${JSON.stringify(field.name)}, path);
-                if (! field || ! ${readExpression(field.type, 'ctx', 'field.value()', 'field.path()', `out.${field.name}`)})
-                    return false;
-            }`,
+    (field) =>
+      `            ${readStatement(field.type, 'ctx', `bind::property(ctx, object, ${JSON.stringify(field.name)})`, `path.field(${JSON.stringify(field.name)})`, `out.${field.name}`)};`,
   );
   const writes = type.fields.map(
     (field) =>
@@ -327,16 +315,14 @@ function renderStructConversions(
   );
   const parts: string[] = [];
   if (readable) {
-    parts.push(`        bool read(JSContext* ctx, JSValueConst value, const bind::Path& path, ${type.name}& out)
+    parts.push(`        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, ${type.name}& out)
         {
-            if (! bind::expectObject(ctx, value, path))
-                return false;
+            const jsi::Object object = bind::expectObject(ctx, value, path);
 ${reads.join('\n')}
-            return true;
         }`);
   }
   if (writable) {
-    parts.push(`        JSValue write(JSContext* ctx, ${type.name} value)
+    parts.push(`        jsi::Value write(bind::ContextState& ctx, ${type.name} value)
         {
             bind::ObjectBuilder object(ctx);
 ${writes.join('\n')}
@@ -350,7 +336,7 @@ function renderResolver(method: NativeMethodModel): string {
   const type = valueType(method.returns);
   return `        void ${resolverName(method)}(js::detail::PendingPromise& pending, ${type}&& value)
         {
-            bind::resolvePromise(pending, [&](JSContext* ctx) { return ${writeExpression(method.returns, 'ctx', 'value')}; });
+            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return ${writeExpression(method.returns, 'ctx', 'value')}; });
         }`;
 }
 
@@ -370,15 +356,13 @@ function renderBinding(method: NativeMethodModel): string {
         ? 'bind::resolvePromiseWithUndefined'
         : resolverName(method);
     tail = `                std::shared_ptr<js::detail::PendingPromise> pending;
-                JSValue promise = bind::newPromise(ctx, ${name}, pending);
-                if (JS_IsException(promise))
-                    return promise;
+                jsi::Value promise = bind::newPromise(ctx, ${name}, pending);
                 const ${promiseType} promiseHandle(pending, ${resolver});
                 bind::startAsync(*pending, [&] { ${call}; });
                 return promise;`;
   } else if (method.returns.kind === 'void') {
     tail = `                ${call};
-                return JS_UNDEFINED;`;
+                return jsi::Value::undefined();`;
   } else {
     tail = `                return ${writeExpression(method.returns, 'ctx', call, true)};`;
   }
@@ -387,32 +371,29 @@ function renderBinding(method: NativeMethodModel): string {
     method.args.length > 0
       ? `                const bind::Path call { ${name} };\n`
       : '';
-  const argcName = 'argc';
-  const argvName = method.args.length > 0 ? 'argv' : '';
-  return `        JSValue ${bindingName(method)}(JSContext* ctx, JSValueConst, int ${argcName}, JSValueConst* ${argvName})
+  const argvName = method.args.length > 0 ? ' argv' : '';
+  return `        jsi::Value ${bindingName(method)}(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*${argvName}, std::size_t count)
         {
             return bind::invoke(ctx, ${name},
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, ${name}, argc, ${method.args.length}))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, ${name}, count, ${method.args.length});
 ${pathLine}${reads.join('\n')}${reads.length > 0 ? '\n' : ''}${tail}
                                 });
-        }`.replace(/JSValueConst\* \)/, 'JSValueConst*)');
+        }`;
 }
 
 function renderArgumentRead(arg: NativeField, index: number): string {
   const variable = argumentVariable(arg);
   return `                ${argumentType(arg.type)} ${variable} {};
-                if (! ${readExpression(arg.type, 'ctx', `argv[${index}]`, `call.field(${JSON.stringify(arg.name)})`, variable)})
-                    return JS_EXCEPTION;`;
+                ${readStatement(arg.type, 'ctx', `argv[${index}]`, `call.field(${JSON.stringify(arg.name)})`, variable)};`;
 }
 
-/** A C++ boolean expression reading `value` at `path` into `out`. */
-function readExpression(
+/** A C++ call reading `value` at `path` into `out`; it throws on a mismatch. */
+function readStatement(
   type: NativeType,
   ctx: string,
   value: string,
@@ -424,20 +405,20 @@ function readExpression(
   }
   if (type.kind === 'array') {
     const element = valueType(type.element);
-    const inner = readExpression(
+    const inner = readStatement(
       type.element,
       'elementCtx',
       'element',
       'elementPath',
       'item',
     );
-    return `bind::readArray(${ctx}, ${value}, ${path}, ${out}, [](JSContext* elementCtx, JSValueConst element, const bind::Path& elementPath, ${element}& item) { return ${inner}; })`;
+    return `bind::readArray(${ctx}, ${value}, ${path}, ${out}, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, ${element}& item) { ${inner}; })`;
   }
   return `read(${ctx}, ${value}, ${path}, ${out})`;
 }
 
 /**
- * A C++ expression converting `value` (consumed) into a new JSValue. A named
+ * A C++ expression converting `value` (consumed) into a new jsi::Value. A named
  * `value` is moved from; a temporary (a call result) is passed as is.
  */
 function writeExpression(
@@ -449,7 +430,7 @@ function writeExpression(
   const consumed = temporary ? value : `std::move(${value})`;
   switch (type.kind) {
     case 'void':
-      return 'JS_UNDEFINED';
+      return 'jsi::Value::undefined()';
     case 'primitive':
       return `write(${ctx}, ${value})`;
     case 'binary':
@@ -461,7 +442,7 @@ function writeExpression(
     case 'array': {
       const element = valueType(type.element);
       const inner = writeExpression(type.element, 'elementCtx', 'item');
-      return `bind::writeArray(${ctx}, ${consumed}, [](JSContext* elementCtx, ${element}&& item) { return ${inner}; })`;
+      return `bind::writeArray(${ctx}, ${consumed}, [](bind::ContextState& elementCtx, ${element}&& item) { return ${inner}; })`;
     }
   }
 }

@@ -16,14 +16,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     struct NativeFunction
     {
         const char* name;
-        JSCFunction* call;
-        int length;
+        js::bind::NativeFunction call;
+        unsigned length;
     };
 
-    // Every function `soundor:internal/platform` exports, and the export names
-    // (the functions plus constants).
+    // Every function `soundor:internal/platform` exports (besides constants).
     [[nodiscard]] const std::vector<NativeFunction>& nativeFunctions();
-    [[nodiscard]] std::vector<std::string> platformExports();
 
     // Per feature (one source file each).
     [[nodiscard]] std::vector<NativeFunction> encodingFunctions();
@@ -42,5 +40,5 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     [[nodiscard]] std::span<const PublicModule> publicModules();
 
     // Delivers soundor:host changes since the last tick (Host.cpp).
-    void dispatchHostChanges(JSContext* ctx, State& state);
+    void dispatchHostChanges(js::bind::ContextState& context, State& state);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

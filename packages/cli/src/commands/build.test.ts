@@ -58,14 +58,17 @@ describe('runBuild', () => {
     );
     await runBuild({ cwd: root });
     const ui = globalThis.__soundorBuildUi as
-      | { dir: string; entry: string }
+      | { dir: string; entry: string; module: string }
       | undefined;
     expect(ui).toEqual({
       dir: join(root, '.soundor', 'ui', 'production'),
       entry: 'bundle.js',
+      module: 'bundle.mjs',
     });
     const bundle = await readFile(join(ui!.dir, 'bundle.js'), 'utf8');
-    expect(bundle).toMatch(/from\s*["']soundor:host["']/);
+    expect(bundle).toMatch(/require\(["']soundor:host["']\)/);
+    const module = await readFile(join(ui!.dir, 'bundle.mjs'), 'utf8');
+    expect(module).toMatch(/from\s*["']soundor:host["']/);
   });
 
   it('passes no UI when the project has no entry', async () => {

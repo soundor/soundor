@@ -78,7 +78,10 @@ export function generateJuceSources(
       contents: renderProcessorSource(parameters),
     },
     { path: 'soundor/SoundorEditor.h', contents: renderEditorHeader() },
-    { path: 'soundor/SoundorEditor.cpp', contents: renderEditorSource() },
+    {
+      path: 'soundor/SoundorEditor.cpp',
+      contents: renderEditorSource(params.options),
+    },
     ...generateNativeModuleSources(nativeApi.model),
   ];
 }
@@ -133,12 +136,27 @@ target_link_libraries(\${PROJECT_NAME}
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+# Release plugins drop the code nothing calls: Soundor's libraries (Hermes,
+# Skia, ANGLE) are compiled with a section per function.
+if(APPLE)
+  target_link_options(\${PROJECT_NAME} INTERFACE $<$<CONFIG:Release>:-Wl,-dead_strip>)
+elseif(NOT MSVC)
+  target_link_options(\${PROJECT_NAME} INTERFACE $<$<CONFIG:Release>:-Wl,--gc-sections>)
+endif()
 
-# The Soundor runtime: QuickJS-NG (fetched and built privately by CMake) and
+# The Soundor runtime: Hermes (built privately by CMake, once per machine) and
 # the soundor:* modules. Every Soundor C++ symbol is mangled into this plugin's
 # own ABI namespace, derived from plugin.id, so Soundor plugins loaded into one
 # host never share a symbol.
 set(SOUNDOR_ABI_NAMESPACE ${params.abiNamespace})
+# A plugin runs the bytecode its build compiled: it links Hermes's VM without
+# its compiler. soundor dev, which reloads the UI from its source, links the
+# compiler too (as does a cross build, which cannot compile bytecode).
+if(SOUNDOR_UI_DEV_DIR OR CMAKE_CROSSCOMPILING)
+  set(SOUNDOR_JS_SOURCE ON)
+else()
+  set(SOUNDOR_JS_SOURCE OFF)
+endif()
 set(SOUNDOR_BUILD_TESTS OFF)
 add_subdirectory(${cmakeString(cmakePath(params.nativeDir))} soundor-runtime)
 
@@ -176,7 +194,7 @@ target_sources(\${PROJECT_NAME}
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
-# into the plugin so it needs no files at runtime: its JavaScript as QuickJS
+# into the plugin so it needs no files at runtime: its JavaScript as Hermes
 # bytecode, where the build can compile it.
 if(SOUNDOR_UI_DIR)
   soundor_embed_ui(soundor_generated pluginUi "\${SOUNDOR_UI_DIR}")
@@ -511,7 +529,7 @@ namespace ${NS}
 `;
 }
 
-function renderEditorSource(): string {
+function renderEditorSource(options: ResolvedJuceOptions): string {
   return `${HEADER}#include "SoundorEditor.h"
 
 #include <soundor/backend/JuceHttpClient.h>
@@ -562,6 +580,9 @@ namespace ${NS}
         RuntimeHost::Options options;
         options.gpuDevice = gpuDevice;
         options.runtime.log = logToJuce;
+        // juceRuntime({ timeLimit }): how long one call into JavaScript may
+        // run on the host's UI thread before it is stopped (0: no limit).
+        options.runtime.timeLimit = std::chrono::milliseconds { ${cppInt(options.timeLimit)} };
         options.pluginId = AudioProcessor::pluginId;
         options.pluginName = AudioProcessor::pluginName;
         options.http = std::make_shared<backend::JuceHttpClient>();

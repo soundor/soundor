@@ -36,7 +36,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     struct State;
 
     // Runs on the UI thread when taken from the completion queue.
-    using Completion = std::function<void(State&, JSContext*)>;
+    using Completion = std::function<void(State&, js::bind::ContextState&)>;
     using CompletionQueue = platform::HandoffQueue<Completion>;
 
     struct State
@@ -56,10 +56,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         // the id and plain C++ results, and post a Completion that settles the
         // promise on the UI thread.
 
-        // Creates the operation's promise (or returns JS_EXCEPTION).
-        JSValue beginOperation(JSContext* ctx, const char* name, std::uint64_t& id);
+        // Creates the operation's promise.
+        jsi::Value beginOperation(js::bind::ContextState& context, const char* name, std::uint64_t& id);
 
-        // Settles operation `id` with makeValue(ctx), if it is still pending.
+        // Settles operation `id` with makeValue(context), if it is still pending.
         template <typename MakeValue>
         void resolve(std::uint64_t id, MakeValue&& makeValue)
         {
@@ -90,11 +90,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         std::unique_ptr<platform::WorkerThread> fileWorker;
     };
 
-    // The state of the context `ctx` belongs to, or nullptr when the platform
-    // layer is not installed.
-    [[nodiscard]] State* stateOf(JSContext* ctx);
+    // The platform state of `context`, or nullptr when the platform layer is
+    // not installed.
+    [[nodiscard]] State* stateOf(js::bind::ContextState& context);
+
+    // The platform state of `context`; throws an InternalError when the
+    // platform layer is not installed.
+    [[nodiscard]] State& requireState(js::bind::ContextState& context);
 
     // A new error object: new TypeError(message), new Error(message), or
     // new DOMException(message, name) for "DOMException:<name>".
-    JSValue makeError(JSContext* ctx, std::string_view kind, std::string_view message);
+    [[nodiscard]] jsi::Value makeError(js::bind::ContextState& context, std::string_view kind,
+                                       std::string_view message);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

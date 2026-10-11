@@ -27,6 +27,7 @@ add_executable(soundor_runtime_tests
   runtime/ResourcesTests.cpp
   runtime/StatisticsTests.cpp
   runtime/BytecodeTests.cpp
+  runtime/TimeLimitTests.cpp
   ui/SurfaceTests.cpp
   ui/PrimitivesTests.cpp
   ui/RendererTests.cpp
@@ -40,8 +41,8 @@ add_executable(soundor_runtime_tests
   # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
   generated/soundor/native/SoundorNative.cpp)
 target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
-# Tests exercise internal seams (native modules), so they may see QuickJS.
-target_link_libraries(soundor_runtime_tests PRIVATE soundor::runtime soundor_quickjs soundor_doctest)
+# Tests exercise internal seams (native modules), so they may see Hermes.
+target_link_libraries(soundor_runtime_tests PRIVATE soundor::runtime soundor_hermes soundor_doctest)
 soundor_configure_target(soundor_runtime_tests)
 
 # Generated code is checked by its generator's tests, not linted.
@@ -50,6 +51,9 @@ set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIE
 soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
 # The same, with its modules compiled to bytecode (where the build can).
 soundor_embed_ui(soundor_runtime_tests fixtureUiCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+# A bundle that never returns, compiled as a plugin's: its bytecode must stop
+# at the time limit.
+soundor_embed_ui(soundor_runtime_tests fixtureRunawayCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/runaway)
 soundor_precompiles_js(soundor_tests_precompile)
 if(soundor_tests_precompile)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
@@ -65,7 +69,17 @@ if(SOUNDOR_HAS_GPU)
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR "soundor-populate-only")
   FetchContent_MakeAvailable(SOUNDOR_THREE)
-  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_SOURCE_DIR}/build")
+  # In the runtime's module form, as a plugin's bundle would have it: lowered
+  # by @soundor/core's toNativeModule() (with Node, at build time).
+  set(soundor_three_dir "${CMAKE_CURRENT_BINARY_DIR}/three")
+  set(soundor_three_outputs "")
+  foreach(file three.module.js three.core.js)
+    soundor_lower_js_command("${soundor_three_SOURCE_DIR}/build/${file}" "${soundor_three_dir}/${file}" "${file}")
+    list(APPEND soundor_three_outputs "${soundor_three_dir}/${file}")
+  endforeach()
+  add_custom_target(soundor_three_modules DEPENDS ${soundor_three_outputs})
+  add_dependencies(soundor_runtime_tests soundor_three_modules)
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_dir}")
   target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp
     gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp gpu/ThreeTests.cpp)
   if(APPLE)
@@ -105,7 +119,7 @@ add_test(
                           -DCMAKE_BUILD_TYPE=Debug)
 
 # Symbol isolation: a plugin-shaped shared library that links the runtime must
-# export only its own entry point — never QuickJS or Soundor internals.
+# export only its own entry point — never Hermes or Soundor internals.
 # Sanitizer builds export their own instrumentation markers, so the check runs
 # on regular builds only.
 if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)

@@ -22,6 +22,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     namespace
     {
         namespace bind = js::bind;
+        using bind::ContextState;
 
         const char bindingKey = 0;
         const char listenerKey = 0;
@@ -68,22 +69,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             std::shared_ptr<Surface> surface;
         };
 
-        NodeId readId(JSContext* ctx, JSValueConst value)
+        NodeId readId(const jsi::Value& value)
         {
-            double number = 0;
-            if (! JS_IsNumber(value) || JS_ToFloat64(ctx, &number, value) < 0 || number < 0 || number > 4294967295.0
-                || std::floor(number) != number)
+            const double number = value.isNumber() ? value.getNumber() : -1.0;
+            if (number < 0 || number > 4294967295.0 || std::floor(number) != number)
                 throw std::invalid_argument("invalid node id");
             return static_cast<NodeId>(number);
         }
 
-        JSValue writeRect(JSContext* ctx, Rect rect)
+        jsi::Value writeRect(ContextState& context, Rect rect)
         {
-            bind::ObjectBuilder object(ctx);
-            object.set("x", JS_NewFloat64(ctx, rect.x));
-            object.set("y", JS_NewFloat64(ctx, rect.y));
-            object.set("width", JS_NewFloat64(ctx, rect.width));
-            object.set("height", JS_NewFloat64(ctx, rect.height));
+            bind::ObjectBuilder object(context);
+            object.set("x", jsi::Value(double(rect.x)));
+            object.set("y", jsi::Value(double(rect.y)));
+            object.set("width", jsi::Value(double(rect.width)));
+            object.set("height", jsi::Value(double(rect.height)));
             return object.release();
         }
 
@@ -94,25 +94,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         class StyleReader
         {
         public:
-            // Throws JsError when the object's properties cannot be listed.
-            StyleReader(JSContext* context, JSValueConst object) : ctx(context), style(object)
+            StyleReader(ContextState& owner, const jsi::Object& object) : context(owner)
             {
-                // The style's own properties, listed once: most of the many
-                // it could have are absent, and looking each of those up
-                // would cost an engine lookup.
-                JSPropertyEnum* names = nullptr;
-                std::uint32_t count = 0;
-                if (JS_GetOwnPropertyNames(ctx, &names, &count, object, JS_GPN_STRING_MASK) < 0)
-                    throw JsError {};
+                // The style's own properties, listed once with their values:
+                // most of the many it could have are absent, and looking each
+                // of those up would cost an engine lookup.
+                const jsi::Array names = object.getPropertyNames(context.rt);
+                const std::size_t count = names.size(context.rt);
                 present.reserve(count);
-                for (std::uint32_t i = 0; i < count; ++i)
+                for (std::size_t i = 0; i < count; ++i)
                 {
-                    const char* name = JS_AtomToCString(ctx, names[i].atom);
-                    if (name != nullptr)
-                        present.emplace_back(name);
-                    JS_FreeCString(ctx, name);
+                    const jsi::Value name = names.getValueAtIndex(context.rt, i);
+                    if (! name.isString())
+                        continue;
+                    const jsi::String key = name.getString(context.rt);
+                    present.emplace_back(key.utf8(context.rt), object.getProperty(context.rt, key));
                 }
-                JS_FreePropertyEnum(ctx, names, count);
             }
 
             Style read()
@@ -128,90 +125,76 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         private:
             struct Property
             {
-                // `exists`: whether the style has the property; only then is
-                // it read.
-                Property(JSContext* context, JSValueConst object, const char* key, bool exists)
-                    : ctx(context), name(key), value(exists ? JS_GetPropertyStr(context, object, key) : JS_UNDEFINED)
+                Property(const StyleReader& reader, const char* key) : name(key), value(reader.find(key)) {}
+
+                [[nodiscard]] bool present() const
                 {
-                    if (JS_IsException(value))
-                        throw JsError {};
+                    return value != nullptr && ! value->isUndefined() && ! value->isNull();
                 }
-                ~Property() { JS_FreeValue(ctx, value); }
-                Property(const Property&) = delete;
-                Property& operator=(const Property&) = delete;
 
-                [[nodiscard]] bool present() const { return ! JS_IsUndefined(value) && ! JS_IsNull(value); }
-
-                JSContext* ctx;
                 const char* name;
-                JSValue value;
+                const jsi::Value* value;
             };
 
-        public:
-            // A JavaScript exception is pending.
-            struct JsError
+            // The style's value of `key`, or nullptr.
+            [[nodiscard]] const jsi::Value* find(std::string_view key) const
             {
-            };
+                for (const auto& [name, value] : present)
+                    if (name == key)
+                        return &value;
+                return nullptr;
+            }
 
-        private:
-            [[nodiscard]] bool has(std::string_view key) const
+            [[nodiscard]] std::string text(const Property& property) const
             {
-                return std::ranges::find(present, key) != present.end();
+                return property.value->getString(context.rt).utf8(context.rt);
             }
 
             [[noreturn]] void fail(const Property& property, std::string_view expected)
             {
-                const char* actual = JS_ToCString(ctx, property.value);
-                const std::string got = actual == nullptr ? "?" : actual;
-                JS_FreeCString(ctx, actual);
-                JS_ThrowTypeError(ctx, "style.%s: expected %.*s, got %s", property.name,
-                                  static_cast<int>(expected.size()), expected.data(),
-                                  JS_IsString(property.value) ? ("'" + got + "'").c_str() : got.c_str());
-                throw JsError {};
+                const std::string got = js::detail::toStdString(context.rt, *property.value);
+                bind::throwTypeError(context, std::string("style.") + property.name + ": expected "
+                                                  + std::string(expected) + ", got "
+                                                  + (property.value->isString() ? "'" + got + "'" : got));
             }
 
             std::optional<float> number(const char* key)
             {
-                Property property(ctx, style, key, has(key));
+                const Property property(*this, key);
                 if (! property.present())
                     return std::nullopt;
-                double value = 0;
-                if (! JS_IsNumber(property.value) || JS_ToFloat64(ctx, &value, property.value) < 0
-                    || ! std::isfinite(value))
+                if (! property.value->isNumber() || ! std::isfinite(property.value->getNumber()))
                     fail(property, "a finite number");
-                return static_cast<float>(value);
+                return static_cast<float>(property.value->getNumber());
             }
 
             std::optional<Length> length(const char* key, bool allowAuto)
             {
-                Property property(ctx, style, key, has(key));
+                const Property property(*this, key);
                 if (! property.present())
                     return std::nullopt;
                 const std::string_view expected =
                     allowAuto ? "a number, a percentage or 'auto'" : "a number or a percentage";
-                if (JS_IsNumber(property.value))
+                if (property.value->isNumber())
                 {
-                    double value = 0;
-                    JS_ToFloat64(ctx, &value, property.value);
+                    const double value = property.value->getNumber();
                     if (! std::isfinite(value))
                         fail(property, expected);
                     return Length::points(static_cast<float>(value));
                 }
-                if (JS_IsString(property.value))
+                if (property.value->isString())
                 {
-                    const char* chars = JS_ToCString(ctx, property.value);
-                    const std::string text = chars == nullptr ? "" : chars;
-                    JS_FreeCString(ctx, chars);
-                    if (allowAuto && text == "auto")
+                    const std::string value = text(property);
+                    if (allowAuto && value == "auto")
                         return Length::automatic();
-                    if (text.size() > 1 && text.back() == '%')
+                    if (value.size() > 1 && value.back() == '%')
                     {
                         std::size_t used = 0;
                         try
                         {
-                            const float value = std::stof(text.substr(0, text.size() - 1), &used);
-                            if (used == text.size() - 1 && std::isfinite(value))
-                                return Length::percent(value);
+                            const float percent = std::stof(value.substr(0, value.size() - 1), &used);
+                            if (used == value.size() - 1 && std::isfinite(percent))
+                                return Length::percent(percent);
                         }
                         catch (const std::exception&) // NOLINT(bugprone-empty-catch): reported below
                         {
@@ -224,20 +207,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             template <typename Enum, std::size_t Count>
             std::optional<Enum> choice(const char* key, const std::array<std::string_view, Count>& names)
             {
-                Property property(ctx, style, key, has(key));
+                const Property property(*this, key);
                 if (! property.present())
                     return std::nullopt;
-                if (JS_IsString(property.value))
+                if (property.value->isString())
                 {
-                    const char* chars = JS_ToCString(ctx, property.value);
-                    const std::string_view text = chars == nullptr ? "" : chars;
+                    const std::string value = text(property);
                     for (std::size_t i = 0; i < Count; ++i)
-                        if (names[i] == text)
-                        {
-                            JS_FreeCString(ctx, chars);
+                        if (names[i] == value)
                             return static_cast<Enum>(i);
-                        }
-                    JS_FreeCString(ctx, chars);
                 }
                 std::string expected = "one of ";
                 for (std::size_t i = 0; i < Count; ++i)
@@ -251,7 +229,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 if (value)
                     field = *value;
             }
-
             void readLayout(Style& out)
             {
                 static constexpr std::array<std::string_view, 2> displays { "flex", "none" };
@@ -282,11 +259,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.overflow, choice<Overflow>("overflow", overflows));
                 assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
                 assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
-                if (Property zIndex(ctx, style, "zIndex", has("zIndex")); zIndex.present())
+                if (const Property zIndex(*this, "zIndex"); zIndex.present())
                 {
-                    double value = 0;
-                    if (! JS_IsNumber(zIndex.value) || JS_ToFloat64(ctx, &value, zIndex.value) < 0
-                        || std::trunc(value) != value || std::abs(value) > 2147483647.0)
+                    const double value = zIndex.value->isNumber() ? zIndex.value->getNumber() : 0.5;
+                    if (! zIndex.value->isNumber() || std::trunc(value) != value || std::abs(value) > 2147483647.0)
                         fail(zIndex, "an integer");
                     out.zIndex = static_cast<int>(value);
                 }
@@ -354,17 +330,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             std::optional<Color> color(const char* key)
             {
-                Property property(ctx, style, key, has(key));
+                const Property property(*this, key);
                 if (! property.present())
                     return std::nullopt;
-                if (JS_IsString(property.value))
-                {
-                    const char* chars = JS_ToCString(ctx, property.value);
-                    const std::optional<Color> parsed = parseColor(chars == nullptr ? "" : chars);
-                    JS_FreeCString(ctx, chars);
-                    if (parsed)
+                if (property.value->isString())
+                    if (const std::optional<Color> parsed = parseColor(text(property)))
                         return parsed;
-                }
                 fail(property, "a CSS color");
             }
 
@@ -391,27 +362,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 static constexpr std::array<std::string_view, 2> fontStyles { "normal", "italic" };
                 static constexpr std::array<std::string_view, 4> textAligns { "auto", "left", "center", "right" };
 
-                if (Property family(ctx, style, "fontFamily", has("fontFamily")); family.present())
+                if (const Property family(*this, "fontFamily"); family.present())
                 {
-                    if (! JS_IsString(family.value))
+                    if (! family.value->isString())
                         fail(family, "a string");
-                    const char* chars = JS_ToCString(ctx, family.value);
-                    out.fontFamily = chars == nullptr ? "" : chars;
-                    JS_FreeCString(ctx, chars);
+                    out.fontFamily = text(family);
                 }
                 if (const auto size = number("fontSize"); size && *size > 0)
                     out.fontSize = *size;
-                if (Property weight(ctx, style, "fontWeight", has("fontWeight")); weight.present())
+                if (const Property weight(*this, "fontWeight"); weight.present())
                 {
                     double value = 0;
-                    if (JS_IsNumber(weight.value))
-                        JS_ToFloat64(ctx, &value, weight.value);
-                    else if (JS_IsString(weight.value))
+                    if (weight.value->isNumber())
                     {
-                        const char* chars = JS_ToCString(ctx, weight.value);
-                        const std::string_view text = chars == nullptr ? "" : chars;
-                        value = text == "normal" ? 400 : text == "bold" ? 700 : std::atof(std::string(text).c_str());
-                        JS_FreeCString(ctx, chars);
+                        value = weight.value->getNumber();
+                    }
+                    else if (weight.value->isString())
+                    {
+                        const std::string name = text(weight);
+                        value = name == "normal" ? 400 : name == "bold" ? 700 : std::atof(name.c_str());
                     }
                     if (value < 1 || value > 1000)
                         fail(weight, "a weight from 1 to 1000, 'normal' or 'bold'");
@@ -425,10 +394,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     out.numberOfLines = std::max(0, static_cast<int>(*lines));
             }
 
-            JSContext* ctx;
-            JSValueConst style;
-            // The names of the style's own properties.
-            std::vector<std::string> present;
+            ContextState& context;
+            // The style's own properties and their values.
+            std::vector<std::pair<std::string, jsi::Value>> present;
         };
 
         // ── Accessibility ────────────────────────────────────────────────────
@@ -438,462 +406,443 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         class AccessibilityReader
         {
         public:
-            explicit AccessibilityReader(JSContext* context) : ctx(context) {}
+            explicit AccessibilityReader(ContextState& owner) : context(owner) {}
 
-            // False with a JavaScript exception pending.
-            bool read(JSValueConst object, a11y::Properties& out)
+            void read(const jsi::Value& value, a11y::Properties& out)
             {
                 const bind::Path path { "accessibility" };
-                if (! bind::expectObject(ctx, object, path))
-                    return false;
+                const jsi::Object object = bind::expectObject(context, value, path);
                 std::optional<std::string> role;
-                bind::Field state(ctx, object, "state", path);
-                bind::Field value(ctx, object, "value", path);
-                bind::Field actions(ctx, object, "actions", path);
-                if (! state || ! value || ! actions || ! optional(object, "accessible", path, out.accessible)
-                    || ! optional(object, "role", path, role) || ! field(object, "label", path, out.label)
-                    || ! field(object, "hint", path, out.hint) || ! field(object, "modal", path, out.modal)
-                    || ! readState(state.value(), state.path(), out.state)
-                    || ! readValue(value.value(), value.path(), out.value)
-                    || ! readActions(actions.value(), actions.path(), out.actions))
-                    return false;
+                const jsi::Value state = bind::property(context, object, "state");
+                const jsi::Value current = bind::property(context, object, "value");
+                const jsi::Value actions = bind::property(context, object, "actions");
+                optional(object, "accessible", path, out.accessible);
+                optional(object, "role", path, role);
+                field(object, "label", path, out.label);
+                field(object, "hint", path, out.hint);
+                field(object, "modal", path, out.modal);
+                readState(state, path.field("state"), out.state);
+                readValue(current, path.field("value"), out.value);
+                readActions(actions, path.field("actions"), out.actions);
                 if (role)
                 {
                     out.role = a11y::roleFromName(*role);
                     if (! out.role)
-                    {
-                        JS_ThrowTypeError(ctx, "accessibility.role: unknown role '%s'", role->c_str());
-                        return false;
-                    }
+                        bind::throwTypeError(context, "accessibility.role: unknown role '" + *role + "'");
                 }
-                return true;
             }
 
         private:
             template <typename T>
-            bool field(JSValueConst object, const char* name, const bind::Path& parent, T& out)
+            void field(const jsi::Object& object, const char* name, const bind::Path& parent, T& out)
             {
-                bind::Field property(ctx, object, name, parent);
-                return property && bind::read(ctx, property.value(), property.path(), out);
+                bind::read(context, bind::property(context, object, name), parent.field(name), out);
             }
 
             template <typename T>
-            bool optional(JSValueConst object, const char* name, const bind::Path& parent, std::optional<T>& out)
+            void optional(const jsi::Object& object, const char* name, const bind::Path& parent, std::optional<T>& out)
             {
-                bind::Field property(ctx, object, name, parent);
-                if (! property)
-                    return false;
-                if (JS_IsNull(property.value()) || JS_IsUndefined(property.value()))
+                const jsi::Value property = bind::property(context, object, name);
+                if (property.isNull() || property.isUndefined())
                 {
                     out.reset();
-                    return true;
+                    return;
                 }
                 T read {};
-                if (! bind::read(ctx, property.value(), property.path(), read))
-                    return false;
+                bind::read(context, property, parent.field(name), read);
                 out = std::move(read);
-                return true;
             }
 
-            bool readState(JSValueConst object, const bind::Path& path, a11y::State& out)
+            void readState(const jsi::Value& value, const bind::Path& path, a11y::State& out)
             {
-                if (! bind::expectObject(ctx, object, path))
-                    return false;
-                bind::Field checked(ctx, object, "checked", path);
-                if (! checked || ! field(object, "disabled", path, out.disabled)
-                    || ! field(object, "busy", path, out.busy) || ! optional(object, "selected", path, out.selected)
-                    || ! optional(object, "expanded", path, out.expanded))
-                    return false;
-                const JSValueConst value = checked.value();
-                if (JS_IsNull(value) || JS_IsUndefined(value))
+                const jsi::Object object = bind::expectObject(context, value, path);
+                const jsi::Value checked = bind::property(context, object, "checked");
+                field(object, "disabled", path, out.disabled);
+                field(object, "busy", path, out.busy);
+                optional(object, "selected", path, out.selected);
+                optional(object, "expanded", path, out.expanded);
+                if (checked.isNull() || checked.isUndefined())
                     out.checked = a11y::Checked::Unset;
-                else if (JS_IsBool(value))
-                    out.checked = JS_ToBool(ctx, value) != 0 ? a11y::Checked::True : a11y::Checked::False;
+                else if (checked.isBool())
+                    out.checked = checked.getBool() ? a11y::Checked::True : a11y::Checked::False;
                 else
                     out.checked = a11y::Checked::Mixed;
-                return true;
             }
 
-            bool readValue(JSValueConst object, const bind::Path& path, a11y::Value& out)
+            void readValue(const jsi::Value& value, const bind::Path& path, a11y::Value& out)
             {
-                return bind::expectObject(ctx, object, path) && optional(object, "min", path, out.min)
-                       && optional(object, "max", path, out.max) && optional(object, "now", path, out.now)
-                       && field(object, "text", path, out.text);
+                const jsi::Object object = bind::expectObject(context, value, path);
+                optional(object, "min", path, out.min);
+                optional(object, "max", path, out.max);
+                optional(object, "now", path, out.now);
+                field(object, "text", path, out.text);
             }
 
-            bool readActions(JSValueConst array, const bind::Path& path, std::vector<a11y::ActionDescriptor>& out)
+            void readActions(const jsi::Value& array, const bind::Path& path, std::vector<a11y::ActionDescriptor>& out)
             {
-                return bind::readArray(
-                    ctx, array, path, out,
-                    [this](JSContext*, JSValueConst element, const bind::Path& at, a11y::ActionDescriptor& action)
-                    {
-                        if (! bind::expectObject(ctx, element, at) || ! field(element, "name", at, action.name)
-                            || ! field(element, "label", at, action.label))
-                            return false;
-                        action.action = a11y::actionFromName(action.name);
-                        return true;
-                    });
+                bind::readArray(context, array, path, out,
+                                [this](ContextState&, const jsi::Value& element, const bind::Path& at,
+                                       a11y::ActionDescriptor& action)
+                                {
+                                    const jsi::Object object = bind::expectObject(context, element, at);
+                                    field(object, "name", at, action.name);
+                                    field(object, "label", at, action.label);
+                                    action.action = a11y::actionFromName(action.name);
+                                });
             }
 
-            JSContext* ctx;
+            ContextState& context;
         };
 
         // ── Functions ────────────────────────────────────────────────────────
 
         template <typename Body>
-        JSValue call(JSContext* ctx, const char* method, int argc, int expected, Body&& body)
+        jsi::Value call(ContextState& context, const char* method, std::size_t count, std::size_t expected, Body&& body)
         {
-            const bind::NativeCall counted(ctx, bind::NativeApi::Ui);
-            if (! bind::expectArgumentCount(ctx, method, argc, expected))
-                return JS_EXCEPTION;
-            return bind::invoke(ctx, method, [&]() -> JSValue { return body(surfaceOf(ctx)); });
+            const bind::NativeCall counted(context, bind::NativeApi::Ui);
+            bind::expectArgumentCount(context, method, count, expected);
+            return bind::invoke(context, method, [&]() -> jsi::Value { return body(surfaceOf(context)); });
         }
 
-        JSValue createNode(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value createNode(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "createNode", argc, 1,
+            return call(context, "createNode", count, 1,
                         [&](Surface& surface)
                         {
-                            int type = 0;
-                            if (JS_ToInt32(ctx, &type, argv[0]) < 0 || type < 0
-                                || type > static_cast<int>(NodeType::Canvas))
+                            const int type = bind::toInt32(context, args[0]);
+                            if (type < 0 || type > static_cast<int>(NodeType::Canvas))
                                 throw std::invalid_argument("invalid node type");
-                            return JS_NewUint32(ctx, surface.createNode(static_cast<NodeType>(type)));
+                            return jsi::Value(double(surface.createNode(
+                                static_cast<NodeType>(type)))); // NOLINT(modernize-return-braced-init-list): a lambda
                         });
         }
 
-        JSValue releaseNode(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value releaseNode(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "releaseNode", argc, 1,
+            return call(context, "releaseNode", count, 1,
                         [&](Surface& surface)
                         {
                             // Collected after the surface dropped it (a reload): nothing to do.
-                            const NodeId id = readId(ctx, argv[0]);
+                            const NodeId id = readId(args[0]);
                             if (surface.find(id) != nullptr)
                                 surface.releaseNode(id);
-                            return JS_UNDEFINED;
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue insertChild(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value insertChild(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "insertBefore", argc, 3,
+            return call(context, "insertBefore", count, 3,
                         [&](Surface& surface)
                         {
-                            surface.insertChild(readId(ctx, argv[0]), readId(ctx, argv[1]), readId(ctx, argv[2]));
-                            return JS_UNDEFINED;
+                            surface.insertChild(readId(args[0]), readId(args[1]), readId(args[2]));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue removeChild(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value removeChild(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "removeChild", argc, 2,
+            return call(context, "removeChild", count, 2,
                         [&](Surface& surface)
                         {
-                            surface.removeChild(readId(ctx, argv[0]), readId(ctx, argv[1]));
-                            return JS_UNDEFINED;
+                            surface.removeChild(readId(args[0]), readId(args[1]));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setStyle(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setStyle(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "setStyle", argc, 2,
-                        [&](Surface& surface) -> JSValue
+            return call(context, "setStyle", count, 2,
+                        [&](Surface& surface)
                         {
-                            const NodeId id = readId(ctx, argv[0]);
-                            if (! JS_IsObject(argv[1]))
-                                return JS_ThrowTypeError(ctx, "style must be an object");
-                            try
-                            {
-                                surface.setStyle(id, StyleReader(ctx, argv[1]).read());
-                            }
-                            catch (const StyleReader::JsError&)
-                            {
-                                return JS_EXCEPTION;
-                            }
-                            return JS_UNDEFINED;
+                            const NodeId id = readId(args[0]);
+                            if (! args[1].isObject())
+                                bind::throwTypeError(context, "style must be an object");
+                            const jsi::Object style = args[1].getObject(context.rt);
+                            surface.setStyle(id, StyleReader(context, style).read());
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setText(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setText(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "setText", argc, 2,
-                        [&](Surface& surface) -> JSValue
+            return call(context, "setText", count, 2,
+                        [&](Surface& surface)
                         {
                             std::string text;
-                            if (! bind::read(ctx, argv[1], bind::Path { "text" }, text))
-                                return JS_EXCEPTION;
-                            surface.setText(readId(ctx, argv[0]), std::move(text));
-                            return JS_UNDEFINED;
+                            bind::read(context, args[1], bind::Path { "text" }, text);
+                            surface.setText(readId(args[0]), std::move(text));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setAccessibility(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setAccessibility(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "accessibility", argc, 2,
-                        [&](Surface& surface) -> JSValue
+            return call(context, "accessibility", count, 2,
+                        [&](Surface& surface)
                         {
                             a11y::Properties properties;
-                            if (! AccessibilityReader(ctx).read(argv[1], properties))
-                                return JS_EXCEPTION;
-                            surface.setAccessibility(readId(ctx, argv[0]), std::move(properties));
-                            return JS_UNDEFINED;
+                            AccessibilityReader(context).read(args[1], properties);
+                            surface.setAccessibility(readId(args[0]), std::move(properties));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setAccessibilityParent(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setAccessibilityParent(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                          std::size_t count)
         {
-            return call(ctx, "accessibilityParent", argc, 2,
+            return call(context, "accessibilityParent", count, 2,
                         [&](Surface& surface)
                         {
-                            surface.setAccessibilityParent(readId(ctx, argv[0]), readId(ctx, argv[1]));
-                            return JS_UNDEFINED;
+                            surface.setAccessibilityParent(readId(args[0]), readId(args[1]));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setFocusable(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setFocusable(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "setFocusable", argc, 2,
+            return call(context, "setFocusable", count, 2,
                         [&](Surface& surface)
                         {
-                            surface.setFocusable(readId(ctx, argv[0]), JS_ToBool(ctx, argv[1]) != 0);
-                            return JS_UNDEFINED;
+                            surface.setFocusable(readId(args[0]), bind::toBoolean(context, args[1]));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue focus(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value focus(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "focus", argc, 1,
+            return call(context, "focus", count, 1,
                         [&](Surface& surface)
                         {
-                            surface.focus(readId(ctx, argv[0]));
-                            return JS_UNDEFINED;
+                            surface.focus(readId(args[0]));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue focused(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        jsi::Value focused(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
-            return call(ctx, "focused", argc, 0,
-                        [&](Surface& surface) { return JS_NewUint32(ctx, surface.focused()); });
+            return call(context, "focused", count, 0,
+                        [&](Surface& surface) -> jsi::Value { return { double(surface.focused()) }; });
         }
 
-        JSValue nodeFrame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value nodeFrame(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "layout", argc, 1,
+            return call(context, "layout", count, 1,
                         [&](Surface& surface)
                         {
-                            const NodeId id = readId(ctx, argv[0]);
+                            const NodeId id = readId(args[0]);
                             Node* node = surface.find(id);
                             if (node == nullptr)
                                 throw std::invalid_argument("unknown node");
                             surface.layout();
-                            return writeRect(ctx, node->frame());
+                            return writeRect(context, node->frame());
                         });
         }
 
-        JSValue bounds(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value bounds(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "getBoundingClientRect", argc, 1,
+            return call(context, "getBoundingClientRect", count, 1,
                         [&](Surface& surface)
                         {
-                            const NodeId id = readId(ctx, argv[0]);
-                            return surface.isConnected(id) ? writeRect(ctx, surface.bounds(id)) : writeRect(ctx, {});
+                            const NodeId id = readId(args[0]);
+                            return surface.isConnected(id) ? writeRect(context, surface.bounds(id))
+                                                           : writeRect(context, {});
                         });
         }
 
-        JSValue viewSize(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        jsi::Value viewSize(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
-            return call(ctx, "size", argc, 0,
+            return call(context, "size", count, 0,
                         [&](Surface& surface)
                         {
-                            bind::ObjectBuilder object(ctx);
-                            object.set("width", JS_NewFloat64(ctx, surface.size().width));
-                            object.set("height", JS_NewFloat64(ctx, surface.size().height));
-                            object.set("scale", JS_NewFloat64(ctx, surface.scale()));
+                            bind::ObjectBuilder object(context);
+                            object.set("width", jsi::Value(double(surface.size().width)));
+                            object.set("height", jsi::Value(double(surface.size().height)));
+                            object.set("scale", jsi::Value(double(surface.scale())));
                             return object.release();
                         });
         }
 
-        JSValue setListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
-                return JS_ThrowTypeError(ctx, "setListener() expects a function");
-            bind::retainValue(ctx, &listenerKey, JS_DupValue(ctx, argv[0]));
-            return JS_UNDEFINED;
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setListener() expects a function");
+            bind::retainValue(context, &listenerKey, jsi::Value(context.rt, args[0]));
+            return jsi::Value::undefined();
         }
 
-        std::string readString(JSContext* ctx, JSValueConst value, const char* name)
+        std::string readString(ContextState& context, const jsi::Value& value, const char* name)
         {
-            std::string out;
-            if (! bind::read(ctx, value, bind::Path { name }, out))
+            if (! value.isString())
                 throw std::invalid_argument(std::string(name) + " must be a string");
-            return out;
+            return value.getString(context.rt).utf8(context.rt);
         }
 
-        double readNumber(JSContext* ctx, JSValueConst value)
+        double readNumber(ContextState& context, const jsi::Value& value)
         {
-            double out = 0;
-            if (JS_ToFloat64(ctx, &out, value) < 0 || std::isnan(out))
+            const double out = bind::toNumber(context, value);
+            if (std::isnan(out))
                 throw std::invalid_argument("expected a number");
             return out;
         }
 
-        JSValue setSource(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setSource(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "source", argc, 2,
+            return call(context, "source", count, 2,
                         [&](Surface& surface)
                         {
-                            surface.setSource(readId(ctx, argv[0]), readString(ctx, argv[1], "source"));
-                            return JS_UNDEFINED;
+                            surface.setSource(readId(args[0]), readString(context, args[1], "source"));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setCanvasSize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setCanvasSize(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "setCanvasSize", argc, 3,
+            return call(context, "setCanvasSize", count, 3,
                         [&](Surface& surface)
                         {
-                            surface.setCanvasSize(readId(ctx, argv[0]), static_cast<int>(readNumber(ctx, argv[1])),
-                                                  static_cast<int>(readNumber(ctx, argv[2])));
-                            return JS_UNDEFINED;
+                            surface.setCanvasSize(readId(args[0]), static_cast<int>(readNumber(context, args[1])),
+                                                  static_cast<int>(readNumber(context, args[2])));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setPlaceholder(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setPlaceholder(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "placeholder", argc, 2,
+            return call(context, "placeholder", count, 2,
                         [&](Surface& surface)
                         {
-                            surface.setPlaceholder(readId(ctx, argv[0]), readString(ctx, argv[1], "placeholder"));
-                            return JS_UNDEFINED;
+                            surface.setPlaceholder(readId(args[0]), readString(context, args[1], "placeholder"));
+                            return jsi::Value::undefined();
                         });
         }
 
         // setSelection(id, anchor, focus) in UTF-16 indices.
-        JSValue setSelection(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setSelection(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "setSelectionRange", argc, 3,
+            return call(context, "setSelectionRange", count, 3,
                         [&](Surface& surface)
                         {
-                            const NodeId id = readId(ctx, argv[0]);
+                            const NodeId id = readId(args[0]);
                             Node* node = surface.find(id);
                             if (node == nullptr)
                                 throw std::invalid_argument("unknown node");
                             const std::string& text = node->text();
-                            surface.setSelection(id, { byteOffset(text, readNumber(ctx, argv[1])),
-                                                       byteOffset(text, readNumber(ctx, argv[2])) });
-                            return JS_UNDEFINED;
+                            surface.setSelection(id, { byteOffset(text, readNumber(context, args[1])),
+                                                       byteOffset(text, readNumber(context, args[2])) });
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue selection(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value selection(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "selection", argc, 1,
+            return call(context, "selection", count, 1,
                         [&](Surface& surface)
                         {
-                            Node* node = surface.find(readId(ctx, argv[0]));
+                            Node* node = surface.find(readId(args[0]));
                             if (node == nullptr)
                                 throw std::invalid_argument("unknown node");
-                            bind::ObjectBuilder object(ctx);
-                            object.set("anchor",
-                                       JS_NewFloat64(ctx, utf16Index(node->text(), node->selection().anchor)));
-                            object.set("focus", JS_NewFloat64(ctx, utf16Index(node->text(), node->selection().focus)));
+                            bind::ObjectBuilder object(context);
+                            object.set("anchor", jsi::Value(utf16Index(node->text(), node->selection().anchor)));
+                            object.set("focus", jsi::Value(utf16Index(node->text(), node->selection().focus)));
                             return object.release();
                         });
         }
 
         // offsetAt(id, x, y): the UTF-16 index of the text nearest a point
         // relative to the node.
-        JSValue offsetAt(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value offsetAt(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "offsetAt", argc, 3,
+            return call(context, "offsetAt", count, 3,
                         [&](Surface& surface)
                         {
-                            const NodeId id = readId(ctx, argv[0]);
-                            const Point point { static_cast<float>(readNumber(ctx, argv[1])),
-                                                static_cast<float>(readNumber(ctx, argv[2])) };
+                            const NodeId id = readId(args[0]);
+                            const Point point { static_cast<float>(readNumber(context, args[1])),
+                                                static_cast<float>(readNumber(context, args[2])) };
                             const std::size_t offset = surface.textOffsetAt(id, point);
-                            return JS_NewFloat64(ctx, utf16Index(surface.find(id)->text(), offset));
+                            return jsi::Value(
+                                utf16Index(surface.find(id)->text(),
+                                           offset)); // NOLINT(modernize-return-braced-init-list): a lambda
                         });
         }
 
-        JSValue scrollTo(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value scrollTo(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "scrollTo", argc, 3,
+            return call(context, "scrollTo", count, 3,
                         [&](Surface& surface)
                         {
-                            surface.scrollTo(readId(ctx, argv[0]), { static_cast<float>(readNumber(ctx, argv[1])),
-                                                                     static_cast<float>(readNumber(ctx, argv[2])) });
-                            return JS_UNDEFINED;
+                            surface.scrollTo(readId(args[0]), { static_cast<float>(readNumber(context, args[1])),
+                                                                static_cast<float>(readNumber(context, args[2])) });
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue scrollOffset(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value scrollOffset(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "scrollOffset", argc, 1,
+            return call(context, "scrollOffset", count, 1,
                         [&](Surface& surface)
                         {
-                            Node* node = surface.find(readId(ctx, argv[0]));
+                            Node* node = surface.find(readId(args[0]));
                             if (node == nullptr)
                                 throw std::invalid_argument("unknown node");
-                            bind::ObjectBuilder object(ctx);
-                            object.set("x", JS_NewFloat64(ctx, node->scrollOffset().x));
-                            object.set("y", JS_NewFloat64(ctx, node->scrollOffset().y));
+                            bind::ObjectBuilder object(context);
+                            object.set("x", jsi::Value(double(node->scrollOffset().x)));
+                            object.set("y", jsi::Value(double(node->scrollOffset().y)));
                             return object.release();
                         });
         }
 
-        JSValue contentSize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value contentSize(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "contentSize", argc, 1,
+            return call(context, "contentSize", count, 1,
                         [&](Surface& surface)
                         {
-                            const Size size = surface.contentSize(readId(ctx, argv[0]));
-                            bind::ObjectBuilder object(ctx);
-                            object.set("width", JS_NewFloat64(ctx, size.width));
-                            object.set("height", JS_NewFloat64(ctx, size.height));
+                            const Size size = surface.contentSize(readId(args[0]));
+                            bind::ObjectBuilder object(context);
+                            object.set("width", jsi::Value(double(size.width)));
+                            object.set("height", jsi::Value(double(size.height)));
                             return object.release();
                         });
         }
 
-        JSValue readClipboard(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        jsi::Value readClipboard(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
-            return call(ctx, "readText", argc, 0,
-                        [&](Surface& surface) { return bind::write(ctx, surface.clipboard().readText()); });
+            return call(context, "readText", count, 0,
+                        [&](Surface& surface) { return bind::write(context, surface.clipboard().readText()); });
         }
 
-        JSValue writeClipboard(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value writeClipboard(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(ctx, "writeText", argc, 1,
+            return call(context, "writeText", count, 1,
                         [&](Surface& surface)
                         {
-                            surface.clipboard().writeText(readString(ctx, argv[0], "text"));
-                            return JS_UNDEFINED;
+                            surface.clipboard().writeText(readString(context, args[0], "text"));
+                            return jsi::Value::undefined();
                         });
         }
 
-        JSValue setFrameListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setFrameListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
-                return JS_ThrowTypeError(ctx, "setFrameListener() expects a function");
-            bind::retainValue(ctx, &frameListenerKey, JS_DupValue(ctx, argv[0]));
-            return JS_UNDEFINED;
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setFrameListener() expects a function");
+            bind::retainValue(context, &frameListenerKey, jsi::Value(context.rt, args[0]));
+            return jsi::Value::undefined();
         }
 
         // ── Events ───────────────────────────────────────────────────────────
 
-        JSValue eventData(JSContext* ctx, const Event& event)
+        jsi::Value eventData(ContextState& context, const Event& event)
         {
             static constexpr const char* pointerTypes[] = { "mouse", "pen", "touch" };
-            bind::ObjectBuilder data(ctx);
-            data.set("related", JS_NewUint32(ctx, event.related));
-            data.set("modifiers", JS_NewUint32(ctx, event.modifiers));
+            bind::ObjectBuilder data(context);
+            data.set("related", jsi::Value(double(event.related)));
+            data.set("modifiers", jsi::Value(double(event.modifiers)));
             switch (event.type)
             {
                 case Event::Type::Wheel:
-                    data.set("deltaX", JS_NewFloat64(ctx, event.deltaX));
-                    data.set("deltaY", JS_NewFloat64(ctx, event.deltaY));
-                    data.set("deltaMode", JS_NewInt32(ctx, event.deltaUnit == WheelInput::Unit::Line ? 1 : 0));
+                    data.set("deltaX", jsi::Value(double(event.deltaX)));
+                    data.set("deltaY", jsi::Value(double(event.deltaY)));
+                    data.set("deltaMode", jsi::Value(event.deltaUnit == WheelInput::Unit::Line ? 1 : 0));
                     [[fallthrough]];
                 case Event::Type::PointerDown:
                 case Event::Type::PointerMove:
@@ -903,31 +852,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::PointerLeave:
                 case Event::Type::Click:
                 case Event::Type::ContextMenu:
-                    data.set("x", JS_NewFloat64(ctx, event.position.x));
-                    data.set("y", JS_NewFloat64(ctx, event.position.y));
-                    data.set("offsetX", JS_NewFloat64(ctx, event.offset.x));
-                    data.set("offsetY", JS_NewFloat64(ctx, event.offset.y));
-                    data.set("pointerId", JS_NewInt32(ctx, event.pointerId));
-                    data.set("pointerType",
-                             bind::write(ctx, std::string(pointerTypes[static_cast<int>(event.pointerType)])));
-                    data.set("button", JS_NewInt32(ctx, event.button));
-                    data.set("buttons", JS_NewUint32(ctx, event.buttons));
-                    data.set("pressure", JS_NewFloat64(ctx, event.pressure));
+                    data.set("x", jsi::Value(double(event.position.x)));
+                    data.set("y", jsi::Value(double(event.position.y)));
+                    data.set("offsetX", jsi::Value(double(event.offset.x)));
+                    data.set("offsetY", jsi::Value(double(event.offset.y)));
+                    data.set("pointerId", jsi::Value(double(event.pointerId)));
+                    data.set("pointerType", bind::write(context, pointerTypes[static_cast<int>(event.pointerType)]));
+                    data.set("button", jsi::Value(double(event.button)));
+                    data.set("buttons", jsi::Value(double(event.buttons)));
+                    data.set("pressure", jsi::Value(double(event.pressure)));
                     break;
                 case Event::Type::KeyDown:
                 case Event::Type::KeyUp:
-                    data.set("key", bind::write(ctx, event.key));
-                    data.set("repeat", JS_NewBool(ctx, event.repeat));
+                    data.set("key", bind::write(context, event.key));
+                    data.set("repeat", jsi::Value(event.repeat));
                     break;
                 case Event::Type::BeforeInput:
-                    data.set("data", bind::write(ctx, event.text));
+                    data.set("data", bind::write(context, event.text));
                     break;
                 case Event::Type::AccessibilityAction:
-                    data.set("action", bind::write(ctx, event.action));
+                    data.set("action", bind::write(context, event.action));
                     if (const auto* number = std::get_if<double>(&event.value))
-                        data.set("value", JS_NewFloat64(ctx, *number));
+                        data.set("value", jsi::Value(*number));
                     else if (const auto* text = std::get_if<std::string>(&event.value))
-                        data.set("value", bind::write(ctx, *text));
+                        data.set("value", bind::write(context, *text));
                     break;
                 case Event::Type::Focus:
                 case Event::Type::Blur:
@@ -937,30 +885,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return data.release();
         }
 
-        bool dispatch(JSContext* ctx, const Event& event)
+        bool dispatch(ContextState& context, const Event& event)
         {
-            auto* state = js::detail::contextStateOf(ctx);
-            if (state == nullptr)
+            const jsi::Value* retained = bind::retainedValue(context, &listenerKey);
+            if (context.halted() || retained == nullptr || ! bind::isFunction(context, *retained))
                 return false;
-            state->runtime->enter();
-            JSValue listener = JS_DupValue(ctx, bind::retainedValue(ctx, &listenerKey));
-            bool prevented = false;
-            if (JS_IsFunction(ctx, listener))
+            const js::detail::JavaScriptCall entry(context);
+            try
             {
-                JSValue args[] = { JS_NewInt32(ctx, static_cast<int>(event.type)), JS_NewUint32(ctx, event.target),
-                                   eventData(ctx, event) };
-                JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 3, args);
-                for (JSValue& arg : args)
-                    JS_FreeValue(ctx, arg);
-                if (JS_IsException(result))
-                    state->runtime->log(js::LogLevel::Error,
-                                        "soundor:ui dispatch failed: " + js::detail::takeException(ctx).toString());
-                else
-                    prevented = JS_ToBool(ctx, result) > 0;
-                JS_FreeValue(ctx, result);
+                // Held for the call: the listener may be replaced while it runs.
+                const jsi::Function listener = retained->getObject(context.rt).getFunction(context.rt);
+                const jsi::Value result = listener.call(context.rt, jsi::Value(static_cast<int>(event.type)),
+                                                        jsi::Value(double(event.target)), eventData(context, event));
+                return bind::toBoolean(context, result);
             }
-            JS_FreeValue(ctx, listener);
-            return prevented;
+            catch (...)
+            {
+                context.runtime->log(js::LogLevel::Error,
+                                     "soundor:ui dispatch failed: " + js::detail::caughtError(context).toString());
+                return false;
+            }
         }
 
         using Function = NativeFunction;
@@ -995,32 +939,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setFrameListener", setFrameListener, 1 },
         };
 
-        bool initializeInternalModule(JSContext* ctx, JSModuleDef* module)
+        void initializeInternalModule(ContextState& context, jsi::Object& exports)
         {
             Surface* surface = nullptr;
             try
             {
-                surface = &surfaceOf(ctx);
+                surface = &surfaceOf(context);
             }
             catch (const std::exception& error)
             {
-                JS_ThrowInternalError(ctx, "%s", error.what());
-                return false;
+                bind::throwInternalError(context, error.what());
             }
             for (const auto& list : { std::span<const Function>(functions), canvasFunctions(), gpu::webglFunctions() })
                 for (const Function& function : list)
-                    if (JS_SetModuleExport(ctx, module, function.name,
-                                           JS_NewCFunction(ctx, function.call, function.name, function.length))
-                        != 0)
-                        return false;
-            return JS_SetModuleExport(ctx, module, "rootId", JS_NewUint32(ctx, surface->root().id())) == 0
-                   && JS_SetModuleExport(ctx, module, "overlayId", JS_NewUint32(ctx, surface->overlay().id())) == 0;
+                    bind::setProperty(context, exports, function.name,
+                                      bind::function(context, function.name, function.length, function.call));
+            bind::setProperty(context, exports, "rootId", jsi::Value(double(surface->root().id())));
+            bind::setProperty(context, exports, "overlayId", jsi::Value(double(surface->overlay().id())));
         }
     } // namespace
 
-    Surface& surfaceOf(JSContext* ctx)
+    Surface& surfaceOf(js::bind::ContextState& context)
     {
-        auto* binding = js::bind::contextData<Binding>(ctx, &bindingKey);
+        auto* binding = js::bind::contextData<Binding>(context, &bindingKey);
         if (binding == nullptr)
             throw std::logic_error("soundor:ui is not installed in this context");
         return *binding->surface;
@@ -1030,54 +971,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         if (surface == nullptr)
             throw std::invalid_argument("soundor:ui needs a surface");
-        JSContext* ctx = js::rawContext(context);
-        surface->setEventSink([ctx](const Event& event) { return dispatch(ctx, event); });
+        auto& state = js::stateOf(context);
+        surface->setEventSink([&state](const Event& event) { return dispatch(state, event); });
         bind::setContextData(context, &bindingKey, std::make_shared<Binding>(std::move(surface)));
         installCanvases(context);
         // WebGL on a device of its own until the host offers one.
         gpu::installWebGL(context, nullptr, false);
-        std::vector<std::string> exports { "rootId", "overlayId" };
-        for (const auto& list : { std::span<const Function>(functions), canvasFunctions(), gpu::webglFunctions() })
-            for (const Function& function : list)
-                exports.emplace_back(function.name);
-        js::registerNativeModule(context, "soundor:internal/ui", { std::move(exports), initializeInternalModule, {} });
+        js::registerNativeModule(context, "soundor:internal/ui", { initializeInternalModule, {}, {} });
         js::registerNativeModule(context, "soundor:internal/ui/frames",
-                                 { {}, {}, embedded::uiFramesModule.text(), embedded::uiFramesModule.bytecode });
+                                 { {}, embedded::uiFramesModule.text(), embedded::uiFramesModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/canvas",
-                                 { {}, {}, embedded::uiCanvasModule.text(), embedded::uiCanvasModule.bytecode });
+                                 { {}, embedded::uiCanvasModule.text(), embedded::uiCanvasModule.bytecode });
         js::registerNativeModule(
             context, "soundor:internal/ui/webgl-generated",
-            { {}, {}, embedded::uiWebGLGeneratedModule.text(), embedded::uiWebGLGeneratedModule.bytecode });
+            { {}, embedded::uiWebGLGeneratedModule.text(), embedded::uiWebGLGeneratedModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/webgl",
-                                 { {}, {}, embedded::uiWebGLModule.text(), embedded::uiWebGLModule.bytecode });
-        js::registerNativeModule(context, "soundor:ui",
-                                 { {}, {}, embedded::uiModule.text(), embedded::uiModule.bytecode });
+                                 { {}, embedded::uiWebGLModule.text(), embedded::uiWebGLModule.bytecode });
+        js::registerNativeModule(context, "soundor:ui", { {}, embedded::uiModule.text(), embedded::uiModule.bytecode });
 
         // requestAnimationFrame(), devicePixelRatio and the canvas and WebGL
         // classes are global, like on the Web.
-        auto frames = context.evaluateModule("import 'soundor:internal/ui/frames'; import 'soundor:internal/ui/canvas';"
-                                             " import 'soundor:internal/ui/webgl';",
-                                             "soundor:bootstrap/ui");
-        if (! frames)
-            throw std::runtime_error("soundor:ui failed to start: " + frames.error().toString());
+        for (const char* module :
+             { "soundor:internal/ui/frames", "soundor:internal/ui/canvas", "soundor:internal/ui/webgl" })
+            if (auto loaded = context.importModule(module); ! loaded)
+                throw std::runtime_error("soundor:ui failed to start: " + loaded.error().toString());
     }
 
     void frame(js::Context& context)
     {
-        JSContext* ctx = js::rawContext(context);
-        auto* state = js::detail::contextStateOf(ctx);
-        if (state == nullptr)
+        auto& state = js::stateOf(context);
+        const jsi::Value* retained = bind::retainedValue(state, &frameListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
             return;
-        state->runtime->enter();
-        JSValue listener = JS_DupValue(ctx, bind::retainedValue(ctx, &frameListenerKey));
-        if (JS_IsFunction(ctx, listener))
-        {
-            JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 0, nullptr);
-            if (JS_IsException(result))
-                state->runtime->log(js::LogLevel::Error,
-                                    "animation frame failed: " + js::detail::takeException(ctx).toString());
-            JS_FreeValue(ctx, result);
-        }
-        JS_FreeValue(ctx, listener);
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        bind::call(state, listener, jsi::Value::undefined(), {}, "animation frame failed");
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

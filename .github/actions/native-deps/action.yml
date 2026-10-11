@@ -1,5 +1,5 @@
 name: Native dependencies
-description: Installs what building Skia and ANGLE needs, a software GPU on Linux, and keeps built Skias and ANGLEs across runs
+description: Installs what building Skia, ANGLE and Hermes needs, a software GPU on Linux, and keeps their builds across runs
 
 inputs:
   job:
@@ -36,8 +36,9 @@ runs:
       shell: bash
       run: command -v ninja || choco install ninja -y --no-progress
 
-    # Soundor builds Skia and ANGLE once per machine into SOUNDOR_CACHE (see
-    # runtimes/juce-runtime/native/cmake/SoundorSkia.cmake, SoundorAngle.cmake).
+    # Soundor builds Skia, ANGLE and Hermes once per machine into SOUNDOR_CACHE
+    # (see runtimes/juce-runtime/native/cmake/SoundorSkia.cmake,
+    # SoundorAngle.cmake, SoundorHermes.cmake).
     - name: Use the native dependency cache
       shell: bash
       run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
@@ -46,11 +47,14 @@ runs:
     # is a fine start: only what changed is built again. The job saves it at
     # its end, also when tests failed (see verify.yml), so a long build is
     # never done twice.
-    - name: Restore Skia and ANGLE
+    # The key covers what each of them is built from: a cache that matches it
+    # exactly is not saved again, so a change it missed would be built anew
+    # by every run.
+    - name: Restore Skia, ANGLE and Hermes
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/soundor-cache
-        key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/juce-runtime/native/cmake/SoundorSkia*.cmake', 'runtimes/juce-runtime/native/cmake/SoundorAngle*.cmake', 'runtimes/juce-runtime/native/cmake/angle/**', 'runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake') }}
+        key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/juce-runtime/native/cmake/SoundorSkia*.cmake', 'runtimes/juce-runtime/native/cmake/SoundorAngle*.cmake', 'runtimes/juce-runtime/native/cmake/angle/**', 'runtimes/juce-runtime/native/cmake/SoundorHermes*.cmake', 'runtimes/juce-runtime/native/cmake/hermes/**', 'runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake') }}
         restore-keys: |
           native-deps-${{ inputs.job }}-

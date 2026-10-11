@@ -23,38 +23,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
 
         constexpr std::array<std::string_view, 3> kCurveValues { "linear", "exponential", "low-cut" };
 
-        bool read(JSContext* ctx, JSValueConst value, const bind::Path& path, Curve& out)
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Curve& out)
         {
             std::size_t index = 0;
-            if (! bind::readEnum(ctx, value, path, kCurveValues, index))
-                return false;
+            bind::readEnum(ctx, value, path, kCurveValues, index);
             out = static_cast<Curve>(index);
-            return true;
         }
 
-        JSValue write(JSContext* ctx, Curve value)
+        jsi::Value write(bind::ContextState& ctx, Curve value)
         {
             return bind::writeEnum(ctx, kCurveValues.at(static_cast<std::size_t>(value)));
         }
 
-        bool read(JSContext* ctx, JSValueConst value, const bind::Path& path, Point& out)
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Point& out)
         {
-            if (! bind::expectObject(ctx, value, path))
-                return false;
-            {
-                const bind::Field field(ctx, value, "x", path);
-                if (! field || ! read(ctx, field.value(), field.path(), out.x))
-                    return false;
-            }
-            {
-                const bind::Field field(ctx, value, "y", path);
-                if (! field || ! read(ctx, field.value(), field.path(), out.y))
-                    return false;
-            }
-            return true;
+            const jsi::Object object = bind::expectObject(ctx, value, path);
+            read(ctx, bind::property(ctx, object, "x"), path.field("x"), out.x);
+            read(ctx, bind::property(ctx, object, "y"), path.field("y"), out.y);
         }
 
-        JSValue write(JSContext* ctx, Point value)
+        jsi::Value write(bind::ContextState& ctx, Point value)
         {
             bind::ObjectBuilder object(ctx);
             object.set("x", write(ctx, value.x));
@@ -62,7 +50,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
             return object.release();
         }
 
-        JSValue write(JSContext* ctx, Analysis value)
+        jsi::Value write(bind::ContextState& ctx, Analysis value)
         {
             bind::ObjectBuilder object(ctx);
             object.set("rms", write(ctx, value.rms));
@@ -70,384 +58,340 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
             object.set("label", write(ctx, value.label));
             object.set("clipped", write(ctx, value.clipped));
             object.set("curve", write(ctx, std::move(value.curve)));
-            object.set("points", bind::writeArray(ctx, std::move(value.points), [](JSContext* elementCtx, Point&& item) { return write(elementCtx, std::move(item)); }));
-            object.set("tags", bind::writeArray(ctx, std::move(value.tags), [](JSContext* elementCtx, std::string&& item) { return write(elementCtx, item); }));
+            object.set("points", bind::writeArray(ctx, std::move(value.points), [](bind::ContextState& elementCtx, Point&& item) { return write(elementCtx, std::move(item)); }));
+            object.set("tags", bind::writeArray(ctx, std::move(value.tags), [](bind::ContextState& elementCtx, std::string&& item) { return write(elementCtx, item); }));
             return object.release();
         }
 
-        JSValue call_add(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_add(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "add",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "add", argc, 2))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "add", count, 2);
                 const bind::Path call { "add" };
                 double arg_a {};
-                if (! read(ctx, argv[0], call.field("a"), arg_a))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("a"), arg_a);
                 double arg_b {};
-                if (! read(ctx, argv[1], call.field("b"), arg_b))
-                    return JS_EXCEPTION;
+                read(ctx, argv[1], call.field("b"), arg_b);
                 return write(ctx, api->add(std::move(arg_a), std::move(arg_b)));
                                 });
         }
 
-        JSValue call_analyze(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_analyze(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "analyze",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "analyze", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "analyze", count, 1);
                 const bind::Path call { "analyze" };
                 std::span<const float> arg_samples {};
-                if (! read(ctx, argv[0], call.field("samples"), arg_samples))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("samples"), arg_samples);
                 return write(ctx, api->analyze(std::move(arg_samples)));
                                 });
         }
 
-        JSValue call_centroid(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_centroid(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "centroid",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "centroid", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "centroid", count, 1);
                 const bind::Path call { "centroid" };
                 std::vector<Point> arg_points {};
-                if (! bind::readArray(ctx, argv[0], call.field("points"), arg_points, [](JSContext* elementCtx, JSValueConst element, const bind::Path& elementPath, Point& item) { return read(elementCtx, element, elementPath, item); }))
-                    return JS_EXCEPTION;
+                bind::readArray(ctx, argv[0], call.field("points"), arg_points, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Point& item) { read(elementCtx, element, elementPath, item); });
                 return write(ctx, api->centroid(std::move(arg_points)));
                                 });
         }
 
-        JSValue call_createPreset(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_createPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "createPreset",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "createPreset", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "createPreset", count, 1);
                 const bind::Path call { "createPreset" };
                 std::string arg_name {};
-                if (! read(ctx, argv[0], call.field("name"), arg_name))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("name"), arg_name);
                 return bind::writeHandle(ctx, kPresetHandle, api->createPreset(std::move(arg_name)));
                                 });
         }
 
-        JSValue call_fail(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_fail(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "fail",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "fail", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "fail", count, 1);
                 const bind::Path call { "fail" };
                 std::string arg_message {};
-                if (! read(ctx, argv[0], call.field("message"), arg_message))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("message"), arg_message);
                 api->fail(std::move(arg_message));
-                return JS_UNDEFINED;
+                return jsi::Value::undefined();
                                 });
         }
 
-        JSValue call_greet(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_greet(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "greet",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "greet", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "greet", count, 1);
                 const bind::Path call { "greet" };
                 std::string arg_name {};
-                if (! read(ctx, argv[0], call.field("name"), arg_name))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("name"), arg_name);
                 return write(ctx, api->greet(std::move(arg_name)));
                                 });
         }
 
-        JSValue call_invert(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_invert(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "invert",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "invert", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "invert", count, 1);
                 const bind::Path call { "invert" };
                 Curve arg_curve {};
-                if (! read(ctx, argv[0], call.field("curve"), arg_curve))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("curve"), arg_curve);
                 return write(ctx, api->invert(std::move(arg_curve)));
                                 });
         }
 
-        JSValue call_isEven(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_isEven(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "isEven",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "isEven", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "isEven", count, 1);
                 const bind::Path call { "isEven" };
                 double arg_value {};
-                if (! read(ctx, argv[0], call.field("value"), arg_value))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("value"), arg_value);
                 return write(ctx, api->isEven(std::move(arg_value)));
                                 });
         }
 
-        JSValue call_joinTags(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_joinTags(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "joinTags",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "joinTags", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "joinTags", count, 1);
                 const bind::Path call { "joinTags" };
                 std::vector<std::string> arg_tags {};
-                if (! bind::readArray(ctx, argv[0], call.field("tags"), arg_tags, [](JSContext* elementCtx, JSValueConst element, const bind::Path& elementPath, std::string& item) { return read(elementCtx, element, elementPath, item); }))
-                    return JS_EXCEPTION;
+                bind::readArray(ctx, argv[0], call.field("tags"), arg_tags, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, std::string& item) { read(elementCtx, element, elementPath, item); });
                 return write(ctx, api->joinTags(std::move(arg_tags)));
                                 });
         }
 
-        JSValue call_listPresets(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        jsi::Value call_listPresets(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return bind::invoke(ctx, "listPresets",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "listPresets", argc, 0))
-                    return JS_EXCEPTION;
-                return bind::writeArray(ctx, api->listPresets(), [](JSContext* elementCtx, std::shared_ptr<Preset>&& item) { return bind::writeHandle(elementCtx, kPresetHandle, std::move(item)); });
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "listPresets", count, 0);
+                return bind::writeArray(ctx, api->listPresets(), [](bind::ContextState& elementCtx, std::shared_ptr<Preset>&& item) { return bind::writeHandle(elementCtx, kPresetHandle, std::move(item)); });
                                 });
         }
 
         void resolve_loadPreset(js::detail::PendingPromise& pending, std::shared_ptr<Preset>&& value)
         {
-            bind::resolvePromise(pending, [&](JSContext* ctx) { return bind::writeHandle(ctx, kPresetHandle, std::move(value)); });
+            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return bind::writeHandle(ctx, kPresetHandle, std::move(value)); });
         }
 
-        JSValue call_loadPreset(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_loadPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "loadPreset",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "loadPreset", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "loadPreset", count, 1);
                 const bind::Path call { "loadPreset" };
                 std::string arg_name {};
-                if (! read(ctx, argv[0], call.field("name"), arg_name))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("name"), arg_name);
                 std::shared_ptr<js::detail::PendingPromise> pending;
-                JSValue promise = bind::newPromise(ctx, "loadPreset", pending);
-                if (JS_IsException(promise))
-                    return promise;
+                jsi::Value promise = bind::newPromise(ctx, "loadPreset", pending);
                 const js::Promise<std::shared_ptr<Preset>> promiseHandle(pending, resolve_loadPreset);
                 bind::startAsync(*pending, [&] { api->loadPreset(std::move(arg_name), promiseHandle); });
                 return promise;
                                 });
         }
 
-        JSValue call_makeBytes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_makeBytes(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "makeBytes",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "makeBytes", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "makeBytes", count, 1);
                 const bind::Path call { "makeBytes" };
                 double arg_count {};
-                if (! read(ctx, argv[0], call.field("count"), arg_count))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("count"), arg_count);
                 return write(ctx, api->makeBytes(std::move(arg_count)));
                                 });
         }
 
-        JSValue call_makeRamp(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_makeRamp(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "makeRamp",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "makeRamp", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "makeRamp", count, 1);
                 const bind::Path call { "makeRamp" };
                 double arg_length {};
-                if (! read(ctx, argv[0], call.field("length"), arg_length))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("length"), arg_length);
                 return write(ctx, api->makeRamp(std::move(arg_length)));
                                 });
         }
 
-        JSValue call_presetName(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_presetName(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "presetName",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "presetName", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "presetName", count, 1);
                 const bind::Path call { "presetName" };
                 std::shared_ptr<Preset> arg_preset {};
-                if (! bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset))
-                    return JS_EXCEPTION;
+                bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset);
                 return write(ctx, api->presetName(std::move(arg_preset)));
                                 });
         }
 
-        JSValue call_reset(JSContext* ctx, JSValueConst, int argc, JSValueConst*)
+        jsi::Value call_reset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return bind::invoke(ctx, "reset",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "reset", argc, 0))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "reset", count, 0);
                 api->reset();
-                return JS_UNDEFINED;
+                return jsi::Value::undefined();
                                 });
         }
 
-        JSValue call_reverseBytes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_reverseBytes(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "reverseBytes",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "reverseBytes", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "reverseBytes", count, 1);
                 const bind::Path call { "reverseBytes" };
                 std::span<const std::uint8_t> arg_data {};
-                if (! read(ctx, argv[0], call.field("data"), arg_data))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("data"), arg_data);
                 return write(ctx, api->reverseBytes(std::move(arg_data)));
                                 });
         }
 
-        JSValue call_save(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_save(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "save",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "save", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "save", count, 1);
                 const bind::Path call { "save" };
                 std::shared_ptr<Preset> arg_preset {};
-                if (! bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset))
-                    return JS_EXCEPTION;
+                bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset);
                 std::shared_ptr<js::detail::PendingPromise> pending;
-                JSValue promise = bind::newPromise(ctx, "save", pending);
-                if (JS_IsException(promise))
-                    return promise;
+                jsi::Value promise = bind::newPromise(ctx, "save", pending);
                 const js::Promise<void> promiseHandle(pending, bind::resolvePromiseWithUndefined);
                 bind::startAsync(*pending, [&] { api->save(std::move(arg_preset), promiseHandle); });
                 return promise;
                                 });
         }
 
-        JSValue call_scale(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_scale(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "scale",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "scale", argc, 2))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "scale", count, 2);
                 const bind::Path call { "scale" };
                 std::span<const double> arg_values {};
-                if (! read(ctx, argv[0], call.field("values"), arg_values))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("values"), arg_values);
                 double arg_factor {};
-                if (! read(ctx, argv[1], call.field("factor"), arg_factor))
-                    return JS_EXCEPTION;
+                read(ctx, argv[1], call.field("factor"), arg_factor);
                 return write(ctx, api->scale(std::move(arg_values), std::move(arg_factor)));
                                 });
         }
 
-        JSValue call_sumBytes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_sumBytes(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "sumBytes",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "sumBytes", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "sumBytes", count, 1);
                 const bind::Path call { "sumBytes" };
                 std::span<const std::byte> arg_data {};
-                if (! read(ctx, argv[0], call.field("data"), arg_data))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("data"), arg_data);
                 return write(ctx, api->sumBytes(std::move(arg_data)));
                                 });
         }
 
-        JSValue call_sumInts(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call_sumInts(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "sumInts",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
-                    return JS_ThrowInternalError(ctx, "soundor:native is not installed in this context");
-                if (! bind::expectArgumentCount(ctx, "sumInts", argc, 1))
-                    return JS_EXCEPTION;
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "sumInts", count, 1);
                 const bind::Path call { "sumInts" };
                 std::span<const std::int32_t> arg_values {};
-                if (! read(ctx, argv[0], call.field("values"), arg_values))
-                    return JS_EXCEPTION;
+                read(ctx, argv[0], call.field("values"), arg_values);
                 return write(ctx, api->sumInts(std::move(arg_values)));
                                 });
         }
@@ -460,30 +404,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         bind::setContextData(context, &apiKey, std::move(api));
         js::registerNativeModule(context, "soundor:native",
                                  {
-                                     { "add", "analyze", "centroid", "createPreset", "fail", "greet", "invert", "isEven", "joinTags", "listPresets", "loadPreset", "makeBytes", "makeRamp", "presetName", "reset", "reverseBytes", "save", "scale", "sumBytes", "sumInts" },
-                                     [](JSContext* ctx, JSModuleDef* module)
+                                     [](bind::ContextState& ctx, jsi::Object& exports)
                                      {
-                                         return JS_SetModuleExport(ctx, module, "add", JS_NewCFunction(ctx, call_add, "add", 2)) == 0
-                       && JS_SetModuleExport(ctx, module, "analyze", JS_NewCFunction(ctx, call_analyze, "analyze", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "centroid", JS_NewCFunction(ctx, call_centroid, "centroid", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "createPreset", JS_NewCFunction(ctx, call_createPreset, "createPreset", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "fail", JS_NewCFunction(ctx, call_fail, "fail", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "greet", JS_NewCFunction(ctx, call_greet, "greet", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "invert", JS_NewCFunction(ctx, call_invert, "invert", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "isEven", JS_NewCFunction(ctx, call_isEven, "isEven", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "joinTags", JS_NewCFunction(ctx, call_joinTags, "joinTags", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "listPresets", JS_NewCFunction(ctx, call_listPresets, "listPresets", 0)) == 0
-                       && JS_SetModuleExport(ctx, module, "loadPreset", JS_NewCFunction(ctx, call_loadPreset, "loadPreset", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "makeBytes", JS_NewCFunction(ctx, call_makeBytes, "makeBytes", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "makeRamp", JS_NewCFunction(ctx, call_makeRamp, "makeRamp", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "presetName", JS_NewCFunction(ctx, call_presetName, "presetName", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "reset", JS_NewCFunction(ctx, call_reset, "reset", 0)) == 0
-                       && JS_SetModuleExport(ctx, module, "reverseBytes", JS_NewCFunction(ctx, call_reverseBytes, "reverseBytes", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "save", JS_NewCFunction(ctx, call_save, "save", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "scale", JS_NewCFunction(ctx, call_scale, "scale", 2)) == 0
-                       && JS_SetModuleExport(ctx, module, "sumBytes", JS_NewCFunction(ctx, call_sumBytes, "sumBytes", 1)) == 0
-                       && JS_SetModuleExport(ctx, module, "sumInts", JS_NewCFunction(ctx, call_sumInts, "sumInts", 1)) == 0;
+                                         bind::setProperty(ctx, exports, "add", bind::function(ctx, "add", 2, call_add));
+                                         bind::setProperty(ctx, exports, "analyze", bind::function(ctx, "analyze", 1, call_analyze));
+                                         bind::setProperty(ctx, exports, "centroid", bind::function(ctx, "centroid", 1, call_centroid));
+                                         bind::setProperty(ctx, exports, "createPreset", bind::function(ctx, "createPreset", 1, call_createPreset));
+                                         bind::setProperty(ctx, exports, "fail", bind::function(ctx, "fail", 1, call_fail));
+                                         bind::setProperty(ctx, exports, "greet", bind::function(ctx, "greet", 1, call_greet));
+                                         bind::setProperty(ctx, exports, "invert", bind::function(ctx, "invert", 1, call_invert));
+                                         bind::setProperty(ctx, exports, "isEven", bind::function(ctx, "isEven", 1, call_isEven));
+                                         bind::setProperty(ctx, exports, "joinTags", bind::function(ctx, "joinTags", 1, call_joinTags));
+                                         bind::setProperty(ctx, exports, "listPresets", bind::function(ctx, "listPresets", 0, call_listPresets));
+                                         bind::setProperty(ctx, exports, "loadPreset", bind::function(ctx, "loadPreset", 1, call_loadPreset));
+                                         bind::setProperty(ctx, exports, "makeBytes", bind::function(ctx, "makeBytes", 1, call_makeBytes));
+                                         bind::setProperty(ctx, exports, "makeRamp", bind::function(ctx, "makeRamp", 1, call_makeRamp));
+                                         bind::setProperty(ctx, exports, "presetName", bind::function(ctx, "presetName", 1, call_presetName));
+                                         bind::setProperty(ctx, exports, "reset", bind::function(ctx, "reset", 0, call_reset));
+                                         bind::setProperty(ctx, exports, "reverseBytes", bind::function(ctx, "reverseBytes", 1, call_reverseBytes));
+                                         bind::setProperty(ctx, exports, "save", bind::function(ctx, "save", 1, call_save));
+                                         bind::setProperty(ctx, exports, "scale", bind::function(ctx, "scale", 2, call_scale));
+                                         bind::setProperty(ctx, exports, "sumBytes", bind::function(ctx, "sumBytes", 1, call_sumBytes));
+                                         bind::setProperty(ctx, exports, "sumInts", bind::function(ctx, "sumInts", 1, call_sumInts));
                                      },
+                                     {},
+                                     {},
                                  });
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native

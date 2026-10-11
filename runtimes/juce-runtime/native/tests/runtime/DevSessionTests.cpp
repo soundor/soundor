@@ -1,3 +1,5 @@
+#include "../support/Modules.h"
+
 #include <soundor/platform/FileLog.h>
 #include <soundor/runtime/DevSession.h>
 
@@ -65,7 +67,7 @@ namespace
         // Writes a bundle, then (last, like the CLI) its build id.
         void build(const std::string& code, const std::string& id) const
         {
-            std::ofstream(dir.path / "bundle.js") << code;
+            std::ofstream(dir.path / "bundle.js") << soundor::test::module(code);
             std::ofstream(dir.path / "build-id") << id;
         }
 
@@ -179,7 +181,7 @@ TEST_SUITE("DevSession")
     {
         TempDir dir;
         DevSession session({ .bundleDirectory = dir.path, .pollInterval = std::chrono::hours(1) });
-        std::ofstream(dir.path / "bundle.js") << "globalThis.version = 1;";
+        std::ofstream(dir.path / "bundle.js") << soundor::test::module("globalThis.version = 1;");
         std::ofstream(dir.path / "build-id") << "1";
         session.tick();
         CHECK(session.buildId().empty()); // not yet looked

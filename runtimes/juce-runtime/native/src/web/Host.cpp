@@ -10,58 +10,57 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
     {
         const char hostListenerKey = 0;
 
-        JSValue makeSnapshot(JSContext* ctx, const platform::HostSnapshot& snapshot)
+        namespace bind = js::bind;
+        using bind::ContextState;
+
+        jsi::Value makeSnapshot(ContextState& context, const platform::HostSnapshot& snapshot)
         {
-            js::bind::ObjectBuilder object(ctx);
-            object.set("sampleRate", JS_NewFloat64(ctx, snapshot.sampleRate));
-            object.set("blockSize", JS_NewInt32(ctx, snapshot.blockSize));
-            object.set("hostName", js::bind::write(ctx, snapshot.hostName));
+            bind::ObjectBuilder object(context);
+            object.set("sampleRate", jsi::Value(snapshot.sampleRate));
+            object.set("blockSize", jsi::Value(snapshot.blockSize));
+            object.set("hostName", bind::write(context, snapshot.hostName));
             if (snapshot.transport.has_value())
             {
                 const auto& t = *snapshot.transport;
-                js::bind::ObjectBuilder transport(ctx);
-                transport.set("playing", JS_NewBool(ctx, t.playing));
-                transport.set("recording", JS_NewBool(ctx, t.recording));
-                transport.set("looping", JS_NewBool(ctx, t.looping));
-                transport.set("bpm", JS_NewFloat64(ctx, t.bpm));
-                transport.set("timeSignature",
-                              [&]
-                              {
-                                  js::bind::ObjectBuilder signature(ctx);
-                                  signature.set("numerator", JS_NewInt32(ctx, t.timeSignatureNumerator));
-                                  signature.set("denominator", JS_NewInt32(ctx, t.timeSignatureDenominator));
-                                  return signature.release();
-                              }());
-                transport.set("ppqPosition", JS_NewFloat64(ctx, t.ppqPosition));
-                transport.set("barStartPpq", JS_NewFloat64(ctx, t.barStartPpq));
-                transport.set("timeInSeconds", JS_NewFloat64(ctx, t.timeInSeconds));
-                transport.set("timeInSamples", JS_NewFloat64(ctx, double(t.timeInSamples)));
+                bind::ObjectBuilder transport(context);
+                transport.set("playing", jsi::Value(t.playing));
+                transport.set("recording", jsi::Value(t.recording));
+                transport.set("looping", jsi::Value(t.looping));
+                transport.set("bpm", jsi::Value(t.bpm));
+                bind::ObjectBuilder signature(context);
+                signature.set("numerator", jsi::Value(t.timeSignatureNumerator));
+                signature.set("denominator", jsi::Value(t.timeSignatureDenominator));
+                transport.set("timeSignature", signature.release());
+                transport.set("ppqPosition", jsi::Value(t.ppqPosition));
+                transport.set("barStartPpq", jsi::Value(t.barStartPpq));
+                transport.set("timeInSeconds", jsi::Value(t.timeInSeconds));
+                transport.set("timeInSamples", jsi::Value(double(t.timeInSamples)));
                 object.set("transport", transport.release());
             }
             else
             {
-                object.set("transport", JS_NULL);
+                object.set("transport", jsi::Value::null());
             }
             return object.release();
         }
 
         // hostSnapshot() → the current snapshot (defaults without a HostInfo).
-        JSValue hostSnapshot(JSContext* ctx, JSValueConst, int, JSValueConst*)
+        jsi::Value hostSnapshot(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
         {
-            auto* state = stateOf(ctx);
+            auto* state = stateOf(context);
             if (state == nullptr)
-                return JS_NULL;
+                return jsi::Value::null();
             const auto snapshot =
                 state->services.hostInfo != nullptr ? state->services.hostInfo->snapshot() : platform::HostSnapshot {};
-            return makeSnapshot(ctx, snapshot);
+            return makeSnapshot(context, snapshot);
         }
 
-        JSValue setHostListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setHostListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
-                return JS_ThrowTypeError(ctx, "setHostListener() expects a function");
-            js::bind::retainValue(ctx, &hostListenerKey, JS_DupValue(ctx, argv[0]));
-            return JS_UNDEFINED;
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setHostListener() expects a function");
+            bind::retainValue(context, &hostListenerKey, jsi::Value(context.rt, args[0]));
+            return jsi::Value::undefined();
         }
 
         const PublicModule modules[] = {
@@ -84,28 +83,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         return modules;
     }
 
-    void dispatchHostChanges(JSContext* ctx, State& state)
+    void dispatchHostChanges(js::bind::ContextState& context, State& state)
     {
         if (state.services.hostInfo == nullptr)
             return;
-        JSValue listener = JS_DupValue(ctx, js::bind::retainedValue(ctx, &hostListenerKey));
-        if (! JS_IsFunction(ctx, listener))
-        {
-            JS_FreeValue(ctx, listener);
+        const jsi::Value* retained = js::bind::retainedValue(context, &hostListenerKey);
+        if (retained == nullptr || ! js::bind::isFunction(context, *retained))
             return; // nobody imported soundor:host
-        }
         auto snapshot = state.services.hostInfo->snapshot();
-        if (state.lastHostSnapshot != snapshot)
-        {
-            state.lastHostSnapshot = snapshot;
-            JSValue arg = makeSnapshot(ctx, snapshot);
-            JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 1, &arg);
-            if (JS_IsException(result))
-                js::detail::contextStateOf(ctx)->runtime->log(
-                    js::LogLevel::Error, "soundor:host dispatch failed: " + js::detail::takeException(ctx).toString());
-            JS_FreeValue(ctx, arg);
-            JS_FreeValue(ctx, result);
-        }
-        JS_FreeValue(ctx, listener);
+        if (state.lastHostSnapshot == snapshot)
+            return;
+        state.lastHostSnapshot = snapshot;
+        // Held for the call: a subscriber may replace the listener.
+        const jsi::Function listener = retained->getObject(context.rt).getFunction(context.rt);
+        const jsi::Value argument = makeSnapshot(context, snapshot);
+        js::bind::call(context, listener, jsi::Value::undefined(), std::span(&argument, 1),
+                       "soundor:host dispatch failed");
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

@@ -28,10 +28,10 @@
 // frames are then also reported per phase, in the order the phases appear.
 // With each frame come the host's statistics (RuntimeHost::Statistics): the
 // steps of tick(), native calls per API, style changes, layout passes,
-// invalidations and engine allocations. --time-native-calls also times the
+// invalidations, garbage collections and bytes allocated. --time-native-calls also times the
 // native calls (a clock read per call). --json writes the report (device,
 // value, totals, phases) to a file. --bytecode reads the modules' bytecode
-// (bundle.js.qjsbc, from soundor_compile_js) as a plugin reads its embedded
+// (bundle.js.hbc, compiled with this build's hermesc) as a plugin reads its embedded
 // bundle; only for bytecode this build just compiled.
 
 #include "gpu/Device.h"
@@ -70,7 +70,7 @@ namespace
     }
 
     // A UI directory whose bytecode is trusted (--bytecode): the benchmark
-    // compiled it with this build's soundor_compile_js.
+    // compiled it with this build's hermesc (build/<preset>/soundor-compile-js.cmake).
     class CompiledDirectory final : public platform::Resources
     {
     public:
@@ -125,7 +125,7 @@ namespace
         long long layoutPasses = 0;
         double layoutMs = 0;
         long long invalidations = 0;
-        long long allocations = 0;
+        long long collections = 0;
         long long allocatedBytes = 0;
         long long heapBytes = 0; // at the end of the frame
     };
@@ -149,7 +149,7 @@ namespace
         sample.layoutPasses = count(before.surface.layoutPasses, after.surface.layoutPasses);
         sample.layoutMs = time(before.surface.layoutNanoseconds, after.surface.layoutNanoseconds);
         sample.invalidations = count(before.surface.invalidations, after.surface.invalidations);
-        sample.allocations = count(before.runtime.allocations, after.runtime.allocations);
+        sample.collections = count(before.runtime.collections, after.runtime.collections);
         sample.allocatedBytes = count(before.runtime.allocatedBytes, after.runtime.allocatedBytes);
         sample.heapBytes = static_cast<long long>(after.runtime.heapBytes);
     }
@@ -310,7 +310,7 @@ namespace
                                       + field("layoutMs", mean(&Sample::layoutMs)) + ", "
                                       + field("invalidations", mean(&Sample::invalidations)) + " }");
         out += ", "
-               + field("engine", "{ " + field("allocations", mean(&Sample::allocations)) + ", "
+               + field("engine", "{ " + field("collections", mean(&Sample::collections)) + ", "
                                      + field("allocatedBytes", mean(&Sample::allocatedBytes)) + ", "
                                      + field("heapBytesMax", std::to_string(largest(s, &Sample::heapBytes))) + " }");
         return out + " }";
@@ -334,7 +334,7 @@ namespace
                   << number(perFrame(s, &Sample::styleChanges)) << " style changes, "
                   << number(perFrame(s, &Sample::layoutPasses)) << " layouts, "
                   << number(perFrame(s, &Sample::invalidations)) << " invalidations, "
-                  << number(perFrame(s, &Sample::allocations)) << " engine allocations\n";
+                  << number(perFrame(s, &Sample::collections)) << " garbage collections\n";
     }
 
     std::optional<gpu::Backend> backendNamed(std::string_view name)

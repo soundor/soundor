@@ -1,3 +1,4 @@
+#include "../support/Modules.h"
 #include "../web/WebTestSupport.h"
 
 #include <string>
@@ -367,10 +368,12 @@ TEST_SUITE("soundor:ui")
     {
         RuntimeHost::Options options;
         auto first = std::make_unique<RuntimeHost>(options);
-        REQUIRE(first->context()
-                    .evaluateModule("import { root, createView } from 'soundor:ui'; root.appendChild(createView());",
-                                    "/a.js")
-                    .ok());
+        REQUIRE(
+            first->context()
+                .evaluateModule(soundor::test::module(
+                                    "import { root, createView } from 'soundor:ui'; root.appendChild(createView());"),
+                                "/a.js")
+                .ok());
         CHECK(first->surface().root().children().size() == 1);
         first.reset();
         RuntimeHost second(options);

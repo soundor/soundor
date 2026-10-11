@@ -18,6 +18,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     namespace
     {
         namespace bind = js::bind;
+        using bind::ContextState;
 
         const char canvasKey = 0;
 
@@ -30,7 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             std::uint32_t nextPaint = 1;
         };
 
-        Canvases& canvasesOf(JSContext* ctx)
+        Canvases& canvasesOf(ContextState& ctx)
         {
             auto* canvases = bind::contextData<Canvases>(ctx, &canvasKey);
             if (canvases == nullptr)
@@ -41,40 +42,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Arguments are checked and converted by canvas.js; these only read them.
         struct Args
         {
-            JSContext* ctx;
+            ContextState& ctx;
             int argc;
-            JSValueConst* argv;
+            const jsi::Value* argv;
 
             [[nodiscard]] double number(int at) const
             {
-                double out = 0;
-                if (at >= argc || JS_ToFloat64(ctx, &out, argv[at]) < 0)
+                if (at >= argc)
                     throw std::invalid_argument("expected a number");
-                return out;
+                return bind::toNumber(ctx, argv[at]);
             }
             [[nodiscard]] int integer(int at) const { return static_cast<int>(std::lround(number(at))); }
             [[nodiscard]] std::optional<double> optional(int at) const
             {
-                if (at >= argc || JS_IsUndefined(argv[at]))
+                if (at >= argc || argv[at].isUndefined())
                     return std::nullopt;
                 return number(at);
             }
-            [[nodiscard]] bool flag(int at) const { return at < argc && JS_ToBool(ctx, argv[at]) > 0; }
+            [[nodiscard]] bool flag(int at) const { return at < argc && bind::toBoolean(ctx, argv[at]); }
             [[nodiscard]] std::string string(int at) const
             {
                 std::string out;
-                if (at >= argc || ! bind::read(ctx, argv[at], bind::Path { "canvas" }, out))
+                if (at >= argc || ! argv[at].isString())
                     throw std::invalid_argument("expected a string");
+                bind::read(ctx, argv[at], bind::Path { "canvas" }, out);
                 return out;
             }
             [[nodiscard]] std::vector<double> numbers(int at) const
             {
                 std::vector<double> out;
-                if (at >= argc
-                    || ! bind::readArray(ctx, argv[at], bind::Path { "canvas" }, out,
-                                         [](JSContext* c, JSValueConst value, const bind::Path& path, double& element)
-                                         { return bind::read(c, value, path, element); }))
+                if (at >= argc)
                     throw std::invalid_argument("expected an array of numbers");
+                bind::readArray(ctx, argv[at], bind::Path { "canvas" }, out,
+                                [](ContextState& c, const jsi::Value& value, const bind::Path& path, double& element)
+                                { bind::read(c, value, path, element); });
                 return out;
             }
             [[nodiscard]] NodeId node(int at) const { return static_cast<NodeId>(number(at)); }
@@ -82,8 +83,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             [[nodiscard]] std::span<const double> doubles(int at) const
             {
                 std::span<const double> out;
-                if (at >= argc || ! bind::read(ctx, argv[at], bind::Path { "canvas" }, out))
+                if (at >= argc)
                     throw std::invalid_argument("expected a Float64Array");
+                bind::read(ctx, argv[at], bind::Path { "canvas" }, out);
                 return out;
             }
         };
@@ -168,7 +170,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
 
-        render::Canvas2D& contextOf(JSContext* ctx, NodeId node)
+        render::Canvas2D& contextOf(ContextState& ctx, NodeId node)
         {
             Canvases& canvases = canvasesOf(ctx);
             auto found = canvases.contexts.find(node);
@@ -183,7 +185,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return *found->second;
         }
 
-        std::shared_ptr<render::Paint> paintOf(JSContext* ctx, double id)
+        std::shared_ptr<render::Paint> paintOf(ContextState& ctx, double id)
         {
             const auto found = canvasesOf(ctx).paints.find(static_cast<std::uint32_t>(id));
             if (found == canvasesOf(ctx).paints.end())
@@ -191,43 +193,42 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return found->second;
         }
 
-        JSValue keep(JSContext* ctx, std::shared_ptr<render::Paint> paint)
+        jsi::Value keep(ContextState& ctx, std::shared_ptr<render::Paint> paint)
         {
             Canvases& canvases = canvasesOf(ctx);
             const std::uint32_t id = canvases.nextPaint++;
             canvases.paints.emplace(id, std::move(paint));
-            return JS_NewUint32(ctx, id);
+            return { double(id) };
         }
 
-        JSValue numbers(JSContext* ctx, const std::vector<double>& values)
+        jsi::Value numbers(ContextState& ctx, const std::vector<double>& values)
         {
-            JSValue array = JS_NewArray(ctx);
+            jsi::Array array(ctx.rt, values.size());
             for (std::size_t i = 0; i < values.size(); ++i)
-                JS_SetPropertyUint32(ctx, array, static_cast<std::uint32_t>(i), JS_NewFloat64(ctx, values[i]));
+                array.setValueAtIndex(ctx.rt, i, jsi::Value(values[i]));
             return array;
         }
 
-        JSValue string(JSContext* ctx, const std::string& value)
+        jsi::Value string(ContextState& ctx, const std::string& value)
         {
-            return JS_NewStringLen(ctx, value.data(), value.size());
+            return bind::write(ctx, value);
         }
 
         // call2d(node, op, ...): one native entry for every 2D context method,
         // so a drawing call costs one crossing.
-        JSValue call2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value call2d(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
-            if (! bind::expectArgumentCount(ctx, "call2d", argc, 2))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "call2d", count, 2);
             return bind::invoke(
                 ctx, "call2d",
-                [&]() -> JSValue
+                [&]() -> jsi::Value
                 {
-                    const Args all { ctx, argc, argv };
+                    const Args all { ctx, static_cast<int>(count), argv };
                     render::Canvas2D& c = contextOf(ctx, all.node(0));
                     c.sync();
                     const auto op = static_cast<Canvas2DOp>(all.integer(1));
-                    const Args a { ctx, argc - 2, argv + 2 };
+                    const Args a { ctx, static_cast<int>(count) - 2, argv + 2 };
                     switch (op)
                     {
                         case Canvas2DOp::Save:
@@ -240,14 +241,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             c.reset();
                             break;
                         case Canvas2DOp::GlobalAlpha:
-                            return JS_NewFloat64(ctx, c.globalAlpha());
+                            return { c.globalAlpha() };
                         case Canvas2DOp::SetGlobalAlpha:
                             c.setGlobalAlpha(a.number(0));
                             break;
                         case Canvas2DOp::CompositeOperation:
                             return string(ctx, c.globalCompositeOperation());
                         case Canvas2DOp::SetCompositeOperation:
-                            return JS_NewBool(ctx, c.setGlobalCompositeOperation(a.string(0)));
+                            return { c.setGlobalCompositeOperation(a.string(0)) };
                         case Canvas2DOp::Scale:
                             c.scale(a.number(0), a.number(1));
                             break;
@@ -273,9 +274,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             return numbers(ctx, { m.begin(), m.end() });
                         }
                         case Canvas2DOp::SetFillColor:
-                            return JS_NewBool(ctx, c.setFillColor(a.string(0)));
+                            return { c.setFillColor(a.string(0)) };
                         case Canvas2DOp::SetStrokeColor:
-                            return JS_NewBool(ctx, c.setStrokeColor(a.string(0)));
+                            return { c.setStrokeColor(a.string(0)) };
                         case Canvas2DOp::SetFillPaint:
                             c.setFillPaint(paintOf(ctx, a.number(0)));
                             break;
@@ -287,20 +288,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         case Canvas2DOp::StrokeColor:
                             return string(ctx, c.strokeColor());
                         case Canvas2DOp::LineWidth:
-                            return JS_NewFloat64(ctx, c.lineWidth());
+                            return { c.lineWidth() };
                         case Canvas2DOp::SetLineWidth:
                             c.setLineWidth(a.number(0));
                             break;
                         case Canvas2DOp::LineCap:
                             return string(ctx, c.lineCap());
                         case Canvas2DOp::SetLineCap:
-                            return JS_NewBool(ctx, c.setLineCap(a.string(0)));
+                            return { c.setLineCap(a.string(0)) };
                         case Canvas2DOp::LineJoin:
                             return string(ctx, c.lineJoin());
                         case Canvas2DOp::SetLineJoin:
-                            return JS_NewBool(ctx, c.setLineJoin(a.string(0)));
+                            return { c.setLineJoin(a.string(0)) };
                         case Canvas2DOp::MiterLimit:
-                            return JS_NewFloat64(ctx, c.miterLimit());
+                            return { c.miterLimit() };
                         case Canvas2DOp::SetMiterLimit:
                             c.setMiterLimit(a.number(0));
                             break;
@@ -310,7 +311,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             c.setLineDash(a.numbers(0));
                             break;
                         case Canvas2DOp::LineDashOffset:
-                            return JS_NewFloat64(ctx, c.lineDashOffset());
+                            return { c.lineDashOffset() };
                         case Canvas2DOp::SetLineDashOffset:
                             c.setLineDashOffset(a.number(0));
                             break;
@@ -364,10 +365,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         case Canvas2DOp::Path:
                         {
                             const std::span<const double> commands = a.doubles(0);
-                            const auto count = static_cast<std::size_t>(std::max(0, a.integer(1)));
-                            if (count > commands.size())
+                            const auto used = static_cast<std::size_t>(std::max(0, a.integer(1)));
+                            if (used > commands.size())
                                 throw std::invalid_argument("malformed path commands");
-                            runPath(c, commands.first(count));
+                            runPath(c, commands.first(used));
                             break;
                         }
                         case Canvas2DOp::Fill:
@@ -380,21 +381,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             c.clip(a.flag(0));
                             break;
                         case Canvas2DOp::IsPointInPath:
-                            return JS_NewBool(ctx, c.isPointInPath(a.number(0), a.number(1), a.flag(2)));
+                            return { c.isPointInPath(a.number(0), a.number(1), a.flag(2)) };
                         case Canvas2DOp::IsPointInStroke:
-                            return JS_NewBool(ctx, c.isPointInStroke(a.number(0), a.number(1)));
+                            return { c.isPointInStroke(a.number(0), a.number(1)) };
                         case Canvas2DOp::Font:
                             return string(ctx, c.font());
                         case Canvas2DOp::SetFont:
-                            return JS_NewBool(ctx, c.setFont(a.string(0)));
+                            return { c.setFont(a.string(0)) };
                         case Canvas2DOp::TextAlign:
                             return string(ctx, c.textAlign());
                         case Canvas2DOp::SetTextAlign:
-                            return JS_NewBool(ctx, c.setTextAlign(a.string(0)));
+                            return { c.setTextAlign(a.string(0)) };
                         case Canvas2DOp::TextBaseline:
                             return string(ctx, c.textBaseline());
                         case Canvas2DOp::SetTextBaseline:
-                            return JS_NewBool(ctx, c.setTextBaseline(a.string(0)));
+                            return { c.setTextBaseline(a.string(0)) };
                         case Canvas2DOp::FillText:
                             c.fillText(a.string(0), a.number(1), a.number(2), a.optional(3));
                             break;
@@ -408,7 +409,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                 ctx, { metrics.width, metrics.fontBoundingBoxAscent, metrics.fontBoundingBoxDescent });
                         }
                         case Canvas2DOp::ImageSmoothing:
-                            return JS_NewBool(ctx, c.imageSmoothing());
+                            return { c.imageSmoothing() };
                         case Canvas2DOp::SetImageSmoothing:
                             c.setImageSmoothing(a.flag(0));
                             break;
@@ -424,8 +425,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             std::optional<std::array<double, 4>> sourceRect;
                             if (a.flag(1))
                                 sourceRect = { a.number(2), a.number(3), a.number(4), a.number(5) };
-                            return JS_NewBool(ctx, c.drawAsset(a.string(0), sourceRect, a.number(6), a.number(7),
-                                                               a.optional(8), a.optional(9)));
+                            return { c.drawAsset(a.string(0), sourceRect, a.number(6), a.number(7), a.optional(8),
+                                                 a.optional(9)) };
                         }
                         case Canvas2DOp::GetImageData:
                             return bind::write(ctx,
@@ -433,28 +434,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         case Canvas2DOp::PutImageData:
                         {
                             std::span<const std::uint8_t> data;
-                            if (! bind::read(ctx, a.argv[0], bind::Path { "putImageData" }, data))
-                                return JS_EXCEPTION;
+                            bind::read(ctx, a.argv[0], bind::Path { "putImageData" }, data);
                             c.putImageData(data, a.integer(1), a.integer(2), a.integer(3), a.integer(4), a.integer(5),
                                            a.integer(6), a.integer(7), a.integer(8));
                             break;
                         }
                     }
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 });
         }
 
         // gradient2d(kind, ...numbers): a new gradient's id.
-        JSValue gradient2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value gradient2d(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
-            if (! bind::expectArgumentCount(ctx, "gradient2d", argc, 1))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "gradient2d", count, 1);
             return bind::invoke(
                 ctx, "gradient2d",
-                [&]() -> JSValue
+                [&]() -> jsi::Value
                 {
-                    const Args a { ctx, argc, argv };
+                    const Args a { ctx, static_cast<int>(count), argv };
                     switch (a.integer(0))
                     {
                         case 0:
@@ -470,30 +469,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
 
         // colorStop2d(paint, offset, color): false when the color is not one.
-        JSValue colorStop2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value colorStop2d(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
-            if (! bind::expectArgumentCount(ctx, "colorStop2d", argc, 3))
-                return JS_EXCEPTION;
-            return bind::invoke(ctx, "colorStop2d",
-                                [&]() -> JSValue
-                                {
-                                    const Args a { ctx, argc, argv };
-                                    return JS_NewBool(ctx, render::Canvas2D::addColorStop(*paintOf(ctx, a.number(0)),
-                                                                                          a.number(1), a.string(2)));
-                                });
+            bind::expectArgumentCount(ctx, "colorStop2d", count, 3);
+            return bind::invoke(
+                ctx, "colorStop2d",
+                [&]() -> jsi::Value
+                {
+                    const Args a { ctx, static_cast<int>(count), argv };
+                    return { render::Canvas2D::addColorStop(*paintOf(ctx, a.number(0)), a.number(1), a.string(2)) };
+                });
         }
 
         // pattern2d(context node, source node, repetition): a new pattern's id.
-        JSValue pattern2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value pattern2d(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
-            if (! bind::expectArgumentCount(ctx, "pattern2d", argc, 3))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "pattern2d", count, 3);
             return bind::invoke(ctx, "pattern2d",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
-                                    const Args a { ctx, argc, argv };
+                                    const Args a { ctx, static_cast<int>(count), argv };
                                     render::Canvas2D& c = contextOf(ctx, a.node(0));
                                     return keep(ctx, c.pattern(*surfaceOf(ctx).canvasBuffer(a.node(1)), a.string(2)));
                                 });
@@ -501,19 +498,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // release2d(node, paint): forgets a node's context (0: none) and a
         // paint (0: none), once their JavaScript objects are collected.
-        JSValue release2d(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value release2d(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::Canvas);
-            if (! bind::expectArgumentCount(ctx, "release2d", argc, 2))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "release2d", count, 2);
             return bind::invoke(ctx, "release2d",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
-                                    const Args a { ctx, argc, argv };
+                                    const Args a { ctx, static_cast<int>(count), argv };
                                     Canvases& canvases = canvasesOf(ctx);
                                     canvases.contexts.erase(a.node(0));
                                     canvases.paints.erase(static_cast<std::uint32_t>(a.number(1)));
-                                    return JS_UNDEFINED;
+                                    return jsi::Value::undefined();
                                 });
         }
     } // namespace

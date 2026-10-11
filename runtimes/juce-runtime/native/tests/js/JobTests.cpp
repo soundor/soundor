@@ -41,11 +41,12 @@ TEST_SUITE("Jobs")
     {
         Runtime runtime;
         Context context(runtime);
-        REQUIRE(context
-                    .evaluateScript(
-                        "globalThis.order = [];"
-                        "(async () => { order.push(1); await null; order.push(2); await null; order.push(3); })();")
-                    .ok());
+        REQUIRE(
+            context
+                .evaluateScript(
+                    "globalThis.order = [];"
+                    "(async function () { order.push(1); await null; order.push(2); await null; order.push(3); })();")
+                .ok());
         runtime.runPendingJobs();
         CHECK(context.evaluateScript("order.join(',')").value().asString() == "1,2,3");
     }

@@ -3,6 +3,8 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 
+#include "../../../tests/support/Modules.h"
+
 #include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/runtime/RuntimeHost.h>
@@ -97,11 +99,12 @@ namespace
         std::string await(const std::string& body)
         {
             REQUIRE(host.context()
-                        .evaluateModule("globalThis.done = false; (async () => {" + body
-                                            + "})().then((v) => { globalThis.result = String(v); }, (e) => {"
-                                              " globalThis.result = 'rejected: ' + e.name + ': ' + e.message; })"
-                                              ".finally(() => { done = true; });",
-                                        "/fetch" + std::to_string(++counter) + ".js")
+                        .evaluateModule(
+                            soundor::test::module("globalThis.done = false; (async function () {" + body
+                                                  + "})().then((v) => { globalThis.result = String(v); }, (e) => {"
+                                                    " globalThis.result = 'rejected: ' + e.name + ': ' + e.message; })"
+                                                    ".finally(() => { done = true; });"),
+                            "/fetch" + std::to_string(++counter) + ".js")
                         .ok());
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
             while (std::chrono::steady_clock::now() < deadline)

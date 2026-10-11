@@ -46,36 +46,77 @@ function(soundor_embed_directory target function directory)
   set_source_files_properties("${output}" PROPERTIES SKIP_LINTING ON) # generated
 endfunction()
 
-# Whether JavaScript is compiled to QuickJS bytecode while building: the
-# compiler is part of this build, and the build can run it.
+# Whether JavaScript is compiled to Hermes bytecode while building: hermesc is
+# part of this build (SoundorHermes.cmake), and the build can run it.
 function(soundor_precompiles_js out)
-  if(SOUNDOR_PRECOMPILE_JS AND TARGET soundor_compile_js AND NOT CMAKE_CROSSCOMPILING)
+  if(SOUNDOR_PRECOMPILE_JS AND TARGET soundor_hermesc AND NOT CMAKE_CROSSCOMPILING)
     set(${out} TRUE PARENT_SCOPE)
   else()
     set(${out} FALSE PARENT_SCOPE)
   endif()
 endfunction()
 
+# Node, which lowers the runtime's modules (soundor_lower_js_command()). A
+# plugin build gets the one running the CLI.
+find_program(SOUNDOR_NODE_EXE NAMES node)
+
+# Lowers the ES module <input> to <output>, in the runtime's module form
+# (SoundorLowerJs.mjs, with @soundor/core's toNativeModule()). <name> is the
+# file name problems are reported under.
+function(soundor_lower_js_command input output name)
+  if(NOT SOUNDOR_NODE_EXE)
+    message(FATAL_ERROR "Soundor needs Node to build its runtime's JavaScript modules: put node on PATH, "
+                        "or set SOUNDOR_NODE_EXE")
+  endif()
+  set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorLowerJs.mjs")
+  set(depends "${input}" "${script}")
+  # In Soundor's repository, the lowering itself (what the script imports).
+  set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../../packages/core/src/native-module.ts")
+  if(EXISTS "${lowering}")
+    list(APPEND depends "${lowering}")
+  endif()
+  get_filename_component(directory "${output}" DIRECTORY)
+  add_custom_command(
+    OUTPUT "${output}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${directory}"
+    COMMAND "${SOUNDOR_NODE_EXE}" "${script}" "${input}" "${output}" "${name}"
+    DEPENDS ${depends}
+    COMMENT "Lowering ${input}"
+    VERBATIM)
+endfunction()
+
+# Compiles <input> to <output>, Hermes bytecode for the module <name>
+# (SoundorCompileJs.cmake).
+function(soundor_compile_js_command input output name)
+  get_property(revision GLOBAL PROPERTY SOUNDOR_HERMES_REVISION)
+  add_custom_command(
+    OUTPUT "${output}"
+    COMMAND ${CMAKE_COMMAND} "-DHERMESC=$<TARGET_FILE:soundor_hermesc>" "-DINPUT=${input}" "-DOUTPUT=${output}"
+            "-DNAME=${name}" "-DREVISION=${revision}" "-DFLAGS=${SOUNDOR_HERMESC_FLAGS}"
+            -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorCompileJs.cmake"
+    DEPENDS "${input}" soundor_hermesc "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorCompileJs.cmake"
+    COMMENT "Compiling ${input}"
+    VERBATIM)
+endfunction()
+
 # soundor_embed_module(<target> <symbol> <input> <name>) embeds a runtime
 # module, defining
 #   const soundor::<abi>::embedded::ModuleCode soundor::<abi>::embedded::<symbol>
-# (src/modules/Embedded.h): its bytecode, compiled by soundor_compile_js under
-# the module name <name>, or its source where the build cannot compile it.
-function(soundor_embed_module target symbol input name)
+# (src/modules/Embedded.h): its bytecode, compiled by hermesc under the module
+# name <name>, or its source where the build cannot compile it. <input> is an
+# ES module (src/), lowered to the runtime's module form first.
+function(soundor_embed_module target symbol source name)
   set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorEmbedModule.cmake")
-  get_filename_component(input "${input}" ABSOLUTE)
+  get_filename_component(source "${source}" ABSOLUTE)
   set(directory "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded")
   set(output "${directory}/${symbol}.cpp")
+  set(input "${directory}/${symbol}.js")
+  file(RELATIVE_PATH relative "${CMAKE_CURRENT_SOURCE_DIR}" "${source}")
+  soundor_lower_js_command("${source}" "${input}" "${relative}")
   soundor_precompiles_js(precompile)
   if(precompile)
-    set(compiled "${directory}/${symbol}.qjsbc")
-    add_custom_command(
-      OUTPUT "${compiled}"
-      COMMAND ${CMAKE_COMMAND} -E make_directory "${directory}"
-      COMMAND soundor_compile_js "${input}" "${compiled}" "${name}"
-      DEPENDS "${input}" soundor_compile_js
-      COMMENT "Compiling ${input}"
-      VERBATIM)
+    set(compiled "${directory}/${symbol}.hbc")
+    soundor_compile_js_command("${input}" "${compiled}" "${name}")
     add_custom_command(
       OUTPUT "${output}"
       COMMAND ${CMAKE_COMMAND} -DBYTECODE=${compiled} -DOUTPUT=${output} -DSYMBOL=${symbol} -P "${script}"
@@ -97,12 +138,14 @@ endfunction()
 
 # soundor_embed_ui(<target> <function> <directory>) embeds a plugin's UI
 # bundle like soundor_embed_directory(), with each JavaScript module compiled
-# to bytecode where the build can: "bundle.js" is embedded as
-# "bundle.js.qjsbc", which the runtime reads instead (ResourceModuleLoader).
+# to bytecode where the build can: "bundle.js" is embedded as "bundle.js.hbc",
+# which the runtime reads instead (ResourceModuleLoader). The bundle's ES
+# module form for the Web ("*.mjs") and source maps are not embedded.
 function(soundor_embed_ui target function directory)
   set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorEmbedDirectory.cmake")
   get_filename_component(directory "${directory}" ABSOLUTE)
   file(GLOB_RECURSE files CONFIGURE_DEPENDS LIST_DIRECTORIES false RELATIVE "${directory}" "${directory}/*")
+  list(FILTER files EXCLUDE REGEX "\\.(mjs|map)$")
   set(output "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded/${function}.cpp")
   set(compiledDirectory "${CMAKE_CURRENT_BINARY_DIR}/soundor-embedded/${function}")
   set(inputs "")
@@ -110,16 +153,9 @@ function(soundor_embed_ui target function directory)
   soundor_precompiles_js(precompile)
   foreach(file IN LISTS files)
     list(APPEND inputs "${directory}/${file}")
-    if(precompile AND file MATCHES "\\.m?js$")
-      set(bytecode "${compiledDirectory}/${file}.qjsbc")
-      get_filename_component(bytecodeDirectory "${bytecode}" DIRECTORY)
-      add_custom_command(
-        OUTPUT "${bytecode}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${bytecodeDirectory}"
-        COMMAND soundor_compile_js "${directory}/${file}" "${bytecode}" "/${file}"
-        DEPENDS "${directory}/${file}" soundor_compile_js
-        COMMENT "Compiling ${file}"
-        VERBATIM)
+    if(precompile AND file MATCHES "\\.js$")
+      set(bytecode "${compiledDirectory}/${file}.hbc")
+      soundor_compile_js_command("${directory}/${file}" "${bytecode}" "/${file}")
       list(APPEND compiled "${bytecode}")
     endif()
   endforeach()
@@ -129,7 +165,7 @@ function(soundor_embed_ui target function directory)
   add_custom_command(
     OUTPUT "${output}"
     COMMAND ${CMAKE_COMMAND} -DDIRECTORY=${directory} -DCOMPILED=${compiledDirectory} -DOUTPUT=${output}
-            -DFUNCTION=${function} -P "${script}"
+            -DFUNCTION=${function} -DUI=ON -P "${script}"
     DEPENDS ${inputs} ${compiled} "${script}"
     COMMENT "Embedding ${directory}"
     VERBATIM)

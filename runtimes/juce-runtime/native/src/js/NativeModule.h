@@ -6,7 +6,7 @@
 
 #include <soundor/Config.h>
 
-#include <quickjs.h>
+#include <jsi/jsi.h>
 
 #include <cstdint>
 #include <functional>
@@ -14,7 +14,12 @@
 #include <span>
 #include <string>
 #include <string_view>
-#include <vector>
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE
+{
+    // Hermes's engine API, for Soundor's native modules.
+    namespace jsi = facebook::jsi;
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 {
@@ -22,15 +27,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
     namespace detail
     {
-        // A module provided by the runtime. Either implemented in C++ — its
-        // export names declared up front (ES modules are statically linked)
-        // and filled in by `initialize`, which returns false after throwing —
-        // or written in JavaScript embedded in the runtime: its `bytecode`
-        // when the build compiled it (soundor_compile_js), else its `source`.
+        struct ContextState;
+
+        // A module provided by the runtime. Either implemented in C++ —
+        // `initialize` fills its exports object, throwing jsi::JSError on
+        // failure — or written in JavaScript embedded in the runtime: its
+        // `bytecode` when the build compiled it (hermesc), else its `source`,
+        // both in the runtime's module form (native/README.md, "Modules").
         struct NativeModule
         {
-            std::vector<std::string> exports;
-            std::function<bool(JSContext*, JSModuleDef*)> initialize;
+            std::function<void(ContextState&, jsi::Object& exports)> initialize;
             std::string_view source;
             std::span<const std::uint8_t> bytecode;
         };

@@ -3,7 +3,9 @@
 #include "modules/Embedded.h"
 #include "web/Functions.h"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -24,10 +26,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         const EmbeddedModule embeddedModules[] = {
             { "soundor:internal/web", &embedded::webModule },
             { "soundor:internal/web/abort", &embedded::abortModule },
+            { "soundor:internal/web/base64", &embedded::base64Module },
             { "soundor:internal/web/blob", &embedded::blobModule },
             { "soundor:internal/web/clone", &embedded::cloneModule },
             { "soundor:internal/web/console", &embedded::consoleModule },
             { "soundor:internal/web/crypto", &embedded::cryptoModule },
+            { "soundor:internal/web/dom-exception", &embedded::domExceptionModule },
             { "soundor:internal/web/encoding", &embedded::encodingModule },
             { "soundor:internal/web/events", &embedded::eventsModule },
             { "soundor:internal/web/fetch", &embedded::fetchModule },
@@ -39,79 +43,67 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 
         // ── soundor:internal/platform: console, clock, timers ────────────────
 
-        JSValue write(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        namespace bind = js::bind;
+        using bind::ContextState;
+
+        jsi::Value write(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            int level = 1;
-            if (argc < 2 || JS_ToInt32(ctx, &level, argv[0]) < 0)
-                return JS_EXCEPTION;
-            auto* state = js::detail::contextStateOf(ctx);
-            if (state != nullptr)
-                state->runtime->log(static_cast<js::LogLevel>(std::clamp(level, 0, 3)),
-                                    js::detail::toStdString(ctx, argv[1]));
-            return JS_UNDEFINED;
+            if (count < 2)
+                bind::throwTypeError(context, "write() expects 2 arguments");
+            const int level = bind::toInt32(context, args[0]);
+            context.runtime->log(static_cast<js::LogLevel>(std::clamp(level, 0, 3)),
+                                 js::detail::toStdString(context.rt, args[1]));
+            return jsi::Value::undefined();
         }
 
-        JSValue now(JSContext* ctx, JSValueConst, int, JSValueConst*)
+        jsi::Value now(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
         {
-            const auto* state = stateOf(ctx);
-            return JS_NewFloat64(ctx, state != nullptr ? state->now() : 0.0);
+            const auto* state = stateOf(context);
+            return { state != nullptr ? state->now() : 0.0 };
         }
 
-        JSValue setWake(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setWake(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            auto* state = stateOf(ctx);
-            double at = std::numeric_limits<double>::infinity();
-            if (argc > 0 && JS_ToFloat64(ctx, &at, argv[0]) < 0)
-                return JS_EXCEPTION;
+            auto* state = stateOf(context);
+            const double at = count > 0 ? bind::toNumber(context, args[0]) : std::numeric_limits<double>::infinity();
             if (state != nullptr)
                 state->nextTimerWake = std::isnan(at) ? std::numeric_limits<double>::infinity() : at;
-            return JS_UNDEFINED;
+            return jsi::Value::undefined();
         }
 
-        JSValue setTimerDispatcher(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value setTimerDispatcher(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                      std::size_t count)
         {
-            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
-                return JS_ThrowTypeError(ctx, "setTimerDispatcher() expects a function");
-            js::bind::retainValue(ctx, &timerDispatcherKey, JS_DupValue(ctx, argv[0]));
-            return JS_UNDEFINED;
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setTimerDispatcher() expects a function");
+            bind::retainValue(context, &timerDispatcherKey, jsi::Value(context.rt, args[0]));
+            return jsi::Value::undefined();
         }
 
-        void runTimers(JSContext* ctx, State& state)
+        void runTimers(ContextState& context, State& state)
         {
             const double time = state.now();
             if (time < state.nextTimerWake)
                 return;
             state.nextTimerWake = std::numeric_limits<double>::infinity();
-            JSValue dispatcher = JS_DupValue(ctx, js::bind::retainedValue(ctx, &timerDispatcherKey));
-            if (JS_IsFunction(ctx, dispatcher))
-            {
-                JSValue arg = JS_NewFloat64(ctx, time);
-                JSValue result = JS_Call(ctx, dispatcher, JS_UNDEFINED, 1, &arg);
-                if (JS_IsException(result))
-                    js::detail::contextStateOf(ctx)->runtime->log(
-                        js::LogLevel::Error, "timer dispatch failed: " + js::detail::takeException(ctx).toString());
-                JS_FreeValue(ctx, result);
-            }
-            JS_FreeValue(ctx, dispatcher);
+            const jsi::Value* retained = bind::retainedValue(context, &timerDispatcherKey);
+            if (retained == nullptr || ! bind::isFunction(context, *retained))
+                return;
+            // Held for the call: a timer callback may replace the dispatcher.
+            const jsi::Function dispatcher = retained->getObject(context.rt).getFunction(context.rt);
+            const jsi::Value argument(time);
+            bind::call(context, dispatcher, jsi::Value::undefined(), std::span(&argument, 1), "timer dispatch failed");
         }
 
-        bool exportPlatform(JSContext* ctx, JSModuleDef* module)
+        void initializePlatform(ContextState& context, jsi::Object& exports)
         {
-            auto* state = stateOf(ctx);
-            if (state == nullptr)
-            {
-                JS_ThrowInternalError(ctx, "the Soundor platform layer is not installed");
-                return false;
-            }
+            State& state = requireState(context);
             for (const auto& function : nativeFunctions())
-                if (JS_SetModuleExport(ctx, module, function.name,
-                                       JS_NewCFunction(ctx, function.call, function.name, function.length))
-                    < 0)
-                    return false;
-            return JS_SetModuleExport(ctx, module, "timeOrigin", JS_NewFloat64(ctx, state->timeOrigin)) == 0
-                   && JS_SetModuleExport(ctx, module, "pluginId", js::bind::write(ctx, state->services.pluginId)) == 0
-                   && JS_SetModuleExport(ctx, module, "pluginName", js::bind::write(ctx, state->services.pluginName))
-                          == 0;
+                bind::setProperty(context, exports, function.name,
+                                  bind::function(context, function.name, function.length, function.call));
+            bind::setProperty(context, exports, "timeOrigin", jsi::Value(state.timeOrigin));
+            bind::setProperty(context, exports, "pluginId", bind::write(context, state.services.pluginId));
+            bind::setProperty(context, exports, "pluginName", bind::write(context, state.services.pluginName));
         }
     } // namespace
 
@@ -159,12 +151,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                / 1000.0;
     }
 
-    JSValue State::beginOperation(JSContext* ctx, const char* name, std::uint64_t& id)
+    jsi::Value State::beginOperation(js::bind::ContextState& context, const char* name, std::uint64_t& id)
     {
         std::shared_ptr<js::detail::PendingPromise> pending;
-        JSValue promise = js::bind::newPromise(ctx, name, pending);
-        if (JS_IsException(promise))
-            return promise;
+        jsi::Value promise = js::bind::newPromise(context, name, pending);
         id = nextOperationId++;
         operations.emplace(id, std::move(pending));
         return promise;
@@ -186,13 +176,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         auto pending = takeOperation(id);
         if (pending == nullptr)
             return;
-        JSContext* ctx = pending->activeContext();
-        if (ctx == nullptr)
+        js::bind::ContextState* context = pending->activeContext();
+        if (context == nullptr || context->halted())
             return;
-        JSValue error = makeError(ctx, kind, message);
-        if (JS_IsException(error))
-            error = JS_GetException(ctx);
-        pending->settle(false, error);
+        try
+        {
+            const jsi::Value error = makeError(*context, kind, message);
+            pending->settle(false, error);
+        }
+        catch (const jsi::JSError& error)
+        {
+            pending->settle(false, error.value());
+        }
     }
 
     platform::WorkerThread& State::worker()
@@ -202,82 +197,71 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         return *fileWorker;
     }
 
-    State* stateOf(JSContext* ctx)
+    State* stateOf(js::bind::ContextState& context)
     {
-        return js::bind::contextData<State>(ctx, &stateKey);
+        return js::bind::contextData<State>(context, &stateKey);
     }
 
-    JSValue makeError(JSContext* ctx, std::string_view kind, std::string_view message)
+    State& requireState(js::bind::ContextState& context)
+    {
+        State* state = stateOf(context);
+        if (state == nullptr)
+            js::bind::throwInternalError(context, "the Soundor platform layer is not installed");
+        return *state;
+    }
+
+    jsi::Value makeError(js::bind::ContextState& context, std::string_view kind, std::string_view message)
     {
         constexpr std::string_view domPrefix = "DOMException:";
         const bool isDom = kind.starts_with(domPrefix);
         const std::string constructorName(isDom ? std::string_view("DOMException") : kind);
 
-        JSValue global = JS_GetGlobalObject(ctx);
-        JSValue constructor = JS_GetPropertyStr(ctx, global, constructorName.c_str());
-        if (! JS_IsFunction(ctx, constructor))
-        {
-            JS_FreeValue(ctx, constructor);
-            constructor = JS_GetPropertyStr(ctx, global, "Error");
-        }
-        JS_FreeValue(ctx, global);
-        JSValue args[] = { JS_NewStringLen(ctx, message.data(), message.size()), JS_UNDEFINED };
-        int argc = 1;
+        jsi::Runtime& rt = context.rt;
+        const jsi::Value found = rt.global().getProperty(rt, constructorName.c_str());
+        const jsi::Function constructor = found.isObject() && found.getObject(rt).isFunction(rt)
+                                              ? found.getObject(rt).getFunction(rt)
+                                              : rt.global().getPropertyAsFunction(rt, "Error");
         if (isDom)
-        {
-            const auto name = kind.substr(domPrefix.size());
-            args[1] = JS_NewStringLen(ctx, name.data(), name.size());
-            argc = 2;
-        }
-        JSValue error = JS_CallConstructor(ctx, constructor, argc, args);
-        JS_FreeValue(ctx, args[0]);
-        JS_FreeValue(ctx, args[1]);
-        JS_FreeValue(ctx, constructor);
-        return error;
+            return constructor.callAsConstructor(rt, js::bind::write(context, message),
+                                                 js::bind::write(context, kind.substr(domPrefix.size())));
+        return constructor.callAsConstructor(rt, js::bind::write(context, message));
     }
 
     // ── install / tick ───────────────────────────────────────────────────────
 
     void install(js::Context& context, Services services)
     {
-        JSContext* ctx = js::rawContext(context);
-        js::stateOf(context).runtime->enter();
-        if (JS_AddIntrinsicDOMException(ctx) < 0 || JS_AddIntrinsicAToB(ctx) < 0)
-            throw std::bad_alloc();
-
         js::bind::setContextData(context, &stateKey, std::make_shared<State>(std::move(services)));
-        js::registerNativeModule(context, "soundor:internal/platform", { platformExports(), exportPlatform, {} });
+        js::registerNativeModule(context, "soundor:internal/platform", { initializePlatform, {}, {} });
         for (const auto& module : embeddedModules)
-            js::registerNativeModule(context, module.name, { {}, {}, module.code->text(), module.code->bytecode });
+            js::registerNativeModule(context, module.name, { {}, module.code->text(), module.code->bytecode });
         for (const auto& module : publicModules())
-            js::registerNativeModule(context, module.name, { {}, {}, module.code->text(), module.code->bytecode });
+            js::registerNativeModule(context, module.name, { {}, module.code->text(), module.code->bytecode });
 
-        auto bootstrap = context.evaluateModule("import 'soundor:internal/web';", "soundor:bootstrap");
+        auto bootstrap = context.importModule("soundor:internal/web");
         if (! bootstrap)
             throw std::runtime_error("the Soundor platform layer failed to start: " + bootstrap.error().toString());
     }
 
     void tick(js::Context& context)
     {
-        JSContext* ctx = js::rawContext(context);
-        auto* state = stateOf(ctx);
-        if (state == nullptr)
+        auto& state = js::stateOf(context);
+        auto* platform = stateOf(state);
+        if (platform == nullptr || state.halted())
             return;
-        js::stateOf(context).runtime->enter();
-        for (auto& completion : state->completions->take())
-            completion(*state, ctx);
-        runTimers(ctx, *state);
-        dispatchHostChanges(ctx, *state);
-    }
-
-    std::vector<std::string> platformExports()
-    {
-        std::vector<std::string> names;
-        for (const auto& function : nativeFunctions())
-            names.emplace_back(function.name);
-        names.emplace_back("timeOrigin");
-        names.emplace_back("pluginId");
-        names.emplace_back("pluginName");
-        return names;
+        for (auto& completion : platform->completions->take())
+        {
+            try
+            {
+                completion(*platform, state);
+            }
+            catch (...)
+            {
+                state.runtime->log(js::LogLevel::Error,
+                                   "a platform completion failed: " + js::detail::caughtError(state).toString());
+            }
+        }
+        runTimers(state, *platform);
+        dispatchHostChanges(state, *platform);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web

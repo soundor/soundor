@@ -75,17 +75,19 @@ TEST_SUITE("RuntimeHost statistics")
         CHECK(f.host.statistics().surface.layoutPasses == changed.layoutPasses);
     }
 
-    TEST_CASE("the engine's allocations and heap are counted")
+    TEST_CASE("the engine's allocations, collections and heap are counted")
     {
         WebFixture f;
         const auto before = f.host.statistics().runtime;
         CHECK(before.heapBytes > 0);
-        // Blocks over 512 bytes come from the C allocator one by one; small
-        // objects from the engine's arenas, which grow the heap.
+        // Typed arrays' data lives outside the JavaScript heap (counted in
+        // heapBytes), their objects and the small ones inside it.
         f.eval("globalThis.garbage = Array.from({ length: 1000 }, () => new Float64Array(128)); "
                "globalThis.small = Array.from({ length: 10000 }, (_, i) => ({ i })); 0");
+        // Garbage the young generation collects as it is made.
+        f.eval("for (let i = 0; i < 200000; i++) ({ i, list: [i, i] }); 0");
         const auto grown = f.host.statistics().runtime;
-        CHECK(grown.allocations >= before.allocations + 1000);
+        CHECK(grown.collections > before.collections);
         CHECK(grown.allocatedBytes >= before.allocatedBytes + std::uint64_t { 1000 } * 1024);
         CHECK(grown.heapBytes > before.heapBytes + std::uint64_t { 1000 } * 1024);
 
