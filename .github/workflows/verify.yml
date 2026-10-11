@@ -146,18 +146,21 @@ jobs:
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
       - name: Build and test the native runtime
+        timeout-minutes: 60
         shell: bash
         run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Diagnose Windows runtime crash
+        timeout-minutes: 5
         if: failure() && runner.os == 'Windows'
         shell: pwsh
         run: |
           $debugger = Get-ChildItem 'C:\Program Files (x86)\Windows Kits' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+          $env:SOUNDOR_WINDOWS_CRASH_DIAGNOSTICS = '1'
           $diagnostics = Join-Path $env:RUNNER_TEMP 'windows-crash.txt'
           if ($debugger) {
-            & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks, then sends the whole tree' '--no-breaks' 2>&1 | Tee-Object -FilePath $diagnostics
+            & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks*' '--no-breaks' 2>&1 | Tee-Object -FilePath $diagnostics
           } else {
             Write-Output 'Windows debugger unavailable; run the first JS runtime test in isolation.'
             & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=creates and destroys an engine' '--no-breaks' 2>&1 | Tee-Object -FilePath $diagnostics

@@ -43,6 +43,9 @@ add_executable(soundor_runtime_tests
 target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 # Tests exercise internal seams (native modules), so they may see Hermes.
 target_link_libraries(soundor_runtime_tests PRIVATE soundor::runtime soundor_hermes soundor_doctest)
+if(WIN32)
+  target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
+endif()
 soundor_configure_target(soundor_runtime_tests)
 
 # Generated code is checked by its generator's tests, not linted.
