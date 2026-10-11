@@ -374,9 +374,6 @@ importers:
       soundor:
         specifier: workspace:*
         version: link:../../packages/cli
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.0(typescript@7.0.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
