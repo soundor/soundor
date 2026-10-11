@@ -236,6 +236,11 @@ add_dependencies(soundor_coexistence_host soundor_coexist_a soundor_coexist_b)
 add_test(
   NAME soundor_coexistence
   COMMAND soundor_coexistence_host $<TARGET_FILE:soundor_coexist_a> $<TARGET_FILE:soundor_coexist_b>)
+if(WIN32)
+  # A crashed runtime or a loader-lock deadlock must fail the job rather than
+  # prevent its subsequent crash diagnostics from ever running.
+  set_tests_properties(soundor_runtime_tests soundor_coexistence PROPERTIES TIMEOUT 180)
+endif()
 # The macOS accessibility bridge in a plugin host: two plugin binaries with
 # their own runtimes (and so their own element classes), loaded together,
 # destroyed and unloaded while an element is still held.
