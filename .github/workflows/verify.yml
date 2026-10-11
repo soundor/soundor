@@ -155,12 +155,16 @@ jobs:
         run: |
           $debugger = Get-ChildItem 'C:\Program Files (x86)\Windows Kits' -Filter cdb.exe -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match '\\x64\\' } | Select-Object -First 1
+          $diagnostics = Join-Path $env:RUNNER_TEMP 'windows-crash.txt'
           if ($debugger) {
-            & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks, then sends the whole tree' '--no-breaks'
+            & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks, then sends the whole tree' '--no-breaks' 2>&1 | Tee-Object -FilePath $diagnostics
           } else {
             Write-Output 'Windows debugger unavailable; run the first JS runtime test in isolation.'
-            & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=creates and destroys an engine' '--no-breaks'
+            & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=creates and destroys an engine' '--no-breaks' 2>&1 | Tee-Object -FilePath $diagnostics
           }
+          $details = (Get-Content $diagnostics -Tail 100) -join "`n"
+          $details = $details.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+          Write-Output "::error title=Windows runtime crash diagnostics::$details"
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
