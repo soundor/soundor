@@ -22,16 +22,18 @@ namespace
         Instance()
         {
             host.surface().setSize({ 64, 64 });
+            // In the runtime's module form (no test helper here: a plugin
+            // binary must not pick up std::regex's exported statics).
             ok = host.context()
-                     .evaluateModule(R"(
-                        import { root, createView, createText, pressable } from 'soundor:ui';
+                     .evaluateModule(R"((function (exports, require) {
+                        const { root, createView, createText, pressable } = require('soundor:ui');
                         globalThis.presses = 0;
                         const button = createView({ width: 64, height: 64 });
                         button.accessibility = { role: 'button', actions: [{ name: 'activate' }] };
                         button.appendChild(createText('Press'));
                         pressable(button, { onPress: () => { globalThis.presses += 1; } });
                         root.appendChild(button);
-                     )",
+                     }))",
                                      "/module.js")
                      .ok();
             view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 64, 64)];
