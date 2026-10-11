@@ -159,7 +159,7 @@ jobs:
             & $debugger.FullName -c 'sxe av; sxe sov; g; .ecxr; kv; q' build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=does nothing until assistive technology asks, then sends the whole tree' '--no-breaks'
           } else {
             Write-Output 'Windows debugger unavailable; run the first JS runtime test in isolation.'
-            & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-suite=js Runtime' '--no-breaks'
+            & build/dev/tests/Debug/soundor_runtime_tests.exe '--test-case=creates and destroys an engine' '--no-breaks'
           }
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
