@@ -188,7 +188,12 @@ cannot yet be measured; PR 1 must add a comparable fixed-step workload when it
 introduces transforms. No transform feature is added by these benchmarks.
 Startup uses the existing static UI rather than a discarded Three.js scene,
 so its later GPU resource collection cannot contaminate animation-only runs.
-Stage changes happen on unmeasured ticks. CI runs deterministic driver tests
+Stage changes happen on unmeasured ticks. The runner collects garbage and
+drains finalizers once at each phase boundary (`--collect-between-phases`),
+before resetting timing/counter baselines. This prevents detached stages'
+node-release calls from polluting later workloads. GC caused by measured
+work remains included. Saved builds record this policy; older runners are
+not passed an unsupported flag. CI runs deterministic driver tests
 and a native bytecode smoke run without an FPS threshold. GPU measurements
 require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
 and select software rendering even when the host has a virtual GPU.

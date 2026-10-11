@@ -4,7 +4,7 @@
 //
 //   soundor_run_ui <ui directory> [--size 800x600] [--scale 1] [--seconds N]
 //                  [--eval <expression>] [--backend <name>] [--software]
-//                  [--json <file>] [--time-native-calls] [--bytecode]
+//                  [--json <file>] [--time-native-calls] [--bytecode] [--collect-between-phases]
 //
 // It reports startup first: how long creating the host took (installing the
 // runtime's modules, running the UI's entry module) and what the engine
@@ -374,10 +374,12 @@ int main(int argc, char** argv)
     std::string jsonPath;
     bool timeNativeCalls = false;
     bool bytecode = false;
+    bool collectBetweenPhases = false;
     for (int i = 2; i < argc; ++i)
     {
         const std::string_view flag = argv[i];
-        const bool takesValue = flag != "--software" && flag != "--time-native-calls" && flag != "--bytecode";
+        const bool takesValue = flag != "--software" && flag != "--time-native-calls" && flag != "--bytecode"
+                                && flag != "--collect-between-phases";
         if (takesValue && i + 1 >= argc)
             return usage();
         const auto value = [&] { return std::string(argv[++i]); };
@@ -408,6 +410,8 @@ int main(int argc, char** argv)
             jsonPath = value();
         else if (flag == "--time-native-calls")
             timeNativeCalls = true;
+        else if (flag == "--collect-between-phases")
+            collectBetweenPhases = true;
         else if (flag == "--bytecode")
             bytecode = true;
         else
@@ -488,10 +492,24 @@ int main(int argc, char** argv)
         }
         return counted;
     };
+    std::string previousPhase;
     const auto frame = [&]
     {
         // The phase the frame's JavaScript runs in, set by an earlier frame.
         const std::string phase = measuring ? currentPhase() : std::string();
+        if (collectBetweenPhases && ! phase.empty() && phase != previousPhase)
+        {
+            // Setup and detached stages must not leave their finalizers in the
+            // measured workload. Collect once per phase, outside its timings;
+            // GC caused by the workload during the phase remains measured.
+            host.runtime().collectGarbage();
+            host.runtime().runPendingJobs();
+            if (host.needsRender())
+                compositor.composite(host.frame(capabilities));
+            previousStatistics = host.statistics();
+            previous = Clock::now();
+        }
+        previousPhase = phase;
         const auto begin = Clock::now();
         host.tick();
         const auto ticked = Clock::now();

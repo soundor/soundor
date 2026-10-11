@@ -270,6 +270,7 @@ interface BuildInfo {
   bundleSha256?: string;
   execution?: 'source' | 'hermes-bytecode';
   buildType?: 'Release';
+  collectBetweenPhases?: boolean;
 }
 
 function run(command: string, args: string[], cwd: string): void {
@@ -585,6 +586,7 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     // Costs nothing measurable (a clock read per call), so always on.
     '--time-native-calls',
   ];
+  if (build.info.collectBetweenPhases) args.push('--collect-between-phases');
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
   // A build whose bundle was compiled runs it as bytecode (builds from
@@ -651,6 +653,7 @@ const current: Build = {
     bundleSha256: hash(options.source ? path.join(ui, 'bundle.js') : compiled),
     execution: options.source ? 'source' : 'hermes-bytecode',
     buildType: 'Release',
+    collectBetweenPhases: true,
   },
 };
 
