@@ -171,6 +171,8 @@ namespace
         double p50 = 0;
         double p95 = 0;
         double max = 0;
+        double p99 = 0;
+        double standardDeviation = 0;
     };
 
     Distribution distribution(const std::vector<Sample>& samples, double Sample::*field)
@@ -191,7 +193,12 @@ namespace
             const auto index = static_cast<std::size_t>(std::lround(fraction * static_cast<double>(values.size() - 1)));
             return values[std::min(index, values.size() - 1)];
         };
-        return { sum / static_cast<double>(values.size()), at(0.5), at(0.95), values.back() };
+        const double mean = sum / static_cast<double>(values.size());
+        double variance = 0;
+        for (const double value : values)
+            variance += (value - mean) * (value - mean);
+        return { mean,          at(0.5),  at(0.95),
+                 values.back(), at(0.99), std::sqrt(variance / static_cast<double>(values.size())) };
     }
 
     template <typename T>
@@ -267,7 +274,8 @@ namespace
     std::string json(const Distribution& d)
     {
         return "{ \"mean\": " + number(d.mean) + ", \"p50\": " + number(d.p50) + ", \"p95\": " + number(d.p95)
-               + ", \"max\": " + number(d.max) + " }";
+               + ", \"max\": " + number(d.max) + ", \"p99\": " + number(d.p99)
+               + ", \"standardDeviation\": " + number(d.standardDeviation) + " }";
     }
 
     std::string json(const Phase& phase)

@@ -1,5 +1,6 @@
 // Every scenario, in the order "Run all" runs them.
 
+import { ANIMATION_SCENARIOS } from './animation';
 import { CANVAS_SCENARIOS } from './canvas';
 import { MIXED_SCENARIOS } from './mixed';
 import { THREE_SCENARIOS } from './three';
@@ -13,6 +14,7 @@ const all = [
   ...CANVAS_SCENARIOS,
   ...UI_SCENARIOS,
   ...MIXED_SCENARIOS,
+  ...ANIMATION_SCENARIOS,
 ];
 
 export const SCENARIOS: readonly Scenario[] = GROUPS.flatMap((group) =>

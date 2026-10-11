@@ -11,7 +11,8 @@
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
+    "test": "node --experimental-transform-types --test tests/*.test.ts"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",

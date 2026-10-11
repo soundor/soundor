@@ -55,7 +55,7 @@ code; `only` lists groups or scenario ids.
 
 `pnpm bench` measures the JUCE runtime headless, without building the
 plugin: it builds the UI bundle and `soundor_run_ui` (a Release build, the
-`bench` preset of `runtimes/juce-runtime/native`), runs the scenarios 5 times
+`bench` preset of `runtimes/juce-runtime/native`), runs the scenarios for 600 measured frames after 30 warmup frames, 5 times
 and prints the median of each measure with its spread across runs, in two
 tables.
 
@@ -129,3 +129,63 @@ pnpm build:web   # also bundles the UI into .soundor/ui/production
   .soundor/ui/production --size 700x520 --eval 'soundorBenchmark.run()' \
   --time-native-calls --json report.json
 ```
+
+## Animation baselines
+
+The `animation` group adds opacity and React workloads at 1, 50 and 500
+nodes, plugin controls at 1, 20 and 50 controls, matching static plugin
+views, and a mixed 20-control view with Canvas 2D and WebGL 2. Each control
+contains a knob, slider, meter, fading panel and numeric readout; these are
+visual smoothing workloads, with no parameter processing or DSP. The mixed
+view draws its waveform and WebGL background once during setup: per-frame
+animation does not change that content.
+
+Animation inputs advance by exactly 1/60 second per scenario frame, including
+warmup, rather than by wall time. Ramps alternate linearly between endpoints
+over one second in each direction, with deterministic offsets (index modulo
+10). Opacity endpoints are 0.25 and 1. The stage is always 640×360 logical
+pixels; the runner defaults to a 700×520 viewport. Complexity is selected by
+scenario id. These definitions must remain identical in native comparisons.
+The existing scenarios retain their wall-clock behavior.
+
+```sh
+pnpm --filter soundor-benchmark test
+pnpm --filter soundor-benchmark bench --only animation --backend opengl --save hermes-animation
+pnpm --filter soundor-benchmark bench --only animation --backend opengl --against hermes-animation
+```
+
+Defaults are five runs, 30 warmup frames and 600 measured frames per scenario.
+P99 is a sample percentile, not a guarantee; increase `--frames` for tail
+analysis. The driver preserves every measured sample, even beyond 600 frames.
+Reports include native frame mean, P50, P95, P99, maximum and population
+standard deviation. Existing saved runners lacking P99/variability display
+those values as unavailable. Throughput is uncapped headless throughput,
+not display refresh rate. Composite timings measure CPU submission and
+uploads, not GPU execution time. Startup is reported separately.
+
+Each report and saved build records the full repository SHA, dirty state,
+Hermes revision from the configured compiler script, compiler/runner/bundle
+SHA-256 fingerprints, Release build type and source/bytecode execution mode.
+`--save` copies the runner and already compiled bytecode together; the saved
+bundle is never recompiled with the candidate's compiler. Keep this local
+saved build for alternating baseline/candidate measurements. Record a clean
+commit when saving a baseline used in a PR. Reports also record OS, CPU,
+core count, graphics backend, renderer, software rendering and all measurement
+options. Report-file comparisons refuse different machines/backends or sample
+settings. Use the same backend and viewport for alternating runs too.
+
+Native call counts/timings, style changes, layouts, invalidations, rasterized
+layers, uploads/readbacks and Hermes allocation/collection statistics reuse
+the existing instrumentation. Scenario JS time includes synchronous React
+reconciliation and native updates; native binding time is separately measured,
+but React reconciliation is not independently instrumented. Engine heap is
+measured; it is not whole-process resident memory. Static scenarios may render
+no frames and therefore report idle tick cost instead of a frame distribution.
+No extra hot-path animation instrumentation is enabled in normal plugins.
+
+Transforms are absent from the current public style contract. Their JS baseline
+cannot yet be measured; PR 1 must add a comparable fixed-step workload when it
+introduces transforms. No transform feature is added by these benchmarks.
+CI runs deterministic driver tests without an FPS threshold. GPU measurements
+require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
+and select software rendering even when the host has a virtual GPU.
