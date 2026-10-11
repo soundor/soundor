@@ -37,12 +37,12 @@ describe('forwardLogs', () => {
     const entries = forward();
     const error = new Error('boom');
     error.stack =
-      'Error: boom\n    at f (http://localhost:5173/@fs/p/.soundor/ui/development/bundle.js?t=171:3:7)';
+      'Error: boom\n    at f (http://localhost:5173/@fs/p/.soundor/ui/development/bundle.mjs?t=171:3:7)';
     console.error(error);
     expect(entries[0]).toEqual({
       level: 'error',
       message:
-        'Error: boom\n    at f (http://localhost:5173/@fs/p/.soundor/ui/development/bundle.js:3:7)',
+        'Error: boom\n    at f (http://localhost:5173/@fs/p/.soundor/ui/development/bundle.mjs:3:7)',
     });
   });
 

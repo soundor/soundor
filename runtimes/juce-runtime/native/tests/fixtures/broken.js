@@ -1,1 +1,3 @@
-throw new Error('broken bundle');
+(function () {
+  throw new Error('broken bundle');
+});

@@ -152,6 +152,7 @@ describe('juceDev', () => {
       ui: {
         dir: join(root, 'ui'),
         entry: 'bundle.js',
+        module: 'bundle.mjs',
         live: { logFile: join(root, 'ui.log') },
       },
     };

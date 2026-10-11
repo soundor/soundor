@@ -2,6 +2,7 @@
 
 #include <soundor/Config.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -29,14 +30,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
     struct RuntimeOptions
     {
-        // Upper bound on JavaScript heap allocations, in bytes. 0 = unlimited.
+        // Upper bound on each context's JavaScript heap, in bytes. 0 = the
+        // engine's default (3 GiB). A context that runs out of heap fails
+        // the call that ran out with an "out of memory" InternalError, and
+        // every call after it: Hermes cannot go on in that heap, so the
+        // context has to be recreated (a reload).
         std::size_t memoryLimit = 0;
-
-        // Native stack the engine may use before throwing a RangeError instead
-        // of overflowing. Kept well below the smallest UI-thread stack a plugin
-        // host is likely to provide (1 MiB on Windows).
+        // Stack the interpreter may use for JavaScript frames before throwing
+        // a RangeError. Hermes keeps JavaScript frames on a stack of its own
+        // and checks the native stack against the thread's real bounds, so
+        // this is independent of the UI thread's stack size.
         std::size_t maxStackSize = std::size_t { 512 } * 1024;
-
+        // How long one call into JavaScript may run (a tick, an event, a
+        // module's evaluation; see TimeLimitScope). Past it the engine stops
+        // the script with a TimeoutError that JavaScript cannot catch, and
+        // the context fails that call and every call after it, as when it
+        // runs out of heap: it has to be recreated. 0 = no limit.
+        std::chrono::milliseconds timeLimit { 0 };
         // Where diagnostics go. Without a sink they are dropped.
         LogSink log;
         // Whether native calls are timed as well as counted (see
@@ -61,13 +71,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         NativeCallStatistics ui;     // soundor:ui (nodes, styles, text, events)
         NativeCallStatistics canvas; // Canvas 2D
         NativeCallStatistics webgl;  // WebGL
-        // Memory the engine took from the C allocator (reallocations
-        // included), and its bytes. The engine serves blocks of up to 512
-        // bytes from arenas of its own, so these are its arenas and every
-        // larger block: typed arrays, arrays' storage, long strings.
-        std::uint64_t allocations = 0;
+        // Garbage collections (young and old generation) in the runtime's
+        // contexts.
+        std::uint64_t collections = 0;
+        // Bytes allocated in the contexts' JavaScript heaps: every object,
+        // string and array as it was made, freed or not.
         std::uint64_t allocatedBytes = 0;
-        // Memory the engine holds now (its arenas included).
+        // Memory the heaps hold now: their objects (some of them
+        // unreachable until the next collection) and the memory outside the
+        // heap that they own (ArrayBuffer data).
         std::uint64_t heapBytes = 0;
     };
 
@@ -77,15 +89,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         std::size_t objectCount = 0;
     };
 
-    // One JavaScript engine instance: a garbage-collected heap and a job queue.
+    // The JavaScript engine (Hermes, interpreted) for a set of contexts: their
+    // options, logging and statistics. Each Context is an engine instance of
+    // its own, with its own garbage-collected heap and job queue.
     //
     // Threading: a Runtime and every Context created from it belong to the
     // thread that created the Runtime (the plugin's UI/message thread). They must
     // never be touched from another thread, and never from the audio thread.
     //
-    // Lifetime: the engine heap is released once the Runtime and all of its
-    // Contexts are destroyed, in any order. Destroying everything and creating a
-    // fresh Runtime is the supported way to reload.
+    // Lifetime: a context's heap is released with the context; the Runtime and
+    // its Contexts may be destroyed in any order. Destroying everything and
+    // creating a fresh Runtime is the supported way to reload.
     class Runtime
     {
     public:
@@ -97,8 +111,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         Runtime(Runtime&&) = delete;
         Runtime& operator=(Runtime&&) = delete;
 
-        // Runs queued promise jobs until the queue is empty, then reports
-        // promise rejections nobody handled. Returns how many jobs ran.
+        // Runs every context's queued promise jobs until none is left, then
+        // reports promise rejections nobody handled and runs the
+        // FinalizationRegistry callbacks of collected objects. Returns how
+        // many jobs ran.
         std::size_t runPendingJobs();
 
         [[nodiscard]] bool hasPendingJobs() const;

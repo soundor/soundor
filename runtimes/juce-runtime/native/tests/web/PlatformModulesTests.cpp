@@ -47,7 +47,7 @@ namespace
     // <name>: <message>").
     js::Value await(WebFixture& f, const std::string& imports, const std::string& body)
     {
-        f.run(imports + "globalThis.done = false; (async () => {" + body
+        f.run(imports + "globalThis.done = false; (async function () {" + body
               + "})().then((v) => { globalThis.result = v; }, (e) => { globalThis.result = 'rejected: ' + e.name"
                 " + ': ' + e.message; }).finally(() => { globalThis.done = true; });");
         REQUIRE(f.tickUntil("done"));

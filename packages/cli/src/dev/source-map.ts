@@ -99,8 +99,8 @@ export class SourceMap {
 }
 
 /**
- * Rewrites `<bundle>:line:column` locations in `text` (QuickJS stack frames are
- * 1-based) to the original source positions.
+ * Rewrites `<bundle>:line:column` locations in `text` (Hermes's and the
+ * browsers' stack frames are 1-based) to the original source positions.
  */
 export function rewriteLocations(
   text: string,

@@ -8,21 +8,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 {
     namespace
     {
-        JSValue webglCreate(JSContext* ctx, JSValueConst, int, JSValueConst*)
+        using js::bind::ContextState;
+
+        jsi::Value webglCreate(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
         {
-            constexpr std::string_view why = "this build of Soundor has no GPU support";
-            return JS_NewStringLen(ctx, why.data(), why.size());
+            return js::bind::write(context, "this build of Soundor has no GPU support");
         }
 
         // Nothing to lose: no context is ever made.
-        JSValue webglIgnored(JSContext*, JSValueConst, int, JSValueConst*)
+        jsi::Value webglIgnored(ContextState&, const jsi::Value&, const jsi::Value*, std::size_t)
         {
-            return JS_UNDEFINED;
+            return jsi::Value::undefined();
         }
 
-        JSValue webglUnavailable(JSContext* ctx, JSValueConst, int, JSValueConst*)
+        jsi::Value webglUnavailable(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t)
         {
-            return JS_ThrowTypeError(ctx, "WebGL is not available in this build of Soundor");
+            js::bind::throwTypeError(context, "WebGL is not available in this build of Soundor");
         }
     } // namespace
 

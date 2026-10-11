@@ -11,14 +11,15 @@ the `soundor` CLI bundles `src/main.tsx` and drives each runtime through the
 same lifecycle phases. Two runtimes exist:
 
 - `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
-  hosting an embedded QuickJS runtime that runs the UI bundle, laid out with
+  hosting an embedded Hermes runtime (interpreted, bytecode compiled at build
+  time) that runs the UI bundle, laid out with
   Yoga and drawn with Skia on the CPU into layers. Soundor's own compositor
   puts the layers together on the GPU (ANGLE: Metal, Direct3D 11) where it
   can, and on the CPU otherwise (Linux, fallback). Canvas nodes have a 2D
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
-  Audio. Nothing native runs there (no WASM, QuickJS, Yoga or Skia).
+  Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
 
 The packages' READMEs are the authoritative spec of behavior (especially
 `runtimes/juce-runtime/README.md`, `runtimes/juce-runtime/native/README.md`,
@@ -65,9 +66,10 @@ cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
 
-The first native configure builds Skia and ANGLE from source (minutes) and
-caches them in the user cache dir (`SOUNDOR_CACHE` overrides); later
-configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE.
+The first native configure builds Skia, ANGLE and Hermes from source
+(minutes) and caches them in the user cache dir (`SOUNDOR_CACHE` overrides);
+later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. The
+native tests need Node (they lower Three.js with `@soundor/core`'s source).
 
 Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
 rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
@@ -95,6 +97,9 @@ Regenerating checked-in generated files:
 - `pnpm --filter @soundor/core build && pnpm --filter @soundor/core gen:runtime-types`
   — `packages/core/runtime/*.d.ts`, the `soundor:*` declarations `@soundor/react`
   compiles against.
+- `pnpm --filter @soundor/juce-runtime gen:native-modules` — the runtime's
+  JavaScript modules in Hermes's module form, `native/src/generated/`, after
+  any change to `native/src/**/*.js` (a juce-runtime test checks them).
 
 Turborepo here may be newer than what you know: before changing `turbo.json`,
 read the docs bundled with the installed package
@@ -112,10 +117,13 @@ read the docs bundled with the installed package
   (`juceRuntime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (the `.d.ts` for `soundor:*`, parameters, native API, Web globals), paths,
-  logger, errors, command running.
+  logger, errors, command running, and `toNativeModule()` (Babel: an ES module
+  into the native runtime's module form).
 - `packages/cli` (`soundor`) — `init`, `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
-  `soundor:*` left as imports), then calls each runtime's phase. `dev` tails
+  `soundor:*` left as imports) into `bundle.mjs` (an ES module, for the Web)
+  and `bundle.js` (the native runtime's module form, lowered for Hermes), then
+  calls each runtime's phase. `dev` tails
   the plugin's log file and maps stack frames back through source maps.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
@@ -158,15 +166,23 @@ generated framework or the runtime package, not in `init` templates.
 ### Native runtime invariants (`runtimes/juce-runtime/native`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
-  adapters live in `backend/juce/`. A third-party header (QuickJS, Yoga, Skia,
-  ANGLE) is included only by the directory that wraps it (`quickjs.h` only in
-  `src/js/`, EGL/GLES only in `src/gpu/`).
+  adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
+  ANGLE) is included only by the directory that wraps it (Hermes's
+  `hermes.h` only in `src/js/`, JSI through `src/js/Bindings.h`, EGL/GLES only
+  in `src/gpu/`).
 - Threading: JavaScript runs only on the UI/message thread. Audio-thread
   listeners only set lock-free flags; `RuntimeHost::tick()` (60 Hz from the
   generated editor) drains them, fires timers and settles async work.
   Background I/O hands back only plain C++ results plus an operation id.
-- No C++ exception crosses into the engine; errors become JavaScript errors
-  and come back as `Result<T>`.
+- Only `jsi::JSError` (JSI's way of throwing into JavaScript) crosses into the
+  engine: bindings run their bodies through `bind::invoke`, which turns any
+  other C++ exception into one; engine errors come back as `Result<T>`.
+- JavaScript the runtime runs is in its module form (a CommonJS module
+  function, lowered for Hermes by `@soundor/core`'s `toNativeModule()`): the
+  CLI's `bundle.js`, and the runtime's own modules, generated into
+  `native/src/generated/` from `native/src/**/*.js` (`pnpm --filter
+@soundor/juce-runtime gen:native-modules`). Production builds compile it
+  with `hermesc` and link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
   everything is hidden-visibility, statically linked, and inside the inline
   namespace `soundor::SOUNDOR_ABI_NAMESPACE` (derived from `plugin.id`).
@@ -174,8 +190,10 @@ generated framework or the runtime package, not in `init` templates.
   dependency must keep its symbols hidden.
 - Dependencies are pinned in `cmake/SoundorDependencies.cmake` (FetchContent,
   SHA-256 verified) and compiled into private static targets, not their own
-  CMake projects. Skia and ANGLE are built from source once per machine into
-  the cache (ANGLE: gn decides what to compile, Soundor's CMake compiles it).
+  CMake projects. Skia, ANGLE and Hermes are built from source once per
+  machine into the cache (ANGLE: gn decides what to compile, Soundor's CMake
+  compiles it; Hermes by its own CMake, with Soundor's patches in
+  `cmake/hermes/`).
 - GPU code has a device only where there is one: tests skip without one,
   except under `SOUNDOR_REQUIRE_GPU=1` (CI), where they fail.
 - GPU invariants: no WebGL read-back when the GPU compositor runs (frames
@@ -184,7 +202,8 @@ generated framework or the runtime package, not in `init` templates.
   a device's contexts share textures, so WebGL contexts delete their own
   when they go; Apple code adds no Objective-C classes or categories.
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
-  teardown with pending jobs must be clean (debug QuickJS aborts on leaks).
+  teardown with pending jobs must be clean (debug builds assert that no JSI
+  value outlives its context).
 - Plugin builds (`soundor dev`/`build`) use Ninja on macOS and Linux and
   Visual Studio on Windows; the supported platforms are these three.
 - macOS signing comes from `ctx.signing` (`SOUNDOR_MACOS_SIGNING_IDENTITY`,

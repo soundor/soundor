@@ -1,43 +1,36 @@
 #pragma once
 
-// Private to soundor_runtime and soundor_compile_js: precompiled modules.
+// Private to soundor_runtime: modules compiled ahead of time.
 //
-// soundor_compile_js compiles an ES module ahead of time into QuickJS
-// bytecode, without its source text (functions keep their line numbers, not
-// their text), behind a header naming the QuickJS revision it was made with.
-// Bytecode only ever comes from the build itself: QuickJS reads it without
-// defending against a hostile writer, so nothing read at run time from disk
-// or elsewhere is treated as bytecode.
+// The build compiles JavaScript with hermesc, from the same Hermes build as
+// the VM (SoundorCompileJs.cmake), and appends an epilogue naming that
+// Hermes's revision: bytecode is only run by the VM it was made for. Bytecode
+// only ever comes from the build itself: the VM does not defend against a
+// hostile writer, so nothing read at run time from disk or elsewhere is
+// treated as bytecode.
 
 #include <soundor/Config.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <span>
-#include <string>
 #include <string_view>
 
-#ifndef SOUNDOR_QUICKJS_REVISION
-    #error "SOUNDOR_QUICKJS_REVISION must name the QuickJS revision (see SoundorQuickJS.cmake)"
+#ifndef SOUNDOR_HERMES_REVISION
+    #error "SOUNDOR_HERMES_REVISION must name the Hermes revision (see SoundorHermes.cmake)"
 #endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 {
-    // "soundor-bytecode <revision>\n": bytecode is only readable by the
-    // QuickJS that wrote it.
-    inline std::string bytecodeHeader()
-    {
-        return std::string("soundor-bytecode ") + SOUNDOR_QUICKJS_REVISION + "\n";
-    }
+    // What SoundorCompileJs.cmake appends to hermesc's output.
+    inline constexpr std::string_view bytecodeEpilogue = "\nsoundor-hermes " SOUNDOR_HERMES_REVISION "\n";
 
-    // The bytecode after the header, or an empty span when the header is
-    // missing or names another revision.
-    inline std::span<const std::uint8_t> bytecodeBody(std::span<const std::uint8_t> compiled)
+    // Whether `compiled` ends with this build's epilogue.
+    [[nodiscard]] inline bool isBytecodeForThisBuild(std::span<const std::uint8_t> compiled) noexcept
     {
-        const std::string header = bytecodeHeader();
-        if (compiled.size() <= header.size()
-            || std::string_view(reinterpret_cast<const char*>(compiled.data()), header.size()) != header)
-            return {};
-        return compiled.subspan(header.size());
+        return compiled.size() > bytecodeEpilogue.size()
+               && std::string_view(
+                      reinterpret_cast<const char*>(compiled.data() + compiled.size() - bytecodeEpilogue.size()),
+                      bytecodeEpilogue.size())
+                      == bytecodeEpilogue;
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail

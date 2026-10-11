@@ -29,8 +29,17 @@ export type RuntimePhase = 'init' | 'gen' | 'dev' | 'build' | 'doctor';
 export interface UiBundleContext {
   /** Absolute path to the bundle directory. */
   readonly dir: string;
-  /** The bundle file inside `dir`, e.g. `bundle.js`. */
+  /**
+   * The bundle file inside `dir`, `bundle.js`, in Soundor's native runtime's
+   * module form: a CommonJS module function, lowered for Hermes (see
+   * `toNativeModule()` in @soundor/core).
+   */
   readonly entry: string;
+  /**
+   * The same bundle as one ES module (ES2023) inside `dir`, `bundle.mjs`: for
+   * runtimes that load ES modules, such as the Web.
+   */
+  readonly module: string;
   /**
    * Set by `soundor dev`: the CLI keeps rebuilding `dir` in place and rewrites
    * `dir/build-id` last after every successful build. A runtime should load

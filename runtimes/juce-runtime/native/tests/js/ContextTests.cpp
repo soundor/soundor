@@ -33,7 +33,8 @@ TEST_SUITE("Context")
     {
         Runtime runtime;
         Context context(runtime);
-        REQUIRE(context.evaluateScript("let count = 1;").ok());
+        // Top-level let/const belong to their script in Hermes: state lives in globals.
+        REQUIRE(context.evaluateScript("var count = 1;").ok());
         REQUIRE(context.evaluateScript("count += 41;").ok());
         CHECK(context.evaluateScript("count").value().asNumber() == 42);
     }
@@ -71,8 +72,9 @@ TEST_SUITE("Context")
         Runtime runtime;
         Context context(runtime);
 
-        for (const char* present : { "globalThis", "Promise", "Proxy", "Map", "WeakRef", "BigInt", "Uint8Array", "JSON",
-                                     "RegExp", "Date", "eval" })
+        for (const char* present :
+             { "globalThis", "Promise", "Proxy", "Map", "WeakRef", "FinalizationRegistry", "BigInt", "Uint8Array",
+               "JSON", "RegExp", "Date", "eval", "queueMicrotask", "Iterator" })
         {
             CAPTURE(present);
             auto type = context.evaluateScript(std::string("typeof ") + present);
@@ -80,12 +82,14 @@ TEST_SUITE("Context")
             CHECK(type.value().asString() != "undefined");
         }
 
-        // Soundor is neither a browser nor Node, and QuickJS's own host
-        // environment (std/os, print, scriptArgs) is not part of it. The Web
-        // platform layer adds deliberate globals later; none exist by default.
+        // Soundor is neither a browser nor Node, and the engine's own host
+        // functions (Hermes's print, gc, TextEncoder) are not part of it. The
+        // Web platform layer adds deliberate globals later; none exist by
+        // default.
         for (const char* absent :
-             { "window", "document", "self", "global", "process", "require", "module", "console", "print", "scriptArgs",
-               "std", "os", "performance", "atob", "DOMException", "navigator", "setTimeout" })
+             { "window",  "document", "self",        "global",       "process",   "require",   "module",
+               "console", "print",    "scriptArgs",  "std",          "os",        "gc",        "performance",
+               "atob",    "btoa",     "TextEncoder", "DOMException", "navigator", "setTimeout" })
         {
             CAPTURE(absent);
             auto type = context.evaluateScript(std::string("typeof ") + absent);

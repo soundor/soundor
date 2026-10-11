@@ -29,8 +29,11 @@ native/
     ui/                   the node tree (Surface), styles, text, the renderer
   src/
     a11y/                 the semantic tree of a ui::Surface
-    js/                   the QuickJS-NG wrapper and the binding helpers generated
-                          code uses; the only place quickjs.h is included
+    js/                   the Hermes (JSI) wrapper, the module system and the
+                          binding helpers generated code uses; the only place
+                          Hermes's headers are included
+    generated/            the runtime's JavaScript modules in the native module
+                          form (scripts/native-modules.mjs makes them from src/)
     modules/              soundor:* modules (C++, plus embedded JavaScript)
     gpu/                  ANGLE: GPU devices and OpenGL ES contexts, the GPU
                           compositor, WebGL (webgl/); the only place its
@@ -45,10 +48,11 @@ native/
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
   cmake/                  pinned dependencies, compiler policy, JS embedding,
+    hermes/               building Hermes: the project, Soundor's additions
     angle/                building ANGLE: DEPS checkout, gn → CMake, its project
 ```
 
-A third-party header (QuickJS, Yoga, Skia) is only included by the directory
+A third-party header (Hermes, Yoga, Skia) is only included by the directory
 that wraps it.
 
 ## Embedding API
@@ -69,60 +73,168 @@ if (auto result = context.importModule("/app/main.js"); ! result)
 runtime.runPendingJobs();
 ```
 
-- **Runtime**: one QuickJS-NG engine: a heap, a job queue, memory and stack limits.
-- **Context**: one realm (global object and module map). A new context contains
-  the ECMAScript language and nothing else. There is no `console`, timers,
-  `window`, `self`, `process`, `require`, `performance` or `atob`, and none of
-  QuickJS's own `std`/`os` modules. The Web platform layer installs a
-  deliberate subset later.
+- **Runtime**: the engine's options (memory and stack limits, the log sink)
+  and statistics for a set of contexts.
+- **Context**: one realm (global object and module map) in a Hermes runtime of
+  its own: its heap and job queue. A new context contains the ECMAScript
+  language and nothing else. There is no `console`, timers, `window`, `self`,
+  `process`, global `require`, `performance` or `atob`, and none of Hermes's
+  host functions (`print`, `gc`, its `TextEncoder`). The Web platform layer
+  installs a deliberate subset later.
 - **Errors**: JavaScript exceptions come back as `Result<T>` holding a
-  `soundor::js::Error` (`name`, `message`, `stack`). No C++ exception crosses the
-  engine boundary: exceptions thrown by module loaders or native-module code
-  become JavaScript errors.
+  `soundor::js::Error` (`name`, `message`, `stack`: the frames). Inside, JSI's
+  `jsi::JSError` is the way native code throws into JavaScript; any other C++
+  exception (from a module loader or native-module code) stops at the binding
+  (`bind::invoke`) and becomes a JavaScript error, so none other reaches the
+  engine.
 - **Jobs**: promise jobs run only when `Runtime::runPendingJobs()` is called. After
-  the queue drains, rejections nobody handled are reported to the log sink.
+  the queue drains, rejections nobody handled are reported to the log sink,
+  and FinalizationRegistry callbacks of collected objects run.
   `evaluateModule` drains jobs itself, so top-level `await` settles.
+- **Memory**: a context that runs out of its heap (`RuntimeOptions::memoryLimit`)
+  fails that call, and every later one, with an `out of memory` InternalError
+  instead of taking the host down: Hermes cannot go on in that heap, so the
+  context has to be recreated (a reload).
+- **Time**: a call into JavaScript that runs longer than
+  `RuntimeOptions::timeLimit` (0, the default: no limit; the generated editor
+  sets `juceRuntime({ timeLimit })`, 5 s by default) is stopped by the engine
+  with a `TimeoutError` JavaScript cannot catch: it fails with that error and
+  its stack, and so does every later call, as after running out of memory (a
+  script stopped anywhere may have left its state half updated). The clock
+  starts at the outermost call into JavaScript (a script, a module, a job
+  drain, a callback, an event listener), not again for JavaScript that native
+  code it called calls back; `js::TimeLimitScope` makes several calls share
+  one deadline, as `RuntimeHost::tick()` does for a tick and
+  `performAccessibilityAction()` for an action. The engine checks the time at
+  loop back-edges and function entries, in source as in bytecode (which
+  hermesc compiles with `-emit-async-break-check`). It cannot stop native
+  code, but the clock runs on while native code does: a native call that
+  takes longer than the limit has its script stopped as soon as it returns.
 
-### Module resolution
+### The JavaScript engine
 
-Soundor resolves every import; the engine never touches the filesystem.
+Hermes (`cmake/SoundorHermes.cmake`), interpreted: no JIT and no Static
+Hermes. It is built from source once per machine into Soundor's cache by its
+own CMake (`cmake/hermes/`): the VM and its JSI API, without the debugger,
+inspector or Intl, with hidden symbols, position-independent, and throwing
+`JSOutOfMemoryError` on a full heap instead of aborting. Two VMs come out of
+it:
+
+- **with the compiler** (`soundor_hermes_full`), which also evaluates
+  JavaScript source: what `soundor dev` (it reloads the UI's source), the
+  tests and `soundor_run_ui` link (`SOUNDOR_JS_SOURCE=ON`, the default);
+- **without it** (`soundor_hermes_lean`), bytecode only: what a production
+  plugin links (the generated `setup.cmake` sets `SOUNDOR_JS_SOURCE=OFF`).
+
+`hermesc`, the bytecode compiler, is a build tool of the same build and is
+never linked into a plugin. Soundor's additions to Hermes (`cmake/hermes/`,
+applied by `SoundorHermesPatch.cmake`, which fails when Hermes's code changed
+under them) give the bindings exact typed-array views (by internal class, with
+their offset and length, in one call), the job queue's state and the
+collector's counters (`SoundorHermes.h`). On Linux, Hermes's Unicode (case
+mapping, normalization, `localeCompare`, `toLocaleString`) comes from
+QuickJS-NG's tables instead of the system's ICU, which a plugin cannot rely on
+(`cmake/hermes/PlatformUnicodeLite.cpp`), and knows no locale:
+`localeCompare` compares the code points of the NFC forms (`'B'` sorts before
+`'a'`), and a date's `toLocaleString()` is always `MM/DD/YYYY, hh:mm:ss AM`
+in local time. A browser follows the user's locale, and so should Hermes's
+own implementations on macOS (CoreFoundation) and Windows, not tested yet.
+
+What Hermes lacks of what the language offered before is completed by
+`soundor:internal/language` (`src/js/language.js`), which every context
+evaluates first: FinalizationRegistry (on the engine's finalizers),
+`queueMicrotask`, `Symbol.asyncIterator`, `Promise.withResolvers`/`try`,
+`Array.fromAsync`, `toSorted` and the TypedArray copies, `Object`/`Map.groupBy`,
+the Set methods, `isWellFormed`/`toWellFormed`, `Error.isError`, the Iterator
+helpers and ArrayBuffer's `transfer()`/`detached`. Still missing: Atomics and
+SharedArrayBuffer, Float16Array, `Symbol.species`, resizable ArrayBuffers,
+`Intl`, Iterator's newest helpers (`chunks`, `zip`...).
+
+JavaScript compiles no source: `eval()`, `Function()` and the generator and
+async function constructors throw `SyntaxError: Parsing source code
+unsupported`. A production plugin's VM has no compiler to do it, and
+development fails the same way instead of working until the plugin is built
+(the context turns eval off, with the compiler linked too). Code generated at
+run time needs a form made at build time: schema validators' standalone code
+(ajv's `standalone`), precompiled templates. `setTimeout` and `setInterval`
+reject strings likewise.
+
+The host still compiles source where the compiler is linked
+(`Context::evaluateScript`, `evaluateModule`: development and the tests). That
+is what Hermes compiles itself, with block scoping: no classes (Hermes's
+experimental ones lose `super(message)` when extending Error) and no async
+arrow functions; top-level `let`/`const` belong to their script. Modules are
+lowered for it beforehand instead (below).
+
+### Modules
+
+Hermes has no ES modules. A module's file is a script whose value is its
+module function: `(function (exports, require, module) { ... })`, or an
+`async` one when it awaits at top level. The context calls it with a
+`require` that resolves as below, the module's `exports`, and `module`
+(`{ exports, id, meta: { url } }`); `import()` becomes a promise of a
+`require`, `import.meta` is `module.meta`. A module is recorded before it
+runs, so a cycle sees the exports made so far, as CommonJS does; `require()`
+is synchronous, so only an entry module may await at top level.
+
+`@soundor/core`'s `toNativeModule()` makes this form from an ES module with
+Babel, lowering the syntax Hermes compiles only experimentally or not at
+all: classes (their fields, private members and static blocks), `let`/`const`
+block scoping, async functions and generators (into generators) and
+`for await`. Private members become properties keyed by symbols of their own,
+unchecked: much faster in the interpreter than the spec's WeakMaps, but
+visible to `Object.getOwnPropertySymbols()`, and reading one on an object
+without it gives `undefined` instead of throwing a TypeError. `let` and
+`const` become `var` without their temporal dead zone: a variable read before
+its declaration is `undefined`, where an engine running the ES module (the
+Web runtime) throws a ReferenceError. The CLI makes a plugin's bundle
+so (`bundle.js`); the runtime's own modules are generated into
+`src/generated/` by `scripts/native-modules.mjs` (`pnpm gen:native-modules`;
+a test checks they are up to date), each statement on the line it has in
+`src/`, so that their stack traces point at the module as written.
+
+Soundor resolves every `require`; the engine never touches the filesystem.
 
 - `soundor:*` specifiers are reserved for runtime-provided native modules. They
   resolve inside the `Context` and never reach the loader. An unregistered one
   fails with `Unknown Soundor module`.
 - Everything else goes to the context's `ModuleLoader`. The built-in
   `MemoryModuleLoader` serves a bundled plugin. It resolves relative and absolute
-  paths and rejects bare specifiers (`react`, `node:fs`, `qjs:std`), because npm
-  packages are bundled at build time, not resolved at runtime.
+  paths and rejects bare specifiers (`react`, `node:fs`), because npm packages
+  are bundled at build time, not resolved at runtime.
 
 Native modules use a private registration API (`src/js/NativeModule.h`), and
 generated bindings are written against the helpers in `src/js/Bindings.h`.
 
 ### Bytecode
 
-JavaScript is compiled to QuickJS bytecode while building, by
-`soundor_compile_js` (`src/js/CompileJs.cpp`, built from the same pinned
-QuickJS): the runtime's own modules (`soundor_embed_module()`) and a plugin's
-UI bundle (`soundor_embed_ui()`, used by the generated plugin project). The
-engine then reads bytecode instead of compiling source. For the benchmark's
-bundle and the runtime's modules, that took startup from about 46 ms to 10 ms
-and the engine's heap after it from 4.7 MB to 3.2 MB per plugin view.
+JavaScript is compiled to Hermes bytecode while building, by the `hermesc` of
+the same Hermes build as the VM, with `-O -fno-inline` (`SOUNDOR_HERMESC_FLAGS`;
+`SoundorCompileJs.cmake`) and always the checks the time limit needs
+(`-emit-async-break-check`): the runtime's own modules (`soundor_embed_module()`)
+and a plugin's UI bundle (`soundor_embed_ui()`, used by the generated plugin
+project). The engine then runs the bytecode in place instead of compiling
+source.
 
-- **Without source text:** the bytecode keeps line numbers, so stack traces
-  point at lines as before, but not the source: QuickJS otherwise keeps every
-  function's text in the heap for `Function.prototype.toString()`, which then
-  cannot return it. The bundle's bytecode is about 15% larger than its
-  minified source; the runtime's modules, not minified, are 24% smaller.
-- **Only from the build:** QuickJS reads bytecode without defending against a
+- **Names and lines:** the module's name ("/bundle.js", "soundor:ui") is its
+  file name in stack traces (a `sourceURL` comment); the bytecode keeps line
+  and column numbers, not the source. Without `-fno-inline`, `-O` would inline
+  small functions and drop their frames from stack traces; measured with
+  `examples/benchmark`, inlining saved no time.
+- **Only from the build:** Hermes runs bytecode without defending against a
   hostile writer, so only bytecode compiled into the binary is read
   (`Resources::builtIn()`): a UI in a directory (`soundor dev`) is always
-  read as source. Bytecode starts with a header naming the QuickJS revision
-  (`src/js/Bytecode.h`); another revision's is refused with an error.
-- **Where the build cannot run the compiler** (cross-compiling), or with
-  `-DSOUNDOR_PRECOMPILE_JS=OFF`, source is embedded instead, and read as before.
+  read as source. The bytecode ends with an epilogue naming the Hermes
+  revision (`src/js/Bytecode.h`); another revision's is refused with an error,
+  and Hermes itself refuses another bytecode version.
+- **Where the build cannot run hermesc** (cross-compiling), or with
+  `-DSOUNDOR_PRECOMPILE_JS=OFF`, source is embedded instead, and the VM with
+  the compiler is needed.
 - **Loaders:** `ModuleLoader::loadBytecode()` (none by default) offers a
-  module's bytecode; `ResourceModuleLoader` finds `bundle.js.qjsbc` next to
+  module's bytecode; `ResourceModuleLoader` finds `bundle.js.hbc` next to
   `bundle.js` in built-in resources.
+- `build/<preset>/soundor-compile-js.cmake` compiles a module as the build
+  does: `cmake -DINPUT=bundle.js -DOUTPUT=bundle.js.hbc -DNAME=/bundle.js -P …`.
 
 ### `soundor:native`
 
@@ -151,11 +263,13 @@ number, got undefined`. Missing arguments are errors; extra ones are ignored,
   returns. Returned `std::vector`s move into JavaScript-owned buffers without a
   copy.
 - **Handles.** Native objects cross as opaque JavaScript objects backed by a
-  `std::shared_ptr`. They cannot be forged or confused between types. The C++
-  object is released when JavaScript drops the handle, or when the runtime is
-  torn down.
+  `std::shared_ptr` (in the object's JSI native state). They cannot be forged
+  or confused between types. The C++ object is released on the runtime's
+  thread: at the next job drain (the next tick) after the garbage collector
+  finalizes the handle, and at the latest when its context is destroyed, so
+  its destructor never runs on the collector's thread.
 - **Errors.** A C++ exception from a method becomes a JavaScript `Error`
-  (`"fail(): disk full"`). Nothing unwinds into the engine.
+  (`"fail(): disk full"`); only `jsi::JSError`, JSI's own, reaches the engine.
 - **Async.** `async` methods receive a `js::Promise<T>` to settle later, on the
   runtime's thread. The first settle wins. A promise dropped unsettled rejects,
   and settling after the context is gone does nothing.
@@ -212,7 +326,7 @@ browser or Node. There is no `window`, `document`, `process` or `require`.
 | `AbortController`, `AbortSignal`                                       | Including `abort()`, `timeout()` and `any()`.                                                                                                                                                                 |
 | `TextEncoder`, `TextDecoder`                                           | WHATWG UTF-8, with streaming and `fatal`.                                                                                                                                                                     |
 | `URL`, `URLSearchParams`                                               | WHATWG URL via [ada](https://github.com/ada-url/ada), including IDNA.                                                                                                                                         |
-| `atob`, `btoa`, `DOMException`                                         | From QuickJS-NG.                                                                                                                                                                                              |
+| `atob`, `btoa`, `DOMException`                                         | `src/web/js/base64.js`, `src/web/js/dom-exception.js`.                                                                                                                                                        |
 | `structuredClone`                                                      | Including `transfer`. Functions, symbols and similar values throw `DataCloneError`.                                                                                                                           |
 | `crypto.getRandomValues()`, `crypto.randomUUID()`                      | From the OS CSPRNG. `crypto.subtle` is not provided.                                                                                                                                                          |
 | `fetch`, `Headers`, `Request`, `Response`, `Blob`, `File`, `FormData`  | Through the backend's `HttpClient`. Bodies are buffered (no Web Streams yet). `data:` URLs resolve locally; redirects are always followed.                                                                    |
@@ -772,37 +886,51 @@ A `Runtime` and its `Context`s belong to the thread that created the runtime: th
 UI/message thread. Debug builds assert this. Background work must hand results
 back to that thread before touching JavaScript.
 
-The engine heap is released once the `Runtime` and all of its `Context`s are
-destroyed, in any order. Destroying everything and creating fresh instances is
-the supported reload path. Tests cover repeated create/destroy and teardown with
-jobs and rejections still pending. Debug builds of QuickJS abort if anything
-leaks at teardown.
+Each `Context` is a Hermes runtime of its own, and each has a thread of
+Hermes's own: its collector (Hades) collects the old generation concurrently
+there, while JavaScript keeps running, and finalizes what it collects there
+too. That thread runs no JavaScript, and Soundor's finalizers only queue:
+FinalizationRegistry cells and the native objects of handles go to the
+context under a mutex, and are reported and released on the context's thread
+when its jobs drain (`ContextState::runFinalizers`, `releaseHandles`). A host
+with ten plugin editors open has ten of these threads. With a time limit,
+Hermes has one more thread per plugin binary (its `time-limit-monitor`),
+asleep until a deadline passes, when it asks the engine to stop.
+
+A context's heap, with its jobs, is released when the context is destroyed;
+the `Runtime` and its `Context`s may go in any order. Destroying everything and
+creating fresh instances is the supported reload path. Tests cover repeated
+create/destroy and teardown with jobs and rejections still pending. Debug
+builds assert, when a context frees its Hermes runtime, that C++ holds none of
+its values any more.
 
 ## Dependencies
 
 All dependencies are fetched by CMake (`FetchContent`) from exact revisions,
 verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 
-| Dependency  | Version             | License          | Role                                                     |
-| ----------- | ------------------- | ---------------- | -------------------------------------------------------- |
-| QuickJS-NG  | v0.17.0 (`6d46d07`) | MIT              | JavaScript engine (shipped)                              |
-| ada         | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)            |
-| Yoga        | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                                 |
-| Skia        | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)                |
-| ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)      |
-| accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt) |
-| doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                              |
-| three       | 0.186.1 (npm)       | MIT              | WebGL compatibility tests (tests only)                   |
+| Dependency  | Version             | License          | Role                                                            |
+| ----------- | ------------------- | ---------------- | --------------------------------------------------------------- |
+| Hermes      | main (`602befe`)    | MIT              | JavaScript engine (shipped: the interpreter; built from source) |
+| QuickJS-NG  | v0.17.0 (`6d46d07`) | MIT              | Unicode tables for Hermes on Linux (shipped: libunicode)        |
+| ada         | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)                   |
+| Yoga        | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                                        |
+| Skia        | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
+| ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
+| accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt)        |
+| doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                                     |
+| three       | 0.186.1 (npm)       | MIT              | WebGL compatibility tests (tests only)                          |
 
-QuickJS-NG's own CMake project is not used. Soundor compiles the four engine
-sources into a static `soundor_quickjs` target with hidden visibility and links
-it `PRIVATE`. This leaves out `quickjs-libc` (file/process access), the `qjs`/`qjsc`
-executables and the install rules, and keeps `quickjs.h` off consumers' include
-paths. It is compiled optimized even in Debug builds: an unoptimized
-interpreter's frames are several times larger, so Three.js, which runs in a
-release build, would hit the 512 KiB stack limit in an MSVC debug build. Its
-assertions still follow the configuration. To build offline, set
-`FETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS` to a checkout of the same revision.
+Hermes is built by its own CMake, once per machine and configuration
+(revision, Soundor's patches, compiler, platform, architectures), into
+Soundor's cache, like Skia (`SoundorHermes.cmake`; the first configure takes
+several minutes; `SOUNDOR_HERMES_DIR` points at another build of it). It is
+always an optimized build, whatever the configuration: its headers do not
+depend on it. Its libraries are linked `PRIVATE`, and its API's
+`JSI_EXPORT`/`HERMES_EXPORT` are defined empty on both sides, so nothing of it
+is exported from a plugin. Sanitizer builds do not instrument it (as Skia and
+ANGLE). Cross-compiling needs a Hermes for the target with a host `hermesc`,
+which the build does not make yet (`SOUNDOR_HERMES_DIR`).
 
 Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
 Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`
@@ -926,7 +1054,7 @@ or its dependencies define may be exported from a plugin binary:
   collide, and a category changes a class every binary shares. Negative
   controls cover both checks.
 - The probe library creates a full `RuntimeHost`, lays out and draws a UI and
-  creates a GPU device and context, so QuickJS, ada, Yoga, Skia and its
+  creates a GPU device and context, so Hermes, ada, Yoga, Skia and its
   codecs, and ANGLE are all linked into what is checked. A future ANGLE
   update that introduced an Objective-C class or category, or an exported
   EGL or GL symbol, fails the build.
@@ -958,15 +1086,28 @@ with its own copy of the runtime. Two tests prove it:
 
 ## Footprint
 
-Measured with `examples/basic` (React UI) on Linux x64, Release:
+Measured on Linux x64, Release, with the stripped VST3 binary (everything:
+Hermes, ada, Yoga, Skia, ANGLE, AccessKit, JUCE and the UI), against the same
+build with QuickJS-NG before it (both linked with `--gc-sections`):
 
-| What                                                       | Size / time                       |
-| ---------------------------------------------------------- | --------------------------------- |
-| VST3 binary, stripped (QuickJS, ada, Yoga, Skia, JUCE, UI) | 11.1 MB                           |
-| …of which Skia with its codecs                             | ~4.6 MB                           |
-| UI bundle (React, react-reconciler, scheduler, app)        | 153 KB minified                   |
-| Editor start to first frame (host, bundle, React, render)  | ~20 ms at 1600×1200 device pixels |
-| A full redraw after that                                   | ~0.6 ms                           |
+| What                                     | QuickJS-NG | Hermes   | Difference |
+| ---------------------------------------- | ---------- | -------- | ---------- |
+| `examples/basic` (React UI), VST3 binary | 20.79 MB   | 21.84 MB | +1.05 MB   |
+| `examples/benchmark` (React, Three.js)   | 21.44 MB   | 22.72 MB | +1.29 MB   |
+| …its UI bundle's bytecode                | 832 kB     | 1,149 kB | +316 kB    |
+| …the runtime's own modules' bytecode     | 205 kB     | 400 kB   | +195 kB    |
+| `examples/basic`'s UI bundle's bytecode  | 184 kB     | 262 kB   | +78 kB     |
+
+(MB and kB are 10⁶ and 10³ bytes.) So the engine itself (the VM without its
+compiler) costs about 0.78 MB more than QuickJS-NG; the rest is bytecode,
+which is larger for Hermes, and for the runtime's modules also the lowered
+syntax and the language layer.
+`--gc-sections` (`-dead_strip` on macOS), which the generated `setup.cmake`
+adds to Release plugins, takes about 1.8 MB off a plugin (Skia and ANGLE
+included); Hermes is compiled with a section per function for it. ThinLTO of
+Hermes (`-DSOUNDOR_HERMES_LTO=ON`) made the plugin 84 KB larger, not smaller.
+Unstripped, the binary also carries about 28 MB of symbol tables (no debug
+information in Release).
 
 ## Building and testing
 

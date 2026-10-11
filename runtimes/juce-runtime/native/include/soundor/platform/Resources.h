@@ -70,7 +70,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
     // resource "bundle.js". Relative imports resolve like MemoryModuleLoader;
     // bare specifiers are rejected (the bundle has already inlined packages).
     // Resources built into the binary may hold a module's bytecode instead,
-    // as "bundle.js.qjsbc" (see soundor_embed_ui()); others are only read as
+    // as "bundle.js.hbc" (see soundor_embed_ui()); others are only read as
     // source.
     class ResourceModuleLoader final : public js::ModuleLoader
     {

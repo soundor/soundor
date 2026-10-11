@@ -49,7 +49,9 @@ TEST_SUITE("Errors")
         Runtime runtime;
         Context context(runtime);
         auto result = context.evaluateScript(
-            "class PresetError extends Error { constructor(m) { super(m); this.name = 'PresetError'; } }\n"
+            "function PresetError(m) { const e = Reflect.construct(Error, [m], PresetError); e.name = 'PresetError';"
+            " return e; }\n"
+            "PresetError.prototype = Object.create(Error.prototype, { constructor: { value: PresetError } });\n"
             "throw new PresetError('missing');");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().toString() == "PresetError: missing");

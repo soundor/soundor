@@ -14,81 +14,61 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
 {
     namespace
     {
-        std::string text(JSContext* ctx, JSValueConst value)
-        {
-            std::size_t length = 0;
-            const char* chars = JS_ToCStringLen(ctx, &length, value);
-            if (chars == nullptr)
-                return {};
-            std::string result(chars, length);
-            JS_FreeCString(ctx, chars);
-            return result;
-        }
+        namespace bind = js::bind;
+        using bind::ContextState;
 
-        bool readHeaders(JSContext* ctx, JSValueConst array, std::vector<platform::HttpHeader>& out)
+        void readHeaders(ContextState& context, const jsi::Value& value, std::vector<platform::HttpHeader>& out)
         {
-            std::int64_t count = 0;
-            if (JS_GetLength(ctx, array, &count) < 0)
-                return false;
-            for (std::int64_t i = 0; i < count; ++i)
+            const jsi::Array array = bind::expectArray(context, value, bind::Path { "fetch" }.field("headers"));
+            const std::size_t count = array.size(context.rt);
+            for (std::size_t i = 0; i < count; ++i)
             {
-                JSValue pair = JS_GetPropertyUint32(ctx, array, static_cast<std::uint32_t>(i));
-                JSValue name = JS_GetPropertyUint32(ctx, pair, 0);
-                JSValue value = JS_GetPropertyUint32(ctx, pair, 1);
-                out.push_back({ text(ctx, name), text(ctx, value) });
-                JS_FreeValue(ctx, name);
-                JS_FreeValue(ctx, value);
-                JS_FreeValue(ctx, pair);
-                if (JS_HasException(ctx))
-                    return false;
+                const jsi::Array pair = array.getValueAtIndex(context.rt, i).getObject(context.rt).getArray(context.rt);
+                out.push_back({ bind::toString(context, pair.getValueAtIndex(context.rt, 0)),
+                                bind::toString(context, pair.getValueAtIndex(context.rt, 1)) });
             }
-            return true;
         }
 
-        JSValue makeResponse(JSContext* ctx, platform::HttpResponse&& response)
+        jsi::Value makeResponse(ContextState& context, platform::HttpResponse&& response)
         {
-            js::bind::ObjectBuilder object(ctx);
-            object.set("status", JS_NewInt32(ctx, response.status));
-            object.set("statusText", js::bind::write(ctx, response.statusText));
-            object.set("url", js::bind::write(ctx, response.url));
-            JSValue headers = JS_NewArray(ctx);
+            bind::ObjectBuilder object(context);
+            object.set("status", jsi::Value(response.status));
+            object.set("statusText", bind::write(context, response.statusText));
+            object.set("url", bind::write(context, response.url));
+            jsi::Array headers(context.rt, response.headers.size());
             for (std::size_t i = 0; i < response.headers.size(); ++i)
             {
-                JSValue pair = JS_NewArray(ctx);
-                JS_SetPropertyUint32(ctx, pair, 0, js::bind::write(ctx, response.headers[i].name));
-                JS_SetPropertyUint32(ctx, pair, 1, js::bind::write(ctx, response.headers[i].value));
-                JS_SetPropertyUint32(ctx, headers, static_cast<std::uint32_t>(i), pair);
+                jsi::Array pair(context.rt, 2);
+                pair.setValueAtIndex(context.rt, 0, bind::write(context, response.headers[i].name));
+                pair.setValueAtIndex(context.rt, 1, bind::write(context, response.headers[i].value));
+                headers.setValueAtIndex(context.rt, i, pair);
             }
             object.set("headers", headers);
-            object.set("body", js::bind::write(ctx, std::move(response.body)));
+            object.set("body", bind::write(context, std::move(response.body)));
             return object.release();
         }
 
         // httpSend(method, url, [[name, value]...], body: Uint8Array | null)
         //   → [promise of { status, statusText, url, headers, body }, id]
-        JSValue httpSend(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value httpSend(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            auto* state = stateOf(ctx);
-            if (state == nullptr || argc < 4)
-                return JS_ThrowInternalError(ctx, "httpSend() misused");
+            auto* state = stateOf(context);
+            if (state == nullptr || count < 4)
+                bind::throwInternalError(context, "httpSend() misused");
 
             platform::HttpRequest request;
-            request.method = text(ctx, argv[0]);
-            request.url = text(ctx, argv[1]);
-            if (JS_HasException(ctx) || ! readHeaders(ctx, argv[2], request.headers))
-                return JS_EXCEPTION;
-            if (! JS_IsNull(argv[3]))
+            request.method = bind::toString(context, args[0]);
+            request.url = bind::toString(context, args[1]);
+            readHeaders(context, args[2], request.headers);
+            if (! args[3].isNull())
             {
                 std::span<const std::uint8_t> body;
-                if (! js::bind::read(ctx, argv[3], js::bind::Path { "fetch" }, body))
-                    return JS_EXCEPTION;
+                bind::read(context, args[3], bind::Path { "fetch" }, body);
                 request.body.assign(body.begin(), body.end());
             }
 
             std::uint64_t id = 0;
-            JSValue promise = state->beginOperation(ctx, "fetch", id);
-            if (JS_IsException(promise))
-                return promise;
+            jsi::Value promise = state->beginOperation(context, "fetch", id);
 
             if (state->services.http == nullptr)
             {
@@ -105,35 +85,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                     [completions = state->completions, id](platform::HttpClient::Result result)
                     {
                         completions->post(
-                            [id, result = std::move(result)](State& ui, JSContext*) mutable
+                            [id, result = std::move(result)](State& ui, ContextState&) mutable
                             {
                                 if (auto* response = std::get_if<platform::HttpResponse>(&result))
-                                    ui.resolve(id, [&](JSContext* c) { return makeResponse(c, std::move(*response)); });
+                                    ui.resolve(id,
+                                               [&](ContextState& c) { return makeResponse(c, std::move(*response)); });
                                 else
                                     ui.reject(id, "TypeError", "fetch failed: " + std::get<std::string>(result));
                             });
                     });
             }
 
-            JSValue pair = JS_NewArray(ctx);
-            JS_SetPropertyUint32(ctx, pair, 0, promise);
-            JS_SetPropertyUint32(ctx, pair, 1, JS_NewFloat64(ctx, double(id)));
+            jsi::Array pair(context.rt, 2);
+            pair.setValueAtIndex(context.rt, 0, promise);
+            pair.setValueAtIndex(context.rt, 1, jsi::Value(double(id)));
             return pair;
         }
 
         // httpAbort(id): cancels the request; its promise rejects with
         // AbortError (fetch() reports the signal's reason instead).
-        JSValue httpAbort(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value httpAbort(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            auto* state = stateOf(ctx);
-            double id = 0;
-            if (state == nullptr || argc < 1 || JS_ToFloat64(ctx, &id, argv[0]) < 0)
-                return JS_UNDEFINED;
-            const auto key = static_cast<std::uint64_t>(id);
+            auto* state = stateOf(context);
+            if (state == nullptr || count < 1)
+                return jsi::Value::undefined();
+            const auto key = static_cast<std::uint64_t>(bind::toNumber(context, args[0]));
             if (const auto it = state->cancellations.find(key); it != state->cancellations.end())
                 it->second->cancel();
             state->reject(key, "DOMException:AbortError", "The operation was aborted.");
-            return JS_UNDEFINED;
+            return jsi::Value::undefined();
         }
     } // namespace
 

@@ -1,19 +1,25 @@
 #pragma once
 
-// Private to Soundor: the conversion and call helpers generated native-module
-// bindings are written against. Generated code stays short and declarative;
-// every engine detail (validation, error messages, ownership) lives here.
+// Private to Soundor: the conversion and call helpers native modules and
+// generated bindings are written against. Generated code stays short and
+// declarative; every engine detail (validation, error messages, ownership)
+// lives here.
 //
 // Conventions:
-// - read(ctx, value, path, out) converts a JavaScript value into `out`. On a
-//   mismatch it throws a TypeError naming `path` and returns false; the caller
-//   returns JS_EXCEPTION.
-// - write(ctx, value) converts a C++ value into a new JSValue, or returns
-//   JS_EXCEPTION after throwing.
+// - A native function is a NativeFunction: it gets its context, `this` and
+//   the arguments, and returns a jsi::Value.
+// - read(context, value, path, out) converts a JavaScript value into `out`.
+//   On a mismatch it throws a TypeError naming `path` (a jsi::JSError).
+// - write(context, value) converts a C++ value into a new jsi::Value.
+// - JavaScript errors are jsi::JSError, JSI's way of throwing into
+//   JavaScript. Any other C++ exception stops at invoke(), which turns it into
+//   one; nothing else reaches the engine.
 
 #include "Internal.h"
 
 #include <soundor/js/Promise.h>
+
+#include <hermes/Public/JSOutOfMemoryError.h>
 
 #include <chrono>
 #include <cstddef>
@@ -24,10 +30,13 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
 {
+    using detail::ContextState;
+
     // Where a value sits in a native call, for error messages:
     // "analyze(): points[2].x". Built on the stack; formatted only on failure.
     struct Path
@@ -41,137 +50,173 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         [[nodiscard]] std::string toString() const;
     };
 
-    // Throws a TypeError: "<path>: expected <expected>, got <actual type>".
-    void throwTypeMismatch(JSContext* ctx, const Path& path, std::string_view expected, JSValueConst actual);
+    // ── Errors ───────────────────────────────────────────────────────────────
+
+    // A new error object of the context's own constructors (not whatever the
+    // globals are now).
+    [[nodiscard]] jsi::Value makeError(ContextState& context, std::string_view message);
+    [[nodiscard]] jsi::Value makeTypeError(ContextState& context, std::string_view message);
+    [[nodiscard]] jsi::Value makeRangeError(ContextState& context, std::string_view message);
+
+    [[noreturn]] void throwError(ContextState& context, std::string_view message);
+    [[noreturn]] void throwTypeError(ContextState& context, std::string_view message);
+    [[noreturn]] void throwRangeError(ContextState& context, std::string_view message);
+    // An Error named "InternalError": the runtime itself failed.
+    [[noreturn]] void throwInternalError(ContextState& context, std::string_view message);
+    // "<path>: expected <expected>, got <actual type>".
+    [[noreturn]] void throwTypeMismatch(ContextState& context, const Path& path, std::string_view expected,
+                                        const jsi::Value& actual);
+
+    // A short description of a value's type for error messages.
+    [[nodiscard]] std::string describeType(ContextState& context, const jsi::Value& value);
+
+    // ── Converting as JavaScript does ────────────────────────────────────────
+
+    // ToNumber(value), ToInt32, ToUint32, ToBoolean and ToString: what a
+    // JavaScript operator would make of the value (calling valueOf/toString
+    // where it would, so they may throw).
+    [[nodiscard]] double toNumber(ContextState& context, const jsi::Value& value);
+    [[nodiscard]] std::int32_t toInt32(ContextState& context, const jsi::Value& value);
+    [[nodiscard]] std::uint32_t toUint32(ContextState& context, const jsi::Value& value);
+    [[nodiscard]] bool toBoolean(ContextState& context, const jsi::Value& value);
+    [[nodiscard]] std::string toString(ContextState& context, const jsi::Value& value);
+
+    // The argument at `index`, or undefined past the end.
+    [[nodiscard]] inline const jsi::Value& argument(const jsi::Value* args, std::size_t count, std::size_t index)
+    {
+        static const jsi::Value undefined;
+        return index < count ? args[index] : undefined;
+    }
+
+    [[nodiscard]] inline bool isFunction(ContextState& context, const jsi::Value& value)
+    {
+        return value.isObject() && value.getObject(context.rt).isFunction(context.rt);
+    }
 
     // ── Reading arguments ────────────────────────────────────────────────────
 
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, bool& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, double& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::string& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, bool& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, double& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::string& out);
 
     // Binary views borrow the JavaScript buffer for the duration of the call:
-    // zero-copy, read-only, and invalid once the native method returns.
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::byte>& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::uint8_t>& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::int32_t>& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const float>& out);
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, std::span<const double>& out);
+    // zero-copy, read-only, and invalid once the native method returns (or
+    // calls back into JavaScript). Typed arrays must be exactly the type
+    // (by their internal class, not their prototype); a detached buffer
+    // reads as empty.
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::byte>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint8_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int32_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const float>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const double>& out);
 
-    // The bytes of an ArrayBuffer or any typed array, borrowed and writable
-    // (for natives that fill a buffer); invalid once the native method returns.
-    bool readBytes(JSContext* ctx, JSValueConst value, const Path& path, std::span<std::byte>& out);
+    // The bytes of an ArrayBuffer or any typed array (its view), borrowed and
+    // writable (for natives that fill a buffer); invalid once the native
+    // method returns.
+    void readBytes(ContextState& context, const jsi::Value& value, const Path& path, std::span<std::byte>& out);
+
+    // The view of an ArrayBuffer or typed array, or false for anything else.
+    [[nodiscard]] bool bufferView(ContextState& context, const jsi::Value& value,
+                                  facebook::hermes::soundor::BufferView& out) noexcept;
 
     // Reads one of `values`, reporting its position.
-    bool readEnum(JSContext* ctx, JSValueConst value, const Path& path, std::span<const std::string_view> values,
-                  std::size_t& index);
+    void readEnum(ContextState& context, const jsi::Value& value, const Path& path,
+                  std::span<const std::string_view> values, std::size_t& index);
 
-    bool expectObject(JSContext* ctx, JSValueConst value, const Path& path);
-    bool expectArray(JSContext* ctx, JSValueConst value, const Path& path, std::size_t& length);
+    // A plain object (not an array or function).
+    [[nodiscard]] jsi::Object expectObject(ContextState& context, const jsi::Value& value, const Path& path);
+    [[nodiscard]] jsi::Array expectArray(ContextState& context, const jsi::Value& value, const Path& path);
 
-    // Reads a JavaScript array element by element with `readElement`, which is
-    // called as readElement(ctx, element, elementPath, out).
+    // Reads a JavaScript array element by element with `readElement`, which
+    // is called as readElement(context, element, elementPath, out).
     template <typename T, typename ReadElement>
-    bool readArray(JSContext* ctx, JSValueConst value, const Path& path, std::vector<T>& out, ReadElement readElement)
+    void readArray(ContextState& context, const jsi::Value& value, const Path& path, std::vector<T>& out,
+                   ReadElement readElement)
     {
-        std::size_t length = 0;
-        if (! expectArray(ctx, value, path, length))
-            return false;
+        const jsi::Array array = expectArray(context, value, path);
+        const std::size_t length = array.size(context.rt);
         out.clear();
         out.reserve(length);
         for (std::size_t i = 0; i < length; ++i)
         {
-            JSValue element = JS_GetPropertyUint32(ctx, value, static_cast<std::uint32_t>(i));
-            if (JS_IsException(element))
-                return false;
+            const jsi::Value element = array.getValueAtIndex(context.rt, i);
             T item {};
-            const bool ok = readElement(ctx, element, path.element(i), item);
-            JS_FreeValue(ctx, element);
-            if (! ok)
-                return false;
+            readElement(context, element, path.element(i), item);
             out.push_back(std::move(item));
         }
-        return true;
     }
 
-    // A property of an object being read as a struct.
-    class Field
+    // `object[name]`, with `name` a literal (or a string that outlives the
+    // context): its PropNameID is made once.
+    [[nodiscard]] inline jsi::Value property(ContextState& context, const jsi::Object& object, const char* name)
     {
-    public:
-        Field(JSContext* context, JSValueConst object, const char* name, const Path& parent);
-        ~Field();
+        return object.getProperty(context.rt, context.name(name));
+    }
 
-        Field(const Field&) = delete;
-        Field& operator=(const Field&) = delete;
-        Field(Field&&) = delete;
-        Field& operator=(Field&&) = delete;
-
-        // False when reading the property threw.
-        explicit operator bool() const noexcept { return ! JS_IsException(property); }
-        [[nodiscard]] JSValueConst value() const noexcept { return property; }
-        [[nodiscard]] const Path& path() const noexcept { return fieldPath; }
-
-    private:
-        JSContext* ctx;
-        JSValue property;
-        Path fieldPath;
-    };
+    template <typename T>
+    void setProperty(ContextState& context, const jsi::Object& object, const char* name, T&& value)
+    {
+        object.setProperty(context.rt, context.name(name), std::forward<T>(value));
+    }
 
     // ── Writing results ──────────────────────────────────────────────────────
 
-    JSValue write(JSContext* ctx, bool value);
-    JSValue write(JSContext* ctx, double value);
-    JSValue write(JSContext* ctx, const std::string& value);
+    [[nodiscard]] inline jsi::Value write(ContextState&, bool value)
+    {
+        return { value };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, double value)
+    {
+        return { value };
+    }
+    [[nodiscard]] jsi::Value write(ContextState& context, std::string_view value);
+    [[nodiscard]] inline jsi::Value write(ContextState& context, const std::string& value)
+    {
+        return write(context, std::string_view(value));
+    }
+    // Without it, a string literal would convert to bool.
+    [[nodiscard]] inline jsi::Value write(ContextState& context, const char* value)
+    {
+        return write(context, std::string_view(value));
+    }
 
     // Binary results move their storage into a JavaScript-owned ArrayBuffer:
     // zero-copy, and freed by the garbage collector.
-    JSValue write(JSContext* ctx, std::vector<std::byte>&& value);
-    JSValue write(JSContext* ctx, std::vector<std::uint8_t>&& value);
-    JSValue write(JSContext* ctx, std::vector<std::int32_t>&& value);
-    JSValue write(JSContext* ctx, std::vector<float>&& value);
-    JSValue write(JSContext* ctx, std::vector<double>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::byte>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::uint8_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::int32_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<float>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<double>&& value);
 
-    JSValue writeEnum(JSContext* ctx, std::string_view value);
+    [[nodiscard]] jsi::Value writeEnum(ContextState& context, std::string_view value);
 
-    // Writes a JavaScript array; writeElement(ctx, element) yields each value.
+    // Writes a JavaScript array; writeElement(context, element) yields each
+    // value.
     template <typename T, typename WriteElement>
-    JSValue writeArray(JSContext* ctx, std::vector<T>&& values, WriteElement writeElement)
+    [[nodiscard]] jsi::Value writeArray(ContextState& context, std::vector<T>&& values, WriteElement writeElement)
     {
-        JSValue array = JS_NewArray(ctx);
-        if (JS_IsException(array))
-            return array;
+        jsi::Array array(context.rt, values.size());
         for (std::size_t i = 0; i < values.size(); ++i)
-        {
-            JSValue element = writeElement(ctx, std::move(values[i]));
-            if (JS_IsException(element) || JS_SetPropertyUint32(ctx, array, static_cast<std::uint32_t>(i), element) < 0)
-            {
-                JS_FreeValue(ctx, array);
-                return JS_EXCEPTION;
-            }
-        }
+            array.setValueAtIndex(context.rt, i, writeElement(context, std::move(values[i])));
         return array;
     }
 
-    // Builds a plain object field by field; any failure turns the result into
-    // JS_EXCEPTION.
+    // Builds a plain object field by field.
     class ObjectBuilder
     {
     public:
-        explicit ObjectBuilder(JSContext* context);
-        ~ObjectBuilder();
+        explicit ObjectBuilder(ContextState& owner) : context(owner), object(owner.rt) {}
 
-        ObjectBuilder(const ObjectBuilder&) = delete;
-        ObjectBuilder& operator=(const ObjectBuilder&) = delete;
-        ObjectBuilder(ObjectBuilder&&) = delete;
-        ObjectBuilder& operator=(ObjectBuilder&&) = delete;
-
-        // Takes ownership of `value`.
-        void set(const char* name, JSValue value);
-        [[nodiscard]] JSValue release();
+        template <typename T>
+        void set(const char* name, T&& value)
+        {
+            setProperty(context, object, name, std::forward<T>(value));
+        }
+        [[nodiscard]] jsi::Value release() { return std::move(object); }
 
     private:
-        JSContext* ctx;
-        JSValue object;
+        ContextState& context;
+        jsi::Object object;
     };
 
     // ── Opaque native handles ────────────────────────────────────────────────
@@ -183,21 +228,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         const char* name;
     };
 
-    bool readHandle(JSContext* ctx, JSValueConst value, const Path& path, const HandleType& type,
+    void readHandle(ContextState& context, const jsi::Value& value, const Path& path, const HandleType& type,
                     std::shared_ptr<void>& out);
-    JSValue writeHandle(JSContext* ctx, const HandleType& type, std::shared_ptr<void> object);
+    [[nodiscard]] jsi::Value writeHandle(ContextState& context, const HandleType& type, std::shared_ptr<void> object);
 
     template <typename T>
-    bool read(JSContext* ctx, JSValueConst value, const Path& path, const HandleType& type, std::shared_ptr<T>& out)
+    void read(ContextState& context, const jsi::Value& value, const Path& path, const HandleType& type,
+              std::shared_ptr<T>& out)
     {
         std::shared_ptr<void> object;
-        if (! readHandle(ctx, value, path, type, object))
-            return false;
+        readHandle(context, value, path, type, object);
         out = std::static_pointer_cast<T>(std::move(object));
-        return true;
     }
 
-    // ── Calls ────────────────────────────────────────────────────────────────
+    // ── Native functions ─────────────────────────────────────────────────────
+
+    using NativeFunction = jsi::Value (*)(ContextState& context, const jsi::Value& thisValue, const jsi::Value* args,
+                                          std::size_t count);
+
+    // A JavaScript function calling `function` in `context`.
+    [[nodiscard]] jsi::Function function(ContextState& context, const char* name, unsigned length,
+                                         NativeFunction function);
+
+    // A JavaScript function calling `body(context, this, args, count)`; for
+    // natives that carry state.
+    template <typename Body>
+    [[nodiscard]] jsi::Function closure(ContextState& context, const char* name, unsigned length, Body body)
+    {
+        return jsi::Function::createFromHostFunction(
+            context.rt, context.name(name), length,
+            [&context, body = std::move(body)](jsi::Runtime&, const jsi::Value& thisValue, const jsi::Value* args,
+                                               std::size_t count) mutable
+            { return body(context, thisValue, args, count); });
+    }
 
     // Which of Soundor's native APIs a call goes to (RuntimeStatistics).
     enum class NativeApi
@@ -213,12 +276,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     class NativeCall
     {
     public:
-        NativeCall(JSContext* ctx, NativeApi api) noexcept
+        NativeCall(ContextState& context, NativeApi api) noexcept : state(context.runtime.get())
         {
-            detail::ContextState* context = detail::contextStateOf(ctx);
-            if (context == nullptr)
-                return;
-            state = context->runtime.get();
             RuntimeStatistics& statistics = state->statistics;
             counter = api == NativeApi::Ui       ? &statistics.ui
                       : api == NativeApi::Canvas ? &statistics.canvas
@@ -233,8 +292,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
 
         ~NativeCall()
         {
-            if (state == nullptr)
-                return;
             --state->nativeCallDepth;
             if (timed)
                 counter->nanoseconds += static_cast<std::uint64_t>(
@@ -248,64 +305,82 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         NativeCall& operator=(NativeCall&&) = delete;
 
     private:
-        detail::RuntimeState* state = nullptr;
+        detail::RuntimeState* state;
         NativeCallStatistics* counter = nullptr;
         bool timed = false;
         std::chrono::steady_clock::time_point started;
     };
 
     // Requires at least `expected` arguments; extras are ignored.
-    bool expectArgumentCount(JSContext* ctx, const char* method, int argc, int expected);
+    void expectArgumentCount(ContextState& context, const char* method, std::size_t count, std::size_t expected);
 
-    JSValue throwNativeException(JSContext* ctx, const char* method, const std::exception& error);
+    [[noreturn]] void throwNativeException(ContextState& context, const char* method, const std::exception& error);
 
-    // Runs a binding body, turning any C++ exception into a JavaScript error so
-    // none crosses into the engine.
+    // Runs a binding body, turning any C++ exception other than a jsi::JSError
+    // into a JavaScript error, so no other one reaches the engine.
     template <typename Body>
-    JSValue invoke(JSContext* ctx, const char* method, Body&& body) noexcept
+    jsi::Value invoke(ContextState& context, const char* method, Body&& body)
     {
         try
         {
             return body();
         }
+        catch (const jsi::JSError&)
+        {
+            throw;
+        }
+        catch (const ::hermes::vm::JSOutOfMemoryError&)
+        {
+            // The engine's own: it unwinds to whoever called into it.
+            throw;
+        }
         catch (const std::bad_alloc&)
         {
-            return JS_ThrowOutOfMemory(ctx);
+            throwInternalError(context, std::string(method) + "(): out of memory");
         }
         catch (const std::exception& error)
         {
-            return throwNativeException(ctx, method, error);
+            throwNativeException(context, method, error);
         }
         catch (...)
         {
-            return JS_ThrowInternalError(ctx, "%s(): unknown native exception", method);
+            throwInternalError(context, std::string(method) + "(): unknown native exception");
         }
     }
+
+    // Calls a JavaScript function from native code that has nobody to throw
+    // to (a dispatcher, a callback): a failure is logged with `what` and
+    // reported as false.
+    bool call(ContextState& context, const jsi::Function& function, const jsi::Value& thisValue,
+              std::span<const jsi::Value> args, std::string_view what);
+
+    // ── Context data ─────────────────────────────────────────────────────────
 
     // Per-context data owned by a native module (e.g. its API object), keyed by
     // the address of a static in the generated code. Released with the context.
     void setContextData(Context& context, const void* key, std::shared_ptr<void> data);
-    [[nodiscard]] void* contextData(JSContext* ctx, const void* key);
+    [[nodiscard]] void* contextData(ContextState& context, const void* key);
 
     template <typename T>
-    [[nodiscard]] T* contextData(JSContext* ctx, const void* key)
+    [[nodiscard]] T* contextData(ContextState& context, const void* key)
     {
-        return static_cast<T*>(contextData(ctx, key));
+        return static_cast<T*>(contextData(context, key));
     }
 
     // Keeps a JavaScript value alive for the context's lifetime under `key`,
-    // replacing (and freeing) any previous one. Takes ownership of `value`.
-    void retainValue(JSContext* ctx, const void* key, JSValue value);
-    // The value retained under `key`, or undefined. Not a new reference.
-    [[nodiscard]] JSValueConst retainedValue(JSContext* ctx, const void* key);
+    // replacing any previous one.
+    void retainValue(ContextState& context, const void* key, jsi::Value value);
+    // The value retained under `key`, or nullptr.
+    [[nodiscard]] const jsi::Value* retainedValue(ContextState& context, const void* key);
 
     // ── Promises ─────────────────────────────────────────────────────────────
 
-    // Creates a promise for an async method. Returns it (or JS_EXCEPTION) and
-    // its settle-later state in `pending`.
-    JSValue newPromise(JSContext* ctx, const char* method, std::shared_ptr<detail::PendingPromise>& pending);
+    // Creates a promise for an async method. Returns it, and its settle-later
+    // state in `pending`.
+    [[nodiscard]] jsi::Value newPromise(ContextState& context, const char* method,
+                                        std::shared_ptr<detail::PendingPromise>& pending);
 
-    // Settles with makeValue(ctx), called only while the promise is still
+    // Settles with makeValue(context), called only while the promise is still
     // pending and its context alive.
     template <typename MakeValue>
     void resolvePromise(detail::PendingPromise& pending, MakeValue&& makeValue);
@@ -337,17 +412,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
     // The engine side of a js::Promise.
     struct PendingPromise
     {
-        PendingPromise(ContextState& context, std::string methodName, JSValue resolve, JSValue reject);
+        PendingPromise(ContextState& context, std::string methodName, jsi::Function resolve, jsi::Function reject);
         ~PendingPromise();
 
         PendingPromise(const PendingPromise&) = delete;
         PendingPromise& operator=(const PendingPromise&) = delete;
 
         // The context to settle in, or nullptr once settled or orphaned.
-        [[nodiscard]] JSContext* activeContext() const noexcept { return owner != nullptr ? owner->ctx : nullptr; }
+        [[nodiscard]] ContextState* activeContext() const noexcept { return owner; }
 
-        // Calls resolve or reject with `value` (taking ownership) and retires.
-        void settle(bool fulfilled, JSValue value);
+        // Calls resolve or reject with `value` and retires.
+        void settle(bool fulfilled, const jsi::Value& value);
 
         // Releases the resolving functions without settling; the context is
         // going away.
@@ -355,8 +430,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 
         ContextState* owner;
         std::string method;
-        JSValue resolveFunction;
-        JSValue rejectFunction;
+        std::optional<jsi::Function> resolveFunction;
+        std::optional<jsi::Function> rejectFunction;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 
@@ -365,25 +440,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     template <typename MakeValue>
     void resolvePromise(detail::PendingPromise& pending, MakeValue&& makeValue)
     {
-        JSContext* ctx = pending.activeContext();
-        if (ctx == nullptr)
+        ContextState* context = pending.activeContext();
+        if (context == nullptr)
             return;
-        pending.owner->runtime->enter();
-        JSValue value = JS_UNDEFINED;
+        if (context->halted())
+        {
+            pending.orphan();
+            return;
+        }
         try
         {
-            value = makeValue(ctx);
+            const jsi::Value value = makeValue(*context);
+            pending.settle(true, value);
+        }
+        catch (const jsi::JSError& error)
+        {
+            pending.settle(false, error.value());
         }
         catch (const std::exception& error)
         {
             detail::rejectPromise(pending, error.what());
-            return;
         }
-        if (JS_IsException(value))
-        {
-            pending.settle(false, JS_GetException(ctx));
-            return;
-        }
-        pending.settle(true, value);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind

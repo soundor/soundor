@@ -1,3 +1,5 @@
+#include "../support/Modules.h"
+
 #include <soundor/js/Context.h>
 #include <soundor/parameters/Parameters.h>
 #include <soundor/runtime/RuntimeHost.h>
@@ -69,16 +71,18 @@ namespace
 
         Value value(const std::string& body)
         {
-            auto evaluated = context.evaluateModule("import { parameters as p } from 'soundor:parameters';\n" + body,
-                                                    "/t" + std::to_string(++counter) + ".js");
+            auto evaluated = context.evaluateModule(
+                soundor::test::module("import { parameters as p } from 'soundor:parameters';\n" + body),
+                "/t" + std::to_string(++counter) + ".js");
             REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
             return context.evaluateScript("globalThis.result").value();
         }
 
         std::string error(const std::string& body)
         {
-            auto evaluated = context.evaluateModule("import { parameters as p } from 'soundor:parameters';\n" + body,
-                                                    "/t" + std::to_string(++counter) + ".js");
+            auto evaluated = context.evaluateModule(
+                soundor::test::module("import { parameters as p } from 'soundor:parameters';\n" + body),
+                "/t" + std::to_string(++counter) + ".js");
             REQUIRE_FALSE(evaluated.ok());
             return evaluated.error().toString();
         }
@@ -266,8 +270,8 @@ TEST_SUITE("soundor:parameters")
             js::Context context(runtime);
             parameters::install(context, host);
             REQUIRE(context
-                        .evaluateModule("import { parameters } from 'soundor:parameters';"
-                                        "parameters.voices.beginGesture();",
+                        .evaluateModule(soundor::test::module("import { parameters } from 'soundor:parameters';"
+                                                              "parameters.voices.beginGesture();"),
                                         "/drag.js")
                         .ok());
         }
@@ -277,11 +281,13 @@ TEST_SUITE("soundor:parameters")
     TEST_CASE("the internal module is private to the runtime")
     {
         Fixture f;
-        auto result = f.context.evaluateModule("import { set } from 'soundor:internal/parameters';", "/evil.js");
+        auto result = f.context.evaluateModule(
+            soundor::test::module("import { set } from 'soundor:internal/parameters';"), "/evil.js");
         REQUIRE_FALSE(result.ok());
         CHECK(result.error().toString()
               == "TypeError: Cannot import 'soundor:internal/parameters': it is internal to the Soundor runtime");
-        auto dynamic = f.context.evaluateModule("await import('soundor:internal/parameters');", "/evil2.js");
+        auto dynamic = f.context.evaluateModule(soundor::test::module("await import('soundor:internal/parameters');"),
+                                                "/evil2.js");
         REQUIRE_FALSE(dynamic.ok());
     }
 
@@ -314,12 +320,14 @@ TEST_SUITE("RuntimeHost")
         RuntimeHost runtimeHost(
             { .parameters = host, .installModules = [&](js::Context&) { customInstalled = true; } });
         CHECK(customInstalled);
-        REQUIRE(runtimeHost.context()
-                    .evaluateModule("import { parameters } from 'soundor:parameters';"
+        REQUIRE(
+            runtimeHost.context()
+                .evaluateModule(soundor::test::module(
+                                    "import { parameters } from 'soundor:parameters';"
                                     "globalThis.seen = [];"
-                                    "parameters.gain.subscribe((v) => Promise.resolve(v).then((x) => seen.push(x)));",
-                                    "/ui.js")
-                    .ok());
+                                    "parameters.gain.subscribe((v) => Promise.resolve(v).then((x) => seen.push(x)));"),
+                                "/ui.js")
+                .ok());
         host->automate(1, -7);
         runtimeHost.tick(); // dispatch, then run the promise job the subscriber queued
         CHECK(runtimeHost.context().evaluateScript("seen.join()").value().asString() == "-7");
@@ -332,10 +340,11 @@ TEST_SUITE("RuntimeHost")
         {
             RuntimeHost runtimeHost({ .parameters = host });
             REQUIRE(runtimeHost.context()
-                        .evaluateModule("import { parameters } from 'soundor:parameters';"
-                                        "for (const p of Object.values(parameters)) p.subscribe(() => {});"
-                                        "parameters.gain.beginGesture();",
-                                        "/ui.js")
+                        .evaluateModule(
+                            soundor::test::module("import { parameters } from 'soundor:parameters';"
+                                                  "for (const p of Object.values(parameters)) p.subscribe(() => {});"
+                                                  "parameters.gain.beginGesture();"),
+                            "/ui.js")
                         .ok());
             host->automate(1, -double(reload));
             runtimeHost.tick();

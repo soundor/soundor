@@ -1,6 +1,8 @@
 // The JUCE parameter adapter against a real AudioProcessorValueTreeState.
 
 #define DOCTEST_CONFIG_IMPLEMENT
+#include "../../../tests/support/Modules.h"
+
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -87,7 +89,8 @@ namespace
         js::Value run(const std::string& body)
         {
             auto evaluated = host.context().evaluateModule(
-                "import { parameters as p } from 'soundor:parameters';\n" + body, "/t" + std::to_string(++counter));
+                soundor::test::module("import { parameters as p } from 'soundor:parameters';\n" + body),
+                "/t" + std::to_string(++counter));
             REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
             return host.context().evaluateScript("globalThis.result").value();
         }
@@ -148,8 +151,8 @@ TEST_CASE("detaches from the APVTS when the runtime is torn down")
         RuntimeHost host(
             { .parameters = std::make_shared<backend::JuceParameterHost>(*processor.state, TestProcessor::infos()) });
         REQUIRE(host.context()
-                    .evaluateModule("import { parameters } from 'soundor:parameters';"
-                                    "parameters.gain.subscribe(() => {});",
+                    .evaluateModule(soundor::test::module("import { parameters } from 'soundor:parameters';"
+                                                          "parameters.gain.subscribe(() => {});"),
                                     "/ui.js")
                     .ok());
     }

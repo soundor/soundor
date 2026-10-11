@@ -1,5 +1,5 @@
 # Compiler policy for Soundor-owned native code. Third-party targets
-# (soundor_quickjs, test frameworks) never receive these options.
+# (test frameworks, the dependencies) never receive these options.
 
 include_guard(GLOBAL)
 
@@ -20,8 +20,9 @@ if(SOUNDOR_ENABLE_CLANG_TIDY)
   endif()
 endif()
 
-# Sanitizers must instrument every object in the final binary, QuickJS included,
-# so they are applied directory-wide rather than per target.
+# Sanitizers instrument every object this build compiles, the dependencies it
+# compiles itself included, so they are applied directory-wide rather than per
+# target. Hermes, Skia and ANGLE come prebuilt from the cache, uninstrumented.
 if(SOUNDOR_ENABLE_SANITIZERS)
   if(MSVC)
     add_compile_options(/fsanitize=address)

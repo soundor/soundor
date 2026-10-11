@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../support/Modules.h"
+
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <doctest/doctest.h>
@@ -21,14 +23,16 @@ namespace soundor::test
         // Evaluates `body` as a module and returns globalThis.result.
         js::Value run(const std::string& body)
         {
-            auto evaluated = host.context().evaluateModule(body, "/t" + std::to_string(++counter) + ".js");
+            auto evaluated =
+                host.context().evaluateModule(soundor::test::module(body), "/t" + std::to_string(++counter) + ".js");
             REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
             return eval("globalThis.result");
         }
 
         std::string error(const std::string& body)
         {
-            auto evaluated = host.context().evaluateModule(body, "/t" + std::to_string(++counter) + ".js");
+            auto evaluated =
+                host.context().evaluateModule(soundor::test::module(body), "/t" + std::to_string(++counter) + ".js");
             REQUIRE_FALSE(evaluated.ok());
             return evaluated.error().toString();
         }

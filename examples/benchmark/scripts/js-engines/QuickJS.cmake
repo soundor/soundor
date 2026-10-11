@@ -1,4 +1,8 @@
-# QuickJS-NG as a private, static, hidden-visibility target.
+# QuickJS-NG as a static target, for the JavaScript-engine comparison only:
+# the build Soundor's runtime used before Hermes (its sources and flags), kept
+# here so the comparison measures the same QuickJS. The pin is in
+# runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake (Hermes's
+# Unicode tables on Linux come from the same QuickJS-NG).
 #
 # Only the engine itself is compiled (quickjs.c + its regexp/unicode/dtoa
 # helpers). quickjs-libc — the generic `std`/`os` modules, file and process
@@ -9,7 +13,7 @@
 
 include_guard(GLOBAL)
 
-include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/../../../../runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake)
 
 soundor_fetch_source(
   SOUNDOR_QUICKJS

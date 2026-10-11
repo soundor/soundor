@@ -173,7 +173,7 @@ function uiModule(ui: UiBundleContext | undefined): string {
   if (ui === undefined) {
     return 'export const hasUi = false;\nexport function loadUi() {\n  return Promise.resolve();\n}\n';
   }
-  const bundle = JSON.stringify(normalizePath(join(ui.dir, ui.entry)));
+  const bundle = JSON.stringify(normalizePath(join(ui.dir, ui.module)));
   return `export const hasUi = true;\nexport function loadUi() {\n  return import(${bundle});\n}\n`;
 }
 

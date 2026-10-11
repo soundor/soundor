@@ -110,21 +110,23 @@ export const PNG = Buffer.from(
 export const PNG_ID = '0123456789abcdef.png';
 
 /**
- * Writes a UI bundle as the CLI's bundler leaves it (`bundle.js`, assets,
- * `manifest.json`, then `build-id`), and returns its context.
+ * Writes a UI bundle as the CLI's bundler leaves it (`bundle.mjs`, the ES
+ * module the Web loads, assets, `manifest.json`, then `build-id`), and
+ * returns its context.
  */
 export async function writeUiBundle(
   dir: string,
   code: string,
   buildId = 'build-1',
-): Promise<{ dir: string; entry: string }> {
+): Promise<{ dir: string; entry: string; module: string }> {
   await mkdir(join(dir, 'assets'), { recursive: true });
-  await writeFile(join(dir, 'bundle.js'), code);
+  await writeFile(join(dir, 'bundle.mjs'), code);
   await writeFile(join(dir, 'assets', PNG_ID), PNG);
   await writeFile(
     join(dir, 'manifest.json'),
     JSON.stringify({
       entry: 'bundle.js',
+      module: 'bundle.mjs',
       mode: 'production',
       assets: [
         { id: PNG_ID, source: 'src/logo.png', type: 'image/png', size: 68 },
@@ -132,5 +134,5 @@ export async function writeUiBundle(
     }),
   );
   await writeFile(join(dir, 'build-id'), buildId);
-  return { dir, entry: 'bundle.js' };
+  return { dir, entry: 'bundle.js', module: 'bundle.mjs' };
 }

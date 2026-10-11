@@ -108,7 +108,7 @@ namespace
         // Runs an async body to completion, ticking, and returns its result.
         js::Value await(const std::string& body)
         {
-            run("globalThis.done = false; (async () => {" + body
+            run("globalThis.done = false; (async function () {" + body
                 + "})().then((v) => { globalThis.result = v; }, (e) => { globalThis.result = 'rejected: ' + "
                   "(e?.name ?? '') + ': ' + (e?.message ?? e); }).finally(() => { globalThis.done = true; });");
             REQUIRE(tickUntil("done"));
@@ -285,7 +285,7 @@ TEST_SUITE("Request and Response")
     TEST_CASE("Response constructors, statics and bodies")
     {
         WebFixture f;
-        f.run("globalThis.done = false; (async () => {"
+        f.run("globalThis.done = false; (async function () {"
               "  const r = new Response('body', { status: 201, statusText: 'Created', headers: { a: '1' } });"
               "  const copy = r.clone(); const text = await r.text();"
               "  let reused; try { await r.text(); } catch (e) { reused = e.message; }"
@@ -333,7 +333,7 @@ TEST_SUITE("Blob, File and FormData")
     TEST_CASE("Blob concatenates parts, slices and reads")
     {
         WebFixture f;
-        f.run("globalThis.done = false; (async () => {"
+        f.run("globalThis.done = false; (async function () {"
               "  const b = new Blob(['ab', new Uint8Array([99]), new Blob(['d'])], { type: 'Text/Plain' });"
               "  globalThis.result = [b.size, b.type, await b.text(), await b.slice(1, -1).text(),"
               "    await b.slice(-2).text(), (await b.arrayBuffer()).byteLength, String(b),"

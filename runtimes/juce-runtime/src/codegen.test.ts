@@ -265,6 +265,25 @@ describe('generateJuceSources', () => {
     }
   });
 
+  it("gives the runtime the time limit from juceRuntime's options", () => {
+    const editor = (timeLimit?: number | false) =>
+      new Map(
+        generateJuceSources(config, {
+          ...params,
+          options: resolveJuceOptions({ timeLimit }, config.plugin),
+        }).map((f) => [f.path, f.contents]),
+      ).get('soundor/SoundorEditor.cpp')!;
+    expect(editor()).toContain(
+      'options.runtime.timeLimit = std::chrono::milliseconds { 5000 };',
+    );
+    expect(editor(60_000)).toContain(
+      'options.runtime.timeLimit = std::chrono::milliseconds { 60000 };',
+    );
+    expect(editor(false)).toContain(
+      'options.runtime.timeLimit = std::chrono::milliseconds { 0 };',
+    );
+  });
+
   it('embeds the UI bundle and loads it in the editor', () => {
     const setup = fileMap(config).get('setup.cmake')!;
     expect(setup).toContain('if(SOUNDOR_UI_DIR)');

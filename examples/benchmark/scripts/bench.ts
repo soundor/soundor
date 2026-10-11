@@ -11,9 +11,10 @@
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
 //              [--source]
 //
-// The bundle runs as a built plugin runs it: compiled to QuickJS bytecode
-// (soundor_compile_js, from the same build); --source runs its JavaScript
-// source instead.
+// The bundle runs as a built plugin runs it: compiled to Hermes bytecode by
+// the same build's hermesc (build/bench/soundor-compile-js.cmake); --source
+// runs its JavaScript source instead. A saved build from before (QuickJS
+// bytecode, bundle.js.qjsbc) still runs as it was saved.
 //
 // Comparing: --save keeps this build (soundor_run_ui and the UI bundle) under
 // .soundor/bench/builds/<name>; --against runs a saved build and this one
@@ -104,7 +105,14 @@ interface Phase {
     layoutMs: number;
     invalidations: number;
   };
-  engine: { allocations: number; allocatedBytes: number; heapBytesMax: number };
+  // `collections` from Hermes builds, `allocations` (C allocator blocks)
+  // from QuickJS ones.
+  engine: {
+    collections?: number;
+    allocations?: number;
+    allocatedBytes: number;
+    heapBytesMax: number;
+  };
 }
 /** What the benchmark's soundorBenchmark.run() resolves to, per scenario. */
 interface ScenarioResult {
@@ -154,9 +162,12 @@ const MEASURES = {
   styleChanges: { label: 'styles', timing: false, compare: true },
   layouts: { label: 'layouts', timing: false, compare: true },
   invalidations: { label: 'invalidations', timing: false, compare: true },
-  // What the engine takes from the C allocator depends on the heap it is
-  // in (arenas, when the garbage collector last ran), and so on what ran
-  // before: shown, not compared.
+  // What the engine allocates and collects depends on the heap it is in
+  // (when the garbage collector last ran), and so on what ran before: shown,
+  // not compared. Hermes allocates in its own heap (allocated KB: its
+  // objects) and collects (GCs); QuickJS counted C allocator blocks
+  // (allocations).
+  collections: { label: 'GCs', timing: false, compare: false },
   allocations: { label: 'allocations', timing: false, compare: false },
   allocatedKB: { label: 'allocated KB', timing: false, compare: false },
   rasterized: { label: 'rasterized', timing: false, compare: true },
@@ -248,20 +259,15 @@ function git(...args: string[]): string {
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
-/** soundor_compile_js from the bench preset's build. */
+/** The bench preset's script that compiles a module as its build does. */
 function findCompiler(): string {
-  const exe = process.platform === 'win32' ? '.exe' : '';
-  const candidates = [
-    path.join(native, 'build/bench', `soundor_compile_js${exe}`),
-    path.join(native, 'build/bench/Release', `soundor_compile_js${exe}`),
-  ];
-  const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) {
+  const script = path.join(native, 'build/bench/soundor-compile-js.cmake');
+  if (!existsSync(script)) {
     throw new Error(
-      `soundor_compile_js not found; build it with \`cmake --workflow --preset bench\` in ${native}`,
+      `${script} not found; configure it with \`cmake --workflow --preset bench\` in ${native}`,
     );
   }
-  return found;
+  return script;
 }
 
 function findRunner(): string {
@@ -320,7 +326,8 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     styleChanges: phase.surface.styleChanges,
     layouts: phase.surface.layoutPasses,
     invalidations: phase.surface.invalidations,
-    allocations: phase.engine.allocations,
+    collections: phase.engine.collections ?? 0,
+    allocations: phase.engine.allocations ?? 0,
     allocatedKB: phase.engine.allocatedBytes / 1024,
     rasterized: perFrame(phase.layersRasterized),
     uploadedKB: perFrame(phase.bytesUploaded) / 1024,
@@ -526,8 +533,12 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
   // A build whose bundle was compiled runs it as bytecode (builds from
-  // before bytecode have none, and a runner without the flag).
-  if (existsSync(path.join(build.ui, 'bundle.js.qjsbc')))
+  // before bytecode have none, and a runner without the flag): Hermes
+  // bytecode, or QuickJS's in a build saved before Hermes.
+  if (
+    existsSync(path.join(build.ui, 'bundle.js.hbc')) ||
+    existsSync(path.join(build.ui, 'bundle.js.qjsbc'))
+  )
     args.push('--bytecode');
   const result = spawnSync(build.runner, args, { encoding: 'utf8' });
   if (result.status !== 0 || !existsSync(file)) {
@@ -555,12 +566,18 @@ if (!options['no-build']) {
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
 const ui = path.join(example, '.soundor/ui/production');
-const compiled = path.join(ui, 'bundle.js.qjsbc');
+const compiled = path.join(ui, 'bundle.js.hbc');
 rmSync(compiled, { force: true });
 if (!options.source) {
   run(
-    findCompiler(),
-    [path.join(ui, 'bundle.js'), compiled, '/bundle.js'],
+    'cmake',
+    [
+      `-DINPUT=${path.join(ui, 'bundle.js')}`,
+      `-DOUTPUT=${compiled}`,
+      '-DNAME=/bundle.js',
+      '-P',
+      findCompiler(),
+    ],
     example,
   );
 }

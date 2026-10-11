@@ -1,17 +1,21 @@
 // Drives the generated `soundor:native` bindings (tests/generated, produced from
 // the fixture in src/native-codegen.test.ts) from JavaScript.
 
+#include "../support/Modules.h"
+
 #include <soundor/js/Context.h>
 #include <soundor/native/SoundorNative.h>
 
 #include <doctest/doctest.h>
 
+#include <atomic>
 #include <cmath>
 #include <memory>
 #include <numeric>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace soundor;
@@ -21,14 +25,17 @@ namespace
 {
     struct TestPreset final : native::Preset
     {
-        TestPreset(std::string presetName, int& liveCount, std::vector<std::string>* log)
-            : name(std::move(presetName)), live(liveCount), destructionLog(log)
+        TestPreset(std::string presetName, int& liveCount, std::atomic<int>& elsewhere, std::vector<std::string>* log)
+            : name(std::move(presetName)), live(liveCount), destroyedElsewhere(elsewhere), destructionLog(log)
         {
             ++live;
         }
-        // Touches the API's counter: only valid while the API is alive.
+        // Touches the API's counter: only valid while the API is alive, and
+        // only on the thread the context runs on.
         ~TestPreset() override
         {
+            if (std::this_thread::get_id() != home)
+                ++destroyedElsewhere;
             --live;
             if (destructionLog != nullptr)
                 destructionLog->push_back("preset " + name);
@@ -39,7 +46,9 @@ namespace
 
         std::string name;
         int& live;
+        std::atomic<int>& destroyedElsewhere;
         std::vector<std::string>* destructionLog;
+        std::thread::id home = std::this_thread::get_id();
     };
 
     class FixtureApi final : public native::NativeApi
@@ -79,7 +88,8 @@ namespace
 
         std::shared_ptr<native::Preset> createPreset(std::string name) override
         {
-            return std::make_shared<TestPreset>(std::move(name), livePresets, destructionLog);
+            return std::make_shared<TestPreset>(std::move(name), livePresets, presetsDestroyedElsewhere,
+                                                destructionLog);
         }
 
         void fail(std::string message) override { throw std::runtime_error(message); }
@@ -180,6 +190,8 @@ namespace
         }
 
         int livePresets = 0;
+        // Presets destroyed off the thread that made them (the collector's).
+        std::atomic<int> presetsDestroyedElsewhere = 0;
         int resets = 0;
         std::vector<std::string>* destructionLog = nullptr;
         std::string saved;
@@ -188,14 +200,14 @@ namespace
 
     struct Fixture
     {
-        Fixture() { native::install(context, api); }
 
         // Runs `body` as a module with the whole API imported as `n`, then
         // returns globalThis.result.
         js::Result<Value> run(const std::string& body)
         {
-            auto evaluated = context.evaluateModule("import * as n from 'soundor:native';\n" + body,
-                                                    "/test" + std::to_string(++counter) + ".js");
+            auto evaluated =
+                context.evaluateModule(soundor::test::module("import * as n from 'soundor:native';\n" + body),
+                                       "/test" + std::to_string(++counter) + ".js");
             if (! evaluated)
                 return evaluated.error();
             return context.evaluateScript("globalThis.result");
@@ -214,6 +226,8 @@ namespace
             REQUIRE_FALSE(result.ok());
             return result.error().toString();
         }
+
+        explicit Fixture(const js::RuntimeOptions& options = {}) : runtime(options) { native::install(context, api); }
 
         js::Runtime runtime;
         js::Context context { runtime };
@@ -351,6 +365,31 @@ TEST_SUITE("soundor:native")
         CHECK(f.api->livePresets == 0);
     }
 
+    TEST_CASE("releases native objects on the context's thread, not the collector's")
+    {
+        // Hades collects the old generation on a thread of its own and
+        // finalizes there too: handles promoted to it, then dropped under
+        // allocation, are finalized mostly off the context's thread. Their
+        // native objects must still be destroyed on it. A small heap makes
+        // the collector get to them while the script runs.
+        Fixture f(js::RuntimeOptions { .memoryLimit = std::size_t { 16 } * 1024 * 1024 });
+        REQUIRE(f.run(R"(
+            for (let round = 0; round < 40; round++) {
+                let keep = [];
+                for (let i = 0; i < 10000; i++) keep.push(n.createPreset('p'));
+                for (let i = 0; i < 100000; i++) ({ a: i, b: [i] });
+                keep = null;
+                for (let i = 0; i < 200000; i++) ({ a: i, b: [i, i] });
+            }
+            globalThis.result = 0;
+        )")
+                    .ok());
+        f.runtime.runPendingJobs();
+        // Collected while the script ran, not only at teardown.
+        CHECK(f.api->livePresets < 400000);
+        CHECK(f.api->presetsDestroyedElsewhere.load() == 0);
+    }
+
     TEST_CASE("releases native objects when the runtime is torn down")
     {
         auto api = std::make_shared<FixtureApi>();
@@ -358,11 +397,12 @@ TEST_SUITE("soundor:native")
             js::Runtime runtime;
             js::Context context(runtime);
             native::install(context, api);
-            REQUIRE(context
-                        .evaluateModule("import { createPreset } from 'soundor:native';"
-                                        "globalThis.held = [createPreset('a'), createPreset('b')];",
-                                        "/held.js")
-                        .ok());
+            REQUIRE(
+                context
+                    .evaluateModule(soundor::test::module("import { createPreset } from 'soundor:native';"
+                                                          "globalThis.held = [createPreset('a'), createPreset('b')];"),
+                                    "/held.js")
+                    .ok());
             CHECK(api->livePresets == 2);
         }
         CHECK(api->livePresets == 0);
@@ -370,8 +410,8 @@ TEST_SUITE("soundor:native")
 
     TEST_CASE("the API outlives every handle that may refer to it")
     {
-        // Handles are finalized by the garbage collector, which can run after
-        // their context is destroyed: the API must still be alive then.
+        // Handles are finalized by the garbage collector, at the latest when
+        // their context frees its engine: the API must still be alive then.
         std::vector<std::string> destroyed;
         {
             js::Runtime runtime;
@@ -381,12 +421,13 @@ TEST_SUITE("soundor:native")
                 js::Context context(runtime);
                 native::install(context, api);
                 REQUIRE(context
-                            .evaluateModule("import { createPreset } from 'soundor:native';"
-                                            "globalThis.held = createPreset('x');",
+                            .evaluateModule(soundor::test::module("import { createPreset } from 'soundor:native';"
+                                                                  "globalThis.held = createPreset('x');"),
                                             "/held.js")
                             .ok());
             }
-            CHECK(destroyed.empty()); // context gone, handle not yet finalized
+            // The context freed its engine, finalizing the handle first.
+            CHECK(destroyed == std::vector<std::string> { "preset x", "api" });
         }
         CHECK(destroyed == std::vector<std::string> { "preset x", "api" });
     }
@@ -442,7 +483,10 @@ TEST_SUITE("soundor:native")
             js::Runtime runtime;
             js::Context context(runtime);
             native::install(context, api);
-            REQUIRE(context.evaluateModule("import { loadPreset } from 'soundor:native'; loadPreset('later');", "/x.js")
+            REQUIRE(context
+                        .evaluateModule(
+                            soundor::test::module("import { loadPreset } from 'soundor:native'; loadPreset('later');"),
+                            "/x.js")
                         .ok());
         }
         REQUIRE(api->pendingLoads.size() == 1);
@@ -468,8 +512,13 @@ TEST_SUITE("soundor:native")
         auto b = std::make_shared<FixtureApi>();
         native::install(first, a);
         native::install(second, b);
-        REQUIRE(first.evaluateModule("import { reset } from 'soundor:native'; reset(); reset();", "/a.js").ok());
-        REQUIRE(second.evaluateModule("import { reset } from 'soundor:native'; reset();", "/b.js").ok());
+        REQUIRE(first
+                    .evaluateModule(soundor::test::module("import { reset } from 'soundor:native'; reset(); reset();"),
+                                    "/a.js")
+                    .ok());
+        REQUIRE(
+            second.evaluateModule(soundor::test::module("import { reset } from 'soundor:native'; reset();"), "/b.js")
+                .ok());
         CHECK(a->resets == 2);
         CHECK(b->resets == 1);
     }
@@ -481,8 +530,8 @@ TEST_SUITE("soundor:native")
         native::install(context, std::make_shared<FixtureApi>());
         // A handle is only accepted as the declared type it was created as.
         REQUIRE(context
-                    .evaluateModule("import * as n from 'soundor:native';"
-                                    "globalThis.ok = n.presetName(n.createPreset('x')) === 'x';",
+                    .evaluateModule(soundor::test::module("import * as n from 'soundor:native';"
+                                                          "globalThis.ok = n.presetName(n.createPreset('x')) === 'x';"),
                                     "/t.js")
                     .ok());
         CHECK(context.evaluateScript("ok").value().asBoolean());

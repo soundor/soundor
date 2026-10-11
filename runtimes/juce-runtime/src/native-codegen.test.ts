@@ -100,7 +100,7 @@ describe('generateNativeModuleSources', () => {
 
   it('keeps engine headers out of the public header', () => {
     const header = files.find((file) => file.path.endsWith('.h'))!.contents;
-    expect(header).not.toMatch(/quickjs|JSValue|JSContext/);
+    expect(header).not.toMatch(/hermes|jsi::|quickjs|JSValue|JSContext/);
     expect(header).toContain(
       'namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native',
     );
@@ -136,6 +136,6 @@ describe('generateNativeModuleSources', () => {
     expect(header!.contents).toContain(
       'virtual ~NativeApi() = default;\n    };',
     );
-    expect(source!.contents).toContain('return true;');
+    expect(source!.contents).toContain('[](bind::ContextState&, jsi::Object&)');
   });
 });

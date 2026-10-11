@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -18,6 +19,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     namespace
     {
         namespace bind = js::bind;
+        using bind::ContextState;
 
         const char webglKey = 0;
         // webgl.js's listener for contexts the GPU lost: (id) => void.
@@ -38,7 +40,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             std::vector<std::uint8_t> scratch;
         };
 
-        WebGL& webglOf(JSContext* ctx)
+        WebGL& webglOf(ContextState& ctx)
         {
             auto* webgl = bind::contextData<WebGL>(ctx, &webglKey);
             if (webgl == nullptr)
@@ -46,14 +48,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return *webgl;
         }
 
+        // ToInt64 as QuickJS's JS_ToInt64 did it: truncated, NaN as 0,
+        // saturated at the ends.
+        std::int64_t toInt64(double number)
+        {
+            if (std::isnan(number))
+                return 0;
+            if (number >= 9223372036854775807.0)
+                return std::numeric_limits<std::int64_t>::max();
+            if (number <= -9223372036854775808.0)
+                return std::numeric_limits<std::int64_t>::min();
+            return static_cast<std::int64_t>(number);
+        }
+
         // Arguments, converted by webgl.js already.
         struct Args
         {
-            JSContext* ctx;
+            ContextState& ctx;
             int argc;
-            JSValueConst* argv;
+            const jsi::Value* argv;
 
-            [[nodiscard]] JSValueConst at(int index) const
+            [[nodiscard]] const jsi::Value& at(int index) const
             {
                 if (index >= argc)
                     throw std::invalid_argument("missing WebGL argument");
@@ -61,50 +76,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             }
             [[nodiscard]] double number(int index) const
             {
-                double out = 0;
-                if (JS_ToFloat64(ctx, &out, at(index)) < 0)
-                    throw std::invalid_argument("expected a number");
-                return out;
+                const jsi::Value& value = at(index);
+                return value.isNumber() ? value.getNumber() : bind::toNumber(ctx, value);
             }
-            [[nodiscard]] GLuint u32(int index) const
-            {
-                std::int64_t out = 0;
-                if (JS_ToInt64(ctx, &out, at(index)) < 0)
-                    throw std::invalid_argument("expected a number");
-                return static_cast<GLuint>(out);
-            }
+            [[nodiscard]] GLuint u32(int index) const { return static_cast<GLuint>(i64(index)); }
             [[nodiscard]] GLint i32(int index) const { return static_cast<GLint>(i64(index)); }
-            [[nodiscard]] std::int64_t i64(int index) const
-            {
-                std::int64_t out = 0;
-                if (JS_ToInt64(ctx, &out, at(index)) < 0)
-                    throw std::invalid_argument("expected a number");
-                return out;
-            }
+            [[nodiscard]] std::int64_t i64(int index) const { return toInt64(number(index)); }
             [[nodiscard]] GLfloat f32(int index) const { return static_cast<GLfloat>(number(index)); }
             [[nodiscard]] GLboolean boolean(int index) const
             {
-                return JS_ToBool(ctx, at(index)) > 0 ? GL_TRUE : GL_FALSE;
+                return bind::toBoolean(ctx, at(index)) ? GL_TRUE : GL_FALSE;
             }
-            [[nodiscard]] bool flag(int index) const { return index < argc && JS_ToBool(ctx, argv[index]) > 0; }
+            [[nodiscard]] bool flag(int index) const { return index < argc && bind::toBoolean(ctx, argv[index]); }
             [[nodiscard]] std::string string(int index) const
             {
                 std::string out;
-                if (! bind::read(ctx, at(index), bind::Path { "WebGL" }, out))
-                    throw std::invalid_argument("expected a string");
+                bind::read(ctx, at(index), bind::Path { "WebGL" }, out);
                 return out;
             }
             [[nodiscard]] bool isNull(int index) const
             {
-                return index >= argc || JS_IsNull(argv[index]) || JS_IsUndefined(argv[index]);
+                return index >= argc || argv[index].isNull() || argv[index].isUndefined();
             }
             // The bytes [byteOffset, byteOffset + byteLength) of a view: checked
             // against its extent, so OpenGL never reads or writes past it.
             [[nodiscard]] std::span<std::byte> bytes(int view, int offsetAt, int lengthAt) const
             {
                 std::span<std::byte> all;
-                if (! bind::readBytes(ctx, at(view), bind::Path { "WebGL" }, all))
-                    throw std::invalid_argument("expected an ArrayBuffer or a typed array");
+                bind::readBytes(ctx, at(view), bind::Path { "WebGL" }, all);
                 const std::int64_t offset = i64(offsetAt);
                 const std::int64_t length = i64(lengthAt);
                 if (offset < 0 || length < 0 || static_cast<std::size_t>(offset + length) > all.size())
@@ -114,10 +113,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             [[nodiscard]] std::vector<GLuint> u32s(int index) const
             {
                 std::vector<double> numbers;
-                if (! bind::readArray(ctx, at(index), bind::Path { "WebGL" }, numbers,
-                                      [](JSContext* c, JSValueConst value, const bind::Path& path, double& element)
-                                      { return bind::read(c, value, path, element); }))
-                    throw std::invalid_argument("expected an array of numbers");
+                bind::readArray(ctx, at(index), bind::Path { "WebGL" }, numbers,
+                                [](ContextState& c, const jsi::Value& value, const bind::Path& path, double& element)
+                                { bind::read(c, value, path, element); });
                 std::vector<GLuint> out;
                 out.reserve(numbers.size());
                 for (const double number : numbers)
@@ -127,10 +125,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             [[nodiscard]] std::vector<std::string> strings(int index) const
             {
                 std::vector<std::string> out;
-                if (! bind::readArray(ctx, at(index), bind::Path { "WebGL" }, out,
-                                      [](JSContext* c, JSValueConst value, const bind::Path& path, std::string& element)
-                                      { return bind::read(c, value, path, element); }))
-                    throw std::invalid_argument("expected an array of strings");
+                bind::readArray(ctx, at(index), bind::Path { "WebGL" }, out,
+                                [](ContextState& c, const jsi::Value& value, const bind::Path& path,
+                                   std::string& element) { bind::read(c, value, path, element); });
                 return out;
             }
         };
@@ -228,16 +225,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
         // ── Values ───────────────────────────────────────────────────────────
 
-        JSValue numbers(JSContext* ctx, std::span<const double> values)
+        jsi::Value numbers(ContextState& ctx, std::span<const double> values)
         {
-            JSValue array = JS_NewArray(ctx);
+            jsi::Array array(ctx.rt, values.size());
             for (std::size_t i = 0; i < values.size(); ++i)
-                JS_SetPropertyUint32(ctx, array, static_cast<std::uint32_t>(i), JS_NewFloat64(ctx, values[i]));
+                array.setValueAtIndex(ctx.rt, i, jsi::Value(values[i]));
             return array;
         }
 
         template <typename T>
-        JSValue numbersOf(JSContext* ctx, std::span<const T> values)
+        jsi::Value numbersOf(ContextState& ctx, std::span<const T> values)
         {
             std::vector<double> converted;
             converted.reserve(values.size());
@@ -246,19 +243,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             return numbers(ctx, converted);
         }
 
-        JSValue string(JSContext* ctx, std::string_view value)
+        jsi::Value string(ContextState& ctx, std::string_view value)
         {
-            return JS_NewStringLen(ctx, value.data(), value.size());
+            return bind::write(ctx, value);
         }
 
         // The name, type and size of an active attribute, uniform or varying.
-        JSValue activeInfo(JSContext* ctx, GLint size, GLenum type, const std::vector<char>& name, GLsizei length)
+        jsi::Value activeInfo(ContextState& ctx, GLint size, GLenum type, const std::vector<char>& name, GLsizei length)
         {
-            JSValue array = JS_NewArray(ctx);
-            JS_SetPropertyUint32(ctx, array, 0, JS_NewInt32(ctx, size));
-            JS_SetPropertyUint32(ctx, array, 1, JS_NewUint32(ctx, type));
-            JS_SetPropertyUint32(ctx, array, 2,
-                                 string(ctx, std::string_view(name.data(), static_cast<std::size_t>(length))));
+            jsi::Array array(ctx.rt, 3);
+            array.setValueAtIndex(ctx.rt, 0, jsi::Value(double(size)));
+            array.setValueAtIndex(ctx.rt, 1, jsi::Value(double(type)));
+            array.setValueAtIndex(ctx.rt, 2,
+                                  string(ctx, std::string_view(name.data(), static_cast<std::size_t>(length))));
             return array;
         }
 
@@ -429,7 +426,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             Uint,
         };
 
-        JSValue parameter(JSContext* ctx, GLenum pname, Kind kind, std::optional<GLuint> index = std::nullopt)
+        // The Kind webgl.js passes at `index`.
+        Kind kindAt(const Args& a, int index)
+        {
+            const GLint value = a.i32(index);
+            if (value < 0 || value > static_cast<GLint>(Kind::Uint))
+                throw std::invalid_argument("invalid parameter kind");
+            return static_cast<Kind>(value);
+        }
+
+        jsi::Value parameter(ContextState& ctx, GLenum pname, Kind kind, std::optional<GLuint> index = std::nullopt)
         {
             GLsizei length = 0;
             switch (kind)
@@ -439,7 +445,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     std::array<GLfloat, 16> values {};
                     glGetFloatvRobustANGLE(pname, static_cast<GLsizei>(values.size()), &length, values.data());
                     if (length <= 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     return numbersOf<GLfloat>(ctx, std::span(values.data(), static_cast<std::size_t>(length)));
                 }
                 case Kind::Bool:
@@ -447,7 +453,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     std::array<GLboolean, 16> values {};
                     glGetBooleanvRobustANGLE(pname, static_cast<GLsizei>(values.size()), &length, values.data());
                     if (length <= 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     return numbersOf<GLboolean>(ctx, std::span(values.data(), static_cast<std::size_t>(length)));
                 }
                 case Kind::Int64:
@@ -459,7 +465,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     else
                         glGetInteger64vRobustANGLE(pname, static_cast<GLsizei>(values.size()), &length, values.data());
                     if (length <= 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     return numbersOf<GLint64>(ctx, std::span(values.data(), static_cast<std::size_t>(length)));
                 }
                 case Kind::Int:
@@ -479,7 +485,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         glGetIntegervRobustANGLE(pname, static_cast<GLsizei>(values.size()), &length, values.data());
                     }
                     if (length <= 0 && pname != GL_COMPRESSED_TEXTURE_FORMATS)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     values.resize(static_cast<std::size_t>(std::max(length, 0)));
                     if (kind == Kind::Uint)
                     {
@@ -492,7 +498,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     return numbersOf<GLint>(ctx, values);
                 }
             }
-            return JS_NULL;
+            return jsi::Value::null();
         }
 
         GLint uniformTypeAt(GLuint program, GLint location, GLint& size)
@@ -576,18 +582,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             }
         }
 
-        JSValue callHand(JSContext* ctx, WebGL& webgl, WebGLContext& context, HandOp op, const Args& a)
+        jsi::Value callHand(ContextState& ctx, WebGL& webgl, WebGLContext& context, HandOp op, const Args& a)
         {
             switch (op)
             {
                 case HandOp::BindFramebuffer:
                     context.bindFramebuffer(a.u32(0), a.u32(1));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::GetError:
-                    return JS_NewUint32(ctx, glGetError());
+                    return { double(glGetError()) };
                 case HandOp::UseProgram:
                     glUseProgram(a.u32(0));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::DeleteFramebuffer:
                 {
                     const GLuint name = a.u32(0);
@@ -599,30 +605,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                 ? GL_FRAMEBUFFER
                                 : (name == context.drawBinding() ? GL_DRAW_FRAMEBUFFER : GL_READ_FRAMEBUFFER),
                             0);
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::FramebufferTexture2D:
                     glFramebufferTexture2D(a.u32(0), a.u32(1), a.u32(2), a.u32(3), a.i32(4));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::FramebufferRenderbuffer:
                     glFramebufferRenderbuffer(a.u32(0), a.u32(1), a.u32(2), a.u32(3));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::LinkProgram:
                     glLinkProgram(a.u32(0));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::SamplerParameteri:
                     glSamplerParameteri(a.u32(0), a.u32(1), a.i32(2));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::SamplerParameterf:
                     glSamplerParameterf(a.u32(0), a.u32(1), a.f32(2));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::ShaderSource:
                 {
                     const std::string source = a.string(1);
                     const char* text = source.c_str();
                     const auto length = static_cast<GLint>(source.size());
                     glShaderSource(a.u32(0), 1, &text, &length);
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetShaderInfoLog:
                     return string(ctx, infoLog(a.u32(0), false));
@@ -643,22 +649,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetShaderivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetProgramParameter:
                 {
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetProgramivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetUniformLocation:
-                    return JS_NewInt32(ctx, glGetUniformLocation(a.u32(0), a.string(1).c_str()));
+                    return { double(glGetUniformLocation(a.u32(0), a.string(1).c_str())) };
                 case HandOp::GetAttribLocation:
-                    return JS_NewInt32(ctx, glGetAttribLocation(a.u32(0), a.string(1).c_str()));
+                    return { double(glGetAttribLocation(a.u32(0), a.string(1).c_str())) };
                 case HandOp::BindAttribLocation:
                     glBindAttribLocation(a.u32(0), a.u32(1), a.string(2).c_str());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::GetActiveAttrib:
                 case HandOp::GetActiveUniform:
                 case HandOp::GetTransformFeedbackVarying:
@@ -683,7 +689,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         glGetTransformFeedbackVarying(program, a.u32(1), bufferSize, &length, &size, &type,
                                                       name.data());
                     if (length < 0 || type == 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     return activeInfo(ctx, size, type, name, length);
                 }
                 case HandOp::BufferData:
@@ -691,24 +697,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     if (a.isNull(1))
                     {
                         glBufferData(a.u32(0), static_cast<GLsizeiptr>(a.i64(3)), nullptr, a.u32(4));
-                        return JS_UNDEFINED;
+                        return jsi::Value::undefined();
                     }
                     const std::span<std::byte> data = a.bytes(1, 2, 3);
                     glBufferData(a.u32(0), static_cast<GLsizeiptr>(data.size()), data.data(), a.u32(4));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::BufferSubData:
                 {
                     const std::span<std::byte> data = a.bytes(2, 3, 4);
                     glBufferSubData(a.u32(0), static_cast<GLintptr>(a.i64(1)), static_cast<GLsizeiptr>(data.size()),
                                     data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetBufferSubData:
                 {
                     const std::span<std::byte> destination = a.bytes(2, 3, 4);
                     if (destination.empty())
-                        return JS_UNDEFINED;
+                        return jsi::Value::undefined();
                     void* mapped = glMapBufferRange(a.u32(0), static_cast<GLintptr>(a.i64(1)),
                                                     static_cast<GLsizeiptr>(destination.size()), GL_MAP_READ_BIT);
                     if (mapped != nullptr)
@@ -716,7 +722,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         std::memcpy(destination.data(), mapped, destination.size());
                         glUnmapBuffer(a.u32(0));
                     }
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::TexImage2D:
                 {
@@ -728,7 +734,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                         a.flag(12));
                     glTexImage2DRobustANGLE(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.u32(6),
                                             a.u32(7), bufSize(data), a.isNull(8) ? nullptr : data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::TexSubImage2D:
                 {
@@ -737,7 +743,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                                                      a.u32(6), a.u32(7), a.flag(11), a.flag(12));
                     glTexSubImage2DRobustANGLE(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.u32(6),
                                                a.u32(7), bufSize(data), data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::TexImage3D:
                 {
@@ -749,7 +755,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                         a.flag(12), a.flag(13));
                     glTexImage3DRobustANGLE(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.i32(6),
                                             a.u32(7), a.u32(8), bufSize(data), a.isNull(9) ? nullptr : data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::TexSubImage3D:
                 {
@@ -760,17 +766,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                  a.flag(13), a.flag(14));
                     glTexSubImage3DRobustANGLE(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.i32(6),
                                                a.i32(7), a.u32(8), a.u32(9), bufSize(data), data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::TexImage2DOffset:
                     // From the bound PIXEL_UNPACK_BUFFER, at an offset.
                     glTexImage2D(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.u32(6), a.u32(7),
                                  offset(a.i64(8)));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::TexSubImage2DOffset:
                     glTexSubImage2D(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.u32(6), a.u32(7),
                                     offset(a.i64(8)));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::ReadPixels:
                 {
                     const std::span<std::byte> destination = a.bytes(6, 7, 8);
@@ -781,12 +787,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     glReadPixelsRobustANGLE(a.i32(0), a.i32(1), a.i32(2), a.i32(3), a.u32(4), a.u32(5),
                                             static_cast<GLsizei>(std::min<std::size_t>(destination.size(), 0x7FFFFFFF)),
                                             &length, &columns, &rows, destination.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::ReadPixelsOffset:
                     context.prepareRead();
                     glReadPixels(a.i32(0), a.i32(1), a.i32(2), a.i32(3), a.u32(4), a.u32(5), offset(a.i64(6)));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 case HandOp::Uniformv:
                 {
                     // kind, location, data, byteOffset, byteLength, transpose
@@ -869,7 +875,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                             glUniformMatrix4x3fv(location, count, transpose, f);
                             break;
                     }
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::VertexAttribv:
                 {
@@ -898,12 +904,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                             glVertexAttribI4uiv(index, reinterpret_cast<const GLuint*>(data.data()));
                             break;
                     }
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetParameter:
                 {
                     const GLenum pname = a.u32(0);
-                    const auto kind = static_cast<Kind>(a.i32(1));
+                    const Kind kind = kindAt(a, 1);
                     // The drawing buffer is framebuffer null to WebGL.
                     if (pname == GL_DRAW_FRAMEBUFFER_BINDING)
                         return numbers(ctx, std::array<double, 1> { static_cast<double>(context.drawBinding()) });
@@ -912,20 +918,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     return parameter(ctx, pname, kind);
                 }
                 case HandOp::GetIndexedParameter:
-                    return parameter(ctx, a.u32(0), static_cast<Kind>(a.i32(2)), a.u32(1));
+                    return parameter(ctx, a.u32(0), kindAt(a, 2), a.u32(1));
                 case HandOp::GetBufferParameter:
                 {
                     GLint64 value = 0;
                     GLsizei length = 0;
                     glGetBufferParameteri64vRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewFloat64(ctx, static_cast<double>(value)) : JS_NULL;
+                    return length > 0 ? jsi::Value(static_cast<double>(value)) : jsi::Value::null();
                 }
                 case HandOp::GetRenderbufferParameter:
                 {
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetRenderbufferParameterivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetTexParameter:
                 {
@@ -934,39 +940,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     {
                         GLfloat value = 0;
                         glGetTexParameterfvRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                        return length > 0 ? JS_NewFloat64(ctx, value) : JS_NULL;
+                        return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                     }
                     GLint value = 0;
                     glGetTexParameterivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetFramebufferAttachmentParameter:
                 {
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetFramebufferAttachmentParameterivRobustANGLE(a.u32(0), a.u32(1), a.u32(2), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetVertexAttrib:
                 {
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetVertexAttribivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetVertexAttribCurrent:
                 {
                     std::array<GLfloat, 4> values {};
                     GLsizei length = 0;
                     glGetVertexAttribfvRobustANGLE(a.u32(0), GL_CURRENT_VERTEX_ATTRIB, 4, &length, values.data());
-                    return length > 0 ? numbersOf<GLfloat>(ctx, values) : JS_NULL;
+                    return length > 0 ? numbersOf<GLfloat>(ctx, values) : jsi::Value::null();
                 }
                 case HandOp::GetQueryParameter:
                 {
                     GLuint value = 0;
                     GLsizei length = 0;
                     glGetQueryObjectuivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewUint32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetSamplerParameter:
                 {
@@ -975,21 +981,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     {
                         GLfloat value = 0;
                         glGetSamplerParameterfvRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                        return length > 0 ? JS_NewFloat64(ctx, value) : JS_NULL;
+                        return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                     }
                     GLint value = 0;
                     glGetSamplerParameterivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetSyncParameter:
                 {
                     GLsync fence = context.sync(a.u32(0));
                     if (fence == nullptr)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetSynciv(fence, a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetInternalformatParameter:
                 {
@@ -1007,7 +1013,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetQueryivRobustANGLE(a.u32(0), a.u32(1), 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetUniform:
                 {
@@ -1016,7 +1022,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     GLint size = 0;
                     const GLint type = uniformTypeAt(program, location, size);
                     if (type == 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     const auto [count, kind] = uniformShape(static_cast<GLenum>(type));
                     std::array<double, 16> values {};
                     GLsizei length = 0;
@@ -1038,10 +1044,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         glGetUniformivRobustANGLE(program, location, 16, &length, ints.data());
                         std::copy_n(ints.begin(), count, values.begin());
                     }
-                    JSValue result = JS_NewArray(ctx);
-                    JS_SetPropertyUint32(ctx, result, 0, JS_NewUint32(ctx, static_cast<std::uint32_t>(type)));
-                    JS_SetPropertyUint32(ctx, result, 1,
-                                         numbers(ctx, std::span(values.data(), static_cast<std::size_t>(count))));
+                    jsi::Array result(ctx.rt, 2);
+                    result.setValueAtIndex(ctx.rt, 0, jsi::Value(double(static_cast<std::uint32_t>(type))));
+                    result.setValueAtIndex(ctx.rt, 1,
+                                           numbers(ctx, std::span(values.data(), static_cast<std::size_t>(count))));
                     return result;
                 }
                 case HandOp::DrawBuffers:
@@ -1053,7 +1059,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                             if (buffer == GL_BACK)
                                 buffer = GL_COLOR_ATTACHMENT0;
                     glDrawBuffers(static_cast<GLsizei>(buffers.size()), buffers.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::InvalidateFramebuffer:
                 case HandOp::InvalidateSubFramebuffer:
@@ -1076,7 +1082,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     else
                         glInvalidateSubFramebuffer(target, static_cast<GLsizei>(attachments.size()), attachments.data(),
                                                    a.i32(2), a.i32(3), a.i32(4), a.i32(5));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::ClearBufferv:
                 {
@@ -1092,36 +1098,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     else
                         glClearBufferuiv(buffer, drawbuffer, reinterpret_cast<const GLuint*>(data.data()));
                     context.drew();
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::FenceSync:
                 {
                     GLsync fence = glFenceSync(a.u32(0), a.u32(1));
-                    return JS_NewUint32(ctx, fence != nullptr ? context.addSync(fence) : 0);
+                    return { double(fence != nullptr ? context.addSync(fence) : 0) };
                 }
                 case HandOp::ClientWaitSync:
                 {
                     GLsync fence = context.sync(a.u32(0));
                     if (fence == nullptr)
-                        return JS_NewUint32(ctx, GL_WAIT_FAILED);
+                        return { double(GL_WAIT_FAILED) };
                     // WebGL never blocks: the timeout must be 0.
-                    return JS_NewUint32(ctx, glClientWaitSync(fence, a.u32(1), 0));
+                    return { double(glClientWaitSync(fence, a.u32(1), 0)) };
                 }
                 case HandOp::WaitSync:
                 {
                     if (GLsync fence = context.sync(a.u32(0)); fence != nullptr)
                         glWaitSync(fence, a.u32(1), GL_TIMEOUT_IGNORED);
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::DeleteSync:
                 {
                     context.deleteSync(a.u32(0));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::IsSync:
                 {
                     GLsync fence = context.sync(a.u32(0));
-                    return JS_NewBool(ctx, fence != nullptr && glIsSync(fence) == GL_TRUE);
+                    return { fence != nullptr && glIsSync(fence) == GL_TRUE };
                 }
                 case HandOp::GetShaderPrecisionFormat:
                 {
@@ -1147,12 +1153,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     const auto* enabled = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
                     if (enabled != nullptr
                         && (" " + std::string(enabled) + " ").find(" " + name + " ") != std::string::npos)
-                        return JS_TRUE;
+                        return { true };
                     glRequestExtensionANGLE(name.c_str());
                     enabled = reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
-                    return JS_NewBool(ctx, enabled != nullptr
-                                               && (" " + std::string(enabled) + " ").find(" " + name + " ")
-                                                      != std::string::npos);
+                    return { enabled != nullptr
+                             && (" " + std::string(enabled) + " ").find(" " + name + " ") != std::string::npos };
                 }
                 case HandOp::TransformFeedbackVaryings:
                 {
@@ -1163,7 +1168,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         pointers.push_back(name.c_str());
                     glTransformFeedbackVaryings(a.u32(0), static_cast<GLsizei>(pointers.size()), pointers.data(),
                                                 a.u32(2));
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetUniformIndices:
                 {
@@ -1186,7 +1191,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     return numbersOf<GLint>(ctx, values);
                 }
                 case HandOp::GetUniformBlockIndex:
-                    return JS_NewUint32(ctx, glGetUniformBlockIndex(a.u32(0), a.string(1).c_str()));
+                    return { double(glGetUniformBlockIndex(a.u32(0), a.string(1).c_str())) };
                 case HandOp::GetActiveUniformBlockParameter:
                 {
                     const GLuint program = a.u32(0);
@@ -1205,7 +1210,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     GLint value = 0;
                     GLsizei length = 0;
                     glGetActiveUniformBlockivRobustANGLE(program, index, pname, 1, &length, &value);
-                    return length > 0 ? JS_NewInt32(ctx, value) : JS_NULL;
+                    return length > 0 ? jsi::Value(double(value)) : jsi::Value::null();
                 }
                 case HandOp::GetActiveUniformBlockName:
                 {
@@ -1216,39 +1221,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                     glGetActiveUniformBlockName(a.u32(0), a.u32(1), static_cast<GLsizei>(name.size()), &length,
                                                 name.data());
                     if (length < 0)
-                        return JS_NULL;
+                        return jsi::Value::null();
                     return string(ctx, std::string_view(name.data(), static_cast<std::size_t>(length)));
                 }
                 case HandOp::GetFragDataLocation:
-                    return JS_NewInt32(ctx, glGetFragDataLocation(a.u32(0), a.string(1).c_str()));
+                    return { double(glGetFragDataLocation(a.u32(0), a.string(1).c_str())) };
                 // OpenGL reads exactly imageSize bytes: the data's size.
                 case HandOp::CompressedTexImage2D:
                 {
                     const std::span<std::byte> data = a.bytes(6, 7, 8);
                     glCompressedTexImage2D(a.u32(0), a.i32(1), a.u32(2), a.i32(3), a.i32(4), a.i32(5), bufSize(data),
                                            data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::CompressedTexSubImage2D:
                 {
                     const std::span<std::byte> data = a.bytes(7, 8, 9);
                     glCompressedTexSubImage2D(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.u32(6),
                                               bufSize(data), data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::CompressedTexImage3D:
                 {
                     const std::span<std::byte> data = a.bytes(7, 8, 9);
                     glCompressedTexImage3D(a.u32(0), a.i32(1), a.u32(2), a.i32(3), a.i32(4), a.i32(5), a.i32(6),
                                            bufSize(data), data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::CompressedTexSubImage3D:
                 {
                     const std::span<std::byte> data = a.bytes(9, 10, 11);
                     glCompressedTexSubImage3D(a.u32(0), a.i32(1), a.i32(2), a.i32(3), a.i32(4), a.i32(5), a.i32(6),
                                               a.i32(7), a.u32(8), bufSize(data), data.data());
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetAttachedShaders:
                 {
@@ -1282,21 +1287,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         glTexImage2DRobustANGLE(a.u32(0), a.i32(1), a.i32(2), w, h, 0, a.u32(3), a.u32(4),
                                                 bufSize(data), data.data());
                     glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
-                    return JS_UNDEFINED;
+                    return jsi::Value::undefined();
                 }
                 case HandOp::GetVertexAttribOffset:
                 {
                     void* pointer = nullptr;
                     glGetVertexAttribPointerv(a.u32(0), a.u32(1), &pointer);
-                    return JS_NewInt64(ctx, static_cast<std::int64_t>(reinterpret_cast<std::intptr_t>(pointer)));
+                    return { double(static_cast<std::int64_t>(reinterpret_cast<std::intptr_t>(pointer))) };
                 }
                 case HandOp::GetString:
                 {
                     const auto* value = reinterpret_cast<const char*>(glGetString(a.u32(0)));
-                    return value != nullptr ? string(ctx, value) : JS_NULL;
+                    return value != nullptr ? string(ctx, value) : jsi::Value::null();
                 }
             }
-            return JS_UNDEFINED;
+            return jsi::Value::undefined();
         }
 
         // ── Entry points ─────────────────────────────────────────────────────
@@ -1304,14 +1309,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         // webglCreate(node, [alpha, depth, stencil, antialias, premultipliedAlpha,
         // preserveDrawingBuffer, failIfMajorPerformanceCaveat]): a context id,
         // or why there is none (a string).
-        JSValue webglCreate(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglCreate(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglCreate", argc, 2))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglCreate", count, 2);
+            const int argc = static_cast<int>(count);
             return bind::invoke(
                 ctx, "webglCreate",
-                [&]() -> JSValue
+                [&]() -> jsi::Value
                 {
                     const Args a { ctx, argc, argv };
                     WebGL& webgl = webglOf(ctx);
@@ -1345,34 +1350,33 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                         // Once: where WebGL runs, for diagnosing what users see.
                         webgl.announced = true;
                         const DeviceInfo& info = webgl.device->info();
-                        if (auto* state = js::detail::contextStateOf(ctx); state != nullptr)
-                            state->runtime->log(
-                                js::LogLevel::Info,
-                                std::string("WebGL 2: ANGLE / ") + name(info.backend) + " (" + info.renderer + ")"
-                                    + (info.sharesTextures ? ", composited without copies where the GPU compositor runs"
-                                                           : ", read back for compositing"));
+                        ctx.runtime->log(
+                            js::LogLevel::Info,
+                            std::string("WebGL 2: ANGLE / ") + name(info.backend) + " (" + info.renderer + ")"
+                                + (info.sharesTextures ? ", composited without copies where the GPU compositor runs"
+                                                       : ", read back for compositing"));
                     }
                     const std::uint32_t id = webgl.nextContext++;
                     webgl.attributes.emplace(id, context->attributes());
                     webgl.contexts.emplace(id, std::move(context));
                     webgl.canvases.emplace(id, std::move(canvas));
-                    return JS_NewUint32(ctx, id);
+                    return { double(id) };
                 });
         }
 
         // webglAttributes(id): what was granted, in webglCreate's order.
-        JSValue webglAttributes(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglAttributes(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglAttributes", argc, 1))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglAttributes", count, 1);
+            const int argc = static_cast<int>(count);
             return bind::invoke(ctx, "webglAttributes",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                                     const Args a { ctx, argc, argv };
                                     const auto found = webglOf(ctx).attributes.find(a.u32(0));
                                     if (found == webglOf(ctx).attributes.end())
-                                        return JS_NULL;
+                                        return jsi::Value::null();
                                     const WebGLContext::Attributes& g = found->second;
                                     const std::array<double, 7> values {
                                         g.alpha ? 1.0 : 0.0,
@@ -1388,13 +1392,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         }
 
         // webglCall(id, op, ...): one native entry for every method.
-        JSValue webglCall(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglCall(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglCall", argc, 2))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglCall", count, 2);
+            const int argc = static_cast<int>(count);
             return bind::invoke(ctx, "webglCall",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                                     const Args all { ctx, argc, argv };
                                     WebGL& webgl = webglOf(ctx);
@@ -1406,69 +1410,69 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                                     const int op = all.i32(1);
                                     const Args args { ctx, argc - 2, argv + 2 };
                                     if (op < generatedOperations)
-                                        return callGenerated(ctx, context, op, args);
+                                        return callGenerated(context, op, args);
                                     return callHand(ctx, webgl, context, static_cast<HandOp>(op - generatedOperations),
                                                     args);
                                 });
         }
 
         // webglResize(id): the canvas was resized; the drawing buffer follows.
-        JSValue webglResize(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglResize(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglResize", argc, 1))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglResize", count, 1);
+            const int argc = static_cast<int>(count);
             return bind::invoke(ctx, "webglResize",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                                     const Args a { ctx, argc, argv };
                                     const auto found = webglOf(ctx).contexts.find(a.u32(0));
                                     if (found != webglOf(ctx).contexts.end())
                                         found->second->resize();
-                                    return JS_UNDEFINED;
+                                    return jsi::Value::undefined();
                                 });
         }
 
         // webglLose(id): loseContext(); webglRelease(id): the canvas is gone.
-        JSValue webglLose(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglLose(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglLose", argc, 1))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglLose", count, 1);
+            const int argc = static_cast<int>(count);
             return bind::invoke(ctx, "webglLose",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                                     const Args a { ctx, argc, argv };
                                     const auto found = webglOf(ctx).contexts.find(a.u32(0));
                                     if (found != webglOf(ctx).contexts.end())
                                         found->second->lose();
-                                    return JS_UNDEFINED;
+                                    return jsi::Value::undefined();
                                 });
         }
 
         // webglSetLostListener(fn): called with a context's id when it is lost.
-        JSValue webglSetLostListener(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglSetLostListener(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
-            if (argc < 1 || ! JS_IsFunction(ctx, argv[0]))
-                return JS_ThrowTypeError(ctx, "webglSetLostListener() expects a function");
-            bind::retainValue(ctx, &lostListenerKey, JS_DupValue(ctx, argv[0]));
-            return JS_UNDEFINED;
+            if (count < 1 || ! bind::isFunction(ctx, argv[0]))
+                bind::throwTypeError(ctx, "webglSetLostListener() expects a function");
+            bind::retainValue(ctx, &lostListenerKey, jsi::Value(ctx.rt, argv[0]));
+            return jsi::Value::undefined();
         }
 
-        JSValue webglRelease(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value webglRelease(ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             const bind::NativeCall counted(ctx, bind::NativeApi::WebGL);
-            if (! bind::expectArgumentCount(ctx, "webglRelease", argc, 1))
-                return JS_EXCEPTION;
+            bind::expectArgumentCount(ctx, "webglRelease", count, 1);
+            const int argc = static_cast<int>(count);
             return bind::invoke(ctx, "webglRelease",
-                                [&]() -> JSValue
+                                [&]() -> jsi::Value
                                 {
                                     const Args a { ctx, argc, argv };
                                     WebGL& webgl = webglOf(ctx);
                                     webgl.contexts.erase(a.u32(0));
                                     webgl.canvases.erase(a.u32(0));
                                     webgl.attributes.erase(a.u32(0));
-                                    return JS_UNDEFINED;
+                                    return jsi::Value::undefined();
                                 });
         }
     } // namespace
@@ -1497,7 +1501,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
     void presentWebGL(js::Context& context)
     {
-        auto* webgl = bind::contextData<WebGL>(js::rawContext(context), &webglKey);
+        auto* webgl = bind::contextData<WebGL>(js::stateOf(context), &webglKey);
         if (webgl == nullptr)
             return;
         // Contexts the GPU lost since the last tick (a reset, a removed GPU,
@@ -1512,23 +1516,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         }
         if (lost.empty())
             return;
-        JSContext* ctx = js::rawContext(context);
-        JSValue listener = JS_DupValue(ctx, bind::retainedValue(ctx, &lostListenerKey));
-        if (JS_IsFunction(ctx, listener))
-            for (const std::uint32_t id : lost)
-            {
-                JSValue argument = JS_NewUint32(ctx, id);
-                JSValue result = JS_Call(ctx, listener, JS_UNDEFINED, 1, &argument);
-                if (JS_IsException(result))
-                    JS_FreeValue(ctx, JS_GetException(ctx));
-                JS_FreeValue(ctx, result);
-            }
-        JS_FreeValue(ctx, listener);
+        auto& state = js::stateOf(context);
+        const jsi::Value* retained = bind::retainedValue(state, &lostListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
+            return;
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        for (const std::uint32_t id : lost)
+        {
+            const jsi::Value argument { double(id) };
+            bind::call(state, listener, jsi::Value::undefined(), std::span(&argument, 1), "WebGL context loss");
+        }
     }
 
     void loseWebGL(js::Context& context)
     {
-        auto* webgl = bind::contextData<WebGL>(js::rawContext(context), &webglKey);
+        auto* webgl = bind::contextData<WebGL>(js::stateOf(context), &webglKey);
         if (webgl == nullptr)
             return;
         for (auto& [id, webglContext] : webgl->contexts)

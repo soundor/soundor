@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
@@ -70,54 +71,50 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             }
         }
 
-        // The JavaScript string as UTF-16, freed with the holder.
-        struct Utf16
+        namespace bind = js::bind;
+        using bind::ContextState;
+
+        // String(value) as UTF-16 code units.
+        std::u16string utf16Of(ContextState& context, const jsi::Value& value)
         {
-            Utf16(JSContext* context, JSValueConst value) : ctx(context)
-            {
-                data = JS_ToCStringLenUTF16(ctx, &length, value);
-            }
-            ~Utf16() { JS_FreeCStringUTF16(ctx, data); }
-            Utf16(const Utf16&) = delete;
-            Utf16& operator=(const Utf16&) = delete;
+            if (value.isString())
+                return value.getString(context.rt).utf16(context.rt);
+            return value.toString(context.rt).utf16(context.rt);
+        }
 
-            [[nodiscard]] std::span<const std::uint16_t> units() const { return { data, length }; }
-
-            JSContext* ctx;
-            const std::uint16_t* data = nullptr;
-            std::size_t length = 0;
-        };
-
-        // A writable view of a Uint8Array's bytes.
-        bool bytesOf(JSContext* ctx, JSValueConst value, std::uint8_t*& data, std::size_t& size)
+        std::span<const std::uint16_t> unitsOf(const std::u16string& text)
         {
-            if (JS_GetTypedArrayType(value) != JS_TYPED_ARRAY_UINT8)
-            {
-                JS_ThrowTypeError(ctx, "expected a Uint8Array");
-                return false;
-            }
-            std::size_t offset = 0;
-            JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, &offset, &size, nullptr);
-            if (JS_IsException(buffer))
-                return false;
-            std::size_t bufferSize = 0;
-            std::uint8_t* bytes = JS_GetArrayBuffer(ctx, &bufferSize, buffer);
-            JS_FreeValue(ctx, buffer);
-            if (bytes == nullptr && JS_HasException(ctx))
-                return false;
-            data = bytes != nullptr ? bytes + offset : nullptr;
-            return true;
+            return { reinterpret_cast<const std::uint16_t*>(text.data()), text.size() };
+        }
+
+        // A writable view of a Uint8Array's bytes (nullptr when it has none).
+        void bytesOf(ContextState& context, const jsi::Value& value, std::uint8_t*& data, std::size_t& size)
+        {
+            facebook::hermes::soundor::BufferView view;
+            if (! bind::bufferView(context, value, view)
+                || view.kind != facebook::hermes::soundor::TypedArrayKind::Uint8)
+                bind::throwTypeError(context, "expected a Uint8Array");
+            if (view.detached)
+                bind::throwTypeError(context, "ArrayBuffer is detached");
+            data = view.data;
+            size = view.byteLength;
+        }
+
+        jsi::Value pair(ContextState& context, jsi::Value first, jsi::Value second)
+        {
+            jsi::Array result(context.rt, 2);
+            result.setValueAtIndex(context.rt, 0, first);
+            result.setValueAtIndex(context.rt, 1, second);
+            return result;
         }
 
         // encodeUtf8(string) → Uint8Array
-        JSValue encodeUtf8(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value encodeUtf8(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            const Utf16 text(ctx, argc > 0 ? argv[0] : JS_UNDEFINED);
-            if (text.data == nullptr)
-                return JS_EXCEPTION;
+            const std::u16string text = utf16Of(context, bind::argument(args, count, 0));
             std::vector<std::uint8_t> bytes;
-            bytes.reserve(text.length);
-            forEachCodePoint(text.units(),
+            bytes.reserve(text.size());
+            forEachCodePoint(unitsOf(text),
                              [&](char32_t cp, std::size_t)
                              {
                                  const std::size_t at = bytes.size();
@@ -125,26 +122,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                                  appendUtf8(cp, bytes.data() + at);
                                  return true;
                              });
-            return js::bind::write(ctx, std::move(bytes));
+            return bind::write(context, std::move(bytes));
         }
 
         // encodeUtf8Into(string, Uint8Array) → [read, written]
-        JSValue encodeUtf8Into(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value encodeUtf8Into(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 2)
-                return JS_ThrowTypeError(ctx, "encodeInto() expects a string and a Uint8Array");
-            const Utf16 text(ctx, argv[0]);
-            if (text.data == nullptr)
-                return JS_EXCEPTION;
+            if (count < 2)
+                bind::throwTypeError(context, "encodeInto() expects a string and a Uint8Array");
+            const std::u16string text = utf16Of(context, args[0]);
             std::uint8_t* out = nullptr;
             std::size_t capacity = 0;
-            if (! bytesOf(ctx, argv[1], out, capacity))
-                return JS_EXCEPTION;
+            bytesOf(context, args[1], out, capacity);
             if (out == nullptr)
                 capacity = 0; // an empty view has no storage to write to
             std::size_t read = 0;
             std::size_t written = 0;
-            forEachCodePoint(text.units(),
+            forEachCodePoint(unitsOf(text),
                              [&](char32_t cp, std::size_t units)
                              {
                                  const std::size_t needed = utf8Length(cp);
@@ -155,25 +149,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                                  read += units;
                                  return true;
                              });
-            JSValue result = JS_NewArray(ctx);
-            JS_SetPropertyUint32(ctx, result, 0, JS_NewFloat64(ctx, double(read)));
-            JS_SetPropertyUint32(ctx, result, 1, JS_NewFloat64(ctx, double(written)));
-            return result;
+            return pair(context, jsi::Value(double(read)), jsi::Value(double(written)));
         }
 
         // decodeUtf8(Uint8Array, fatal, flush) → [string, bytes consumed]. When
         // not flushing, an incomplete sequence at the end is left unconsumed
         // for the next call (streaming).
-        JSValue decodeUtf8(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value decodeUtf8(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 3)
-                return JS_ThrowTypeError(ctx, "decodeUtf8() expects bytes, fatal and flush");
+            if (count < 3)
+                bind::throwTypeError(context, "decodeUtf8() expects bytes, fatal and flush");
             std::uint8_t* data = nullptr;
             std::size_t size = 0;
-            if (! bytesOf(ctx, argv[0], data, size))
-                return JS_EXCEPTION;
-            const bool fatal = JS_ToBool(ctx, argv[1]) != 0;
-            const bool flush = JS_ToBool(ctx, argv[2]) != 0;
+            bytesOf(context, args[0], data, size);
+            const bool fatal = bind::toBoolean(context, args[1]);
+            const bool flush = bind::toBoolean(context, args[2]);
             if (data == nullptr)
                 size = 0; // an empty view has no storage
 
@@ -237,7 +227,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                     else
                     {
                         if (fatal)
-                            return JS_ThrowTypeError(ctx, "The encoded data was not valid UTF-8");
+                            bind::throwTypeError(context, "The encoded data was not valid UTF-8");
                         emit(replacement);
                     }
                     continue;
@@ -251,7 +241,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                     lower = 0x80;
                     upper = 0xBF;
                     if (fatal)
-                        return JS_ThrowTypeError(ctx, "The encoded data was not valid UTF-8");
+                        bind::throwTypeError(context, "The encoded data was not valid UTF-8");
                     emit(replacement);
                     --i;
                     continue;
@@ -275,18 +265,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                 else
                 {
                     if (fatal)
-                        return JS_ThrowTypeError(ctx, "The encoded data was not valid UTF-8");
+                        bind::throwTypeError(context, "The encoded data was not valid UTF-8");
                     emit(replacement);
                 }
             }
 
-            JSValue text = JS_NewStringUTF16(ctx, units.data(), units.size());
-            if (JS_IsException(text))
-                return text;
-            JSValue result = JS_NewArray(ctx);
-            JS_SetPropertyUint32(ctx, result, 0, text);
-            JS_SetPropertyUint32(ctx, result, 1, JS_NewFloat64(ctx, double(consumed)));
-            return result;
+            return pair(
+                context,
+                jsi::String::createFromUtf16(context.rt, reinterpret_cast<const char16_t*>(units.data()), units.size()),
+                jsi::Value(double(consumed)));
         }
     } // namespace
 

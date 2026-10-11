@@ -16,7 +16,7 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 include(SoundorCompilerOptions)
 include(SoundorEmbed)
-include(SoundorQuickJS)
+include(SoundorHermes)
 include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
@@ -33,18 +33,31 @@ if(NOT SOUNDOR_ABI_NAMESPACE MATCHES "^[A-Za-z_][A-Za-z0-9_]*$")
   message(FATAL_ERROR "SOUNDOR_ABI_NAMESPACE must be a C++ identifier, got '${SOUNDOR_ABI_NAMESPACE}'")
 endif()
 
-# soundor_compile_js compiles JavaScript modules to QuickJS bytecode while
-# building: the runtime's own modules (soundor_embed_module()) and a plugin's
-# UI bundle (soundor_embed_ui()). The build has to run it, so a cross build
-# embeds source instead.
-option(SOUNDOR_PRECOMPILE_JS "Compile JavaScript to QuickJS bytecode at build time (not when cross-compiling)" ON)
-add_executable(soundor_compile_js src/js/CompileJs.cpp)
-target_compile_features(soundor_compile_js PRIVATE cxx_std_20)
-target_include_directories(soundor_compile_js PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_compile_definitions(soundor_compile_js PRIVATE SOUNDOR_ABI_NAMESPACE=${SOUNDOR_ABI_NAMESPACE}
-                                                      SOUNDOR_QUICKJS_REVISION="${SOUNDOR_QUICKJS_REVISION}")
-target_link_libraries(soundor_compile_js PRIVATE soundor_quickjs)
-soundor_configure_target(soundor_compile_js)
+# JavaScript is compiled to Hermes bytecode while building, with the hermesc
+# of the same Hermes build as the VM (SoundorEmbed.cmake): the runtime's own
+# modules (soundor_embed_module()) and a plugin's UI bundle
+# (soundor_embed_ui()). The build has to run hermesc, so a cross build embeds
+# source instead.
+option(SOUNDOR_PRECOMPILE_JS "Compile JavaScript to Hermes bytecode at build time (not when cross-compiling)" ON)
+# The VM with Hermes's compiler can also evaluate JavaScript source: what
+# development needs (soundor dev reloads the UI's source) and the tests use. A
+# production plugin runs only the bytecode its build compiled, so it links the
+# VM alone, without the compiler.
+option(SOUNDOR_JS_SOURCE "Link Hermes's compiler, so that JavaScript source can be evaluated (development)" ON)
+# -fno-inline keeps every function's frame in stack traces: measured, inlining
+# saved no time (examples/benchmark) and 315 bytes of a 1.1 MB bundle.
+set(SOUNDOR_HERMESC_FLAGS "-O -fno-inline" CACHE STRING "hermesc's options for the bytecode the build compiles")
+# `cmake -DINPUT=<module.js> -DOUTPUT=<bytecode> -DNAME=<module name> -P <this>`
+# compiles a module like the build does (examples/benchmark's `pnpm bench`).
+configure_file(cmake/SoundorCompileJsTool.cmake.in ${CMAKE_BINARY_DIR}/soundor-compile-js.cmake @ONLY)
+
+# The VM the runtime links: with its compiler or bytecode only.
+add_library(soundor_hermes INTERFACE)
+if(SOUNDOR_JS_SOURCE)
+  target_link_libraries(soundor_hermes INTERFACE soundor_hermes_full)
+else()
+  target_link_libraries(soundor_hermes INTERFACE soundor_hermes_lean)
+endif()
 
 set(SOUNDOR_RUNTIME_SOURCES
   src/a11y/Platform.cpp
@@ -124,20 +137,25 @@ list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
 add_library(soundor::runtime ALIAS soundor_runtime)
-# Each with the name it is registered under, which its bytecode carries.
+# Each with the name it is registered under, which its bytecode carries. The
+# modules run as scripts/native-modules.mjs generated them from src/ (see
+# src/generated/).
+soundor_embed_module(soundor_runtime languageModule src/generated/js/language.js soundor:internal/language)
 foreach(module fs host parameters storage)
-  soundor_embed_module(soundor_runtime ${module}Module src/modules/${module}/${module}.js soundor:${module})
+  soundor_embed_module(soundor_runtime ${module}Module src/generated/modules/${module}/${module}.js soundor:${module})
 endforeach()
-soundor_embed_module(soundor_runtime uiModule src/modules/ui/ui.js soundor:ui)
-foreach(module abort blob clone console crypto encoding events fetch inspect timers url)
-  soundor_embed_module(soundor_runtime ${module}Module src/web/js/${module}.js soundor:internal/web/${module})
+soundor_embed_module(soundor_runtime uiModule src/generated/modules/ui/ui.js soundor:ui)
+foreach(module abort base64 blob clone console crypto encoding events fetch inspect timers url)
+  soundor_embed_module(soundor_runtime ${module}Module src/generated/web/js/${module}.js soundor:internal/web/${module})
 endforeach()
-soundor_embed_module(soundor_runtime webModule src/web/js/web.js soundor:internal/web)
-soundor_embed_module(soundor_runtime formDataModule src/web/js/form-data.js soundor:internal/web/form-data)
-soundor_embed_module(soundor_runtime uiFramesModule src/modules/ui/frames.js soundor:internal/ui/frames)
-soundor_embed_module(soundor_runtime uiCanvasModule src/modules/ui/canvas.js soundor:internal/ui/canvas)
-soundor_embed_module(soundor_runtime uiWebGLModule src/gpu/webgl/webgl.js soundor:internal/ui/webgl)
-soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/generated/webgl-generated.js
+soundor_embed_module(soundor_runtime webModule src/generated/web/js/web.js soundor:internal/web)
+soundor_embed_module(soundor_runtime formDataModule src/generated/web/js/form-data.js soundor:internal/web/form-data)
+soundor_embed_module(soundor_runtime domExceptionModule src/generated/web/js/dom-exception.js
+                     soundor:internal/web/dom-exception)
+soundor_embed_module(soundor_runtime uiFramesModule src/generated/modules/ui/frames.js soundor:internal/ui/frames)
+soundor_embed_module(soundor_runtime uiCanvasModule src/generated/modules/ui/canvas.js soundor:internal/ui/canvas)
+soundor_embed_module(soundor_runtime uiWebGLModule src/generated/gpu/webgl/webgl.js soundor:internal/ui/webgl)
+soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/generated/gpu/webgl/generated/webgl-generated.js
                      soundor:internal/ui/webgl-generated)
 
 # Everything a runtime library is besides its sources: `namespace` is the
@@ -145,13 +163,13 @@ soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/genera
 function(soundor_configure_runtime target namespace)
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_compile_definitions(${target} PUBLIC SOUNDOR_ABI_NAMESPACE=${namespace})
-  # Bytecode is only read by the QuickJS that wrote it (src/js/Bytecode.h).
-  target_compile_definitions(${target} PRIVATE SOUNDOR_QUICKJS_REVISION="${SOUNDOR_QUICKJS_REVISION}")
+  # Bytecode is only run by the Hermes it was compiled for (src/js/Bytecode.h).
+  target_compile_definitions(${target} PRIVATE SOUNDOR_HERMES_REVISION="${SOUNDOR_HERMES_REVISION}")
   target_include_directories(${target}
     PUBLIC ${PROJECT_SOURCE_DIR}/include
     PRIVATE ${PROJECT_SOURCE_DIR}/src)
-  # PRIVATE: QuickJS is an implementation detail; its headers never reach consumers.
-  target_link_libraries(${target} PRIVATE soundor_quickjs soundor_ada soundor_yoga soundor_skia Threads::Threads)
+  # PRIVATE: Hermes is an implementation detail; its headers never reach consumers.
+  target_link_libraries(${target} PRIVATE soundor_hermes soundor_ada soundor_yoga soundor_skia Threads::Threads)
   if(IOS)
     target_link_libraries(${target} PRIVATE "-framework UIKit")
   elseif(APPLE)
@@ -191,7 +209,7 @@ soundor_configure_runtime(soundor_runtime ${SOUNDOR_ABI_NAMESPACE})
 add_library(soundor_runtime_internal INTERFACE)
 add_library(soundor::runtime_internal ALIAS soundor_runtime_internal)
 target_include_directories(soundor_runtime_internal INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(soundor_runtime_internal INTERFACE soundor_runtime soundor_quickjs)
+target_link_libraries(soundor_runtime_internal INTERFACE soundor_runtime soundor_hermes)
 
 option(SOUNDOR_BUILD_TESTS "Build the Soundor native runtime tests" ${PROJECT_IS_TOP_LEVEL})
 option(SOUNDOR_JUCE_TESTS "Also build the JUCE adapter tests (needs JUCE_DIR)" OFF)

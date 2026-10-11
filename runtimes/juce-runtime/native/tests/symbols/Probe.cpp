@@ -22,9 +22,10 @@ SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
     soundor::RuntimeHost host({});
     host.surface().setSize({ 100, 100 });
     auto result =
-        host.context().evaluateModule("import { root, createView } from 'soundor:ui';"
-                                      "const box = createView({ width: 42, height: 10, backgroundColor: 'red' });"
-                                      "root.appendChild(box); globalThis.width = box.layout.width;",
+        host.context().evaluateModule("(function (exports, require) {"
+                                      " const { root, createView } = require('soundor:ui');"
+                                      " const box = createView({ width: 42, height: 10, backgroundColor: 'red' });"
+                                      " root.appendChild(box); globalThis.width = box.layout.width; })",
                                       "/probe.js");
     std::vector<std::uint32_t> pixels(std::size_t { 100 } * 100);
     host.render({ pixels.data(), 100, 100, std::size_t { 100 } * 4 });

@@ -81,7 +81,7 @@ TEST_SUITE("console")
               "console.log('%s is %d dB (%i, %f) %j %%', 'gain', '-6.5', 7.9, '1.25', { a: 1 });"
               "console.log({ a: 1, b: [1, 2, { c: 'x' }], 'odd key': new Map([[1, 2]]) });"
               "console.log(new Set([1]), new Float32Array([0.5, 1]), new ArrayBuffer(8), new Date(0));"
-              "console.log(function named() {}, () => {}, class Thing {}, new (class Thing {})());"
+              "function Thing() {} console.log(function named() {}, () => {}, Thing, new Thing());"
               "const cyclic = { name: 'x' }; cyclic.self = cyclic; console.log(cyclic);"
               "console.log({ deep: { deeper: { deepest: { gone: 1 } } } });"
               "console.log('%c styled', 'color: red');");
@@ -90,7 +90,7 @@ TEST_SUITE("console")
             "gain is -6.5 dB (7, 1.25) {\"a\":1} %",
             "{ a: 1, b: [ 1, 2, { c: 'x' } ], 'odd key': Map(1) { 1 => 2 } }",
             "Set(1) { 1 } Float32Array(2) [ 0.5, 1 ] ArrayBuffer { byteLength: 8 } 1970-01-01T00:00:00.000Z",
-            "[Function: named] [Function (anonymous)] [class: Thing] Thing {}",
+            "[Function: named] [Function (anonymous)] [Function: Thing] Thing {}",
             "{ name: 'x', self: [Circular] }",
             "{ deep: { deeper: { deepest: [Object] } } }",
             " styled",

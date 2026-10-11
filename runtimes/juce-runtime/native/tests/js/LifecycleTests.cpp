@@ -1,3 +1,5 @@
+#include "../support/Modules.h"
+
 #include <soundor/js/Context.h>
 
 #include <doctest/doctest.h>
@@ -6,9 +8,10 @@
 
 using namespace soundor::js;
 
-// Leak detection: QuickJS asserts in debug builds when JS_FreeRuntime finds
-// live objects, and the sanitizer preset adds LeakSanitizer. Every test here
-// tears down with work in flight and must still release everything.
+// Leak detection: a context asserts in debug builds that C++ holds no engine
+// value any more when it frees its Hermes runtime, and the sanitizer preset
+// adds LeakSanitizer. Every test here tears down with work in flight and must
+// still release everything.
 
 TEST_SUITE("Lifecycle")
 {
@@ -19,7 +22,8 @@ TEST_SUITE("Lifecycle")
             Runtime runtime;
             Context context(runtime, ContextOptions { .moduleLoader = std::make_shared<MemoryModuleLoader>() });
             REQUIRE(context.evaluateScript("const big = new Array(1000).fill('x'); big.length").ok());
-            REQUIRE(context.evaluateModule("export const x = await Promise.resolve(1);", "/m.js").ok());
+            REQUIRE(context.evaluateModule(soundor::test::module("export const x = await Promise.resolve(1);"), "/m.js")
+                        .ok());
         }
     }
 
@@ -60,17 +64,22 @@ TEST_SUITE("Lifecycle")
         context.reset();
     }
 
-    TEST_CASE("jobs left behind by a destroyed context run safely")
+    TEST_CASE("jobs left behind by a destroyed context go with it")
     {
         Runtime runtime;
         {
             auto loader = std::make_shared<MemoryModuleLoader>();
-            loader->add("/late.js", "export default 1;");
+            loader->add("/late.js", soundor::test::module("export default 1;"));
             Context context(runtime, ContextOptions { .moduleLoader = loader });
-            REQUIRE(context.evaluateScript("Promise.resolve().then(() => import('/late.js')).catch(() => {});").ok());
+            REQUIRE(
+                context
+                    .evaluateModule(soundor::test::module("globalThis.late = () => import('/late.js');"), "/early.js")
+                    .ok());
+            REQUIRE(context.evaluateScript("Promise.resolve().then(() => late()).catch(() => {}); 0").ok());
+            CHECK(runtime.hasPendingJobs());
         }
-        // The queued job tries a dynamic import after its context is gone; the
-        // module hooks must refuse cleanly rather than touch freed state.
-        runtime.runPendingJobs();
+        // A context's jobs are in its own engine: they went with it.
+        CHECK_FALSE(runtime.hasPendingJobs());
+        CHECK(runtime.runPendingJobs() == 0);
     }
 }

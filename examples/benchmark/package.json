@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "bench": "node scripts/bench.ts",
+    "bench:js": "node scripts/bench-js.ts",
     "build": "soundor build",
     "build:web": "soundor build web",
     "dev": "soundor dev",
@@ -27,6 +28,7 @@
     "@types/react": "catalog:",
     "@types/three": "catalog:",
     "soundor": "workspace:*",
+    "tsdown": "catalog:",
     "typescript": "catalog:"
   }
 }

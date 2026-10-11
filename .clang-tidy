@@ -6,6 +6,7 @@ Checks: >
   -*,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
+  -bugprone-forward-declaration-namespace,
   cert-err58-cpp,
   clang-analyzer-*,
   concurrency-*,
@@ -29,8 +30,10 @@ Checks: >
   readability-redundant-*,
   readability-simplify-boolean-expr
 # bugprone-easily-swappable-parameters: flags every (string_view, string_view).
-# misc-const-correctness: wants every C handle (JSValue) local const.
-# misc-include-cleaner: does not understand the QuickJS umbrella header.
+# bugprone-forward-declaration-namespace: flags Hermes's own forward
+#   declaration of hermes::vm::Runtime (in hermes.h) against soundor::js::Runtime.
+# misc-const-correctness: wants every engine value (jsi::Value) local const.
+# misc-include-cleaner: does not understand JSI's and Hermes's umbrella headers.
 # misc-non-private-member-variables-in-classes: state structs are deliberate.
 # misc-no-recursion: path normalisation and future tree walks recurse on purpose.
 # performance-enum-size: shrinking public enums buys nothing.

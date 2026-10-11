@@ -83,3 +83,6 @@ export {
 export { renderNativeDts } from './native-dts';
 
 export { runtimeTypeFiles } from './runtime-types';
+
+export type { NativeModuleOptions, NativeModuleResult } from './native-module';
+export { toNativeModule } from './native-module';

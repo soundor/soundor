@@ -175,7 +175,7 @@ describe('the UI bundle in soundor dev', () => {
       await fetch(new URL('@id/__x00__soundor:internal/ui', url))
     ).text();
     expect(virtual).toContain('export const hasUi = true');
-    const match = /import\("([^"]+bundle\.js[^"]*)"\)/.exec(virtual);
+    const match = /import\("([^"]+bundle\.mjs[^"]*)"\)/.exec(virtual);
     expect(match).not.toBeNull();
     expect(match![1]).toContain('/@fs/');
     expect(match![1]).toContain(ui.dir.split('\\').join('/'));
@@ -207,12 +207,12 @@ describe('the UI bundle in soundor dev', () => {
       ).length;
 
     // A build in progress, or one that failed: the bundle changes, the id not.
-    await writeFile(join(ui.dir, 'bundle.js'), `${BUNDLE}\n// half written`);
+    await writeFile(join(ui.dir, 'bundle.mjs'), `${BUNDLE}\n// half written`);
     await new Promise((resolve) => setTimeout(resolve, 500));
     expect(reloads()).toBe(0);
 
     await writeFile(
-      join(ui.dir, 'bundle.js'),
+      join(ui.dir, 'bundle.mjs'),
       BUNDLE.replace('FIXTURE_UI_MARKER', 'REBUILT_MARKER'),
     );
     await writeFile(join(ui.dir, 'build-id'), 'build-2');

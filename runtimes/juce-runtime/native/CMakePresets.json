@@ -93,7 +93,7 @@
       "name": "bench",
       "configurePreset": "bench",
       "configuration": "Release",
-      "targets": ["soundor_run_ui", "soundor_compile_js"]
+      "targets": ["soundor_run_ui"]
     }
   ],
   "testPresets": [

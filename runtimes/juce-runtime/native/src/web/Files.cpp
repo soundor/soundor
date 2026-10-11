@@ -175,31 +175,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         using FsResult =
             std::variant<std::monostate, std::vector<std::uint8_t>, std::vector<Entry>, std::optional<Stat>, Failure>;
 
-        JSValue toJs(JSContext* ctx, FsResult&& result)
+        jsi::Value toJs(js::bind::ContextState& context, FsResult&& result)
         {
             if (auto* bytes = std::get_if<std::vector<std::uint8_t>>(&result))
-                return js::bind::write(ctx, std::move(*bytes));
+                return js::bind::write(context, std::move(*bytes));
             if (auto* entries = std::get_if<std::vector<Entry>>(&result))
-                return js::bind::writeArray(
-                    ctx, std::move(*entries),
-                    [](JSContext* c, Entry&& entry)
-                    {
-                        js::bind::ObjectBuilder object(c);
-                        object.set("name", js::bind::write(c, entry.name));
-                        object.set("kind", js::bind::write(c, std::string(entry.directory ? "directory" : "file")));
-                        return object.release();
-                    });
+                return js::bind::writeArray(context, std::move(*entries),
+                                            [](js::bind::ContextState& c, Entry&& entry)
+                                            {
+                                                js::bind::ObjectBuilder object(c);
+                                                object.set("name", js::bind::write(c, entry.name));
+                                                object.set("kind",
+                                                           js::bind::write(c, entry.directory ? "directory" : "file"));
+                                                return object.release();
+                                            });
             if (auto* stat = std::get_if<std::optional<Stat>>(&result))
             {
                 if (! stat->has_value())
-                    return JS_NULL;
-                js::bind::ObjectBuilder object(ctx);
-                object.set("kind", js::bind::write(ctx, std::string((*stat)->directory ? "directory" : "file")));
-                object.set("size", JS_NewFloat64(ctx, double((*stat)->size)));
-                object.set("modified", JS_NewFloat64(ctx, (*stat)->modified));
+                    return jsi::Value::null();
+                js::bind::ObjectBuilder object(context);
+                object.set("kind", js::bind::write(context, (*stat)->directory ? "directory" : "file"));
+                object.set("size", jsi::Value(double((*stat)->size)));
+                object.set("modified", jsi::Value((*stat)->modified));
                 return object.release();
             }
-            return JS_UNDEFINED;
+            return jsi::Value::undefined();
         }
 
         double modifiedMs(const fs::path& path)
@@ -584,103 +584,90 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             return std::monostate {};
         }
 
-        JSValue toJs(JSContext* ctx, StorageResult&& result)
+        jsi::Value toJs(js::bind::ContextState& context, StorageResult&& result)
         {
             if (auto* value = std::get_if<std::optional<std::string>>(&result))
-                return value->has_value() ? js::bind::write(ctx, **value) : JS_UNDEFINED;
+                return value->has_value() ? js::bind::write(context, **value) : jsi::Value::undefined();
             if (auto* keys = std::get_if<std::vector<std::string>>(&result))
-                return js::bind::writeArray(ctx, std::move(*keys),
-                                            [](JSContext* c, std::string&& key) { return js::bind::write(c, key); });
-            return JS_UNDEFINED;
+                return js::bind::writeArray(context, std::move(*keys), [](js::bind::ContextState& c, std::string&& key)
+                                            { return js::bind::write(c, key); });
+            return jsi::Value::undefined();
         }
 
         // ── JavaScript entry points ──────────────────────────────────────────
 
-        std::string text(JSContext* ctx, JSValueConst value)
-        {
-            std::size_t length = 0;
-            const char* chars = JS_ToCStringLen(ctx, &length, value);
-            if (chars == nullptr)
-                return {};
-            std::string result(chars, length);
-            JS_FreeCString(ctx, chars);
-            return result;
-        }
+        namespace bind = js::bind;
+        using bind::ContextState;
 
         template <typename Result, typename Work>
-        JSValue startFileOperation(JSContext* ctx, const char* name, Work&& work)
+        jsi::Value startFileOperation(ContextState& context, const char* name, Work&& work)
         {
-            auto* state = stateOf(ctx);
-            if (state == nullptr)
-                return JS_ThrowInternalError(ctx, "the Soundor platform layer is not installed");
+            State& state = requireState(context);
             std::uint64_t id = 0;
-            JSValue promise = state->beginOperation(ctx, name, id);
-            if (JS_IsException(promise))
-                return promise;
-            if (state->services.dataDirectory.empty())
+            jsi::Value promise = state.beginOperation(context, name, id);
+            if (state.services.dataDirectory.empty())
             {
-                state->reject(id, "DOMException:NotAllowedError", "this plugin has no data directory");
+                state.reject(id, "DOMException:NotAllowedError", "this plugin has no data directory");
                 return promise;
             }
-            state->worker().post(
-                [completions = state->completions, id, work = std::forward<Work>(work)]() mutable
+            state.worker().post(
+                [completions = state.completions, id, work = std::forward<Work>(work)]() mutable
                 {
                     Result result = work();
                     completions->post(
-                        [id, result = std::move(result)](State& ui, JSContext*) mutable
+                        [id, result = std::move(result)](State& ui, ContextState&) mutable
                         {
                             if (auto* problem = std::get_if<Failure>(&result))
                                 ui.reject(id, problem->kind, problem->message);
                             else
-                                ui.resolve(id, [&](JSContext* c) { return toJs(c, std::move(result)); });
+                                ui.resolve(id, [&](ContextState& c) { return toJs(c, std::move(result)); });
                         });
                 });
             return promise;
         }
 
         // fsOperation(kind, path, data: Uint8Array | null, recursive: boolean)
-        JSValue fsOperation(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value fsOperation(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 4)
-                return JS_ThrowInternalError(ctx, "fsOperation() misused");
-            const std::string kind = text(ctx, argv[0]);
-            const std::string path = text(ctx, argv[1]);
+            if (count < 4)
+                bind::throwInternalError(context, "fsOperation() misused");
+            const std::string kind = bind::toString(context, args[0]);
+            const std::string path = bind::toString(context, args[1]);
             std::vector<std::uint8_t> data;
-            if (! JS_IsNull(argv[2]))
+            if (! args[2].isNull())
             {
                 std::span<const std::uint8_t> bytes;
-                if (! js::bind::read(ctx, argv[2], js::bind::Path { "soundor:fs" }, bytes))
-                    return JS_EXCEPTION;
+                bind::read(context, args[2], bind::Path { "soundor:fs" }, bytes);
                 data.assign(bytes.begin(), bytes.end());
             }
-            const bool recursive = JS_ToBool(ctx, argv[3]) != 0;
+            const bool recursive = bind::toBoolean(context, args[3]);
             std::string problem;
             const auto relative = normalizeRelative(path, problem);
             if (! relative)
-                return JS_ThrowTypeError(ctx, "Invalid path '%s': %s", path.c_str(), problem.c_str());
+                bind::throwTypeError(context, "Invalid path '" + path + "': " + problem);
 
-            auto* state = stateOf(ctx);
+            auto* state = stateOf(context);
             const fs::path root = state != nullptr && ! state->services.dataDirectory.empty()
                                       ? state->services.dataDirectory / "files"
                                       : fs::path();
-            return startFileOperation<FsResult>(ctx, "soundor:fs",
+            return startFileOperation<FsResult>(context, "soundor:fs",
                                                 [kind, root, relative = *relative, data = std::move(data), recursive]
                                                 { return runFsOperation(kind, root, relative, data, recursive); });
         }
 
         // storageOperation(kind, key, value)
-        JSValue storageOperation(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
+        jsi::Value storageOperation(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            if (argc < 3)
-                return JS_ThrowInternalError(ctx, "storageOperation() misused");
-            auto* state = stateOf(ctx);
+            if (count < 3)
+                bind::throwInternalError(context, "storageOperation() misused");
+            auto* state = stateOf(context);
             const fs::path file = state != nullptr && ! state->services.dataDirectory.empty()
                                       ? state->services.dataDirectory / "storage.json"
                                       : fs::path();
             return startFileOperation<StorageResult>(
-                ctx, "soundor:storage",
-                [kind = text(ctx, argv[0]), file, key = text(ctx, argv[1]), value = text(ctx, argv[2])]
-                { return runStorageOperation(kind, file, key, value); });
+                context, "soundor:storage",
+                [kind = bind::toString(context, args[0]), file, key = bind::toString(context, args[1]),
+                 value = bind::toString(context, args[2])] { return runStorageOperation(kind, file, key, value); });
         }
     } // namespace
 

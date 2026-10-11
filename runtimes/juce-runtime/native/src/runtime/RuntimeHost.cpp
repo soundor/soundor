@@ -89,6 +89,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             last = now;
         };
         ++ticked.ticks;
+        // One time limit over the whole tick, armed once.
+        const js::TimeLimitScope limit(*jsContext);
         web::tick(*jsContext);
         lap(ticked.web);
         if (hasParameters)
@@ -114,6 +116,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     bool RuntimeHost::performAccessibilityAction(const a11y::ActionRequest& request)
     {
+        const js::TimeLimitScope limit(*jsContext);
         const bool handled = semantics->perform(request);
         jsRuntime->runPendingJobs();
         return handled;

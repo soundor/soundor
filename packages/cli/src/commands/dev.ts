@@ -52,7 +52,9 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   await mkdir(dirname(logFile), { recursive: true });
   await writeFile(logFile, '');
 
+  // The native runtime's frames name /bundle.js, the Web's bundle.mjs.
   let sourceMap: SourceMap | undefined;
+  let moduleMap: SourceMap | undefined;
   let sourceMapLoaded = Promise.resolve();
   let built = false;
   const watcher = watchUi({
@@ -66,17 +68,18 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
           : `Bundled the UI -> ${bundle.dir}`,
       );
       built = true;
-      sourceMapLoaded = SourceMap.load(
-        resolve(bundle.dir, 'bundle.js.map'),
-        root,
-      ).then(
-        (map) => {
-          sourceMap = map;
-        },
-        () => {
-          sourceMap = undefined;
-        },
-      );
+      const load = (file: string): Promise<SourceMap | undefined> =>
+        SourceMap.load(resolve(bundle.dir, file), root).then(
+          (map) => map,
+          () => undefined,
+        );
+      sourceMapLoaded = Promise.all([
+        load('bundle.js.map'),
+        load('bundle.mjs.map'),
+      ]).then(([native, module]) => {
+        sourceMap = native;
+        moduleMap = module;
+      });
     },
     onError(error) {
       logger.error(
@@ -91,10 +94,10 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
 
   const uiLogger = logger.child('ui');
   const tail = await tailLog(logFile, (entry) => {
-    const message =
-      sourceMap === undefined
-        ? entry.message
-        : rewriteLocations(entry.message, sourceMap);
+    let message = entry.message;
+    if (sourceMap !== undefined) message = rewriteLocations(message, sourceMap);
+    if (moduleMap !== undefined)
+      message = rewriteLocations(message, moduleMap, 'bundle.mjs');
     uiLogger[entry.level](`${entry.source}: ${message}`);
   });
 
@@ -116,6 +119,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       ui: watcher && {
         dir: uiDir,
         entry: 'bundle.js',
+        module: 'bundle.mjs',
         live: { logFile },
       },
     });

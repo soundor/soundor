@@ -91,12 +91,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     struct NativeFunction
     {
         const char* name;
-        JSCFunction* call;
-        int length;
+        js::bind::NativeFunction call;
+        unsigned length;
     };
 
-    // The surface `soundor:ui` is installed on in `ctx`.
-    [[nodiscard]] Surface& surfaceOf(JSContext* ctx);
+    // The surface `soundor:ui` is installed on in `context`.
+    [[nodiscard]] Surface& surfaceOf(js::bind::ContextState& context);
 
     // The canvas functions of `soundor:internal/ui`.
     [[nodiscard]] std::span<const NativeFunction> canvasFunctions();

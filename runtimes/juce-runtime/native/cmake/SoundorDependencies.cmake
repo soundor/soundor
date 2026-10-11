@@ -5,11 +5,12 @@
 # these by hand, and nothing here floats on a branch.
 #
 # To build offline, point FetchContent at a local checkout of the same revision:
-#   -DFETCHCONTENT_SOURCE_DIR_SOUNDOR_QUICKJS=/path/to/quickjs
+#   -DFETCHCONTENT_SOURCE_DIR_SOUNDOR_YOGA=/path/to/yoga
 #
 # | Dependency | Version | License | Used for                    |
 # | ---------- | ------- | ------- | --------------------------- |
-# | QuickJS-NG | v0.17.0 | MIT     | JavaScript engine (shipped) |
+# | Hermes     | main@602befe | MIT | JavaScript engine (shipped: the interpreter; hermesc is a build tool; built from source, see SoundorHermes.cmake) |
+# | QuickJS-NG | v0.17.0 | MIT     | Unicode tables for Hermes on Linux (shipped: libunicode only) |
 # | ada        | v3.4.4  | MIT/Apache-2.0 | WHATWG URL parser (shipped) |
 # | Yoga       | v3.2.1  | MIT     | flexbox layout (shipped)    |
 # | Skia       | m144    | BSD-3-Clause | 2D rendering (shipped; built from source, see SoundorSkia.cmake) |
@@ -22,6 +23,14 @@ include_guard(GLOBAL)
 
 include(FetchContent)
 
+# Hermes's main branch (it publishes no tags of the engine alone): the
+# revision the JavaScript-engine comparison measured. GitHub's archive of it.
+set(SOUNDOR_HERMES_VERSION "main@602befe")
+set(SOUNDOR_HERMES_REVISION "602befee340da188ea1560cde7a9cc33e6b180dc")
+set(SOUNDOR_HERMES_SHA256 "6c615757374850ccb99991c4536aaf86ac0973661b1ae18aac45d2ca85143153")
+
+# Only its Unicode tables (libunicode.c): Hermes's case mapping and
+# normalization on Linux, where Hermes would otherwise need the system's ICU.
 set(SOUNDOR_QUICKJS_VERSION "0.17.0")
 set(SOUNDOR_QUICKJS_REVISION "6d46d07d04041b40f4f49eaa7fdebe44c314c699")
 set(SOUNDOR_QUICKJS_SHA256 "a62cf1ff7d6d2f82b90a2d247a57e9eb56b81c03feb1f372a53923426e358cb0")
