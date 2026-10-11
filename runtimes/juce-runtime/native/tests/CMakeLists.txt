@@ -26,6 +26,7 @@ add_executable(soundor_runtime_tests
   runtime/DevSessionTests.cpp
   runtime/ResourcesTests.cpp
   runtime/StatisticsTests.cpp
+  runtime/BytecodeTests.cpp
   ui/SurfaceTests.cpp
   ui/PrimitivesTests.cpp
   ui/RendererTests.cpp
@@ -47,6 +48,12 @@ soundor_configure_target(soundor_runtime_tests)
 set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)
 
 soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+# The same, with its modules compiled to bytecode (where the build can).
+soundor_embed_ui(soundor_runtime_tests fixtureUiCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+soundor_precompiles_js(soundor_tests_precompile)
+if(soundor_tests_precompile)
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
+endif()
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 if(SOUNDOR_HAS_GPU)

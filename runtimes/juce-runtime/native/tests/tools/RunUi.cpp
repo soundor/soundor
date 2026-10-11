@@ -4,7 +4,11 @@
 //
 //   soundor_run_ui <ui directory> [--size 800x600] [--scale 1] [--seconds N]
 //                  [--eval <expression>] [--backend <name>] [--software]
-//                  [--json <file>] [--time-native-calls]
+//                  [--json <file>] [--time-native-calls] [--bytecode]
+//
+// It reports startup first: how long creating the host took (installing the
+// runtime's modules, running the UI's entry module) and what the engine
+// holds after it.
 //
 // <ui directory> is a built bundle (.soundor/ui/production after
 // `soundor build web`). With --eval, the expression is evaluated once the UI
@@ -26,7 +30,9 @@
 // steps of tick(), native calls per API, style changes, layout passes,
 // invalidations and engine allocations. --time-native-calls also times the
 // native calls (a clock read per call). --json writes the report (device,
-// value, totals, phases) to a file.
+// value, totals, phases) to a file. --bytecode reads the modules' bytecode
+// (bundle.js.qjsbc, from soundor_compile_js) as a plugin reads its embedded
+// bundle; only for bytecode this build just compiled.
 
 #include "gpu/Device.h"
 #include "gpu/OffscreenCompositor.h"
@@ -58,9 +64,27 @@ namespace
     int usage()
     {
         std::cerr << "usage: soundor_run_ui <ui directory> [--size WxH] [--scale S] [--seconds N] [--eval EXPR] "
-                     "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE] [--time-native-calls]\n";
+                     "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE] [--time-native-calls] "
+                     "[--bytecode]\n";
         return 2;
     }
+
+    // A UI directory whose bytecode is trusted (--bytecode): the benchmark
+    // compiled it with this build's soundor_compile_js.
+    class CompiledDirectory final : public platform::Resources
+    {
+    public:
+        explicit CompiledDirectory(const std::string& directory) : files(directory) {}
+
+        [[nodiscard]] std::optional<std::span<const std::uint8_t>> find(std::string_view path) const override
+        {
+            return files.find(path);
+        }
+        [[nodiscard]] bool builtIn() const noexcept override { return true; }
+
+    private:
+        platform::DirectoryResources files;
+    };
 
     double milliseconds(Clock::time_point from, Clock::time_point to)
     {
@@ -341,10 +365,11 @@ int main(int argc, char** argv)
     bool software = false;
     std::string jsonPath;
     bool timeNativeCalls = false;
+    bool bytecode = false;
     for (int i = 2; i < argc; ++i)
     {
         const std::string_view flag = argv[i];
-        const bool takesValue = flag != "--software" && flag != "--time-native-calls";
+        const bool takesValue = flag != "--software" && flag != "--time-native-calls" && flag != "--bytecode";
         if (takesValue && i + 1 >= argc)
             return usage();
         const auto value = [&] { return std::string(argv[++i]); };
@@ -375,6 +400,8 @@ int main(int argc, char** argv)
             jsonPath = value();
         else if (flag == "--time-native-calls")
             timeNativeCalls = true;
+        else if (flag == "--bytecode")
+            bytecode = true;
         else
             return usage();
     }
@@ -406,13 +433,23 @@ int main(int argc, char** argv)
     std::cerr << "device: " << gpu::name(device->info().backend) << ", " << device->info().renderer << "\n";
 
     RuntimeHost::Options options;
-    options.resources = std::make_shared<platform::DirectoryResources>(directory);
+    if (bytecode)
+        options.resources = std::make_shared<CompiledDirectory>(directory);
+    else
+        options.resources = std::make_shared<platform::DirectoryResources>(directory);
     options.entry = "/bundle.js";
     options.gpuDevice = device;
     options.allowSoftwareGpu = software;
     options.runtime.timeNativeCalls = timeNativeCalls;
     options.runtime.log = [](js::LogLevel, std::string_view message) { std::cerr << message << "\n"; };
+    // Startup: creating the host installs the runtime's modules and runs the
+    // UI's entry module; then what the engine holds (a heap walk, once).
+    const auto creating = Clock::now();
     RuntimeHost host(std::move(options));
+    const double startupMs = milliseconds(creating, Clock::now());
+    const js::MemoryUsage startupMemory = host.runtime().memoryUsage();
+    std::cerr << "startup: " << number(startupMs) << " ms, engine heap " << startupMemory.allocatedBytes / 1024
+              << " KB in " << startupMemory.objectCount << " objects\n";
     host.surface().setSize({ width, height });
     host.surface().setScale(scale);
     gpu::OffscreenCompositor compositor(device, 0xFF000000);
@@ -553,6 +590,11 @@ int main(int argc, char** argv)
                   + ", \"software\": " + (info.software ? "true" : "false") + " },\n";
         report += "  \"size\": [" + number(width) + ", " + number(height) + "], \"scale\": " + number(scale) + ",\n";
         report += "  \"outcome\": " + jsonString(outcome) + ",\n";
+        report += "  "
+                  + field("startup", "{ " + field("ms", number(startupMs)) + ", "
+                                         + field("heapBytes", std::to_string(startupMemory.allocatedBytes)) + ", "
+                                         + field("objects", std::to_string(startupMemory.objectCount)) + " }")
+                  + ",\n";
         report += "  \"total\": " + json(all) + ",\n";
         report += "  \"phases\": [";
         for (std::size_t i = 0; i < phases.size(); ++i)

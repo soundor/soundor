@@ -1,4 +1,7 @@
-# cmake -DDIRECTORY=<dir> -DOUTPUT=<cpp> -DFUNCTION=<name> -P SoundorEmbedDirectory.cmake
+# cmake -DDIRECTORY=<dir> -DOUTPUT=<cpp> -DFUNCTION=<name> [-DCOMPILED=<dir>] -P SoundorEmbedDirectory.cmake
+#
+# With COMPILED (soundor_embed_ui()), a file that has a compiled counterpart
+# there, <COMPILED>/<file>.qjsbc, is embedded as that instead of itself.
 
 file(GLOB_RECURSE files LIST_DIRECTORIES false RELATIVE "${DIRECTORY}" "${DIRECTORY}/*")
 list(SORT files)
@@ -7,7 +10,12 @@ set(arrays "")
 set(entries "")
 set(index 0)
 foreach(file IN LISTS files)
-  file(READ "${DIRECTORY}/${file}" hex HEX)
+  set(path "${DIRECTORY}/${file}")
+  if(DEFINED COMPILED AND NOT COMPILED STREQUAL "" AND EXISTS "${COMPILED}/${file}.qjsbc")
+    set(path "${COMPILED}/${file}.qjsbc")
+    set(file "${file}.qjsbc")
+  endif()
+  file(READ "${path}" hex HEX)
   string(LENGTH "${hex}" length)
   math(EXPR size "${length} / 2")
   if(size EQUAL 0)

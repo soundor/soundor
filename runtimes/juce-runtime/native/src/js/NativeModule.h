@@ -8,8 +8,10 @@
 
 #include <quickjs.h>
 
+#include <cstdint>
 #include <functional>
 #include <map>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,13 +25,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         // A module provided by the runtime. Either implemented in C++ — its
         // export names declared up front (ES modules are statically linked)
         // and filled in by `initialize`, which returns false after throwing —
-        // or, when `source` is set, written in JavaScript embedded in the
-        // runtime.
+        // or written in JavaScript embedded in the runtime: its `bytecode`
+        // when the build compiled it (soundor_compile_js), else its `source`.
         struct NativeModule
         {
             std::vector<std::string> exports;
             std::function<bool(JSContext*, JSModuleDef*)> initialize;
             std::string_view source;
+            std::span<const std::uint8_t> bytecode;
         };
 
         class NativeModuleRegistry

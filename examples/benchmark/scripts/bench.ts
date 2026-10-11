@@ -9,6 +9,11 @@
 //              [--backend vulkan|opengl|metal|d3d11] [--software]
 //              [--save <name>] [--against <name>] [--baseline <report.json>]
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
+//              [--source]
+//
+// The bundle runs as a built plugin runs it: compiled to QuickJS bytecode
+// (soundor_compile_js, from the same build); --source runs its JavaScript
+// source instead.
 //
 // Comparing: --save keeps this build (soundor_run_ui and the UI bundle) under
 // .soundor/bench/builds/<name>; --against runs a saved build and this one
@@ -53,6 +58,7 @@ const { values: options } = parseArgs({
     check: { type: 'boolean', default: false },
     out: { type: 'string' },
     'no-build': { type: 'boolean', default: false },
+    source: { type: 'boolean', default: false },
   },
 });
 
@@ -110,6 +116,8 @@ interface ScenarioResult {
   triangles: number;
 }
 interface RunReport {
+  /** Creating the host (its modules, the UI's entry) and the heap after. */
+  startup?: { ms: number; heapBytes: number; objects: number };
   device: {
     backend: string;
     renderer: string;
@@ -193,6 +201,25 @@ interface Report {
   against?: { name: string; build: BuildInfo; summary: Summary };
 }
 
+/**
+ * Startup, measured once a run: its time, and the engine's heap after it
+ * (deterministic for a build, so compared as a count).
+ */
+const STARTUP = {
+  startupMs: { label: 'startup ms', timing: true },
+  heapKB: { label: 'engine heap KB', timing: false },
+} as const;
+type StartupMeasure = keyof typeof STARTUP;
+
+function startupOf(reports: RunReport[]): Record<StartupMeasure, Statistic> {
+  return {
+    startupMs: statistic(reports.map((report) => report.startup!.ms)),
+    heapKB: statistic(
+      reports.map((report) => report.startup!.heapBytes / 1024),
+    ),
+  };
+}
+
 /** A build of soundor_run_ui and the UI bundle, and where it came from. */
 interface Build {
   runner: string;
@@ -219,6 +246,22 @@ function run(command: string, args: string[], cwd: string): void {
 function git(...args: string[]): string {
   const result = spawnSync('git', args, { cwd: example, encoding: 'utf8' });
   return result.status === 0 ? result.stdout.trim() : '';
+}
+
+/** soundor_compile_js from the bench preset's build. */
+function findCompiler(): string {
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  const candidates = [
+    path.join(native, 'build/bench', `soundor_compile_js${exe}`),
+    path.join(native, 'build/bench/Release', `soundor_compile_js${exe}`),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) {
+    throw new Error(
+      `soundor_compile_js not found; build it with \`cmake --workflow --preset bench\` in ${native}`,
+    );
+  }
+  return found;
 }
 
 function findRunner(): string {
@@ -286,6 +329,9 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
   } satisfies Record<Measure, number>;
 }
 
+/** The pseudo-scenario startup is summarized under. */
+const STARTUP_KEY = '(startup)';
+
 function summarize(reports: RunReport[]): Summary {
   const scenarios = reports[0]!.phases.map((phase) => phase.name);
   const summary: Summary = {};
@@ -305,7 +351,27 @@ function summarize(reports: RunReport[]): Summary {
       ]),
     ) as Record<Measure, Statistic>;
   }
+  // Builds from before startup was measured do not report it.
+  if (reports.every((report) => report.startup !== undefined)) {
+    summary[STARTUP_KEY] = startupOf(reports) as unknown as Record<
+      Measure,
+      Statistic
+    >;
+  }
   return summary;
+}
+
+/** The measures a row of the summary has: startup's, or a scenario's. */
+function measuresOf(scenario: string) {
+  return scenario === STARTUP_KEY
+    ? (STARTUP as unknown as Record<
+        string,
+        { label: string; timing: boolean; compare?: boolean }
+      >)
+    : (MEASURES as Record<
+        string,
+        { label: string; timing: boolean; compare: boolean }
+      >);
 }
 
 function format(value: number): string {
@@ -348,6 +414,7 @@ function printSummary(summary: Summary): void {
       ['scenario', ...shown.map((measure) => MEASURES[measure].label)],
     ];
     for (const [scenario, values] of Object.entries(summary)) {
+      if (scenario === STARTUP_KEY) continue;
       rows.push([
         scenario,
         ...shown.map((measure) => {
@@ -359,6 +426,14 @@ function printSummary(summary: Summary): void {
       ]);
     }
     console.log(`\n${title}:\n${table(rows)}`);
+  }
+  const startup = summary[STARTUP_KEY] as unknown as
+    | Record<StartupMeasure, Statistic>
+    | undefined;
+  if (startup) {
+    console.log(
+      `\nStartup: ${format(startup.startupMs.median)} ms ±${startup.startupMs.spread.toFixed(0)}%, engine heap ${format(startup.heapKB.median)} KB`,
+    );
   }
 }
 
@@ -374,8 +449,9 @@ function compare(
   for (const [scenario, values] of Object.entries(now)) {
     const previous = before[scenario];
     if (!previous) continue;
-    for (const measure of Object.keys(MEASURES) as Measure[]) {
-      if (!MEASURES[measure].compare) continue;
+    const known = measuresOf(scenario);
+    for (const measure of Object.keys(known) as Measure[]) {
+      if (known[measure]!.compare === false) continue;
       const after = values[measure];
       const then = previous[measure];
       if (then === undefined) continue;
@@ -391,7 +467,7 @@ function compare(
       // the threshold (1% for counts, which do not depend on timing); work
       // that appears from nothing always counts.
       const noise = Math.max(
-        MEASURES[measure].timing ? threshold : 1,
+        known[measure]!.timing ? threshold : 1,
         after.spread + then.spread,
       );
       const significant = Math.abs(change) > noise;
@@ -399,7 +475,7 @@ function compare(
       if (significant && worse) regressed = true;
       rows.push([
         scenario,
-        MEASURES[measure].label,
+        known[measure]!.label,
         format(then.median),
         format(after.median),
         Number.isFinite(change)
@@ -449,6 +525,10 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
   ];
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
+  // A build whose bundle was compiled runs it as bytecode (builds from
+  // before bytecode have none, and a runner without the flag).
+  if (existsSync(path.join(build.ui, 'bundle.js.qjsbc')))
+    args.push('--bytecode');
   const result = spawnSync(build.runner, args, { encoding: 'utf8' });
   if (result.status !== 0 || !existsSync(file)) {
     console.error(result.stderr.split('\n').slice(-20).join('\n'));
@@ -474,9 +554,19 @@ if (!options['no-build']) {
   run('pnpm', ['exec', 'soundor', 'build', 'web'], example);
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
+const ui = path.join(example, '.soundor/ui/production');
+const compiled = path.join(ui, 'bundle.js.qjsbc');
+rmSync(compiled, { force: true });
+if (!options.source) {
+  run(
+    findCompiler(),
+    [path.join(ui, 'bundle.js'), compiled, '/bundle.js'],
+    example,
+  );
+}
 const current: Build = {
   runner: findRunner(),
-  ui: path.join(example, '.soundor/ui/production'),
+  ui,
   info: {
     commit: git('rev-parse', '--short', 'HEAD'),
     dirty: git('status', '--porcelain').length > 0,

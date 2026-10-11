@@ -36,6 +36,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
             JS_FreeValue(ctx, meta);
             return ok;
         }
+        // Links and evaluates a compiled module (consumes `compiled`), with
+        // import.meta.url set.
+        Result<void> runModule(detail::ContextState& state, JSValue compiled, const std::string& moduleName)
+        {
+            auto& runtime = *state.runtime;
+            JSContext* ctx = state.ctx;
+            if (! setImportMeta(ctx, compiled, moduleName))
+            {
+                JS_FreeValue(ctx, compiled);
+                return detail::takeException(ctx);
+            }
+
+            // Links and evaluates; consumes `compiled`. Yields the module's
+            // evaluation promise (modules may use top-level await).
+            JSValue promise = JS_EvalFunction(ctx, compiled);
+            if (JS_IsException(promise))
+                return detail::takeException(ctx);
+
+            runtime.drainJobs();
+
+            Result<void> outcome;
+            if (JS_IsPromise(promise) && JS_PromiseState(ctx, promise) == JS_PROMISE_REJECTED)
+            {
+                // Reported here as the result, so not again as an unhandled rejection.
+                runtime.forgetRejection(promise);
+                JSValue reason = JS_PromiseResult(ctx, promise);
+                outcome = detail::toError(ctx, reason);
+                JS_FreeValue(ctx, reason);
+            }
+            JS_FreeValue(ctx, promise);
+            runtime.reportUnhandledRejections();
+            return outcome;
+        }
     } // namespace
 
     detail::ContextState& stateOf(Context& context)
@@ -100,8 +133,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
     Result<void> Context::evaluateModule(std::string_view source, std::string_view name)
     {
-        auto& runtime = *state->runtime;
-        runtime.enter();
+        state->runtime->enter();
         JSContext* ctx = state->ctx;
         const std::string code(source);
         const std::string moduleName(name);
@@ -110,32 +142,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                                    JS_EVAL_TYPE_MODULE | JS_EVAL_FLAG_COMPILE_ONLY);
         if (JS_IsException(compiled))
             return detail::takeException(ctx);
-        if (! setImportMeta(ctx, compiled, moduleName))
-        {
-            JS_FreeValue(ctx, compiled);
-            return detail::takeException(ctx);
-        }
-
-        // Links and evaluates; consumes `compiled`. Yields the module's
-        // evaluation promise (modules may use top-level await).
-        JSValue promise = JS_EvalFunction(ctx, compiled);
-        if (JS_IsException(promise))
-            return detail::takeException(ctx);
-
-        runtime.drainJobs();
-
-        Result<void> outcome;
-        if (JS_IsPromise(promise) && JS_PromiseState(ctx, promise) == JS_PROMISE_REJECTED)
-        {
-            // Reported here as the result, so not again as an unhandled rejection.
-            runtime.forgetRejection(promise);
-            JSValue reason = JS_PromiseResult(ctx, promise);
-            outcome = detail::toError(ctx, reason);
-            JS_FreeValue(ctx, reason);
-        }
-        JS_FreeValue(ctx, promise);
-        runtime.reportUnhandledRejections();
-        return outcome;
+        return runModule(*state, compiled, moduleName);
     }
 
     Result<void> Context::importModule(std::string_view name)
@@ -145,6 +152,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
             return Error { "TypeError",
                            "Cannot import '" + std::string(name) + "': no module loader is installed",
                            {} };
+        // Bytecode the plugin's build compiled, when there is some.
+        if (const auto bytecode = state->moduleLoader->loadBytecode(name))
+        {
+            state->runtime->enter();
+            const std::string moduleName(name);
+            JSValue compiled = detail::readModule(state->ctx, *bytecode, moduleName.c_str());
+            if (JS_IsException(compiled))
+                return detail::takeException(state->ctx);
+            return runModule(*state, compiled, moduleName);
+        }
         auto source = state->moduleLoader->load(name);
         if (! source)
             return source.error();

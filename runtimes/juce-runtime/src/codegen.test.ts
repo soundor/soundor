@@ -269,7 +269,7 @@ describe('generateJuceSources', () => {
     const setup = fileMap(config).get('setup.cmake')!;
     expect(setup).toContain('if(SOUNDOR_UI_DIR)');
     expect(setup).toContain(
-      'soundor_embed_directory(soundor_generated pluginUi "${SOUNDOR_UI_DIR}")',
+      'soundor_embed_ui(soundor_generated pluginUi "${SOUNDOR_UI_DIR}")',
     );
     expect(setup).toContain('if(SOUNDOR_UI_DEV_DIR)');
     expect(setup).toContain('SOUNDOR_UI_DEV_DIR_HEX=');

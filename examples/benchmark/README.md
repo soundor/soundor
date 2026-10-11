@@ -110,6 +110,11 @@ bottleneck. With Mesa's Venus (Vulkan in a virtio-gpu VM) on an NVIDIA host,
 uploading a 640×360 canvas took about 38 ms (0.2 ms through virgl's OpenGL
 and on lavapipe), which hides everything else: use `--backend opengl` there.
 
+The bundle runs as a built plugin runs it: compiled to QuickJS bytecode by the
+same build's `soundor_compile_js`. `--source` runs its JavaScript source
+instead, as `soundor dev` does. Each run also reports startup: how long the
+runtime took to start and run the bundle, and the engine's heap after it.
+
 Under the hood, `soundor_run_ui` runs a bundle on the GPU like the editor
 would, and times its frames, per scenario (the driver names each measured
 scenario in `globalThis.soundorRunUiPhase`):

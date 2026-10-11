@@ -79,6 +79,13 @@ as long as the view is open: a QuickJS runtime on the message thread, ticked at
 60 Hz to deliver parameter changes and run pending jobs. Nothing JavaScript ever
 runs on the audio thread.
 
+A built plugin (`soundor build`) embeds its UI bundle compiled to QuickJS
+bytecode: it starts faster and the engine holds less (for the benchmark example,
+10 ms instead of 46 ms and 3.2 MB instead of 4.7 MB). The bytecode keeps line
+numbers, so stack traces point at lines, but not source text: a function's
+`toString()` cannot return its code. `soundor dev` runs the bundle from source.
+See [`native/README.md`](./native/README.md#bytecode).
+
 ### `soundor:parameters`
 
 Every config parameter, backed directly by the processor's

@@ -3,7 +3,10 @@
 #include <soundor/Config.h>
 #include <soundor/js/Error.h>
 
+#include <cstdint>
 #include <map>
+#include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -30,6 +33,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 
         // Returns the JavaScript source of the module with canonical `name`.
         [[nodiscard]] virtual Result<std::string> load(std::string_view name) = 0;
+        // The module's bytecode, precompiled by the plugin's own build
+        // (soundor_compile_js), when there is some: it is read instead of
+        // the source. Only for bytecode from that build: the engine does not
+        // defend against hostile bytecode. The bytes stay valid as long as
+        // the loader. Default: none.
+        [[nodiscard]] virtual std::optional<std::span<const std::uint8_t>> loadBytecode(std::string_view name)
+        {
+            (void)name;
+            return std::nullopt;
+        }
     };
 
     // A ModuleLoader over an in-memory set of named sources — the shape of a

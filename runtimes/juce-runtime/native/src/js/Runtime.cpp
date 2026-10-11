@@ -1,3 +1,4 @@
+#include "Bytecode.h"
 #include "Internal.h"
 
 #include <algorithm>
@@ -103,6 +104,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 }
             }
 
+            // The module record of a module read from bytecode, or nullptr.
+            JSModuleDef* readModuleDefinition(JSContext* ctx, std::span<const std::uint8_t> compiled, const char* name)
+            {
+                JSValue module = readModule(ctx, compiled, name);
+                if (JS_IsException(module))
+                    return nullptr;
+                auto* definition = static_cast<JSModuleDef*>(JS_VALUE_GET_PTR(module));
+                JS_FreeValue(ctx, module);
+                return definition;
+            }
+
             JSModuleDef* loadNativeModule(JSContext* ctx, ContextState& state, const char* name)
             {
                 const NativeModule* definition = state.nativeModules.find(name);
@@ -111,6 +123,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                     JS_ThrowTypeError(ctx, "Unknown Soundor module '%s'", name);
                     return nullptr;
                 }
+                if (! definition->bytecode.empty())
+                    return readModuleDefinition(ctx, definition->bytecode, name);
                 if (! definition->source.empty())
                 {
                     JSValue compiled = JS_Eval(ctx, definition->source.data(), definition->source.size(), name,
@@ -148,6 +162,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                         JS_ThrowTypeError(ctx, "Cannot load module '%s': no module loader is installed", name);
                         return nullptr;
                     }
+                    if (const auto bytecode = state->moduleLoader->loadBytecode(name))
+                        return readModuleDefinition(ctx, *bytecode, name);
                     auto source = state->moduleLoader->load(name);
                     if (! source)
                     {
@@ -398,6 +414,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         {
             if (logSink)
                 logSink(level, message);
+        }
+        JSValue readModule(JSContext* ctx, std::span<const std::uint8_t> compiled, const char* name)
+        {
+            const std::span<const std::uint8_t> bytecode = bytecodeBody(compiled);
+            if (bytecode.empty())
+                return JS_ThrowInternalError(ctx, "module '%s' was compiled for another QuickJS: rebuild the plugin",
+                                             name);
+            JSValue module = JS_ReadObject(ctx, bytecode.data(), bytecode.size(), JS_READ_OBJ_BYTECODE);
+            if (JS_IsException(module))
+                return module;
+            if (JS_VALUE_GET_TAG(module) != JS_TAG_MODULE)
+            {
+                JS_FreeValue(ctx, module);
+                return JS_ThrowInternalError(ctx, "the bytecode of '%s' is not a module", name);
+            }
+            return module;
         }
     } // namespace detail
 

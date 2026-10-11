@@ -98,6 +98,32 @@ Soundor resolves every import; the engine never touches the filesystem.
 Native modules use a private registration API (`src/js/NativeModule.h`), and
 generated bindings are written against the helpers in `src/js/Bindings.h`.
 
+### Bytecode
+
+JavaScript is compiled to QuickJS bytecode while building, by
+`soundor_compile_js` (`src/js/CompileJs.cpp`, built from the same pinned
+QuickJS): the runtime's own modules (`soundor_embed_module()`) and a plugin's
+UI bundle (`soundor_embed_ui()`, used by the generated plugin project). The
+engine then reads bytecode instead of compiling source. For the benchmark's
+bundle and the runtime's modules, that took startup from about 46 ms to 10 ms
+and the engine's heap after it from 4.7 MB to 3.2 MB per plugin view.
+
+- **Without source text:** the bytecode keeps line numbers, so stack traces
+  point at lines as before, but not the source: QuickJS otherwise keeps every
+  function's text in the heap for `Function.prototype.toString()`, which then
+  cannot return it. The bundle's bytecode is about 15% larger than its
+  minified source; the runtime's modules, not minified, are 24% smaller.
+- **Only from the build:** QuickJS reads bytecode without defending against a
+  hostile writer, so only bytecode compiled into the binary is read
+  (`Resources::builtIn()`): a UI in a directory (`soundor dev`) is always
+  read as source. Bytecode starts with a header naming the QuickJS revision
+  (`src/js/Bytecode.h`); another revision's is refused with an error.
+- **Where the build cannot run the compiler** (cross-compiling), or with
+  `-DSOUNDOR_PRECOMPILE_JS=OFF`, source is embedded instead, and read as before.
+- **Loaders:** `ModuleLoader::loadBytecode()` (none by default) offers a
+  module's bytecode; `ResourceModuleLoader` finds `bundle.js.qjsbc` next to
+  `bundle.js` in built-in resources.
+
 ### `soundor:native`
 
 The JUCE runtime's `gen` turns the config's `native` API into a C++ interface
@@ -704,8 +730,8 @@ has its own `ui::Surface` (`surface()`). The editor sizes it every frame and
 forwards mouse, wheel and keyboard input to it, then runs pending jobs.
 
 `RuntimeHost` also loads the plugin's UI. Given `platform::Resources` (the UI
-bundle compiled in with `soundor_embed_directory()`, or a directory in
-development) and an entry such as `/bundle.js`, it evaluates the entry after
+bundle compiled in with `soundor_embed_ui()`, as bytecode where the build can
+compile it, or a directory in development) and an entry such as `/bundle.js`, it evaluates the entry after
 installing the modules. A failing entry is logged and leaves the host usable.
 `RuntimeHost::asset(id)` returns the bytes of a bundled image.
 `RuntimeHost::frame()` renders the view for a compositor (see "Rendering").
