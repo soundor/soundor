@@ -441,12 +441,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.nodeStyle == style)
             return;
         const Style before = std::exchange(node.nodeStyle, style);
-        const Style presented = node.visualStyle;
-        node.visualStyle = style;
-        if ((node.presentationMask & propertyBit(AnimatedProperty::Opacity)) != 0)
-            node.visualStyle.opacity = presented.opacity;
-        if ((node.presentationMask & ~propertyBit(AnimatedProperty::Opacity)) != 0)
-            node.visualStyle.transform = presented.transform;
+        if (node.presentationMask != 0)
+        {
+            const float opacity = node.visualStyle.opacity;
+            const Presentation transform = node.visualStyle.transform;
+            node.visualStyle = style;
+            if ((node.presentationMask & propertyBit(AnimatedProperty::Opacity)) != 0)
+                node.visualStyle.opacity = opacity;
+            if ((node.presentationMask & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+                node.visualStyle.transform = transform;
+        }
         // Only what decides sizes and positions goes to Yoga; a change that
         // only looks different (a color, opacity) is drawn, not laid out.
         const Style layoutBefore = layoutPart(before);
@@ -729,8 +733,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     Presentation Surface::presentation(NodeId id)
     {
         const Node& node = get(id);
-        Presentation result = node.visualStyle.transform;
-        result[AnimatedProperty::Opacity] = node.visualStyle.opacity;
+        const Style& style = node.presentedStyle();
+        Presentation result = style.transform;
+        result[AnimatedProperty::Opacity] = style.opacity;
         return result;
     }
 
@@ -738,6 +743,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         Node& node = get(id);
         const Presentation before = presentation(id);
+        if (node.presentationMask == 0)
+            node.visualStyle = node.nodeStyle;
         if ((properties & propertyBit(AnimatedProperty::Opacity)) != 0)
             node.visualStyle.opacity = std::clamp(value[AnimatedProperty::Opacity], 0.0f, 1.0f);
         if ((properties & ~propertyBit(AnimatedProperty::Opacity)) != 0)
@@ -781,7 +788,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             parent = parent * render::Transform::translate(-node.parentNode->scroll.x, -node.parentNode->scroll.y);
         }
         return parent * render::Transform::translate(frame.x, frame.y)
-               * node.visualStyle.transform.transform(frame.width, frame.height);
+               * node.presentedStyle().transform.transform(frame.width, frame.height);
     }
 
     Point Surface::localPoint(NodeId id, Point point)
@@ -863,7 +870,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (style.display == Display::None || style.pointerEvents == PointerEvents::None)
             return noNode;
         const Rect frame = node.frame();
-        const auto inverse = node.visualStyle.transform.transform(frame.width, frame.height).inverse();
+        const auto inverse = node.presentedStyle().transform.transform(frame.width, frame.height).inverse();
         if (! inverse)
             return noNode;
         const auto at = inverse->map(point.x - origin.x - frame.x, point.y - origin.y - frame.y);

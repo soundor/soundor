@@ -572,6 +572,17 @@ function differences(current: Report, baseline: Report): string[] {
     problems.push(`renderer: ${b.renderer} → ${a.renderer}`);
   }
   if (a.cpu !== b.cpu) problems.push(`CPU: ${b.cpu} → ${a.cpu}`);
+  if (a.build?.animationMode === 'native') {
+    for (const key of [
+      'hermesRevision',
+      'compilerSha256',
+      'execution',
+    ] as const)
+      if (a.build[key] !== b.build?.[key])
+        problems.push(
+          `${key}: native animation comparisons require matching Hermes builds`,
+        );
+  }
   for (const key of ['frames', 'warmup', 'size'] as const) {
     if (current.config[key] !== baseline.config[key]) {
       problems.push(`${key}: ${baseline.config[key]} → ${current.config[key]}`);

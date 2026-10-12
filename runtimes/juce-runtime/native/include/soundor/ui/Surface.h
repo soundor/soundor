@@ -124,7 +124,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return stacked.empty() ? childNodes : stacked;
         }
         [[nodiscard]] const Style& style() const noexcept { return nodeStyle; }
-        [[nodiscard]] const Style& presentedStyle() const noexcept { return visualStyle; }
+        [[nodiscard]] const Style& presentedStyle() const noexcept
+        {
+            return presentationMask == 0 ? nodeStyle : visualStyle;
+        }
         [[nodiscard]] bool hasPresentation() const noexcept { return presentationMask != 0; }
         [[nodiscard]] const std::string& text() const noexcept { return textContent; }
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }

@@ -371,8 +371,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 cachedBytes = 0;
                 budgetFallback = true;
                 for (const auto id : surface.canvases())
-                    if (surface.canvasBuffer(id)->gpuImage)
-                        surface.canvasBuffer(id)->gpuDrawn = true;
+                {
+                    const auto canvas = surface.canvasBuffer(id);
+                    if (canvas->gpuImage && canvas->gpuImage->device() == device)
+                        canvas->gpuDrawn = true;
+                }
             }
         }
         if (budgetFallback)
