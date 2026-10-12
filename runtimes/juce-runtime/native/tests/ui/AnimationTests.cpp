@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <numbers>
+#include <stdexcept>
 
 using namespace soundor::ui;
 
