@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <cmath>
 #include <numbers>
 #include <optional>
@@ -126,9 +125,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     const std::string text = input.getString(context.rt).utf8(context.rt);
                     if (text.size() <= 3 || (! text.ends_with("deg") && ! text.ends_with("rad")))
                         bind::throwTypeError(context, "style.transform.rotate: expected radians or a deg/rad angle");
-                    const auto parsed = std::from_chars(text.data(), text.data() + text.size() - 3, number);
-                    if (parsed.ec != std::errc {} || parsed.ptr != text.data() + text.size() - 3)
+                    const std::string_view numeric(text.data(), text.size() - 3);
+                    const auto parsed = parseCssNumber(numeric);
+                    // CSS exponents contain integer digits, never a decimal.
+                    const auto exponent = numeric.find_first_of("eE");
+                    bool validExponent = true;
+                    if (exponent != std::string_view::npos)
+                    {
+                        auto digits = numeric.substr(exponent + 1);
+                        if (! digits.empty() && (digits.front() == '+' || digits.front() == '-'))
+                            digits.remove_prefix(1);
+                        validExponent =
+                            ! digits.empty()
+                            && std::ranges::all_of(digits, [](char digit) { return digit >= '0' && digit <= '9'; });
+                    }
+                    if (! parsed || ! validExponent)
                         bind::throwTypeError(context, "style.transform.rotate: invalid angle");
+                    number = *parsed;
                     if (text.ends_with("deg"))
                         number *= std::numbers::pi / 180;
                 }

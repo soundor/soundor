@@ -180,6 +180,10 @@ TEST_SUITE("native animation API")
         CHECK(f.error("view.animate([{width:30}]);").find("unsupported property width") != std::string::npos);
         CHECK(f.error("view.animate([{opacity:1}], {duration:-1});").find("nonnegative") != std::string::npos);
         CHECK(f.error("view.style.transform=[{scale:1},{scale:2}];").find("duplicate scale") != std::string::npos);
+        f.run("view.style.transform=[{rotate:'+9e1deg'}];");
+        CHECK(f.eval("view.getBoundingClientRect().width").asNumber() == doctest::Approx(20));
+        CHECK(f.error("view.style.transform=[{rotate:'1e1.0deg'}];").find("invalid angle") != std::string::npos);
+        CHECK(f.error("view.style.transform=[{rotate:'1e+deg'}];").find("invalid angle") != std::string::npos);
         f.run(R"(
             import {setReducedMotion, prefersReducedMotion} from 'soundor:ui';
             setReducedMotion(true);
