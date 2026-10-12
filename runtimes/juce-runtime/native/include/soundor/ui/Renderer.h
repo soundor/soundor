@@ -48,6 +48,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             // Which layer: what paints before the first hole is 0, what
             // paints between the first and the second is 1, and so on.
             int segment = 0;
+            NodeId root = noNode;
+            float originX = 0;
+            float originY = 0;
+            bool subtrees = false;
         };
         void render(Surface& surface, const render::Bitmap& target, double seconds,
                     const render::Region* only = nullptr, const Layering* layering = nullptr);

@@ -66,6 +66,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
         [[nodiscard]] static constexpr Transform translate(float x, float y) noexcept { return { 1, 0, 0, 1, x, y }; }
         [[nodiscard]] bool isIdentity() const noexcept;
+        [[nodiscard]] std::array<float, 2> map(float x, float y) const noexcept;
+        [[nodiscard]] std::optional<Transform> inverse() const noexcept;
+        friend Transform operator*(const Transform& x, const Transform& y) noexcept;
         // Moves pixels by whole pixels only (or not at all).
         [[nodiscard]] bool isIntegerTranslate() const noexcept;
         // The bounds of `rect` transformed, out to whole pixels.
@@ -129,6 +132,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         bool changed = false;
     };
 
+    struct Frame;
+    // A cached, isolated subtree. Its children compose before this layer's
+    // transform, opacity and clip; overlapping content receives group alpha.
+    struct GroupContent
+    {
+        const Frame* frame = nullptr;
+    };
+
     using LayerId = std::uint64_t;
 
     // A new id, unique in the process: compositors key what they cache for
@@ -146,7 +157,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         Transform transform;
         float opacity = 1;
         std::optional<Clip> clip;
-        std::variant<RasterContent, GpuContent> content;
+        std::variant<RasterContent, GpuContent, GroupContent> content;
 
         // Whether everything but the content is the same.
         [[nodiscard]] bool samePlacement(const Layer& other) const noexcept;
@@ -160,6 +171,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         long long pixelsRasterized = 0;
         int gpuLayers = 0;
         int gpuReadbacks = 0;
+        std::uint64_t cachedRasterBytes = 0;
     };
 
     // A view as a compositor sees it: its size in device pixels and its

@@ -48,6 +48,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             std::uint64_t used = 0;
         };
 
+        struct GroupTexture
+        {
+            Texture texture;
+            GLuint framebuffer = 0;
+            std::vector<render::Layer> placed;
+        };
+        bool uploadFrame(const render::Frame& frame, render::CompositorStatistics& stats,
+                         std::vector<render::Layer>& placements);
+        std::unordered_map<render::LayerId, GroupTexture> groups;
+
         // A GPU image this context can draw (its texture is in this device's
         // shared namespace), or null (another device, no picture yet).
         [[nodiscard]] SharedImage* drawable(const render::GpuContent& content) const;

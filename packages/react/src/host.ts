@@ -23,6 +23,9 @@ import {
   createTextInput,
   createView,
   type KeyboardEvent,
+  type AnimationOptions,
+  type AnimationKeyframe,
+  type UiAnimation,
   type Style,
   type UiNode,
 } from 'soundor:ui';
@@ -48,6 +51,8 @@ export type HostType = (typeof HostTypes)[keyof typeof HostTypes];
  * read context.
  */
 export const SCOPE_PROP = '__soundorFocusScope';
+export const TRANSITION_PROP = '__soundorTransition';
+const instancesByNode = new WeakMap<UiNode, NodeInstance>();
 
 type Props = Record<string, unknown>;
 
@@ -69,12 +74,15 @@ export class NodeInstance {
    * through `node.style` (a view of the node's style).
    */
   style: Style | null = null;
+  animation: UiAnimation | null = null;
 
   constructor(
     readonly type: HostType,
     readonly node: UiNode,
     public props: Props,
-  ) {}
+  ) {
+    instancesByNode.set(node, this);
+  }
 }
 
 /** A raw string, or a <Text> nested in another, inside a <Text>. */
@@ -251,7 +259,13 @@ function sameStyle(a: Style, b: Style): boolean {
   let count = 0;
   for (const key in right) {
     if (!Object.hasOwn(right, key)) continue;
-    if (!Object.hasOwn(left, key) || left[key] !== right[key]) return false;
+    if (!Object.hasOwn(left, key)) return false;
+    if (
+      key === 'transform'
+        ? JSON.stringify(left[key]) !== JSON.stringify(right[key])
+        : left[key] !== right[key]
+    )
+      return false;
     count++;
   }
   for (const key in left) if (Object.hasOwn(left, key)) count--;
@@ -310,8 +324,33 @@ function applyProps(
   if (previous === null || next[SCOPE_PROP] !== previous[SCOPE_PROP])
     tagScope(node, (next[SCOPE_PROP] as Scope | undefined) ?? null);
   const style = styleOf(instance, next);
-  if (instance.style === null || !sameStyle(instance.style, style))
+  if (instance.style === null || !sameStyle(instance.style, style)) {
+    const transition = next[TRANSITION_PROP] as AnimationOptions | undefined;
+    if (instance.style !== null && transition !== undefined) {
+      const target: AnimationKeyframe = {};
+      if (instance.style.opacity !== style.opacity)
+        target.opacity = style.opacity ?? 1;
+      if (
+        JSON.stringify(instance.style.transform) !==
+        JSON.stringify(style.transform)
+      )
+        target.transform = style.transform ?? [];
+      if (Object.keys(target).length !== 0) {
+        // Take the current presentation before publishing the new base style.
+        // The native override is installed in this same commit, before paint.
+        target.opacity = style.opacity ?? 1;
+        target.transform = style.transform ?? [];
+        instance.animation = node.animate([target], {
+          ...transition,
+          fill: 'forwards',
+        });
+      }
+    } else if (transition === undefined && instance.animation !== null) {
+      instance.animation.cancel();
+      instance.animation = null;
+    }
     setStyle(instance, style);
+  }
 
   if (
     next['focusable'] !== previous?.['focusable'] &&
@@ -443,12 +482,20 @@ function insert(
   );
 }
 
+function cancelAnimations(node: UiNode): void {
+  const instance = instancesByNode.get(node);
+  instance?.animation?.cancel();
+  if (instance) instance.animation = null;
+  for (const child of node.children) cancelAnimations(child);
+}
+
 function remove(parent: Instance | UiNode, child: Instance): void {
   if (child.kind === 'span') {
     if (parent instanceof NodeInstance || parent instanceof SpanInstance)
       removeSpan(parent, child);
     return;
   }
+  cancelAnimations(child.node);
   child.node.remove();
 }
 
@@ -539,7 +586,10 @@ export const hostConfig = {
   removeChildFromContainer: (container: UiNode, child: Instance) =>
     remove(container, child),
   clearContainer: (container: UiNode) => {
-    for (const child of container.children) child.remove();
+    for (const child of container.children) {
+      cancelAnimations(child);
+      child.remove();
+    }
   },
 
   commitUpdate(
@@ -579,7 +629,9 @@ export const hostConfig = {
   },
 
   // Detached nodes are released when garbage collected.
-  detachDeletedInstance: () => {},
+  detachDeletedInstance: (instance: Instance) => {
+    if (instance.kind === 'node') cancelAnimations(instance.node);
+  },
 
   setCurrentUpdatePriority: (priority: number) => {
     currentUpdatePriority = priority;

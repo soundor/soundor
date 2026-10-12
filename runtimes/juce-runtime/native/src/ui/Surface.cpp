@@ -66,6 +66,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             style.borderColor = {};
             style.borderRadius = {};
             style.opacity = 1;
+            style.transform = {};
             style.resizeMode = {};
             style.pointerEvents = {};
             style.zIndex = 0; // restacks siblings, see setStyle()
@@ -297,7 +298,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     // ── Surface: the tree ────────────────────────────────────────────────────
 
-    Surface::Surface(Options provided) : options(std::move(provided)), config(YGConfigNew(), &YGConfigFree)
+    Surface::Surface(Options provided)
+        : timeline(*this), options(std::move(provided)), config(YGConfigNew(), &YGConfigFree)
     {
         if (options.textEngine == nullptr)
             options.textEngine = approximateTextEngine();
@@ -387,6 +389,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             focusedNode = noNode;
         if (node.nodeType == NodeType::Canvas)
             std::erase(canvasNodes, id);
+        timeline.removeNode(id);
         nodes.erase(id);
     }
 
@@ -438,6 +441,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (node.nodeStyle == style)
             return;
         const Style before = std::exchange(node.nodeStyle, style);
+        const Style presented = node.visualStyle;
+        node.visualStyle = style;
+        if ((node.presentationMask & propertyBit(AnimatedProperty::Opacity)) != 0)
+            node.visualStyle.opacity = presented.opacity;
+        if ((node.presentationMask & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+            node.visualStyle.transform = presented.transform;
         // Only what decides sizes and positions goes to Yoga; a change that
         // only looks different (a color, opacity) is drawn, not laid out.
         const Style layoutBefore = layoutPart(before);
@@ -717,27 +726,90 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 keepCaretVisible(*node);
     }
 
+    Presentation Surface::presentation(NodeId id)
+    {
+        const Node& node = get(id);
+        Presentation result = node.visualStyle.transform;
+        result[AnimatedProperty::Opacity] = node.visualStyle.opacity;
+        return result;
+    }
+
+    void Surface::setPresentation(NodeId id, const Presentation& value, PropertyMask properties)
+    {
+        Node& node = get(id);
+        const Presentation before = presentation(id);
+        if ((properties & propertyBit(AnimatedProperty::Opacity)) != 0)
+            node.visualStyle.opacity = std::clamp(value[AnimatedProperty::Opacity], 0.0f, 1.0f);
+        if ((properties & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+        {
+            node.visualStyle.transform.order = value.order;
+            node.visualStyle.transform.count = value.count;
+            for (std::size_t i = 1; i < animatedPropertyCount; ++i)
+                if ((properties & (PropertyMask { 1 } << i)) != 0)
+                    node.visualStyle.transform.values[i] = value.values[i];
+        }
+        const bool isolated = node.presentationMask == 0;
+        node.presentationMask |= properties;
+        if (isolated)
+            markChanged(node); // establish cached content once
+        else if (before != presentation(id))
+            markChanged(); // placement only
+    }
+
+    void Surface::clearPresentation(NodeId id, PropertyMask properties)
+    {
+        Node& node = get(id);
+        if ((node.presentationMask & properties) == 0)
+            return;
+        node.presentationMask &= ~properties;
+        if ((properties & propertyBit(AnimatedProperty::Opacity)) != 0)
+            node.visualStyle.opacity = node.nodeStyle.opacity;
+        if ((properties & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+            node.visualStyle.transform = node.nodeStyle.transform;
+        markChanged(node);
+    }
+
+    render::Transform Surface::visualTransform(NodeId id)
+    {
+        layout();
+        const Node& node = get(id);
+        const Rect frame = node.frame();
+        render::Transform parent;
+        if (node.parentNode != nullptr)
+        {
+            parent = visualTransform(node.parentNode->id());
+            parent = parent * render::Transform::translate(-node.parentNode->scroll.x, -node.parentNode->scroll.y);
+        }
+        return parent * render::Transform::translate(frame.x, frame.y)
+               * node.visualStyle.transform.transform(frame.width, frame.height);
+    }
+
+    Point Surface::localPoint(NodeId id, Point point)
+    {
+        const auto inverse = visualTransform(id).inverse();
+        if (! inverse)
+            return { std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity() };
+        const auto at = inverse->map(point.x, point.y);
+        return { at[0], at[1] };
+    }
+
     Rect Surface::bounds(NodeId id)
     {
         if (! isConnected(id))
             throw std::invalid_argument("the node is not in the tree");
-        layout();
-        const Node& node = get(id);
-        const Rect frame = node.frame();
-        const Point at = origin(node);
-        return { at.x, at.y, frame.width, frame.height };
-    }
-
-    Point Surface::origin(const Node& node)
-    {
-        Point at { node.frame().x, node.frame().y };
-        for (const Node* ancestor = node.parentNode; ancestor != nullptr; ancestor = ancestor->parentNode)
+        const render::Transform matrix = visualTransform(id);
+        const Rect frame = get(id).frame();
+        const std::array corners { matrix.map(0, 0), matrix.map(frame.width, 0), matrix.map(0, frame.height),
+                                   matrix.map(frame.width, frame.height) };
+        float left = corners[0][0], right = left, top = corners[0][1], bottom = top;
+        for (const auto& corner : corners)
         {
-            const Rect frame = ancestor->frame();
-            at.x += frame.x - ancestor->scroll.x;
-            at.y += frame.y - ancestor->scroll.y;
+            left = std::min(left, corner[0]);
+            right = std::max(right, corner[0]);
+            top = std::min(top, corner[1]);
+            bottom = std::max(bottom, corner[1]);
         }
-        return at;
+        return { left, top, right - left, bottom - top };
     }
 
     const TextLayout& Surface::textLayout(NodeId id)
@@ -790,15 +862,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Style& style = node.nodeStyle;
         if (style.display == Display::None || style.pointerEvents == PointerEvents::None)
             return noNode;
-        Rect box = node.frame();
-        box.x += origin.x;
-        box.y += origin.y;
-        if (style.overflow != Overflow::Visible && ! box.contains(point))
+        const Rect frame = node.frame();
+        const auto inverse = node.visualStyle.transform.transform(frame.width, frame.height).inverse();
+        if (! inverse)
             return noNode;
-        if (style.pointerEvents != PointerEvents::BoxOnly)
+        const auto at = inverse->map(point.x - origin.x - frame.x, point.y - origin.y - frame.y);
+        point = { at[0], at[1] };
+        const Rect box { 0, 0, frame.width, frame.height };
+        if ((style.overflow != Overflow::Visible || node.nodeType == NodeType::Scroll) && ! box.contains(point))
+            return noNode;
+        bool childrenVisible = true;
+        if (style.overflow != Overflow::Visible || node.nodeType == NodeType::Scroll)
         {
-            // The topmost child first: hit testing follows drawing.
-            const Point children { box.x - node.scroll.x, box.y - node.scroll.y };
+            const auto& border = style.borderWidth;
+            const Rect inner { border.left, border.top, frame.width - border.left - border.right,
+                               frame.height - border.top - border.bottom };
+            childrenVisible = inner.contains(point);
+            if (childrenVisible)
+            {
+                const bool left = point.x < inner.x + inner.width / 2;
+                const bool top = point.y < inner.y + inner.height / 2;
+                const auto& radii = style.borderRadius;
+                const float outer =
+                    left ? (top ? radii.topLeft : radii.bottomLeft) : (top ? radii.topRight : radii.bottomRight);
+                const float inset = std::max(left ? border.left : border.right, top ? border.top : border.bottom);
+                const float radius = std::min(std::max(0.f, outer - inset), std::min(inner.width, inner.height) / 2);
+                const float cx = left ? inner.x + radius : inner.x + inner.width - radius;
+                const float cy = top ? inner.y + radius : inner.y + inner.height - radius;
+                if ((left ? point.x < cx : point.x > cx) && (top ? point.y < cy : point.y > cy))
+                    childrenVisible = std::hypot(point.x - cx, point.y - cy) <= radius;
+            }
+        }
+        if (childrenVisible && style.pointerEvents != PointerEvents::BoxOnly)
+        {
+            const Point children { -node.scroll.x, -node.scroll.y };
             for (Node* child : std::views::reverse(node.stackedChildren()))
                 if (const NodeId hit = hitTest(*child, point, children); hit != noNode)
                     return hit;
@@ -892,8 +989,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.position = input.position;
         if (isConnected(target))
         {
-            const Rect box = bounds(target);
-            event.offset = { input.position.x - box.x, input.position.y - box.y };
+            event.offset = localPoint(target, input.position);
         }
         event.pointerId = input.pointerId;
         event.pointerType = input.type;
@@ -1030,8 +1126,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.type = Event::Type::Wheel;
         event.target = target;
         event.position = input.position;
-        const Rect box = bounds(target);
-        event.offset = { input.position.x - box.x, input.position.y - box.y };
+        event.offset = localPoint(target, input.position);
         event.deltaX = input.deltaX;
         event.deltaY = input.deltaY;
         event.deltaUnit = input.unit;

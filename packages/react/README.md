@@ -408,3 +408,33 @@ the scope's children render belongs to it wherever it shows.
 ## License
 
 MIT
+
+## Animated views
+
+```tsx
+import { Animated, Text } from '@soundor/react';
+
+<Animated.View
+  style={{
+    opacity: visible ? 1 : 0,
+    transform: [
+      { translateY: visible ? 0 : 12 },
+      { scale: visible ? 1 : 0.95 },
+    ],
+  }}
+  transition={{ duration: 250, easing: 'ease-out' }}
+>
+  <Text>Content</Text>
+</Animated.View>;
+```
+
+`Animated.View` accepts the same props and `UiNode` ref as `View`. Its first style
+is applied immediately. Subsequent opacity/transform target changes start one
+native animation before publishing the new base style, preserving current
+presentation during retargeting. Other style properties update immediately.
+Transforms retain logical layout and follow the low-level animation contract.
+Transitions always use forward fill and default to 300 ms linear timing; unchanged
+targets do not restart an animation. Unmount cancels animations recursively.
+There are no component state updates per intermediate frame. Reduced motion
+follows `soundor:ui`; browser media queries are observed automatically, while
+native hosts provide the preference or application code sets it explicitly.

@@ -4,6 +4,12 @@
  * to print the tree.
  */
 
+import type {
+  AnimationKeyframe,
+  AnimationOptions,
+  UiAnimation,
+} from 'soundor:ui';
+
 type Listener = { call: (event: FakeEvent) => void; capture: boolean };
 
 export class FakeEvent {
@@ -32,8 +38,58 @@ export class FakeEvent {
 
 let nextId = 1;
 
+export class FakeAnimation implements UiAnimation {
+  playState: UiAnimation['playState'] = 'running';
+  currentTime = 0;
+  finished: Promise<void>;
+  private resolve!: () => void;
+  private reject!: (reason: Error) => void;
+  constructor(
+    readonly keyframes: readonly AnimationKeyframe[],
+    readonly options: AnimationOptions,
+    readonly before: Record<string, unknown>,
+  ) {
+    this.finished = new Promise((resolve, reject) => {
+      this.resolve = resolve;
+      this.reject = reject;
+    });
+    this.finished.catch(() => {});
+  }
+  pause() {
+    this.playState = 'paused';
+  }
+  play() {
+    this.playState = 'running';
+  }
+  resume() {
+    this.play();
+  }
+  cancel() {
+    this.playState = 'idle';
+    const error = new Error('Animation cancelled');
+    error.name = 'AbortError';
+    this.reject(error);
+  }
+  finish() {
+    this.playState = 'finished';
+    this.resolve();
+  }
+}
+
 export class FakeNode {
   readonly id = nextId++;
+  readonly animations: FakeAnimation[] = [];
+  animate(
+    frames: readonly AnimationKeyframe[],
+    options: AnimationOptions = {},
+  ): FakeAnimation {
+    // The real runtime cancels conflicts; record the commit boundary here.
+    for (const animation of this.animations)
+      if (animation.playState !== 'idle') animation.cancel();
+    const animation = new FakeAnimation(frames, options, { ...this.style });
+    this.animations.push(animation);
+    return animation;
+  }
   parent: FakeNode | null = null;
   readonly kids: FakeNode[] = [];
   style: Record<string, unknown> = {};

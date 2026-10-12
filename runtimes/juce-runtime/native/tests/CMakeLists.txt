@@ -21,6 +21,7 @@ add_executable(soundor_runtime_tests
   native/NativeModuleTests.cpp
   parameters/ParametersTests.cpp
   render/CompositorTests.cpp
+  render/AnimationFrameTests.cpp
   render/FrameTests.cpp
   render/RegionTests.cpp
   runtime/DevSessionTests.cpp
@@ -28,6 +29,8 @@ add_executable(soundor_runtime_tests
   runtime/StatisticsTests.cpp
   runtime/BytecodeTests.cpp
   runtime/TimeLimitTests.cpp
+  ui/AnimationModuleTests.cpp
+  ui/AnimationTests.cpp
   ui/SurfaceTests.cpp
   ui/PrimitivesTests.cpp
   ui/RendererTests.cpp
@@ -74,6 +77,7 @@ endif()
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
 if(SOUNDOR_HAS_GPU)
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_GPU=1)
   # Three.js, unmodified, from npm: its build/ is loaded as the tests' UI files.
   FetchContent_Declare(
     SOUNDOR_THREE

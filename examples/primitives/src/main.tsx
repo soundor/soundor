@@ -2,6 +2,7 @@
 // press, focus state, FocusScope, Portal / Portal.Host and Modal.
 
 import {
+  Animated,
   Canvas,
   createPortalHost,
   FocusScope,
@@ -553,11 +554,43 @@ function WebGLDemo() {
   );
 }
 
+function AnimationDemo() {
+  const [raised, setRaised] = useState(false);
+  return (
+    <Card title="Native animation">
+      <Pressable
+        onPress={() => setRaised((value) => !value)}
+        accessibilityLabel="Toggle animation"
+      >
+        <Text style={{ color: '#ddd' }}>Toggle animation</Text>
+      </Pressable>
+      <Animated.View
+        accessibilityLabel="Animated panel"
+        style={{
+          width: 120,
+          height: 48,
+          backgroundColor: '#3b82f6',
+          borderRadius: 6,
+          opacity: raised ? 1 : 0.5,
+          transform: [
+            { translateX: raised ? 28 : 0 },
+            { scale: raised ? 1 : 0.95 },
+          ],
+        }}
+        transition={{ duration: 250, easing: 'ease-out' }}
+      >
+        <Text style={{ color: 'white', padding: 8 }}>Native timing</Text>
+      </Animated.View>
+    </Card>
+  );
+}
+
 function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Soundor UI primitives</Text>
       <View style={styles.grid}>
+        <AnimationDemo />
         <Coordinates />
         <Stacking />
         <ContextMenuDemo />

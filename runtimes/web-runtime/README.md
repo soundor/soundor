@@ -354,3 +354,64 @@ Until then, the Web runtime uses the audio code you write for it.
 ## License
 
 MIT
+
+## Native timing animations
+
+`UiNode.animate()` submits one animation description. The native runtime advances
+its per-view C++ timeline from `RuntimeHost::tick()`; the browser uses Web
+Animations. Neither requires JavaScript or React reconciliation for intermediate
+opacity or transform samples. Completion promises settle on the UI thread.
+
+```ts
+const animation = view.animate(
+  [
+    { opacity: 0, transform: [{ translateY: 20 }] },
+    { opacity: 1, transform: [{ translateY: 0 }] },
+  ],
+  { duration: 300, easing: 'ease-out', fill: 'forwards' },
+);
+await animation.finished;
+```
+
+One keyframe means a target starting from the current presentation, including a
+mid-flight animation. Two keyframes specify both endpoints. Supported properties
+are `opacity` and `transform`: ordered entries `translateX`, `translateY`, `scale`,
+`scaleX`, `scaleY`, `rotate`, each appearing at most once. Translations use logical
+pixels; rotation accepts radians as a number, or `"90deg"`/`"1.57rad"`. Transforms
+compose in array order around the center of the logical border box. Explicit
+endpoints must retain operation order; target changes may add/remove operations
+but retain the relative order of shared operations. Logical Yoga layout remains
+unchanged; hit testing, pointer offsets and accessibility bounds follow the
+presented transform. Nested transforms, group opacity, clipping and overlays
+retain tree stacking order.
+
+Timing defaults: `duration: 300`, `delay: 0`, `easing: 'linear'`, `fill: 'none'`.
+Duration/delay are nonnegative milliseconds. Easing also accepts `ease`,
+`ease-in`, `ease-out`, `ease-in-out`; fill accepts `backwards`, `forwards`, `both`.
+`pause()`, `resume()`/`play()`, `cancel()` and `finish()` control playback.
+`playState` and `currentTime` are readable. `finished` resolves at completion and
+rejects with `AbortError` on cancellation; replay creates a new promise.
+Cancellation restores the current application style. Forward fill retains the
+endpoint until cancellation or a conflicting animation. Animations never rewrite
+base style. Opacity and the complete transform list are independent ownership
+groups; a conflict cancels the older animation as a whole, preserving overlapping
+presentation for smooth retargeting and restoring its other properties.
+
+`setReducedMotion(true)` finishes current animations and makes new animations
+instantaneous. `prefersReducedMotion()` reads the effective preference. The browser
+also follows its media query unless explicitly overridden. Native embedders can
+set `RuntimeHost::Options::reducedMotion`; automatic native OS preference discovery
+is not yet provided.
+
+The native compositor selectively caches animated subtrees. Intermediate
+presentation frames avoid Yoga, Skia repaint and GPU uploads when content is
+unchanged; CPU fallback reuses cached pixels. Canvas 2D and WebGL remain supported,
+with no WebGL readback on the ordinary compatible GPU path. Cache reservation
+(source pixels and composition targets) is bounded to 64 MiB with a 16384-pixel
+side limit; oversized scenes use viewport CPU rendering, which may repaint and
+read back WebGL. Transformed bitmap edges can differ slightly from rerasterizing
+vector edges. Reported `cachedRasterBytesMax` counts CPU source pixels only;
+it is not process RSS, interpreter heap size or physical GPU memory.
+
+Springs, composition, multiple keyframes, seeking, iterations and paint animation
+are planned as the next extension. General layout animation is outside this API.

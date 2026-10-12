@@ -26,6 +26,7 @@ declare global {
           frames?: number,
           warmup?: number,
           only?: readonly string[],
+          nativeAnimations?: boolean,
         ): Promise<Result[]>;
       }
     | undefined;
@@ -103,13 +104,24 @@ function App() {
       () => setLive(driver.result()),
     );
     globalThis.soundorBenchmark = {
-      run: async (frames, warmup, only) => {
+      run: async (frames, warmup, only, nativeAnimations = false) => {
         const chosen = only
           ? SCENARIOS.filter(
               (each) => only.includes(each.id) || only.includes(each.group),
             )
           : SCENARIOS;
-        const all = await driver.runAll(chosen, frames, warmup);
+        const selected = nativeAnimations
+          ? chosen.map((each) =>
+              each.group === 'animation'
+                ? {
+                    ...each,
+                    nativeAnimations: true,
+                    stageKey: `${each.id}/native`,
+                  }
+                : each,
+            )
+          : chosen;
+        const all = await driver.runAll(selected, frames, warmup);
         console.log(`soundor-benchmark ${JSON.stringify(all)}`);
         return all;
       },

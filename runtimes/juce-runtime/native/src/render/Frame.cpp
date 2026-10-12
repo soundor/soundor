@@ -1,8 +1,10 @@
 #include <soundor/render/Frame.h>
 #include <soundor/render/Region.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <limits>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
@@ -86,6 +88,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         return { storage.data(), pixelWidth, pixelHeight, static_cast<std::size_t>(pixelWidth) * 4 };
     }
 
+    std::array<float, 2> Transform::map(float x, float y) const noexcept
+    {
+        return { a * x + c * y + e, b * x + d * y + f };
+    }
+
+    Transform operator*(const Transform& x, const Transform& y) noexcept
+    {
+        return { x.a * y.a + x.c * y.b, x.b * y.a + x.d * y.b,       x.a * y.c + x.c * y.d,
+                 x.b * y.c + x.d * y.d, x.a * y.e + x.c * y.f + x.e, x.b * y.e + x.d * y.f + x.f };
+    }
+
+    std::optional<Transform> Transform::inverse() const noexcept
+    {
+        const float determinant = a * d - b * c;
+        if (! std::isfinite(determinant) || std::abs(determinant) < 1e-12f)
+            return std::nullopt;
+        return Transform { d / determinant,
+                           -b / determinant,
+                           -c / determinant,
+                           a / determinant,
+                           (c * f - d * e) / determinant,
+                           (b * e - a * f) / determinant };
+    }
+
     bool Transform::isIdentity() const noexcept
     {
         return *this == Transform {};
@@ -113,23 +139,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             return {};
         const float xs[2] = { static_cast<float>(rect.x), static_cast<float>(rect.right()) };
         const float ys[2] = { static_cast<float>(rect.y), static_cast<float>(rect.bottom()) };
-        float left = INFINITY;
-        float top = INFINITY;
-        float right = -INFINITY;
-        float bottom = -INFINITY;
+        if (! std::isfinite(a) || ! std::isfinite(b) || ! std::isfinite(c) || ! std::isfinite(d) || ! std::isfinite(e)
+            || ! std::isfinite(f))
+            return {};
+        constexpr double infinity = std::numeric_limits<double>::infinity();
+        double left = infinity, top = infinity, right = -infinity, bottom = -infinity;
         for (const float x : xs)
             for (const float y : ys)
             {
-                const float mappedX = a * x + c * y + e;
-                const float mappedY = b * x + d * y + f;
+                const double mappedX = static_cast<double>(a) * x + static_cast<double>(c) * y + e;
+                const double mappedY = static_cast<double>(b) * x + static_cast<double>(d) * y + f;
                 left = std::min(left, mappedX);
                 top = std::min(top, mappedY);
                 right = std::max(right, mappedX);
                 bottom = std::max(bottom, mappedY);
             }
-        const auto l = static_cast<int>(std::floor(left));
-        const auto t = static_cast<int>(std::floor(top));
-        return { l, t, static_cast<int>(std::ceil(right)) - l, static_cast<int>(std::ceil(bottom)) - t };
+        constexpr double limit = 536870911;
+        const auto l = static_cast<int>(std::clamp(std::floor(left), -limit, limit));
+        const auto t = static_cast<int>(std::clamp(std::floor(top), -limit, limit));
+        return { l, t, static_cast<int>(std::clamp(std::ceil(right), -limit, limit)) - l,
+                 static_cast<int>(std::clamp(std::ceil(bottom), -limit, limit)) - t };
     }
 
     LayerId newLayerId() noexcept

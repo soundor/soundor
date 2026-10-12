@@ -195,6 +195,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
     const Frame& ViewRenderer::update(ui::Surface& surface, double seconds, const gpu::Device* gpuDevice)
     {
+        const bool useAnimations =
+            AnimationRenderer::needed(surface.root()) || AnimationRenderer::needed(surface.overlay());
+        if (useAnimations)
+        {
+            wasAnimated = true;
+            return animated.update(surface, seconds, gpuDevice);
+        }
+        if (std::exchange(wasAnimated, false))
+        {
+            damage.reset();
+            for (const auto id : surface.canvases())
+                if (surface.canvasBuffer(id)->gpuImage)
+                    surface.canvasBuffer(id)->gpuDrawn = true;
+            surface.invalidate(surface.root().id());
+            surface.invalidate(surface.overlay().id());
+        }
         const float scale = surface.scale();
         const auto width = static_cast<int>(std::lround(surface.size().width * scale));
         const auto height = static_cast<int>(std::lround(surface.size().height * scale));

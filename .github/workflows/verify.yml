@@ -67,6 +67,8 @@ jobs:
         run: |
           pnpm --filter soundor-benchmark bench --only animation --runs 1 --frames 12 --warmup 3 --backend vulkan --software --out "$RUNNER_TEMP/animation.json"
           node examples/benchmark/scripts/verify-animation-report.ts "$RUNNER_TEMP/animation.json"
+          pnpm --filter soundor-benchmark bench --only animation --animations native --runs 1 --frames 12 --warmup 3 --backend vulkan --software --out "$RUNNER_TEMP/native-animation.json"
+          node examples/benchmark/scripts/verify-animation-report.ts "$RUNNER_TEMP/native-animation.json"
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.

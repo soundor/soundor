@@ -63,6 +63,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float width = 0;
         float height = 0;
 
+        friend constexpr bool operator==(const Rect&, const Rect&) = default;
         [[nodiscard]] bool contains(Point point) const noexcept
         {
             return point.x >= x && point.y >= y && point.x < x + width && point.y < y + height;
@@ -123,6 +124,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return stacked.empty() ? childNodes : stacked;
         }
         [[nodiscard]] const Style& style() const noexcept { return nodeStyle; }
+        [[nodiscard]] const Style& presentedStyle() const noexcept { return visualStyle; }
+        [[nodiscard]] bool hasPresentation() const noexcept { return presentationMask != 0; }
         [[nodiscard]] const std::string& text() const noexcept { return textContent; }
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
         // The layout box relative to the parent's, once laid out.
@@ -159,6 +162,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // childNodes sorted by zIndex; empty while that is tree order.
         std::vector<Node*> stacked;
         Style nodeStyle;
+        Style visualStyle;
+        PropertyMask presentationMask = 0;
         std::string textContent;
         std::string imageSource;
         std::string placeholderText;
@@ -316,6 +321,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Whether `id` is in one of the trees (a root or a descendant of one).
         [[nodiscard]] bool isConnected(NodeId id) noexcept;
 
+        [[nodiscard]] AnimationTimeline& animations() noexcept { return timeline; }
+        [[nodiscard]] Presentation presentation(NodeId id);
+        void setPresentation(NodeId id, const Presentation& value, PropertyMask properties);
+        void clearPresentation(NodeId id, PropertyMask properties);
+        [[nodiscard]] render::Transform visualTransform(NodeId id);
+        [[nodiscard]] Point localPoint(NodeId id, Point point);
+
         // ── Layout ───────────────────────────────────────────────────────────
 
         // The view's size in logical pixels; the root fills it.
@@ -409,7 +421,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);
         Event pointerEvent(Event::Type type, NodeId target, const PointerInput& input);
-        [[nodiscard]] Point origin(const Node& node);
         bool scrollBy(NodeId target, float deltaX, float deltaY);
         void keepCaretVisible(Node& node);
         void markChanged() noexcept
@@ -421,6 +432,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Canvases drawn into since the last look count as invalidated.
         void collectCanvasDrawing();
 
+        AnimationTimeline timeline;
         Options options;
         std::unique_ptr<YGConfig, void (*)(YGConfig*)> config;
         std::unordered_map<NodeId, std::unique_ptr<Node>> nodes;
