@@ -156,7 +156,10 @@ function App() {
         <Button label={running ? 'Running…' : 'Run all'} onPress={runAll} />
       </View>
       <View style={styles.bar}>
-        {SCENARIOS.filter((each) => each.group === group).map((each) => (
+        {SCENARIOS.filter(
+          (each) =>
+            each.group === group && !each.id.startsWith('animation-transform-'),
+        ).map((each) => (
           <Button
             key={each.id}
             label={each.label}
