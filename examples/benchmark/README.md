@@ -229,8 +229,8 @@ improvement is claimed by this baseline alone.
 
 ```sh
 pnpm --filter soundor-benchmark bench --animations native --against hermes-animation --only animation --backend opengl
-pnpm --filter soundor-benchmark bench --animations js --only animation-transform --backend opengl --save transform-js
-pnpm --filter soundor-benchmark bench --animations native --only animation-transform --backend opengl --against transform-js
+pnpm --filter soundor-benchmark bench --animations js --only animation-transform-1,animation-transform-50,animation-transform-500 --backend opengl --save transform-js
+pnpm --filter soundor-benchmark bench --animations native --only animation-transform-1,animation-transform-50,animation-transform-500 --backend opengl --against transform-js
 ```
 
 Keep the PR 0 `hermes-animation` saved build intact. Native comparisons require
@@ -251,3 +251,5 @@ Reports include native timeline CPU time and peak cached CPU raster bytes, along
 frame tails, JS, bindings, layout, raster and CPU-side composition. Missing metrics
 from the saved runner remain unavailable. Cache bytes exclude composition targets,
 GPU physical memory and allocator overhead; uncapped throughput is not display FPS.
+
+Recorded PR 1 measurements and tradeoffs: [native timing comparison](reports/native-timing.md).
