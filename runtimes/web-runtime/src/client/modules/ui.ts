@@ -9,7 +9,26 @@ import type {
   PointerEvent,
 } from '../ui/events';
 import { UiNode } from '../ui/node';
-import type { Style } from '../ui/types';
+import type {
+  Style,
+  AnimationDescription,
+  AnimationOptions,
+  UiAnimation,
+} from '../ui/types';
+export {
+  effect,
+  sequence,
+  parallel,
+  stagger,
+  delay,
+  repeat,
+} from '../ui/animation-description';
+export function animate(
+  description: AnimationDescription,
+  options?: AnimationOptions,
+): UiAnimation {
+  return root.animate(description, options);
+}
 
 const view = uiView();
 

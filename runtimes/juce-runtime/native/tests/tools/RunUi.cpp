@@ -161,11 +161,13 @@ namespace
     {
         std::string name;
         std::vector<Sample> samples;
+        std::vector<double> tickSamples;
         // Every tick in the phase, and those that rendered nothing (a UI that
         // does not change) with their time.
         long long ticks = 0;
         long long idleTicks = 0;
         double idleTickMs = 0;
+        std::size_t animationStorageBytes = 0;
     };
 
     struct Distribution
@@ -178,18 +180,13 @@ namespace
         double standardDeviation = 0;
     };
 
-    Distribution distribution(const std::vector<Sample>& samples, double Sample::*field)
+    Distribution distribution(std::vector<double> values)
     {
-        if (samples.empty())
+        if (values.empty())
             return {};
-        std::vector<double> values;
-        values.reserve(samples.size());
         double sum = 0;
-        for (const Sample& sample : samples)
-        {
-            values.push_back(sample.*field);
-            sum += sample.*field;
-        }
+        for (const double value : values)
+            sum += value;
         std::ranges::sort(values);
         const auto at = [&](double fraction)
         {
@@ -202,6 +199,15 @@ namespace
             variance += (value - mean) * (value - mean);
         return { mean,          at(0.5),  at(0.95),
                  values.back(), at(0.99), std::sqrt(variance / static_cast<double>(values.size())) };
+    }
+
+    Distribution distribution(const std::vector<Sample>& samples, double Sample::*field)
+    {
+        std::vector<double> values;
+        values.reserve(samples.size());
+        for (const Sample& sample : samples)
+            values.push_back(sample.*field);
+        return distribution(std::move(values));
     }
 
     template <typename T>
@@ -295,12 +301,14 @@ namespace
         out += ", \"fps\": " + number(time > 0 ? static_cast<double>(s.size()) / time : 0);
         out += ", \"frameMs\": " + json(distribution(s, &Sample::frame));
         out += ", \"tickMs\": " + json(distribution(s, &Sample::tick));
+        out += ", \"allTickMs\": " + json(distribution(phase.tickSamples));
         out += ", \"buildMs\": " + json(distribution(s, &Sample::build));
         out += ", \"compositeMs\": " + json(distribution(s, &Sample::composite));
         out += ", \"layersRasterized\": " + std::to_string(total(s, &Sample::layersRasterized));
         out += ", \"pixelsRasterized\": " + std::to_string(total(s, &Sample::pixelsRasterized));
         out += ", \"gpuReadbacks\": " + std::to_string(total(s, &Sample::gpuReadbacks));
         out += ", \"cachedRasterBytesMax\": " + std::to_string(largest(s, &Sample::cachedRasterBytes));
+        out += ", \"animationStorageBytesAtStart\": " + std::to_string(phase.animationStorageBytes);
         out += ", \"bytesUploaded\": " + std::to_string(total(s, &Sample::bytesUploaded));
         out += ", \"textureAllocations\": " + std::to_string(total(s, &Sample::textureAllocations));
         out += ", \"compositorDrawCalls\": " + std::to_string(total(s, &Sample::compositorDrawCalls));
@@ -527,6 +535,13 @@ int main(int argc, char** argv)
             previousStatistics = host.statistics();
             previous = Clock::now();
         }
+        if (measuring && ! phase.empty() && phase != previousPhase)
+        {
+            const auto bytes = host.surface().animations().storageBytes();
+            for (Phase* counted : phasesOf(phase))
+                counted->animationStorageBytes = std::max(counted->animationStorageBytes, bytes);
+            previous = Clock::now();
+        }
         previousPhase = phase;
         const auto begin = Clock::now();
         host.tick();
@@ -536,6 +551,7 @@ int main(int argc, char** argv)
             for (Phase* counted : phasesOf(phase))
             {
                 ++counted->ticks;
+                counted->tickSamples.push_back(milliseconds(begin, ticked));
                 if (! renders)
                 {
                     ++counted->idleTicks;

@@ -110,6 +110,76 @@ namespace
 
 TEST_SUITE("native animation frames")
 {
+    TEST_CASE("paint animation damages transparent overlays without running Yoga")
+    {
+        double time = 0;
+        RuntimeHost::Options options;
+        options.animationClock = [&] { return time; };
+        test::WebFixture f(std::move(options));
+        f.host.surface().setSize({ 100, 100 });
+        f.run(R"(
+            import {root,overlayRoot,createView} from 'soundor:ui';
+            root.style.backgroundColor='blue';
+            globalThis.panel=createView({position:'absolute',left:20,top:20,width:40,height:40,backgroundColor:'transparent'});
+            overlayRoot.appendChild(panel);
+            panel.animate([{backgroundColor:'rgba(255,0,0,0)'},{backgroundColor:'red'}],{duration:100,fill:'forwards'});
+        )");
+        Target target;
+        render::RasterCompositor compositor(target);
+        compositor.composite(f.host.frame());
+        const auto before = f.host.statistics();
+        time = 50;
+        f.host.tick();
+        const auto& frame = f.host.frame();
+        CHECK(frame.statistics.layersRasterized > 0);
+        CHECK(f.host.statistics().surface.layoutPasses == before.surface.layoutPasses);
+        compositor.composite(frame);
+        CHECK(difference(target.pixels.pixels()[40 * 100 + 40], 0xff80007f) <= 1);
+        CHECK(f.eval("panel.style.backgroundColor").asString() == "transparent");
+        time = 100;
+        f.host.tick();
+        compositor.composite(f.host.frame());
+        CHECK(target.pixels.pixels()[40 * 100 + 40] == 0xffff0000);
+    }
+
+#if SOUNDOR_TEST_GPU
+    TEST_CASE("GPU paint animation reuploads damaged pixels and keeps opacity presentation cached")
+    {
+        const auto device = test::testDevice();
+        if (! device)
+            return;
+        double time = 0;
+        RuntimeHost::Options options;
+        options.gpuDevice = device;
+        options.animationClock = [&] { return time; };
+        test::WebFixture f(std::move(options));
+        f.host.surface().setSize({ 100, 100 });
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            root.style.backgroundColor='blue';
+            globalThis.panel=createView({width:40,height:40,backgroundColor:'red'});root.appendChild(panel);
+            panel.animate([{backgroundColor:'red'},{backgroundColor:'green'}],{duration:100,fill:'forwards'});
+            panel.animate([{opacity:1},{opacity:0.5}],{duration:100,fill:'forwards'});
+        )");
+        gpu::OffscreenCompositor compositor(device);
+        compositor.composite(f.host.frame(compositor.capabilities()));
+        const auto before = f.host.statistics();
+        time = 50;
+        f.host.tick();
+        const auto& frame = f.host.frame(compositor.capabilities());
+        CHECK(frame.statistics.layersRasterized > 0);
+        CHECK(frame.statistics.gpuReadbacks == 0);
+        CHECK(f.host.statistics().surface.layoutPasses == before.surface.layoutPasses);
+        compositor.composite(frame);
+        CHECK(compositor.statistics().bytesUploaded > 0);
+        const auto gpuPixels = compositor.readPixels();
+        Target target;
+        render::RasterCompositor cpu(target);
+        cpu.composite(f.host.frame());
+        CHECK(difference(gpuPixels[20 * 100 + 20], target.pixels.pixels()[20 * 100 + 20]) <= 2);
+    }
+#endif
+
     TEST_CASE("oversized transformed content uses a bounded viewport fallback")
     {
         RuntimeHost host { RuntimeHost::Options {} };

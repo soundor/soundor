@@ -19,7 +19,8 @@ export type Group =
   | 'canvas'
   | 'ui'
   | 'mixed'
-  | 'animation';
+  | 'animation'
+  | 'advanced-animation';
 
 export const GROUPS: readonly Group[] = [
   'webgl-stress',
@@ -28,6 +29,7 @@ export const GROUPS: readonly Group[] = [
   'ui',
   'mixed',
   'animation',
+  'advanced-animation',
 ];
 
 /** What a frame did, as far as the scenario knows. */

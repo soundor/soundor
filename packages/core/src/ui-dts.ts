@@ -21,23 +21,62 @@ const UI = `declare module 'soundor:ui' {
   export interface AnimationKeyframe {
     opacity?: number;
     transform?: readonly TransformOperation[];
+    backgroundColor?: string;
+    borderColor?: string;
+    offset?: number;
+    easing?: AnimationEasing;
   }
   export interface AnimationOptions {
+    type?: 'timing' | 'spring';
     duration?: number;
     delay?: number;
     easing?: AnimationEasing;
     fill?: 'none' | 'backwards' | 'forwards' | 'both';
+    iterations?: number;
+    direction?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+    stiffness?: number;
+    damping?: number;
+    mass?: number;
+    initialVelocity?: number;
+    restDisplacement?: number;
+    restVelocity?: number;
   }
+  export type AnimationPlaybackOptions = Pick<AnimationOptions, 'delay' | 'easing' | 'fill' | 'iterations' | 'direction'>;
+  export interface AnimationEffect {
+    kind?: 'effect';
+    target?: UiNode;
+    keyframes: readonly AnimationKeyframe[];
+    options?: AnimationOptions;
+  }
+  export interface AnimationComposition {
+    kind: 'sequence' | 'parallel' | 'stagger';
+    children: readonly AnimationDescription[];
+    options?: AnimationPlaybackOptions;
+    stagger?: number;
+  }
+  export interface AnimationDelay {
+    kind: 'delay';
+    duration: number;
+  }
+  export type AnimationDescription = AnimationEffect | AnimationComposition | AnimationDelay;
   export interface UiAnimation {
     readonly finished: Promise<void>;
     readonly playState: 'idle' | 'running' | 'paused' | 'finished';
-    readonly currentTime: number;
+    currentTime: number;
     play(): void;
     pause(): void;
     resume(): void;
     cancel(): void;
     finish(): void;
   }
+
+  export function effect(target: UiNode, keyframes: readonly AnimationKeyframe[], options?: AnimationOptions): AnimationEffect;
+  export function sequence(children: readonly AnimationDescription[], options?: AnimationPlaybackOptions): AnimationComposition;
+  export function parallel(children: readonly AnimationDescription[], options?: AnimationPlaybackOptions): AnimationComposition;
+  export function stagger(interval: number, children: readonly AnimationDescription[], options?: AnimationPlaybackOptions): AnimationComposition;
+  export function delay(duration: number, child?: AnimationDescription): AnimationDescription;
+  export function repeat(child: AnimationDescription, iterations?: number, direction?: AnimationOptions['direction']): AnimationComposition;
+  export function animate(description: AnimationDescription, options?: AnimationPlaybackOptions): UiAnimation;
 
   export function setReducedMotion(value: boolean): void;
   export function prefersReducedMotion(): boolean;
@@ -340,7 +379,7 @@ const UI = `declare module 'soundor:ui' {
      * once its ancestors have scrolled. Zero when not connected.
      */
     getBoundingClientRect(): LayoutRect;
-    animate(keyframes: readonly AnimationKeyframe[], options?: AnimationOptions): UiAnimation;
+    animate(keyframes: readonly AnimationKeyframe[] | AnimationDescription, options?: AnimationOptions): UiAnimation;
 
     /** Text inputs: the text. Setting it puts the caret at the end. */
     value: string;

@@ -19,6 +19,8 @@ export {
   Animated,
   type AnimatedViewProps,
   type TimingTransition,
+  type SpringTransition,
+  type AnimationTransition,
   Canvas,
   Image,
   Pressable,

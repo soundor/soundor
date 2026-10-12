@@ -25,6 +25,7 @@ import {
   type KeyboardEvent,
   type AnimationOptions,
   type AnimationKeyframe,
+  type AnimationDescription,
   type UiAnimation,
   type Style,
   type UiNode,
@@ -52,6 +53,7 @@ export type HostType = (typeof HostTypes)[keyof typeof HostTypes];
  */
 export const SCOPE_PROP = '__soundorFocusScope';
 export const TRANSITION_PROP = '__soundorTransition';
+export const ANIMATION_PROP = '__soundorAnimation';
 const instancesByNode = new WeakMap<UiNode, NodeInstance>();
 
 type Props = Record<string, unknown>;
@@ -314,6 +316,40 @@ function sameHandlers(previous: Props, next: Props): boolean {
   return true;
 }
 
+/** Compare description data; node targets retain identity rather than being traversed. */
+function sameAnimation(left: unknown, right: unknown, depth = 0): boolean {
+  if (Object.is(left, right)) return true;
+  if (depth > 64) return false;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object')
+    return false;
+  if (Array.isArray(left) || Array.isArray(right))
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) =>
+        sameAnimation(value, right[index], depth + 1),
+      )
+    );
+  if (
+    Object.getPrototypeOf(left) !== Object.prototype ||
+    Object.getPrototypeOf(right) !== Object.prototype
+  )
+    return false;
+  const a = left as Record<string, unknown>,
+    b = right as Record<string, unknown>;
+  return (
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.keys(a).every(
+      (key) =>
+        Object.hasOwn(b, key) &&
+        (key === 'target'
+          ? a[key] === b[key]
+          : sameAnimation(a[key], b[key], depth + 1)),
+    )
+  );
+}
+
 function applyProps(
   instance: NodeInstance,
   previous: Props | null,
@@ -323,10 +359,26 @@ function applyProps(
   instance.props = next;
   if (previous === null || next[SCOPE_PROP] !== previous[SCOPE_PROP])
     tagScope(node, (next[SCOPE_PROP] as Scope | undefined) ?? null);
+  const explicit = next[ANIMATION_PROP] as
+    | readonly AnimationKeyframe[]
+    | AnimationDescription
+    | undefined;
+  const previousExplicit = previous?.[ANIMATION_PROP];
+  const transition = next[TRANSITION_PROP] as AnimationOptions | undefined;
+  if (
+    explicit === undefined &&
+    (previousExplicit !== undefined || transition === undefined)
+  ) {
+    instance.animation?.cancel();
+    instance.animation = null;
+  }
   const style = styleOf(instance, next);
   if (instance.style === null || !sameStyle(instance.style, style)) {
-    const transition = next[TRANSITION_PROP] as AnimationOptions | undefined;
-    if (instance.style !== null && transition !== undefined) {
+    if (
+      instance.style !== null &&
+      transition !== undefined &&
+      explicit === undefined
+    ) {
       const target: AnimationKeyframe = {};
       if (instance.style.opacity !== style.opacity)
         target.opacity = style.opacity ?? 1;
@@ -335,6 +387,10 @@ function applyProps(
         JSON.stringify(style.transform)
       )
         target.transform = style.transform ?? [];
+      if (instance.style.backgroundColor !== style.backgroundColor)
+        target.backgroundColor = style.backgroundColor ?? 'transparent';
+      if (instance.style.borderColor !== style.borderColor)
+        target.borderColor = style.borderColor ?? 'black';
       if (Object.keys(target).length !== 0) {
         // Take the current presentation before publishing the new base style.
         // The native override is installed in this same commit, before paint.
@@ -350,6 +406,15 @@ function applyProps(
       instance.animation = null;
     }
     setStyle(instance, style);
+  }
+
+  if (
+    explicit !== undefined &&
+    (!sameAnimation(explicit, previousExplicit) ||
+      !sameAnimation(transition, previous?.[TRANSITION_PROP]))
+  ) {
+    // Mount style first, then submit in the same commit before the first paint.
+    instance.animation = node.animate(explicit, transition);
   }
 
   if (

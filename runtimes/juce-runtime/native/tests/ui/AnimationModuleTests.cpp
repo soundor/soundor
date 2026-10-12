@@ -5,6 +5,157 @@ using test::WebFixture;
 
 TEST_SUITE("native animation API")
 {
+    TEST_CASE("seeking before queued completion delivery settles the prior promise independently")
+    {
+        WebFixture f;
+        f.run(R"(
+            import {createView} from 'soundor:ui';
+            const node=createView({opacity:0});
+            globalThis.animation=node.animate([{opacity:1}],{duration:100,fill:'forwards'});
+            globalThis.oldState='pending';globalThis.newState='pending';
+            animation.finished.then(()=>{globalThis.oldState='finished';});
+            animation.currentTime=100;animation.currentTime=50;
+            animation.finished.then(()=>{globalThis.newState='finished';});
+        )");
+        f.host.tick();
+        CHECK(f.eval("oldState").asString() == "finished");
+        CHECK(f.eval("newState").asString() == "pending");
+        CHECK(f.eval("animation.playState").asString() == "paused");
+        f.run("animation.finish();");
+        f.host.tick();
+        CHECK(f.eval("newState").asString() == "finished");
+    }
+
+    TEST_CASE("keyframes starting after zero capture the underlying presentation")
+    {
+        WebFixture f;
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            globalThis.node=createView({opacity:0.25});root.appendChild(node);
+            globalThis.animation=node.animate([{opacity:1,offset:0.5},{opacity:0,offset:1}],{duration:100,fill:'forwards'});
+            animation.pause();animation.currentTime=25;
+        )");
+        CHECK(f.eval("node.style.opacity").asNumber() == 0.25);
+        CHECK(f.host.surface().presentation(f.host.surface().root().children()[0]->id())[ui::AnimatedProperty::Opacity]
+              == doctest::Approx(0.625));
+    }
+
+    TEST_CASE("composed descriptions cross the binding once and native phases do not invoke JavaScript")
+    {
+        double time = 0;
+        RuntimeHost::Options options;
+        options.animationClock = [&] { return time; };
+        WebFixture f(std::move(options));
+        f.run(R"(
+            import {root,createView,sequence,delay} from 'soundor:ui';
+            globalThis.node=createView({opacity:1});root.appendChild(node);
+            globalThis.status='pending';
+            globalThis.animation=node.animate(sequence([
+                {keyframes:[{opacity:0}],options:{duration:100}},
+                delay(50),
+                {keyframes:[{opacity:1}],options:{duration:100}}
+            ],{fill:'forwards'}));
+            animation.finished.then(()=>{globalThis.status='finished';});
+        )");
+        const auto id = f.host.surface().root().children()[0]->id();
+        const auto before = f.host.statistics().runtime.ui.calls;
+        time = 50;
+        f.host.tick();
+        CHECK(f.host.statistics().runtime.ui.calls == before);
+        CHECK(f.host.surface().presentation(id)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        time = 125;
+        f.host.tick();
+        CHECK(f.host.statistics().runtime.ui.calls == before);
+        CHECK(f.host.surface().presentation(id)[ui::AnimatedProperty::Opacity] == 0);
+        CHECK(f.eval("status").asString() == "pending");
+        time = 250;
+        f.host.tick();
+        CHECK(f.eval("status").asString() == "finished");
+        CHECK(f.eval("animation.currentTime").asNumber() == 250);
+        f.run("animation.currentTime=75;");
+        CHECK(f.eval("animation.playState").asString() == "paused");
+        CHECK(f.host.surface().presentation(id)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.25));
+    }
+
+    TEST_CASE("global parallel descriptions own multiple node targets and reject as one on interruption")
+    {
+        double time = 0;
+        RuntimeHost::Options options;
+        options.animationClock = [&] { return time; };
+        WebFixture f(std::move(options));
+        f.run(R"(
+            import {root,createView,effect,stagger,animate} from 'soundor:ui';
+            globalThis.a=createView({opacity:1});globalThis.b=createView({opacity:1});
+            root.appendChild(a);root.appendChild(b);globalThis.status='pending';
+            globalThis.group=animate(stagger(50,[effect(a,[{opacity:0}],{duration:100}),effect(b,[{opacity:0}],{duration:100})],{fill:'forwards'}));
+            group.finished.catch(error=>{globalThis.status=error.name;});
+        )");
+        time = 75;
+        f.host.tick();
+        const auto first = f.host.surface().root().children()[0]->id();
+        const auto second = f.host.surface().root().children()[1]->id();
+        CHECK(f.host.surface().presentation(first)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.25));
+        CHECK(f.host.surface().presentation(second)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.75));
+        f.run("b.animate([{opacity:1}],{duration:100});");
+        f.host.tick();
+        CHECK(f.eval("group.playState").asString() == "idle");
+        CHECK(f.eval("status").asString() == "AbortError");
+        CHECK(f.host.surface().presentation(first)[ui::AnimatedProperty::Opacity] == 1);
+    }
+
+    TEST_CASE("advanced keyframes preserve offsets and seeking updates their native presentation")
+    {
+        WebFixture f;
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            globalThis.node=createView({opacity:0});root.appendChild(node);
+            globalThis.animation=node.animate([
+              {opacity:0,offset:0,easing:'ease-in'},
+              {opacity:1,offset:0.5},
+              {opacity:0.5,offset:1}
+            ],{duration:100,iterations:2,direction:'alternate',fill:'forwards'});
+            animation.pause();animation.currentTime=25;
+        )");
+        const auto id = f.host.surface().root().children()[0]->id();
+        CHECK(f.host.surface().presentation(id)[ui::AnimatedProperty::Opacity]
+              == doctest::Approx(ui::AnimationTimeline::ease(ui::Easing::EaseIn, 0.5)));
+        f.run("animation.currentTime=175;");
+        CHECK(f.host.surface().presentation(id)[ui::AnimatedProperty::Opacity]
+              == doctest::Approx(ui::AnimationTimeline::ease(ui::Easing::EaseIn, 0.5)));
+        CHECK(f.error("node.animate([{opacity:0,offset:0.7},{opacity:1,offset:0.2}]);").find("nondecreasing")
+              != std::string::npos);
+    }
+
+    TEST_CASE("typed spring and paint descriptions execute through one native submission")
+    {
+        double time = 0;
+        RuntimeHost::Options options;
+        options.animationClock = [&] { return time; };
+        WebFixture f(std::move(options));
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            globalThis.node=createView({opacity:0,backgroundColor:'#ff0000'});root.appendChild(node);
+            globalThis.spring=node.animate([{opacity:1}],{type:'spring',stiffness:300,damping:25,mass:1,fill:'forwards'});
+            globalThis.paint=node.animate([{backgroundColor:'#0000ff'}],{duration:100,fill:'forwards'});
+        )");
+        const auto id = f.host.surface().root().children()[0]->id();
+        time = 50;
+        f.host.tick();
+        const auto* node = f.host.surface().find(id);
+        CHECK(node->presentedStyle().backgroundColor == ui::Color { 128, 0, 128, 255 });
+        CHECK(node->presentedStyle().opacity > 0);
+        CHECK(node->style().opacity == 0);
+        CHECK(f.eval("spring.playState").asString() == "running");
+        CHECK(f.error("node.animate([{opacity:1}],{type:'spring',mass:0});").find("spring parameters")
+              != std::string::npos);
+        CHECK(f.error("node.animate([{backgroundColor:'red'}],{type:'spring'});").find("numeric opacity")
+              != std::string::npos);
+        time = 10000;
+        f.host.tick();
+        CHECK(f.eval("spring.playState").asString() == "finished");
+        CHECK(node->presentedStyle().opacity == 1);
+    }
+
     TEST_CASE("backward fill holds a delayed transition while new application base styles are published")
     {
         double time = 0;

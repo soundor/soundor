@@ -6,6 +6,7 @@
 
 import type {
   AnimationKeyframe,
+  AnimationDescription,
   AnimationOptions,
   UiAnimation,
 } from 'soundor:ui';
@@ -45,7 +46,7 @@ export class FakeAnimation implements UiAnimation {
   private resolve!: () => void;
   private reject!: (reason: Error) => void;
   constructor(
-    readonly keyframes: readonly AnimationKeyframe[],
+    readonly keyframes: readonly AnimationKeyframe[] | AnimationDescription,
     readonly options: AnimationOptions,
     readonly before: Record<string, unknown>,
   ) {
@@ -80,7 +81,7 @@ export class FakeNode {
   readonly id = nextId++;
   readonly animations: FakeAnimation[] = [];
   animate(
-    frames: readonly AnimationKeyframe[],
+    frames: readonly AnimationKeyframe[] | AnimationDescription,
     options: AnimationOptions = {},
   ): FakeAnimation {
     // The real runtime cancels conflicts; record the commit boundary here.

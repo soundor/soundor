@@ -70,7 +70,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             void walk(const ui::Node& node, float originX, float originY, float opacity,
                       const std::optional<AncestorClip>& clip)
             {
-                const ui::Style& style = node.style();
+                const ui::Style& style = node.presentedStyle();
                 if (style.display == ui::Display::None || style.opacity <= 0)
                     return;
                 const ui::Rect frame = node.frame();

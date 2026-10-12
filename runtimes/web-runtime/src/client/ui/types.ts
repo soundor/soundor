@@ -1,3 +1,5 @@
+import type { UiNode } from './node';
+
 /**
  * The shapes `soundor:ui` declares (packages/core/runtime/ui.d.ts), for the
  * browser code. That declaration cannot be included here: it comes with
@@ -24,17 +26,54 @@ export type AnimationEasing =
 export interface AnimationKeyframe {
   opacity?: number;
   transform?: readonly TransformOperation[];
+  backgroundColor?: string;
+  borderColor?: string;
+  offset?: number;
+  easing?: AnimationEasing;
 }
 export interface AnimationOptions {
+  type?: 'timing' | 'spring';
   duration?: number;
   delay?: number;
   easing?: AnimationEasing;
   fill?: 'none' | 'backwards' | 'forwards' | 'both';
+  iterations?: number;
+  direction?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse';
+  stiffness?: number;
+  damping?: number;
+  mass?: number;
+  initialVelocity?: number;
+  restDisplacement?: number;
+  restVelocity?: number;
 }
+export type AnimationPlaybackOptions = Pick<
+  AnimationOptions,
+  'delay' | 'easing' | 'fill' | 'iterations' | 'direction'
+>;
+export interface AnimationEffect {
+  kind?: 'effect';
+  target?: UiNode;
+  keyframes: readonly AnimationKeyframe[];
+  options?: AnimationOptions;
+}
+export interface AnimationComposition {
+  kind: 'sequence' | 'parallel' | 'stagger';
+  children: readonly AnimationDescription[];
+  options?: AnimationPlaybackOptions;
+  stagger?: number;
+}
+export interface AnimationDelay {
+  kind: 'delay';
+  duration: number;
+}
+export type AnimationDescription =
+  | AnimationEffect
+  | AnimationComposition
+  | AnimationDelay;
 export interface UiAnimation {
   readonly finished: Promise<void>;
   readonly playState: 'idle' | 'running' | 'paused' | 'finished';
-  readonly currentTime: number;
+  currentTime: number;
   play(): void;
   pause(): void;
   resume(): void;

@@ -129,6 +129,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return presentationMask == 0 ? nodeStyle : visualStyle;
         }
         [[nodiscard]] bool hasPresentation() const noexcept { return presentationMask != 0; }
+        [[nodiscard]] bool hasCompositorPresentation() const noexcept
+        {
+            return (presentationMask & (transformPropertyMask | propertyBit(AnimatedProperty::Opacity))) != 0;
+        }
         [[nodiscard]] const std::string& text() const noexcept { return textContent; }
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
         // The layout box relative to the parent's, once laid out.

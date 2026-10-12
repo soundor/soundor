@@ -438,3 +438,39 @@ targets do not restart an animation. Unmount cancels animations recursively.
 There are no component state updates per intermediate frame. Reduced motion
 follows `soundor:ui`; browser media queries are observed automatically, while
 native hosts provide the preference or application code sets it explicitly.
+
+### Springs, paint and explicit programs
+
+`Animated.View` uses the same reconciler and low-level animation handle for
+spring transitions and timing paint transitions:
+
+```tsx
+<Animated.View
+  style={{ transform: [{ scale: pressed ? 0.95 : 1 }] }}
+  transition={{ type: 'spring', stiffness: 300, damping: 25, mass: 1 }}
+>
+  <Text>Press me</Text>
+</Animated.View>
+
+<Animated.View
+  style={{ width: 100, height: 20 }}
+  animation={[
+    { backgroundColor: '#204080', offset: 0 },
+    { backgroundColor: '#c08040', offset: 1 },
+  ]}
+  transition={{ duration: 1000, iterations: Infinity, direction: 'alternate', fill: 'both' }}
+/>
+```
+
+Style transitions capture current presentation before publishing the new base
+style, including paint colors (paint requires a timing transition). Explicit
+`animation` accepts keyframes or a composed low-level description; `transition`
+supplies its playback options. It submits on mount in the same commit before
+paint, then only when description contents or options change. Node targets are
+compared by identity; fresh equivalent frame arrays do not restart playback.
+Removing `animation` or unmounting cancels its handle, including descendants.
+Explicit programs take precedence over automatic style transitions. Neither
+mode updates React on intermediate animation frames. Refs retain the underlying
+`UiNode`, whose `animate()` method exposes composition and playback controls.
+See the [animation contract](../../runtimes/juce-runtime/native/README.md#advanced-animations)
+for timing, cancellation, spring physics, paint damage and browser approximation.

@@ -102,3 +102,72 @@ it('holds the captured presentation during a transition delay before publishing 
   });
   expect(node.style.opacity).toBe(1);
 });
+
+it('submits spring transitions with physics options and paint transitions through the same reconciler', () => {
+  mounted = createRoot();
+  const render = (scale: number, backgroundColor: string) =>
+    flushSync(() =>
+      mounted!.render(
+        <Animated.View
+          style={{ transform: [{ scale }], backgroundColor }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25, mass: 1 }}
+        />,
+      ),
+    );
+  render(1, '#ff0000');
+  render(0.95, '#ff0000');
+  const node = root.children[0]! as FakeNode;
+  expect(node.animations[0]!.options).toMatchObject({
+    type: 'spring',
+    stiffness: 300,
+    damping: 25,
+    mass: 1,
+    fill: 'both',
+  });
+  // Paint springs are rejected by the runtimes; use a timing transition for paint.
+  flushSync(() =>
+    mounted!.render(
+      <Animated.View
+        style={{ backgroundColor: '#0000ff' }}
+        transition={{ duration: 400 }}
+      />,
+    ),
+  );
+  expect(node.animations[1]!.keyframes).toEqual([
+    { opacity: 1, transform: [], backgroundColor: '#0000ff' },
+  ]);
+  expect(node.animations[1]!.before.backgroundColor).toBe('#ff0000');
+});
+
+it('mounts explicit keyframes before paint, compares their contents, and cleans them up independently of style changes', () => {
+  mounted = createRoot();
+  const render = (animation = true, duration = 100) =>
+    flushSync(() =>
+      mounted!.render(
+        <Animated.View
+          style={{ opacity: 0.2 }}
+          animation={
+            animation
+              ? [{ opacity: 0 }, { opacity: 1, offset: 0.5 }, { opacity: 0 }]
+              : undefined
+          }
+          transition={{
+            duration,
+            iterations: Infinity,
+            direction: 'alternate',
+          }}
+        />,
+      ),
+    );
+  render();
+  const node = root.children[0]! as FakeNode;
+  expect(node.animations).toHaveLength(1);
+  expect(node.animations[0]!.before.opacity).toBe(0.2);
+  render();
+  expect(node.animations).toHaveLength(1);
+  render(true, 200);
+  expect(node.animations).toHaveLength(2);
+  expect(node.animations[0]!.playState).toBe('idle');
+  render(false, 200);
+  expect(node.animations[1]!.playState).toBe('idle');
+});
