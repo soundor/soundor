@@ -418,3 +418,18 @@ it('clamps finite seeking at completion consistently with the native timeline', 
   expect(program.playState).toBe('finished');
   await program.finished;
 });
+
+it('treats zero-duration infinite iteration effects as an immediate finite endpoint', async () => {
+  const { controller, element } = setup();
+  const animation = controller.create(element, [{ opacity: 1 }], {
+    duration: 0,
+    delay: 20,
+    iterations: Infinity,
+    fill: 'forwards',
+  });
+  animation.pause();
+  animation.currentTime = 1000;
+  expect(animation.currentTime).toBe(20);
+  expect(animation.playState).toBe('finished');
+  await animation.finished;
+});

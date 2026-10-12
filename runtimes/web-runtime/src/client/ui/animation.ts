@@ -682,6 +682,15 @@ export class AnimationController {
   }
 }
 
+function endTime(options: Required<AnimationOptions>): number {
+  return (
+    options.delay +
+    (options.duration === 0 || options.iterations === 0
+      ? 0
+      : options.duration * (options.iterations ?? 1))
+  );
+}
+
 export class UiAnimation implements AnimationContract {
   #native: Animation;
   #source: Promise<Animation> | undefined;
@@ -808,9 +817,8 @@ export class UiAnimation implements AnimationContract {
     )
       return this.options.duration + this.options.delay;
     return this.playState === 'finished' &&
-      Number.isFinite(this.options.duration * (this.options.iterations ?? 1))
-      ? this.options.duration * (this.options.iterations ?? 1) +
-          this.options.delay
+      Number.isFinite(endTime(this.options))
+      ? endTime(this.options)
       : Number(this.#native.currentTime ?? 0);
   }
   set currentTime(value: number) {
@@ -825,9 +833,7 @@ export class UiAnimation implements AnimationContract {
       this.controller.register(this);
       this.#native.pause();
     }
-    const end =
-      this.options.duration * (this.options.iterations ?? 1) +
-      this.options.delay;
+    const end = endTime(this.options);
     this.#native.currentTime = Math.min(value, end);
     if (Number.isFinite(end) && value >= end) this.#native.finish();
     void this.finished;

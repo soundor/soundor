@@ -1,0 +1,4351 @@
+{
+  "schema": 1,
+  "environment": {
+    "commit": "8fb5742851ccb291d08f68d1c9616730ec283d74",
+    "dirty": false,
+    "date": "2026-10-12T16:19:46.352Z",
+    "backend": "OpenGL",
+    "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+    "software": false,
+    "cpu": "Intel(R) Core(TM) 5 210H",
+    "cores": 4,
+    "platform": "linux 7.0.0-38-generic",
+    "build": {
+      "commit": "8fb5742851ccb291d08f68d1c9616730ec283d74",
+      "dirty": false,
+      "date": "2026-10-12T16:19:46.352Z",
+      "hermesRevision": "602befee340da188ea1560cde7a9cc33e6b180dc",
+      "compilerSha256": "fa5b1d69d6a92950f3fbcd7c11831884cfb2c2ce0c78c178f0034ef21f193176",
+      "runnerSha256": "7b34a6d0a6c6d33787f2b9733c8fc2cfcaff55c82d30dc4474394808497fd9f2",
+      "bundleSha256": "13120d60a99a6ddd60ea0cac85817d9f11f953f71da82e23a4c84fb11e2fe810",
+      "execution": "hermes-bytecode",
+      "buildType": "Release",
+      "collectBetweenPhases": true,
+      "animationMode": "native"
+    }
+  },
+  "config": {
+    "runs": 5,
+    "frames": 600,
+    "warmup": 30,
+    "size": "700x520",
+    "only": [
+      "animation-opacity-50",
+      "animation-opacity-500",
+      "animation-react-500",
+      "animation-mixed-20"
+    ],
+    "animations": "native",
+    "animationStepMs": 16.666666666666668
+  },
+  "summary": {
+    "animation-opacity-50": {
+      "frame": {
+        "median": 0.3124695,
+        "min": 0.300655635,
+        "max": 0.33832882,
+        "spread": 6.028297961881079
+      },
+      "frameP95": {
+        "median": 0.427814,
+        "min": 0.362374,
+        "max": 0.493742,
+        "spread": 15.353401244466056
+      },
+      "frameP50": {
+        "median": 0.271059,
+        "min": 0.26721,
+        "max": 0.299404,
+        "spread": 5.93855950180588
+      },
+      "frameP99": {
+        "median": 0.680608,
+        "min": 0.6685,
+        "max": 0.787305,
+        "spread": 8.72785803281772
+      },
+      "frameMax": {
+        "median": 7.923048,
+        "min": 3.107314,
+        "max": 8.326445,
+        "spread": 32.93638382602251
+      },
+      "frameDeviation": {
+        "median": 0.3375899919,
+        "min": 0.1689691171,
+        "max": 0.345779553,
+        "spread": 26.187156038733267
+      },
+      "tick": {
+        "median": 0.01432541,
+        "min": 0.01382675667,
+        "max": 0.01558704,
+        "spread": 6.143919545758199
+      },
+      "allTick": {
+        "median": 0.01432541,
+        "min": 0.01382675667,
+        "max": 0.01558704,
+        "spread": 6.143919545758199
+      },
+      "allTickP95": {
+        "median": 0.021851,
+        "min": 0.02006,
+        "max": 0.024183,
+        "spread": 9.434350830625597
+      },
+      "allTickP99": {
+        "median": 0.037228,
+        "min": 0.03474,
+        "max": 0.050625,
+        "spread": 21.334748039110355
+      },
+      "build": {
+        "median": 0.03245952,
+        "min": 0.031938675,
+        "max": 0.03296185167,
+        "spread": 1.5760810233792746
+      },
+      "composite": {
+        "median": 0.11895508,
+        "min": 0.1183365617,
+        "max": 0.1325358,
+        "spread": 5.9683194278041825
+      },
+      "script": {
+        "median": 0.000726666666669947,
+        "min": 0.0006850000000023708,
+        "max": 0.0007749999999994847,
+        "spread": 6.1926605502321745
+      },
+      "update": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "render": {
+        "median": 0.000726666666669947,
+        "min": 0.0006850000000023708,
+        "max": 0.0007749999999994847,
+        "spread": 6.1926605502321745
+      },
+      "nativeMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layoutMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "animationStorageKiB": {
+        "median": 43.65625,
+        "min": 43.65625,
+        "max": 43.65625,
+        "spread": 0
+      },
+      "animationMs": {
+        "median": 0.004051586667,
+        "min": 0.003967193333,
+        "max": 0.004569703333,
+        "spread": 7.435482065673405
+      },
+      "cachedRasterKB": {
+        "median": 1591.1484375,
+        "min": 1591.1484375,
+        "max": 1591.1484375,
+        "spread": 0
+      },
+      "idleTick": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "fps": {
+        "median": 3200.31235,
+        "min": 2955.704453,
+        "max": 3326.064386,
+        "spread": 5.786309155104815
+      },
+      "uiCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "canvasCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "webglCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "styleChanges": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layouts": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "invalidations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "collections": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocatedKB": {
+        "median": 1.0174739580078125,
+        "min": 1.0134895830078126,
+        "max": 1.0229166669921874,
+        "spread": 0.4632592269404539
+      },
+      "rasterized": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "uploadedKB": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "readbacks": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "drawCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      }
+    },
+    "animation-opacity-500": {
+      "frame": {
+        "median": 1.510541483,
+        "min": 1.472358395,
+        "max": 1.524031508,
+        "spread": 1.710416879693197
+      },
+      "frameP95": {
+        "median": 2.111417,
+        "min": 2.079441,
+        "max": 2.255612,
+        "spread": 4.171866571122617
+      },
+      "frameP50": {
+        "median": 1.357134,
+        "min": 1.353655,
+        "max": 1.380128,
+        "spread": 0.9753274179263053
+      },
+      "frameP99": {
+        "median": 3.196003,
+        "min": 2.58088,
+        "max": 3.599096,
+        "spread": 15.92952196853382
+      },
+      "frameMax": {
+        "median": 6.505714,
+        "min": 3.94108,
+        "max": 17.641303,
+        "spread": 105.29376944636668
+      },
+      "frameDeviation": {
+        "median": 0.4861020744,
+        "min": 0.3452556056,
+        "max": 0.7662424182,
+        "spread": 43.302305706021485
+      },
+      "tick": {
+        "median": 0.08729338667,
+        "min": 0.07794922833,
+        "max": 0.09119123833,
+        "spread": 7.584772744617813
+      },
+      "allTick": {
+        "median": 0.08729338667,
+        "min": 0.07794922833,
+        "max": 0.09119123833,
+        "spread": 7.584772744617813
+      },
+      "allTickP95": {
+        "median": 0.167358,
+        "min": 0.163758,
+        "max": 0.180009,
+        "spread": 4.855160793030514
+      },
+      "allTickP99": {
+        "median": 0.255048,
+        "min": 0.22912,
+        "max": 0.276318,
+        "spread": 9.252768106395662
+      },
+      "build": {
+        "median": 0.3447275467,
+        "min": 0.3301158383,
+        "max": 0.3499806217,
+        "spread": 2.881229479651557
+      },
+      "composite": {
+        "median": 0.8496225283,
+        "min": 0.8159276167,
+        "max": 0.8515695283,
+        "spread": 2.0975145086674822
+      },
+      "script": {
+        "median": 0.0015116666666657845,
+        "min": 0.0014266666666685524,
+        "max": 0.00166333333333417,
+        "spread": 7.8280044101132
+      },
+      "update": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "render": {
+        "median": 0.0015116666666657845,
+        "min": 0.0014266666666685524,
+        "max": 0.00166333333333417,
+        "spread": 7.8280044101132
+      },
+      "nativeMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layoutMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "animationStorageKiB": {
+        "median": 434.6328125,
+        "min": 434.6328125,
+        "max": 434.6328125,
+        "spread": 0
+      },
+      "animationMs": {
+        "median": 0.06313967333,
+        "min": 0.05408869,
+        "max": 0.06909003,
+        "spread": 11.87948813228362
+      },
+      "cachedRasterKB": {
+        "median": 2441.9296875,
+        "min": 2441.9296875,
+        "max": 2441.9296875,
+        "spread": 0
+      },
+      "idleTick": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "fps": {
+        "median": 662.0142585,
+        "min": 656.1544132,
+        "max": 679.1824622,
+        "spread": 1.7392411646976642
+      },
+      "uiCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "canvasCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "webglCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "styleChanges": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layouts": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "invalidations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "collections": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocatedKB": {
+        "median": 1.0516536455078125,
+        "min": 1.0492057294921875,
+        "max": 1.0550911455078125,
+        "spread": 0.2798172212289097
+      },
+      "rasterized": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "uploadedKB": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "readbacks": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "drawCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      }
+    },
+    "animation-react-500": {
+      "frame": {
+        "median": 1.531750875,
+        "min": 1.501647753,
+        "max": 1.578786835,
+        "spread": 2.5180035232556985
+      },
+      "frameP95": {
+        "median": 2.264382,
+        "min": 2.187511,
+        "max": 2.283242,
+        "spread": 2.1138438655668477
+      },
+      "frameP50": {
+        "median": 1.381934,
+        "min": 1.360725,
+        "max": 1.41767,
+        "spread": 2.0603371796337604
+      },
+      "frameP99": {
+        "median": 3.730595,
+        "min": 3.206629,
+        "max": 3.745215,
+        "spread": 7.218499997989597
+      },
+      "frameMax": {
+        "median": 6.648962,
+        "min": 6.303289,
+        "max": 7.33843,
+        "spread": 7.784230079822982
+      },
+      "frameDeviation": {
+        "median": 0.5352732464,
+        "min": 0.4874157526,
+        "max": 0.5995730812,
+        "spread": 10.47664247693288
+      },
+      "tick": {
+        "median": 0.08206549333,
+        "min": 0.07679379,
+        "max": 0.0938584,
+        "spread": 10.39694596813069
+      },
+      "allTick": {
+        "median": 0.08206549333,
+        "min": 0.07679379,
+        "max": 0.0938584,
+        "spread": 10.39694596813069
+      },
+      "allTickP95": {
+        "median": 0.173904,
+        "min": 0.14313,
+        "max": 0.18859,
+        "spread": 13.070429662342441
+      },
+      "allTickP99": {
+        "median": 0.235388,
+        "min": 0.230103,
+        "max": 0.282329,
+        "spread": 11.093598654136999
+      },
+      "build": {
+        "median": 0.34769486,
+        "min": 0.3399446333,
+        "max": 0.3598419417,
+        "spread": 2.861317593248284
+      },
+      "composite": {
+        "median": 0.87442946,
+        "min": 0.8419475117,
+        "max": 0.8999867267,
+        "spread": 3.318690509352234
+      },
+      "script": {
+        "median": 0.001734999999990426,
+        "min": 0.0015316666666565955,
+        "max": 0.0018966666666672912,
+        "spread": 10.5187319888389
+      },
+      "update": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "render": {
+        "median": 0.001734999999990426,
+        "min": 0.0015316666666565955,
+        "max": 0.0018966666666672912,
+        "spread": 10.5187319888389
+      },
+      "nativeMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layoutMs": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "animationStorageKiB": {
+        "median": 439.8828125,
+        "min": 439.8828125,
+        "max": 439.8828125,
+        "spread": 0
+      },
+      "animationMs": {
+        "median": 0.05771736667,
+        "min": 0.05114440667,
+        "max": 0.070189175,
+        "spread": 16.49829975689014
+      },
+      "cachedRasterKB": {
+        "median": 2441.9296875,
+        "min": 2441.9296875,
+        "max": 2441.9296875,
+        "spread": 0
+      },
+      "idleTick": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "fps": {
+        "median": 652.8476767,
+        "min": 633.3977316,
+        "max": 665.9351354,
+        "spread": 2.4919598369767773
+      },
+      "uiCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "canvasCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "webglCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "styleChanges": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "layouts": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "invalidations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "collections": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocatedKB": {
+        "median": 1.0569270830078126,
+        "min": 1.0508854169921875,
+        "max": 1.061015625,
+        "spread": 0.47922927563668183
+      },
+      "rasterized": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "uploadedKB": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "readbacks": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "drawCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      }
+    },
+    "animation-mixed-20": {
+      "frame": {
+        "median": 2.928529685,
+        "min": 2.905079917,
+        "max": 3.000235937,
+        "spread": 1.6246381330431978
+      },
+      "frameP95": {
+        "median": 3.363384,
+        "min": 3.298403,
+        "max": 3.434748,
+        "spread": 2.026902072436569
+      },
+      "frameP50": {
+        "median": 2.838983,
+        "min": 2.809831,
+        "max": 2.90636,
+        "spread": 1.7000630155235144
+      },
+      "frameP99": {
+        "median": 5.729449,
+        "min": 5.378171,
+        "max": 6.115954,
+        "spread": 6.438516164468873
+      },
+      "frameMax": {
+        "median": 7.707678,
+        "min": 7.409386,
+        "max": 9.808768,
+        "spread": 15.564882186308257
+      },
+      "frameDeviation": {
+        "median": 0.5171900291,
+        "min": 0.4777562507,
+        "max": 0.5779427928,
+        "spread": 9.685660633707686
+      },
+      "tick": {
+        "median": 1.713305198,
+        "min": 1.69129061,
+        "max": 1.730297832,
+        "spread": 1.1383617479692008
+      },
+      "allTick": {
+        "median": 1.713305198,
+        "min": 1.69129061,
+        "max": 1.730297832,
+        "spread": 1.1383617479692008
+      },
+      "allTickP95": {
+        "median": 1.957371,
+        "min": 1.907166,
+        "max": 1.983511,
+        "spread": 1.9501923753851496
+      },
+      "allTickP99": {
+        "median": 2.171086,
+        "min": 2.131181,
+        "max": 2.235765,
+        "spread": 2.4085641932194206
+      },
+      "build": {
+        "median": 0.5290124717,
+        "min": 0.525633765,
+        "max": 0.5391771183,
+        "spread": 1.2800599252866351
+      },
+      "composite": {
+        "median": 0.383468495,
+        "min": 0.3801426467,
+        "max": 0.3936920883,
+        "spread": 1.7666955403989635
+      },
+      "script": {
+        "median": 1.6761183333333445,
+        "min": 1.6540016666666497,
+        "max": 1.6931033333333516,
+        "spread": 1.1664351462864586
+      },
+      "update": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "render": {
+        "median": 1.6761183333333445,
+        "min": 1.6540016666666497,
+        "max": 1.6931033333333516,
+        "spread": 1.1664351462864586
+      },
+      "nativeMs": {
+        "median": 0.117858725,
+        "min": 0.1153754517,
+        "max": 0.1206853667,
+        "spread": 2.2526609718542256
+      },
+      "layoutMs": {
+        "median": 0.1512306217,
+        "min": 0.1504445333,
+        "max": 0.1542007533,
+        "spread": 1.2418847313381123
+      },
+      "animationStorageKiB": {
+        "median": 25.5078125,
+        "min": 25.5078125,
+        "max": 25.5078125,
+        "spread": 0
+      },
+      "animationMs": {
+        "median": 0.007323101667,
+        "min": 0.007174253333,
+        "max": 0.008013703333,
+        "spread": 5.731519499331836
+      },
+      "cachedRasterKB": {
+        "median": 3051.859375,
+        "min": 3051.859375,
+        "max": 3051.859375,
+        "spread": 0
+      },
+      "idleTick": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "fps": {
+        "median": 341.4682819,
+        "min": 333.3071202,
+        "max": 344.2246095,
+        "spread": 1.598609574987878
+      },
+      "uiCalls": {
+        "median": 64,
+        "min": 64,
+        "max": 64,
+        "spread": 0
+      },
+      "canvasCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "webglCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "styleChanges": {
+        "median": 44,
+        "min": 44,
+        "max": 44,
+        "spread": 0
+      },
+      "layouts": {
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "spread": 0
+      },
+      "invalidations": {
+        "median": 64,
+        "min": 64,
+        "max": 64,
+        "spread": 0
+      },
+      "collections": {
+        "median": 0.04,
+        "min": 0.04,
+        "max": 0.04,
+        "spread": 0
+      },
+      "allocations": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "allocatedKB": {
+        "median": 164.12876298828124,
+        "min": 164.1263671875,
+        "max": 164.1300390625,
+        "spread": 0.0011185958308450987
+      },
+      "rasterized": {
+        "median": 20,
+        "min": 20,
+        "max": 20,
+        "spread": 0
+      },
+      "uploadedKB": {
+        "median": 502.734375,
+        "min": 502.734375,
+        "max": 502.734375,
+        "spread": 0
+      },
+      "readbacks": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      },
+      "drawCalls": {
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "spread": 0
+      }
+    },
+    "(startup)": {
+      "startupMs": {
+        "median": 10.589954,
+        "min": 10.030339,
+        "max": 10.706621,
+        "spread": 3.1930355882565706
+      },
+      "heapKB": {
+        "median": 1883.48828125,
+        "min": 1883.48828125,
+        "max": 1883.48828125,
+        "spread": 0
+      }
+    }
+  },
+  "runs": [
+    {
+      "device": {
+        "backend": "OpenGL",
+        "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+        "vendor": "Google Inc. (Mesa)",
+        "software": false
+      },
+      "size": [700, 520],
+      "scale": 1,
+      "outcome": "ok",
+      "startup": {
+        "ms": 10.706621,
+        "heapBytes": 1928692,
+        "objects": 11316
+      },
+      "total": {
+        "name": "",
+        "frames": 2524,
+        "ticks": 2525,
+        "idleTicks": 1,
+        "idleTickMs": 0.033047,
+        "seconds": 4.196580575,
+        "fps": 601.4420443,
+        "frameMs": {
+          "mean": 1.662670592,
+          "p50": 1.389224,
+          "p95": 3.16059,
+          "max": 97.186842,
+          "p99": 3.797168,
+          "standardDeviation": 2.656795368
+        },
+        "tickMs": {
+          "mean": 0.4980447448,
+          "p50": 0.074994,
+          "p95": 1.737953,
+          "max": 32.456373,
+          "p99": 1.99003,
+          "standardDeviation": 1.083455584
+        },
+        "allTickMs": {
+          "mean": 0.4978605873,
+          "p50": 0.074892,
+          "p95": 1.737953,
+          "max": 32.456373,
+          "p99": 1.99003,
+          "standardDeviation": 1.083280527
+        },
+        "buildMs": {
+          "mean": 0.3187474881,
+          "p50": 0.321493,
+          "p95": 0.599624,
+          "max": 3.726821,
+          "p99": 0.75221,
+          "standardDeviation": 0.2180544038
+        },
+        "compositeMs": {
+          "mean": 0.6147275471,
+          "p50": 0.641481,
+          "p95": 1.145138,
+          "max": 60.822755,
+          "p99": 2.994699,
+          "standardDeviation": 1.624947684
+        },
+        "layersRasterized": 13660,
+        "pixelsRasterized": 83391178,
+        "gpuReadbacks": 0,
+        "cachedRasterBytesMax": 3125104,
+        "animationStorageBytesAtStart": 450440,
+        "bytesUploaded": 333564712,
+        "textureAllocations": 2148,
+        "compositorDrawCalls": 700810,
+        "tickSteps": {
+          "web": 0.02445305864,
+          "jobs": 0.004990320127,
+          "animationFrames": 0.4339860777,
+          "nativeAnimations": 0.03307499247,
+          "presentWebGL": 0.001353759905
+        },
+        "nativeCalls": {
+          "ui": {
+            "perFrame": 19.1707607,
+            "ms": 0.03324992274
+          },
+          "canvas": {
+            "perFrame": 0.001980982567,
+            "ms": 0.00003607646593
+          },
+          "webgl": {
+            "perFrame": 0.00118858954,
+            "ms": 0.0001746156894
+          }
+        },
+        "surface": {
+          "styleChanges": 11.46196513,
+          "layoutPasses": 0.250792393,
+          "layoutMs": 0.03829611133,
+          "invalidations": 17.80903328
+        },
+        "engine": {
+          "collections": 0.01148969889,
+          "allocatedBytes": 50412.01268,
+          "heapBytesMax": 8476484
+        }
+      },
+      "phases": [
+        {
+          "name": "animation-opacity-50",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.1874817,
+          "fps": 3200.31235,
+          "frameMs": {
+            "mean": 0.3124695,
+            "p50": 0.271059,
+            "p95": 0.390303,
+            "max": 7.923048,
+            "p99": 0.787305,
+            "standardDeviation": 0.3347773043
+          },
+          "tickMs": {
+            "mean": 0.01432541,
+            "p50": 0.011898,
+            "p95": 0.021344,
+            "max": 0.393298,
+            "p99": 0.050625,
+            "standardDeviation": 0.01662336549
+          },
+          "allTickMs": {
+            "mean": 0.01432541,
+            "p50": 0.011898,
+            "p95": 0.021344,
+            "max": 0.393298,
+            "p99": 0.050625,
+            "standardDeviation": 0.01662336549
+          },
+          "buildMs": {
+            "mean": 0.03245952,
+            "p50": 0.030465,
+            "p95": 0.040768,
+            "max": 0.10162,
+            "p99": 0.058644,
+            "standardDeviation": 0.006014026749
+          },
+          "compositeMs": {
+            "mean": 0.11895508,
+            "p50": 0.090948,
+            "p95": 0.14006,
+            "max": 7.714751,
+            "p99": 0.376024,
+            "standardDeviation": 0.3298291614
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 1629336,
+          "animationStorageBytesAtStart": 44704,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 32400,
+          "tickSteps": {
+            "web": 0.0004030533333,
+            "jobs": 0.001601393333,
+            "animationFrames": 0.008166581667,
+            "nativeAnimations": 0.003967193333,
+            "presentWebGL": 0.000070465
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1043.466667,
+            "heapBytesMax": 1967628
+          }
+        },
+        {
+          "name": "animation-opacity-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.914418905,
+          "fps": 656.1544132,
+          "frameMs": {
+            "mean": 1.524031508,
+            "p50": 1.380128,
+            "p95": 2.255612,
+            "max": 4.55532,
+            "p99": 3.196003,
+            "standardDeviation": 0.4257355936
+          },
+          "tickMs": {
+            "mean": 0.08847137333,
+            "p50": 0.077328,
+            "p95": 0.180009,
+            "max": 0.463327,
+            "p99": 0.265482,
+            "standardDeviation": 0.04619695336
+          },
+          "allTickMs": {
+            "mean": 0.08847137333,
+            "p50": 0.077328,
+            "p95": 0.180009,
+            "max": 0.463327,
+            "p99": 0.265482,
+            "standardDeviation": 0.04619695336
+          },
+          "buildMs": {
+            "mean": 0.3459399483,
+            "p50": 0.321062,
+            "p95": 0.544276,
+            "max": 0.909725,
+            "p99": 0.688739,
+            "standardDeviation": 0.088024604
+          },
+          "compositeMs": {
+            "mean": 0.8515695283,
+            "p50": 0.753228,
+            "p95": 1.263494,
+            "max": 3.985658,
+            "p99": 2.385387,
+            "standardDeviation": 0.3355633137
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 445064,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001432535,
+            "jobs": 0.00479721,
+            "animationFrames": 0.01862709667,
+            "nativeAnimations": 0.06313967333,
+            "presentWebGL": 0.000289135
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1080.413333,
+            "heapBytesMax": 3064140
+          }
+        },
+        {
+          "name": "animation-react-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.919050525,
+          "fps": 652.8476767,
+          "frameMs": {
+            "mean": 1.531750875,
+            "p50": 1.382664,
+            "p95": 2.266994,
+            "max": 6.613047,
+            "p99": 3.730595,
+            "standardDeviation": 0.5318157423
+          },
+          "tickMs": {
+            "mean": 0.08206549333,
+            "p50": 0.070225,
+            "p95": 0.173904,
+            "max": 0.513942,
+            "p99": 0.233501,
+            "standardDeviation": 0.04343892546
+          },
+          "allTickMs": {
+            "mean": 0.08206549333,
+            "p50": 0.070225,
+            "p95": 0.173904,
+            "max": 0.513942,
+            "p99": 0.233501,
+            "standardDeviation": 0.04343892546
+          },
+          "buildMs": {
+            "mean": 0.34769486,
+            "p50": 0.32383,
+            "p95": 0.52791,
+            "max": 0.873442,
+            "p99": 0.699744,
+            "standardDeviation": 0.08823221208
+          },
+          "compositeMs": {
+            "mean": 0.87442946,
+            "p50": 0.763172,
+            "p95": 1.290611,
+            "max": 6.047119,
+            "p99": 2.994699,
+            "standardDeviation": 0.4472657162
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 450440,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001278976667,
+            "jobs": 0.004517988333,
+            "animationFrames": 0.01812545667,
+            "nativeAnimations": 0.05771736667,
+            "presentWebGL": 0.0002467366667
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1076.106667,
+            "heapBytesMax": 4402148
+          }
+        },
+        {
+          "name": "animation-mixed-20",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 1.744156066,
+          "fps": 344.0059131,
+          "frameMs": {
+            "mean": 2.906926777,
+            "p50": 2.817666,
+            "p95": 3.31596,
+            "max": 7.409386,
+            "p99": 5.729449,
+            "standardDeviation": 0.4777562507
+          },
+          "tickMs": {
+            "mean": 1.69129061,
+            "p50": 1.664781,
+            "p95": 1.91737,
+            "max": 2.517415,
+            "p99": 2.131181,
+            "standardDeviation": 0.115492386
+          },
+          "allTickMs": {
+            "mean": 1.69129061,
+            "p50": 1.664781,
+            "p95": 1.91737,
+            "max": 2.517415,
+            "p99": 2.131181,
+            "standardDeviation": 0.115492386
+          },
+          "buildMs": {
+            "mean": 0.5290124717,
+            "p50": 0.512555,
+            "p95": 0.705058,
+            "max": 0.850533,
+            "p99": 0.76346,
+            "standardDeviation": 0.0732529559
+          },
+          "compositeMs": {
+            "mean": 0.3801426467,
+            "p50": 0.313053,
+            "p95": 0.564574,
+            "max": 4.804573,
+            "p99": 3.227311,
+            "standardDeviation": 0.4017653326
+          },
+          "layersRasterized": 12000,
+          "pixelsRasterized": 77220000,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 3125104,
+          "animationStorageBytesAtStart": 26120,
+          "bytesUploaded": 308880000,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 28200,
+          "tickSteps": {
+            "web": 0.001367853333,
+            "jobs": 0.008449633333,
+            "animationFrames": 1.66939383,
+            "nativeAnimations": 0.007174253333,
+            "presentWebGL": 0.004594038333
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 64,
+              "ms": 0.11599209
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 44,
+            "layoutPasses": 1,
+            "layoutMs": 0.151171875,
+            "invalidations": 64
+          },
+          "engine": {
+            "collections": 0.04,
+            "allocatedBytes": 168069.16,
+            "heapBytesMax": 8399228
+          }
+        }
+      ],
+      "value": [
+        {
+          "scenario": "animation-opacity-50",
+          "group": "animation",
+          "frames": 600,
+          "fps": 3204.3909249937137,
+          "scriptAverage": 0.000726666666669947,
+          "scriptP95": 0.0010000000002037268,
+          "updateAverage": 0,
+          "renderAverage": 0.000726666666669947,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-opacity-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 656.1780422451587,
+          "scriptAverage": 0.00166333333333417,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.00166333333333417,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-react-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 653.1137388308283,
+          "scriptAverage": 0.001734999999990426,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.001734999999990426,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-mixed-20",
+          "group": "animation",
+          "frames": 600,
+          "fps": 344.0081137673311,
+          "scriptAverage": 1.6540016666666497,
+          "scriptP95": 1.8499999999994543,
+          "updateAverage": 0,
+          "renderAverage": 1.6540016666666497,
+          "drawCalls": 0,
+          "triangles": 0
+        }
+      ]
+    },
+    {
+      "device": {
+        "backend": "OpenGL",
+        "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+        "vendor": "Google Inc. (Mesa)",
+        "software": false
+      },
+      "size": [700, 520],
+      "scale": 1,
+      "outcome": "ok",
+      "startup": {
+        "ms": 10.589954,
+        "heapBytes": 1928692,
+        "objects": 11316
+      },
+      "total": {
+        "name": "",
+        "frames": 2524,
+        "ticks": 2524,
+        "idleTicks": 0,
+        "idleTickMs": 0,
+        "seconds": 4.288510887,
+        "fps": 588.5492812,
+        "frameMs": {
+          "mean": 1.699093061,
+          "p50": 1.389178,
+          "p95": 3.263382,
+          "max": 106.752452,
+          "p99": 5.428056,
+          "standardDeviation": 2.895022531
+        },
+        "tickMs": {
+          "mean": 0.510544046,
+          "p50": 0.081503,
+          "p95": 1.784911,
+          "max": 31.474564,
+          "p99": 2.043605,
+          "standardDeviation": 1.089867593
+        },
+        "allTickMs": {
+          "mean": 0.510544046,
+          "p50": 0.081503,
+          "p95": 1.784911,
+          "max": 31.474564,
+          "p99": 2.043605,
+          "standardDeviation": 1.089867593
+        },
+        "buildMs": {
+          "mean": 0.3247720547,
+          "p50": 0.330594,
+          "p95": 0.594801,
+          "max": 3.663881,
+          "p99": 0.793559,
+          "standardDeviation": 0.2242102623
+        },
+        "compositeMs": {
+          "mean": 0.6357090574,
+          "p50": 0.6412,
+          "p95": 1.147384,
+          "max": 71.378923,
+          "p99": 2.755423,
+          "standardDeviation": 1.893643866
+        },
+        "layersRasterized": 13660,
+        "pixelsRasterized": 83391178,
+        "gpuReadbacks": 0,
+        "cachedRasterBytesMax": 3125104,
+        "animationStorageBytesAtStart": 450440,
+        "bytesUploaded": 333564712,
+        "textureAllocations": 2148,
+        "compositorDrawCalls": 700810,
+        "tickSteps": {
+          "web": 0.02429726941,
+          "jobs": 0.004776881141,
+          "animationFrames": 0.4424738982,
+          "nativeAnimations": 0.03744986767,
+          "presentWebGL": 0.00136425317
+        },
+        "nativeCalls": {
+          "ui": {
+            "perFrame": 19.1707607,
+            "ms": 0.03444742512
+          },
+          "canvas": {
+            "perFrame": 0.001980982567,
+            "ms": 0.00003170839937
+          },
+          "webgl": {
+            "perFrame": 0.00118858954,
+            "ms": 0.0004513969889
+          }
+        },
+        "surface": {
+          "styleChanges": 11.46196513,
+          "layoutPasses": 0.250792393,
+          "layoutMs": 0.03868651466,
+          "invalidations": 17.80903328
+        },
+        "engine": {
+          "collections": 0.01148969889,
+          "allocatedBytes": 50410.19968,
+          "heapBytesMax": 8483916
+        }
+      },
+      "phases": [
+        {
+          "name": "animation-opacity-50",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.180393381,
+          "fps": 3326.064386,
+          "frameMs": {
+            "mean": 0.300655635,
+            "p50": 0.26721,
+            "p95": 0.362374,
+            "max": 7.846412,
+            "p99": 0.6685,
+            "standardDeviation": 0.3375899919
+          },
+          "tickMs": {
+            "mean": 0.01382675667,
+            "p50": 0.011746,
+            "p95": 0.02006,
+            "max": 0.410831,
+            "p99": 0.034764,
+            "standardDeviation": 0.01672708025
+          },
+          "allTickMs": {
+            "mean": 0.01382675667,
+            "p50": 0.011746,
+            "p95": 0.02006,
+            "max": 0.410831,
+            "p99": 0.034764,
+            "standardDeviation": 0.01672708025
+          },
+          "buildMs": {
+            "mean": 0.031938675,
+            "p50": 0.030718,
+            "p95": 0.038939,
+            "max": 0.067829,
+            "p99": 0.047396,
+            "standardDeviation": 0.003595955483
+          },
+          "compositeMs": {
+            "mean": 0.1183601233,
+            "p50": 0.089909,
+            "p95": 0.119503,
+            "max": 7.67548,
+            "p99": 0.313695,
+            "standardDeviation": 0.3356180527
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 1629336,
+          "animationStorageBytesAtStart": 44704,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 32400,
+          "tickSteps": {
+            "web": 0.000306775,
+            "jobs": 0.001556641667,
+            "animationFrames": 0.007811308333,
+            "nativeAnimations": 0.003968136667,
+            "presentWebGL": 0.00008216
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1037.813333,
+            "heapBytesMax": 1964236
+          }
+        },
+        {
+          "name": "animation-opacity-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.90632489,
+          "fps": 662.0142585,
+          "frameMs": {
+            "mean": 1.510541483,
+            "p50": 1.357134,
+            "p95": 2.130991,
+            "max": 7.466075,
+            "p99": 3.599096,
+            "standardDeviation": 0.5492930387
+          },
+          "tickMs": {
+            "mean": 0.09119123833,
+            "p50": 0.079396,
+            "p95": 0.172054,
+            "max": 0.488548,
+            "p99": 0.255048,
+            "standardDeviation": 0.04437673772
+          },
+          "allTickMs": {
+            "mean": 0.09119123833,
+            "p50": 0.079396,
+            "p95": 0.172054,
+            "max": 0.488548,
+            "p99": 0.255048,
+            "standardDeviation": 0.04437673772
+          },
+          "buildMs": {
+            "mean": 0.3499806217,
+            "p50": 0.326594,
+            "p95": 0.499263,
+            "max": 0.893005,
+            "p99": 0.660333,
+            "standardDeviation": 0.07743341208
+          },
+          "compositeMs": {
+            "mean": 0.8496225283,
+            "p50": 0.738049,
+            "p95": 1.211752,
+            "max": 6.933009,
+            "p99": 2.755423,
+            "standardDeviation": 0.4857531408
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 445064,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.0009403116667,
+            "jobs": 0.004152283333,
+            "animationFrames": 0.016566615,
+            "nativeAnimations": 0.06909003,
+            "presentWebGL": 0.000292735
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1074.386667,
+            "heapBytesMax": 3060524
+          }
+        },
+        {
+          "name": "animation-react-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.947272101,
+          "fps": 633.3977316,
+          "frameMs": {
+            "mean": 1.578786835,
+            "p50": 1.41767,
+            "p95": 2.264382,
+            "max": 6.648962,
+            "p99": 3.744802,
+            "standardDeviation": 0.5995730812
+          },
+          "tickMs": {
+            "mean": 0.0938584,
+            "p50": 0.083884,
+            "p95": 0.176535,
+            "max": 0.484787,
+            "p99": 0.282329,
+            "standardDeviation": 0.04733193061
+          },
+          "allTickMs": {
+            "mean": 0.0938584,
+            "p50": 0.083884,
+            "p95": 0.176535,
+            "max": 0.484787,
+            "p99": 0.282329,
+            "standardDeviation": 0.04733193061
+          },
+          "buildMs": {
+            "mean": 0.3598419417,
+            "p50": 0.338714,
+            "p95": 0.521635,
+            "max": 0.793559,
+            "p99": 0.701208,
+            "standardDeviation": 0.08340721063
+          },
+          "compositeMs": {
+            "mean": 0.8999867267,
+            "p50": 0.77431,
+            "p95": 1.319075,
+            "max": 6.003101,
+            "p99": 2.944921,
+            "standardDeviation": 0.54488016
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 450440,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001075698333,
+            "jobs": 0.00435509,
+            "animationFrames": 0.01776948333,
+            "nativeAnimations": 0.070189175,
+            "presentWebGL": 0.00031519
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1084.72,
+            "heapBytesMax": 4409404
+          }
+        },
+        {
+          "name": "animation-mixed-20",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 1.787869215,
+          "fps": 335.5950172,
+          "frameMs": {
+            "mean": 2.979782025,
+            "p50": 2.853609,
+            "p95": 3.434748,
+            "max": 9.017454,
+            "p99": 5.428056,
+            "standardDeviation": 0.5779427928
+          },
+          "tickMs": {
+            "mean": 1.730297832,
+            "p50": 1.696908,
+            "p95": 1.972281,
+            "max": 2.585818,
+            "p99": 2.235765,
+            "standardDeviation": 0.1306516687
+          },
+          "allTickMs": {
+            "mean": 1.730297832,
+            "p50": 1.696908,
+            "p95": 1.972281,
+            "max": 2.585818,
+            "p99": 2.235765,
+            "standardDeviation": 0.1306516687
+          },
+          "buildMs": {
+            "mean": 0.53535141,
+            "p50": 0.518047,
+            "p95": 0.711088,
+            "max": 0.954918,
+            "p99": 0.835567,
+            "standardDeviation": 0.08037653658
+          },
+          "compositeMs": {
+            "mean": 0.3874812583,
+            "p50": 0.312355,
+            "p95": 0.571512,
+            "max": 6.435961,
+            "p99": 2.599768,
+            "standardDeviation": 0.4944138505
+          },
+          "layersRasterized": 12000,
+          "pixelsRasterized": 77220000,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 3125104,
+          "animationStorageBytesAtStart": 26120,
+          "bytesUploaded": 308880000,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 28200,
+          "tickSteps": {
+            "web": 0.001269336667,
+            "jobs": 0.008259916667,
+            "animationFrames": 1.708653417,
+            "nativeAnimations": 0.007323101667,
+            "presentWebGL": 0.00447823
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 64,
+              "ms": 0.1206853667
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 44,
+            "layoutPasses": 1,
+            "layoutMs": 0.152329815,
+            "invalidations": 64
+          },
+          "engine": {
+            "collections": 0.04,
+            "allocatedBytes": 168067.8533,
+            "heapBytesMax": 8399260
+          }
+        }
+      ],
+      "value": [
+        {
+          "scenario": "animation-opacity-50",
+          "group": "animation",
+          "frames": 600,
+          "fps": 3330.886605276033,
+          "scriptAverage": 0.0007266666666653995,
+          "scriptP95": 0.0010000000002037268,
+          "updateAverage": 0,
+          "renderAverage": 0.0007266666666653995,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-opacity-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 662.056952371689,
+          "scriptAverage": 0.0014266666666685524,
+          "scriptP95": 0.0020000000004074536,
+          "updateAverage": 0,
+          "renderAverage": 0.0014266666666685524,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-react-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 633.5567176050497,
+          "scriptAverage": 0.001756666666676665,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.001756666666676665,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-mixed-20",
+          "group": "animation",
+          "frames": 600,
+          "fps": 335.56764993403493,
+          "scriptAverage": 1.6931033333333516,
+          "scriptP95": 1.9200000000000728,
+          "updateAverage": 0,
+          "renderAverage": 1.6931033333333516,
+          "drawCalls": 0,
+          "triangles": 0
+        }
+      ]
+    },
+    {
+      "device": {
+        "backend": "OpenGL",
+        "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+        "vendor": "Google Inc. (Mesa)",
+        "software": false
+      },
+      "size": [700, 520],
+      "scale": 1,
+      "outcome": "ok",
+      "startup": {
+        "ms": 10.650488,
+        "heapBytes": 1928692,
+        "objects": 11316
+      },
+      "total": {
+        "name": "",
+        "frames": 2524,
+        "ticks": 2525,
+        "idleTicks": 1,
+        "idleTickMs": 0.021635,
+        "seconds": 4.198176605,
+        "fps": 601.2133927,
+        "frameMs": {
+          "mean": 1.663302934,
+          "p50": 1.376575,
+          "p95": 3.17754,
+          "max": 103.249482,
+          "p99": 3.721091,
+          "standardDeviation": 2.830692314
+        },
+        "tickMs": {
+          "mean": 0.5048662452,
+          "p50": 0.076556,
+          "p95": 1.767556,
+          "max": 31.452495,
+          "p99": 2.074553,
+          "standardDeviation": 1.105107193
+        },
+        "allTickMs": {
+          "mean": 0.5046748665,
+          "p50": 0.076488,
+          "p95": 1.767556,
+          "max": 31.452495,
+          "p99": 2.074553,
+          "standardDeviation": 1.104930171
+        },
+        "buildMs": {
+          "mean": 0.3194095273,
+          "p50": 0.322862,
+          "p95": 0.593225,
+          "max": 4.521568,
+          "p99": 0.747719,
+          "standardDeviation": 0.2223690278
+        },
+        "compositeMs": {
+          "mean": 0.6075845412,
+          "p50": 0.639891,
+          "p95": 1.07164,
+          "max": 67.075034,
+          "p99": 2.701544,
+          "standardDeviation": 1.779043201
+        },
+        "layersRasterized": 13660,
+        "pixelsRasterized": 83391178,
+        "gpuReadbacks": 0,
+        "cachedRasterBytesMax": 3125104,
+        "animationStorageBytesAtStart": 450440,
+        "bytesUploaded": 333564712,
+        "textureAllocations": 2148,
+        "compositorDrawCalls": 700810,
+        "tickSteps": {
+          "web": 0.02496715293,
+          "jobs": 0.005018550713,
+          "animationFrames": 0.4390581482,
+          "nativeAnimations": 0.03433214976,
+          "presentWebGL": 0.001306124406
+        },
+        "nativeCalls": {
+          "ui": {
+            "perFrame": 19.1707607,
+            "ms": 0.03386099802
+          },
+          "canvas": {
+            "perFrame": 0.001980982567,
+            "ms": 0.00003272979398
+          },
+          "webgl": {
+            "perFrame": 0.00118858954,
+            "ms": 0.0003356913629
+          }
+        },
+        "surface": {
+          "styleChanges": 11.46196513,
+          "layoutPasses": 0.250792393,
+          "layoutMs": 0.03838511371,
+          "invalidations": 17.80903328
+        },
+        "engine": {
+          "collections": 0.0118858954,
+          "allocatedBytes": 50409.9271,
+          "heapBytesMax": 8478236
+        }
+      },
+      "phases": [
+        {
+          "name": "animation-opacity-50",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.19964081,
+          "fps": 3005.397544,
+          "frameMs": {
+            "mean": 0.3327346833,
+            "p50": 0.299263,
+            "p95": 0.427814,
+            "max": 8.326445,
+            "p99": 0.719719,
+            "standardDeviation": 0.3446676733
+          },
+          "tickMs": {
+            "mean": 0.01558704,
+            "p50": 0.013183,
+            "p95": 0.024183,
+            "max": 0.466045,
+            "p99": 0.037228,
+            "standardDeviation": 0.01914522042
+          },
+          "allTickMs": {
+            "mean": 0.01558704,
+            "p50": 0.013183,
+            "p95": 0.024183,
+            "max": 0.466045,
+            "p99": 0.037228,
+            "standardDeviation": 0.01914522042
+          },
+          "buildMs": {
+            "mean": 0.03290232,
+            "p50": 0.031064,
+            "p95": 0.043107,
+            "max": 0.08828,
+            "p99": 0.055879,
+            "standardDeviation": 0.005510003117
+          },
+          "compositeMs": {
+            "mean": 0.1232080733,
+            "p50": 0.094813,
+            "p95": 0.146324,
+            "max": 8.121013,
+            "p99": 0.341243,
+            "standardDeviation": 0.3414691555
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 1629336,
+          "animationStorageBytesAtStart": 44704,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 32400,
+          "tickSteps": {
+            "web": 0.0004353883333,
+            "jobs": 0.001700148333,
+            "animationFrames": 0.0086829,
+            "nativeAnimations": 0.004569703333,
+            "presentWebGL": 0.000087305
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1041.893333,
+            "heapBytesMax": 1966684
+          }
+        },
+        {
+          "name": "animation-opacity-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.906624241,
+          "fps": 661.7956733,
+          "frameMs": {
+            "mean": 1.511040402,
+            "p50": 1.360237,
+            "p95": 2.111417,
+            "max": 17.641303,
+            "p99": 3.320169,
+            "standardDeviation": 0.7662424182
+          },
+          "tickMs": {
+            "mean": 0.08729338667,
+            "p50": 0.076556,
+            "p95": 0.164085,
+            "max": 0.48497,
+            "p99": 0.276318,
+            "standardDeviation": 0.04472024621
+          },
+          "allTickMs": {
+            "mean": 0.08729338667,
+            "p50": 0.076556,
+            "p95": 0.164085,
+            "max": 0.48497,
+            "p99": 0.276318,
+            "standardDeviation": 0.04472024621
+          },
+          "buildMs": {
+            "mean": 0.3447275467,
+            "p50": 0.318455,
+            "p95": 0.535157,
+            "max": 0.887453,
+            "p99": 0.678755,
+            "standardDeviation": 0.08508043761
+          },
+          "compositeMs": {
+            "mean": 0.8506897717,
+            "p50": 0.742459,
+            "p95": 1.196094,
+            "max": 16.436496,
+            "p99": 2.139856,
+            "standardDeviation": 0.6988974173
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 445064,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001284001667,
+            "jobs": 0.004439396667,
+            "animationFrames": 0.01763624667,
+            "nativeAnimations": 0.06351860667,
+            "presentWebGL": 0.00024224
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1075.666667,
+            "heapBytesMax": 3061292
+          }
+        },
+        {
+          "name": "animation-react-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.903545934,
+          "fps": 664.050357,
+          "frameMs": {
+            "mean": 1.50590989,
+            "p50": 1.381934,
+            "p95": 2.223308,
+            "max": 7.181815,
+            "p99": 3.239256,
+            "standardDeviation": 0.4874157526
+          },
+          "tickMs": {
+            "mean": 0.08524075333,
+            "p50": 0.07567,
+            "p95": 0.18859,
+            "max": 0.468301,
+            "p99": 0.230103,
+            "standardDeviation": 0.04277696379
+          },
+          "allTickMs": {
+            "mean": 0.08524075333,
+            "p50": 0.07567,
+            "p95": 0.18859,
+            "max": 0.468301,
+            "p99": 0.230103,
+            "standardDeviation": 0.04277696379
+          },
+          "buildMs": {
+            "mean": 0.352354205,
+            "p50": 0.327175,
+            "p95": 0.55059,
+            "max": 1.292143,
+            "p99": 0.676028,
+            "standardDeviation": 0.09121036704
+          },
+          "compositeMs": {
+            "mean": 0.8419475117,
+            "p50": 0.751686,
+            "p95": 1.239067,
+            "max": 5.637875,
+            "p99": 2.231055,
+            "standardDeviation": 0.3855318098
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 450440,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001283766667,
+            "jobs": 0.004713653333,
+            "animationFrames": 0.017957245,
+            "nativeAnimations": 0.06089171,
+            "presentWebGL": 0.0002075716667
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1077.626667,
+            "heapBytesMax": 4404004
+          }
+        },
+        {
+          "name": "animation-mixed-20",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 1.757117811,
+          "fps": 341.4682819,
+          "frameMs": {
+            "mean": 2.928529685,
+            "p50": 2.838983,
+            "p95": 3.363384,
+            "max": 7.441705,
+            "p99": 5.803317,
+            "standardDeviation": 0.4977817847
+          },
+          "tickMs": {
+            "mean": 1.713305198,
+            "p50": 1.677868,
+            "p95": 1.983511,
+            "max": 2.997432,
+            "p99": 2.230524,
+            "standardDeviation": 0.1360664655
+          },
+          "allTickMs": {
+            "mean": 1.713305198,
+            "p50": 1.677868,
+            "p95": 1.983511,
+            "max": 2.997432,
+            "p99": 2.230524,
+            "standardDeviation": 0.1360664655
+          },
+          "buildMs": {
+            "mean": 0.5269540283,
+            "p50": 0.51472,
+            "p95": 0.667644,
+            "max": 0.820672,
+            "p99": 0.791306,
+            "standardDeviation": 0.06927014497
+          },
+          "compositeMs": {
+            "mean": 0.381615035,
+            "p50": 0.317165,
+            "p95": 0.54596,
+            "max": 5.033564,
+            "p99": 2.729115,
+            "standardDeviation": 0.4287457278
+          },
+          "layersRasterized": 12000,
+          "pixelsRasterized": 77220000,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 3125104,
+          "animationStorageBytesAtStart": 26120,
+          "bytesUploaded": 308880000,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 28200,
+          "tickSteps": {
+            "web": 0.001531701667,
+            "jobs": 0.008307588333,
+            "animationFrames": 1.691446872,
+            "nativeAnimations": 0.00721564,
+            "presentWebGL": 0.00451093
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 64,
+              "ms": 0.1179201433
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 44,
+            "layoutPasses": 1,
+            "layoutMs": 0.1512306217,
+            "invalidations": 64
+          },
+          "engine": {
+            "collections": 0.04,
+            "allocatedBytes": 168065.4,
+            "heapBytesMax": 8399196
+          }
+        }
+      ],
+      "value": [
+        {
+          "scenario": "animation-opacity-50",
+          "group": "animation",
+          "frames": 600,
+          "fps": 3009.475577527909,
+          "scriptAverage": 0.000738333333334064,
+          "scriptP95": 0.0010000000002037268,
+          "updateAverage": 0,
+          "renderAverage": 0.000738333333334064,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-opacity-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 661.7095525893388,
+          "scriptAverage": 0.001556666666667752,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.001556666666667752,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-react-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 664.386235780582,
+          "scriptAverage": 0.0016000000000008186,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.0016000000000008186,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-mixed-20",
+          "group": "animation",
+          "frames": 600,
+          "fps": 341.5072728506279,
+          "scriptAverage": 1.6761183333333445,
+          "scriptP95": 1.9409999999998035,
+          "updateAverage": 0,
+          "renderAverage": 1.6761183333333445,
+          "drawCalls": 0,
+          "triangles": 0
+        }
+      ]
+    },
+    {
+      "device": {
+        "backend": "OpenGL",
+        "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+        "vendor": "Google Inc. (Mesa)",
+        "software": false
+      },
+      "size": [700, 520],
+      "scale": 1,
+      "outcome": "ok",
+      "startup": {
+        "ms": 10.030339,
+        "heapBytes": 1928692,
+        "objects": 11316
+      },
+      "total": {
+        "name": "",
+        "frames": 2524,
+        "ticks": 2525,
+        "idleTicks": 1,
+        "idleTickMs": 0.021625,
+        "seconds": 4.161580122,
+        "fps": 606.5003979,
+        "frameMs": {
+          "mean": 1.648803535,
+          "p50": 1.365018,
+          "p95": 3.147211,
+          "max": 100.109571,
+          "p99": 3.747932,
+          "standardDeviation": 2.727173917
+        },
+        "tickMs": {
+          "mean": 0.4943176593,
+          "p50": 0.065461,
+          "p95": 1.735291,
+          "max": 31.820306,
+          "p99": 2.009494,
+          "standardDeviation": 1.080313844
+        },
+        "allTickMs": {
+          "mean": 0.4941304543,
+          "p50": 0.065459,
+          "p95": 1.735291,
+          "max": 31.820306,
+          "p99": 2.009494,
+          "standardDeviation": 1.080140846
+        },
+        "buildMs": {
+          "mean": 0.312990609,
+          "p50": 0.312816,
+          "p95": 0.583593,
+          "max": 3.730787,
+          "p99": 0.738558,
+          "standardDeviation": 0.2135661684
+        },
+        "compositeMs": {
+          "mean": 0.6063926997,
+          "p50": 0.630641,
+          "p95": 1.066084,
+          "max": 64.341488,
+          "p99": 2.326986,
+          "standardDeviation": 1.703232475
+        },
+        "layersRasterized": 13660,
+        "pixelsRasterized": 83391178,
+        "gpuReadbacks": 0,
+        "cachedRasterBytesMax": 3125104,
+        "animationStorageBytesAtStart": 450440,
+        "bytesUploaded": 333564712,
+        "textureAllocations": 2148,
+        "compositorDrawCalls": 700810,
+        "tickSteps": {
+          "web": 0.02399376664,
+          "jobs": 0.004992805864,
+          "animationFrames": 0.4339704604,
+          "nativeAnimations": 0.02973372979,
+          "presentWebGL": 0.001451143819
+        },
+        "nativeCalls": {
+          "ui": {
+            "perFrame": 19.1707607,
+            "ms": 0.03304544651
+          },
+          "canvas": {
+            "perFrame": 0.001980982567,
+            "ms": 0.00002650396197
+          },
+          "webgl": {
+            "perFrame": 0.00118858954,
+            "ms": 0.000147427496
+          }
+        },
+        "surface": {
+          "styleChanges": 11.46196513,
+          "layoutPasses": 0.250792393,
+          "layoutMs": 0.03812767314,
+          "invalidations": 17.80903328
+        },
+        "engine": {
+          "collections": 0.01148969889,
+          "allocatedBytes": 50414.45959,
+          "heapBytesMax": 8484420
+        }
+      },
+      "phases": [
+        {
+          "name": "animation-opacity-50",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.202997292,
+          "fps": 2955.704453,
+          "frameMs": {
+            "mean": 0.33832882,
+            "p50": 0.299404,
+            "p95": 0.448621,
+            "max": 8.27358,
+            "p99": 0.67648,
+            "standardDeviation": 0.345779553
+          },
+          "tickMs": {
+            "mean": 0.015013695,
+            "p50": 0.012945,
+            "p95": 0.022446,
+            "max": 0.386864,
+            "p99": 0.039794,
+            "standardDeviation": 0.0158753816
+          },
+          "allTickMs": {
+            "mean": 0.015013695,
+            "p50": 0.012945,
+            "p95": 0.022446,
+            "max": 0.386864,
+            "p99": 0.039794,
+            "standardDeviation": 0.0158753816
+          },
+          "buildMs": {
+            "mean": 0.03296185167,
+            "p50": 0.031044,
+            "p95": 0.042803,
+            "max": 0.080849,
+            "p99": 0.059914,
+            "standardDeviation": 0.0060625267
+          },
+          "compositeMs": {
+            "mean": 0.1325358,
+            "p50": 0.100754,
+            "p95": 0.164657,
+            "max": 8.002574,
+            "p99": 0.291936,
+            "standardDeviation": 0.3397830625
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 1629336,
+          "animationStorageBytesAtStart": 44704,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 32400,
+          "tickSteps": {
+            "web": 0.000439015,
+            "jobs": 0.001718598333,
+            "animationFrames": 0.00847936,
+            "nativeAnimations": 0.004191266667,
+            "presentWebGL": 0.00008435166667
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1047.466667,
+            "heapBytesMax": 1970028
+          }
+        },
+        {
+          "name": "animation-opacity-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.884243595,
+          "fps": 678.5460516,
+          "frameMs": {
+            "mean": 1.473739325,
+            "p50": 1.356876,
+            "p95": 2.106365,
+            "max": 6.505714,
+            "p99": 2.683703,
+            "standardDeviation": 0.4861020744
+          },
+          "tickMs": {
+            "mean": 0.07794922833,
+            "p50": 0.065356,
+            "p95": 0.167358,
+            "max": 0.483117,
+            "p99": 0.233242,
+            "standardDeviation": 0.04067615798
+          },
+          "allTickMs": {
+            "mean": 0.07794922833,
+            "p50": 0.065356,
+            "p95": 0.167358,
+            "max": 0.483117,
+            "p99": 0.233242,
+            "standardDeviation": 0.04067615798
+          },
+          "buildMs": {
+            "mean": 0.3301158383,
+            "p50": 0.306645,
+            "p95": 0.525219,
+            "max": 0.738558,
+            "p99": 0.612285,
+            "standardDeviation": 0.07646436699
+          },
+          "compositeMs": {
+            "mean": 0.8217731,
+            "p50": 0.742257,
+            "p95": 1.161846,
+            "max": 5.567913,
+            "p99": 2.118368,
+            "standardDeviation": 0.4121819848
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 445064,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.00127717,
+            "jobs": 0.004621828333,
+            "animationFrames": 0.01752855,
+            "nativeAnimations": 0.05408869,
+            "presentWebGL": 0.0002462433333
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1077.933333,
+            "heapBytesMax": 3062652
+          }
+        },
+        {
+          "name": "animation-react-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.900988652,
+          "fps": 665.9351354,
+          "frameMs": {
+            "mean": 1.501647753,
+            "p50": 1.360725,
+            "p95": 2.187511,
+            "max": 6.303289,
+            "p99": 3.206629,
+            "standardDeviation": 0.5352732464
+          },
+          "tickMs": {
+            "mean": 0.07679379,
+            "p50": 0.065322,
+            "p95": 0.168475,
+            "max": 0.403585,
+            "p99": 0.235388,
+            "standardDeviation": 0.03972039778
+          },
+          "allTickMs": {
+            "mean": 0.07679379,
+            "p50": 0.065322,
+            "p95": 0.168475,
+            "max": 0.403585,
+            "p99": 0.235388,
+            "standardDeviation": 0.03972039778
+          },
+          "buildMs": {
+            "mean": 0.3428394583,
+            "p50": 0.31814,
+            "p95": 0.509217,
+            "max": 0.968292,
+            "p99": 0.672851,
+            "standardDeviation": 0.08367286798
+          },
+          "compositeMs": {
+            "mean": 0.8510822617,
+            "p50": 0.750588,
+            "p95": 1.250935,
+            "max": 5.689591,
+            "p99": 2.326986,
+            "standardDeviation": 0.4685916601
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 450440,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001314773333,
+            "jobs": 0.00493147,
+            "animationFrames": 0.018149315,
+            "nativeAnimations": 0.0519306,
+            "presentWebGL": 0.00028066
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1086.48,
+            "heapBytesMax": 4410212
+          }
+        },
+        {
+          "name": "animation-mixed-20",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 1.74304795,
+          "fps": 344.2246095,
+          "frameMs": {
+            "mean": 2.905079917,
+            "p50": 2.809831,
+            "p95": 3.298403,
+            "max": 9.808768,
+            "p99": 5.378171,
+            "standardDeviation": 0.5171900291
+          },
+          "tickMs": {
+            "mean": 1.692979635,
+            "p50": 1.663336,
+            "p95": 1.907166,
+            "max": 2.483528,
+            "p99": 2.148299,
+            "standardDeviation": 0.1117628478
+          },
+          "allTickMs": {
+            "mean": 1.692979635,
+            "p50": 1.663336,
+            "p95": 1.907166,
+            "max": 2.483528,
+            "p99": 2.148299,
+            "standardDeviation": 0.1117628478
+          },
+          "buildMs": {
+            "mean": 0.525633765,
+            "p50": 0.513595,
+            "p95": 0.676043,
+            "max": 0.848126,
+            "p99": 0.76243,
+            "standardDeviation": 0.0680732574
+          },
+          "compositeMs": {
+            "mean": 0.383468495,
+            "p50": 0.312556,
+            "p95": 0.56502,
+            "max": 7.191913,
+            "p99": 2.822705,
+            "standardDeviation": 0.4619306484
+          },
+          "layersRasterized": 12000,
+          "pixelsRasterized": 77220000,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 3125104,
+          "animationStorageBytesAtStart": 26120,
+          "bytesUploaded": 308880000,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 28200,
+          "tickSteps": {
+            "web": 0.001332208333,
+            "jobs": 0.007987158333,
+            "animationFrames": 1.67077026,
+            "nativeAnimations": 0.008013703333,
+            "presentWebGL": 0.004618601667
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 64,
+              "ms": 0.1153754517
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 44,
+            "layoutPasses": 1,
+            "layoutMs": 0.1504445333,
+            "invalidations": 64
+          },
+          "engine": {
+            "collections": 0.04,
+            "allocatedBytes": 168067.4,
+            "heapBytesMax": 8399172
+          }
+        }
+      ],
+      "value": [
+        {
+          "scenario": "animation-opacity-50",
+          "group": "animation",
+          "frames": 600,
+          "fps": 2959.1206619735713,
+          "scriptAverage": 0.0007749999999994847,
+          "scriptP95": 0.0010000000002037268,
+          "updateAverage": 0,
+          "renderAverage": 0.0007749999999994847,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-opacity-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 678.5005929800674,
+          "scriptAverage": 0.0015116666666657845,
+          "scriptP95": 0.0029999999999290594,
+          "updateAverage": 0,
+          "renderAverage": 0.0015116666666657845,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-react-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 665.8477887517299,
+          "scriptAverage": 0.0015316666666565955,
+          "scriptP95": 0.0029999999997016857,
+          "updateAverage": 0,
+          "renderAverage": 0.0015316666666565955,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-mixed-20",
+          "group": "animation",
+          "frames": 600,
+          "fps": 344.2433771941923,
+          "scriptAverage": 1.655276666666673,
+          "scriptP95": 1.8479999999999563,
+          "updateAverage": 0,
+          "renderAverage": 1.655276666666673,
+          "drawCalls": 0,
+          "triangles": 0
+        }
+      ]
+    },
+    {
+      "device": {
+        "backend": "OpenGL",
+        "renderer": "ANGLE (Mesa, virgl (NVIDIA GeForce RTX 4050 Laptop GPU/PCIe/SSE2), OpenGL ES 3.2 Mesa 25.2.8-0ubuntu0.24.04.4)",
+        "vendor": "Google Inc. (Mesa)",
+        "software": false
+      },
+      "size": [700, 520],
+      "scale": 1,
+      "outcome": "ok",
+      "startup": {
+        "ms": 10.547142,
+        "heapBytes": 1928692,
+        "objects": 11316
+      },
+      "total": {
+        "name": "",
+        "frames": 2524,
+        "ticks": 2525,
+        "idleTicks": 1,
+        "idleTickMs": 0.026778,
+        "seconds": 4.228020772,
+        "fps": 596.969631,
+        "frameMs": {
+          "mean": 1.675127089,
+          "p50": 1.366995,
+          "p95": 3.261447,
+          "max": 104.8344,
+          "p99": 3.775057,
+          "standardDeviation": 2.798649246
+        },
+        "tickMs": {
+          "mean": 0.50508083,
+          "p50": 0.067843,
+          "p95": 1.779737,
+          "max": 32.437645,
+          "p99": 2.027733,
+          "standardDeviation": 1.108726551
+        },
+        "allTickMs": {
+          "mean": 0.5048914032,
+          "p50": 0.067804,
+          "p95": 1.779737,
+          "max": 32.437645,
+          "p99": 2.027733,
+          "standardDeviation": 1.10854783
+        },
+        "buildMs": {
+          "mean": 0.3168254548,
+          "p50": 0.31124,
+          "p95": 0.606483,
+          "max": 3.93945,
+          "p99": 0.769615,
+          "standardDeviation": 0.2218412233
+        },
+        "compositeMs": {
+          "mean": 0.610615727,
+          "p50": 0.642008,
+          "p95": 1.10647,
+          "max": 68.19107,
+          "p99": 2.947918,
+          "standardDeviation": 1.73648245
+        },
+        "layersRasterized": 13660,
+        "pixelsRasterized": 83391178,
+        "gpuReadbacks": 0,
+        "cachedRasterBytesMax": 3125104,
+        "animationStorageBytesAtStart": 450440,
+        "bytesUploaded": 333564712,
+        "textureAllocations": 2148,
+        "compositorDrawCalls": 700810,
+        "tickSteps": {
+          "web": 0.02426573138,
+          "jobs": 0.00518895523,
+          "animationFrames": 0.443632225,
+          "nativeAnimations": 0.03008455864,
+          "presentWebGL": 0.001718233756
+        },
+        "nativeCalls": {
+          "ui": {
+            "perFrame": 19.1707607,
+            "ms": 0.03467211926
+          },
+          "canvas": {
+            "perFrame": 0.001980982567,
+            "ms": 0.00003117194929
+          },
+          "webgl": {
+            "perFrame": 0.00118858954,
+            "ms": 0.0001655198098
+          }
+        },
+        "surface": {
+          "styleChanges": 11.46196513,
+          "layoutPasses": 0.250792393,
+          "layoutMs": 0.03908554635,
+          "invalidations": 17.80903328
+        },
+        "engine": {
+          "collections": 0.01148969889,
+          "allocatedBytes": 50411.04913,
+          "heapBytesMax": 8480372
+        }
+      },
+      "phases": [
+        {
+          "name": "animation-opacity-50",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.183352408,
+          "fps": 3272.386802,
+          "frameMs": {
+            "mean": 0.3055873467,
+            "p50": 0.269643,
+            "p95": 0.493742,
+            "max": 3.107314,
+            "p99": 0.680608,
+            "standardDeviation": 0.1689691171
+          },
+          "tickMs": {
+            "mean": 0.01413652,
+            "p50": 0.012042,
+            "p95": 0.021851,
+            "max": 0.390466,
+            "p99": 0.03474,
+            "standardDeviation": 0.01594919791
+          },
+          "allTickMs": {
+            "mean": 0.01413652,
+            "p50": 0.012042,
+            "p95": 0.021851,
+            "max": 0.390466,
+            "p99": 0.03474,
+            "standardDeviation": 0.01594919791
+          },
+          "buildMs": {
+            "mean": 0.03226026667,
+            "p50": 0.030596,
+            "p95": 0.040502,
+            "max": 0.072983,
+            "p99": 0.053738,
+            "standardDeviation": 0.004546694728
+          },
+          "compositeMs": {
+            "mean": 0.1183365617,
+            "p50": 0.090117,
+            "p95": 0.249674,
+            "max": 2.92421,
+            "p99": 0.495308,
+            "standardDeviation": 0.1595065902
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 1629336,
+          "animationStorageBytesAtStart": 44704,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 32400,
+          "tickSteps": {
+            "web": 0.0003741166667,
+            "jobs": 0.00163295,
+            "animationFrames": 0.007879186667,
+            "nativeAnimations": 0.004051586667,
+            "presentWebGL": 0.00008918333333
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1037.866667,
+            "heapBytesMax": 1964268
+          }
+        },
+        {
+          "name": "animation-opacity-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.883415037,
+          "fps": 679.1824622,
+          "frameMs": {
+            "mean": 1.472358395,
+            "p50": 1.353655,
+            "p95": 2.079441,
+            "max": 3.94108,
+            "p99": 2.58088,
+            "standardDeviation": 0.3452556056
+          },
+          "tickMs": {
+            "mean": 0.08237049167,
+            "p50": 0.070226,
+            "p95": 0.163758,
+            "max": 0.488844,
+            "p99": 0.22912,
+            "standardDeviation": 0.0403306733
+          },
+          "allTickMs": {
+            "mean": 0.08237049167,
+            "p50": 0.070226,
+            "p95": 0.163758,
+            "max": 0.488844,
+            "p99": 0.22912,
+            "standardDeviation": 0.0403306733
+          },
+          "buildMs": {
+            "mean": 0.3363424,
+            "p50": 0.313292,
+            "p95": 0.496158,
+            "max": 0.734566,
+            "p99": 0.628085,
+            "standardDeviation": 0.07667529003
+          },
+          "compositeMs": {
+            "mean": 0.8159276167,
+            "p50": 0.750858,
+            "p95": 1.161192,
+            "max": 3.362795,
+            "p99": 1.931811,
+            "standardDeviation": 0.2615731234
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 445064,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001318801667,
+            "jobs": 0.004908633333,
+            "animationFrames": 0.01800678833,
+            "nativeAnimations": 0.05762409833,
+            "presentWebGL": 0.0003032183333
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1076.893333,
+            "heapBytesMax": 3062028
+          }
+        },
+        {
+          "name": "animation-react-500",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 0.926251574,
+          "fps": 647.7721786,
+          "frameMs": {
+            "mean": 1.543752623,
+            "p50": 1.373268,
+            "p95": 2.283242,
+            "max": 7.33843,
+            "p99": 3.745215,
+            "standardDeviation": 0.5414139935
+          },
+          "tickMs": {
+            "mean": 0.07707902833,
+            "p50": 0.065713,
+            "p95": 0.14313,
+            "max": 0.469068,
+            "p99": 0.23809,
+            "standardDeviation": 0.03796115814
+          },
+          "allTickMs": {
+            "mean": 0.07707902833,
+            "p50": 0.065713,
+            "p95": 0.14313,
+            "max": 0.469068,
+            "p99": 0.23809,
+            "standardDeviation": 0.03796115814
+          },
+          "buildMs": {
+            "mean": 0.3399446333,
+            "p50": 0.308502,
+            "p95": 0.52247,
+            "max": 0.81551,
+            "p99": 0.667388,
+            "standardDeviation": 0.08645020611
+          },
+          "compositeMs": {
+            "mean": 0.87599494,
+            "p50": 0.763768,
+            "p95": 1.320189,
+            "max": 6.667829,
+            "p99": 3.062161,
+            "standardDeviation": 0.4719848982
+          },
+          "layersRasterized": 0,
+          "pixelsRasterized": 0,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 2500536,
+          "animationStorageBytesAtStart": 450440,
+          "bytesUploaded": 0,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 302400,
+          "tickSteps": {
+            "web": 0.001426861667,
+            "jobs": 0.004810271667,
+            "animationFrames": 0.019206135,
+            "nativeAnimations": 0.05114440667,
+            "presentWebGL": 0.00030107
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 0,
+            "layoutPasses": 0,
+            "layoutMs": 0,
+            "invalidations": 0
+          },
+          "engine": {
+            "collections": 0,
+            "allocatedBytes": 1082.293333,
+            "heapBytesMax": 4405868
+          }
+        },
+        {
+          "name": "animation-mixed-20",
+          "frames": 600,
+          "ticks": 600,
+          "idleTicks": 0,
+          "idleTickMs": 0,
+          "seconds": 1.800141562,
+          "fps": 333.3071202,
+          "frameMs": {
+            "mean": 3.000235937,
+            "p50": 2.90636,
+            "p95": 3.418466,
+            "max": 7.707678,
+            "p99": 6.115954,
+            "standardDeviation": 0.5198840414
+          },
+          "tickMs": {
+            "mean": 1.72856647,
+            "p50": 1.703574,
+            "p95": 1.957371,
+            "max": 2.408049,
+            "p99": 2.171086,
+            "standardDeviation": 0.1146995746
+          },
+          "allTickMs": {
+            "mean": 1.72856647,
+            "p50": 1.703574,
+            "p95": 1.957371,
+            "max": 2.408049,
+            "p99": 2.171086,
+            "standardDeviation": 0.1146995746
+          },
+          "buildMs": {
+            "mean": 0.5391771183,
+            "p50": 0.520753,
+            "p95": 0.738824,
+            "max": 0.987109,
+            "p99": 0.831317,
+            "standardDeviation": 0.08293738329
+          },
+          "compositeMs": {
+            "mean": 0.3936920883,
+            "p50": 0.320588,
+            "p95": 0.554635,
+            "max": 4.979685,
+            "p99": 3.2739,
+            "standardDeviation": 0.450682455
+          },
+          "layersRasterized": 12000,
+          "pixelsRasterized": 77220000,
+          "gpuReadbacks": 0,
+          "cachedRasterBytesMax": 3125104,
+          "animationStorageBytesAtStart": 26120,
+          "bytesUploaded": 308880000,
+          "textureAllocations": 0,
+          "compositorDrawCalls": 28200,
+          "tickSteps": {
+            "web": 0.001424493333,
+            "jobs": 0.008454103333,
+            "animationFrames": 1.705640593,
+            "nativeAnimations": 0.007776125,
+            "presentWebGL": 0.004978271667
+          },
+          "nativeCalls": {
+            "ui": {
+              "perFrame": 64,
+              "ms": 0.117858725
+            },
+            "canvas": {
+              "perFrame": 0,
+              "ms": 0
+            },
+            "webgl": {
+              "perFrame": 0,
+              "ms": 0
+            }
+          },
+          "surface": {
+            "styleChanges": 44,
+            "layoutPasses": 1,
+            "layoutMs": 0.1542007533,
+            "invalidations": 64
+          },
+          "engine": {
+            "collections": 0.04,
+            "allocatedBytes": 168068.0667,
+            "heapBytesMax": 8399204
+          }
+        }
+      ],
+      "value": [
+        {
+          "scenario": "animation-opacity-50",
+          "group": "animation",
+          "frames": 600,
+          "fps": 3276.733550688171,
+          "scriptAverage": 0.0006850000000023708,
+          "scriptP95": 0.0010000000002037268,
+          "updateAverage": 0,
+          "renderAverage": 0.0006850000000023708,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-opacity-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 679.4819148912035,
+          "scriptAverage": 0.0015016666666717053,
+          "scriptP95": 0.003000000000156433,
+          "updateAverage": 0,
+          "renderAverage": 0.0015016666666717053,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-react-500",
+          "group": "animation",
+          "frames": 600,
+          "fps": 648.2101715971403,
+          "scriptAverage": 0.0018966666666672912,
+          "scriptP95": 0.0039999999999054126,
+          "updateAverage": 0,
+          "renderAverage": 0.0018966666666672912,
+          "drawCalls": 0,
+          "triangles": 0
+        },
+        {
+          "scenario": "animation-mixed-20",
+          "group": "animation",
+          "frames": 600,
+          "fps": 333.3314784002315,
+          "scriptAverage": 1.690099999999993,
+          "scriptP95": 1.9070000000001528,
+          "updateAverage": 0,
+          "renderAverage": 1.690099999999993,
+          "drawCalls": 0,
+          "triangles": 0
+        }
+      ]
+    }
+  ],
+  "against": {
+    "name": "hermes-animation",
+    "build": {
+      "commit": "629fca5f447ca4dad6a86c9cad9fe2a911e5c69d",
+      "dirty": false,
+      "date": "2026-10-11T22:58:49.267Z",
+      "hermesRevision": "602befee340da188ea1560cde7a9cc33e6b180dc",
+      "compilerSha256": "fa5b1d69d6a92950f3fbcd7c11831884cfb2c2ce0c78c178f0034ef21f193176",
+      "runnerSha256": "7023778eb07189985216c8b0e043a60fc078f15b43628605fb83e1f91991aeaa",
+      "bundleSha256": "b0cc84bed4ba1c1de20451808f2e8d5abd998c775155801f0a432966e2a504bb",
+      "execution": "hermes-bytecode",
+      "buildType": "Release",
+      "collectBetweenPhases": true
+    },
+    "summary": {
+      "animation-opacity-50": {
+        "frame": {
+          "median": 0.5470491867,
+          "min": 0.5297313883,
+          "max": 0.5907665267,
+          "spread": 5.578578662019969
+        },
+        "frameP95": {
+          "median": 0.693851,
+          "min": 0.641732,
+          "max": 0.770496,
+          "spread": 9.278937408752022
+        },
+        "frameP50": {
+          "median": 0.493858,
+          "min": 0.477023,
+          "max": 0.532203,
+          "spread": 5.586626115199107
+        },
+        "frameP99": {
+          "median": 0.983121,
+          "min": 0.891948,
+          "max": 1.069698,
+          "spread": 9.040087639263126
+        },
+        "frameMax": {
+          "median": 8.080645,
+          "min": 7.917428,
+          "max": 8.873542,
+          "spread": 5.916074768783929
+        },
+        "frameDeviation": {
+          "median": 0.4386826613,
+          "min": 0.3208516237,
+          "max": 0.4808644668,
+          "spread": 18.237880957708143
+        },
+        "tick": {
+          "median": 0.2190159733,
+          "min": 0.2156213467,
+          "max": 0.2343798083,
+          "spread": 4.282441439626266
+        },
+        "allTick": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP95": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP99": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "build": {
+          "median": 0.076410395,
+          "min": 0.07349798,
+          "max": 0.07782856,
+          "spread": 2.8337636521837113
+        },
+        "composite": {
+          "median": 0.08802865,
+          "min": 0.07587057833,
+          "max": 0.09632276667,
+          "spread": 11.616779503036803
+        },
+        "script": {
+          "median": 0.2085333333333324,
+          "min": 0.20557500000000498,
+          "max": 0.2229333333333337,
+          "spread": 4.162004475702239
+        },
+        "update": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "render": {
+          "median": 0.2085333333333324,
+          "min": 0.20557500000000498,
+          "max": 0.2229333333333337,
+          "spread": 4.162004475702239
+        },
+        "nativeMs": {
+          "median": 0.08028077,
+          "min": 0.07856856833,
+          "max": 0.08533319833,
+          "spread": 4.213107323210773
+        },
+        "layoutMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "animationStorageKiB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "animationMs": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "cachedRasterKB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "idleTick": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "fps": {
+          "median": 1827.989191,
+          "min": 1692.716081,
+          "max": 1887.749191,
+          "spread": 5.33463520901093
+        },
+        "uiCalls": {
+          "median": 50,
+          "min": 50,
+          "max": 50,
+          "spread": 0
+        },
+        "canvasCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "webglCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "styleChanges": {
+          "median": 50,
+          "min": 50,
+          "max": 50,
+          "spread": 0
+        },
+        "layouts": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "invalidations": {
+          "median": 50,
+          "min": 50,
+          "max": 50,
+          "spread": 0
+        },
+        "collections": {
+          "median": 0.006666666667,
+          "min": 0.006666666667,
+          "max": 0.006666666667,
+          "spread": 0
+        },
+        "allocations": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "allocatedKB": {
+          "median": 30.367916669921875,
+          "min": 30.367005205078126,
+          "max": 30.369010419921874,
+          "spread": 0.00330153507984083
+        },
+        "rasterized": {
+          "median": 1,
+          "min": 1,
+          "max": 1,
+          "spread": 0
+        },
+        "uploadedKB": {
+          "median": 100,
+          "min": 100,
+          "max": 100,
+          "spread": 0
+        },
+        "readbacks": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "drawCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        }
+      },
+      "animation-opacity-500": {
+        "frame": {
+          "median": 3.042241608,
+          "min": 3.019213173,
+          "max": 3.219201652,
+          "spread": 3.2868605582492645
+        },
+        "frameP95": {
+          "median": 3.443382,
+          "min": 3.331627,
+          "max": 3.82206,
+          "spread": 7.121385312463152
+        },
+        "frameP50": {
+          "median": 2.912594,
+          "min": 2.900569,
+          "max": 3.078918,
+          "spread": 3.0616865927760593
+        },
+        "frameP99": {
+          "median": 8.975011,
+          "min": 8.571746,
+          "max": 9.244892,
+          "spread": 3.750112395405426
+        },
+        "frameMax": {
+          "median": 11.559555,
+          "min": 10.433119,
+          "max": 11.823974,
+          "spread": 6.016040409860069
+        },
+        "frameDeviation": {
+          "median": 0.8474280059,
+          "min": 0.809720385,
+          "max": 0.9222727795,
+          "spread": 6.640823392452387
+        },
+        "tick": {
+          "median": 2.024967875,
+          "min": 2.024543965,
+          "max": 2.1135618,
+          "spread": 2.19800610417091
+        },
+        "allTick": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP95": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP99": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "build": {
+          "median": 0.4412674267,
+          "min": 0.4335677117,
+          "max": 0.4745599833,
+          "spread": 4.64483316914631
+        },
+        "composite": {
+          "median": 0.31215346,
+          "min": 0.29982806,
+          "max": 0.346663145,
+          "spread": 7.501932703228725
+        },
+        "script": {
+          "median": 2.000138333333335,
+          "min": 1.999908333333346,
+          "max": 2.0832483333333482,
+          "spread": 2.0833559012168856
+        },
+        "update": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "render": {
+          "median": 2.000138333333335,
+          "min": 1.999908333333346,
+          "max": 2.0832483333333482,
+          "spread": 2.0833559012168856
+        },
+        "nativeMs": {
+          "median": 0.7891221317,
+          "min": 0.779366435,
+          "max": 0.81338897,
+          "spread": 2.1557204920045434
+        },
+        "layoutMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "animationStorageKiB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "animationMs": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "cachedRasterKB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "idleTick": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "fps": {
+          "median": 328.7049908,
+          "min": 310.6360235,
+          "max": 331.2121214,
+          "spread": 3.1298730588060146
+        },
+        "uiCalls": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "canvasCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "webglCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "styleChanges": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "layouts": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "invalidations": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "collections": {
+          "median": 0.07166666667,
+          "min": 0.07166666667,
+          "max": 0.07166666667,
+          "spread": 0
+        },
+        "allocations": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "allocatedKB": {
+          "median": 293.80915361328124,
+          "min": 293.80623701171874,
+          "max": 293.8115234375,
+          "spread": 0.0008996359909573295
+        },
+        "rasterized": {
+          "median": 1,
+          "min": 1,
+          "max": 1,
+          "spread": 0
+        },
+        "uploadedKB": {
+          "median": 800,
+          "min": 800,
+          "max": 800,
+          "spread": 0
+        },
+        "readbacks": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "drawCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        }
+      },
+      "animation-react-500": {
+        "frame": {
+          "median": 9.053502598,
+          "min": 8.86222574,
+          "max": 9.196129077,
+          "spread": 1.844056117428866
+        },
+        "frameP95": {
+          "median": 10.609365,
+          "min": 10.555212,
+          "max": 10.84595,
+          "spread": 1.3701951059276452
+        },
+        "frameP50": {
+          "median": 8.688828,
+          "min": 8.514991,
+          "max": 8.829217,
+          "spread": 1.808218553756615
+        },
+        "frameP99": {
+          "median": 15.875795,
+          "min": 15.306459,
+          "max": 16.294508,
+          "spread": 3.111809518830396
+        },
+        "frameMax": {
+          "median": 17.515909,
+          "min": 17.21012,
+          "max": 18.431729,
+          "spread": 3.4871413182153455
+        },
+        "frameDeviation": {
+          "median": 1.296313547,
+          "min": 1.238878042,
+          "max": 1.339519888,
+          "spread": 3.881848115870999
+        },
+        "tick": {
+          "median": 7.724916437,
+          "min": 7.552151185,
+          "max": 7.873289968,
+          "spread": 2.0785906593231434
+        },
+        "allTick": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP95": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP99": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "build": {
+          "median": 0.5260646683,
+          "min": 0.513034285,
+          "max": 0.5356623533,
+          "spread": 2.150692648978264
+        },
+        "composite": {
+          "median": 0.48170925,
+          "min": 0.42999462,
+          "max": 0.4998149767,
+          "spread": 7.247147184738516
+        },
+        "script": {
+          "median": 7.6862166666666445,
+          "min": 7.514144999999998,
+          "max": 7.834484999999977,
+          "spread": 2.0838600698651883
+        },
+        "update": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "render": {
+          "median": 7.6862166666666445,
+          "min": 7.514144999999998,
+          "max": 7.834484999999977,
+          "spread": 2.0838600698651883
+        },
+        "nativeMs": {
+          "median": 0.8403607783,
+          "min": 0.83248652,
+          "max": 0.8453414117,
+          "spread": 0.7648436262104393
+        },
+        "layoutMs": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "animationStorageKiB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "animationMs": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "cachedRasterKB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "idleTick": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "fps": {
+          "median": 110.4544887,
+          "min": 108.7414054,
+          "max": 112.8384708,
+          "spread": 1.8546396114004153
+        },
+        "uiCalls": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "canvasCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "webglCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "styleChanges": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "layouts": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "invalidations": {
+          "median": 500,
+          "min": 500,
+          "max": 500,
+          "spread": 0
+        },
+        "collections": {
+          "median": 0.2633333333,
+          "min": 0.2633333333,
+          "max": 0.2633333333,
+          "spread": 0
+        },
+        "allocations": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "allocatedKB": {
+          "median": 863.8934245117188,
+          "min": 863.8867578125,
+          "max": 863.8957942382813,
+          "spread": 0.0005230058202109835
+        },
+        "rasterized": {
+          "median": 1,
+          "min": 1,
+          "max": 1,
+          "spread": 0
+        },
+        "uploadedKB": {
+          "median": 800,
+          "min": 800,
+          "max": 800,
+          "spread": 0
+        },
+        "readbacks": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "drawCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        }
+      },
+      "animation-mixed-20": {
+        "frame": {
+          "median": 4.484021923,
+          "min": 4.344194175,
+          "max": 4.554693515,
+          "spread": 2.347215776536248
+        },
+        "frameP95": {
+          "median": 4.951173,
+          "min": 4.748274,
+          "max": 4.984272,
+          "spread": 2.3832534229767317
+        },
+        "frameP50": {
+          "median": 4.281342,
+          "min": 4.172903,
+          "max": 4.417354,
+          "spread": 2.854840841960298
+        },
+        "frameP99": {
+          "median": 10.751371,
+          "min": 9.981388,
+          "max": 11.073114,
+          "spread": 5.077147835378388
+        },
+        "frameMax": {
+          "median": 13.347358,
+          "min": 12.5289,
+          "max": 15.180649,
+          "spread": 9.933610082235003
+        },
+        "frameDeviation": {
+          "median": 1.042633278,
+          "min": 0.9857567005,
+          "max": 1.090556963,
+          "spread": 5.025748971921845
+        },
+        "tick": {
+          "median": 1.815426895,
+          "min": 1.756134762,
+          "max": 1.914264417,
+          "spread": 4.355164491490029
+        },
+        "allTick": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP95": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "allTickP99": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "build": {
+          "median": 1.993614003,
+          "min": 1.948977802,
+          "max": 2.016037985,
+          "spread": 1.681874798709471
+        },
+        "composite": {
+          "median": 0.3681579417,
+          "min": 0.3605816283,
+          "max": 0.3776407567,
+          "spread": 2.3168220032451377
+        },
+        "script": {
+          "median": 1.7788899999999892,
+          "min": 1.7225950000000132,
+          "max": 1.8791516666666574,
+          "spread": 4.400403247717543
+        },
+        "update": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "render": {
+          "median": 1.7788899999999892,
+          "min": 1.7225950000000132,
+          "max": 1.8791516666666574,
+          "spread": 4.400403247717543
+        },
+        "nativeMs": {
+          "median": 0.1583069867,
+          "min": 0.1525338333,
+          "max": 0.16082207,
+          "spread": 2.6177735022228195
+        },
+        "layoutMs": {
+          "median": 0.1508404833,
+          "min": 0.14805671,
+          "max": 0.152971365,
+          "spread": 1.6290901794001313
+        },
+        "animationStorageKiB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "animationMs": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "cachedRasterKB": {
+          "median": null,
+          "min": null,
+          "max": null,
+          "spread": null
+        },
+        "idleTick": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "fps": {
+          "median": 223.0140747,
+          "min": 219.5537409,
+          "max": 230.1922888,
+          "spread": 2.385174100403985
+        },
+        "uiCalls": {
+          "median": 84,
+          "min": 84,
+          "max": 84,
+          "spread": 0
+        },
+        "canvasCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "webglCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "styleChanges": {
+          "median": 64,
+          "min": 64,
+          "max": 64,
+          "spread": 0
+        },
+        "layouts": {
+          "median": 1,
+          "min": 1,
+          "max": 1,
+          "spread": 0
+        },
+        "invalidations": {
+          "median": 84,
+          "min": 84,
+          "max": 84,
+          "spread": 0
+        },
+        "collections": {
+          "median": 0.04333333333,
+          "min": 0.04333333333,
+          "max": 0.04333333333,
+          "spread": 0
+        },
+        "allocations": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "allocatedKB": {
+          "median": 173.71522138671875,
+          "min": 173.71266923828125,
+          "max": 173.71696611328125,
+          "spread": 0.0012367583467049104
+        },
+        "rasterized": {
+          "median": 1,
+          "min": 1,
+          "max": 1,
+          "spread": 0
+        },
+        "uploadedKB": {
+          "median": 474.36640625,
+          "min": 474.36640625,
+          "max": 474.36640625,
+          "spread": 0
+        },
+        "readbacks": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        },
+        "drawCalls": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "spread": 0
+        }
+      },
+      "(startup)": {
+        "startupMs": {
+          "median": 10.334821,
+          "min": 9.877605,
+          "max": 13.171283,
+          "spread": 15.934857507449815
+        },
+        "heapKB": {
+          "median": 1861.01953125,
+          "min": 1861.01953125,
+          "max": 1861.01953125,
+          "spread": 0
+        }
+      }
+    }
+  }
+}

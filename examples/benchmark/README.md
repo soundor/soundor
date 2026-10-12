@@ -300,3 +300,6 @@ style mutations, Yoga passes, rasterizations or texture uploads. Retargeting
 submits only on each 400 ms target change. CPU-side compositor time is measured;
 GPU execution time, process RSS and GPU VRAM are not. Native timings and
 regressions must be read alongside sample counts, idle ticks and work counts.
+
+The [recorded advanced results](reports/advanced-native.md) include matched Hermes
+comparisons, P95/P99, storage estimates and rendering/kernel regressions.
