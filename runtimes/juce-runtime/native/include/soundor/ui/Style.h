@@ -1,6 +1,7 @@
 #pragma once
 
 #include <soundor/Config.h>
+#include <soundor/ui/Animation.h>
 
 #include <cstdint>
 #include <optional>
@@ -226,6 +227,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Corners borderRadius;
         // 0 (invisible) to 1; applies to the node and everything in it.
         float opacity = 1;
+        Presentation transform;
         ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;

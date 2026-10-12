@@ -1,5 +1,6 @@
 #pragma once
 
+#include "render/AnimationRenderer.h"
 #include "render/Damage.h"
 
 #include <soundor/render/Frame.h>
@@ -26,7 +27,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     class ViewRenderer
     {
     public:
-        explicit ViewRenderer(ui::Renderer& renderer) : painter(renderer) {}
+        explicit ViewRenderer(ui::Renderer& renderer) : painter(renderer), animated(renderer) {}
 
         // The frame for `surface` as it is now, for a compositor drawing GPU
         // images on `gpuDevice` (null: none). It and the pixels it points to
@@ -57,6 +58,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         void promote(ui::Surface& surface, const gpu::Device* gpuDevice);
 
         ui::Renderer& painter;
+        AnimationRenderer animated;
+        bool wasAnimated = false;
         DamageTracker damage;
         std::vector<Segment> segments { 1 };
         std::vector<Promoted> promoted;

@@ -14,4 +14,5 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     // Runs the callbacks requestAnimationFrame() collected.
     void frame(js::Context& context);
+    void notifyAnimations(js::Context& context);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

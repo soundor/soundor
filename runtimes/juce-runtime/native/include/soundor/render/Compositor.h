@@ -83,10 +83,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         RasterCompositor& operator=(const RasterCompositor&) = delete;
 
         [[nodiscard]] Capabilities capabilities() const override;
-        void composite(const Frame& frame) override;
+        void composite(const Frame& incoming) override;
         [[nodiscard]] const CompositorStatistics& statistics() const noexcept override { return stats; }
 
     private:
+        struct Groups;
+        std::unique_ptr<Groups> groups;
         RasterTarget& output;
         // The layers last composited, to see which moved or went away.
         std::vector<Layer> previous;

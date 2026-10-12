@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -27,6 +28,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const char bindingKey = 0;
         const char listenerKey = 0;
         const char frameListenerKey = 0;
+        const char animationListenerKey = 0;
 
         // JavaScript indexes strings in UTF-16 code units, the surface in
         // UTF-8 bytes.
@@ -85,6 +87,72 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             object.set("width", jsi::Value(double(rect.width)));
             object.set("height", jsi::Value(double(rect.height)));
             return object.release();
+        }
+
+        Presentation readTransform(ContextState& context, const jsi::Value& value)
+        {
+            if (! value.isObject() || ! value.getObject(context.rt).isArray(context.rt))
+                bind::throwTypeError(context, "style.transform: expected an array");
+            const jsi::Array array = value.getObject(context.rt).getArray(context.rt);
+            Presentation result;
+            if (array.size(context.rt) > result.order.size())
+                bind::throwTypeError(context, "style.transform: each supported transform may appear once");
+            static constexpr std::array names { "opacity", "translateX", "translateY", "scale",
+                                                "scaleX",  "scaleY",     "rotate" };
+            PropertyMask seen = 0;
+            for (std::size_t i = 0; i < array.size(context.rt); ++i)
+            {
+                const auto item =
+                    bind::expectObject(context, array.getValueAtIndex(context.rt, i), bind::Path { "style.transform" });
+                const auto keys = item.getPropertyNames(context.rt);
+                if (keys.size(context.rt) != 1)
+                    bind::throwTypeError(context, "style.transform: expected one property per entry");
+                const auto key = keys.getValueAtIndex(context.rt, 0).getString(context.rt);
+                const std::string name = key.utf8(context.rt);
+                const auto found = std::ranges::find(names, name);
+                if (found == names.end() || found == names.begin())
+                    bind::throwTypeError(context, "style.transform: unsupported property " + name);
+                const auto property = static_cast<AnimatedProperty>(found - names.begin());
+                if ((seen & propertyBit(property)) != 0)
+                    bind::throwTypeError(context, "style.transform: duplicate " + name);
+                seen |= propertyBit(property);
+                const auto input = item.getProperty(context.rt, key);
+                double number = 0;
+                if (input.isNumber())
+                    number = input.getNumber();
+                else if (property == AnimatedProperty::Rotate && input.isString())
+                {
+                    const std::string text = input.getString(context.rt).utf8(context.rt);
+                    if (text.size() <= 3 || (! text.ends_with("deg") && ! text.ends_with("rad")))
+                        bind::throwTypeError(context, "style.transform.rotate: expected radians or a deg/rad angle");
+                    const std::string_view numeric(text.data(), text.size() - 3);
+                    const auto parsed = parseCssNumber(numeric);
+                    // CSS exponents contain integer digits, never a decimal.
+                    const auto exponent = numeric.find_first_of("eE");
+                    bool validExponent = true;
+                    if (exponent != std::string_view::npos)
+                    {
+                        auto digits = numeric.substr(exponent + 1);
+                        if (! digits.empty() && (digits.front() == '+' || digits.front() == '-'))
+                            digits.remove_prefix(1);
+                        validExponent =
+                            ! digits.empty()
+                            && std::ranges::all_of(digits, [](char digit) { return digit >= '0' && digit <= '9'; });
+                    }
+                    if (! parsed || ! validExponent)
+                        bind::throwTypeError(context, "style.transform.rotate: invalid angle");
+                    number = *parsed;
+                    if (text.ends_with("deg"))
+                        number *= std::numbers::pi / 180;
+                }
+                else
+                    bind::throwTypeError(context, "style.transform." + name + ": expected a finite number");
+                if (! std::isfinite(number) || ! std::isfinite(static_cast<float>(number)))
+                    bind::throwTypeError(context, "style.transform." + name + ": expected a finite number");
+                result[property] = static_cast<float>(number);
+                result.order[result.count++] = property;
+            }
+            return result;
         }
 
         // ── Style ────────────────────────────────────────────────────────────
@@ -353,6 +421,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.borderRadius.bottomLeft, number("borderBottomLeftRadius"));
                 if (const auto opacity = number("opacity"))
                     out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
+                const Property transform(*this, "transform");
+                if (transform.present())
+                    out.transform = readTransform(context, *transform.value);
                 assign(out.resizeMode, choice<ResizeMode>("resizeMode", resizeModes));
             }
 
@@ -829,6 +900,132 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return jsi::Value::undefined();
         }
 
+        jsi::Value animate(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(
+                context, "animate", count, 3,
+                [&](Surface& surface)
+                {
+                    if (! args[1].isObject() || ! args[1].getObject(context.rt).isArray(context.rt))
+                        bind::throwTypeError(context, "animate: keyframes must be an array");
+                    const auto frames = args[1].getObject(context.rt).getArray(context.rt);
+                    if (frames.size(context.rt) < 1 || frames.size(context.rt) > 2)
+                        bind::throwTypeError(context, "animate: timing animations require one target or two keyframes");
+                    AnimationDescription description;
+                    const auto readFrame = [&](const jsi::Value& frame)
+                    {
+                        const auto object = bind::expectObject(context, frame, bind::Path { "animation keyframe" });
+                        const Style style = StyleReader(context, object).read();
+                        Presentation value = style.transform;
+                        value[AnimatedProperty::Opacity] = style.opacity;
+                        if (! object.getProperty(context.rt, "opacity").isUndefined())
+                            description.properties |= propertyBit(AnimatedProperty::Opacity);
+                        if (! object.getProperty(context.rt, "transform").isUndefined())
+                            description.properties |= ((PropertyMask { 1 } << animatedPropertyCount) - 1)
+                                                      & ~propertyBit(AnimatedProperty::Opacity);
+                        return value;
+                    };
+                    if (frames.size(context.rt) == 2)
+                        description.from = readFrame(frames.getValueAtIndex(context.rt, 0));
+                    description.to = readFrame(frames.getValueAtIndex(context.rt, frames.size(context.rt) - 1));
+                    if (description.from && description.from->count != 0
+                        && description.from->order != description.to.order)
+                        bind::throwTypeError(context,
+                                             "animate: transform entries must use the same order in both keyframes");
+                    const auto options = bind::expectObject(context, args[2], bind::Path { "animation options" });
+                    const auto number = [&](const char* key, double fallback)
+                    {
+                        const auto value = options.getProperty(context.rt, key);
+                        if (value.isUndefined())
+                            return fallback;
+                        if (! value.isNumber() || ! std::isfinite(value.getNumber()))
+                            bind::throwTypeError(context,
+                                                 std::string("animation.") + key + ": expected a finite number");
+                        return value.getNumber();
+                    };
+                    description.timing.duration = number("duration", 300);
+                    description.timing.delay = number("delay", 0);
+                    const auto choice = [&](const char* key, std::span<const std::string_view> values)
+                    {
+                        const auto value = options.getProperty(context.rt, key);
+                        if (value.isUndefined())
+                            return std::size_t { 0 };
+                        if (! value.isString())
+                            bind::throwTypeError(context, std::string("animation.") + key + ": unsupported value");
+                        const auto text = value.getString(context.rt).utf8(context.rt);
+                        const auto found = std::ranges::find(values, text);
+                        if (found == values.end())
+                            bind::throwTypeError(context,
+                                                 std::string("animation.") + key + ": unsupported value " + text);
+                        return static_cast<std::size_t>(found - values.begin());
+                    };
+                    static constexpr std::array<std::string_view, 5> easings { "linear", "ease", "ease-in", "ease-out",
+                                                                               "ease-in-out" };
+                    static constexpr std::array<std::string_view, 4> fills { "none", "backwards", "forwards", "both" };
+                    description.timing.easing = static_cast<Easing>(choice("easing", easings));
+                    description.timing.fill = static_cast<Fill>(choice("fill", fills));
+                    return jsi::Value(double(surface.animations().animate(readId(args[0]), description)));
+                });
+        }
+
+        jsi::Value animationControl(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(
+                context, "animationControl", count, 2,
+                [&](Surface& surface)
+                {
+                    const auto id = readId(args[0]);
+                    std::string command;
+                    bind::read(context, args[1], bind::Path { "animation command" }, command);
+                    auto& animations = surface.animations();
+                    if (command == "pause")
+                        animations.pause(id);
+                    else if (command == "play")
+                        animations.play(id);
+                    else if (command == "cancel")
+                    {
+                        if (animations.state(id) != PlaybackState::Cancelled)
+                            animations.cancel(id);
+                    }
+                    else if (command == "finish")
+                        animations.finish(id);
+                    else if (command != "state")
+                        bind::throwTypeError(context, "unknown animation control");
+                    bind::ObjectBuilder result(context);
+                    static constexpr std::array names { "running", "paused", "finished", "idle" };
+                    result.set(
+                        "playState",
+                        bind::write(context, std::string_view(names[static_cast<std::size_t>(animations.state(id))])));
+                    result.set("currentTime", jsi::Value(animations.currentTime(id)));
+                    return result.release();
+                });
+        }
+
+        jsi::Value setAnimationListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                        std::size_t count)
+        {
+            bind::expectArgumentCount(context, "setAnimationListener", count, 1);
+            if (! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "animation listener must be a function");
+            bind::retainValue(context, &animationListenerKey, jsi::Value(context.rt, args[0]));
+            return jsi::Value::undefined();
+        }
+
+        jsi::Value reducedMotion(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "reducedMotion", count, 1,
+                        [&](Surface& surface)
+                        {
+                            if (! args[0].isUndefined())
+                            {
+                                if (! args[0].isBool())
+                                    bind::throwTypeError(context, "reduced motion must be a boolean");
+                                surface.animations().setReducedMotion(args[0].getBool());
+                            }
+                            return jsi::Value(surface.animations().reducedMotion());
+                        });
+        }
+
         // ── Events ───────────────────────────────────────────────────────────
 
         jsi::Value eventData(ContextState& context, const Event& event)
@@ -937,6 +1134,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "writeClipboard", writeClipboard, 1 },
             { "setListener", setListener, 1 },
             { "setFrameListener", setFrameListener, 1 },
+            { "animate", animate, 3 },
+            { "animationControl", animationControl, 2 },
+            { "setAnimationListener", setAnimationListener, 1 },
+            { "reducedMotion", reducedMotion, 1 },
         };
 
         void initializeInternalModule(ContextState& context, jsi::Object& exports)
@@ -995,6 +1196,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
              { "soundor:internal/ui/frames", "soundor:internal/ui/canvas", "soundor:internal/ui/webgl" })
             if (auto loaded = context.importModule(module); ! loaded)
                 throw std::runtime_error("soundor:ui failed to start: " + loaded.error().toString());
+    }
+
+    void notifyAnimations(js::Context& context)
+    {
+        auto& state = js::stateOf(context);
+        auto& timeline = surfaceOf(state).animations();
+        const auto completed = timeline.completions();
+        if (completed.empty())
+            return;
+        const auto* retained = bind::retainedValue(state, &animationListenerKey);
+        if (retained != nullptr && bind::isFunction(state, *retained))
+        {
+            jsi::Array records(state.rt, completed.size());
+            for (std::size_t i = 0; i < completed.size(); ++i)
+            {
+                bind::ObjectBuilder result(state);
+                result.set("id", jsi::Value(double(completed[i].id)));
+                result.set("cancelled", jsi::Value(completed[i].cancelled));
+                result.set("generation", jsi::Value(double(completed[i].generation)));
+                records.setValueAtIndex(state.rt, i, result.release());
+            }
+            // A listener may start an animation; clear before entering JS.
+            timeline.clearCompletions();
+            const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+            const std::array<jsi::Value, 1> args { jsi::Value(std::move(records)) };
+            bind::call(state, listener, jsi::Value::undefined(), args, "animation completion failed");
+        }
+        else
+            timeline.clearCompletions();
     }
 
     void frame(js::Context& context)

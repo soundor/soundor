@@ -10,12 +10,24 @@ import {
   normalizeAccessibility,
   type NormalizedAccessibility,
 } from './accessibility';
+/** What a node needs of the view it belongs to. */
+import type { AnimationController } from './animation';
+import {
+  computedTransform,
+  IDENTITY,
+  inversePoint,
+  logicalLayout,
+  multiply,
+  translation,
+  type Matrix,
+} from './coordinates';
 import { eventParent, TreeEventTarget } from './events';
 import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
 import type { Accessibility, LayoutRect, NodeType, Style } from './types';
+import type { AnimationKeyframe, AnimationOptions, UiAnimation } from './types';
 
-/** What a node needs of the view it belongs to. */
 export interface ViewLink {
+  readonly animations: AnimationController;
   readonly rootElement: HTMLElement;
   /** CSS pixels per logical pixel (the host may scale the view). */
   scale(): number;
@@ -600,6 +612,12 @@ export class UiNode extends TreeEventTarget {
   /** The laid-out box relative to the parent's (unscrolled) box. */
   get layout(): LayoutRect {
     if (!this.isConnected) return ZERO;
+    if (this.#transformed())
+      return logicalLayout(
+        this.#element,
+        this.#parent ? this.#parent.#element : null,
+        this.#view.rootElement,
+      );
     const box = this.#rect();
     const scale = this.#view.scale();
     const width = box.width / scale;
@@ -616,6 +634,13 @@ export class UiNode extends TreeEventTarget {
   }
 
   /** The laid-out box relative to the view (zero when not connected). */
+  animate(
+    keyframes: readonly AnimationKeyframe[],
+    options?: AnimationOptions,
+  ): UiAnimation {
+    return this.#view.animations.create(this.#element, keyframes, options);
+  }
+
   getBoundingClientRect(): LayoutRect {
     if (!this.isConnected) return ZERO;
     const box = this.#rect();
@@ -627,6 +652,50 @@ export class UiNode extends TreeEventTarget {
       width: box.width / scale,
       height: box.height / scale,
     };
+  }
+
+  #transformed(): boolean {
+    for (let node: UiNode | null = this; node; node = node.#parent) {
+      const matrix = computedTransform(node.#element);
+      if (matrix.some((value, index) => value !== IDENTITY[index])) return true;
+    }
+    return false;
+  }
+
+  #matrix(): Matrix {
+    const box = logicalLayout(
+      this.#element,
+      this.#parent ? this.#parent.#element : null,
+      this.#view.rootElement,
+    );
+    const parent = this.#parent;
+    const before = parent ? parent.#matrix() : IDENTITY;
+    return multiply(
+      multiply(
+        multiply(
+          multiply(
+            before,
+            translation(
+              box.x - (parent ? parent.#element.scrollLeft : 0),
+              box.y - (parent ? parent.#element.scrollTop : 0),
+            ),
+          ),
+          translation(box.width / 2, box.height / 2),
+        ),
+        computedTransform(this.#element),
+      ),
+      translation(-box.width / 2, -box.height / 2),
+    );
+  }
+
+  static localPoint(
+    node: UiNode,
+    x: number,
+    y: number,
+  ): { x: number; y: number } {
+    if (node.#transformed()) return inversePoint(node.#matrix(), x, y);
+    const box = node.getBoundingClientRect();
+    return { x: x - box.x, y: y - box.y };
   }
 
   [eventParent](): UiNode | null {

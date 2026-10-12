@@ -10,6 +10,38 @@ const UI = `declare module 'soundor:ui' {
   /** Logical pixels (a number, or CSS pixels: '120px'), a percentage of the parent, or (where allowed) 'auto'. */
   export type Dimension = number | \`\${number}px\` | \`\${number}%\` | 'auto';
   export type Percentage = number | \`\${number}px\` | \`\${number}%\`;
+  export type TransformOperation =
+    | { translateX: number }
+    | { translateY: number }
+    | { scale: number }
+    | { scaleX: number }
+    | { scaleY: number }
+    | { rotate: number | \`\${number}deg\` | \`\${number}rad\` };
+  export type AnimationEasing = 'linear' | 'ease' | 'ease-in' | 'ease-out' | 'ease-in-out';
+  export interface AnimationKeyframe {
+    opacity?: number;
+    transform?: readonly TransformOperation[];
+  }
+  export interface AnimationOptions {
+    duration?: number;
+    delay?: number;
+    easing?: AnimationEasing;
+    fill?: 'none' | 'backwards' | 'forwards' | 'both';
+  }
+  export interface UiAnimation {
+    readonly finished: Promise<void>;
+    readonly playState: 'idle' | 'running' | 'paused' | 'finished';
+    readonly currentTime: number;
+    play(): void;
+    pause(): void;
+    resume(): void;
+    cancel(): void;
+    finish(): void;
+  }
+
+  export function setReducedMotion(value: boolean): void;
+  export function prefersReducedMotion(): boolean;
+
   export type FlexAlign =
     | 'auto'
     | 'flex-start'
@@ -117,6 +149,7 @@ const UI = `declare module 'soundor:ui' {
     borderBottomLeftRadius?: number;
     /** 0 to 1, for the node and everything in it. */
     opacity?: number;
+    transform?: readonly TransformOperation[];
     /** Images: how the image fills the box. */
     resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
   }
@@ -307,6 +340,7 @@ const UI = `declare module 'soundor:ui' {
      * once its ancestors have scrolled. Zero when not connected.
      */
     getBoundingClientRect(): LayoutRect;
+    animate(keyframes: readonly AnimationKeyframe[], options?: AnimationOptions): UiAnimation;
 
     /** Text inputs: the text. Setting it puts the caret at the end. */
     value: string;

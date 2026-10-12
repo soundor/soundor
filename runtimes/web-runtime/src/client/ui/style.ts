@@ -6,6 +6,7 @@
  * a node's inline CSS only carries what its own style says.
  */
 
+import { transformCss } from './animation';
 import type { NodeType, Style } from './types';
 
 /** The class every node's element has, and one per node type. */
@@ -217,6 +218,8 @@ export function readStyle(value: unknown): Style {
       `style.${key}: expected ${expected}, got ${typeof got === 'string' ? `'${got}'` : String(got)}`,
     );
   };
+  if (style.transform !== undefined)
+    transformCss(style.transform as NonNullable<Style['transform']>);
   for (const [key, names] of Object.entries(CHOICES)) {
     if (key in style && !names.includes(style[key] as string)) {
       fail(key, `one of ${names.map((name) => `'${name}'`).join(', ')}`);
@@ -402,6 +405,8 @@ export function cssFor(style: Style, type: NodeType): Css {
     const value = style[key];
     if (value !== undefined) css[property] = px(value);
   }
+  if (style.transform !== undefined)
+    css['transform'] = transformCss(style.transform);
   if (style.zIndex !== undefined) css['z-index'] = String(style.zIndex);
   if (style.opacity !== undefined) {
     css['opacity'] = String(Math.min(1, Math.max(0, style.opacity)));

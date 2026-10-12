@@ -42,6 +42,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
           hasParameters(options.parameters != nullptr)
     {
+        if (options.animationClock)
+            uiSurface->animations().setClock(std::move(options.animationClock));
+        uiSurface->animations().setReducedMotion(options.reducedMotion);
         web::install(*jsContext, web::Services {
                                      std::move(options.http),
                                      std::move(options.dataDirectory),
@@ -89,6 +92,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             last = now;
         };
         ++ticked.ticks;
+        uiSurface->animations().tick();
+        lap(ticked.nativeAnimations);
         // One time limit over the whole tick, armed once.
         const js::TimeLimitScope limit(*jsContext);
         web::tick(*jsContext);
@@ -100,6 +105,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         }
         jsRuntime->runPendingJobs();
         lap(ticked.jobs);
+        ui::notifyAnimations(*jsContext);
         ui::frame(*jsContext);
         lap(ticked.animationFrames);
         jsRuntime->runPendingJobs();

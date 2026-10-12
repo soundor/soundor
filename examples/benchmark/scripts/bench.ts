@@ -47,6 +47,7 @@ const native = path.resolve(example, '../../runtimes/juce-runtime/native');
 const { values: options } = parseArgs({
   options: {
     only: { type: 'string' },
+    animations: { type: 'string', default: 'js' },
     runs: { type: 'string', default: '5' },
     frames: { type: 'string', default: '600' },
     warmup: { type: 'string', default: '30' },
@@ -64,6 +65,8 @@ const { values: options } = parseArgs({
   },
 });
 
+if (!['js', 'native'].includes(options.animations))
+  throw new RangeError('animations must be js or native');
 const runs = Number(options.runs);
 const frames = Number(options.frames);
 const warmup = Number(options.warmup);
@@ -116,6 +119,8 @@ interface Phase {
   gpuReadbacks: number;
   bytesUploaded: number;
   textureAllocations: number;
+  cachedRasterBytesMax?: number;
+  tickSteps?: { nativeAnimations?: number };
   nativeCalls: { ui: NativeCalls; canvas: NativeCalls; webgl: NativeCalls };
   surface: {
     styleChanges: number;
@@ -175,6 +180,8 @@ const MEASURES = {
   render: { label: 'render', timing: true, compare: true },
   nativeMs: { label: 'native calls', timing: true, compare: true },
   layoutMs: { label: 'layout', timing: true, compare: true },
+  animationMs: { label: 'native animation ms', timing: true, compare: true },
+  cachedRasterKB: { label: 'cached raster KB', timing: false, compare: true },
   // A tick that renders nothing (a UI that does not change), per such tick.
   idleTick: { label: 'idle tick', timing: true, compare: true },
   fps: { label: 'fps', timing: false, compare: false },
@@ -228,6 +235,8 @@ interface Report {
     warmup: number;
     size: string;
     only?: string[];
+    animations?: 'js' | 'native';
+    animationStepMs?: number;
   };
   summary: Summary;
   runs: RunReport[];
@@ -271,6 +280,7 @@ interface BuildInfo {
   execution?: 'source' | 'hermes-bytecode';
   buildType?: 'Release';
   collectBetweenPhases?: boolean;
+  animationMode?: 'js' | 'native';
 }
 
 function run(command: string, args: string[], cwd: string): void {
@@ -365,6 +375,8 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     render: scenario?.renderAverage ?? 0,
     nativeMs: calls.ui.ms + calls.canvas.ms + calls.webgl.ms,
     layoutMs: phase.surface.layoutMs,
+    animationMs: phase.tickSteps?.nativeAnimations ?? NaN,
+    cachedRasterKB: (phase.cachedRasterBytesMax ?? NaN) / 1024,
     idleTick: phase.idleTickMs,
     fps: phase.fps,
     uiCalls: calls.ui.perFrame,
@@ -560,6 +572,17 @@ function differences(current: Report, baseline: Report): string[] {
     problems.push(`renderer: ${b.renderer} → ${a.renderer}`);
   }
   if (a.cpu !== b.cpu) problems.push(`CPU: ${b.cpu} → ${a.cpu}`);
+  if (a.build?.animationMode === 'native') {
+    for (const key of [
+      'hermesRevision',
+      'compilerSha256',
+      'execution',
+    ] as const)
+      if (a.build[key] !== b.build?.[key])
+        problems.push(
+          `${key}: native animation comparisons require matching Hermes builds`,
+        );
+  }
   for (const key of ['frames', 'warmup', 'size'] as const) {
     if (current.config[key] !== baseline.config[key]) {
       problems.push(`${key}: ${baseline.config[key]} → ${current.config[key]}`);
@@ -580,13 +603,15 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     '--size',
     options.size,
     '--eval',
-    `soundorBenchmark.run(${frames}, ${warmup}${only ? `, ${JSON.stringify(only)}` : ''})`,
+    `soundorBenchmark.run(${frames}, ${warmup}, ${JSON.stringify(only ?? null)}, ${build.info.animationMode === 'native'})`,
     '--json',
     file,
     // Costs nothing measurable (a clock read per call), so always on.
     '--time-native-calls',
   ];
   if (build.info.collectBetweenPhases) args.push('--collect-between-phases');
+  if (build.info.animationMode === 'native')
+    args.push('--animation-step-ms', String(1000 / 60));
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
   // A build whose bundle was compiled runs it as bytecode (builds from
@@ -654,6 +679,7 @@ const current: Build = {
     execution: options.source ? 'source' : 'hermes-bytecode',
     buildType: 'Release',
     collectBetweenPhases: true,
+    animationMode: options.animations as 'js' | 'native',
   },
 };
 
@@ -687,6 +713,16 @@ if (options.against) {
       readFileSync(path.join(directory, 'build.json'), 'utf8'),
     ) as BuildInfo,
   };
+  if (
+    options.animations === 'native' &&
+    (against.info.hermesRevision !== current.info.hermesRevision ||
+      against.info.compilerSha256 !== current.info.compilerSha256 ||
+      against.info.execution !== current.info.execution)
+  ) {
+    throw new Error(
+      'native animation comparisons require the same Hermes revision, compiler and execution mode',
+    );
+  }
   console.log(
     `Against "${options.against}": ${describeBuild(against.info)}, built ${against.info.date}`,
   );
@@ -744,7 +780,15 @@ const report: Report = {
     platform: `${process.platform} ${os.release()}`,
     build: current.info,
   },
-  config: { runs, frames, warmup, size: options.size, only },
+  config: {
+    runs,
+    frames,
+    warmup,
+    size: options.size,
+    only,
+    animations: options.animations as 'js' | 'native',
+    ...(options.animations === 'native' ? { animationStepMs: 1000 / 60 } : {}),
+  },
   summary: summarize(reports),
   runs: reports,
 };

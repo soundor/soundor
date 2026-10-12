@@ -16,6 +16,9 @@ export type {
   AccessibilityValue,
 } from './accessibility';
 export {
+  Animated,
+  type AnimatedViewProps,
+  type TimingTransition,
   Canvas,
   Image,
   Pressable,

@@ -314,3 +314,11 @@ missing.
 ## License
 
 MIT
+
+## UI animations
+
+The runtime implements native timing, opacity and ordered transforms through
+`soundor:ui` and `Animated.View` in `@soundor/react`. See the
+[native animation contract](native/README.md#native-timing-animations) for playback,
+presentation, caching and reduced-motion behavior. Animation execution stays on
+the existing UI tick, independent of Hermes and the audio thread.

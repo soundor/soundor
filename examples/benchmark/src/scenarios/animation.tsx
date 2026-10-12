@@ -9,6 +9,11 @@ import {
   animationValue,
 } from './animation-workload';
 import {
+  nativeOpacityRamp,
+  nativeTransformRamp,
+  transformValue,
+} from './native-ramp';
+import {
   STAGE_HEIGHT,
   STAGE_WIDTH,
   type Scenario,
@@ -22,13 +27,35 @@ function countOf(scenario: Scenario): number {
 function OpacityStage({ scenario, register }: StageProps) {
   const nodes = useRef<UiNode[]>([]);
   const count = countOf(scenario);
+  const transforms = scenario.id.startsWith('animation-transform-');
   useEffect(() => {
+    let started = false;
+    const stop: (() => void)[] = [];
     register((time) => {
+      if (scenario.nativeAnimations) {
+        if (!started) {
+          started = true;
+          nodes.current.forEach((node, index) =>
+            stop.push(
+              (transforms ? nativeTransformRamp : nativeOpacityRamp)(
+                node,
+                index,
+              ),
+            ),
+          );
+        }
+        return;
+      }
       nodes.current.forEach((node, i) => {
-        node.style.opacity = animationOpacity(time, i);
+        if (transforms)
+          node.style.transform = transformValue(
+            animationValue(time, i),
+          ).transform;
+        else node.style.opacity = animationOpacity(time, i);
       });
     });
-  }, [register]);
+    return () => stop.forEach((cancel) => cancel());
+  }, [register, scenario.nativeAnimations, transforms]);
   return (
     <View
       style={{
@@ -49,7 +76,8 @@ function OpacityStage({ scenario, register }: StageProps) {
             width: 18,
             height: 18,
             backgroundColor: '#3b82f6',
-            opacity: animationOpacity(0, i),
+            opacity: transforms ? 1 : animationOpacity(0, i),
+            ...(transforms ? transformValue(animationValue(0, i)) : {}),
           }}
         />
       ))}
@@ -61,19 +89,32 @@ function OpacityStage({ scenario, register }: StageProps) {
 function ReactCell({
   index,
   updates,
+  native = false,
 }: {
   index: number;
+  native?: boolean;
   updates: Map<number, (time: number) => void>;
 }) {
   const [time, setTime] = useState(0);
+  const node = useRef<UiNode>(null);
   useEffect(() => {
-    updates.set(index, setTime);
+    let cancel: (() => void) | undefined;
+    updates.set(
+      index,
+      native
+        ? () => {
+            cancel = nativeOpacityRamp(node.current!, index);
+          }
+        : setTime,
+    );
     return () => {
       updates.delete(index);
+      cancel?.();
     };
-  }, [index, updates]);
+  }, [index, updates, native]);
   return (
     <View
+      ref={node}
       style={{
         width: 18,
         height: 18,
@@ -87,10 +128,13 @@ function ReactCell({
 function ReactStage({ scenario, register }: StageProps) {
   const updates = useRef(new Map<number, (time: number) => void>());
   useEffect(() => {
+    let started = false;
     register((time) => {
+      if (scenario.nativeAnimations && started) return;
+      started = true;
       flushSync(() => updates.current.forEach((update) => update(time)));
     });
-  }, [register]);
+  }, [register, scenario.nativeAnimations]);
   return (
     <View
       style={{
@@ -102,7 +146,12 @@ function ReactStage({ scenario, register }: StageProps) {
       }}
     >
       {Array.from({ length: countOf(scenario) }, (_, i) => (
-        <ReactCell key={i} index={i} updates={updates.current} />
+        <ReactCell
+          key={i}
+          index={i}
+          updates={updates.current}
+          native={scenario.nativeAnimations}
+        />
       ))}
     </View>
   );
@@ -113,6 +162,7 @@ function PluginStage({ scenario, register }: StageProps) {
   const count = countOf(scenario);
   const staticStage = scenario.id.startsWith('animation-static-');
   const mixed = scenario.id.startsWith('animation-mixed-');
+  const panels = useRef<UiNode[]>([]);
   const canvas = useRef<UiNode>(null);
   const webgl = useRef<UiNode>(null);
   const [time, setTime] = useState(0);
@@ -135,10 +185,19 @@ function PluginStage({ scenario, register }: StageProps) {
       gl.clearColor(0.1, 0.2, 0.35, 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
     }
+    let started = false;
+    const stop: (() => void)[] = [];
     register((time) => {
+      if (scenario.nativeAnimations && !staticStage && !started) {
+        started = true;
+        panels.current.forEach((node, index) =>
+          stop.push(nativeOpacityRamp(node, index)),
+        );
+      }
       if (!staticStage) flushSync(() => setTime(time));
     });
-  }, [register, staticStage, mixed]);
+    return () => stop.forEach((cancel) => cancel());
+  }, [register, staticStage, mixed, scenario.nativeAnimations]);
   return (
     <View
       style={{
@@ -173,13 +232,19 @@ function PluginStage({ scenario, register }: StageProps) {
           return (
             <View
               key={i}
+              ref={(node) => {
+                if (node) panels.current[i] = node;
+              }}
               style={{
                 width: 60,
                 height: 90,
                 padding: 4,
                 gap: 3,
                 backgroundColor: '#242832',
-                opacity: animationOpacity(time, i),
+                opacity: animationOpacity(
+                  scenario.nativeAnimations ? 0 : time,
+                  i,
+                ),
               }}
             >
               <Text
@@ -258,4 +323,7 @@ export const ANIMATION_SCENARIOS: readonly Scenario[] = [
     workload('static', count, PluginStage),
   ]),
   workload('mixed', 20, PluginStage),
+  ...ANIMATION_COUNTS.map((count) =>
+    workload('transform', count, OpacityStage),
+  ),
 ];

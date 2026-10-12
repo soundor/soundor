@@ -258,3 +258,11 @@ export {
   PointerEvent,
   WheelEvent,
 } from '../ui/events';
+
+export { UiAnimation } from '../ui/animation';
+export function setReducedMotion(value: boolean): void {
+  view.animations.reducedMotion = value;
+}
+export function prefersReducedMotion(): boolean {
+  return view.animations.reducedMotion;
+}

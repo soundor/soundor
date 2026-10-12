@@ -112,6 +112,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         for (auto& [id, texture] : textures)
             glDeleteTextures(1, &texture.name);
         textures.clear();
+        for (auto& [id, group] : groups)
+        {
+            glDeleteTextures(1, &group.texture.name);
+            glDeleteFramebuffers(1, &group.framebuffer);
+        }
+        groups.clear();
         placed.clear();
     }
 
@@ -127,11 +133,70 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
     bool LayerRenderer::upload(const render::Frame& frame, render::CompositorStatistics& stats)
     {
         ++frames;
+        const bool changed = uploadFrame(frame, stats, placed);
+        std::erase_if(textures,
+                      [&](auto& entry)
+                      {
+                          if (entry.second.used == frames)
+                              return false;
+                          glDeleteTextures(1, &entry.second.name);
+                          return true;
+                      });
+        std::erase_if(groups,
+                      [&](auto& entry)
+                      {
+                          if (entry.second.texture.used == frames)
+                              return false;
+                          glDeleteTextures(1, &entry.second.texture.name);
+                          glDeleteFramebuffers(1, &entry.second.framebuffer);
+                          return true;
+                      });
+        return changed;
+    }
+
+    bool LayerRenderer::uploadFrame(const render::Frame& frame, render::CompositorStatistics& stats,
+                                    std::vector<render::Layer>& placements)
+    {
         bool changed =
-            ! std::ranges::equal(frame.layers, placed, [](const render::Layer& now, const render::Layer& before)
+            ! std::ranges::equal(frame.layers, placements, [](const render::Layer& now, const render::Layer& before)
                                  { return now.samePlacement(before); });
         for (const render::Layer& layer : frame.layers)
         {
+            if (const auto* content = std::get_if<render::GroupContent>(&layer.content))
+            {
+                if (content->frame == nullptr)
+                    continue;
+                const render::Frame& child = *content->frame;
+                GroupTexture& group = groups[layer.id];
+                group.texture.used = frames;
+                bool redraw = uploadFrame(child, stats, group.placed);
+                const bool resize = group.texture.name == 0 || group.texture.width != child.width
+                                    || group.texture.height != child.height;
+                if (resize)
+                {
+                    glDeleteTextures(1, &group.texture.name);
+                    glDeleteFramebuffers(1, &group.framebuffer);
+                    glGenTextures(1, &group.texture.name);
+                    glBindTexture(GL_TEXTURE_2D, group.texture.name);
+                    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, child.width, child.height);
+                    glGenFramebuffers(1, &group.framebuffer);
+                    group.texture.width = child.width;
+                    group.texture.height = child.height;
+                    ++stats.textureAllocations;
+                    redraw = true;
+                }
+                if (redraw)
+                {
+                    GLint previousFramebuffer = 0;
+                    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previousFramebuffer);
+                    glBindFramebuffer(GL_FRAMEBUFFER, group.framebuffer);
+                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, group.texture.name, 0);
+                    draw(child, 0, stats);
+                    glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(previousFramebuffer));
+                    changed = true;
+                }
+                continue;
+            }
             if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
             {
                 SharedImage* shared = drawable(*gpuContent);
@@ -192,18 +257,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
         glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
         glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
-        // Textures of layers gone from the frame.
-        const auto unused = [&](auto& entry)
-        {
-            if (entry.second.used == frames)
-                return false;
-            glDeleteTextures(1, &entry.second.name);
-            return true;
-        };
-        std::erase_if(textures, unused);
-        placed.clear();
+        placements.clear();
         for (const render::Layer& layer : frame.layers)
-            placed.push_back(
+            placements.push_back(
                 { layer.id, layer.bounds, layer.transform, layer.opacity, layer.clip, render::RasterContent {} });
         return changed;
     }
@@ -227,7 +283,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
             const Texture* texture = nullptr;
             Texture image;
             SharedImage* shared = nullptr;
-            if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
+            const bool groupContent = std::holds_alternative<render::GroupContent>(layer.content);
+            if (groupContent)
+            {
+                if (const auto found = groups.find(layer.id); found != groups.end())
+                    texture = &found->second.texture;
+            }
+            else if (const auto* gpuContent = std::get_if<render::GpuContent>(&layer.content))
             {
                 shared = drawable(*gpuContent);
                 if (shared != nullptr)
@@ -261,7 +323,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 glUniform4f(clipLocation, -1e6f, -1e6f, 1e6f, 1e6f);
                 glUniform4f(radiiLocation, 0, 0, 0, 0);
             }
-            glUniform1f(flipLocation, shared != nullptr ? 1.0f : 0.0f);
+            glUniform1f(flipLocation, shared != nullptr || groupContent ? 1.0f : 0.0f);
             glUniform1f(opaqueLocation, shared != nullptr && shared->opaque() ? 1.0f : 0.0f);
             glUniform1f(premultiplyLocation, shared != nullptr && ! shared->premultiplied() ? 1.0f : 0.0f);
             glBindTexture(GL_TEXTURE_2D, texture->name);
@@ -282,7 +344,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         if (context.device().info().fences)
             for (SharedImage* shared : drawnImages)
                 shared->released(eglCreateSyncKHR(context.device().display(), EGL_SYNC_FENCE_KHR, nullptr));
-        stats.layersComposited = static_cast<int>(frame.layers.size());
-        stats.pixelsComposited = static_cast<long long>(frame.width) * frame.height;
+        stats.layersComposited += static_cast<int>(frame.layers.size());
+        stats.pixelsComposited += static_cast<long long>(frame.width) * frame.height;
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

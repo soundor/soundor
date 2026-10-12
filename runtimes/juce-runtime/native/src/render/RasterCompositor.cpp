@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
@@ -98,7 +99,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         }
     } // namespace
 
-    RasterCompositor::RasterCompositor(RasterTarget& target) : output(target) {}
+    struct RasterCompositor::Groups
+    {
+        struct Target final : RasterTarget
+        {
+            RasterSurface pixels;
+            Region damage;
+            Pixels acquire(int width, int height) override
+            {
+                const bool resized = pixels.resize(width, height);
+                return { pixels.bitmap(), ! resized };
+            }
+            void present(const Region& changed) override { damage = changed; }
+        };
+        struct Group
+        {
+            Target target;
+            RasterCompositor compositor { target };
+            std::uint64_t used = 0;
+        };
+        std::unordered_map<LayerId, std::unique_ptr<Group>> cache;
+        Frame flattened;
+        std::uint64_t generation = 0;
+    };
+
+    RasterCompositor::RasterCompositor(RasterTarget& target) : groups(std::make_unique<Groups>()), output(target) {}
 
     RasterCompositor::~RasterCompositor() = default;
 
@@ -107,9 +132,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         return { .gpu = false, .backend = "Skia raster" };
     }
 
-    void RasterCompositor::composite(const Frame& frame)
+    void RasterCompositor::composite(const Frame& incoming)
     {
         stats = {};
+        const bool grouped = std::ranges::any_of(incoming.layers, [](const Layer& layer)
+                                                 { return std::holds_alternative<GroupContent>(layer.content); });
+        ++groups->generation;
+        if (grouped)
+        {
+            groups->flattened.width = incoming.width;
+            groups->flattened.height = incoming.height;
+            groups->flattened.scale = incoming.scale;
+            groups->flattened.damage = incoming.damage;
+            groups->flattened.layers = incoming.layers;
+            for (Layer& layer : groups->flattened.layers)
+            {
+                const auto* content = std::get_if<GroupContent>(&layer.content);
+                if (content == nullptr || content->frame == nullptr)
+                    continue;
+                auto& slot = groups->cache[layer.id];
+                if (! slot)
+                    slot = std::make_unique<Groups::Group>();
+                slot->used = groups->generation;
+                slot->target.damage.clear();
+                slot->compositor.composite(*content->frame);
+                const auto& cost = slot->compositor.statistics();
+                stats.drawCalls += cost.drawCalls;
+                stats.layersComposited += cost.layersComposited;
+                stats.pixelsComposited += cost.pixelsComposited;
+                layer.content = RasterContent { &slot->target.pixels, slot->target.damage };
+            }
+        }
+        std::erase_if(groups->cache, [&](const auto& entry) { return entry.second->used != groups->generation; });
+        const Frame& frame = grouped ? groups->flattened : incoming;
         if (frame.width <= 0 || frame.height <= 0)
             return;
         const RasterTarget::Pixels pixels = output.acquire(frame.width, frame.height);
@@ -175,7 +230,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const auto& surface = *std::get<RasterContent>(frame.layers.front().content).surface;
             for (const IntRect& rect : damage.rects())
                 copy(surface, pixels.bitmap, rect);
-            stats.drawCalls = static_cast<int>(damage.rects().size());
+            stats.drawCalls += static_cast<int>(damage.rects().size());
         }
         else
         {
@@ -196,8 +251,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                     ++stats.drawCalls;
                 }
         }
-        stats.layersComposited = static_cast<int>(frame.layers.size());
-        stats.pixelsComposited = damage.area();
+        stats.layersComposited += static_cast<int>(frame.layers.size());
+        stats.pixelsComposited += damage.area();
         output.present(damage);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render

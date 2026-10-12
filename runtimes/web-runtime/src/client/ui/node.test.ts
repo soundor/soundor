@@ -20,6 +20,39 @@ function setup() {
 
 const el = (node: UiNode): HTMLElement => UiNode.elementOf(node);
 
+it('keeps logical layout and inverses nested presentation transforms for pointer coordinates', () => {
+  const { root } = setup();
+  const parent = view.createNode('view');
+  const child = view.createNode('view');
+  parent.style = {
+    width: 40,
+    height: 20,
+    transform: [{ translateX: 20 }, { scale: 2 }],
+  };
+  child.style = { width: 40, height: 20, transform: [{ rotate: 0.25 }] };
+  root.appendChild(parent);
+  parent.appendChild(child);
+  Object.defineProperties(el(parent), {
+    offsetLeft: { value: 20 },
+    offsetTop: { value: 20 },
+    offsetParent: { value: el(root) },
+  });
+  Object.defineProperties(el(child), {
+    offsetLeft: { value: 0 },
+    offsetTop: { value: 0 },
+    offsetParent: { value: el(parent) },
+  });
+  expect(parent.layout).toEqual({ x: 20, y: 20, width: 40, height: 20 });
+  const local = UiNode.localPoint(child, 60, 30);
+  expect(local.x).toBeCloseTo(20);
+  expect(local.y).toBeCloseTo(10);
+  parent.style.transform = [{ scale: 0 }];
+  expect(UiNode.localPoint(child, 60, 30)).toEqual({
+    x: Infinity,
+    y: Infinity,
+  });
+});
+
 describe('UiNode tree', () => {
   it('mirrors the tree in DOM elements', () => {
     const { root } = setup();

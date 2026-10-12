@@ -224,3 +224,32 @@ peak engine heaps, per-run spreads and all other workloads. The saved
 comparisons; re-run them alternately with a candidate rather than treating
 these timings as a machine-independent target. No native-animation
 improvement is claimed by this baseline alone.
+
+## Comparing native timing animations
+
+```sh
+pnpm --filter soundor-benchmark bench --animations native --against hermes-animation --only animation --backend opengl
+pnpm --filter soundor-benchmark bench --animations js --only animation-transform-1,animation-transform-50,animation-transform-500 --backend opengl --save transform-js
+pnpm --filter soundor-benchmark bench --animations native --only animation-transform-1,animation-transform-50,animation-transform-500 --backend opengl --against transform-js
+```
+
+Keep the PR 0 `hermes-animation` saved build intact. Native comparisons require
+matching Hermes revision, compiler and execution mode and alternate the saved
+runner/bundle with the candidate on the same device. Native time advances by
+exactly 1000/60 ms per driver tick, preserving the PR 0 simulation inputs.
+The unchanged opacity, React-mounted control, plugin and mixed workloads use
+native interpolation; one JS completion submission per second reverses the ramp.
+This measures zero intermediate React reconciliation for the React-mounted
+workload; plugin knobs, slider widths, meters and readouts keep their existing JS
+updates because they require layout/text changes. Canvas/WebGL content stays
+static. Static scenarios use the original rendering path.
+
+New `animation-transform-{1,50,500}` workloads compare the same translateY/scale
+ramps within PR 1. PR 0 had no public transforms, so there is no PR 0 transform
+baseline. Do not attribute Hermes migration gains to native animations.
+Reports include native timeline CPU time and peak cached CPU raster bytes, alongside
+frame tails, JS, bindings, layout, raster and CPU-side composition. Missing metrics
+from the saved runner remain unavailable. Cache bytes exclude composition targets,
+GPU physical memory and allocator overhead; uncapped throughput is not display FPS.
+
+Recorded PR 1 measurements and tradeoffs: [native timing comparison](reports/native-timing.md).

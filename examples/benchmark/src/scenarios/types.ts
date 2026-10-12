@@ -53,6 +53,7 @@ export interface StageProps {
 }
 
 export interface Scenario {
+  readonly nativeAnimations?: boolean;
   /** Unique: the name results and phases are reported under. */
   readonly id: string;
   readonly group: Group;

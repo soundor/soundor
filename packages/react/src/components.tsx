@@ -14,6 +14,7 @@ import {
   type PointerEvent,
   type Style,
   type UiNode,
+  type AnimationOptions,
   type WheelEvent,
 } from 'soundor:ui';
 
@@ -24,6 +25,7 @@ import {
   type AccessibilityProps,
 } from './accessibility';
 import { ScopeContext } from './focus';
+import { TRANSITION_PROP } from './host';
 import { HostTypes, prioritized, SCOPE_PROP } from './host';
 import type { StyleProp } from './style';
 
@@ -72,6 +74,19 @@ function useHostProps<P extends object>(props: P): P {
 export function View(props: ViewProps) {
   return createElement(HostTypes.View, useHostProps(props));
 }
+
+export type TimingTransition = AnimationOptions & { type?: 'timing' };
+export interface AnimatedViewProps extends ViewProps {
+  transition?: TimingTransition;
+}
+function AnimatedView({ transition = {}, ...props }: AnimatedViewProps) {
+  return createElement(
+    HostTypes.View,
+    useHostProps({ ...props, [TRANSITION_PROP]: transition }),
+  );
+}
+/** Declarative transitions: only target changes reach the reconciler. */
+export const Animated = Object.freeze({ View: AnimatedView });
 
 /**
  * Accessibility props of a <Text> nested in another apply to neither: the

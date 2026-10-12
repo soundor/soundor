@@ -53,7 +53,12 @@ function sameStyle(a, b) {
   let count = 0;
   for (const key in b) {
     if (!Object.hasOwn(b, key)) continue;
-    if (!Object.hasOwn(a, key) || a[key] !== b[key]) return false;
+    if (!Object.hasOwn(a, key)) return false;
+    if (
+      a[key] !== b[key] &&
+      (key !== 'transform' || JSON.stringify(a[key]) !== JSON.stringify(b[key]))
+    )
+      return false;
     count++;
   }
   for (const key in a) if (Object.hasOwn(a, key)) count--;
@@ -225,6 +230,152 @@ function freezeAccessibility(value) {
       copy.actions.map((action) => Object.freeze({ ...action })),
     );
   return Object.freeze(copy);
+}
+
+const animationHandles = new Map();
+
+function animationFrames(frames) {
+  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 2)
+    throw new TypeError(
+      'animate: timing animations require one target or two keyframes',
+    );
+  return frames.map((frame) => {
+    if (!frame || typeof frame !== 'object' || Array.isArray(frame))
+      throw new TypeError('animate: keyframes must be objects');
+    for (const key of Object.keys(frame))
+      if (key !== 'opacity' && key !== 'transform')
+        throw new TypeError(`animate: unsupported property ${key}`);
+    if (frame.transform !== undefined && !Array.isArray(frame.transform))
+      throw new TypeError('style.transform: expected an array');
+    return Object.freeze({
+      ...frame,
+      ...(frame.transform === undefined
+        ? {}
+        : {
+            transform: Object.freeze(
+              frame.transform.map((value) => Object.freeze({ ...value })),
+            ),
+          }),
+    });
+  });
+}
+
+/** A native timeline handle; no animation-frame callback lives here. */
+export class UiAnimation {
+  #node;
+  #id;
+  #frames;
+  #options;
+  #finished;
+  #resolve;
+  #reject;
+  #settled = false;
+  #generation = 0;
+
+  constructor(token, node, id, frames, options) {
+    if (token !== CONSTRUCTING) throw new TypeError('Use node.animate()');
+    this.#node = node;
+    this.#id = id;
+    this.#frames = frames;
+    this.#options = options;
+    this.#resetPromise();
+  }
+
+  #resetPromise() {
+    this.#settled = false;
+    this.#finished = new Promise((resolve, reject) => {
+      this.#resolve = resolve;
+      this.#reject = reject;
+    });
+    // A discarded handle should not report an unhandled cancellation.
+    this.#finished.catch(() => {});
+    // A caller can retain only finished, or discard the handle altogether.
+    // Keep settlement callbacks until the native run ends, without retaining
+    // its node or handle (detached nodes must still be collectible).
+    animationHandles.set(this.#id, {
+      handle: new WeakRef(this),
+      resolve: this.#resolve,
+      reject: this.#reject,
+      generation: this.#generation,
+    });
+  }
+
+  get finished() {
+    return this.#finished;
+  }
+  get playState() {
+    return native.animationControl(this.#id, 'state').playState;
+  }
+  get currentTime() {
+    return native.animationControl(this.#id, 'state').currentTime;
+  }
+  pause() {
+    if (this.playState === 'idle') this.play();
+    native.animationControl(this.#id, 'pause');
+  }
+  resume() {
+    this.play();
+  }
+  play() {
+    const state = this.playState;
+    if (state === 'idle') {
+      this.#id = native.animate(
+        internals.id(this.#node),
+        this.#frames,
+        this.#options,
+      );
+      this.#generation = 0;
+      this.#resetPromise();
+    } else {
+      if (state === 'finished') {
+        this.#generation++;
+        this.#resetPromise();
+      }
+      native.animationControl(this.#id, 'play');
+    }
+  }
+  cancel() {
+    native.animationControl(this.#id, 'cancel');
+    UiAnimation.settle(this, true);
+  }
+  finish() {
+    if (this.playState === 'idle') this.play();
+    native.animationControl(this.#id, 'finish');
+    UiAnimation.settle(this, false);
+  }
+
+  static settle(animation, cancelled, generation = animation.#generation) {
+    if (generation !== animation.#generation || animation.#settled) return;
+    animation.#settled = true;
+    animationHandles.delete(animation.#id);
+    if (cancelled)
+      animation.#reject(new DOMException('Animation cancelled', 'AbortError'));
+    else animation.#resolve();
+  }
+}
+
+native.setAnimationListener((records) => {
+  for (const record of records) {
+    const pending = animationHandles.get(record.id);
+    const handle = pending?.handle.deref();
+    if (handle) UiAnimation.settle(handle, record.cancelled, record.generation);
+    else if (pending?.generation === record.generation) {
+      animationHandles.delete(record.id);
+      if (record.cancelled)
+        pending.reject(new DOMException('Animation cancelled', 'AbortError'));
+      else pending.resolve();
+    }
+  }
+});
+
+export function setReducedMotion(value) {
+  if (typeof value !== 'boolean')
+    throw new TypeError('reduced motion must be a boolean');
+  native.reducedMotion(value);
+}
+
+export function prefersReducedMotion() {
+  return native.reducedMotion(undefined);
 }
 
 export class UiNode extends EventTarget {
@@ -653,7 +804,17 @@ export class UiNode extends EventTarget {
     return native.frame(this.#id);
   }
 
-  /** The laid-out box relative to the view (zero when not connected). */
+  /** Submit native timing animation descriptions in one operation. */
+  animate(keyframes, options = {}) {
+    if (!options || typeof options !== 'object' || Array.isArray(options))
+      throw new TypeError('animation options must be an object');
+    const frames = animationFrames(keyframes);
+    const timing = Object.freeze({ ...options });
+    const id = native.animate(this.#id, frames, timing);
+    return new UiAnimation(CONSTRUCTING, this, id, frames, timing);
+  }
+
+  /** Presented bounds relative to the view (zero when not connected). */
   getBoundingClientRect() {
     return native.bounds(this.#id);
   }

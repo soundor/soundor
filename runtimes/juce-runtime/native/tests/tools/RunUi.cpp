@@ -65,7 +65,7 @@ namespace
     {
         std::cerr << "usage: soundor_run_ui <ui directory> [--size WxH] [--scale S] [--seconds N] [--eval EXPR] "
                      "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE] [--time-native-calls] "
-                     "[--bytecode]\n";
+                     "[--bytecode] [--collect-between-phases] [--animation-step-ms N]\n";
         return 2;
     }
 
@@ -106,6 +106,7 @@ namespace
         int layersRasterized = 0;
         long long pixelsRasterized = 0;
         int gpuReadbacks = 0;
+        long long cachedRasterBytes = 0;
         long long bytesUploaded = 0;
         int textureAllocations = 0;
         int compositorDrawCalls = 0;
@@ -113,6 +114,7 @@ namespace
         double web = 0;
         double jobs = 0;
         double animationFrames = 0;
+        double nativeAnimations = 0;
         double presentWebGL = 0;
         // Native calls, and their time (with --time-native-calls).
         long long uiCalls = 0;
@@ -138,6 +140,7 @@ namespace
         sample.web = time(before.tick.web, after.tick.web);
         sample.jobs = time(before.tick.jobs, after.tick.jobs);
         sample.animationFrames = time(before.tick.animationFrames, after.tick.animationFrames);
+        sample.nativeAnimations = time(before.tick.nativeAnimations, after.tick.nativeAnimations);
         sample.presentWebGL = time(before.tick.presentWebGL, after.tick.presentWebGL);
         sample.uiCalls = count(before.runtime.ui.calls, after.runtime.ui.calls);
         sample.canvasCalls = count(before.runtime.canvas.calls, after.runtime.canvas.calls);
@@ -297,6 +300,7 @@ namespace
         out += ", \"layersRasterized\": " + std::to_string(total(s, &Sample::layersRasterized));
         out += ", \"pixelsRasterized\": " + std::to_string(total(s, &Sample::pixelsRasterized));
         out += ", \"gpuReadbacks\": " + std::to_string(total(s, &Sample::gpuReadbacks));
+        out += ", \"cachedRasterBytesMax\": " + std::to_string(largest(s, &Sample::cachedRasterBytes));
         out += ", \"bytesUploaded\": " + std::to_string(total(s, &Sample::bytesUploaded));
         out += ", \"textureAllocations\": " + std::to_string(total(s, &Sample::textureAllocations));
         out += ", \"compositorDrawCalls\": " + std::to_string(total(s, &Sample::compositorDrawCalls));
@@ -305,6 +309,7 @@ namespace
         out += ", "
                + field("tickSteps", "{ " + field("web", mean(&Sample::web)) + ", " + field("jobs", mean(&Sample::jobs))
                                         + ", " + field("animationFrames", mean(&Sample::animationFrames)) + ", "
+                                        + field("nativeAnimations", mean(&Sample::nativeAnimations)) + ", "
                                         + field("presentWebGL", mean(&Sample::presentWebGL)) + " }");
         const auto calls = [&](long long Sample::*count, double Sample::*spent)
         { return "{ " + field("perFrame", mean(count)) + ", " + field("ms", mean(spent)) + " }"; };
@@ -375,6 +380,9 @@ int main(int argc, char** argv)
     bool timeNativeCalls = false;
     bool bytecode = false;
     bool collectBetweenPhases = false;
+    double animationStepMs = 0;
+    double animationTimeMs = 0;
+    std::uint64_t animationTicks = 0;
     for (int i = 2; i < argc; ++i)
     {
         const std::string_view flag = argv[i];
@@ -394,6 +402,12 @@ int main(int argc, char** argv)
         }
         else if (flag == "--scale")
             scale = std::stof(value());
+        else if (flag == "--animation-step-ms")
+        {
+            animationStepMs = std::stod(value());
+            if (! std::isfinite(animationStepMs) || animationStepMs <= 0)
+                return usage();
+        }
         else if (flag == "--seconds")
             limit = std::stod(value());
         else if (flag == "--eval")
@@ -445,6 +459,8 @@ int main(int argc, char** argv)
     std::cerr << "device: " << gpu::name(device->info().backend) << ", " << device->info().renderer << "\n";
 
     RuntimeHost::Options options;
+    if (animationStepMs > 0)
+        options.animationClock = [&] { return animationTimeMs; };
     if (bytecode)
         options.resources = std::make_shared<CompiledDirectory>(directory);
     else
@@ -495,6 +511,8 @@ int main(int argc, char** argv)
     std::string previousPhase;
     const auto frame = [&]
     {
+        if (animationStepMs > 0)
+            animationTimeMs = static_cast<double>(animationTicks++) * animationStepMs;
         // The phase the frame's JavaScript runs in, set by an earlier frame.
         const std::string phase = measuring ? currentPhase() : std::string();
         if (collectBetweenPhases && ! phase.empty() && phase != previousPhase)
@@ -539,6 +557,7 @@ int main(int argc, char** argv)
             .layersRasterized = made.statistics.layersRasterized,
             .pixelsRasterized = made.statistics.pixelsRasterized,
             .gpuReadbacks = made.statistics.gpuReadbacks,
+            .cachedRasterBytes = static_cast<long long>(made.statistics.cachedRasterBytes),
             .bytesUploaded = composition.bytesUploaded,
             .textureAllocations = composition.textureAllocations,
             .compositorDrawCalls = composition.drawCalls,

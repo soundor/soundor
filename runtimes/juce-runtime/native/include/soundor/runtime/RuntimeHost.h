@@ -75,6 +75,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             // Whether WebGL may use a software renderer when there is no GPU
             // device (tests, debugging). Default: getContext('webgl2') is null.
             bool allowSoftwareGpu = false;
+            // Native animation timing, independent of the interpreter.
+            ui::AnimationTimeline::Clock animationClock;
+            bool reducedMotion = false;
         };
 
         // Where tick() spent its time since the host was created, in
@@ -82,11 +85,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         struct TickStatistics
         {
             std::uint64_t ticks = 0;
-            std::uint64_t web = 0;             // timers, finished async work (fetch, files)
-            std::uint64_t parameters = 0;      // parameter and host changes
-            std::uint64_t jobs = 0;            // promise jobs
-            std::uint64_t animationFrames = 0; // requestAnimationFrame callbacks
-            std::uint64_t presentWebGL = 0;    // showing what WebGL drew
+            std::uint64_t web = 0;              // timers, finished async work (fetch, files)
+            std::uint64_t parameters = 0;       // parameter and host changes
+            std::uint64_t jobs = 0;             // promise jobs
+            std::uint64_t animationFrames = 0;  // requestAnimationFrame callbacks
+            std::uint64_t nativeAnimations = 0; // C++ timeline, outside the JS time limit
+            std::uint64_t presentWebGL = 0;     // showing what WebGL drew
         };
 
         // What the host did since it was created, for profiling (frame

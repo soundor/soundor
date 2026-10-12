@@ -93,7 +93,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool painting() const noexcept { return layering == nullptr || holesPassed == layering->segment; }
         [[nodiscard]] bool isHole(const Node& node) const noexcept
         {
-            return layering != nullptr && node.type() == NodeType::Canvas
+            return layering != nullptr && (layering->subtrees || node.type() == NodeType::Canvas)
                    && std::ranges::find(layering->holes, node.id()) != layering->holes.end();
         }
         // Where part of a view is drawn before being copied in.
@@ -183,6 +183,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         holesPassed = 0;
         canvas.scale(surface->scale(), surface->scale());
+        if (layering != nullptr && layering->root != noNode)
+        {
+            canvas.translate(-layering->originX, -layering->originY);
+            drawNode(canvas, *surface->find(layering->root));
+            return;
+        }
         // The overlay over all of the content, whatever their zIndex.
         drawNode(canvas, surface->root());
         drawNode(canvas, surface->overlay());
@@ -190,12 +196,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     void Renderer::Impl::drawNode(SkCanvas& canvas, const Node& node)
     {
-        const Style& style = node.style();
-        if (style.display == Display::None || style.opacity <= 0)
+        if (layering != nullptr && layering->subtrees && node.id() != layering->root && isHole(node))
+        {
+            ++holesPassed;
+            return;
+        }
+        const Style& style = node.presentedStyle();
+        const bool localRoot = layering != nullptr && node.id() == layering->root;
+        const float opacity = localRoot ? 1 : style.opacity;
+        if (style.display == Display::None || opacity <= 0)
             return;
         const Rect frame = node.frame();
         canvas.save();
-        canvas.translate(frame.x, frame.y);
+        if (! localRoot)
+            canvas.translate(frame.x, frame.y);
+        const render::Transform transform =
+            localRoot ? render::Transform {} : style.transform.transform(frame.width, frame.height);
+        canvas.concat(
+            SkMatrix::MakeAll(transform.a, transform.c, transform.e, transform.b, transform.d, transform.f, 0, 0, 1));
         const SkRect box = SkRect::MakeWH(frame.width, frame.height);
         const Edges<float>& border = style.borderWidth;
         const bool bordered =
@@ -207,14 +225,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // inside its box gets a layer of that size; others, one the size
         // of what is drawn.
         const bool leaf = node.children().empty();
-        const bool singleShape = style.opacity < 1 && leaf && ! bordered && node.type() == NodeType::View;
-        const bool layered = style.opacity < 1 && ! singleShape;
+        const bool singleShape = opacity < 1 && leaf && ! bordered && node.type() == NodeType::View;
+        const bool layered = opacity < 1 && ! singleShape;
         if (layered)
         {
             const bool insideBox =
                 leaf
                 && (node.type() == NodeType::View || node.type() == NodeType::Image || node.type() == NodeType::Canvas);
-            canvas.saveLayerAlphaf(insideBox ? &box : nullptr, style.opacity);
+            canvas.saveLayerAlphaf(insideBox ? &box : nullptr, opacity);
         }
 
         const SkRRect outer = roundedRect(box, style.borderRadius);
@@ -222,7 +240,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             SkColor4f color = SkColor4f::FromColor(skColor(style.backgroundColor));
             if (singleShape)
-                color.fA *= style.opacity;
+                color.fA *= opacity;
             SkPaint paint(color);
             paint.setAntiAlias(true);
             canvas.drawRRect(outer, paint);

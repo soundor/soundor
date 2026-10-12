@@ -12,6 +12,7 @@
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
+import { AnimationController } from './animation';
 import {
   AccessibilityActionEvent,
   FocusEvent,
@@ -38,6 +39,7 @@ interface PointerState {
 const elementOf = (node: UiNode): HTMLElement => UiNode.elementOf(node);
 
 export class UiView implements ViewLink {
+  readonly animations: AnimationController;
   /** The view's element: the surface both roots fill, and take input on. */
   readonly rootElement: HTMLElement;
   /** The content. */
@@ -57,6 +59,7 @@ export class UiView implements ViewLink {
   #semanticsPending = false;
 
   constructor(document: Document = globalThis.document) {
+    this.animations = new AnimationController(document.defaultView);
     if (document.getElementById(STYLE_ID) === null) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -85,6 +88,7 @@ export class UiView implements ViewLink {
 
   /** Detaches the view and its input listeners. */
   dispose(): void {
+    this.animations.dispose();
     this.#controller.abort();
     this.rootElement.remove();
   }
@@ -328,7 +332,7 @@ export class UiView implements ViewLink {
     const scale = this.scale();
     const x = (event.clientX - root.left) / scale;
     const y = (event.clientY - root.top) / scale;
-    const box = target.getBoundingClientRect();
+    const local = UiNode.localPoint(target, x, y);
     const pointer = event as globalThis.PointerEvent;
     return new PointerEvent(type, {
       bubbles,
@@ -340,8 +344,8 @@ export class UiView implements ViewLink {
       metaKey: event.metaKey,
       clientX: x,
       clientY: y,
-      offsetX: x - box.x,
-      offsetY: y - box.y,
+      offsetX: local.x,
+      offsetY: local.y,
       button: event.button,
       buttons: event.buttons,
       pointerId: pointer.pointerId ?? 1,
