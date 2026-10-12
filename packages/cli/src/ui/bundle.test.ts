@@ -286,6 +286,8 @@ describe('watchUi', () => {
 
   it('rebuilds on change, and keeps the last good build through an error', async () => {
     await write('src/main.ts', `globalThis.version = 1;`);
+    // Match production output: generated files must not trigger source rebuilds.
+    const outDir = join(root, '.soundor', 'out');
     const builds: UiBundle[] = [];
     const errors: unknown[] = [];
     // One write can fire several watch events, so a step may see more than
@@ -300,7 +302,7 @@ describe('watchUi', () => {
     const watcher = watchUi({
       root,
       mode: 'development',
-      outDir: join(root, 'out'),
+      outDir,
       debounce: 10,
       onBuild: (built) => {
         builds.push(built);
@@ -315,13 +317,13 @@ describe('watchUi', () => {
       const first = await watcher.ready;
       expect(first?.buildId).toBe(builds[0]!.buildId);
       const buildId = (): Promise<string> =>
-        readFile(join(root, 'out', 'build-id'), 'utf8');
+        readFile(join(outDir, 'build-id'), 'utf8');
 
       let event = until(() => errors.length > 0);
       await write('src/main.ts', `import './missing';`);
       await event;
       expect(await buildId()).toBe(first!.buildId);
-      expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
+      expect(await readFile(join(outDir, 'bundle.js'), 'utf8')).toContain(
         'version = 1',
       );
 
@@ -330,7 +332,7 @@ describe('watchUi', () => {
       await event;
       expect(await buildId()).toBe(builds[1]!.buildId);
       expect(builds[1]!.buildId).not.toBe(first!.buildId);
-      expect(await readFile(join(root, 'out', 'bundle.js'), 'utf8')).toContain(
+      expect(await readFile(join(outDir, 'bundle.js'), 'utf8')).toContain(
         'version = 2',
       );
     } finally {
