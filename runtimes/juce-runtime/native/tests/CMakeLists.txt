@@ -60,6 +60,16 @@ soundor_embed_ui(soundor_runtime_tests fixtureRunawayCompiled ${CMAKE_CURRENT_SO
 soundor_precompiles_js(soundor_tests_precompile)
 if(soundor_tests_precompile)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
+  # Override Context.cpp in this test executable with an incompatible marker.
+  # All its other code and embedded modules come from the normal runtime.
+  # This exercises an actual constructor failure, without a test hook in the API.
+  add_executable(soundor_context_init_failure js/ContextInitFailure.cpp ${PROJECT_SOURCE_DIR}/src/js/Context.cpp)
+  target_include_directories(soundor_context_init_failure PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  target_link_libraries(soundor_context_init_failure PRIVATE soundor::runtime soundor_hermes)
+  target_compile_definitions(soundor_context_init_failure PRIVATE SOUNDOR_HERMES_REVISION="incompatible-test-revision")
+  soundor_configure_target(soundor_context_init_failure)
+  add_test(NAME soundor_context_init_failure COMMAND soundor_context_init_failure)
+  set_tests_properties(soundor_context_init_failure PROPERTIES TIMEOUT 30)
 endif()
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 

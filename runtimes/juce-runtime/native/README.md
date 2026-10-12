@@ -227,7 +227,8 @@ source.
   (`Resources::builtIn()`): a UI in a directory (`soundor dev`) is always
   read as source. The bytecode ends with an epilogue naming the Hermes
   revision (`src/js/Bytecode.h`); another revision's is refused with an error,
-  and Hermes itself refuses another bytecode version.
+  and Hermes itself refuses another bytecode version. Both LF and Windows
+  CRLF marker line endings are accepted; the revision must still match exactly.
 - **Where the build cannot run hermesc** (cross-compiling), or with
   `-DSOUNDOR_PRECOMPILE_JS=OFF`, source is embedded instead, and the VM with
   the compiler is needed.
