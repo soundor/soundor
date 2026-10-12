@@ -114,9 +114,15 @@ TEST_SUITE("time limit")
             const js::TimeLimitScope scope(grouped);
             REQUIRE(grouped.evaluateScript(busyFor(200)).ok());
             REQUIRE(grouped.evaluateScript(busyFor(200)).ok());
-            auto third = grouped.evaluateScript(busyFor(200));
+            // A finite third call can finish before a delayed monitor thread
+            // gets CPU on a busy runner. Wait for the interrupt instead, and
+            // verify that this call gets only the scope's remaining budget,
+            // rather than a fresh whole limit.
+            js::Result<js::Value> third = js::Value::undefined();
+            const auto remaining = timed([&] { third = grouped.evaluateScript("for (;;) {}"); });
             REQUIRE_FALSE(third.ok());
             checkStopped(third.error());
+            CHECK(remaining < 500ms);
         }
     }
 

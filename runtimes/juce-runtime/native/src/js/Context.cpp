@@ -222,18 +222,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
               hermes(facebook::hermes::makeHermesRuntime(configFor(runtime->options))),
               rt(*hermes)
         {
-            const jsi::Object global = rt.global();
-            intrinsics.emplace(captureIntrinsics(rt));
-            for (const char* name : hostGlobals)
-                global.deleteProperty(rt, name);
+            try
+            {
+                const jsi::Object global = rt.global();
+                intrinsics.emplace(captureIntrinsics(rt));
+                for (const char* name : hostGlobals)
+                    global.deleteProperty(rt, name);
 
-            nativeModules.add("soundor:internal/language-native", { initializeLanguageNative, {}, {} });
-            nativeModules.add("soundor:internal/language",
-                              { {}, embedded::languageModule.text(), embedded::languageModule.bytecode });
-            const jsi::Object language = require("soundor:internal/language").getObject(rt);
-            takeRejections = bind::property(*this, language, "takeRejections").getObject(rt).getFunction(rt);
-            cleanupFinalized = bind::property(*this, language, "cleanupFinalized").getObject(rt).getFunction(rt);
-            runtime->contexts.push_back(this);
+                nativeModules.add("soundor:internal/language-native", { initializeLanguageNative, {}, {} });
+                nativeModules.add("soundor:internal/language",
+                                  { {}, embedded::languageModule.text(), embedded::languageModule.bytecode });
+                const jsi::Object language = require("soundor:internal/language").getObject(rt);
+                takeRejections = bind::property(*this, language, "takeRejections").getObject(rt).getFunction(rt);
+                cleanupFinalized = bind::property(*this, language, "cleanupFinalized").getObject(rt).getFunction(rt);
+                runtime->contexts.push_back(this);
+            }
+            catch (const jsi::JSIException& error)
+            {
+                // JSError owns a JSI value. Detach it while this engine is
+                // alive: translating outside the constructor lets unwinding
+                // destroy Hermes before the exception's value is released.
+                throw std::runtime_error(std::string("Soundor could not create a JavaScript context: ") + error.what());
+            }
         }
 
         ContextState::~ContextState()

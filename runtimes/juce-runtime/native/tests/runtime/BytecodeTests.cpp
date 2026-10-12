@@ -11,6 +11,7 @@
 #include <fstream>
 #include <regex>
 #include <string>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 {
@@ -42,6 +43,44 @@ TEST_SUITE("bytecode")
         REQUIRE_MESSAGE(host.entryResult().ok(),
                         (host.entryResult().ok() ? "" : host.entryResult().error().toString()));
         CHECK(host.context().evaluateScript("started").value().asString() == "bundle of Fixture");
+    }
+
+    TEST_CASE("compiled modules accept LF and Windows CRLF revision markers")
+    {
+        for (const std::string_view newline : { "\n", "\r\n" })
+        {
+            CAPTURE(newline.size());
+            const auto original = embedded::fixtureUiCompiled();
+            std::vector<std::vector<std::uint8_t>> contents;
+            std::vector<platform::EmbeddedFile> files;
+            contents.reserve(original.size());
+            files.reserve(original.size());
+            for (const auto& file : original)
+            {
+                contents.emplace_back(file.data.begin(), file.data.end());
+                auto& bytes = contents.back();
+                if (file.path.ends_with(".hbc"))
+                {
+                    const std::string text(bytes.begin(), bytes.end());
+                    const auto marker = text.rfind("soundor-hermes ");
+                    REQUIRE(marker != std::string::npos);
+                    const std::size_t ending = text.ends_with("\r\n") ? 2 : 1;
+                    REQUIRE(marker >= ending);
+                    const std::string trailer = std::string(newline)
+                                                + text.substr(marker, text.size() - ending - marker)
+                                                + std::string(newline);
+                    bytes.resize(marker - ending);
+                    bytes.insert(bytes.end(), trailer.begin(), trailer.end());
+                }
+                files.push_back({ file.path, bytes });
+            }
+            RuntimeHost host({ .pluginName = "Fixture",
+                               .resources = std::make_shared<platform::EmbeddedResources>(files),
+                               .entry = "/bundle.js" });
+            REQUIRE_MESSAGE(host.entryResult().ok(),
+                            (host.entryResult().ok() ? "" : host.entryResult().error().toString()));
+            CHECK(host.context().evaluateScript("started").value().asString() == "bundle of Fixture");
+        }
     }
 
     TEST_CASE("bytecode stops at the time limit too")

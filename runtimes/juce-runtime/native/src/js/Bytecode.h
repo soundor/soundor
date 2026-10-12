@@ -24,13 +24,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
     // What SoundorCompileJs.cmake appends to hermesc's output.
     inline constexpr std::string_view bytecodeEpilogue = "\nsoundor-hermes " SOUNDOR_HERMES_REVISION "\n";
 
+    // CMake file(APPEND) uses text mode, so Windows writes CRLF. Both
+    // spellings name exactly the same compiler revision; keep LF bytecode
+    // compatible with already-built modules and saved benchmark runners.
+    inline constexpr std::string_view windowsBytecodeEpilogue = "\r\nsoundor-hermes " SOUNDOR_HERMES_REVISION "\r\n";
+
     // Whether `compiled` ends with this build's epilogue.
     [[nodiscard]] inline bool isBytecodeForThisBuild(std::span<const std::uint8_t> compiled) noexcept
     {
-        return compiled.size() > bytecodeEpilogue.size()
-               && std::string_view(
-                      reinterpret_cast<const char*>(compiled.data() + compiled.size() - bytecodeEpilogue.size()),
-                      bytecodeEpilogue.size())
-                      == bytecodeEpilogue;
+        const auto endsWith = [&](std::string_view epilogue)
+        {
+            return compiled.size() > epilogue.size()
+                   && std::string_view(
+                          reinterpret_cast<const char*>(compiled.data() + compiled.size() - epilogue.size()),
+                          epilogue.size())
+                          == epilogue;
+        };
+        return endsWith(bytecodeEpilogue) || endsWith(windowsBytecodeEpilogue);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail

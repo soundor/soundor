@@ -43,6 +43,9 @@ add_executable(soundor_runtime_tests
 target_include_directories(soundor_runtime_tests PRIVATE ${PROJECT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
 # Tests exercise internal seams (native modules), so they may see Hermes.
 target_link_libraries(soundor_runtime_tests PRIVATE soundor::runtime soundor_hermes soundor_doctest)
+if(WIN32)
+  target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
+endif()
 soundor_configure_target(soundor_runtime_tests)
 
 # Generated code is checked by its generator's tests, not linted.
@@ -57,6 +60,16 @@ soundor_embed_ui(soundor_runtime_tests fixtureRunawayCompiled ${CMAKE_CURRENT_SO
 soundor_precompiles_js(soundor_tests_precompile)
 if(soundor_tests_precompile)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
+  # Override Context.cpp in this test executable with an incompatible marker.
+  # All its other code and embedded modules come from the normal runtime.
+  # This exercises an actual constructor failure, without a test hook in the API.
+  add_executable(soundor_context_init_failure js/ContextInitFailure.cpp ${PROJECT_SOURCE_DIR}/src/js/Context.cpp)
+  target_include_directories(soundor_context_init_failure PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  target_link_libraries(soundor_context_init_failure PRIVATE soundor::runtime soundor_hermes)
+  target_compile_definitions(soundor_context_init_failure PRIVATE SOUNDOR_HERMES_REVISION="incompatible-test-revision")
+  soundor_configure_target(soundor_context_init_failure)
+  add_test(NAME soundor_context_init_failure COMMAND soundor_context_init_failure)
+  set_tests_properties(soundor_context_init_failure PROPERTIES TIMEOUT 30)
 endif()
 target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 
@@ -236,6 +249,11 @@ add_dependencies(soundor_coexistence_host soundor_coexist_a soundor_coexist_b)
 add_test(
   NAME soundor_coexistence
   COMMAND soundor_coexistence_host $<TARGET_FILE:soundor_coexist_a> $<TARGET_FILE:soundor_coexist_b>)
+if(WIN32)
+  # A crashed runtime or a loader-lock deadlock must fail the job rather than
+  # prevent its subsequent crash diagnostics from ever running.
+  set_tests_properties(soundor_runtime_tests soundor_coexistence PROPERTIES TIMEOUT 180)
+endif()
 # The macOS accessibility bridge in a plugin host: two plugin binaries with
 # their own runtimes (and so their own element classes), loaded together,
 # destroyed and unloaded while an element is still held.
