@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@soundor/core": "workspace:^",
+    "@soundor/test-runtime": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",

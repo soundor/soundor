@@ -18,7 +18,11 @@
       "import": "./dist/index.mjs"
     },
     "./runtime/globals.d.ts": "./runtime/globals.d.ts",
-    "./runtime/ui.d.ts": "./runtime/ui.d.ts"
+    "./runtime/ui.d.ts": "./runtime/ui.d.ts",
+    "./spring": {
+      "types": "./dist/spring.d.mts",
+      "import": "./dist/spring.mjs"
+    }
   },
   "scripts": {
     "build": "tsc -b && tsdown --clean",
