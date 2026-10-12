@@ -5,6 +5,81 @@ using test::WebFixture;
 
 TEST_SUITE("native animation API")
 {
+    TEST_CASE("backward fill holds a delayed transition while new application base styles are published")
+    {
+        double time = 0;
+        RuntimeHost::Options options;
+        options.animationClock = [&] { return time; };
+        WebFixture f(std::move(options));
+        f.run(R"(
+            import {root,createView} from 'soundor:ui';
+            globalThis.view=createView({opacity:0});root.appendChild(view);
+            globalThis.animation=view.animate([{opacity:1}],{delay:100,duration:100,fill:'both'});
+            view.style.opacity=1;
+        )");
+        const auto node = f.host.surface().root().children()[0]->id();
+        CHECK(f.host.surface().presentation(node)[ui::AnimatedProperty::Opacity] == 0);
+        CHECK(f.host.surface().find(node)->style().opacity == 1);
+        time = 50;
+        f.host.tick();
+        CHECK(f.host.surface().presentation(node)[ui::AnimatedProperty::Opacity] == 0);
+        time = 150;
+        f.host.tick();
+        CHECK(f.host.surface().presentation(node)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        f.run("view.style.opacity=0.3; animation.cancel();");
+        CHECK(f.host.surface().presentation(node)[ui::AnimatedProperty::Opacity] == doctest::Approx(0.3));
+    }
+
+    TEST_CASE("teardown and reload discard pending native animations and completion promises")
+    {
+        double time = 0;
+        for (int cycle = 0; cycle < 3; ++cycle)
+        {
+            RuntimeHost::Options options;
+            options.animationClock = [&] { return time; };
+            WebFixture f(std::move(options));
+            f.run(R"(
+                import {root,createView} from 'soundor:ui';
+                const node=createView({opacity:0});root.appendChild(node);
+                globalThis.pending=node.animate([{opacity:1}],{duration:10000});
+                pending.finished.catch(()=>{});
+            )");
+            CHECK(f.host.surface().animations().size() == 1);
+            time += 50;
+            f.host.tick();
+        }
+        WebFixture fresh;
+        CHECK(fresh.host.surface().animations().size() == 0);
+        CHECK(fresh.eval("typeof pending").asString() == "undefined");
+    }
+
+    TEST_CASE("completion listeners and clocks remain isolated across simultaneous runtimes")
+    {
+        double timeA = 0, timeB = 0;
+        RuntimeHost::Options optionsA, optionsB;
+        optionsA.animationClock = [&] { return timeA; };
+        optionsB.animationClock = [&] { return timeB; };
+        WebFixture a(std::move(optionsA)), b(std::move(optionsB));
+        const std::string body = R"(
+            import {root,createView} from 'soundor:ui';
+            const node=createView({opacity:0});root.appendChild(node);
+            globalThis.status='pending';
+            node.animate([{opacity:1}],{duration:100,fill:'forwards'}).finished.then(()=>{globalThis.status='finished';});
+        )";
+        a.run(body);
+        b.run(body);
+        timeA = 50;
+        a.host.tick();
+        CHECK(a.eval("status").asString() == "pending");
+        CHECK(b.eval("status").asString() == "pending");
+        timeB = 100;
+        b.host.tick();
+        CHECK(b.eval("status").asString() == "finished");
+        CHECK(a.eval("status").asString() == "pending");
+        CHECK(a.host.surface().presentation(a.host.surface().root().children()[0]->id())[ui::AnimatedProperty::Opacity]
+              == doctest::Approx(0.5));
+    }
+
     TEST_CASE("a retained finished promise settles after its animation handle is collected")
     {
         double time = 0;

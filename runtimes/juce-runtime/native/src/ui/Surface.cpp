@@ -804,8 +804,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         if (! isConnected(id))
             throw std::invalid_argument("the node is not in the tree");
+        layout();
+        const Node& node = get(id);
+        const Rect frame = node.frame();
+        Point at { frame.x, frame.y };
+        bool transformed = false;
+        for (const Node* ancestor = &node; ancestor != nullptr; ancestor = ancestor->parentNode)
+        {
+            if (ancestor->presentedStyle().transform.count != 0)
+            {
+                transformed = true;
+                break;
+            }
+            if (ancestor != &node)
+            {
+                const Rect inherited = ancestor->frame();
+                at.x += inherited.x - ancestor->scroll.x;
+                at.y += inherited.y - ancestor->scroll.y;
+            }
+        }
+        if (! transformed)
+            return { at.x, at.y, frame.width, frame.height };
         const render::Transform matrix = visualTransform(id);
-        const Rect frame = get(id).frame();
         const std::array corners { matrix.map(0, 0), matrix.map(frame.width, 0), matrix.map(0, frame.height),
                                    matrix.map(frame.width, frame.height) };
         float left = corners[0][0], right = left, top = corners[0][1], bottom = top;

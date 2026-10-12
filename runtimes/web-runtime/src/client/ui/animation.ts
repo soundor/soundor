@@ -134,6 +134,75 @@ function keyframes(value: readonly AnimationKeyframe[]): {
   return { frames, properties };
 }
 
+type TransformValue = { key: string; value: number };
+function transformValues(text: unknown): TransformValue[] | undefined {
+  if (!text || text === 'none') return [];
+  if (typeof text !== 'string') return undefined;
+  const values: TransformValue[] = [];
+  let consumed = '';
+  for (const match of text.matchAll(
+    /(translateX|translateY|scale|scaleX|scaleY|rotate)\(([^)]+)\)/g,
+  )) {
+    const key = match[1]!,
+      input = match[2]!;
+    let value = Number.parseFloat(input);
+    if (key === 'rotate' && input.endsWith('deg')) value *= Math.PI / 180;
+    if (!Number.isFinite(value)) return undefined;
+    values.push({ key, value });
+    consumed += match[0];
+  }
+  return consumed.replaceAll(/\s/g, '') === text.replaceAll(/\s/g, '')
+    ? values
+    : undefined;
+}
+function transformText(values: readonly TransformValue[]): string {
+  return (
+    values
+      .map(
+        ({ key, value }) =>
+          `${key}(${value}${key.startsWith('translate') ? 'px' : key === 'rotate' ? 'rad' : ''})`,
+      )
+      .join(' ') || 'none'
+  );
+}
+function pairedTransforms(
+  from: unknown,
+  to: unknown,
+): readonly [string, string] | undefined {
+  const before = transformValues(from),
+    after = transformValues(to);
+  if (!before || !after) return undefined; // external CSS matrices use browser decomposition
+  const oldOrder = before.map(({ key }) => key),
+    order = after.map(({ key }) => key);
+  if (
+    oldOrder.filter((key) => order.includes(key)).join(',') !==
+    order.filter((key) => oldOrder.includes(key)).join(',')
+  )
+    throw new TypeError(
+      'retargeted transforms must preserve shared operation order',
+    );
+  for (let i = 0; i < oldOrder.length; i++) {
+    const key = oldOrder[i]!;
+    if (order.includes(key)) continue;
+    const later = oldOrder.slice(i + 1).find((next) => order.includes(next));
+    order.splice(
+      later === undefined ? order.length : order.indexOf(later),
+      0,
+      key,
+    );
+  }
+  const align = (values: TransformValue[]) =>
+    transformText(
+      order.map((key) => ({
+        key,
+        value:
+          values.find((value) => value.key === key)?.value ??
+          (key.startsWith('scale') ? 1 : 0),
+      })),
+    );
+  return [align(before), align(after)];
+}
+
 /** One view's browser-owned animations. There is no JS frame scheduler. */
 export class AnimationController {
   readonly #byElement = new WeakMap<HTMLElement, Set<UiAnimation>>();
@@ -208,17 +277,37 @@ export class AnimationController {
       from[property] =
         computed.getPropertyValue(property) ||
         (property === 'opacity' ? '1' : 'none');
+    if (properties.has('transform') && frames.length === 1) {
+      const previous = [...existing].find((item) =>
+        item.properties.has('transform'),
+      );
+      from.transform = previous
+        ? (previous.sampleTransform() ?? computed.transform)
+        : element.style.transform || computed.transform || 'none';
+    }
+    const submitted =
+      frames.length === 1
+        ? [from, { ...frames[0]! }]
+        : frames.map((frame) => ({ ...frame }));
+    if (properties.has('transform')) {
+      const pair = pairedTransforms(
+        submitted[0]!.transform,
+        submitted[1]!.transform,
+      );
+      if (pair) {
+        submitted[0]!.transform = pair[0];
+        submitted[1]!.transform = pair[1];
+      }
+    }
     // Snapshot before cancelling conflicts to preserve mid-flight presentation.
     for (const previous of existing)
       if ([...properties].some((property) => previous.properties.has(property)))
         previous.cancel();
-    const animation = element.animate(
-      frames.length === 1 ? [from, frames[0]!] : frames,
-      {
-        ...options,
-        ...(this.reducedMotion ? { duration: 0, delay: 0 } : {}),
-      },
-    );
+    const animation = element.animate(submitted, {
+      ...options,
+      ...(this.reducedMotion ? { duration: 0, delay: 0 } : {}),
+    });
+    handle.recordFrames(submitted);
     existing.add(handle);
     const ref = this.#refs.get(handle);
     if (ref) this.#handles.add(ref);
@@ -242,6 +331,7 @@ export class UiAnimation implements AnimationContract {
   #native: Animation;
   #source: Promise<Animation> | undefined;
   #finished: Promise<void> | undefined;
+  #submitted: Keyframe[] = [];
   constructor(
     readonly controller: AnimationController,
     readonly element: HTMLElement,
@@ -251,6 +341,24 @@ export class UiAnimation implements AnimationContract {
   ) {
     this.#native = controller.start(this, element, frames, properties, options);
     void this.finished;
+  }
+  /** @internal Only sampled at retarget time, never from a JS frame loop. */
+  sampleTransform(): string | undefined {
+    const progress = this.#native.effect?.getComputedTiming().progress;
+    if (progress === null || progress === undefined) return undefined;
+    const from = transformValues(this.#submitted[0]?.transform),
+      to = transformValues(this.#submitted[1]?.transform);
+    if (!from || !to || from.length !== to.length) return undefined;
+    return transformText(
+      from.map((value, index) => ({
+        key: value.key,
+        value: value.value + progress * (to[index]!.value - value.value),
+      })),
+    );
+  }
+  /** @internal */
+  recordFrames(frames: Keyframe[]): void {
+    this.#submitted = frames;
   }
   get finished(): Promise<void> {
     // WAAPI replaces its finished promise on cancel. Keep the cancelled
@@ -284,6 +392,7 @@ export class UiAnimation implements AnimationContract {
       : Number(this.#native.currentTime ?? 0);
   }
   pause(): void {
+    if (this.playState === 'finished') return;
     if (this.playState === 'idle') this.play();
     this.#native.pause();
   }

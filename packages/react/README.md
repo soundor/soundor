@@ -433,7 +433,7 @@ is applied immediately. Subsequent opacity/transform target changes start one
 native animation before publishing the new base style, preserving current
 presentation during retargeting. Other style properties update immediately.
 Transforms retain logical layout and follow the low-level animation contract.
-Transitions always use forward fill and default to 300 ms linear timing; unchanged
+Transitions use backward and forward fill to hold the start during a delay and retain the endpoint and default to 300 ms linear timing; unchanged
 targets do not restart an animation. Unmount cancels animations recursively.
 There are no component state updates per intermediate frame. Reduced motion
 follows `soundor:ui`; browser media queries are observed automatically, while

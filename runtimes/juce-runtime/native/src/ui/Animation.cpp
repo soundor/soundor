@@ -30,6 +30,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     render::Transform Presentation::transform(float width, float height) const noexcept
     {
+        if (count == 0)
+            return {};
         render::Transform result = render::Transform::translate(width / 2, height / 2);
         for (std::size_t i = 0; i < count; ++i)
         {

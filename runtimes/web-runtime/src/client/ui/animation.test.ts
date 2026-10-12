@@ -72,7 +72,7 @@ it('submits one browser animation, supports playback and rejects cancellation wi
   expect(submit).toHaveBeenCalledTimes(1);
   expect(submit.mock.calls[0]).toEqual([
     [
-      { opacity: '0.25', transform: 'none' },
+      { opacity: '0.25', transform: 'translateY(0px)' },
       { opacity: 1, transform: 'translateY(0px)' },
     ],
     { duration: 250, delay: 0, easing: 'ease-out', fill: 'forwards' },
@@ -91,6 +91,8 @@ it('submits one browser animation, supports playback and rejects cancellation wi
   expect(animation.playState).toBe('running');
   animations[1]!.finish();
   await expect(animation.finished).resolves.toBeUndefined();
+  animation.pause();
+  expect(animation.playState).toBe('finished');
 });
 
 it('retargets from the current presentation before cancelling conflicts and preserves independent animations', async () => {
@@ -153,4 +155,34 @@ it('validates the native property subset, numeric timings and ordered transforms
       { transform: [{ translateX: 10 }, { scale: 2 }] },
     ]),
   ).toThrow('same order');
+});
+
+it('preserves ordered transform interpolation and retargets from the browser effect progress', () => {
+  const { controller, element, animations, submit } = setup();
+  element.style.transform = 'scale(1) translateX(0px)';
+  controller.create(
+    element,
+    [{ transform: [{ scale: 2 }, { translateX: 10 }] }],
+    { duration: 100, fill: 'forwards' },
+  );
+  expect(submit.mock.calls[0]![0]).toEqual([
+    { transform: 'scale(1) translateX(0px)' },
+    { transform: 'scale(2) translateX(10px)' },
+  ]);
+  Object.defineProperty(animations[0], 'effect', {
+    value: { getComputedTiming: () => ({ progress: 0.5 }) },
+  });
+  controller.create(
+    element,
+    [{ transform: [{ scale: 1 }, { translateX: 20 }] }],
+    { duration: 100 },
+  );
+  expect(submit.mock.calls[1]![0][0]).toEqual({
+    transform: 'scale(1.5) translateX(5px)',
+  });
+  expect(() =>
+    controller.create(element, [
+      { transform: [{ translateX: 0 }, { scale: 1 }] },
+    ]),
+  ).toThrow('shared operation order');
 });

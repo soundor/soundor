@@ -55,9 +55,8 @@ function sameStyle(a, b) {
     if (!Object.hasOwn(b, key)) continue;
     if (!Object.hasOwn(a, key)) return false;
     if (
-      key === 'transform'
-        ? JSON.stringify(a[key]) !== JSON.stringify(b[key])
-        : a[key] !== b[key]
+      a[key] !== b[key] &&
+      (key !== 'transform' || JSON.stringify(a[key]) !== JSON.stringify(b[key]))
     )
       return false;
     count++;

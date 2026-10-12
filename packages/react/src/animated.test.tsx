@@ -43,7 +43,7 @@ it('transitions changed targets before publishing their base style, preserves re
   expect(first.options).toEqual({
     duration: 250,
     easing: 'ease-out',
-    fill: 'forwards',
+    fill: 'both',
   });
   expect(node.style.opacity).toBe(1);
   first.finish();
@@ -78,4 +78,27 @@ it('unmounting a parent automatically cancels its animated descendants', () => {
   expect(child.animations[0]!.playState).toBe('running');
   flushSync(() => mounted!.unmount());
   expect(child.animations[0]!.playState).toBe('idle');
+});
+
+it('holds the captured presentation during a transition delay before publishing the new base style', () => {
+  mounted = createRoot();
+  const render = (opacity: number) =>
+    flushSync(() =>
+      mounted!.render(
+        <Animated.View
+          style={{ opacity }}
+          transition={{ duration: 100, delay: 200 }}
+        />,
+      ),
+    );
+  render(0);
+  render(1);
+  const node = root.children[0]! as FakeNode;
+  expect(node.animations[0]!.before.opacity).toBe(0);
+  expect(node.animations[0]!.options).toEqual({
+    duration: 100,
+    delay: 200,
+    fill: 'both',
+  });
+  expect(node.style.opacity).toBe(1);
 });

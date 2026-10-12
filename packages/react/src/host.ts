@@ -261,9 +261,9 @@ function sameStyle(a: Style, b: Style): boolean {
     if (!Object.hasOwn(right, key)) continue;
     if (!Object.hasOwn(left, key)) return false;
     if (
-      key === 'transform'
-        ? JSON.stringify(left[key]) !== JSON.stringify(right[key])
-        : left[key] !== right[key]
+      left[key] !== right[key] &&
+      (key !== 'transform' ||
+        JSON.stringify(left[key]) !== JSON.stringify(right[key]))
     )
       return false;
     count++;
@@ -342,7 +342,7 @@ function applyProps(
         target.transform = style.transform ?? [];
         instance.animation = node.animate([target], {
           ...transition,
-          fill: 'forwards',
+          fill: 'both',
         });
       }
     } else if (transition === undefined && instance.animation !== null) {
