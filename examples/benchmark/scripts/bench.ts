@@ -27,6 +27,7 @@
 // Every report goes to .soundor/bench/ (and to --out).
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -47,7 +48,7 @@ const { values: options } = parseArgs({
   options: {
     only: { type: 'string' },
     runs: { type: 'string', default: '5' },
-    frames: { type: 'string', default: '120' },
+    frames: { type: 'string', default: '600' },
     warmup: { type: 'string', default: '30' },
     size: { type: 'string', default: '700x520' },
     backend: { type: 'string' },
@@ -67,6 +68,21 @@ const runs = Number(options.runs);
 const frames = Number(options.frames);
 const warmup = Number(options.warmup);
 const threshold = Number(options.threshold);
+for (const [name, value, minimum] of [
+  ['runs', runs, 1],
+  ['frames', frames, 1],
+  ['warmup', warmup, 0],
+] as const) {
+  if (!Number.isSafeInteger(value) || value < minimum)
+    throw new RangeError(`${name} must be an integer >= ${minimum}`);
+}
+if (!Number.isFinite(threshold) || threshold < 0)
+  throw new RangeError('threshold must be nonnegative');
+if (
+  !/^\d+x\d+$/.test(options.size) ||
+  options.size.split('x').some((each) => Number(each) <= 0)
+)
+  throw new RangeError('size must be positive WIDTHxHEIGHT');
 const only = options.only
   ?.split(',')
   .map((each) => each.trim())
@@ -78,6 +94,8 @@ interface Distribution {
   p50: number;
   p95: number;
   max: number;
+  p99?: number;
+  standardDeviation?: number;
 }
 interface NativeCalls {
   perFrame: number;
@@ -145,6 +163,10 @@ interface RunReport {
 const MEASURES = {
   frame: { label: 'frame ms', timing: true, compare: true },
   frameP95: { label: 'p95', timing: true, compare: true },
+  frameP50: { label: 'p50', timing: true, compare: true },
+  frameP99: { label: 'p99', timing: true, compare: true },
+  frameMax: { label: 'max', timing: true, compare: true },
+  frameDeviation: { label: 'stddev', timing: true, compare: true },
   tick: { label: 'tick', timing: true, compare: true },
   build: { label: 'build', timing: true, compare: true },
   composite: { label: 'composite', timing: true, compare: true },
@@ -198,6 +220,7 @@ interface Report {
     cpu: string;
     cores: number;
     platform: string;
+    build?: BuildInfo;
   };
   config: {
     runs: number;
@@ -241,6 +264,13 @@ interface BuildInfo {
   commit: string;
   dirty: boolean;
   date: string;
+  hermesRevision?: string;
+  compilerSha256?: string;
+  runnerSha256?: string;
+  bundleSha256?: string;
+  execution?: 'source' | 'hermes-bytecode';
+  buildType?: 'Release';
+  collectBetweenPhases?: boolean;
 }
 
 function run(command: string, args: string[], cwd: string): void {
@@ -268,6 +298,19 @@ function findCompiler(): string {
     );
   }
   return script;
+}
+
+function hash(file: string): string {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+function compilerInfo(): Pick<BuildInfo, 'hermesRevision' | 'compilerSha256'> {
+  const script = readFileSync(findCompiler(), 'utf8');
+  const revision = /set\(REVISION "([a-f0-9]+)"\)/.exec(script)?.[1];
+  const compiler = /set\(HERMESC "([^"]+)"\)/.exec(script)?.[1];
+  if (!revision || !compiler)
+    throw new Error('cannot identify the matching Hermes compiler');
+  return { hermesRevision: revision, compilerSha256: hash(compiler) };
 }
 
 function findRunner(): string {
@@ -310,6 +353,10 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
   return {
     frame: phase.frameMs.mean,
     frameP95: phase.frameMs.p95,
+    frameP50: phase.frameMs.p50,
+    frameP99: phase.frameMs.p99 ?? NaN,
+    frameMax: phase.frameMs.max,
+    frameDeviation: phase.frameMs.standardDeviation ?? NaN,
     tick: phase.tickMs.mean,
     build: phase.buildMs.mean,
     composite: phase.compositeMs.mean,
@@ -382,6 +429,7 @@ function measuresOf(scenario: string) {
 }
 
 function format(value: number): string {
+  if (!Number.isFinite(value)) return 'unavailable';
   if (Number.isInteger(value)) return String(value);
   if (Math.abs(value) >= 100) return value.toFixed(0);
   if (Math.abs(value) >= 10) return value.toFixed(1);
@@ -461,7 +509,12 @@ function compare(
       if (known[measure]!.compare === false) continue;
       const after = values[measure];
       const then = previous[measure];
-      if (then === undefined) continue;
+      if (
+        then === undefined ||
+        !Number.isFinite(then.median) ||
+        !Number.isFinite(after.median)
+      )
+        continue;
       // Below a hundredth of what is measured, a change is not one.
       if (Math.abs(then.median) < 0.01 && Math.abs(after.median) < 0.01) {
         continue;
@@ -500,6 +553,9 @@ function differences(current: Report, baseline: Report): string[] {
   const problems: string[] = [];
   const a = current.environment;
   const b = baseline.environment;
+  for (const key of ['backend', 'software', 'platform'] as const) {
+    if (a[key] !== b[key]) problems.push(`${key}: ${b[key]} → ${a[key]}`);
+  }
   if (a.renderer !== b.renderer) {
     problems.push(`renderer: ${b.renderer} → ${a.renderer}`);
   }
@@ -530,6 +586,7 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     // Costs nothing measurable (a clock read per call), so always on.
     '--time-native-calls',
   ];
+  if (build.info.collectBetweenPhases) args.push('--collect-between-phases');
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
   // A build whose bundle was compiled runs it as bytecode (builds from
@@ -547,7 +604,10 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
       `soundor_run_ui failed (${result.status ?? result.signal})`,
     );
   }
-  return JSON.parse(readFileSync(file, 'utf8')) as RunReport;
+  const report = JSON.parse(readFileSync(file, 'utf8')) as RunReport;
+  if (report.outcome !== 'ok')
+    throw new Error(`benchmark outcome: ${report.outcome}`);
+  return report;
 }
 
 // --- main ---
@@ -585,9 +645,15 @@ const current: Build = {
   runner: findRunner(),
   ui,
   info: {
-    commit: git('rev-parse', '--short', 'HEAD'),
+    commit: git('rev-parse', 'HEAD'),
     dirty: git('status', '--porcelain').length > 0,
     date: new Date().toISOString(),
+    ...compilerInfo(),
+    runnerSha256: hash(findRunner()),
+    bundleSha256: hash(options.source ? path.join(ui, 'bundle.js') : compiled),
+    execution: options.source ? 'source' : 'hermes-bytecode',
+    buildType: 'Release',
+    collectBetweenPhases: true,
   },
 };
 
@@ -654,6 +720,16 @@ try {
   rmSync(scratch, { recursive: true, force: true });
 }
 
+for (const run of [...reports, ...againstReports]) {
+  const device = reports[0]!.device;
+  if (
+    run.device.backend !== device.backend ||
+    run.device.renderer !== device.renderer ||
+    run.device.software !== device.software
+  )
+    throw new Error('refusing comparison across different graphics devices');
+}
+
 const report: Report = {
   schema: 1,
   environment: {
@@ -666,6 +742,7 @@ const report: Report = {
     cpu: os.cpus()[0]?.model ?? 'unknown',
     cores: os.availableParallelism(),
     platform: `${process.platform} ${os.release()}`,
+    build: current.info,
   },
   config: { runs, frames, warmup, size: options.size, only },
   summary: summarize(reports),
@@ -711,6 +788,10 @@ if (options.baseline) {
   for (const problem of differences(report, baseline)) {
     console.log(`  not comparable: ${problem}`);
   }
+  if (differences(report, baseline).length > 0)
+    throw new Error(
+      'refusing comparison across different measurement environments',
+    );
   const compared = compare(report.summary, baseline.summary);
   console.log(table(compared.rows));
   regressed ||= compared.regressed;

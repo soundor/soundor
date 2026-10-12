@@ -864,12 +864,22 @@ always on and costs an increment:
 - **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
   and WebGL, counted at their native entry points. With
   `RuntimeOptions::timeNativeCalls` they are timed too (a clock read on entry
-  and exit; only the outermost of nested calls). And the engine's memory: what
-  it took from the C allocator and holds now. The engine serves blocks of up
-  to 512 bytes from arenas of its own, so the count is its arenas and every
-  larger block (typed arrays, arrays' storage, long strings).
+  and exit; only the outermost of nested calls). Hermes's collector counters
+  report collections, cumulative allocated object bytes, and the current
+  heap plus external bytes. These are engine measurements, not process RSS
+  or GPU memory.
 - **`surface`** (`ui::SurfaceStatistics`): style changes, Yoga layout passes
   and their time, nodes invalidated.
+
+The headless `soundor_run_ui` runner reports frame mean, P50, P95, P99,
+maximum and population standard deviation, plus separate startup measurements.
+All compositor timings are CPU submission times, not GPU execution times.
+For repeatable scenario comparisons, `--collect-between-phases` collects and
+drains detached-stage finalizers once before each named phase, flushes setup
+damage, and then resets timing/counter baselines. Collections triggered by the
+measured workload remain included. Normal plugin execution does not use this
+benchmark-only preparation. See [animation benchmarks](../../../examples/benchmark/README.md#animation-baselines)
+for scenarios, recorded Hermes revisions and alternating saved-build comparisons.
 
 ### `DevSession`
 

@@ -80,10 +80,16 @@ const StageHost = memo(function StageHost({
 
 const format = (value: number, digits = 1) => value.toFixed(digits);
 
+// Start with a static view: a discarded Three.js scene would leave resources
+// for Hermes to collect during unrelated animation measurements.
+const INITIAL_SCENARIO = SCENARIOS.find(
+  (scenario) => scenario.id === 'static',
+)!;
+
 function App() {
-  const driver = useMemo(() => new Driver(SCENARIOS[0]!), []);
-  const [scenario, setScenario] = useState(SCENARIOS[0]!);
-  const [group, setGroup] = useState<Group>(SCENARIOS[0]!.group);
+  const driver = useMemo(() => new Driver(INITIAL_SCENARIO), []);
+  const [scenario, setScenario] = useState(INITIAL_SCENARIO);
+  const [group, setGroup] = useState<Group>(INITIAL_SCENARIO.group);
   const [live, setLive] = useState<Result | null>(null);
   const [results, setResults] = useState<Result[] | null>(null);
   const [running, setRunning] = useState(false);

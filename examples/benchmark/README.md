@@ -55,7 +55,7 @@ code; `only` lists groups or scenario ids.
 
 `pnpm bench` measures the JUCE runtime headless, without building the
 plugin: it builds the UI bundle and `soundor_run_ui` (a Release build, the
-`bench` preset of `runtimes/juce-runtime/native`), runs the scenarios 5 times
+`bench` preset of `runtimes/juce-runtime/native`), runs the scenarios for 600 measured frames after 30 warmup frames, 5 times
 and prints the median of each measure with its spread across runs, in two
 tables.
 
@@ -129,3 +129,98 @@ pnpm build:web   # also bundles the UI into .soundor/ui/production
   .soundor/ui/production --size 700x520 --eval 'soundorBenchmark.run()' \
   --time-native-calls --json report.json
 ```
+
+## Animation baselines
+
+The `animation` group adds opacity and React workloads at 1, 50 and 500
+nodes, plugin controls at 1, 20 and 50 controls, matching static plugin
+views, and a mixed 20-control view with Canvas 2D and WebGL 2. Each control
+contains a knob, slider, meter, fading panel and numeric readout; these are
+visual smoothing workloads, with no parameter processing or DSP. The mixed
+view draws its waveform and WebGL background once during setup: per-frame
+animation does not change that content.
+
+Animation inputs advance by exactly 1/60 second per scenario frame, including
+warmup, rather than by wall time. Ramps alternate linearly between endpoints
+over one second in each direction, with deterministic offsets (index modulo
+10). Opacity endpoints are 0.25 and 1. The stage is always 640×360 logical
+pixels; the runner defaults to a 700×520 viewport. Complexity is selected by
+scenario id. These definitions must remain identical in native comparisons.
+The existing scenarios retain their wall-clock behavior.
+
+```sh
+pnpm --filter soundor-benchmark test
+pnpm --filter soundor-benchmark bench --only animation --backend opengl --save hermes-animation
+pnpm --filter soundor-benchmark bench --only animation --backend opengl --against hermes-animation
+```
+
+Defaults are five runs, 30 warmup frames and 600 measured frames per scenario.
+P99 is a sample percentile, not a guarantee; increase `--frames` for tail
+analysis. The driver preserves every measured sample, even beyond 600 frames.
+Reports include native frame mean, P50, P95, P99, maximum and population
+standard deviation. Existing saved runners lacking P99/variability display
+those values as unavailable. Throughput is uncapped headless throughput,
+not display refresh rate. Composite timings measure CPU submission and
+uploads, not GPU execution time. Startup is reported separately.
+
+Each report and saved build records the full repository SHA, dirty state,
+Hermes revision from the configured compiler script, compiler/runner/bundle
+SHA-256 fingerprints, Release build type and source/bytecode execution mode.
+`--save` copies the runner and already compiled bytecode together; the saved
+bundle is never recompiled with the candidate's compiler. Keep this local
+saved build for alternating baseline/candidate measurements. Record a clean
+commit when saving a baseline used in a PR. Reports also record OS, CPU,
+core count, graphics backend, renderer, software rendering and all measurement
+options. Report-file comparisons refuse different machines/backends or sample
+settings. Use the same backend and viewport for alternating runs too.
+
+Native call counts/timings, style changes, layouts, invalidations, rasterized
+layers, uploads/readbacks and Hermes allocation/collection statistics reuse
+the existing instrumentation. Scenario JS time includes synchronous React
+reconciliation and native updates; native binding time is separately measured,
+but React reconciliation is not independently instrumented. Engine heap is
+measured; it is not whole-process resident memory. Static scenarios may render
+no frames and therefore report idle tick cost instead of a frame distribution.
+No extra hot-path animation instrumentation is enabled in normal plugins.
+
+Transforms are absent from the current public style contract. Their JS baseline
+cannot yet be measured; PR 1 must add a comparable fixed-step workload when it
+introduces transforms. No transform feature is added by these benchmarks.
+Startup uses the existing static UI rather than a discarded Three.js scene,
+so its later GPU resource collection cannot contaminate animation-only runs.
+Stage changes happen on unmeasured ticks. The runner collects garbage and
+drains finalizers once at each phase boundary (`--collect-between-phases`),
+before resetting timing/counter baselines. This prevents detached stages'
+node-release calls from polluting later workloads. GC caused by measured
+work remains included. Saved builds record this policy; older runners are
+not passed an unsupported flag. CI runs deterministic driver tests
+and a native bytecode smoke run without an FPS threshold. GPU measurements
+require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
+and select software rendering even when the host has a virtual GPU.
+
+### Recorded Hermes baseline
+
+[Machine-readable baseline](reports/hermes-animation.json), source commit
+`629fca5f447ca4dad6a86c9cad9fe2a911e5c69d`, Hermes
+`602befee340da188ea1560cde7a9cc33e6b180dc`: Linux 7.0.0-38-generic,
+Intel Core 5 210H (4 available cores), OpenGL/ANGLE through virgl on an
+NVIDIA RTX 4050 Laptop GPU, Mesa 25.2.8. Release, Hermes bytecode, five runs,
+600 measured frames after 30 warmup frames, 700×520 viewport. Phase-boundary
+GC/cleanup is excluded; steady-state GC is included. CPU/compositor timings
+are the median across runs of each run's statistic.
+
+| Scenario              | Frame mean ms | P95 ms | P99 ms | JS ms | UI calls/frame | Yoga/frame | Uploaded KB/frame |
+| --------------------- | ------------: | -----: | -----: | ----: | -------------: | ---------: | ----------------: |
+| animation-opacity-50  |         0.551 |  0.742 |  0.938 | 0.210 |         50.000 |      0.000 |           100.000 |
+| animation-opacity-500 |         3.113 |  3.441 |  8.887 | 2.035 |        500.000 |      0.000 |           800.000 |
+| animation-react-500   |         9.101 | 10.490 | 15.878 | 7.768 |        500.000 |      0.000 |           800.000 |
+| animation-mixed-20    |         4.554 |  4.991 | 11.146 | 1.796 |         84.000 |      1.000 |           474.366 |
+
+All four rasterize one CPU layer per intermediate frame and perform zero
+GPU readbacks. Static counterparts make no intermediate frames and cost
+idle ticks instead. The full report includes allocation/collection counts,
+peak engine heaps, per-run spreads and all other workloads. The saved
+`hermes-animation` runner and its matching bytecode remain local for PR 1
+comparisons; re-run them alternately with a candidate rather than treating
+these timings as a machine-independent target. No native-animation
+improvement is claimed by this baseline alone.

@@ -13,7 +13,13 @@ import type { ComponentType } from 'react';
  * - ui: React and soundor:ui updates, and a UI that does not change.
  * - mixed: a plugin-like view with a bit of everything.
  */
-export type Group = 'webgl-stress' | 'webgl' | 'canvas' | 'ui' | 'mixed';
+export type Group =
+  | 'webgl-stress'
+  | 'webgl'
+  | 'canvas'
+  | 'ui'
+  | 'mixed'
+  | 'animation';
 
 export const GROUPS: readonly Group[] = [
   'webgl-stress',
@@ -21,6 +27,7 @@ export const GROUPS: readonly Group[] = [
   'canvas',
   'ui',
   'mixed',
+  'animation',
 ];
 
 /** What a frame did, as far as the scenario knows. */
@@ -59,6 +66,8 @@ export interface Scenario {
    * WebGL context): the stage switches between them. Default: the id.
    */
   readonly stageKey?: string;
+  /** Fixed simulation step, independent of uncapped headless throughput. */
+  readonly stepSeconds?: number;
 }
 
 /** The stage's size, in view pixels. */

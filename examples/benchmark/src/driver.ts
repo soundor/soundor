@@ -4,7 +4,7 @@
 // per phase: the driver names each measured scenario in
 // globalThis.soundorRunUiPhase.
 
-import type { FrameFunction, Group, Scenario } from './scenarios';
+import type { FrameFunction, Group, Scenario } from './scenarios/types';
 
 /** What one scenario cost over a run of frames. */
 export interface Result {
@@ -38,15 +38,16 @@ class Meter {
   intervals: number[] = [];
   drawCalls = 0;
   triangles = 0;
-  last = 0;
+  last: number | null = null;
+  constructor(private readonly capacity = 600) {}
 
   add(script: number, update: number, now: number): void {
     this.script.push(script);
     this.update.push(update);
-    if (this.last > 0) this.intervals.push(now - this.last);
+    if (this.last !== null) this.intervals.push(now - this.last);
     this.last = now;
     for (const list of [this.script, this.update, this.intervals]) {
-      if (list.length > 600) list.shift();
+      if (list.length > this.capacity) list.shift();
     }
   }
 
@@ -84,10 +85,15 @@ export class Driver {
   private frame: FrameFunction | null = null;
   private meter = new Meter();
   private started = 0;
+  private simulationFrame = 0;
+  private sampleCapacity = 600;
   private frames = 0;
   private handle = 0;
   /** Called after each measured frame (for a run of several scenarios). */
   private onFrame: (() => void) | null = null;
+  private pendingNext: (() => void) | null = null;
+  private lastFrame: FrameFunction | null = null;
+  private zeroWarmup = false;
 
   /** `current` is the scenario the app shows first. */
   constructor(public current: Scenario) {
@@ -110,14 +116,18 @@ export class Driver {
   /** The stage's frame function, once it is ready (stable: a stage prop). */
   readonly register = (frame: FrameFunction): void => {
     this.frame = frame;
-    this.meter = new Meter();
+    this.meter = new Meter(this.sampleCapacity);
+    this.simulationFrame = 0;
     this.started = performance.now();
+    if (this.onFrame && this.zeroWarmup)
+      globalThis.soundorRunUiPhase = this.current.id;
   };
 
   show(scenario: Scenario): void {
     if (scenario === this.current && this.frame !== null) {
       // Already running (its stage will not register again): start over.
-      this.meter = new Meter();
+      this.meter = new Meter(this.sampleCapacity);
+      this.simulationFrame = 0;
       this.started = performance.now();
       return;
     }
@@ -140,6 +150,18 @@ export class Driver {
     frames = 120,
     warmup = 30,
   ): Promise<Result[]> {
+    if (
+      !Number.isSafeInteger(frames) ||
+      frames <= 0 ||
+      !Number.isSafeInteger(warmup) ||
+      warmup < 0
+    )
+      throw new RangeError(
+        'frames must be a positive integer and warmup a nonnegative integer',
+      );
+    if (this.onFrame) throw new Error('a benchmark run is already active');
+    this.sampleCapacity = frames;
+    this.lastFrame = this.frame;
     const results: Result[] = [];
     let index = -1;
     let count = 0;
@@ -149,22 +171,34 @@ export class Driver {
         globalThis.soundorRunUiPhase = undefined;
         if (index >= scenarios.length) {
           this.onFrame = null;
+          this.sampleCapacity = 600;
+          this.zeroWarmup = false;
+          this.frame = this.lastFrame;
+          this.lastFrame = null;
           resolve(results);
           return;
         }
         count = 0;
+        this.zeroWarmup = warmup === 0;
         this.show(scenarios[index]!);
+        if (warmup === 0 && this.frame !== null)
+          globalThis.soundorRunUiPhase = scenarios[index]!.id;
       };
       this.onFrame = () => {
         count++;
         // soundor_run_ui reports its own timings of these frames per phase.
         if (count === warmup) {
-          this.meter = new Meter();
+          this.meter = new Meter(this.sampleCapacity);
           globalThis.soundorRunUiPhase = scenarios[index]!.id;
         }
         if (count === warmup + frames) {
           results.push(this.meter.summary(scenarios[index]!));
-          next();
+          // Mount the next stage on an unmeasured tick. Otherwise its setup
+          // and Canvas/WebGL calls contaminate this scenario's last sample.
+          globalThis.soundorRunUiPhase = undefined;
+          this.lastFrame = this.frame;
+          this.frame = null;
+          this.pendingNext = next;
         }
       };
       next();
@@ -175,13 +209,25 @@ export class Driver {
     cancelAnimationFrame(this.handle);
     this.frame = null;
     this.onFrame = null;
+    this.pendingNext = null;
+    this.lastFrame = null;
   }
 
   private run(): void {
+    if (this.pendingNext) {
+      const next = this.pendingNext;
+      this.pendingNext = null;
+      next();
+      return;
+    }
     const frame = this.frame;
     if (frame === null) return;
     const begin = performance.now();
-    const report = frame((begin - this.started) / 1000) ?? {};
+    const time =
+      this.current.stepSeconds === undefined
+        ? (begin - this.started) / 1000
+        : this.simulationFrame++ * this.current.stepSeconds;
+    const report = frame(time) ?? {};
     const end = performance.now();
     this.meter.add(end - begin, report.update ?? 0, end);
     if (report.drawCalls !== undefined) this.meter.drawCalls = report.drawCalls;
