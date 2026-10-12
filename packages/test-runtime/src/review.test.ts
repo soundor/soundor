@@ -467,3 +467,22 @@ it('validates a capture before pointer cancellation mutates state', () => {
   a.dispose();
   b.dispose();
 });
+
+it('hides a portal from both semantics and focus when its logical owner is hidden', () => {
+  const r = createTestRuntime(),
+    dialog = r.create('view'),
+    owner = r.create('view'),
+    portal = r.create('input');
+  dialog.accessibility = { modal: true };
+  r.overlayRoot.appendChild(dialog);
+  dialog.appendChild(owner);
+  r.root.appendChild(portal);
+  portal.accessibilityParent = owner;
+  expect(r.focusOrder()).toEqual([portal]);
+  owner.style.display = 'none';
+  expect(r.semantics()[0]!.children[0]!.hidden).toBe(true);
+  expect(r.focusOrder()).toEqual([]);
+  portal.focus();
+  expect(r.focusedNode()).toBeNull();
+  r.dispose();
+});

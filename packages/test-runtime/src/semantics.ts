@@ -81,6 +81,14 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
     ...node.children.filter((child) => !relocated.has(child)),
     ...(owned.get(node) ?? []),
   ];
+  // Visibility follows logical ownership too, including children collapsed
+  // into one semantic element. A portal can be physically outside its owner.
+  const indexVisibility = (node: TestNode, hidden = false) => {
+    hidden ||= hiddenNodes.has(node);
+    if (hidden) hiddenNodes.add(node);
+    for (const child of children(node)) indexVisibility(child, hidden);
+  };
+  roots.forEach((root) => indexVisibility(root));
   const text = (node: TestNode): string =>
     children(node)
       .filter((child) => child.style.display !== 'none')
