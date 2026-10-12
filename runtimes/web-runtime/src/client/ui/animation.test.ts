@@ -396,3 +396,25 @@ it('captures the directed endpoint of a group as the next implicit origin', () =
   const middle = frames.find((frame) => frame.offset === 0.75)!;
   expect(middle.opacity).toBeCloseTo(0.5);
 });
+
+it('clamps finite seeking at completion consistently with the native timeline', async () => {
+  const { controller, element } = setup();
+  const animation = controller.create(element, [{ opacity: 1 }], {
+    duration: 100,
+    delay: 20,
+  });
+  animation.pause();
+  animation.currentTime = 1000;
+  expect(animation.currentTime).toBe(120);
+  expect(animation.playState).toBe('finished');
+  await animation.finished;
+  const program = controller.createProgram(element, {
+    kind: 'sequence',
+    children: [{ keyframes: [{ opacity: 0 }], options: { duration: 100 } }],
+  });
+  program.pause();
+  program.currentTime = 1000;
+  expect(program.currentTime).toBe(100);
+  expect(program.playState).toBe('finished');
+  await program.finished;
+});

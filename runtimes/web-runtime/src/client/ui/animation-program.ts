@@ -621,11 +621,14 @@ export class ProgramAnimation implements ManagedAnimation {
       this.#clock.pause();
       for (const effect of this.#effects) effect.pause();
     }
+    value = Math.min(value, this.program.span);
     this.#clock.currentTime = value;
     for (const effect of this.#effects) {
       effect.currentTime = value;
       effect.finished.catch(() => {});
     }
+    if (Number.isFinite(this.program.span) && value >= this.program.span)
+      this.finish();
     void this.finished;
   }
   get finished(): Promise<void> {

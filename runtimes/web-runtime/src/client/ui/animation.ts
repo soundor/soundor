@@ -825,7 +825,11 @@ export class UiAnimation implements AnimationContract {
       this.controller.register(this);
       this.#native.pause();
     }
-    this.#native.currentTime = value;
+    const end =
+      this.options.duration * (this.options.iterations ?? 1) +
+      this.options.delay;
+    this.#native.currentTime = Math.min(value, end);
+    if (Number.isFinite(end) && value >= end) this.#native.finish();
     void this.finished;
   }
   pause(): void {
