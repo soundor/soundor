@@ -70,3 +70,5 @@ export type {
   SoundorErrorOptions,
   SoundorIssue,
 } from '@soundor/core';
+
+export { locateConfig } from './load';

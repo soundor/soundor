@@ -70,7 +70,9 @@ function within(node: UiNode, scope: Scope): boolean {
 // ── The view's trees ──────────────────────────────────────────────────────────
 
 /** The root nodes focus can be in, in sequential order. */
-const roots: UiNode[] = [root, overlayRoot];
+function roots(): UiNode[] {
+  return [root, overlayRoot];
+}
 
 function displayed(node: UiNode): boolean {
   for (let at: UiNode | null = node; at !== null; at = at.parent)
@@ -90,7 +92,7 @@ function members(scope: Scope): UiNode[] {
     if (node.focusable && within(node, scope)) order.push(node);
     for (const child of node.children) collect(child);
   };
-  for (const tree of roots) collect(tree);
+  for (const tree of roots()) collect(tree);
   return order;
 }
 
@@ -108,7 +110,7 @@ function activeTrap(): Scope | null {
 
 /** Adds a trap below the traps nested in it, so the innermost one wins. */
 function addTrap(scope: Scope): void {
-  for (const tree of roots) listen(tree);
+  for (const tree of roots()) listen(tree);
   const nested = traps.findIndex((trap) => scope.contains(trap));
   if (nested < 0) traps.push(scope);
   else traps.splice(nested, 0, scope);
