@@ -2,7 +2,7 @@
 
 Vitest integration for the **simulated** Soundor runtime. Tests run in Node,
 without a browser, Hermes, native libraries, or audio hardware. Vitest 5 is the
-supported runner.
+supported runner; Vite 8 is the supported transform backend.
 
 ## Quick start
 
@@ -113,9 +113,9 @@ The root plugin explicitly configures simulation. There is no native entry
 point or backend switch. The plugin and testing tools do not require an
 environment package as a peer; install the chosen environment directly.
 
-pnpm's default automatic peer installation supplies Vitest's Vite peer. Projects
+pnpm's default automatic peer installation supplies the compatible Vite 8 peer. Projects
 that disable automatic peer installation must install a compatible Vite version
-as required by Vitest itself (this repository uses Vite 8).
+as required by the plugin and Vitest (this repository uses Vite 8).
 
 ## Package consumer validation
 
