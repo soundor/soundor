@@ -23,6 +23,10 @@ environment loader and Vite's test modules without separate runtime registries.
 
 Use standard forks/threads pools and isolated test files. Parallel files are
 supported; same-file concurrent tests and VM pools are unsupported.
+The environment supplies deterministic frame callbacks, `reportError`, and a
+simulated pixel ratio of 1, restoring worker globals at teardown. Frame callbacks
+run in native snapshot order at simulated 60 Hz when runtime time advances.
+
 No browser, React, Hermes, or native runtime dependency is introduced by the
 environment. It has no peer dependency on the plugin or another environment.
 

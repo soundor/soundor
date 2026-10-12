@@ -59,3 +59,24 @@ test('preserves an existing reportError implementation', async () => {
   await lifecycle.teardown();
   expect(sandbox.reportError).toBe(reportError);
 });
+
+test('restores frame globals and exposes a read-only simulated pixel ratio', async () => {
+  const sandbox: {
+    requestAnimationFrame?: (callback: (time: number) => void) => number;
+    cancelAnimationFrame?: (id: number) => void;
+    devicePixelRatio?: number;
+  } = {};
+  const lifecycle = environment.setup(sandbox, {
+    soundor: { configured: true, runtime: {} },
+  });
+  expect(sandbox.requestAnimationFrame).toBeTypeOf('function');
+  expect(sandbox.cancelAnimationFrame).toBeTypeOf('function');
+  expect(sandbox.devicePixelRatio).toBe(1);
+  expect(
+    Object.getOwnPropertyDescriptor(sandbox, 'devicePixelRatio')?.writable,
+  ).toBe(false);
+  await lifecycle.teardown();
+  expect(sandbox.requestAnimationFrame).toBeUndefined();
+  expect(sandbox.cancelAnimationFrame).toBeUndefined();
+  expect(sandbox.devicePixelRatio).toBeUndefined();
+});

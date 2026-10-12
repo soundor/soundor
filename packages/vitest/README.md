@@ -97,8 +97,14 @@ Parallel **test files** are supported in standard forks/threads pools. Tests in
 one file must run sequentially; `test.concurrent` is rejected. Keep
 `test.isolate` enabled (the default). VM pools are not supported.
 
-Animation time is explicit: `getTestRuntime().advanceTime(250)`. Vitest fake
-timers control Node timers; they do not advance the runtime's virtual clock.
+Animation time is explicit: `getTestRuntime().advanceTime(250)`. The environment
+provides `requestAnimationFrame`/`cancelAnimationFrame`, simulating 60 Hz frame
+batches on that clock, with native ordering and cancellation semantics. This
+also supports React's `useAnimationFrame`. Frame timestamps use runtime time;
+Node timers and `performance.now()` remain on Node's clock. Vitest fake timers
+can control Node timers independently; they do not advance native presentation.
+Select `toFake` explicitly to keep the simulated frame functions when using
+Vitest timers. `devicePixelRatio` defaults to 1; no pixels are rendered.
 
 ## Simulation limits
 

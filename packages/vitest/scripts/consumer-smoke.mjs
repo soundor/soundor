@@ -78,7 +78,7 @@ try {
   );
   await writeFile(
     resolve(temporary, 'component.test.tsx'),
-    `import {expect, test} from 'vitest';\nimport {createRoot, flushSync, Pressable, Text} from '@soundor/react';\nimport {root} from 'soundor:ui';\nimport {getTestRuntime} from '@soundor/vitest';\nfor (const index of [1,2]) test('packed renderer '+index, () => {\n let presses = 0;const renderer = createRoot();\n flushSync(() => renderer.render(<Pressable accessibilityLabel="Action" onPress={() => presses++}><Text>Go</Text></Pressable>));\n const runtime = getTestRuntime();\n expect(root).toBe(runtime.root);const button = runtime.root.children[0]!;\n runtime.pointerDown(button);runtime.pointerUp(button);\n expect(presses).toBe(1);\n flushSync(() => renderer.unmount());\n});\n`,
+    `import {expect, test} from 'vitest';\nimport {createRoot, flushSync, Pressable, Text, useAnimationFrame} from '@soundor/react';\nimport {root} from 'soundor:ui';\nimport {getTestRuntime} from '@soundor/vitest';\nfor (const index of [1,2]) test('packed renderer '+index, () => {\n let presses = 0;const times: number[] = [];const renderer = createRoot();\n function App(){useAnimationFrame(time => times.push(time));return <Pressable accessibilityLabel="Action" onPress={() => presses++}><Text>Go</Text></Pressable>;}\n flushSync(() => renderer.render(<App/>));\n const runtime = getTestRuntime();\n expect(root).toBe(runtime.root);const button = runtime.root.children[0]!;\n runtime.pointerDown(button);runtime.pointerUp(button);\n expect(presses).toBe(1);runtime.advanceTime(34);expect(times).toHaveLength(2);\n flushSync(() => renderer.unmount());expect(runtime.clock.pending).toBe(0);\n});\n`,
   );
   console.log(run('pnpm', ['exec', 'vitest', 'run'], temporary));
   await writeFile(
