@@ -239,8 +239,13 @@ export class EventTarget {
         path[i].#invoke(event, CAPTURING_PHASE, true);
       }
       // At the target, capturing listeners run before the others.
-      if (!dispatchState.stopped(event)) this.#invoke(event, AT_TARGET, true);
-      if (!dispatchState.stopped(event)) this.#invoke(event, AT_TARGET, false);
+      if (!dispatchState.stopped(event)) {
+        this.#invoke(event, AT_TARGET, true);
+        // stopPropagation blocks other nodes; only immediate stopping blocks
+        // remaining listeners on this target, including its bubble listeners.
+        if (!dispatchState.stoppedImmediately(event))
+          this.#invoke(event, AT_TARGET, false);
+      }
       if (event.bubbles) {
         for (let i = 1; i < path.length; ++i) {
           if (dispatchState.stopped(event)) break;

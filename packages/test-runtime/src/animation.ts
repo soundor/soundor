@@ -23,6 +23,10 @@ interface Phase {
   before?: Values;
   children: { start: number; phase: Phase }[];
   owned?: Map<TestNode, Set<string>>;
+  springs?: Map<
+    string,
+    { key: string; origin: number; target: number; velocity: number }[]
+  >;
 }
 const PROPERTIES = [
   'opacity',
@@ -36,6 +40,8 @@ const finite = (value: number, name: string) => {
   return value;
 };
 function settings(options: AnimationOptions): AnimationOptions {
+  if (!options || typeof options !== 'object' || Array.isArray(options))
+    throw new TypeError('animation options must be an object');
   const out = {
     duration: 300,
     delay: 0,
@@ -123,21 +129,51 @@ function validateTransforms(items: unknown) {
     throw new TypeError('transform requires a finite number or angle');
   }
 }
+function transformKeys(
+  before: readonly Record<string, unknown>[],
+  after: readonly Record<string, unknown>[],
+): string[] {
+  const left = before.flatMap(Object.keys),
+    right = after.flatMap(Object.keys);
+  const keys = [...new Set([...left, ...right])],
+    result: string[] = [];
+  while (result.length < keys.length) {
+    const next = keys.find(
+      (key) =>
+        !result.includes(key) &&
+        [left, right].every((order) => {
+          const i = order.indexOf(key);
+          return (
+            i < 0 ||
+            order.slice(0, i).every((previous) => result.includes(previous))
+          );
+        }),
+    );
+    if (next === undefined)
+      throw new TypeError('transforms must preserve shared operation order');
+    result.push(next);
+  }
+  return result;
+}
+function transformNumber(
+  items: readonly Record<string, unknown>[],
+  key: string,
+): number {
+  const value =
+    items.find((item) => key in item)?.[key] ??
+    (key.startsWith('scale') ? 1 : 0);
+  return typeof value === 'string'
+    ? parseFloat(value) * (value.endsWith('deg') ? Math.PI / 180 : 1)
+    : Number(value);
+}
 function blend(property: string, a: unknown, b: unknown, t: number): unknown {
   if (property === 'opacity')
     return Math.min(1, Math.max(0, Number(a) + (Number(b) - Number(a)) * t));
   if (property === 'transform') {
     const before = (a ?? []) as Record<string, number | string>[];
     const after = (b ?? []) as Record<string, number | string>[];
-    const keys = [...new Set([...before, ...after].flatMap(Object.keys))];
-    const read = (items: typeof before, key: string) => {
-      const value =
-        items.find((item) => key in item)?.[key] ??
-        (key.startsWith('scale') ? 1 : 0);
-      return typeof value === 'string'
-        ? parseFloat(value) * (value.endsWith('deg') ? Math.PI / 180 : 1)
-        : value;
-    };
+    const keys = transformKeys(before, after);
+    const read = transformNumber;
     return keys.map((key) => ({
       [key]: read(before, key) + (read(after, key) - read(before, key)) * t,
     }));
@@ -186,11 +222,30 @@ function offsets(frames: readonly AnimationKeyframe[]): number[] {
     }
   return out;
 }
+function finiteSpan(phase: Phase): number {
+  const duration =
+    phase.node || !phase.children.length
+      ? phase.duration
+      : Math.max(
+          0,
+          ...phase.children.map(
+            (child) => child.start + finiteSpan(child.phase),
+          ),
+        );
+  return (
+    (phase.options.delay ?? 0) +
+    duration *
+      (phase.options.iterations === Infinity
+        ? 1
+        : (phase.options.iterations ?? 1))
+  );
+}
 function sample(
   phase: Phase,
   time: number,
   state: Map<TestNode, Values>,
   final = false,
+  velocities?: Map<TestNode, Values>,
 ) {
   const { options, duration } = phase;
   const elapsed = final
@@ -231,7 +286,9 @@ function sample(
         ? ([phase.before!, phase.frames[0]!] as AnimationKeyframe[])
         : phase.frames;
     const positions = offsets(frames);
-    for (const property of PROPERTIES) {
+    for (const property of PROPERTIES.filter((property) =>
+      phase.owned!.get(phase.node!)!.has(property),
+    )) {
       const track = frames
         .map((frame, i) => ({
           value: frame[property],
@@ -258,15 +315,33 @@ function sample(
               before.easing,
               (progress - before.at) / (after.at - before.at),
             );
-      if (options.type === 'spring' && !done)
-        t = sampleSpring(
-          springParameters(options),
-          (progress * duration) / 1000,
-          0,
-          1,
-          options.initialVelocity ?? 0,
-        ).position;
-      values[property] = blend(property, before.value, after.value, t);
+      if (options.type === 'spring') {
+        const tracks = phase.springs!.get(property)!;
+        const sampled = tracks.map((track) =>
+          progress >= 1
+            ? { position: track.target, velocity: 0 }
+            : sampleSpring(
+                springParameters(options),
+                (progress * duration) / 1000,
+                track.origin,
+                track.target,
+                track.velocity,
+              ),
+        );
+        const speeds = velocities?.get(phase.node) ?? {};
+        if (property === 'opacity') {
+          values[property] = Math.max(0, Math.min(1, sampled[0]!.position));
+          speeds[property] = done ? 0 : sampled[0]!.velocity;
+        } else {
+          values[property] = tracks.map((track, i) => ({
+            [track.key]: sampled[i]!.position,
+          }));
+          speeds[property] = tracks.map((track, i) => ({
+            [track.key]: done ? 0 : sampled[i]!.velocity,
+          }));
+        }
+        velocities?.set(phase.node, speeds);
+      } else values[property] = blend(property, before.value, after.value, t);
     }
     state.set(phase.node, values);
   } else
@@ -280,6 +355,7 @@ function sample(
           final ? child.phase.span : Math.min(local, child.phase.span),
           state,
           final,
+          velocities,
         );
     }
 }
@@ -291,6 +367,7 @@ export class TestAnimation implements UiAnimation {
   private time = 0;
   readonly owned = new Map<TestNode, Set<string>>();
   readonly values = new Map<TestNode, Values>();
+  readonly velocities = new Map<TestNode, Values>();
   private phase: Phase;
   readonly before: Values;
   constructor(
@@ -344,6 +421,14 @@ export class TestAnimation implements UiAnimation {
             if (frame.offset > 1) throw new TypeError('offset exceeds one');
           }
         }
+        const authoredTransforms = input.keyframes
+          .filter((frame) => frame.transform !== undefined)
+          .map((frame) => frame.transform!);
+        for (let i = 1; i < authoredTransforms.length; i++)
+          transformKeys(
+            authoredTransforms[i - 1]! as readonly Record<string, unknown>[],
+            authoredTransforms[i]! as readonly Record<string, unknown>[],
+          );
         phase.node = target;
         phase.frames = input.keyframes.map((frame) => ({
           ...frame,
@@ -380,15 +465,69 @@ export class TestAnimation implements UiAnimation {
           target,
           new Set([...(this.owned.get(target) ?? []), ...properties]),
         );
-        phase.duration =
-          opts.type === 'spring'
-            ? springDuration(
-                springParameters(opts),
-                0,
-                1,
-                opts.initialVelocity ?? 0,
-              )
-            : opts.duration!;
+        phase.duration = opts.duration!;
+        if (opts.type === 'spring') {
+          phase.springs = new Map();
+          phase.duration = 0;
+          for (const property of properties) {
+            const frames = phase.frames;
+            const origin =
+              frames.length === 1
+                ? phase.before[property]
+                : (frames[0]![property] ?? phase.before[property]);
+            const target = frames.at(-1)![property] ?? origin;
+            const keys =
+              property === 'transform'
+                ? transformKeys(
+                    (origin ?? []) as readonly Record<string, unknown>[],
+                    (target ?? []) as readonly Record<string, unknown>[],
+                  )
+                : ['opacity'];
+            const inherited =
+              frames.length === 1 &&
+              !Object.hasOwn(virtual.get(phase.node!) ?? {}, property)
+                ? runtime.velocity(phase.node!)[property]
+                : undefined;
+            const tracks = keys.map((key) => ({
+              key,
+              origin:
+                property === 'opacity'
+                  ? Number(origin)
+                  : transformNumber(
+                      (origin ?? []) as readonly Record<string, unknown>[],
+                      key,
+                    ),
+              target:
+                property === 'opacity'
+                  ? Number(target)
+                  : transformNumber(
+                      (target ?? []) as readonly Record<string, unknown>[],
+                      key,
+                    ),
+              velocity:
+                frames.length === 1 && inherited !== undefined
+                  ? property === 'opacity'
+                    ? Number(inherited)
+                    : Number(
+                        (inherited as Record<string, number>[]).find(
+                          (operation) => key in operation,
+                        )?.[key] ?? 0,
+                      )
+                  : (opts.initialVelocity ?? 0),
+            }));
+            phase.springs.set(property, tracks);
+            for (const track of tracks)
+              phase.duration = Math.max(
+                phase.duration,
+                springDuration(
+                  springParameters(opts),
+                  track.origin,
+                  track.target,
+                  track.velocity,
+                ),
+              );
+          }
+        }
       } else {
         if (input.children.length === 0) phase.duration = 0;
         for (const [i, child] of input.children.entries()) {
@@ -455,14 +594,19 @@ export class TestAnimation implements UiAnimation {
     });
     this.finished.catch(() => {});
   }
+  get retainsPresentation() {
+    return this.values.size > 0;
+  }
   get currentTime() {
     return this.time;
   }
   set currentTime(value: number) {
+    this.runtime.assertActive();
     finite(value, 'currentTime');
     if (this.playState === 'finished' && value < this.phase.span) {
       this.promise();
       this.playState = 'paused';
+      this.runtime.acquireAnimation(this);
     }
     this.time = Math.min(value, this.phase.span);
     this.update();
@@ -475,48 +619,62 @@ export class TestAnimation implements UiAnimation {
   }
   private update(final = false) {
     this.values.clear();
+    this.velocities.clear();
     const fill = this.phase.options.fill;
     if (
       this.time >= (this.phase.options.delay ?? 0) ||
       fill === 'backwards' ||
       fill === 'both'
     )
-      sample(this.phase, this.time, this.values, final);
+      sample(this.phase, this.time, this.values, final, this.velocities);
     if (this.time >= this.phase.span || final) {
       this.playState = 'finished';
       if (fill !== 'forwards' && fill !== 'both') this.values.clear();
+      this.velocities.clear();
       this.resolve();
     }
+    this.runtime.animationStateChanged(this);
   }
   play() {
+    this.runtime.assertActive();
     if (this.playState === 'idle' || this.playState === 'finished') {
       this.time = 0;
       this.promise();
     }
     this.playState = 'running';
+    this.runtime.acquireAnimation(this);
     this.update();
   }
   resume() {
     this.play();
   }
   pause() {
+    this.runtime.assertActive();
     if (this.playState === 'running') this.playState = 'paused';
+    this.runtime.animationStateChanged(this);
   }
   cancel() {
     if (this.playState === 'idle') return;
     this.playState = 'idle';
     this.values.clear();
+    this.velocities.clear();
     const error = new Error('Animation cancelled');
     error.name = 'AbortError';
     this.reject(error);
+    this.runtime.animationStateChanged(this);
   }
   finish() {
+    this.runtime.assertActive();
+    if (this.playState === 'idle' || this.playState === 'finished') return;
     if (!Number.isFinite(this.phase.span))
       throw new Error('cannot finish an infinite animation');
     this.time = this.phase.span;
     this.update();
   }
   reduceMotion() {
+    this.time = Number.isFinite(this.phase.span)
+      ? this.phase.span
+      : finiteSpan(this.phase);
     this.update(true);
   }
 }

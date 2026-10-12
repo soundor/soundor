@@ -101,13 +101,14 @@ export class TestEvent {
 
 export class TestNode {
   readonly id: number;
-  readonly animations: TestAnimation[] = [];
+  get animations(): readonly TestAnimation[] {
+    return this.runtime.animationsFor(this);
+  }
   animate(
     frames: readonly AnimationKeyframe[] | AnimationDescription,
     options: AnimationOptions = {},
   ): TestAnimation {
     const animation = this.runtime.animate(this, frames, options);
-    this.animations.push(animation);
     return animation;
   }
   get presentation(): Record<string, unknown> {
@@ -248,7 +249,7 @@ export class TestNode {
     if (before !== null && before.parent !== this)
       throw new TypeError('reference node is not a child');
     if (child === before) return child;
-    child.remove();
+    child.parent?.detachChild(child);
     const index = before === null ? -1 : this.kids.indexOf(before);
     if (index < 0) this.kids.push(child);
     else this.kids.splice(index, 0, child);
@@ -256,7 +257,7 @@ export class TestNode {
     return child;
   }
 
-  removeChild(child: TestNode) {
+  private detachChild(child: TestNode) {
     const index = this.kids.indexOf(child);
     if (index < 0) throw new TypeError('node is not a child');
     this.kids.splice(index, 1);
@@ -264,6 +265,13 @@ export class TestNode {
     return child;
   }
 
+  removeChild(child: TestNode) {
+    this.runtime.assertNode(child);
+    if (child.parent !== this) throw new TypeError('node is not a child');
+    this.detachChild(child);
+    this.runtime.detachAnimations(child);
+    return child;
+  }
   remove() {
     this.parent?.removeChild(this);
   }
@@ -316,6 +324,13 @@ export class TestNode {
 
   dispatchEvent(event: TestEvent): boolean {
     this.runtime.assertActive();
+    if (event.eventPhase !== 0)
+      throw new DOMException(
+        'The event is already being dispatched',
+        'InvalidStateError',
+      );
+    event.stopped = false;
+    event.immediateStopped = false;
     const path: TestNode[] = [];
     for (let node: TestNode | null = this; node; node = node.parent)
       path.push(node);
@@ -343,16 +358,21 @@ export class TestNode {
         }
       }
     };
-    for (let i = path.length - 1; i > 0 && !event.stopped; --i)
-      run(path[i]!, true);
-    if (!event.stopped) run(this, true);
-    if (!event.stopped) run(this, false);
-    if (event.bubbles)
-      for (let i = 1; i < path.length && !event.stopped; ++i)
-        run(path[i]!, false);
-    event.currentTarget = null;
-    event.eventPhase = 0;
-    event.path = [];
+    try {
+      for (let i = path.length - 1; i > 0 && !event.stopped; --i)
+        run(path[i]!, true);
+      if (!event.stopped) {
+        run(this, true);
+        if (!event.immediateStopped) run(this, false);
+      }
+      if (event.bubbles)
+        for (let i = 1; i < path.length && !event.stopped; ++i)
+          run(path[i]!, false);
+    } finally {
+      event.currentTarget = null;
+      event.eventPhase = 0;
+      event.path = [];
+    }
     if (!event.defaultPrevented) this.runtime.defaultAction(this, event);
     return !event.defaultPrevented;
   }

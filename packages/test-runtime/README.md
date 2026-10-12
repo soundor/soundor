@@ -46,6 +46,30 @@ Storage serializes JSON on write and returns independent copies on read.
 Animations expose playback, seeking, completion, cancellation, repetition,
 sequence/parallel/stagger descriptions and observable `presentation`. The spring
 solver is shared with the Web runtime through `@soundor/core/spring`.
+Only `activeAnimations` are sampled;
+`animations` tracks live ownership (running, paused, and retained forward fills).
+Completed effects without forward fill and cancelled effects leave both runtime
+and node registries. Presentation looks up only a node's owners. Replayable
+handles retain their own compiled description and reacquire ownership on replay.
+Explicit node removal cancels programs targeting its subtree, including programs
+with other targets; reparenting preserves them. Disposal clears all ownership.
+The temporary React test adapter records animation call history separately for
+existing renderer assertions and clears that history between tests.
+
+Modal focus eligibility uses the same semantic ownership/visibility snapshot as
+`semantics()`. Tab and new direct focus requests exclude background controls,
+including content outside the active nested modal, and include portals owned by
+that modal. This models Soundor's full modal behavior without React: the raw
+native surface's accessibility modal flag only filters its semantic tree;
+React's `Modal` supplies its keyboard trap through `FocusScope`. As on the native
+surface, hiding a currently focused node retains focus until it moves; Tab skips
+hidden nodes, and detaching the focused subtree clears focus without a blur.
+
+Explicit simulated removal releases animation work immediately; native raw tree
+detachment keeps externally held animation handles until cancellation or node
+release. This deliberate eager cleanup avoids depending on garbage collection in
+tests. Both runtimes preserve animations during reparenting.
+
 `advanceTime` also drives long-press callbacks. It does not advance Node timers.
 
 Limitations: no layout, graphics, pixel hit testing, audio, engine execution or

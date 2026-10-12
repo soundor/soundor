@@ -3,7 +3,7 @@ import { VirtualClock } from './clock';
 import { Listeners } from './listeners';
 import { TestNode, TestEvent } from './node';
 import { createParameterStore } from './parameters';
-import { semanticTree } from './semantics';
+import { semanticTree, semanticSnapshot } from './semantics';
 import {
   MemoryStorage,
   type RuntimeOptions,
@@ -21,7 +21,11 @@ export class TestRuntime {
   nextId = 1;
   readonly nodes = new Map<number, TestNode>();
   readonly clock = new VirtualClock();
+  /** Live ownership: running, paused, or a retained forward fill. */
   readonly animations = new Set<TestAnimation>();
+  readonly activeAnimations = new Set<TestAnimation>();
+  private readonly animationsByNode = new Map<TestNode, Set<TestAnimation>>();
+  animationSamples = 0;
   readonly pressables = new Map<TestNode, Record<string, unknown>>();
   readonly root: TestNode;
   readonly overlayRoot: TestNode;
@@ -66,6 +70,11 @@ export class TestRuntime {
     if (this.disposed)
       throw new Error('Soundor test runtime has been disposed');
   }
+  assertNode(node: TestNode) {
+    this.assertActive();
+    if (node?.runtime !== this)
+      throw new TypeError('node belongs to another runtime');
+  }
   create(type: NodeType, style: Style = {}) {
     const node = new TestNode(this, type);
     node.style = { ...style };
@@ -82,7 +91,10 @@ export class TestRuntime {
       (node.runtime !== this ||
         !node.focusable ||
         !node.isConnected ||
-        !this.displayed(node))
+        !this.focusEligible(
+          node,
+          semanticSnapshot([this.root, this.overlayRoot]).hidden,
+        ))
     )
       return;
     const previous = this.focusedNode();
@@ -101,11 +113,20 @@ export class TestRuntime {
       if (at.style.display === 'none') return false;
     return true;
   }
+  private focusEligible(node: TestNode, hidden: ReadonlySet<TestNode>) {
+    return (
+      node.runtime === this &&
+      node.isConnected &&
+      node.focusable &&
+      !hidden.has(node)
+    );
+  }
   focusOrder(): TestNode[] {
+    const hidden = semanticSnapshot([this.root, this.overlayRoot]).hidden;
     const order: TestNode[] = [];
     const walk = (node: TestNode) => {
-      if (!this.displayed(node)) return;
-      if (node.focusable) order.push(node);
+      if (this.focusEligible(node, hidden)) order.push(node);
+      // A physical parent outside the modal may hold content read inside it.
       node.children.forEach(walk);
     };
     walk(this.root);
@@ -116,7 +137,13 @@ export class TestRuntime {
     this.keys.add(key);
     const event = new TestEvent('keydown', { key, ...init });
     (this.focusedNode() ?? this.root).dispatchEvent(event);
-    if (!event.defaultPrevented && key === 'Tab') {
+    if (
+      !event.defaultPrevented &&
+      key === 'Tab' &&
+      !init['ctrlKey'] &&
+      !init['altKey'] &&
+      !init['metaKey']
+    ) {
       const order = this.focusOrder(),
         index = order.indexOf(this.focusedNode()!);
       const back = Boolean(init['shiftKey']);
@@ -140,9 +167,7 @@ export class TestRuntime {
     return event;
   }
   fire(node: TestNode, type: string, init: Record<string, unknown> = {}) {
-    this.assertActive();
-    if (node.runtime !== this)
-      throw new TypeError('node belongs to another runtime');
+    this.assertNode(node);
     const event = new TestEvent(
       type,
       {
@@ -160,6 +185,8 @@ export class TestRuntime {
     return event;
   }
   pointerDown(node: TestNode, init: Record<string, unknown> = {}) {
+    this.assertNode(node);
+    if (this.pointer.down) this.assertNode(this.pointer.down);
     this.pointer.down = node;
     this.pointer.target = node;
     this.pointer.buttons |= Number(init['button'] ?? 0) === 2 ? 2 : 1;
@@ -173,10 +200,14 @@ export class TestRuntime {
     return event;
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
+    this.assertNode(node);
+    if (this.pointer.down) this.assertNode(this.pointer.down);
     this.pointer.target = node;
     return this.fire(this.pointer.down ?? node, 'pointermove', init);
   }
   pointerUp(node: TestNode, init: Record<string, unknown> = {}) {
+    this.assertNode(node);
+    if (this.pointer.down) this.assertNode(this.pointer.down);
     const down = this.pointer.down;
     this.pointer.buttons = 0;
     this.pointer.down = null;
@@ -186,6 +217,8 @@ export class TestRuntime {
     return event;
   }
   pointerCancel() {
+    this.assertActive();
+    if (this.pointer.down) this.assertNode(this.pointer.down);
     const down = this.pointer.down;
     this.pointer.down = null;
     this.pointer.buttons = 0;
@@ -398,27 +431,77 @@ export class TestRuntime {
     frames: readonly AnimationKeyframe[] | AnimationDescription,
     options: AnimationOptions = {},
   ) {
-    this.assertActive();
+    this.assertNode(node);
     const animation = new TestAnimation(this, node, frames, options);
-    for (const previous of this.animations)
-      if (
-        previous.playState !== 'idle' &&
-        [...animation.owned].some(([target, properties]) =>
-          [...properties].some((property) =>
-            previous.owned.get(target)?.has(property),
-          ),
-        )
-      )
-        previous.cancel();
-    this.animations.add(animation);
+    this.acquireAnimation(animation);
     if (this.reducedMotion) animation.reduceMotion();
     return animation;
   }
+  /** Reacquire compiled handles on replay, resolving conflicts by ownership. */
+  acquireAnimation(animation: TestAnimation) {
+    this.assertActive();
+    if (this.animations.has(animation)) return;
+    for (const [node, properties] of animation.owned) {
+      this.assertNode(node);
+      for (const previous of this.animationsByNode.get(node) ?? []) {
+        if (
+          [...properties].some((property) =>
+            previous.owned.get(node)?.has(property),
+          )
+        )
+          previous.cancel();
+      }
+    }
+    if (
+      animation.playState === 'idle' ||
+      (animation.playState === 'finished' && !animation.retainsPresentation)
+    )
+      return;
+    this.animations.add(animation);
+    for (const node of animation.owned.keys()) {
+      const owners =
+        this.animationsByNode.get(node) ?? new Set<TestAnimation>();
+      owners.add(animation);
+      this.animationsByNode.set(node, owners);
+    }
+    this.animationStateChanged(animation);
+  }
+  animationStateChanged(animation: TestAnimation) {
+    if (!this.animations.has(animation)) return;
+    if (animation.playState === 'running') this.activeAnimations.add(animation);
+    else this.activeAnimations.delete(animation);
+    if (
+      animation.playState === 'idle' ||
+      (animation.playState === 'finished' && !animation.retainsPresentation)
+    ) {
+      this.animations.delete(animation);
+      for (const node of animation.owned.keys()) {
+        const owners = this.animationsByNode.get(node);
+        owners?.delete(animation);
+        if (owners?.size === 0) this.animationsByNode.delete(node);
+      }
+    }
+  }
+  animationsFor(node: TestNode): readonly TestAnimation[] {
+    return [...(this.animationsByNode.get(node) ?? [])];
+  }
+  /** Explicit removal releases the subtree's programs; reparenting does not. */
+  detachAnimations(node: TestNode) {
+    for (const animation of this.animationsByNode.get(node) ?? [])
+      animation.cancel();
+    for (const child of node.children) this.detachAnimations(child);
+  }
   presentation(node: TestNode): Record<string, unknown> {
     const out = { ...node.style };
-    for (const animation of this.animations)
+    for (const animation of this.animationsByNode.get(node) ?? [])
       Object.assign(out, animation.values.get(node));
     return out;
+  }
+  velocity(node: TestNode): Record<string, unknown> {
+    const values: Record<string, unknown> = {};
+    for (const animation of this.animationsByNode.get(node) ?? [])
+      Object.assign(values, animation.velocities.get(node));
+    return values;
   }
   advanceTime(milliseconds: number) {
     this.assertActive();
@@ -426,7 +509,10 @@ export class TestRuntime {
     this.clock.advance(milliseconds, () => {
       const delta = this.clock.now - previous;
       previous = this.clock.now;
-      this.animations.forEach((animation) => animation.tick(delta));
+      for (const animation of this.activeAnimations) {
+        this.animationSamples++;
+        animation.tick(delta);
+      }
     });
   }
   setReducedMotion(value: boolean) {
@@ -478,6 +564,8 @@ export class TestRuntime {
     this.cleanups.forEach((cleanup) => cleanup());
     this.animations.forEach((animation) => animation.cancel());
     this.animations.clear();
+    this.activeAnimations.clear();
+    this.animationsByNode.clear();
     this.clock.clear();
     this.parameters.list.forEach((parameter) => parameter.dispose());
     this.hostListeners.clear();

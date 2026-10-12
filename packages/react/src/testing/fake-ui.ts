@@ -13,17 +13,39 @@ export const pressables = runtime.pressables;
 export const focusedNode = () => runtime.focusedNode();
 export const pressKey = (key: string, init: Record<string, unknown> = {}) =>
   runtime.pressKey(key, init);
+const animationHistory = new WeakMap<
+  ReturnType<typeof runtime.create>,
+  ReturnType<ReturnType<typeof runtime.create>['animate']>[]
+>();
+function tracked(
+  type: Parameters<typeof runtime.create>[0],
+  style?: Record<string, unknown>,
+) {
+  const node = runtime.create(type, style),
+    history: ReturnType<typeof node.animate>[] = [];
+  const animate = node.animate.bind(node);
+  node.animate = (...args) => {
+    const animation = animate(...args);
+    history.push(animation);
+    return animation;
+  };
+  Object.defineProperty(node, 'animations', { value: history });
+  animationHistory.set(node, history);
+  return node;
+}
 export const createView = (style?: Record<string, unknown>) =>
-  runtime.create('view', style);
-export const createText = () => runtime.create('text');
-export const createImage = () => runtime.create('image');
-export const createScrollView = () => runtime.create('scroll');
-export const createTextInput = () => runtime.create('input');
-export const createCanvas = () => runtime.create('canvas');
+  tracked('view', style);
+export const createText = () => tracked('text');
+export const createImage = () => tracked('image');
+export const createScrollView = () => tracked('scroll');
+export const createTextInput = () => tracked('input');
+export const createCanvas = () => tracked('canvas');
 export const pressable = (...args: Parameters<typeof runtime.pressable>) =>
   runtime.pressable(...args);
 export const print = (node = root) => printNode(node);
 export function reset() {
+  for (const node of runtime.nodes.values())
+    animationHistory.get(node)?.splice(0);
   for (const child of root.children) child.remove();
   for (const child of overlayRoot.children) child.remove();
   runtime.moveFocus(null);

@@ -224,6 +224,64 @@ TEST_SUITE("soundor:ui")
                  R"({"x":115,"y":5,"width":75,"height":300}])");
     }
 
+    TEST_CASE("raw surface focus remains when hidden and clears when detached")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            a.focusable = true;
+            a.focus();
+            a.style.display = 'none';
+            globalThis.focusStayedWhenHidden = focusedNode() === a;
+            a.remove();
+            globalThis.focusClearedWhenDetached = focusedNode() === null;
+        )");
+        CHECK(f.eval("focusStayedWhenHidden").asBoolean());
+        CHECK(f.eval("focusClearedWhenDetached").asBoolean());
+    }
+
+    TEST_CASE("target propagation stopping preserves same-node listeners unless stopped immediately")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            const orders = [];
+            for (const mode of ['normal', 'ancestor', 'target capture', 'target bubble',
+                                'immediate capture', 'immediate bubble', 'prevent']) {
+                const parent = createView(), child = createView(), order = [];
+                root.appendChild(parent);
+                parent.appendChild(child);
+                parent.addEventListener('click', event => {
+                    order.push('parent capture');
+                    if (mode === 'ancestor') event.stopPropagation();
+                }, true);
+                if (mode === 'ancestor') parent.addEventListener('click', () => order.push('parent capture 2'), true);
+                child.addEventListener('click', event => {
+                    order.push('child capture 1');
+                    if (mode === 'target capture') event.stopPropagation();
+                    if (mode === 'immediate capture') event.stopImmediatePropagation();
+                }, true);
+                child.addEventListener('click', () => order.push('child capture 2'), true);
+                child.addEventListener('click', event => {
+                    order.push('child bubble 1');
+                    if (mode === 'target bubble') event.stopPropagation();
+                    if (mode === 'immediate bubble') event.stopImmediatePropagation();
+                    if (mode === 'prevent') event.preventDefault();
+                });
+                child.addEventListener('click', () => order.push('child bubble 2'));
+                parent.addEventListener('click', () => order.push('parent bubble'));
+                const event = new PointerEvent('click', { bubbles: true, cancelable: true });
+                const accepted = child.dispatchEvent(event);
+                orders.push(order.join(','));
+                if (accepted !== !event.defaultPrevented || event.defaultPrevented !== (mode === 'prevent'))
+                    throw new Error('incorrect cancellation state');
+                parent.remove();
+            }
+            globalThis.result = JSON.stringify(orders);
+        )");
+        CHECK(
+            f.eval("result").asString()
+            == R"(["parent capture,child capture 1,child capture 2,child bubble 1,child bubble 2,parent bubble","parent capture,parent capture 2","parent capture,child capture 1,child capture 2,child bubble 1,child bubble 2","parent capture,child capture 1,child capture 2,child bubble 1,child bubble 2","parent capture,child capture 1","parent capture,child capture 1,child capture 2,child bubble 1","parent capture,child capture 1,child capture 2,child bubble 1,child bubble 2,parent bubble"])");
+    }
+
     TEST_CASE("the secondary button fires contextmenu, which captures and bubbles")
     {
         UiFixture f;

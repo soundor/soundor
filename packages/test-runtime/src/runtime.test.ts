@@ -441,3 +441,117 @@ it('cancels long presses after pointer movement and retains implicit pointer cap
   r.pointerCancel();
   r.dispose();
 });
+
+it('evaluates springs in property units and preserves analytic retarget velocity', () => {
+  const r = createTestRuntime(),
+    node = r.create('view', { transform: [{ translateX: 0 }] });
+  node.animate([{ transform: [{ translateX: 100 }] }], {
+    type: 'spring',
+    fill: 'forwards',
+  });
+  r.advanceTime(100);
+  const position = Number(
+      (node.presentation['transform'] as { translateX: number }[])[0]!
+        .translateX,
+    ),
+    velocity = Number(
+      (r.velocity(node)['transform'] as { translateX: number }[])[0]!
+        .translateX,
+    );
+  expect(position).toBeGreaterThan(0);
+  expect(velocity).toBeGreaterThan(0);
+  node.animate([{ transform: [{ translateX: 0 }] }], {
+    type: 'spring',
+    fill: 'forwards',
+  });
+  expect(
+    Number(
+      (r.velocity(node)['transform'] as { translateX: number }[])[0]!
+        .translateX,
+    ),
+  ).toBeCloseTo(velocity);
+  r.advanceTime(1);
+  expect(
+    Number(
+      (node.presentation['transform'] as { translateX: number }[])[0]!
+        .translateX,
+    ),
+  ).toBeGreaterThan(position);
+  r.advanceTime(10000);
+  expect(node.presentation['transform']).toEqual([{ translateX: 0 }]);
+  r.dispose();
+});
+it('finishes a spring with no displacement immediately', () => {
+  const r = createTestRuntime(),
+    node = r.create('view', { opacity: 0.25 });
+  const animation = node.animate([{ opacity: 0.25 }], { type: 'spring' });
+  expect(animation.playState).toBe('finished');
+  r.dispose();
+});
+it('preserves independent property presentations and rejects reordered transforms', () => {
+  const r = createTestRuntime(),
+    node = r.create('view', { opacity: 0, transform: [{ scale: 1 }] });
+  node.animate([{ transform: [{ scale: 2 }] }], {
+    duration: 100,
+    fill: 'forwards',
+  });
+  node.animate([{ opacity: 1 }], { duration: 100, fill: 'forwards' });
+  r.advanceTime(50);
+  expect(node.presentation['opacity']).toBe(0.5);
+  expect(node.presentation['transform']).toEqual([{ scale: 1.5 }]);
+  expect(() =>
+    node.animate([
+      { transform: [{ scale: 1 }, { rotate: 0 }] },
+      { transform: [{ rotate: 1 }, { scale: 2 }] },
+    ]),
+  ).toThrow('operation order');
+  r.dispose();
+});
+
+it('reduced motion completes delayed infinite programs including their finite prefix', async () => {
+  const r = createTestRuntime(),
+    node = r.create('view', { opacity: 0 });
+  const animation = node.animate({
+    kind: 'sequence',
+    options: { fill: 'forwards' },
+    children: [
+      { kind: 'delay', duration: 500 },
+      {
+        keyframes: [{ opacity: 1 }],
+        options: { duration: 100, iterations: Infinity },
+      },
+    ],
+  });
+  r.setReducedMotion(true);
+  expect(animation.playState).toBe('finished');
+  expect(animation.currentTime).toBe(600);
+  expect(node.presentation['opacity']).toBe(1);
+  await animation.finished;
+  r.dispose();
+});
+
+it('completes reversed springs at their origin and honors fractional iteration spans', () => {
+  const r = createTestRuntime(),
+    node = r.create('view', { transform: [{ translateX: 0 }] });
+  const reverse = node.animate([{ transform: [{ translateX: 100 }] }], {
+    type: 'spring',
+    direction: 'reverse',
+    fill: 'forwards',
+  });
+  reverse.finish();
+  expect(node.presentation['transform']).toEqual([{ translateX: 0 }]);
+  const fraction = node.animate([{ transform: [{ translateX: 100 }] }], {
+    type: 'spring',
+    iterations: 0.5,
+    fill: 'forwards',
+  });
+  fraction.finish();
+  expect(
+    Number(
+      (node.presentation['transform'] as { translateX: number }[])[0]!
+        .translateX,
+    ),
+  ).not.toBe(100);
+  expect(fraction.playState).toBe('finished');
+  r.dispose();
+});

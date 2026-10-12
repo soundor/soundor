@@ -422,6 +422,10 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
   `preventDefault()` tells the backend the input was handled; unhandled keys
   and wheel input go on to the host.
+  At the target, capture listeners run before bubble listeners.
+  `stopPropagation()` prevents visiting other nodes while allowing the remaining
+  listeners on that target; `stopImmediatePropagation()` stops those listeners
+  too. `preventDefault()` independently prevents the runtime's default action.
 
 Beyond views and text there are the primitives a plugin UI is made of:
 
