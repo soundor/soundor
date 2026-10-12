@@ -235,15 +235,22 @@ function freezeAccessibility(value) {
 const animationHandles = new Map();
 
 function animationFrames(frames) {
-  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 2)
-    throw new TypeError(
-      'animate: timing animations require one target or two keyframes',
-    );
+  if (!Array.isArray(frames) || frames.length < 1 || frames.length > 4096)
+    throw new TypeError('animate: expected 1 to 4096 keyframes');
   return frames.map((frame) => {
     if (!frame || typeof frame !== 'object' || Array.isArray(frame))
       throw new TypeError('animate: keyframes must be objects');
     for (const key of Object.keys(frame))
-      if (key !== 'opacity' && key !== 'transform')
+      if (
+        ![
+          'opacity',
+          'transform',
+          'backgroundColor',
+          'borderColor',
+          'offset',
+          'easing',
+        ].includes(key)
+      )
         throw new TypeError(`animate: unsupported property ${key}`);
     if (frame.transform !== undefined && !Array.isArray(frame.transform))
       throw new TypeError('style.transform: expected an array');
@@ -260,6 +267,97 @@ function animationFrames(frames) {
   });
 }
 
+export function effect(target, keyframes, options = {}) {
+  return Object.freeze({
+    kind: 'effect',
+    target: expectNode(target, 'animation target'),
+    keyframes,
+    options,
+  });
+}
+export function sequence(children, options = {}) {
+  return Object.freeze({
+    kind: 'sequence',
+    children: Object.freeze([...children]),
+    options: Object.freeze({ ...options }),
+  });
+}
+export function parallel(children, options = {}) {
+  return Object.freeze({
+    kind: 'parallel',
+    children: Object.freeze([...children]),
+    options: Object.freeze({ ...options }),
+  });
+}
+export function stagger(interval, children, options = {}) {
+  return Object.freeze({
+    kind: 'stagger',
+    stagger: interval,
+    children: Object.freeze([...children]),
+    options: Object.freeze({ ...options }),
+  });
+}
+export function delay(duration, child) {
+  const wait = Object.freeze({ kind: 'delay', duration });
+  return child === undefined ? wait : sequence([wait, child]);
+}
+export function repeat(child, iterations = Infinity, direction = 'normal') {
+  return sequence([child], { iterations, direction });
+}
+export function animate(description, options = {}) {
+  return root.animate(description, options);
+}
+
+function serializeAnimation(
+  description,
+  targets,
+  depth = 0,
+  counter = { value: 0 },
+) {
+  if (
+    !description ||
+    typeof description !== 'object' ||
+    Array.isArray(description)
+  )
+    throw new TypeError('animation description must be an object');
+  if (depth > 64 || ++counter.value > 16384)
+    throw new TypeError(
+      'animation composition exceeds its depth or phase limit',
+    );
+  const kind = description.kind ?? 'effect';
+  const options = Object.freeze({ ...description.options });
+  if (kind === 'effect') {
+    const target = description.target;
+    if (target !== undefined)
+      targets.add(expectNode(target, 'animation target'));
+    return Object.freeze({
+      kind,
+      ...(target === undefined ? {} : { target: internals.id(target) }),
+      keyframes: animationFrames(description.keyframes),
+      options,
+    });
+  }
+  if (kind === 'delay')
+    return Object.freeze({ kind, duration: description.duration, options });
+  if (
+    !['sequence', 'parallel', 'stagger'].includes(kind) ||
+    !Array.isArray(description.children)
+  )
+    throw new TypeError(
+      'animation composition requires a supported kind and child descriptions',
+    );
+  return Object.freeze({
+    kind,
+    options,
+    stagger: description.stagger ?? 0,
+    children: Object.freeze(
+      description.children.map((child) =>
+        serializeAnimation(child, targets, depth + 1, counter),
+      ),
+    ),
+  });
+}
+
 /** A native timeline handle; no animation-frame callback lives here. */
 export class UiAnimation {
   #node;
@@ -272,11 +370,12 @@ export class UiAnimation {
   #settled = false;
   #generation = 0;
 
-  constructor(token, node, id, frames, options) {
+  constructor(token, node, id, frames, options, targets = []) {
     if (token !== CONSTRUCTING) throw new TypeError('Use node.animate()');
     this.#node = node;
     this.#id = id;
-    this.#frames = frames;
+    // Retain composed targets for replay while this handle is reachable.
+    this.#frames = { value: frames, targets };
     this.#options = options;
     this.#resetPromise();
   }
@@ -309,6 +408,22 @@ export class UiAnimation {
   get currentTime() {
     return native.animationControl(this.#id, 'state').currentTime;
   }
+  set currentTime(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+      throw new TypeError(
+        'animation currentTime must be finite and nonnegative',
+      );
+    if (this.playState === 'idle') {
+      this.play();
+      this.pause();
+    }
+    const result = native.animationControl(this.#id, 'seek', value);
+    if (result.generation !== this.#generation) {
+      UiAnimation.settle(this, false);
+      this.#generation = result.generation;
+      this.#resetPromise();
+    }
+  }
   pause() {
     if (this.playState === 'idle') this.play();
     native.animationControl(this.#id, 'pause');
@@ -321,13 +436,14 @@ export class UiAnimation {
     if (state === 'idle') {
       this.#id = native.animate(
         internals.id(this.#node),
-        this.#frames,
+        this.#frames.value,
         this.#options,
       );
       this.#generation = 0;
       this.#resetPromise();
     } else {
       if (state === 'finished') {
+        UiAnimation.settle(this, false);
         this.#generation++;
         this.#resetPromise();
       }
@@ -808,10 +924,18 @@ export class UiNode extends EventTarget {
   animate(keyframes, options = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options))
       throw new TypeError('animation options must be an object');
-    const frames = animationFrames(keyframes);
-    const timing = Object.freeze({ ...options });
+    const targets = new Set();
+    const frames = Array.isArray(keyframes)
+      ? animationFrames(keyframes)
+      : serializeAnimation(keyframes, targets);
+    const timing = Object.freeze({
+      ...(Array.isArray(frames) ? {} : frames.options),
+      ...options,
+    });
     const id = native.animate(this.#id, frames, timing);
-    return new UiAnimation(CONSTRUCTING, this, id, frames, timing);
+    return new UiAnimation(CONSTRUCTING, this, id, frames, timing, [
+      ...targets,
+    ]);
   }
 
   /** Presented bounds relative to the view (zero when not connected). */

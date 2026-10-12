@@ -317,7 +317,8 @@ MIT
 
 ## UI animations
 
-The runtime implements native timing, opacity and ordered transforms through
+The runtime implements native timing, springs, keyframes, composition, repetition,
+opacity, ordered transforms and paint animations through
 `soundor:ui` and `Animated.View` in `@soundor/react`. See the
 [native animation contract](native/README.md#native-timing-animations) for playback,
 presentation, caching and reduced-motion behavior. Animation execution stays on

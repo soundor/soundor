@@ -112,7 +112,7 @@ function App() {
           : SCENARIOS;
         const selected = nativeAnimations
           ? chosen.map((each) =>
-              each.group === 'animation'
+              each.group === 'animation' || each.group === 'advanced-animation'
                 ? {
                     ...each,
                     nativeAnimations: true,
@@ -145,7 +145,7 @@ function App() {
     <View style={styles.root}>
       <View style={styles.bar}>
         <Text style={styles.title}>Soundor benchmark</Text>
-        {GROUPS.map((each) => (
+        {GROUPS.filter((each) => each !== 'advanced-animation').map((each) => (
           <Button
             key={each}
             label={each}

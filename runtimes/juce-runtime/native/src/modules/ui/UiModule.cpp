@@ -900,72 +900,226 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return jsi::Value::undefined();
         }
 
+        AnimationDescription readAnimationDescription(ContextState& context, Surface& surface, std::uint32_t node,
+                                                      const jsi::Value& inputFrames, const jsi::Value& inputOptions,
+                                                      unsigned depth, std::size_t& phaseCount)
+        {
+            const auto options = bind::expectObject(context, inputOptions, bind::Path { "animation options" });
+            const auto number = [&](const jsi::Object& object, const char* key, double fallback, bool infinite = false)
+            {
+                const auto value = object.getProperty(context.rt, key);
+                if (value.isUndefined())
+                    return fallback;
+                if (! value.isNumber() || std::isnan(value.getNumber())
+                    || (! infinite && ! std::isfinite(value.getNumber())))
+                    bind::throwTypeError(context, std::string("animation.") + key + ": expected a finite number");
+                return value.getNumber();
+            };
+            const auto choice =
+                [&](const jsi::Object& object, const char* key, std::span<const std::string_view> values)
+            {
+                const auto value = object.getProperty(context.rt, key);
+                if (value.isUndefined())
+                    return std::size_t { 0 };
+                if (! value.isString())
+                    bind::throwTypeError(context, std::string("animation.") + key + ": unsupported value");
+                const auto text = value.getString(context.rt).utf8(context.rt);
+                const auto found = std::ranges::find(values, text);
+                if (found == values.end())
+                    bind::throwTypeError(context, std::string("animation.") + key + ": unsupported value " + text);
+                return static_cast<std::size_t>(found - values.begin());
+            };
+            static constexpr std::array<std::string_view, 5> easings { "linear", "ease", "ease-in", "ease-out",
+                                                                       "ease-in-out" };
+            static constexpr std::array<std::string_view, 4> fills { "none", "backwards", "forwards", "both" };
+            static constexpr std::array<std::string_view, 4> directions { "normal", "reverse", "alternate",
+                                                                          "alternate-reverse" };
+            AnimationDescription description;
+            description.timing.duration = number(options, "duration", 300);
+            description.timing.delay = number(options, "delay", 0);
+            description.timing.iterations = number(options, "iterations", 1, true);
+            description.timing.easing = static_cast<Easing>(choice(options, "easing", easings));
+            description.timing.fill = static_cast<Fill>(choice(options, "fill", fills));
+            description.timing.direction = static_cast<Direction>(choice(options, "direction", directions));
+            static constexpr std::array<std::string_view, 2> types { "timing", "spring" };
+            if (choice(options, "type", types) == 1)
+            {
+                description.spring = SpringParameters { number(options, "stiffness", 100),
+                                                        number(options, "damping", 10),
+                                                        number(options, "mass", 1),
+                                                        number(options, "initialVelocity", 0),
+                                                        number(options, "restDisplacement", 0.001),
+                                                        number(options, "restVelocity", 0.001) };
+            }
+            if (! inputFrames.isObject() || ! inputFrames.getObject(context.rt).isArray(context.rt))
+            {
+                if (depth > 64 || ++phaseCount > 16384)
+                    bind::throwTypeError(context, "animation composition exceeds its depth or phase limit");
+                const auto object = bind::expectObject(context, inputFrames, bind::Path { "animation description" });
+                const auto kind = object.getProperty(context.rt, "kind");
+                if (! kind.isString())
+                    bind::throwTypeError(context, "animation description requires a kind");
+                const auto text = kind.getString(context.rt).utf8(context.rt);
+                const auto target = object.getProperty(context.rt, "target");
+                const std::uint32_t resolved = target.isUndefined() ? node : readId(target);
+                if (text == "effect")
+                {
+                    auto effect = readAnimationDescription(context, surface, resolved,
+                                                           object.getProperty(context.rt, "keyframes"), inputOptions,
+                                                           depth, phaseCount);
+                    effect.targetNode = resolved;
+                    return effect;
+                }
+                static constexpr std::array<std::string_view, 4> kinds { "sequence", "parallel", "stagger", "delay" };
+                const auto found = std::ranges::find(kinds, text);
+                if (found == kinds.end())
+                    bind::throwTypeError(context, "unsupported animation composition " + text);
+                if (description.spring)
+                    bind::throwTypeError(context, "composition timing uses spring child effects");
+                description.composition = static_cast<Composition>(1 + (found - kinds.begin()));
+                description.targetNode = resolved;
+                if (description.composition == Composition::Delay)
+                {
+                    description.timing.duration = number(object, "duration", 0);
+                    return description;
+                }
+                description.stagger = number(object, "stagger", 0);
+                const auto input = object.getProperty(context.rt, "children");
+                if (! input.isObject() || ! input.getObject(context.rt).isArray(context.rt))
+                    bind::throwTypeError(context, "animation composition requires child descriptions");
+                const auto children = input.getObject(context.rt).getArray(context.rt);
+                if (children.size(context.rt) == 0 || children.size(context.rt) > 16384)
+                    bind::throwTypeError(context, "animation composition requires 1 to 16384 children");
+                description.children.reserve(children.size(context.rt));
+                for (std::size_t i = 0; i < children.size(context.rt); ++i)
+                {
+                    const auto child = children.getValueAtIndex(context.rt, i);
+                    const auto childObject = bind::expectObject(context, child, bind::Path { "animation child" });
+                    auto childOptions = childObject.getProperty(context.rt, "options");
+                    if (childOptions.isUndefined())
+                        childOptions = jsi::Object(context.rt);
+                    description.children.push_back(readAnimationDescription(context, surface, resolved, child,
+                                                                            childOptions, depth + 1, phaseCount));
+                }
+                return description;
+            }
+            if (! inputFrames.isObject() || ! inputFrames.getObject(context.rt).isArray(context.rt))
+                bind::throwTypeError(context, "animate: keyframes must be an array");
+            const auto frames = inputFrames.getObject(context.rt).getArray(context.rt);
+            const std::size_t frameCount = frames.size(context.rt);
+            if (frameCount < 1 || frameCount > 4096)
+                bind::throwTypeError(context, "animate: expected 1 to 4096 keyframes");
+            if (description.spring && frameCount > 2)
+                bind::throwTypeError(context,
+                                     "spring effects accept an origin and target; use a sequence for multiple targets");
+            std::vector<Keyframe> parsed;
+            parsed.reserve(frameCount);
+            bool metadata = frameCount > 2;
+            Presentation order;
+            for (std::size_t i = 0; i < frameCount; ++i)
+            {
+                const auto object = bind::expectObject(context, frames.getValueAtIndex(context.rt, i),
+                                                       bind::Path { "animation keyframe" });
+                const Style style = StyleReader(context, object).read();
+                Keyframe frame;
+                frame.value = style.transform;
+                frame.value[AnimatedProperty::Opacity] = style.opacity;
+                const auto channels = [](Color color)
+                {
+                    return std::array<float, 4> { static_cast<float>(color.r) / 255.0f,
+                                                  static_cast<float>(color.g) / 255.0f,
+                                                  static_cast<float>(color.b) / 255.0f,
+                                                  static_cast<float>(color.a) / 255.0f };
+                };
+                frame.value.colors[0] = channels(style.backgroundColor);
+                frame.value.colors[1] = channels(style.borderColor);
+                if (! object.getProperty(context.rt, "opacity").isUndefined())
+                    frame.properties |= propertyBit(AnimatedProperty::Opacity);
+                if (! object.getProperty(context.rt, "transform").isUndefined())
+                    frame.properties |= transformPropertyMask;
+                if (! object.getProperty(context.rt, "backgroundColor").isUndefined())
+                    frame.properties |= propertyBit(AnimatedProperty::BackgroundColor);
+                if (! object.getProperty(context.rt, "borderColor").isUndefined())
+                    frame.properties |= propertyBit(AnimatedProperty::BorderColor);
+                description.properties |= frame.properties;
+                frame.offset = number(object, "offset", -1);
+                if (! object.getProperty(context.rt, "offset").isUndefined() && (frame.offset < 0 || frame.offset > 1))
+                    bind::throwTypeError(context, "animation.offset: expected a number within [0,1]");
+                frame.easing = static_cast<Easing>(choice(object, "easing", easings));
+                metadata = metadata || ! object.getProperty(context.rt, "offset").isUndefined()
+                           || ! object.getProperty(context.rt, "easing").isUndefined();
+                if (frame.value.count != 0)
+                {
+                    Presentation merged = frame.value;
+                    mergeTransformOrder(merged, order);
+                    order = merged;
+                }
+                parsed.push_back(frame);
+            }
+            if (frameCount == 1)
+            {
+                if (parsed.front().offset != -1 && parsed.front().offset != 1)
+                    bind::throwTypeError(context, "animate: a single target has offset 1");
+                description.to = parsed.front().value;
+            }
+            else
+            {
+                if (parsed.front().offset == -1)
+                    parsed.front().offset = 0;
+                if (parsed.back().offset == -1)
+                    parsed.back().offset = 1;
+                std::size_t anchor = 0;
+                for (std::size_t i = 1; i < frameCount; ++i)
+                {
+                    if (parsed[i].offset == -1)
+                        continue;
+                    if (parsed[i].offset < parsed[anchor].offset)
+                        bind::throwTypeError(context, "animation offsets must be nondecreasing");
+                    for (std::size_t j = anchor + 1; j < i; ++j)
+                        parsed[j].offset = parsed[anchor].offset
+                                           + (parsed[i].offset - parsed[anchor].offset)
+                                                 * static_cast<double>(j - anchor) / static_cast<double>(i - anchor);
+                    anchor = i;
+                }
+                description.from = parsed.front().value;
+                description.to = parsed.back().value;
+                if (metadata)
+                {
+                    // Only authored properties enter each track. A missing
+                    // property in an intermediate frame does not split its easing.
+                    const Presentation base = surface.presentation(node);
+                    if (parsed.front().offset > 0)
+                        description.from = base;
+                    if ((parsed.front().properties & transformPropertyMask) == 0)
+                    {
+                        description.from->order = base.order;
+                        description.from->count = base.count;
+                    }
+                    for (std::size_t i = 0; i < animatedPropertyCount; ++i)
+                        if ((parsed.front().properties & (PropertyMask { 1 } << i)) == 0)
+                            description.from->values[i] = base.values[i];
+                    for (std::size_t color = 0; color < 2; ++color)
+                        if ((parsed.front().properties & (propertyBit(AnimatedProperty::BackgroundColor) << color))
+                            == 0)
+                            description.from->colors[color] = base.colors[color];
+                    description.to.order = order.order;
+                    description.to.count = order.count;
+                    description.keyframes = std::move(parsed);
+                }
+            }
+            return description;
+        }
+
         jsi::Value animate(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(
-                context, "animate", count, 3,
-                [&](Surface& surface)
-                {
-                    if (! args[1].isObject() || ! args[1].getObject(context.rt).isArray(context.rt))
-                        bind::throwTypeError(context, "animate: keyframes must be an array");
-                    const auto frames = args[1].getObject(context.rt).getArray(context.rt);
-                    if (frames.size(context.rt) < 1 || frames.size(context.rt) > 2)
-                        bind::throwTypeError(context, "animate: timing animations require one target or two keyframes");
-                    AnimationDescription description;
-                    const auto readFrame = [&](const jsi::Value& frame)
-                    {
-                        const auto object = bind::expectObject(context, frame, bind::Path { "animation keyframe" });
-                        const Style style = StyleReader(context, object).read();
-                        Presentation value = style.transform;
-                        value[AnimatedProperty::Opacity] = style.opacity;
-                        if (! object.getProperty(context.rt, "opacity").isUndefined())
-                            description.properties |= propertyBit(AnimatedProperty::Opacity);
-                        if (! object.getProperty(context.rt, "transform").isUndefined())
-                            description.properties |= ((PropertyMask { 1 } << animatedPropertyCount) - 1)
-                                                      & ~propertyBit(AnimatedProperty::Opacity);
-                        return value;
-                    };
-                    if (frames.size(context.rt) == 2)
-                        description.from = readFrame(frames.getValueAtIndex(context.rt, 0));
-                    description.to = readFrame(frames.getValueAtIndex(context.rt, frames.size(context.rt) - 1));
-                    if (description.from && description.from->count != 0
-                        && description.from->order != description.to.order)
-                        bind::throwTypeError(context,
-                                             "animate: transform entries must use the same order in both keyframes");
-                    const auto options = bind::expectObject(context, args[2], bind::Path { "animation options" });
-                    const auto number = [&](const char* key, double fallback)
-                    {
-                        const auto value = options.getProperty(context.rt, key);
-                        if (value.isUndefined())
-                            return fallback;
-                        if (! value.isNumber() || ! std::isfinite(value.getNumber()))
-                            bind::throwTypeError(context,
-                                                 std::string("animation.") + key + ": expected a finite number");
-                        return value.getNumber();
-                    };
-                    description.timing.duration = number("duration", 300);
-                    description.timing.delay = number("delay", 0);
-                    const auto choice = [&](const char* key, std::span<const std::string_view> values)
-                    {
-                        const auto value = options.getProperty(context.rt, key);
-                        if (value.isUndefined())
-                            return std::size_t { 0 };
-                        if (! value.isString())
-                            bind::throwTypeError(context, std::string("animation.") + key + ": unsupported value");
-                        const auto text = value.getString(context.rt).utf8(context.rt);
-                        const auto found = std::ranges::find(values, text);
-                        if (found == values.end())
-                            bind::throwTypeError(context,
-                                                 std::string("animation.") + key + ": unsupported value " + text);
-                        return static_cast<std::size_t>(found - values.begin());
-                    };
-                    static constexpr std::array<std::string_view, 5> easings { "linear", "ease", "ease-in", "ease-out",
-                                                                               "ease-in-out" };
-                    static constexpr std::array<std::string_view, 4> fills { "none", "backwards", "forwards", "both" };
-                    description.timing.easing = static_cast<Easing>(choice("easing", easings));
-                    description.timing.fill = static_cast<Fill>(choice("fill", fills));
-                    return jsi::Value(double(surface.animations().animate(readId(args[0]), description)));
-                });
+            return call(context, "animate", count, 3,
+                        [&](Surface& surface)
+                        {
+                            std::size_t phases = 0;
+                            const auto description = readAnimationDescription(context, surface, readId(args[0]),
+                                                                              args[1], args[2], 0, phases);
+                            return jsi::Value(double(surface.animations().animate(readId(args[0]), description)));
+                        });
         }
 
         jsi::Value animationControl(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
@@ -989,6 +1143,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     }
                     else if (command == "finish")
                         animations.finish(id);
+                    else if (command == "seek")
+                    {
+                        bind::expectArgumentCount(context, "animation seek", count, 3);
+                        if (! args[2].isNumber())
+                            bind::throwTypeError(context, "animation currentTime must be a number");
+                        animations.seek(id, args[2].getNumber());
+                    }
                     else if (command != "state")
                         bind::throwTypeError(context, "unknown animation control");
                     bind::ObjectBuilder result(context);
@@ -997,6 +1158,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         "playState",
                         bind::write(context, std::string_view(names[static_cast<std::size_t>(animations.state(id))])));
                     result.set("currentTime", jsi::Value(animations.currentTime(id)));
+                    result.set("generation", jsi::Value(double(animations.generation(id))));
                     return result.release();
                 });
         }

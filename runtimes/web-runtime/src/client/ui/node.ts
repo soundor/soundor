@@ -24,7 +24,12 @@ import {
 import { eventParent, TreeEventTarget } from './events';
 import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
 import type { Accessibility, LayoutRect, NodeType, Style } from './types';
-import type { AnimationKeyframe, AnimationOptions, UiAnimation } from './types';
+import type {
+  AnimationKeyframe,
+  AnimationOptions,
+  AnimationDescription,
+  UiAnimation,
+} from './types';
 
 export interface ViewLink {
   readonly animations: AnimationController;
@@ -635,10 +640,23 @@ export class UiNode extends TreeEventTarget {
 
   /** The laid-out box relative to the view (zero when not connected). */
   animate(
-    keyframes: readonly AnimationKeyframe[],
+    keyframes: readonly AnimationKeyframe[] | AnimationDescription,
     options?: AnimationOptions,
   ): UiAnimation {
-    return this.#view.animations.create(this.#element, keyframes, options);
+    return Array.isArray(keyframes)
+      ? this.#view.animations.create(this.#element, keyframes, options)
+      : this.#view.animations.createProgram(
+          this.#element,
+          keyframes as AnimationDescription,
+          options,
+        );
+  }
+
+  /** @internal Targets cannot cross runtime/view ownership. */
+  animationElement(controller: AnimationController): HTMLElement {
+    if (controller !== this.#view.animations)
+      throw new TypeError('animation target belongs to another view');
+    return this.#element;
   }
 
   getBoundingClientRect(): LayoutRect {

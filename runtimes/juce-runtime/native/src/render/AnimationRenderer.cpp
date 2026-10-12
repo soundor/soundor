@@ -43,7 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         bool isolated(const ui::Node& node, const gpu::Device* device)
         {
             const ui::Style& style = node.presentedStyle();
-            return node.hasPresentation() || style.transform.count != 0 || style.opacity < 1
+            return node.hasCompositorPresentation() || style.transform.count != 0 || style.opacity < 1
                    || style.overflow != ui::Overflow::Visible || node.type() == ui::NodeType::Scroll
                    || gpuCanvas(node, device);
         }
@@ -58,7 +58,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
     bool AnimationRenderer::needed(const ui::Node& node)
     {
-        if (node.hasPresentation() || node.style().transform.count != 0)
+        if (node.hasCompositorPresentation() || node.style().transform.count != 0)
             return true;
         return std::ranges::any_of(node.children(), [](const ui::Node* child) { return needed(*child); });
     }

@@ -113,6 +113,7 @@ interface Phase {
   fps: number;
   frameMs: Distribution;
   tickMs: Distribution;
+  allTickMs?: Distribution;
   buildMs: Distribution;
   compositeMs: Distribution;
   layersRasterized: number;
@@ -120,6 +121,7 @@ interface Phase {
   bytesUploaded: number;
   textureAllocations: number;
   cachedRasterBytesMax?: number;
+  animationStorageBytesAtStart?: number;
   tickSteps?: { nativeAnimations?: number };
   nativeCalls: { ui: NativeCalls; canvas: NativeCalls; webgl: NativeCalls };
   surface: {
@@ -173,6 +175,9 @@ const MEASURES = {
   frameMax: { label: 'max', timing: true, compare: true },
   frameDeviation: { label: 'stddev', timing: true, compare: true },
   tick: { label: 'tick', timing: true, compare: true },
+  allTick: { label: 'all tick ms', timing: true, compare: true },
+  allTickP95: { label: 'all tick p95', timing: true, compare: true },
+  allTickP99: { label: 'all tick p99', timing: true, compare: true },
   build: { label: 'build', timing: true, compare: true },
   composite: { label: 'composite', timing: true, compare: true },
   script: { label: 'JS', timing: true, compare: true },
@@ -180,6 +185,11 @@ const MEASURES = {
   render: { label: 'render', timing: true, compare: true },
   nativeMs: { label: 'native calls', timing: true, compare: true },
   layoutMs: { label: 'layout', timing: true, compare: true },
+  animationStorageKiB: {
+    label: 'animation owned storage KiB',
+    timing: false,
+    compare: false,
+  },
   animationMs: { label: 'native animation ms', timing: true, compare: true },
   cachedRasterKB: { label: 'cached raster KB', timing: false, compare: true },
   // A tick that renders nothing (a UI that does not change), per such tick.
@@ -368,6 +378,9 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     frameMax: phase.frameMs.max,
     frameDeviation: phase.frameMs.standardDeviation ?? NaN,
     tick: phase.tickMs.mean,
+    allTick: phase.allTickMs?.mean ?? NaN,
+    allTickP95: phase.allTickMs?.p95 ?? NaN,
+    allTickP99: phase.allTickMs?.p99 ?? NaN,
     build: phase.buildMs.mean,
     composite: phase.compositeMs.mean,
     script: scenario?.scriptAverage ?? 0,
@@ -376,6 +389,7 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     nativeMs: calls.ui.ms + calls.canvas.ms + calls.webgl.ms,
     layoutMs: phase.surface.layoutMs,
     animationMs: phase.tickSteps?.nativeAnimations ?? NaN,
+    animationStorageKiB: (phase.animationStorageBytesAtStart ?? NaN) / 1024,
     cachedRasterKB: (phase.cachedRasterBytesMax ?? NaN) / 1024,
     idleTick: phase.idleTickMs,
     fps: phase.fps,

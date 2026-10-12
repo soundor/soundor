@@ -47,6 +47,269 @@ namespace
 
 TEST_SUITE("native animations")
 {
+    TEST_CASE("sequence origins honor a preceding reversed group's endpoint and retain storage")
+    {
+        Fixture f;
+        AnimationDescription reversed;
+        reversed.composition = Composition::Sequence;
+        reversed.children = { f.opacity(0) };
+        reversed.timing.direction = Direction::Reverse;
+        AnimationDescription sequence;
+        sequence.composition = Composition::Sequence;
+        sequence.children = { reversed, f.opacity(0) };
+        sequence.timing.fill = Fill::Forwards;
+        f.surface.animations().animate(f.node, sequence);
+        const auto storage = f.surface.animations().storageBytes();
+        CHECK(storage > 0);
+        f.advance(150);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        CHECK(f.surface.animations().storageBytes() == storage);
+    }
+
+    TEST_CASE("native sequence phases hold endpoints and emit only one overall completion")
+    {
+        Fixture f;
+        AnimationDescription sequence;
+        sequence.composition = Composition::Sequence;
+        sequence.children = { f.opacity(0), f.opacity(1) };
+        sequence.timing.fill = Fill::Forwards;
+        const auto id = f.surface.animations().animate(f.node, sequence);
+        CHECK(f.surface.animations().size() == 1);
+        f.advance(50);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        f.advance(100);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 0);
+        CHECK(f.surface.animations().completions().empty());
+        f.advance(150);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        f.advance(200);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Finished);
+        CHECK(f.surface.animations().completions().size() == 1);
+        f.surface.animations().seek(id, 50);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        CHECK(f.surface.animations().state(id) == PlaybackState::Paused);
+    }
+
+    TEST_CASE("parallel and stagger own multiple nodes and interrupt atomically")
+    {
+        Fixture f;
+        const NodeId second = f.surface.createNode(NodeType::View);
+        f.surface.insertChild(f.surface.root().id(), second);
+        auto other = f.opacity(0);
+        other.targetNode = second;
+        AnimationDescription group;
+        group.composition = Composition::Stagger;
+        group.stagger = 50;
+        group.children = { f.opacity(0), other };
+        group.timing.fill = Fill::Forwards;
+        const auto id = f.surface.animations().animate(f.node, group);
+        f.advance(25);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.75));
+        CHECK(f.surface.presentation(second)[AnimatedProperty::Opacity] == 1);
+        f.advance(75);
+        CHECK(f.surface.presentation(second)[AnimatedProperty::Opacity] == doctest::Approx(0.75));
+        f.surface.animations().animate(second, f.opacity(1));
+        CHECK(f.surface.animations().state(id) == PlaybackState::Cancelled);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 1);
+        CHECK(f.surface.presentation(second)[AnimatedProperty::Opacity] == doctest::Approx(0.75));
+        CHECK(f.surface.animations().size() == 1);
+    }
+
+    TEST_CASE("destroying a composed target cancels the entire native program")
+    {
+        Fixture f;
+        const NodeId second = f.surface.createNode(NodeType::View);
+        f.surface.insertChild(f.surface.root().id(), second);
+        auto other = f.opacity(0);
+        other.targetNode = second;
+        AnimationDescription group;
+        group.composition = Composition::Parallel;
+        group.children = { f.opacity(0), other };
+        const auto id = f.surface.animations().animate(f.node, group);
+        f.advance(50);
+        f.surface.removeChild(f.surface.root().id(), second);
+        f.surface.releaseNode(second);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Cancelled);
+        CHECK(f.surface.animations().size() == 0);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 1);
+    }
+
+    TEST_CASE("parallel conflicts reject without cancelling an existing animation")
+    {
+        Fixture f;
+        const auto previous = f.surface.animations().animate(f.node, f.opacity(0));
+        AnimationDescription invalid;
+        invalid.composition = Composition::Parallel;
+        invalid.children = { f.opacity(0), f.opacity(1) };
+        CHECK_THROWS_AS(f.surface.animations().animate(f.node, invalid), std::invalid_argument);
+        CHECK(f.surface.animations().state(previous) == PlaybackState::Running);
+        CHECK(f.surface.animations().size() == 1);
+    }
+
+    TEST_CASE("repeat reverse and standalone delay phases run inside the existing timeline")
+    {
+        Fixture f;
+        AnimationDescription wait;
+        wait.composition = Composition::Delay;
+        wait.timing.duration = 50;
+        AnimationDescription sequence;
+        sequence.composition = Composition::Sequence;
+        sequence.children = { wait, f.opacity(0), f.opacity(1) };
+        sequence.timing.iterations = 2;
+        sequence.timing.direction = Direction::Alternate;
+        sequence.timing.fill = Fill::Forwards;
+        const auto id = f.surface.animations().animate(f.node, sequence);
+        f.advance(25);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 1);
+        f.advance(100);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        f.advance(350);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0));
+        f.advance(500);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Finished);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 1);
+    }
+
+    TEST_CASE("keyframes use property-specific offsets and per-segment easing")
+    {
+        Fixture f;
+        auto description = f.opacity(0);
+        Keyframe start, middle, end;
+        start.properties = end.properties = propertyBit(AnimatedProperty::Opacity);
+        start.value[AnimatedProperty::Opacity] = 0;
+        end.value[AnimatedProperty::Opacity] = 1;
+        start.offset = 0;
+        middle.offset = 0.5;
+        end.offset = 1;
+        start.easing = Easing::EaseIn;
+        description.from = start.value;
+        description.to = end.value;
+        description.keyframes = { start, middle, end };
+        f.surface.animations().animate(f.node, description);
+        f.advance(25);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity]
+              == doctest::Approx(AnimationTimeline::ease(Easing::EaseIn, 0.25)));
+        f.advance(50);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity]
+              == doctest::Approx(AnimationTimeline::ease(Easing::EaseIn, 0.5)));
+    }
+
+    TEST_CASE("alternate repetition and paused seeking remain entirely native")
+    {
+        Fixture f;
+        auto description = f.opacity(0);
+        description.timing.iterations = 3;
+        description.timing.direction = Direction::Alternate;
+        const auto id = f.surface.animations().animate(f.node, description);
+        f.advance(150);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        CHECK(f.surface.animations().state(id) == PlaybackState::Running);
+        f.surface.animations().pause(id);
+        f.surface.animations().seek(id, 225);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Paused);
+        CHECK(f.surface.animations().currentTime(id) == 225);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.75));
+        f.surface.animations().seek(id, 300);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Finished);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 0);
+        f.surface.animations().seek(id, 50);
+        CHECK(f.surface.animations().generation(id) == 1);
+        CHECK(f.surface.animations().state(id) == PlaybackState::Paused);
+    }
+
+    TEST_CASE("fractional and infinite iterations define final values and completion")
+    {
+        Fixture f;
+        auto description = f.opacity(0);
+        description.timing.iterations = 1.5;
+        const auto fractional = f.surface.animations().animate(f.node, description);
+        f.advance(150);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(0.5));
+        CHECK(f.surface.animations().state(fractional) == PlaybackState::Finished);
+        description.timing.iterations = std::numeric_limits<double>::infinity();
+        description.timing.direction = Direction::Alternate;
+        const auto infinite = f.surface.animations().animate(f.node, description);
+        f.advance(10200);
+        CHECK(f.surface.animations().state(infinite) == PlaybackState::Running);
+        CHECK_THROWS_AS(f.surface.animations().finish(infinite), std::invalid_argument);
+        f.surface.animations().setReducedMotion(true);
+        CHECK(f.surface.animations().state(infinite) == PlaybackState::Finished);
+    }
+
+    TEST_CASE("paint overrides interpolate straight sRGB channels and invalidate raster content without Yoga")
+    {
+        Fixture f;
+        Style base = f.surface.find(f.node)->style();
+        base.backgroundColor = { 255, 0, 0, 255 };
+        base.borderColor = { 0, 0, 0, 255 };
+        f.surface.setStyle(f.node, base);
+        f.surface.layout();
+        const auto layouts = f.surface.statistics().layoutPasses;
+        AnimationDescription description;
+        description.properties = paintPropertyMask;
+        description.to.colors = { std::array<float, 4> { 0, 0, 1, 0.5f }, { 1, 1, 1, 1 } };
+        description.timing.duration = 100;
+        description.timing.fill = Fill::Forwards;
+        const auto id = f.surface.animations().animate(f.node, description);
+        f.advance(50);
+        const auto* node = f.surface.find(f.node);
+        CHECK(node->presentedStyle().backgroundColor == Color { 128, 0, 128, 191 });
+        CHECK(node->presentedStyle().borderColor == Color { 128, 128, 128, 255 });
+        CHECK(node->style().backgroundColor == base.backgroundColor);
+        CHECK_FALSE(node->hasCompositorPresentation());
+        CHECK(f.surface.statistics().layoutPasses == layouts);
+        base.backgroundColor = { 0, 255, 0, 255 };
+        f.surface.setStyle(f.node, base);
+        CHECK(node->presentedStyle().backgroundColor == Color { 128, 0, 128, 191 });
+        f.surface.animations().cancel(id);
+        CHECK(node->presentedStyle().backgroundColor == base.backgroundColor);
+    }
+
+    TEST_CASE("spring responses cover all damping regimes and preserve the analytic initial state")
+    {
+        SpringParameters spring;
+        for (const double damping : { 10., 20., 40. })
+        {
+            spring.damping = damping;
+            const auto initial = sampleSpring(spring, 0, 0, 1, 2);
+            CHECK(initial.position == 0);
+            CHECK(initial.velocity == 2);
+            const auto settled = sampleSpring(spring, 20, 0, 1, 2);
+            CHECK(settled.position == doctest::Approx(1));
+            CHECK(settled.velocity == doctest::Approx(0).epsilon(1e-8));
+            const auto whole = sampleSpring(spring, 0.2, 0, 1, 2);
+            const auto half = sampleSpring(spring, 0.1, 0, 1, 2);
+            const auto stepped = sampleSpring(spring, 0.1, half.position, 1, half.velocity);
+            CHECK(stepped.position == doctest::Approx(whole.position));
+            CHECK(stepped.velocity == doctest::Approx(whole.velocity));
+        }
+        spring.damping = 0;
+        CHECK_THROWS_AS(validateSpring(spring), std::invalid_argument);
+    }
+
+    TEST_CASE("spring retargeting retains position and velocity without changing application style")
+    {
+        Fixture f;
+        auto description = f.opacity(0);
+        description.spring = SpringParameters {};
+        const auto first = f.surface.animations().animate(f.node, description);
+        f.advance(50);
+        const float position = f.surface.presentation(f.node)[AnimatedProperty::Opacity];
+        const auto expected = sampleSpring(*description.spring, 0.05, 1, 0, 0);
+        CHECK(position == doctest::Approx(expected.position));
+        description.to[AnimatedProperty::Opacity] = 1;
+        const auto second = f.surface.animations().animate(f.node, description);
+        CHECK(f.surface.animations().state(first) == PlaybackState::Cancelled);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == position);
+        f.advance(51);
+        const auto retargeted = sampleSpring(*description.spring, 0.001, position, 1, expected.velocity);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == doctest::Approx(retargeted.position));
+        CHECK(f.surface.find(f.node)->style().opacity == 1);
+        f.advance(10000);
+        CHECK(f.surface.animations().state(second) == PlaybackState::Finished);
+        CHECK(f.surface.presentation(f.node)[AnimatedProperty::Opacity] == 1);
+    }
+
     TEST_CASE("delay, fill and interpolation never mutate base style or invoke Yoga")
     {
         Fixture f;

@@ -253,3 +253,53 @@ from the saved runner remain unavailable. Cache bytes exclude composition target
 GPU physical memory and allocator overhead; uncapped throughput is not display FPS.
 
 Recorded PR 1 measurements and tradeoffs: [native timing comparison](reports/native-timing.md).
+
+## Advanced animation workloads
+
+The `advanced-animation` group extends the same Hermes-bytecode, fixed-step
+Release runner. It is hidden from the toolbar so the PR 0/1 surrounding UI and
+node counts remain unchanged. Each JS/native pair has identical nodes, endpoints,
+physics, duration, viewport and background content. The group includes 50/500
+springs, 400 ms spring interruption/retargeting, parallel opacity/transforms,
+native repetition, four keyframes, paint colors, and 1000-phase sequences on
+1/50 nodes (20 ms per phase). The JS spring reference uses the same analytic
+solution and settling thresholds as the browser/native implementation; there
+is no DSP work.
+
+```sh
+pnpm --filter soundor-benchmark bench --only advanced-animation --backend opengl --save advanced-js
+pnpm --filter soundor-benchmark bench --only advanced-animation --animations native --backend opengl --against advanced-js --save advanced-native
+pnpm --filter soundor-benchmark bench --only animation --animations native --backend opengl --against native-timing
+pnpm --filter soundor-benchmark bench --only ui,canvas --backend opengl --against native-timing
+```
+
+Preserve saved `hermes-animation` and `native-timing` builds. Their runner,
+bytecode and matching compiler/runtime metadata are retained; comparisons run
+baseline and candidate alternately in the same session. New `allTickMs`
+(mean/P95/P99) includes idle ticks, which matter when an opacity spring overshoots
+and clamps at one. Existing frame distributions describe rendered frames;
+`frames + idleTicks` accounts for every measured tick. Work-per-rendered-frame
+counts retain the existing format and can include preceding idle-tick work.
+Do not interpret a clamped plateau as a missing measurement or display FPS.
+
+`animationStorageBytesAtStart` queries C++ record and owned vector capacity once
+after warmup, outside timed frames. It includes compiled phases, copied
+keyframes, per-property tracks, target snapshots and playback vectors. It
+excludes allocator metadata, hash-table bucket/node overhead, source-code/JS
+objects, raster caches and physical GPU memory, and is an estimate of owned
+storage rather than RSS or a high-water mark. The query adds no production
+per-frame work. Deterministic sequence tests check unchanged owned capacity
+across phase transitions; there is no general heap-allocation profiler in this
+runner. Forward transitions only finalize departed phases; reverse/seek/repeat
+can reconstruct preceding endpoints. Long sequences therefore use more setup
+memory and can do more native work than a simple timing animation.
+
+Paint uses the ordinary damage/raster/upload path. Opacity/transforms retain
+cached content, and their intermediate native frames have no UI bridge calls,
+style mutations, Yoga passes, rasterizations or texture uploads. Retargeting
+submits only on each 400 ms target change. CPU-side compositor time is measured;
+GPU execution time, process RSS and GPU VRAM are not. Native timings and
+regressions must be read alongside sample counts, idle ticks and work counts.
+
+The [recorded advanced results](reports/advanced-native.md) include matched Hermes
+comparisons, P95/P99, storage estimates and rendering/kernel regressions.

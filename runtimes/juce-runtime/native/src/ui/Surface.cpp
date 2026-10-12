@@ -445,11 +445,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             const float opacity = node.visualStyle.opacity;
             const Presentation transform = node.visualStyle.transform;
+            const Color background = node.visualStyle.backgroundColor;
+            const Color border = node.visualStyle.borderColor;
             node.visualStyle = style;
             if ((node.presentationMask & propertyBit(AnimatedProperty::Opacity)) != 0)
                 node.visualStyle.opacity = opacity;
-            if ((node.presentationMask & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+            if ((node.presentationMask & transformPropertyMask) != 0)
                 node.visualStyle.transform = transform;
+            if ((node.presentationMask & propertyBit(AnimatedProperty::BackgroundColor)) != 0)
+                node.visualStyle.backgroundColor = background;
+            if ((node.presentationMask & propertyBit(AnimatedProperty::BorderColor)) != 0)
+                node.visualStyle.borderColor = border;
         }
         // Only what decides sizes and positions goes to Yoga; a change that
         // only looks different (a color, opacity) is drawn, not laid out.
@@ -736,6 +742,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Style& style = node.presentedStyle();
         Presentation result = style.transform;
         result[AnimatedProperty::Opacity] = style.opacity;
+        const auto channels = [](Color color)
+        {
+            return std::array<float, 4> { static_cast<float>(color.r) / 255.0f, static_cast<float>(color.g) / 255.0f,
+                                          static_cast<float>(color.b) / 255.0f, static_cast<float>(color.a) / 255.0f };
+        };
+        result.colors[0] = channels(style.backgroundColor);
+        result.colors[1] = channels(style.borderColor);
         return result;
     }
 
@@ -747,7 +760,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             node.visualStyle = node.nodeStyle;
         if ((properties & propertyBit(AnimatedProperty::Opacity)) != 0)
             node.visualStyle.opacity = std::clamp(value[AnimatedProperty::Opacity], 0.0f, 1.0f);
-        if ((properties & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+        if ((properties & transformPropertyMask) != 0)
         {
             node.visualStyle.transform.order = value.order;
             node.visualStyle.transform.count = value.count;
@@ -755,11 +768,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 if ((properties & (PropertyMask { 1 } << i)) != 0)
                     node.visualStyle.transform.values[i] = value.values[i];
         }
+        const auto color = [](const std::array<float, 4>& channels)
+        {
+            const auto byte = [](float channel)
+            { return static_cast<std::uint8_t>(std::round(std::clamp(channel, 0.0f, 1.0f) * 255)); };
+            return Color { byte(channels[0]), byte(channels[1]), byte(channels[2]), byte(channels[3]) };
+        };
+        if ((properties & propertyBit(AnimatedProperty::BackgroundColor)) != 0)
+            node.visualStyle.backgroundColor = color(value.colors[0]);
+        if ((properties & propertyBit(AnimatedProperty::BorderColor)) != 0)
+            node.visualStyle.borderColor = color(value.colors[1]);
         const bool isolated = node.presentationMask == 0;
         node.presentationMask |= properties;
-        if (isolated)
+        const Presentation after = presentation(id);
+        const bool paintChanged = before.colors != after.colors && (properties & paintPropertyMask) != 0;
+        if (isolated || paintChanged)
             markChanged(node); // establish cached content once
-        else if (before != presentation(id))
+        else if (before != after)
             markChanged(); // placement only
     }
 
@@ -771,8 +796,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         node.presentationMask &= ~properties;
         if ((properties & propertyBit(AnimatedProperty::Opacity)) != 0)
             node.visualStyle.opacity = node.nodeStyle.opacity;
-        if ((properties & ~propertyBit(AnimatedProperty::Opacity)) != 0)
+        if ((properties & transformPropertyMask) != 0)
             node.visualStyle.transform = node.nodeStyle.transform;
+        if ((properties & propertyBit(AnimatedProperty::BackgroundColor)) != 0)
+            node.visualStyle.backgroundColor = node.nodeStyle.backgroundColor;
+        if ((properties & propertyBit(AnimatedProperty::BorderColor)) != 0)
+            node.visualStyle.borderColor = node.nodeStyle.borderColor;
         markChanged(node);
     }
 

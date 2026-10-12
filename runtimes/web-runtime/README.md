@@ -413,5 +413,110 @@ read back WebGL. Transformed bitmap edges can differ slightly from rerasterizing
 vector edges. Reported `cachedRasterBytesMax` counts CPU source pixels only;
 it is not process RSS, interpreter heap size or physical GPU memory.
 
-Springs, composition, multiple keyframes, seeking, iterations and paint animation
-are planned as the next extension. General layout animation is outside this API.
+## Advanced animations
+
+The same timeline and handle support springs, multiple keyframes, repetition,
+seeking, composition and paint. Application base style remains independent of
+presentation; cancellation restores the latest base style.
+
+```ts
+import {
+  animate,
+  effect,
+  sequence,
+  parallel,
+  stagger,
+  delay,
+  repeat,
+} from 'soundor:ui';
+
+const spring = view.animate([{ transform: [{ scale: 0.95 }] }], {
+  type: 'spring',
+  stiffness: 300,
+  damping: 25,
+  mass: 1,
+  fill: 'forwards',
+});
+const program = animate(
+  sequence(
+    [
+      parallel([
+        effect(panel, [{ opacity: 1 }], { duration: 200 }),
+        effect(meter, [{ transform: [{ scaleY: 1 }] }], { duration: 200 }),
+      ]),
+      delay(100),
+      stagger(
+        30,
+        controls.map((control) => effect(control, [{ opacity: 0.5 }])),
+      ),
+    ],
+    { fill: 'forwards' },
+  ),
+);
+program.pause();
+program.currentTime = 150; // milliseconds from the start, including delay
+program.resume();
+await program.finished;
+```
+
+Spring defaults are stiffness 100, damping 10, mass 1, initial velocity 0,
+rest displacement 0.001 and rest velocity 0.001. Stiffness/mass/thresholds must
+be positive, including damping. Native springs evaluate the analytic
+under-, critically- or overdamped solution at absolute monotonic time; they
+have no integration-step drift. The duration is a conservative bound at which
+both displacement and velocity envelopes meet their thresholds. A zero-damping
+spring cannot settle and is rejected. Duration/easing options do not override
+spring physics. Springs animate numeric opacity/transforms only. A single target
+retargets from current presentation and preserves the interrupted spring's
+velocity, in property units per second; explicit endpoints start with the
+specified initial velocity. Clamped opacity can conceal spring overshoot.
+
+`iterations` defaults to 1 and accepts zero, fractional counts or `Infinity`.
+`direction` is `normal`, `reverse`, `alternate` or `alternate-reverse`.
+`finish()` rejects an infinite animation; cancellation always works. Reduced
+motion finishes one cycle of infinite effects, including phases after delays.
+`currentTime` is writable, finite and nonnegative. Seeking a finished effect
+backwards pauses it and creates a new completion promise; replay does likewise.
+A retained promise for the prior run still settles independently.
+
+Keyframes accept `offset` in [0,1] and per-segment standard `easing`. Offsets
+must be nondecreasing; missing offsets are distributed between anchors. Missing
+properties do not split another property's interpolation track. An origin
+missing at offset zero comes from current presentation; the last authored
+value is held through offset one. Transforms preserve relative operation order,
+inserting identity values for absent operations. Keyframes are limited to 4096;
+spring effects accept only an origin and target.
+
+`sequence`, `parallel`, `stagger`, `delay` and `repeat` build descriptions once.
+An effect can name a node target, or inherit the node passed to `node.animate()`.
+`animate(description)` uses the view root as the default target. The native
+program owns phase progression, repeats and all targets without internal JS
+callbacks. Sequence origins capture preceding final values. Parallel/stagger
+children must own disjoint properties on each target; opacity, the entire
+transform list, background color and border color are separate ownership groups.
+A conflicting animation or destruction of any target cancels the whole program
+and restores its other targets. One completion promise covers the entire program;
+child fill settings do not override the program's root fill behavior. Infinite
+sequence phases must be last; a composition of infinite children requires normal
+direction and one outer iteration. Descriptions are bounded to depth 64 and
+16384 phases. Targets cannot cross runtime/view ownership.
+
+Timing paint effects support `backgroundColor` and `borderColor`. Native colors
+interpolate straight sRGB red/green/blue/alpha channels, then round to eight-bit
+channels; interpolation is neither linear-light nor premultiplied. Paint uses
+existing damage tracking and repaints/uploads affected content. It is not a
+compositor-only optimization and does not animate Yoga layout.
+
+Browser timing/keyframes use Web Animations directly. Springs are sampled once
+at up to 240 Hz (4096 points maximum) and submitted as a native browser curve.
+Composed programs compile once into per-target Web Animation curves at up to
+240 Hz (16384 points per curve, one million points per segment across targets).
+Long curves use coarser sampling; phase boundaries and nonlinear easing may
+differ slightly from native evaluation. Browser spring retargeting uses analytic
+velocity for simple effects and sampled curve velocity for composed effects.
+An infinite program uses a finite prefix and a repeating common period, with
+microsecond period quantization; common periods beyond one hour are rejected.
+Composition colors use straight sRGB; direct browser paint interpolation follows
+browser CSS color semantics, which can differ for transparency or wide-gamut
+colors. No browser animation executes a JavaScript frame loop or invokes JS for
+an internal phase transition. Browser completion promises remain asynchronous.

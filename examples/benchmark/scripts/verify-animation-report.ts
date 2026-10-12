@@ -8,7 +8,14 @@ assert.equal(report.environment.build.execution, 'hermes-bytecode');
 assert.match(report.environment.build.hermesRevision, /^[a-f0-9]{40}$/);
 for (const run of report.runs) {
   assert.equal(run.outcome, 'ok');
-  assert.ok(run.value.length === 13 || run.value.length === 16);
+  const advanced = run.value.every((result: { scenario: string }) =>
+    result.scenario.startsWith('advanced:'),
+  );
+  assert.ok(
+    advanced
+      ? run.value.length === 14
+      : run.value.length === 13 || run.value.length === 16,
+  );
   for (const result of run.value)
     assert.equal(result.frames, report.config.frames);
   for (const phase of run.phases) {
@@ -21,28 +28,34 @@ for (const run of report.runs) {
       assert.equal(phase.idleTicks, report.config.frames);
       continue;
     }
-    assert.equal(phase.frames, report.config.frames, phase.name);
+    assert.equal(
+      advanced ? phase.frames + phase.idleTicks : phase.frames,
+      report.config.frames,
+      phase.name,
+    );
     const { mean, p50, p95, p99, max, standardDeviation } = phase.frameMs;
     for (const value of [mean, p50, p95, p99, max, standardDeviation])
       assert.ok(Number.isFinite(value) && value >= 0);
     assert.ok(p50 <= p95 && p95 <= p99 && p99 <= max);
-    if (/animation-(opacity|react|transform)-/.test(phase.name)) {
+    if (
+      /animation-(opacity|react|transform)-/.test(phase.name) ||
+      (advanced &&
+        !phase.name.includes(':retarget:') &&
+        !phase.name.includes(':paint:'))
+    ) {
       assert.equal(phase.surface.layoutPasses, 0);
       if (native) {
         assert.equal(phase.layersRasterized, 0, phase.name);
         assert.equal(phase.bytesUploaded, 0, phase.name);
         assert.equal(phase.surface.styleChanges, 0, phase.name);
-        // Only endpoint submissions are allowed; 1 s phases run for >= 6 ticks.
-        if (report.config.frames >= 60)
-          assert.ok(
-            phase.nativeCalls.ui.perFrame <=
-              Number(phase.name.split('-').at(-1)) / 30,
-            phase.name,
-          );
+        assert.equal(phase.nativeCalls.ui.perFrame, 0, phase.name);
       } else
         assert.equal(
           phase.nativeCalls.ui.perFrame,
-          Number(phase.name.split('-').at(-1)),
+          advanced
+            ? Number(phase.name.split(':').at(-1)) *
+                (phase.name.includes(':parallel:') ? 2 : 1)
+            : Number(phase.name.split('-').at(-1)),
         );
     }
   }

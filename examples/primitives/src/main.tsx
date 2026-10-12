@@ -585,12 +585,52 @@ function AnimationDemo() {
   );
 }
 
+function AdvancedAnimationDemo() {
+  const [pressed, setPressed] = useState(false);
+  return (
+    <Card title="Advanced animation">
+      <Pressable
+        onPress={() => setPressed((value) => !value)}
+        accessibilityLabel="Toggle spring"
+      >
+        <Animated.View
+          accessibilityLabel="Spring control"
+          style={{
+            width: 120,
+            height: 48,
+            backgroundColor: '#2fa36b',
+            transform: [{ scale: pressed ? 0.9 : 1 }],
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 25, mass: 1 }}
+        >
+          <Text style={{ color: 'white', padding: 8 }}>Spring</Text>
+        </Animated.View>
+      </Pressable>
+      <Animated.View
+        accessibilityLabel="Repeating paint"
+        style={{ width: 120, height: 24 }}
+        animation={[
+          { backgroundColor: '#204080' },
+          { backgroundColor: '#c08040' },
+        ]}
+        transition={{
+          duration: 1000,
+          iterations: Infinity,
+          direction: 'alternate',
+          fill: 'both',
+        }}
+      />
+    </Card>
+  );
+}
+
 function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Soundor UI primitives</Text>
       <View style={styles.grid}>
         <AnimationDemo />
+        <AdvancedAnimationDemo />
         <Coordinates />
         <Stacking />
         <ContextMenuDemo />

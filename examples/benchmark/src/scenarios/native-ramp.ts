@@ -1,6 +1,6 @@
-import type { AnimationKeyframe, UiAnimation, UiNode } from 'soundor:ui';
+import type { AnimationKeyframe, UiNode } from 'soundor:ui';
 
-/** Same PR 0 ramp. PR 1 uses completion-only submissions; PR 2 can own repetition. */
+/** The unchanged PR 0 ramp, now repeated entirely by the native timeline. */
 export function nativeOpacityRamp(node: UiNode, index: number): () => void {
   return nativeRamp(node, index, (value) => ({ opacity: 0.25 + 0.75 * value }));
 }
@@ -20,23 +20,13 @@ function nativeRamp(
   index: number,
   target: (value: number) => AnimationKeyframe,
 ): () => void {
-  let stopped = false;
-  let handle: UiAnimation | undefined;
-  const run = (up: boolean, duration: number) => {
-    if (stopped) return;
-    handle = node.animate([target(up ? 1 : 0)], {
-      duration,
-      easing: 'linear',
-      fill: 'forwards',
-    });
-    handle.finished.then(
-      () => run(!up, 1000),
-      () => {},
-    );
-  };
-  run(true, (1 - (index % 10) / 10) * 1000);
-  return () => {
-    stopped = true;
-    handle?.cancel();
-  };
+  const handle = node.animate([target(0), target(1)], {
+    duration: 1000,
+    easing: 'linear',
+    fill: 'forwards',
+    iterations: Infinity,
+    direction: 'alternate',
+  });
+  handle.currentTime = (index % 10) * 100;
+  return () => handle.cancel();
 }

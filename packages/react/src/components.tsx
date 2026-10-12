@@ -15,6 +15,8 @@ import {
   type Style,
   type UiNode,
   type AnimationOptions,
+  type AnimationKeyframe,
+  type AnimationDescription,
   type WheelEvent,
 } from 'soundor:ui';
 
@@ -25,7 +27,7 @@ import {
   type AccessibilityProps,
 } from './accessibility';
 import { ScopeContext } from './focus';
-import { TRANSITION_PROP } from './host';
+import { TRANSITION_PROP, ANIMATION_PROP } from './host';
 import { HostTypes, prioritized, SCOPE_PROP } from './host';
 import type { StyleProp } from './style';
 
@@ -76,13 +78,25 @@ export function View(props: ViewProps) {
 }
 
 export type TimingTransition = AnimationOptions & { type?: 'timing' };
+export type SpringTransition = AnimationOptions & { type: 'spring' };
+export type AnimationTransition = TimingTransition | SpringTransition;
 export interface AnimatedViewProps extends ViewProps {
-  transition?: TimingTransition;
+  transition?: AnimationTransition;
+  /** Keyframes or a composed description, submitted when its contents change. */
+  animation?: readonly AnimationKeyframe[] | AnimationDescription;
 }
-function AnimatedView({ transition = {}, ...props }: AnimatedViewProps) {
+function AnimatedView({
+  transition = {},
+  animation,
+  ...props
+}: AnimatedViewProps) {
   return createElement(
     HostTypes.View,
-    useHostProps({ ...props, [TRANSITION_PROP]: transition }),
+    useHostProps({
+      ...props,
+      [TRANSITION_PROP]: transition,
+      [ANIMATION_PROP]: animation,
+    }),
   );
 }
 /** Declarative transitions: only target changes reach the reconciler. */
