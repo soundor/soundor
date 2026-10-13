@@ -474,3 +474,34 @@ mode updates React on intermediate animation frames. Refs retain the underlying
 `UiNode`, whose `animate()` method exposes composition and playback controls.
 See the [animation contract](../../runtimes/juce-runtime/native/README.md#advanced-animations)
 for timing, cancellation, spring physics, paint damage and browser approximation.
+
+## Testing
+
+Install `vitest`, `@soundor/vitest`, `vitest-environment-soundor`, and
+`@soundor/testing-library` as direct development dependencies. Configure
+`plugins: [soundor()]` from `@soundor/vitest` and `test.environment: 'soundor'`.
+Tests run against a simulated Soundor runtime, using the real React reconciler.
+
+```tsx
+import { expect, test, vi } from 'vitest';
+import { render, screen, userEvent } from '@soundor/testing-library/react';
+import { Pressable, Text } from '@soundor/react';
+
+test('activates a control', async () => {
+  const onPress = vi.fn();
+  const user = userEvent.setup();
+  await render(
+    <Pressable onPress={onPress}>
+      <Text>Save</Text>
+    </Pressable>,
+  );
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(onPress).toHaveBeenCalledOnce();
+});
+```
+
+See the [Testing guide](../../docs/testing.md) for installation, configuration,
+queries, mocks, async updates, animation time, and limits. In this repository,
+`pnpm --filter @soundor/react test` runs the private `testing` workspace, which
+owns its direct testing dependencies and keeps the renderer's build independent
+of its test tools.

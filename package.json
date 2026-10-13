@@ -16,8 +16,8 @@
     "lint:fix": "oxlint --fix .",
     "prepare": "husky",
     "release": "pnpm build && pnpm ci:publish",
-    "test": "turbo run test test:native --filter=!./examples/*",
-    "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/*",
+    "test": "turbo run test test:native --filter=!./examples/* --filter=!@soundor/react-tests",
+    "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/* --filter=!@soundor/react-tests",
     "version": "changeset version && pnpm install --lockfile-only"
   },
   "devDependencies": {

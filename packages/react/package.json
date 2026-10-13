@@ -20,15 +20,14 @@
   "scripts": {
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
-    "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test": "pnpm --filter @soundor/react-tests test",
+    "test:watch": "pnpm --filter @soundor/react-tests test:watch"
   },
   "dependencies": {
     "react-reconciler": "catalog:"
   },
   "devDependencies": {
     "@soundor/core": "workspace:^",
-    "@soundor/test-runtime": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",

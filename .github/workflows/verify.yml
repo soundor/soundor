@@ -60,6 +60,15 @@ jobs:
       - name: Run test
         run: set -o pipefail; pnpm run test 2>&1 | tee "$RUNNER_TEMP/step.log"
 
+      - name: Example application tests, types and web builds
+        run: |
+          set -o pipefail
+          {
+            pnpm --filter basic --filter primitives test &&
+            pnpm --filter basic --filter primitives typecheck &&
+            pnpm --filter basic --filter primitives build:web
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+
       - name: Packed Vitest consumer smoke
         run: set -o pipefail; pnpm --filter @soundor/vitest test:consumer 2>&1 | tee "$RUNNER_TEMP/step.log"
 

@@ -5,7 +5,8 @@ for both runtimes. The audio is `basic`'s gain; the UI is the point.
 
 ```text
 soundor.config.ts   identity, the `gain` parameter, both runtimes
-src/main.tsx        the tour (@soundor/react)
+src/main.tsx        mounts src/App.tsx
+src/App.tsx         the tour (@soundor/react)
 runtimes/juce/      JUCE (C++): applies `gain`
 runtimes/web/       Web (TypeScript): applies `gain` with a GainNode
 ```
@@ -36,3 +37,17 @@ pnpm exec soundor build juce   # VST3 and Standalone in .soundor/dist/juce
 ```
 
 JUCE must be installed (see `soundor doctor`).
+
+## Tests
+
+```sh
+pnpm test
+pnpm typecheck
+pnpm build:web
+```
+
+Behavioral tests render the real `App` with `@soundor/testing-library/react`,
+semantic queries, and `userEvent.setup()`. The four testing dependencies are
+explicitly declared. These run against the simulated runtime, with no browser or
+native engine. See the [Testing guide](../../docs/testing.md). Root repository
+checks exclude examples; run these commands explicitly.

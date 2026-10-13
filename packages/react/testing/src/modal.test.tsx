@@ -1,38 +1,44 @@
-import { useState, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
-import { createRoot, flushSync, Modal, Portal, Text, View } from './index';
+import { Modal, Portal, Text, View } from '@soundor/react';
+import { type TestNode } from '@soundor/test-runtime';
 import {
-  fire,
-  focusedNode,
-  overlayRoot,
-  pressKey,
-  reset,
-  type FakeNode,
-} from './testing/fake-ui';
+  render,
+  screen,
+  act as reactAct,
+  fireEvent as fire,
+  userEvent,
+} from '@soundor/testing-library/react';
+import { getTestRuntime } from '@soundor/vitest';
+import { useState, type ReactNode } from 'react';
+import { root, overlayRoot } from 'soundor:ui';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+let user: ReturnType<typeof userEvent.setup>;
+beforeEach(() => {
+  user = userEvent.setup();
+});
+const focusedNode = () => getTestRuntime().focusedNode();
+const pressKey = (key: string, init: Record<string, unknown> = {}) =>
+  fire.keyDown(focusedNode() ?? root, { key, ...init });
 
-let mounted: ReturnType<typeof createRoot> | null = null;
+let mounted: Awaited<ReturnType<typeof render>> | null = null;
 
-function show(element: ReactNode) {
-  mounted ??= createRoot();
-  flushSync(() => mounted!.render(element));
+async function show(element: ReactNode) {
+  if (mounted) await mounted.rerender(element);
+  else mounted = await render(element, { container: root });
 }
 
 afterEach(() => {
-  if (mounted) flushSync(() => mounted!.unmount());
   mounted = null;
-  reset();
   nodes.clear();
 });
 
-const nodes = new Map<string, FakeNode>();
+const nodes = new Map<string, TestNode>();
 
 function Field({ name }: { name: string }) {
   return (
     <View
       focusable
       ref={(node) => {
-        if (node) nodes.set(name, node as unknown as FakeNode);
+        if (node) nodes.set(name, node as unknown as TestNode);
       }}
     />
   );
@@ -45,21 +51,21 @@ function focusedName(): string | null {
   return focusedNode() === null ? null : '?';
 }
 
-const tab = (shiftKey = false) => {
-  pressKey('Tab', { shiftKey });
+const tab = async (shiftKey = false) => {
+  await user.tab({ shift: shiftKey });
   return focusedName();
 };
 
 /** The overlay's entries: [backdrop, content] for a modal. */
-const entries = () => overlayRoot.children as FakeNode[];
-const layers = (entry: FakeNode) => {
-  const [backdrop, content] = entry.children as FakeNode[];
+const entries = () => overlayRoot.children as unknown as TestNode[];
+const layers = (entry: TestNode) => {
+  const [backdrop, content] = entry.children as unknown as TestNode[];
   return { backdrop: backdrop!, content: content! };
 };
 
 describe('Modal', () => {
-  it('is an overlay entry: a full backdrop, then content letting it through', () => {
-    show(
+  it('is an overlay entry: a full backdrop, then content letting it through', async () => {
+    await show(
       <View style={{ zIndex: 2147483647 }}>
         <Modal backdropStyle={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <Text>dialog</Text>
@@ -79,25 +85,33 @@ describe('Modal', () => {
     expect(content.children[0]!.text).toBe('dialog');
   });
 
-  it('shows while visible, and only the caller hides it', () => {
+  it('shows while visible, and only the caller hides it', async () => {
     const onRequestClose = vi.fn<() => void>();
     const app = (visible?: boolean) => (
-      <Modal visible={visible} onRequestClose={onRequestClose}>
+      <Modal
+        accessibilityLabel="Example"
+        visible={visible}
+        onRequestClose={onRequestClose}
+      >
         <Field name="a" />
       </Modal>
     );
-    show(app(false));
+    await show(app(false));
     expect(entries()).toHaveLength(0);
-    show(app(undefined));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await show(app(undefined));
     expect(entries()).toHaveLength(1);
-    pressKey('Escape');
+    expect(screen.getByRole('dialog', { name: 'Example' })).toBeDefined();
+    await user.keyboard('{Escape}');
     expect(onRequestClose).toHaveBeenCalledOnce();
     expect(entries()).toHaveLength(1);
-    show(app(false));
+    expect(screen.getByRole('dialog', { name: 'Example' })).toBeDefined();
+    await show(app(false));
     expect(entries()).toHaveLength(0);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('a backdrop press asks to close only when allowed, and never a content press', () => {
+  it('a backdrop press asks to close only when allowed, and never a content press', async () => {
     const onRequestClose = vi.fn<() => void>();
     const app = (dismissOnBackdropPress: boolean) => (
       <Modal
@@ -107,14 +121,14 @@ describe('Modal', () => {
         <View />
       </Modal>
     );
-    show(app(false));
+    await show(app(false));
     let { backdrop, content } = layers(entries()[0]!);
     fire(backdrop, 'click');
     expect(onRequestClose).not.toHaveBeenCalled();
 
-    show(app(true));
+    await show(app(true));
     ({ backdrop, content } = layers(entries()[0]!));
-    fire(content.children[0] as FakeNode, 'click');
+    fire(content.children[0] as unknown as TestNode, 'click');
     fire(content, 'click');
     expect(onRequestClose).not.toHaveBeenCalled();
     fire(backdrop, 'click');
@@ -123,7 +137,7 @@ describe('Modal', () => {
     expect(fire(backdrop, 'pointerdown').defaultPrevented).toBe(true);
   });
 
-  it('focuses its first control, traps Tab, and gives focus back', () => {
+  it('focuses its first control, traps Tab, and gives focus back', async () => {
     const app = (open: boolean) => (
       <View>
         <Field name="button" />
@@ -137,18 +151,22 @@ describe('Modal', () => {
         <Field name="after" />
       </View>
     );
-    show(app(false));
+    await show(app(false));
     node('button').focus();
-    show(app(true));
+    await show(app(true));
     expect(focusedName()).toBe('ok');
-    expect([tab(), tab(), tab(true)]).toEqual(['cancel', 'ok', 'cancel']);
+    expect([await tab(), await tab(), await tab(true)]).toEqual([
+      'cancel',
+      'ok',
+      'cancel',
+    ]);
     node('after').focus();
     expect(focusedName()).toBe('cancel');
-    show(app(false));
+    await show(app(false));
     expect(focusedName()).toBe('button');
   });
 
-  it('with nothing to focus, keeps keys from the background', () => {
+  it('with nothing to focus, keeps keys from the background', async () => {
     const pressed = vi.fn<() => void>();
     const app = (open: boolean) => (
       <View>
@@ -156,7 +174,7 @@ describe('Modal', () => {
           focusable
           onKeyDown={pressed}
           ref={(value) => {
-            if (value) nodes.set('button', value as unknown as FakeNode);
+            if (value) nodes.set('button', value as unknown as TestNode);
           }}
         />
         {open && (
@@ -166,20 +184,20 @@ describe('Modal', () => {
         )}
       </View>
     );
-    show(app(false));
+    await show(app(false));
     node('button').focus();
-    show(app(true));
+    await show(app(true));
     expect(focusedNode()).toBeNull();
     pressKey('Enter');
-    expect(tab()).toBeNull();
+    expect(await tab()).toBeNull();
     expect(pressed).not.toHaveBeenCalled();
-    show(app(false));
+    await show(app(false));
     expect(focusedName()).toBe('button');
   });
 
-  it('Escape asks the topmost modal, wherever focus is', () => {
+  it('Escape asks the topmost modal, wherever focus is', async () => {
     const closed: string[] = [];
-    show(
+    await show(
       <View>
         <Modal onRequestClose={() => closed.push('A')}>
           <Field name="a" />
@@ -196,7 +214,7 @@ describe('Modal', () => {
     expect(closed).toEqual(['B']);
   });
 
-  it('nests: the newest is on top, owns the trap, and restores into the previous one', () => {
+  it('nests: the newest is on top, owns the trap, and restores into the previous one', async () => {
     function App({ a, b }: { a: boolean; b: boolean }) {
       return (
         <View>
@@ -216,23 +234,23 @@ describe('Modal', () => {
         </View>
       );
     }
-    show(<App a={false} b={false} />);
+    await show(<App a={false} b={false} />);
     node('button').focus();
-    show(<App a b={false} />);
-    expect(tab()).toBe('A.open');
-    show(<App a b />);
+    await show(<App a b={false} />);
+    expect(await tab()).toBe('A.open');
+    await show(<App a b />);
     expect(entries()).toHaveLength(2);
     expect(focusedName()).toBe('B.ok');
-    expect([tab(), tab()]).toEqual(['B.cancel', 'B.ok']);
-    show(<App a b={false} />);
+    expect([await tab(), await tab()]).toEqual(['B.cancel', 'B.ok']);
+    await show(<App a b={false} />);
     expect(entries()).toHaveLength(1);
     expect(focusedName()).toBe('A.open');
-    show(<App a={false} b={false} />);
+    await show(<App a={false} b={false} />);
     expect(focusedName()).toBe('button');
     expect(entries()).toHaveLength(0);
   });
 
-  it('a portal from inside a modal stacks above it and belongs to its focus trap', () => {
+  it('a portal from inside a modal stacks above it and belongs to its focus trap', async () => {
     function App({ menu }: { menu: boolean }) {
       return (
         <View>
@@ -251,17 +269,21 @@ describe('Modal', () => {
         </View>
       );
     }
-    show(<App menu={false} />);
-    show(<App menu />);
+    await show(<App menu={false} />);
+    await show(<App menu />);
     const [tooltip, modal, dropdown] = entries();
     expect(tooltip!.children[0]!.text).toBe('tooltip');
     expect(layers(modal!).content.children[0]).toBe(node('trigger'));
     expect(dropdown!.children[0]).toBe(node('item'));
-    expect([tab(), tab(), tab()]).toEqual(['item', 'trigger', 'item']);
+    expect([await tab(), await tab(), await tab()]).toEqual([
+      'item',
+      'trigger',
+      'item',
+    ]);
   });
 
-  it('a modal opened from an overlay stacks above it', () => {
-    show(
+  it('a modal opened from an overlay stacks above it', async () => {
+    await show(
       <View>
         <Portal>
           <Text>dropdown</Text>
@@ -277,7 +299,7 @@ describe('Modal', () => {
     expect(focusedName()).toBe('confirm');
   });
 
-  it('opens and closes repeatedly without leftovers', () => {
+  it('opens and closes repeatedly without leftovers', async () => {
     function App() {
       const [open, setOpen] = useState(false);
       return (
@@ -286,7 +308,7 @@ describe('Modal', () => {
             focusable
             onClick={() => setOpen(true)}
             ref={(value) => {
-              if (value) nodes.set('open', value as unknown as FakeNode);
+              if (value) nodes.set('open', value as unknown as TestNode);
             }}
           />
           <Field name="other" />
@@ -298,17 +320,17 @@ describe('Modal', () => {
         </View>
       );
     }
-    show(<App />);
+    await show(<App />);
     node('open').focus();
     for (let i = 0; i < 4; ++i) {
-      flushSync(() => fire(node('open'), 'click'));
+      await reactAct(() => fire(node('open'), 'click'));
       expect(focusedName()).toBe('inside');
-      flushSync(() => pressKey('Escape'));
+      await reactAct(() => pressKey('Escape'));
       expect(entries()).toHaveLength(0);
       expect(focusedName()).toBe('open');
     }
     // No trap, no request handler left behind.
-    expect([tab(), tab()]).toEqual(['other', 'open']);
+    expect([await tab(), await tab()]).toEqual(['other', 'open']);
     expect(pressKey('Escape').defaultPrevented).toBe(false);
   });
 });
