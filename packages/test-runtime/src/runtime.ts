@@ -101,11 +101,15 @@ export class TestRuntime {
     if (previous === node) return;
     this.focused = node;
     previous?.dispatchEvent(
-      new TestEvent('blur', { relatedTarget: node }, false),
+      new TestEvent('blur', { relatedTarget: node, cancelable: false }, false),
     );
     if (node && this.focused === node)
       node.dispatchEvent(
-        new TestEvent('focus', { relatedTarget: previous }, false),
+        new TestEvent(
+          'focus',
+          { relatedTarget: previous, cancelable: false },
+          false,
+        ),
       );
   }
   displayed(node: TestNode) {
@@ -171,6 +175,16 @@ export class TestRuntime {
     const event = new TestEvent(
       type,
       {
+        cancelable: ![
+          'focus',
+          'blur',
+          'input',
+          'change',
+          'scroll',
+          'pointercancel',
+          'pointerenter',
+          'pointerleave',
+        ].includes(type),
         button: 0,
         buttons: this.pointer.buttons,
         pointerId: 0,
@@ -187,35 +201,59 @@ export class TestRuntime {
   pointerDown(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
     if (this.pointer.down) this.assertNode(this.pointer.down);
-    this.pointer.down = node;
+    const button = Number(init['button'] ?? 0);
+    if (![0, 1, 2].includes(button))
+      throw new RangeError(
+        'Supported mouse buttons are primary, middle, and secondary',
+      );
+    this.pointer.down ??= node;
     this.pointer.target = node;
-    this.pointer.buttons |= Number(init['button'] ?? 0) === 2 ? 2 : 1;
-    const event = this.fire(node, 'pointerdown', init);
+    this.pointer.buttons |= [1, 4, 2][button]!;
+    const target = this.pointer.down;
+    const event = this.fire(target, 'pointerdown', init);
     if (!event.defaultPrevented) {
-      let focus: TestNode | null = node;
+      let focus: TestNode | null = target;
       while (focus && !focus.focusable) focus = focus.parent;
       this.moveFocus(focus);
     }
-    if (init['button'] === 2) this.fire(node, 'contextmenu', init);
+    if (button === 2) this.fire(target, 'contextmenu', init);
     return event;
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
     if (this.pointer.down) this.assertNode(this.pointer.down);
     this.pointer.target = node;
-    return this.fire(this.pointer.down ?? node, 'pointermove', init);
+    return this.fire(this.pointer.down ?? node, 'pointermove', {
+      button: -1,
+      ...init,
+    });
   }
   pointerUp(node: TestNode, init: Record<string, unknown> = {}) {
     this.assertNode(node);
     if (this.pointer.down) this.assertNode(this.pointer.down);
+    const button = Number(init['button'] ?? 0);
+    if (![0, 1, 2].includes(button))
+      throw new RangeError(
+        'Supported mouse buttons are primary, middle, and secondary',
+      );
     const down = this.pointer.down;
-    this.pointer.buttons = 0;
-    this.pointer.down = null;
-    const event = this.fire(down ?? node, 'pointerup', init);
-    if (down === node && Number(init['button'] ?? 0) === 0)
-      this.fire(node, 'click', init);
+    this.pointer.target = node;
+    this.pointer.buttons &= ~[1, 4, 2][button]!;
+    let event: TestEvent;
+    try {
+      event = this.fire(down ?? node, 'pointerup', init);
+    } finally {
+      if (this.pointer.buttons === 0) this.pointer.down = null;
+    }
+    if (this.pointer.buttons === 0 && button === 0 && down) {
+      // Native Surface sends click to the deepest shared physical ancestor.
+      let common: TestNode | null = down;
+      while (common && !common.contains(node)) common = common.parent;
+      if (common) this.fire(common, 'click', init);
+    }
     return event;
   }
+
   pointerCancel() {
     this.assertActive();
     if (this.pointer.down) this.assertNode(this.pointer.down);

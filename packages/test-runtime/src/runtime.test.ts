@@ -566,3 +566,76 @@ it('requires explicit mocks even for native method names on Object.prototype', (
   expect(Object.getPrototypeOf(runtime.native)).toBeNull();
   runtime.dispose();
 });
+
+it('retains mouse capture until the final button release and clicks the shared ancestor', () => {
+  const runtime = createTestRuntime(),
+    parent = runtime.create('view'),
+    a = runtime.create('view'),
+    b = runtime.create('view');
+  runtime.root.appendChild(parent);
+  parent.appendChild(a);
+  parent.appendChild(b);
+  const clicks: unknown[] = [],
+    moves: unknown[] = [];
+  parent.addEventListener('click', (event) => clicks.push(event.target));
+  a.addEventListener('pointermove', (event) =>
+    moves.push([event.target, event.button, event.buttons]),
+  );
+  runtime.pointerDown(a);
+  runtime.pointerDown(b, { button: 1 });
+  expect(runtime.pointer.buttons).toBe(5);
+  runtime.pointerUp(b, { button: 1 });
+  expect(runtime.pointer.down).toBe(a);
+  runtime.pointerMove(b);
+  expect(moves).toEqual([[a, -1, 1]]);
+  runtime.pointerUp(b);
+  expect(clicks).toEqual([parent]);
+  expect(runtime.pointer.down).toBeNull();
+  runtime.dispose();
+});
+
+it('rejects unsupported button operations before modifying capture or button state', () => {
+  const runtime = createTestRuntime(),
+    a = runtime.create('view'),
+    b = runtime.create('view');
+  runtime.pointerDown(a);
+  expect(() => runtime.pointerDown(b, { button: 4 })).toThrow(
+    'Supported mouse buttons',
+  );
+  expect(() => runtime.pointerUp(b, { button: 4 })).toThrow(
+    'Supported mouse buttons',
+  );
+  expect(runtime.pointer).toEqual({ down: a, target: a, buttons: 1 });
+  runtime.dispose();
+});
+
+it('uses native cancellation flags for focus, input, change and hover notifications', () => {
+  const runtime = createTestRuntime(),
+    node = runtime.create('input');
+  runtime.root.appendChild(node);
+  const focus = vi.fn((event: TestEvent) => {
+    event.preventDefault();
+    expect(event.cancelable).toBe(false);
+  });
+  node.addEventListener('focus', focus);
+  node.focus();
+  expect(focus).toHaveBeenCalledOnce();
+  for (const type of [
+    'blur',
+    'input',
+    'change',
+    'scroll',
+    'pointercancel',
+    'pointerenter',
+    'pointerleave',
+  ]) {
+    node.addEventListener(type, (event) => event.preventDefault());
+    expect(runtime.fire(node, type).defaultPrevented).toBe(false);
+  }
+  node.addEventListener('beforeinput', (event) => event.preventDefault());
+  expect(
+    runtime.fire(node, 'beforeinput', { data: 'x' }).defaultPrevented,
+  ).toBe(true);
+  expect(node.value).toBe('');
+  runtime.dispose();
+});

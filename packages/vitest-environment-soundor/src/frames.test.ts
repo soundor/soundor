@@ -76,7 +76,7 @@ test('bounds frame work and cleanup registrations across repeated requests', () 
   for (let index = 0; index < 1000; index++) {
     const callback = vi.fn<(time: number) => void>();
     frames.requestAnimationFrame(callback);
-    getTestRuntime().advanceTime(interval);
+    getTestRuntime().advanceTime(20);
     expect(callback).toHaveBeenCalledTimes(1);
   }
   expect(getTestRuntime().clock.pending).toBe(0);
@@ -85,4 +85,17 @@ test('bounds frame work and cleanup registrations across repeated requests', () 
   const id = frames.requestAnimationFrame(() => {});
   frames.cancelAnimationFrame(id);
   expect(getTestRuntime().clock.pending).toBe(0);
+});
+
+test('frame cadence remains aligned at exact boundaries', () => {
+  const frames = createFrames(context, vi.fn<(error: unknown) => void>());
+  const times: number[] = [];
+  const tick = (time: number) => {
+    times.push(time);
+    frames.requestAnimationFrame(tick);
+  };
+  frames.requestAnimationFrame(tick);
+  getTestRuntime().advanceTime(100);
+  expect(times).toHaveLength(6);
+  expect(times.at(-1)).toBe(100);
 });

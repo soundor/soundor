@@ -4,6 +4,7 @@ export { TestAnimation } from './animation';
 export { VirtualClock } from './clock';
 export {
   semanticTree,
+  semanticSnapshot,
   type SemanticNode,
   type SemanticRole,
 } from './semantics';

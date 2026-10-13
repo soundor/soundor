@@ -7,7 +7,7 @@ supported runner; Vite 8 is the supported transform backend.
 ## Quick start
 
 ```sh
-pnpm add -D vitest @soundor/vitest vitest-environment-soundor
+pnpm add -D vitest @soundor/vitest vitest-environment-soundor @soundor/testing-library
 ```
 
 ```ts
@@ -38,9 +38,8 @@ test('focuses an input', () => {
 });
 ```
 
-The Testing Library package and its React helpers are added in the next stage
-of the testing infrastructure; the final installation also includes
-`@soundor/testing-library` as a direct devDependency.
+See [@soundor/testing-library](../testing-library/README.md) for rendering, semantic
+queries, and stateful user interactions.
 
 ## Configuration and declarations
 
@@ -126,7 +125,7 @@ as required by the plugin and Vitest (this repository uses Vite 8).
 ## Package consumer validation
 
 ```sh
-pnpm turbo run build --filter=@soundor/vitest...
+pnpm build
 pnpm --filter @soundor/vitest test:consumer
 ```
 

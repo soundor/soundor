@@ -1,6 +1,6 @@
 import type { initializeTestContext } from '@soundor/test-runtime';
 
-const frameInterval = 1000 / 60;
+const framesPerSecond = 60;
 
 /** Native frames.js snapshots the batch before calling it: cancellation only affects future batches. */
 export function createFrames(
@@ -27,7 +27,12 @@ export function createFrames(
       runtime.assertActive();
       const id = nextId++;
       callbacks.set(id, callback);
-      if (frame === undefined)
+      if (frame === undefined) {
+        const nextFrame =
+          ((Math.floor((runtime.clock.now * framesPerSecond) / 1000 + 1e-9) +
+            1) *
+            1000) /
+          framesPerSecond;
         frame = runtime.clock.setTimeout(() => {
           frame = undefined;
           const due = callbacks;
@@ -40,7 +45,8 @@ export function createFrames(
               reportError(error);
             }
           }
-        }, frameInterval);
+        }, nextFrame - runtime.clock.now);
+      }
       return id;
     },
     cancelAnimationFrame(id: number) {
