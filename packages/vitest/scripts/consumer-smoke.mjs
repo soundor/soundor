@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const temporary = await mkdtemp(resolve(tmpdir(), 'soundor-consumer-'));
+const vanilla = await mkdtemp(resolve(tmpdir(), 'soundor-vanilla-consumer-'));
 function run(command, args, cwd) {
   const result = spawnSync(command, args, {
     cwd,
@@ -24,6 +25,7 @@ try {
     'config',
     'test-runtime',
     'react',
+    'testing-library',
     'vitest',
     'vitest-environment-soundor',
   ];
@@ -49,6 +51,7 @@ try {
         },
         devDependencies: {
           vitest: '5.0.3',
+          '@soundor/testing-library': tarballs['@soundor/testing-library'],
           '@soundor/vitest': tarballs['@soundor/vitest'],
           'vitest-environment-soundor': tarballs['vitest-environment-soundor'],
           typescript: '7.0.2',
@@ -78,7 +81,25 @@ try {
   );
   await writeFile(
     resolve(temporary, 'component.test.tsx'),
-    `import {expect, test} from 'vitest';\nimport {createRoot, flushSync, Pressable, Text, useAnimationFrame} from '@soundor/react';\nimport {root} from 'soundor:ui';\nimport {getTestRuntime} from '@soundor/vitest';\nfor (const index of [1,2]) test('packed renderer '+index, () => {\n let presses = 0;const times: number[] = [];const renderer = createRoot();\n function App(){useAnimationFrame(time => times.push(time));return <Pressable accessibilityLabel="Action" onPress={() => presses++}><Text>Go</Text></Pressable>;}\n flushSync(() => renderer.render(<App/>));\n const runtime = getTestRuntime();\n expect(root).toBe(runtime.root);const button = runtime.root.children[0]!;\n runtime.pointerDown(button);runtime.pointerUp(button);\n expect(presses).toBe(1);runtime.advanceTime(34);expect(times).toHaveLength(2);\n flushSync(() => renderer.unmount());expect(runtime.clock.pending).toBe(0);\n});\n`,
+    `import {expect, test, vi} from 'vitest';
+import {Pressable, Text, TextInput, useAnimationFrame} from '@soundor/react';
+import {useState} from 'react';
+import {render, screen, userEvent, advanceTime} from '@soundor/testing-library/react';
+for (const index of [1,2]) test('packed testing library '+index, async () => {
+ const onChange = vi.fn();const times: number[] = [];
+ function App(){const [count,setCount] = useState(0);useAnimationFrame(time => times.push(time));return <>
+ <TextInput accessibilityLabel="Name" />
+ <Pressable accessibilityLabel="Increment" onPress={() => {setCount(count+1);onChange(count+1);}}><Text>Go</Text></Pressable>
+ <Text>Count: {count}</Text></>;}
+ await render(<App/>);const user = userEvent.setup();
+ await user.type(screen.getByRole('textinput', {name: 'Name'}), 'Soundor');
+ await user.tab();await user.keyboard('{Enter}');
+ expect(onChange).toHaveBeenCalledWith(1);expect(screen.getByText('Count: 1')).toBeDefined();
+ await user.click(screen.getByRole('button', {name: 'Increment'}));
+ expect(screen.getByText('Count: 2')).toBeDefined();
+ await advanceTime(100);expect(times).toHaveLength(6);
+});
+`,
   );
   console.log(run('pnpm', ['exec', 'vitest', 'run'], temporary));
   await writeFile(
@@ -99,9 +120,71 @@ try {
     }),
   );
   console.log(run('pnpm', ['exec', 'tsc'], temporary));
+  // Disable automatic peer installation to prove optional React peers are not needed.
+  // Vite is explicit here because both Vitest and the plugin require that peer.
+  await writeFile(
+    resolve(vanilla, 'package.json'),
+    JSON.stringify({
+      private: true,
+      type: 'module',
+      devDependencies: {
+        vitest: '5.0.3',
+        vite: '8.3.2',
+        typescript: '7.0.2',
+        '@types/node': '24.19.1',
+        '@soundor/vitest': tarballs['@soundor/vitest'],
+        'vitest-environment-soundor': tarballs['vitest-environment-soundor'],
+        '@soundor/testing-library': tarballs['@soundor/testing-library'],
+      },
+    }),
+  );
+  await writeFile(
+    resolve(vanilla, 'pnpm-workspace.yaml'),
+    JSON.stringify({
+      ...JSON.parse(
+        await readFile(resolve(temporary, 'pnpm-workspace.yaml'), 'utf8'),
+      ),
+      autoInstallPeers: false,
+      overrides: Object.fromEntries(
+        Object.entries(tarballs)
+          .filter(([name]) => name !== '@soundor/react')
+          .concat([['vite', '8.3.2']]),
+      ),
+    }),
+  );
+  run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], vanilla);
+  await writeFile(
+    resolve(vanilla, 'vitest.config.ts'),
+    await readFile(resolve(temporary, 'vitest.config.ts')),
+  );
+  await writeFile(
+    resolve(vanilla, 'vanilla.test.ts'),
+    `import {expect, test} from 'vitest';
+import {createRequire} from 'node:module';
+import {createTextInput, root} from 'soundor:ui';
+import {screen, userEvent} from '@soundor/testing-library';
+test('framework independent packed utilities', async () => {
+ const require = createRequire(import.meta.url);
+ expect(() => require.resolve('react', {paths: [process.cwd()]})).toThrow('Cannot find module');
+ const node = createTextInput();node.accessibility = {label: 'Name'};root.appendChild(node);
+ await userEvent.setup().type(screen.getByRole('textinput', {name: 'Name'}), 'vanilla');
+ expect(node.value).toBe('vanilla');
+});
+`,
+  );
+  console.log(run('pnpm', ['exec', 'vitest', 'run'], vanilla));
+  await writeFile(
+    resolve(vanilla, 'tsconfig.json'),
+    await readFile(resolve(temporary, 'tsconfig.json')),
+  );
+  console.log(run('pnpm', ['exec', 'tsc'], vanilla));
   console.log(
-    'Packed consumer: strict pnpm install, runtime tests, and TypeScript passed.',
+    'Packed consumer: strict pnpm installs, React and vanilla interactions, and TypeScript passed.',
   );
 } finally {
-  await rm(temporary, { recursive: true, force: true });
+  await Promise.all(
+    [temporary, vanilla].map((path) =>
+      rm(path, { recursive: true, force: true }),
+    ),
+  );
 }

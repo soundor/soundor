@@ -1,0 +1,61 @@
+{
+  "name": "@soundor/testing-library",
+  "version": "0.1.0",
+  "description": "Semantic queries and user interactions for Soundor tests",
+  "license": "MIT",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.mts",
+      "import": "./dist/react/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@soundor/test-runtime": "workspace:^"
+  },
+  "devDependencies": {
+    "@soundor/core": "workspace:^",
+    "@soundor/react": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@soundor/vitest": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
+  },
+  "peerDependencies": {
+    "@soundor/react": "workspace:^",
+    "react": "^19.3.0",
+    "vitest": "^5.0.3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "@soundor/react": {
+      "optional": true
+    }
+  }
+}

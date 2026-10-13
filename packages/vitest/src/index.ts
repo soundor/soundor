@@ -109,7 +109,9 @@ export function soundor(options: SoundorOptions = {}): Plugin {
             ...config.test.environmentOptions,
             soundor: { configured: true, runtime },
           },
-          server: { deps: { inline: ['@soundor/react'] } },
+          server: {
+            deps: { inline: ['@soundor/react', '@soundor/testing-library'] },
+          },
         },
       };
     },
