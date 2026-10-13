@@ -102,3 +102,8 @@ notarization (see the JUCE runtime's README).
 ## License
 
 MIT
+
+`locateConfig(cwd)` returns the nearest `soundor.config.ts` path by searching
+`cwd` and its parent directories. It throws a `ConfigError` with kind
+`not-found` when discovery fails. Integrations can reuse discovery before
+calling `parseConfig({ path })`.

@@ -1,0 +1,49 @@
+{
+  "name": "@soundor/vitest",
+  "version": "0.1.0",
+  "description": "Soundor Vitest integration",
+  "license": "MIT",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:consumer": "node scripts/consumer-smoke.mjs"
+  },
+  "dependencies": {
+    "@soundor/config": "workspace:^",
+    "@soundor/core": "workspace:^",
+    "@soundor/test-runtime": "workspace:^"
+  },
+  "devDependencies": {
+    "@soundor/react": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "react": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
+  },
+  "peerDependencies": {
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

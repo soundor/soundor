@@ -660,6 +660,74 @@ importers:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
 
+  packages/vitest:
+    dependencies:
+      '@soundor/config':
+        specifier: workspace:^
+        version: link:../config
+      '@soundor/core':
+        specifier: workspace:^
+        version: link:../core
+      '@soundor/test-runtime':
+        specifier: workspace:^
+        version: link:../test-runtime
+    devDependencies:
+      '@soundor/react':
+        specifier: workspace:^
+        version: link:../react
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:^
+        version: link:../../configs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.0(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.2(@types/node@24.19.1)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
+      vitest-environment-soundor:
+        specifier: workspace:^
+        version: link:../vitest-environment-soundor
+
+  packages/vitest-environment-soundor:
+    dependencies:
+      '@soundor/test-runtime':
+        specifier: workspace:^
+        version: link:../test-runtime
+    devDependencies:
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:^
+        version: link:../../configs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.0(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
+
   runtimes/juce-runtime:
     devDependencies:
       '@soundor/config':

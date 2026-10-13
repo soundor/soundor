@@ -555,3 +555,14 @@ it('completes reversed springs at their origin and honors fractional iteration s
   expect(fraction.playState).toBe('finished');
   r.dispose();
 });
+
+it('requires explicit mocks even for native method names on Object.prototype', () => {
+  const runtime = createTestRuntime();
+  expect(() => runtime.callNative('toString', [])).toThrow(
+    'configured test mock',
+  );
+  runtime.mockNative('__proto__', () => 7);
+  expect(runtime.callNative('__proto__', [])).toBe(7);
+  expect(Object.getPrototypeOf(runtime.native)).toBeNull();
+  runtime.dispose();
+});

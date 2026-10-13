@@ -77,3 +77,10 @@ persistent files. Geometry getters fail explicitly; canvas contexts return null.
 Paint animation interpolation accepts hex colors and transparent. JavaScript
 callbacks execute synchronously during clock advancement; completion uses normal
 promise microtasks. This simulation cannot validate native rendering or DSP.
+
+Vitest integration uses the worker context helpers (`getTestRuntime`,
+`subscribeTestRuntime`, and lifecycle/cleanup helpers) exported by this internal
+package. The environment owns a symbol-keyed worker context shared across Node
+and Vite module copies. Creating ordinary standalone runtimes does not install
+or modify that context. Consumer tests normally access the active runtime via
+`getTestRuntime` from `@soundor/vitest`.

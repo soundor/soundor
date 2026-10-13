@@ -54,7 +54,7 @@ export class TestRuntime {
     this.plugin = Object.freeze({
       ...(options.plugin ?? { id: 'soundor.test', name: 'Soundor Test' }),
     });
-    this.native = { ...options.native };
+    this.native = Object.assign(Object.create(null), options.native);
     this.hostState = Object.freeze({
       sampleRate: 48000,
       blockSize: 128,

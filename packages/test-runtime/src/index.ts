@@ -18,3 +18,13 @@ export {
   delay,
   repeat,
 } from './ui';
+
+export {
+  getTestRuntime,
+  initializeTestContext,
+  subscribeTestRuntime,
+  registerTestCleanup,
+  cleanupTestContext,
+  resetTestContext,
+  disposeTestContext,
+} from './context';
