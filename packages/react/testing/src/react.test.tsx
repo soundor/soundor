@@ -12,6 +12,7 @@ import {
   type ParameterLike,
 } from '@soundor/react';
 import { print as printNode, type TestNode } from '@soundor/test-runtime';
+import { getTestRuntime } from '@soundor/test-runtime';
 import {
   render,
   act as reactAct,
@@ -20,7 +21,6 @@ import {
   userEvent,
   advanceTime,
 } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import { useState, type ReactNode } from 'react';
 import { root } from 'soundor:ui';
 import { afterEach, describe, expect, it, vi } from 'vitest';

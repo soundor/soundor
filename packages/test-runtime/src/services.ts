@@ -45,6 +45,8 @@ export interface RuntimeOptions {
   plugin?: { id: string; name: string };
   parameters?: readonly ParameterInfo[];
   host?: Partial<HostSnapshot>;
+  /** Declared methods in the simulated project; omitted for direct runtime unit tests. */
+  nativeMethods?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;
 }
 /** JSON serialization matches storage; returned objects are independent copies. */

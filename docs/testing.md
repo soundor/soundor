@@ -217,17 +217,20 @@ With a positive delay and fake timers, provide `advanceTimers` to avoid hangs.
 
 ## Parameters, host and native services
 
-Use the plugin's public runtime access for Soundor-specific configuration.
+Use the focused setup helpers to configure the simulated environment.
 Ordinary mocks remain Vitest mocks; cleanup does not reset unrelated mocks.
 
 ```ts
-import { getTestRuntime } from '@soundor/vitest';
+import {
+  testParameters,
+  testHost,
+  mockNative,
+} from '@soundor/testing-library/react';
 
 beforeEach(() => {
-  const runtime = getTestRuntime();
-  runtime.parameters.byId.gain!.set(0.75);
-  runtime.setHost({ hostName: 'Test DAW' });
-  runtime.mockNative(
+  testParameters.set('gain', 0.75);
+  testHost.set({ hostName: 'Test DAW' });
+  mockNative(
     'loadPreset',
     vi.fn(async () => ({ name: 'Warm' })),
   );
@@ -292,3 +295,42 @@ exec soundor build juce`. These simulated tests cannot replace native runtime
 checks or validate pixels, DSP, plugin formats, or host integration. Future native
 Vitest support can supply its own environment and `@soundor/vitest/native` plugin;
 no placeholder native entry point is published today.
+
+### Focus assertions and simulated setup
+
+The existing `soundor()` plugin automatically registers `expect(node).toHaveFocus()`
+and its negation. It reads Soundor focus, including portals and nested dialogs;
+foreign, detached, stale, and disposed-runtime nodes fail clearly, even with `.not`.
+Matcher types are included by importing `@soundor/vitest` in the TypeScript project
+(normally through `vitest.config.ts`). If your test TypeScript project excludes that
+config, add `"@soundor/vitest"` to `compilerOptions.types` or a type-only import.
+No DOM matchers or additional setup file are needed.
+
+```tsx
+await user.tab();
+expect(screen.getByRole('button', { name: 'Open dialog' })).toHaveFocus();
+```
+
+`testParameters.set(id, value)` validates declared IDs and value types at runtime,
+uses plain units, clamps numbers, rounds integers, and notifies subscriptions.
+`testHost.set(partialSnapshot)` merges the existing host snapshot and notifies
+subscribers; `transport` is a complete transport snapshot or `null`.
+`mockNative(name, implementation)` registers a declared native method with a normal
+function (including synchronous or asynchronous `vi.fn()`), preserving thrown
+errors and rejections. Unknown methods and non-function mocks fail clearly.
+All three helpers use the current test's runtime and reset with it. Use them in
+`beforeEach` or a test, rather than `beforeAll` or module initialization.
+The React entry coordinates parameter and host updates with synchronous `act`,
+both before rendering and after subscriptions mount. The root entry provides the
+same helpers without React.
+
+These setup helpers specifically configure the simulated environment; future
+native environments may require different setup. Queries, interactions, focus
+assertions and presentation assertions describe application behavior, but native
+support is not implemented or promised by these APIs today.
+Use `await advanceTime()` and `node.presentation` for application animation tests.
+Animation registry counts, ownership and cleanup belong in test-runtime unit tests.
+Renderer implementation tests may inspect submitted animation handles to verify
+reconciler behavior. `getTestRuntime()` from `@soundor/vitest` remains a deprecated
+advanced escape hatch for compatibility; runtime implementation tests should
+import context helpers and `createTestRuntime()` from `@soundor/test-runtime`.

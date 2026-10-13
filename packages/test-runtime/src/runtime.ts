@@ -33,6 +33,7 @@ export class TestRuntime {
   readonly storage = new MemoryStorage(() => this.assertActive());
   readonly plugin: Readonly<{ id: string; name: string }>;
   readonly native: Record<string, (...args: never[]) => unknown>;
+  private readonly nativeMethods?: ReadonlySet<string>;
   private focused: TestNode | null = null;
   private disposed = false;
   private reducedMotion = false;
@@ -54,6 +55,8 @@ export class TestRuntime {
     this.plugin = Object.freeze({
       ...(options.plugin ?? { id: 'soundor.test', name: 'Soundor Test' }),
     });
+    this.nativeMethods =
+      options.nativeMethods && new Set(options.nativeMethods);
     this.native = Object.assign(Object.create(null), options.native);
     this.hostState = Object.freeze({
       sampleRate: 48000,
@@ -578,6 +581,10 @@ export class TestRuntime {
   }
   mockNative(name: string, implementation: (...args: never[]) => unknown) {
     this.assertActive();
+    if (this.nativeMethods && !this.nativeMethods.has(name))
+      throw new Error(`Unknown soundor:native method '${name}'`);
+    if (typeof implementation !== 'function')
+      throw new TypeError(`soundor:native.${name} mock must be a function`);
     this.native[name] = implementation;
   }
   callNative(name: string, args: never[]) {

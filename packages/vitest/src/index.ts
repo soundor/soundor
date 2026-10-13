@@ -12,16 +12,29 @@ import {
 import {
   createTestRuntime,
   createUiModule,
+  getTestRuntime as currentRuntime,
   type RuntimeOptions,
 } from '@soundor/test-runtime';
+import type {} from 'vitest';
 import type { Plugin } from 'vitest/config';
-export { getTestRuntime } from '@soundor/test-runtime';
+
+declare module 'vitest' {
+  interface Matchers<
+    R extends void | Promise<void> = void | Promise<void>,
+    T = unknown,
+  > {
+    toHaveFocus(): R;
+  }
+}
+
+/** @deprecated Advanced escape hatch. Use Testing Library queries, matchers and setup helpers in application tests. */
+export const getTestRuntime = currentRuntime;
 
 export interface SoundorOptions {
   /** Discover soundor.config.ts, use an explicit path, or disable discovery for library tests. */
   config?: string | false;
-  /** Deterministic initial state for each test. Native functions are configured with getTestRuntime().mockNative(). */
-  runtime?: Omit<RuntimeOptions, 'native'>;
+  /** Deterministic initial state for each test. Native functions are configured with mockNative() from @soundor/testing-library. */
+  runtime?: Omit<RuntimeOptions, 'native' | 'nativeMethods'>;
   /** Native declarations for tests without a project config. */
   native?: NativeApiDeclaration;
 }
@@ -62,7 +75,8 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         );
       enabled = true;
       const projectRoot = resolve(config.root ?? process.cwd());
-      let runtime: Omit<RuntimeOptions, 'native'> = options.runtime ?? {};
+      let runtime: Omit<RuntimeOptions, 'native' | 'nativeMethods'> =
+        options.runtime ?? {};
       if (options.config !== false) {
         // Discover once; malformed project configurations must never become empty defaults.
         try {
@@ -78,7 +92,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
           const project = await parseConfig({ path: configPath });
           if (runtime.parameters || options.native)
             throw new Error(
-              'Parameter and native declarations come from soundor.config.ts. Use config: false for library declarations, or getTestRuntime() in beforeEach to configure state and native mocks.',
+              'Parameter and native declarations come from soundor.config.ts. Use config: false for library declarations, or Testing Library setup helpers in beforeEach to configure state and native mocks.',
             );
           native = project.native ?? {};
           parameters = project.parameters;
@@ -107,7 +121,13 @@ export function soundor(options: SoundorOptions = {}): Plugin {
           sequence: { setupFiles: 'list' },
           environmentOptions: {
             ...config.test.environmentOptions,
-            soundor: { configured: true, runtime },
+            soundor: {
+              configured: true,
+              runtime: {
+                ...runtime,
+                nativeMethods: Object.keys(native.methods ?? {}),
+              },
+            },
           },
           server: {
             deps: { inline: ['@soundor/react', '@soundor/testing-library'] },

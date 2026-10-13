@@ -6,7 +6,6 @@ import {
   advanceTime,
   within,
 } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import { expect, test } from 'vitest';
 
 import { App } from './App';
@@ -37,18 +36,19 @@ test('nested dialogs hide the background, trap focus, and restore the outer dial
   await user.type(input, 'Warm');
   await user.tab();
   await user.tab();
-  expect(getTestRuntime().focusedNode()).toBe(
+  expect(
     within(outer).getByRole('button', { name: 'Open a nested dialog' }),
-  );
+  ).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(screen.queryByRole('dialog', { name: 'Preset settings' })).toBeNull();
   expect(screen.getByRole('dialog', { name: 'Are you sure?' })).toBeDefined();
   await user.tab();
-  expect(getTestRuntime().focusedNode()).toBe(
-    screen.getByRole('button', { name: 'Close' }),
-  );
+  expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog', { name: 'Are you sure?' })).toBeNull();
+  expect(
+    within(outer).getByRole('button', { name: 'Open a nested dialog' }),
+  ).toHaveFocus();
   expect(
     within(screen.getByRole('dialog', { name: 'Preset settings' })).getByRole(
       'textinput',
@@ -56,9 +56,7 @@ test('nested dialogs hide the background, trap focus, and restore the outer dial
   ).toBe('Warm');
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).toBeNull();
-  expect(getTestRuntime().focusedNode()).toBe(
-    screen.getByRole('button', { name: 'Open dialog' }),
-  );
+  expect(screen.getByRole('button', { name: 'Open dialog' })).toHaveFocus();
 });
 test('custom portal host content follows toggle state', async () => {
   await render(<App />);
@@ -77,20 +75,20 @@ test('timing and repeating paint animations progress and cancel on unmount', asy
     user = userEvent.setup();
   const panel = screen.getByLabelText('Animated panel'),
     paint = screen.getByLabelText('Repeating paint');
-  const repeating = paint.animations[0]!;
   await user.click(screen.getByRole('button', { name: 'Toggle animation' }));
-  const timing = panel.animations[0]!;
   expect(panel.presentation.opacity).toBe(0.5);
   await advanceTime(125);
   expect(Number(panel.presentation.opacity)).toBeGreaterThan(0.5);
   await advanceTime(125);
-  await timing.finished;
   expect(panel.presentation.opacity).toBe(1);
   const initial = paint.presentation.backgroundColor;
   await advanceTime(250);
   expect(paint.presentation.backgroundColor).not.toBe(initial);
-  expect(repeating.playState).toBe('running');
+  const later = paint.presentation.backgroundColor;
+  await advanceTime(125);
+  expect(paint.presentation.backgroundColor).not.toBe(later);
   await result.unmount();
-  expect(repeating.playState).toBe('idle');
-  expect(getTestRuntime().activeAnimations.size).toBe(0);
+  expect(screen.queryByLabelText('Repeating paint')).toBeNull();
+  await advanceTime(250);
+  expect(screen.queryByLabelText('Animated panel')).toBeNull();
 });

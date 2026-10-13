@@ -486,3 +486,31 @@ it('hides a portal from both semantics and focus when its logical owner is hidde
   expect(r.focusedNode()).toBeNull();
   r.dispose();
 });
+
+it('removing an application subtree cleans up timing and repeating paint animations', () => {
+  const runtime = createTestRuntime();
+  const parent = runtime.create('view'),
+    panel = runtime.create('view'),
+    paint = runtime.create('view');
+  runtime.root.appendChild(parent);
+  parent.appendChild(panel);
+  parent.appendChild(paint);
+  const timing = panel.animate([{ opacity: 0.5 }, { opacity: 1 }], {
+    duration: 250,
+    fill: 'forwards',
+  });
+  const repeating = paint.animate(
+    [{ backgroundColor: '#ff0000' }, { backgroundColor: '#0000ff' }],
+    { duration: 500, iterations: Infinity },
+  );
+  runtime.advanceTime(125);
+  expect(runtime.activeAnimations.size).toBe(2);
+  parent.remove();
+  expect(timing.playState).toBe('idle');
+  expect(repeating.playState).toBe('idle');
+  expect(runtime.activeAnimations.size).toBe(0);
+  expect(runtime.animations.size).toBe(0);
+  runtime.advanceTime(500);
+  expect(runtime.activeAnimations.size).toBe(0);
+  runtime.dispose();
+});

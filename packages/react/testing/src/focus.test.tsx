@@ -1,11 +1,11 @@
 import { FocusScope, Pressable, Text, View } from '@soundor/react';
 import { print as printNode, type TestNode } from '@soundor/test-runtime';
+import { getTestRuntime } from '@soundor/test-runtime';
 import {
   render,
   fireEvent as fire,
   userEvent,
 } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import { useState, type ReactNode } from 'react';
 import { root } from 'soundor:ui';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

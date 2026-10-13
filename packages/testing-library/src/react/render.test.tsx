@@ -9,14 +9,18 @@ import {
   useAnimationFrame,
   useParameter,
 } from '@soundor/react';
-import { getTestRuntime } from '@soundor/vitest';
+import { getTestRuntime } from '@soundor/test-runtime';
+import type {} from '@soundor/vitest';
 import {
   createContext,
   createRef,
   useContext,
   useEffect,
   useState,
+  useSyncExternalStore,
 } from 'react';
+import { snapshot, subscribe } from 'soundor:host';
+import { parameters } from 'soundor:parameters';
 import { expect, test, vi } from 'vitest';
 
 import {
@@ -28,6 +32,8 @@ import {
   waitFor,
   fireEvent,
   act,
+  testParameters,
+  testHost,
 } from './index';
 
 test('renders with the real reconciler and stateful pointer activation', async () => {
@@ -109,13 +115,11 @@ test('sequential typing, clearing, modifiers and focus traversal preserve input 
   expect(input.value).toBe('');
   await user.type(input, 'test');
   await user.tab();
-  expect(getTestRuntime().focusedNode()).toBe(
-    screen.getByRole('button', { name: 'Save' }),
-  );
+  expect(screen.getByRole('button', { name: 'Save' })).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(input.value).toBe('saved');
   await user.tab({ shift: true });
-  expect(getTestRuntime().focusedNode()).toBe(input);
+  expect(input).toHaveFocus();
 });
 test('modal overlays, portals, focus traps and dismissal are testable semantically', async () => {
   function App() {
@@ -138,9 +142,9 @@ test('modal overlays, portals, focus traps and dismissal are testable semantical
   expect(screen.queryByLabelText('Background')).toBeNull();
   expect(screen.getByRole('dialog')).toBeDefined();
   await user.tab();
-  expect(getTestRuntime().focusedNode()).not.toBe(
+  expect(
     screen.queryByLabelText('Background', { hidden: true }),
-  );
+  ).not.toHaveFocus();
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByLabelText('Background')).toBeDefined();
@@ -230,13 +234,12 @@ test('multiple roots are independently owned and queries can be scoped', async (
   await b.unmount();
 });
 test('parameter hooks and low-level React fireEvent updates use public APIs', async () => {
-  const r = getTestRuntime();
   function Gain() {
-    const value = useParameter(r.parameters.byId.gain!);
+    const value = useParameter(parameters.gain);
     return <Text>Gain: {String(value)}</Text>;
   }
   await render(<Gain />);
-  await act(() => r.parameters.byId.gain!.set(0.25));
+  testParameters.set('gain', 0.25);
   expect(screen.getByText('Gain: 0.25')).toBeDefined();
   function Button() {
     const [value, set] = useState(0);
@@ -260,11 +263,36 @@ test('trapped focus moves forward and backward with portal content', async () =>
     </FocusScope>,
   );
   const user = userEvent.setup();
-  expect(getTestRuntime().focusedNode()).toBe(screen.getByLabelText('A'));
+  expect(screen.getByLabelText('A')).toHaveFocus();
   await user.tab();
-  expect(getTestRuntime().focusedNode()).toBe(screen.getByLabelText('B'));
+  expect(screen.getByLabelText('B')).toHaveFocus();
   await user.tab();
-  expect(getTestRuntime().focusedNode()).toBe(screen.getByLabelText('A'));
+  expect(screen.getByLabelText('A')).toHaveFocus();
   await user.tab({ shift: true });
-  expect(getTestRuntime().focusedNode()).toBe(screen.getByLabelText('B'));
+  expect(screen.getByLabelText('B')).toHaveFocus();
+});
+
+test('setup helpers work before rendering and commit subscribed React updates synchronously', async () => {
+  const errors = vi.spyOn(console, 'error');
+  try {
+    testParameters.set('gain', 0.75);
+    testHost.set({ hostName: 'Before render' });
+    function Status() {
+      const gain = useParameter(parameters.gain);
+      const host = useSyncExternalStore(subscribe, snapshot);
+      return (
+        <Text>
+          {host.hostName}: {gain}
+        </Text>
+      );
+    }
+    await render(<Status />);
+    expect(screen.getByText('Before render: 0.75')).toBeDefined();
+    testHost.set({ hostName: 'After render' });
+    testParameters.set('gain', 0.25);
+    expect(screen.getByText('After render: 0.25')).toBeDefined();
+    expect(errors).not.toHaveBeenCalled();
+  } finally {
+    errors.mockRestore();
+  }
 });
