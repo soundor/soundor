@@ -16,5 +16,6 @@
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
   },
-  "include": ["src", ".soundor/generated/soundor.d.ts"]
+  "include": ["src", ".soundor/generated/soundor.d.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

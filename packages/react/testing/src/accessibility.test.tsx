@@ -1,10 +1,5 @@
-import { useState, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
 import {
   createPortalHost,
-  createRoot,
-  flushSync,
   Image,
   Modal,
   Portal,
@@ -14,49 +9,44 @@ import {
   TextInput,
   View,
   type AccessibilityActionEvent,
-} from './index';
+} from '@soundor/react';
+import { type TestNode } from '@soundor/test-runtime';
 import {
-  FakeEvent,
-  fire,
-  overlayRoot,
-  reset,
-  root,
-  type FakeNode,
-} from './testing/fake-ui';
+  render,
+  act as reactAct,
+  fireEvent as fire,
+  screen,
+  within,
+} from '@soundor/testing-library/react';
+import { useState, type ReactNode } from 'react';
+import { root, overlayRoot } from 'soundor:ui';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-let mounted: ReturnType<typeof createRoot> | null = null;
+let mounted: Awaited<ReturnType<typeof render>> | null = null;
 
-function show(element: ReactNode) {
-  mounted ??= createRoot();
-  flushSync(() => mounted!.render(element));
+async function show(element: ReactNode) {
+  if (mounted) await mounted.rerender(element);
+  else mounted = await render(element, { container: root });
 }
 
-/** Lets scheduled work (event-driven updates, effects) run. */
-async function settle() {
-  for (let i = 0; i < 5; ++i)
-    await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-const child = (...path: number[]): FakeNode =>
-  path.reduce<FakeNode>(
+const child = (...path: number[]): TestNode =>
+  path.reduce<TestNode>(
     (node, index) => node.children[index]!,
-    root as FakeNode,
+    root as unknown as TestNode,
   );
 
 /** Assistive technology asking `node` for an action. */
-function act(node: FakeNode, actionName: string, value?: number | string) {
+function act(node: TestNode, actionName: string, value?: number | string) {
   return fire(node, 'accessibilityaction', { actionName, value });
 }
 
 afterEach(() => {
-  if (mounted) flushSync(() => mounted!.unmount());
   mounted = null;
-  reset();
 });
 
 describe('accessibility props', () => {
-  it('become the node accessibility, by their soundor:ui names', () => {
-    show(
+  it('become the node accessibility, by their soundor:ui names', async () => {
+    await show(
       <View
         accessibilityRole="adjustable"
         accessibilityLabel="Gain"
@@ -66,6 +56,14 @@ describe('accessibility props', () => {
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       />,
     );
+    expect(
+      screen.getByRole('adjustable', {
+        name: 'Gain',
+        description: 'Drag to change',
+        busy: true,
+        value: { now: -3.5, text: '-3.5 dB' },
+      }),
+    ).toBe(child(0));
     expect(child(0).accessibility).toEqual({
       role: 'adjustable',
       label: 'Gain',
@@ -76,9 +74,9 @@ describe('accessibility props', () => {
     });
   });
 
-  it('apply to every primitive', () => {
+  it('apply to every primitive', async () => {
     const asset = 'abc.png' as SoundorAsset;
-    show(
+    await show(
       <View>
         <Text accessibilityRole="header">Title</Text>
         <Image source={asset} accessibilityLabel="Logo" />
@@ -94,16 +92,16 @@ describe('accessibility props', () => {
     ]);
   });
 
-  it('leave nodes without them alone, and set only what changed', () => {
+  it('leave nodes without them alone, and set only what changed', async () => {
     const assigned = vi.fn();
     function Gain({ now }: { now: number }) {
       return (
         <View
           ref={(node) => {
             if (node === null) return;
-            const fake = node as unknown as FakeNode;
-            let value = fake.accessibility;
-            Object.defineProperty(fake, 'accessibility', {
+            const runtimeNode = node as unknown as TestNode;
+            let value = runtimeNode.accessibility;
+            Object.defineProperty(runtimeNode, 'accessibility', {
               configurable: true,
               get: () => value,
               set: (next: Record<string, unknown>) => {
@@ -117,19 +115,19 @@ describe('accessibility props', () => {
         />
       );
     }
-    show(
+    await show(
       <View>
         <Gain now={1} />
       </View>,
     );
     expect(child(0).accessibility).toEqual({});
-    show(
+    await show(
       <View>
         <Gain now={1} />
       </View>,
     );
     expect(assigned).not.toHaveBeenCalled();
-    show(
+    await show(
       <View>
         <Gain now={2.5} />
       </View>,
@@ -141,12 +139,12 @@ describe('accessibility props', () => {
     });
   });
 
-  it('call onAccessibilityAction for actions asked of the element itself', () => {
+  it('call onAccessibilityAction for actions asked of the element itself', async () => {
     const outer = vi.fn();
     const inner = vi.fn((event: AccessibilityActionEvent) =>
       event.preventDefault(),
     );
-    show(
+    await show(
       <View onAccessibilityAction={outer}>
         <View
           accessibilityActions={[{ name: 'increment' }]}
@@ -166,8 +164,8 @@ describe('accessibility props', () => {
 });
 
 describe('Pressable', () => {
-  it('is a button by default, labelled by its text, offering activate', () => {
-    show(
+  it('is a button by default, labelled by its text, offering activate', async () => {
+    await show(
       <Pressable onPress={() => {}}>
         <Text>Reset</Text>
       </Pressable>,
@@ -182,8 +180,8 @@ describe('Pressable', () => {
   it('presses on activate, and long-presses on longpress', async () => {
     const onPress = vi.fn();
     const onLongPress = vi.fn();
-    show(<Pressable onPress={onPress} onLongPress={onLongPress} />);
-    await settle();
+    await show(<Pressable onPress={onPress} onLongPress={onLongPress} />);
+
     expect(child(0).accessibility['actions']).toEqual([
       { name: 'activate' },
       { name: 'longpress' },
@@ -197,7 +195,7 @@ describe('Pressable', () => {
   it('takes another role and more actions without losing its own', async () => {
     const onPress = vi.fn();
     const actions: string[] = [];
-    show(
+    await show(
       <Pressable
         onPress={onPress}
         accessibilityRole="adjustable"
@@ -211,7 +209,7 @@ describe('Pressable', () => {
         onAccessibilityAction={(event) => actions.push(event.actionName)}
       />,
     );
-    await settle();
+
     expect(child(0).accessibility).toEqual({
       accessible: true,
       role: 'adjustable',
@@ -232,13 +230,13 @@ describe('Pressable', () => {
 
   it('lets onAccessibilityAction take activate over', async () => {
     const onPress = vi.fn();
-    show(
+    await show(
       <Pressable
         onPress={onPress}
         onAccessibilityAction={(event) => event.preventDefault()}
       />,
     );
-    await settle();
+
     act(child(0), 'activate');
     expect(onPress).not.toHaveBeenCalled();
   });
@@ -246,12 +244,12 @@ describe('Pressable', () => {
   it('is disabled to assistive technology while disabled', async () => {
     const onPress = vi.fn();
     const { rerender } = (() => {
-      const rerender = (disabled: boolean) =>
-        show(<Pressable onPress={onPress} disabled={disabled} />);
+      const rerender = async (disabled: boolean) =>
+        await show(<Pressable onPress={onPress} disabled={disabled} />);
       return { rerender };
     })();
-    rerender(true);
-    await settle();
+    await rerender(true);
+
     expect(child(0).accessibility).toEqual({
       accessible: true,
       role: 'button',
@@ -259,26 +257,26 @@ describe('Pressable', () => {
     });
     act(child(0), 'activate');
     expect(onPress).not.toHaveBeenCalled();
-    rerender(false);
-    await settle();
+    await rerender(false);
+
     expect(child(0).accessibility['state']).toBeUndefined();
     act(child(0), 'activate');
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps an explicit disabled state over its own', () => {
-    show(<Pressable disabled accessibilityState={{ disabled: false }} />);
+  it('keeps an explicit disabled state over its own', async () => {
+    await show(<Pressable disabled accessibilityState={{ disabled: false }} />);
     expect(child(0).accessibility['state']).toEqual({ disabled: false });
-    show(<Pressable accessible={false} />);
+    await show(<Pressable accessible={false} />);
     expect(child(0).accessibility['accessible']).toBe(false);
   });
 });
 
 describe('Modal and Portal', () => {
-  const entries = () => overlayRoot.children as FakeNode[];
+  const entries = () => overlayRoot.children as unknown as TestNode[];
 
-  it('a modal is a modal dialog to assistive technology', () => {
-    show(
+  it('a modal is a modal dialog to assistive technology', async () => {
+    await show(
       <Modal accessibilityLabel="Settings">
         <Text>Inside</Text>
       </Modal>,
@@ -292,8 +290,8 @@ describe('Modal and Portal', () => {
     expect(entries()[0]!.accessibilityParent).toBe(null);
   });
 
-  it('an overlay opened inside another belongs to it', () => {
-    show(
+  it('an overlay opened inside another belongs to it', async () => {
+    await show(
       <View>
         <Portal>
           <Text>Top level</Text>
@@ -319,9 +317,9 @@ describe('Modal and Portal', () => {
     expect(nested!.accessibility['modal']).toBe(true);
   });
 
-  it('a hosted portal is read where its host is', () => {
+  it('a hosted portal is read where its host is', async () => {
     const host = createPortalHost();
-    show(
+    await show(
       <View>
         <Portal.Host host={host} />
         <Modal>
@@ -337,7 +335,7 @@ describe('Modal and Portal', () => {
     expect(hosted.accessibilityParent).toBe(null);
   });
 
-  it('closing a nested modal leaves the outer one, then nothing', () => {
+  it('closing a nested modal leaves the outer one, then nothing', async () => {
     function Screen() {
       const [inner, setInner] = useState(true);
       const [outer, setOuter] = useState(true);
@@ -352,35 +350,39 @@ describe('Modal and Portal', () => {
         </View>
       );
     }
-    show(<Screen />);
+    await show(<Screen />);
     expect(entries().map((entry) => entry.accessibility['label'])).toEqual([
       'Outer',
       'Inner',
     ]);
-    // The inner modal's close button: entry → content → pressable.
-    const closeInner = entries()[1]!.children[1]!.children[0]!;
-    flushSync(() => {
-      closeInner.dispatchEvent(
-        new FakeEvent('accessibilityaction', { actionName: 'activate' }),
-      );
-    });
+    expect(screen.queryByRole('dialog', { name: 'Outer' })).toBeNull();
+    fire.accessibilityAction(
+      within(screen.getByRole('dialog', { name: 'Inner' })).getByRole('button'),
+      { actionName: 'activate' },
+    );
     expect(entries().map((entry) => entry.accessibility['label'])).toEqual([
       'Outer',
     ]);
+    fire.accessibilityAction(
+      within(screen.getByRole('dialog', { name: 'Outer' })).getByRole('button'),
+      { actionName: 'activate' },
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(entries()).toHaveLength(0);
   });
 });
 
 describe('cooperation', () => {
-  it('a modal closes on assistive technology escape, the topmost first', () => {
+  it('a modal closes on assistive technology escape, the topmost first', async () => {
     const closed: string[] = [];
-    show(
+    await show(
       <Modal onRequestClose={() => closed.push('outer')}>
         <Modal onRequestClose={() => closed.push('inner')}>
           <Text>Inner</Text>
         </Modal>
       </Modal>,
     );
-    const [outer, inner] = overlayRoot.children as FakeNode[];
+    const [outer, inner] = overlayRoot.children as unknown as TestNode[];
     expect(outer!.accessibility['actions']).toEqual([{ name: 'escape' }]);
     // Asked of something inside the inner dialog, bubbling up.
     const event = act(inner!.children[1]!, 'escape');
@@ -391,10 +393,10 @@ describe('cooperation', () => {
     expect(closed).toEqual(['inner']);
   });
 
-  it('a modal without onRequestClose offers no escape', () => {
-    show(<Modal accessibilityLabel="Busy" />);
+  it('a modal without onRequestClose offers no escape', async () => {
+    await show(<Modal accessibilityLabel="Busy" />);
     expect(
-      (overlayRoot.children[0] as FakeNode).accessibility['actions'],
+      (overlayRoot.children[0] as unknown as TestNode).accessibility['actions'],
     ).toBeUndefined();
   });
 
@@ -431,19 +433,18 @@ describe('cooperation', () => {
         />
       );
     }
-    show(<Knob />);
+    await show(<Knob />);
     const value = () => child(0).accessibility['value'];
     expect(value()).toEqual({ min: -60, max: 12, now: -3.5, text: '-3.5 dB' });
-    flushSync(() => act(child(0), 'increment'));
+    await reactAct(() => act(child(0), 'increment'));
     expect(value()).toMatchObject({ now: -3, text: '-3 dB' });
-    flushSync(() => fire(child(0), 'keydown', { key: 'ArrowUp' }));
+    await reactAct(() => fire(child(0), 'keydown', { key: 'ArrowUp' }));
     expect(value()).toMatchObject({ now: -2.5 });
-    flushSync(() => fire(child(0), 'wheel', { deltaY: 50 }));
+    await reactAct(() => fire(child(0), 'wheel', { deltaY: 50 }));
     expect(value()).toMatchObject({ now: -3 });
-    flushSync(() => act(child(0), 'setValue', 6.25));
+    await reactAct(() => act(child(0), 'setValue', 6.25));
     expect(value()).toMatchObject({ now: 6.25, text: '6.25 dB' });
-    flushSync(() => act(child(0), 'decrement'));
+    await reactAct(() => act(child(0), 'decrement'));
     expect(value()).toMatchObject({ now: 5.75 });
-    await settle();
   });
 });

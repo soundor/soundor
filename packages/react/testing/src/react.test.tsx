@@ -1,10 +1,6 @@
-import { useState, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
+import { createRoot, flushSync } from '@soundor/react';
 import {
   Canvas,
-  createRoot,
-  flushSync,
   Image,
   Pressable,
   ScrollView,
@@ -14,48 +10,46 @@ import {
   useParameter,
   View,
   type ParameterLike,
-} from './index';
+} from '@soundor/react';
+import { print as printNode, type TestNode } from '@soundor/test-runtime';
 import {
-  fire,
-  pressables,
-  print,
-  reset,
-  root,
-  type FakeNode,
-} from './testing/fake-ui';
+  render,
+  act as reactAct,
+  fireEvent as fire,
+  screen,
+  userEvent,
+  advanceTime,
+} from '@soundor/testing-library/react';
+import { getTestRuntime } from '@soundor/vitest';
+import { useState, type ReactNode } from 'react';
+import { root } from 'soundor:ui';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+const print = (node = root) => printNode(node as unknown as TestNode);
 
-let mounted: ReturnType<typeof createRoot> | null = null;
+let mounted: Awaited<ReturnType<typeof render>> | null = null;
 
-function show(element: ReactNode) {
-  mounted ??= createRoot();
-  flushSync(() => mounted!.render(element));
+async function show(element: ReactNode) {
+  if (mounted) await mounted.rerender(element);
+  else mounted = await render(element, { container: root });
 }
 
-/** Lets scheduled work (event-driven updates, effects) run. */
-async function settle() {
-  for (let i = 0; i < 5; ++i)
-    await new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-const child = (...path: number[]): FakeNode =>
-  path.reduce<FakeNode>(
+const child = (...path: number[]): TestNode =>
+  path.reduce<TestNode>(
     (node, index) => node.children[index]!,
-    root as FakeNode,
+    root as unknown as TestNode,
   );
 
 afterEach(() => {
-  if (mounted) flushSync(() => mounted!.unmount());
   mounted = null;
-  reset();
 });
 
 describe('rendering', () => {
-  it('builds soundor:ui nodes with merged styles', () => {
+  it('builds soundor:ui nodes with merged styles', async () => {
     const styles = StyleSheet.create({
       row: { flexDirection: 'row' },
       gap: { gap: 4 },
     });
-    show(
+    await show(
       <View style={[styles.row, false, [styles.gap, { padding: 2 }]]}>
         <View style={{ width: 10 }} />
         <Text style={{ fontSize: 12 }}>Hello</Text>
@@ -66,17 +60,18 @@ describe('rendering', () => {
     );
   });
 
-  it('flattens strings, numbers and nested <Text> into one text node', () => {
+  it('flattens strings, numbers and nested <Text> into one text node', async () => {
     const name = 'world';
-    show(
+    await show(
       <Text numberOfLines={2}>
         Hello, <Text style={{ color: 'red' }}>{name}</Text>! {3}
       </Text>,
     );
     expect(print()).toBe('view[text{numberOfLines:2}"Hello, world! 3"]');
+    expect(screen.getByRole('text', { name: 'Hello, world! 3' })).toBeDefined();
   });
 
-  it('applies updates, reorders by key and removes', () => {
+  it('applies updates, reorders by key and removes', async () => {
     const List = ({ items }: { items: string[] }) => (
       <View>
         {items.map((item) => (
@@ -84,36 +79,38 @@ describe('rendering', () => {
         ))}
       </View>
     );
-    show(<List items={['a', 'b', 'c']} />);
+    await show(<List items={['a', 'b', 'c']} />);
     const b = child(0, 1);
-    show(<List items={['c', 'b']} />);
+    await show(<List items={['c', 'b']} />);
     expect(print()).toBe('view[view[text"c" text"b"]]');
     expect(child(0, 1)).toBe(b); // moved, not recreated
   });
 
-  it('updates nested text in place', () => {
+  it('updates nested text in place', async () => {
     const Counter = ({ count }: { count: number }) => (
       <Text>
         Count: <Text>{count}</Text>
       </Text>
     );
-    show(<Counter count={1} />);
+    await show(<Counter count={1} />);
     const node = child(0);
-    show(<Counter count={2} />);
+    await show(<Counter count={2} />);
     expect(print()).toBe('view[text"Count: 2"]');
     expect(child(0)).toBe(node);
   });
 
-  it('refuses strings outside <Text> and views inside it', () => {
+  it('refuses strings outside <Text> and views inside it', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     const reported = vi.fn();
     vi.stubGlobal('reportError', reported);
-    show(<View>loose</View>);
+    const raw = createRoot(root);
+    const show = (element: ReactNode) => flushSync(() => raw.render(element));
+    await show(<View>loose</View>);
     expect(reported.mock.calls[0]?.[0]).toMatchObject({
       message:
         'Text strings must be rendered within a <Text> component: "loose"',
     });
-    show(
+    await show(
       <Text>
         <View />
       </Text>,
@@ -121,12 +118,13 @@ describe('rendering', () => {
     expect(reported.mock.calls.at(-1)?.[0]).toMatchObject({
       message: '<View> cannot be inside <Text>',
     });
+    flushSync(() => raw.unmount());
     vi.unstubAllGlobals();
     errors.mockRestore();
   });
 
-  it('shows images and scroll views with a content container', () => {
-    show(
+  it('shows images and scroll views with a content container', async () => {
+    await show(
       <ScrollView style={{ height: 50 }} contentContainerStyle={{ padding: 4 }}>
         <Image source={'logo.png' as SoundorAsset} style={{ width: 8 }} />
       </ScrollView>,
@@ -136,22 +134,22 @@ describe('rendering', () => {
     );
   });
 
-  it('gives refs the soundor:ui node', () => {
+  it('gives refs the soundor:ui node', async () => {
     let node: unknown = null;
-    show(<View ref={(value) => void (node = value)} />);
+    await show(<View ref={(value) => void (node = value)} />);
     expect(node).toBe(child(0));
   });
 
-  it('unmounting empties the root', () => {
-    show(<View />);
-    flushSync(() => mounted!.unmount());
+  it('unmounting empties the root', async () => {
+    await show(<View />);
+    await mounted!.unmount();
     expect(print()).toBe('view');
   });
 });
 
 describe('updates do only what changed', () => {
-  /** Counts assignments to a fake node's property from now on. */
-  function countSets(node: FakeNode, property: 'style' | 'accessibility') {
+  /** Counts assignments to a runtime node's property from now on. */
+  function countSets(node: TestNode, property: 'style' | 'accessibility') {
     let value: unknown = node[property];
     let sets = 0;
     Object.defineProperty(node, property, {
@@ -165,7 +163,7 @@ describe('updates do only what changed', () => {
     return () => sets;
   }
 
-  it('re-rendering equal props sets no style or accessibility, and keeps listeners', () => {
+  it('re-rendering equal props sets no style or accessibility, and keeps listeners', async () => {
     const onClick = vi.fn();
     // New style objects and a new handler every render, with the same content.
     const Cell = ({ opacity }: { opacity: number }) => (
@@ -175,45 +173,51 @@ describe('updates do only what changed', () => {
         onClick={() => onClick(opacity)}
       />
     );
-    show(<Cell opacity={0.5} />);
+    await show(<Cell opacity={0.5} />);
     const styles = countSets(child(0), 'style');
     const accessibility = countSets(child(0), 'accessibility');
     const listener = child(0).listeners.get('click')![0];
 
-    show(<Cell opacity={0.5} />);
+    await show(<Cell opacity={0.5} />);
     expect(styles()).toBe(0);
     expect(accessibility()).toBe(0);
     expect(child(0).listeners.get('click')![0]).toBe(listener);
 
-    show(<Cell opacity={0.25} />);
+    await show(<Cell opacity={0.25} />);
     expect(styles()).toBe(1);
     expect(child(0).style).toEqual({ width: 10, opacity: 0.25 });
     fire(child(0), 'click');
     expect(onClick).toHaveBeenCalledWith(0.25);
   });
 
-  it('accessibility objects are compared by what they say', () => {
+  it('accessibility objects are compared by what they say', async () => {
     const state = { checked: false };
-    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    await show(
+      <View accessibilityRole="checkbox" accessibilityState={state} />,
+    );
     const accessibility = countSets(child(0), 'accessibility');
-    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    await show(
+      <View accessibilityRole="checkbox" accessibilityState={state} />,
+    );
     expect(accessibility()).toBe(0);
     state.checked = true; // changed in place
-    show(<View accessibilityRole="checkbox" accessibilityState={state} />);
+    await show(
+      <View accessibilityRole="checkbox" accessibilityState={state} />,
+    );
     expect(accessibility()).toBe(1);
   });
 
-  it('a handler that appears gets a listener', () => {
+  it('a handler that appears gets a listener', async () => {
     const onClick = vi.fn<() => void>();
-    show(<View />);
-    show(<View onClick={onClick} />);
+    await show(<View />);
+    await show(<View onClick={onClick} />);
     fire(child(0), 'click');
     expect(onClick).toHaveBeenCalledOnce();
   });
 });
 
 describe('events', () => {
-  it('calls the latest handler, in capture and bubble phases', () => {
+  it('calls the latest handler, in capture and bubble phases', async () => {
     const log: string[] = [];
     const App = ({ tag }: { tag: string }) => (
       <View
@@ -223,24 +227,24 @@ describe('events', () => {
         <View onClick={() => log.push(`inner ${tag}`)} />
       </View>
     );
-    show(<App tag="1" />);
-    show(<App tag="2" />);
+    await show(<App tag="1" />);
+    await show(<App tag="2" />);
     fire(child(0, 0), 'click');
     expect(log).toEqual(['capture 2', 'inner 2', 'bubble 2']);
   });
 
-  it('removes listeners whose props go away', () => {
+  it('removes listeners whose props go away', async () => {
     const onClick = vi.fn();
-    show(<View onClick={onClick} />);
-    show(<View />);
+    await show(<View onClick={onClick} />);
+    await show(<View />);
     fire(child(0), 'click');
     expect(onClick).not.toHaveBeenCalled();
     expect(child(0).listeners.get('click')).toEqual([]);
   });
 
-  it('onContextMenu captures and bubbles with the pointer event', () => {
+  it('onContextMenu captures and bubbles with the pointer event', async () => {
     const log: string[] = [];
-    show(
+    await show(
       <View
         onContextMenuCapture={() => log.push('capture')}
         onContextMenu={(event) => log.push(`outer ${event.pageX}`)}
@@ -261,9 +265,9 @@ describe('events', () => {
         </View>
       );
     }
-    show(<Toggle />);
+    await show(<Toggle />);
     fire(child(0), 'click');
-    await settle();
+
     expect(print()).toBe('view[view[text"on"]]');
   });
 });
@@ -282,22 +286,24 @@ describe('TextInput', () => {
         />
       );
     }
-    show(<Field />);
+    await show(<Field />);
     const input = child(0);
     expect([input.text, input.placeholder]).toEqual(['AB', 'Name']);
-    input.value = 'ABc';
-    fire(input, 'input');
-    await settle();
+    const user = userEvent.setup();
+    await user.type(screen.getByRole('textinput'), 'c');
+
     expect(input.text).toBe('ABC');
-    fire(input, 'keydown', { key: 'Enter' });
+    await user.keyboard('{Enter}');
     expect(submitted).toHaveBeenCalledWith('ABC');
   });
 
-  it('starts an uncontrolled input with defaultValue only', () => {
-    show(<TextInput defaultValue="start" />);
-    const input = child(0);
-    input.value = 'typed';
-    show(<TextInput defaultValue="other" />);
+  it('starts an uncontrolled input with defaultValue only', async () => {
+    await show(<TextInput defaultValue="start" />);
+    const input = screen.getByRole('textinput'),
+      user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, 'typed');
+    await show(<TextInput defaultValue="other" />);
     expect(input.text).toBe('typed');
   });
 });
@@ -305,7 +311,7 @@ describe('TextInput', () => {
 describe('Pressable', () => {
   it('presses, and styles and renders by its state', async () => {
     const onPress = vi.fn();
-    show(
+    await show(
       <Pressable
         onPress={onPress}
         style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
@@ -313,15 +319,16 @@ describe('Pressable', () => {
         {({ pressed }) => <Text>{pressed ? 'down' : 'up'}</Text>}
       </Pressable>,
     );
-    await settle(); // the effect installs pressable()
-    const button = child(0);
+
+    const user = userEvent.setup(),
+      button = screen.getByRole('button');
     expect(button.focusable).toBe(true);
-    fire(button, 'pointerdown', { button: 0 });
-    await settle();
+    await user.pointer({ target: button, keys: '[MouseLeft>]' });
+
     expect(print()).toBe('view[view{opacity:0.5}[text"down"]]');
-    fire(button, 'pointerup');
-    fire(button, 'click');
-    await settle();
+    expect(screen.getByText('down')).toBeDefined();
+    await user.pointer({ target: button, keys: '[/MouseLeft]' });
+
     expect(onPress).toHaveBeenCalledTimes(1);
     expect(print()).toBe('view[view{opacity:1}[text"up"]]');
   });
@@ -337,8 +344,8 @@ describe('Pressable state and long presses', () => {
         </Pressable>
       );
     }
-    show(<Toggle />);
-    await settle();
+    await show(<Toggle />);
+
     fire(child(0), 'click');
     // Microtasks only: no timer has run.
     for (let i = 0; i < 3; ++i) await Promise.resolve();
@@ -346,35 +353,41 @@ describe('Pressable state and long presses', () => {
   });
 
   it('styles by focus, from focus and blur', async () => {
-    show(
+    await show(
       <Pressable style={({ focused }) => ({ opacity: focused ? 0.5 : 1 })} />,
     );
-    await settle();
+
     const button = child(0);
     fire(button, 'focus');
-    await settle();
+
     expect(print()).toBe('view[view{opacity:0.5}]');
     fire(button, 'blur');
-    await settle();
+
     expect(print()).toBe('view[view{opacity:1}]');
   });
 
-  it('passes onLongPress and its delay only when given', async () => {
-    const first = vi.fn<(event: unknown) => void>();
-    const latest = vi.fn<(event: unknown) => void>();
-    show(<Pressable onPress={() => {}} />);
-    await settle();
-    expect(pressables.get(child(0))).not.toHaveProperty('onLongPress');
-
-    show(<Pressable onLongPress={first} delayLongPress={300} />);
-    await settle();
-    show(<Pressable onLongPress={latest} delayLongPress={300} />);
-    await settle();
-    const handlers = pressables.get(child(0))!;
-    expect(handlers['delayLongPress']).toBe(300);
-    (handlers['onLongPress'] as (event: unknown) => void)({ type: 'x' });
+  it('passes updated long-press callbacks and respects their delay', async () => {
+    const first = vi.fn<(event: unknown) => void>(),
+      latest = vi.fn<(event: unknown) => void>();
+    await show(<Pressable onPress={() => {}} />);
+    const user = userEvent.setup(),
+      button = screen.getByRole('button');
+    await user.pointer({ target: button, keys: '[MouseLeft>]' });
+    await advanceTime(400);
     expect(first).not.toHaveBeenCalled();
-    expect(latest).toHaveBeenCalledWith({ type: 'x' });
+    await user.pointer({ target: button, keys: '[/MouseLeft]' });
+    await show(<Pressable onLongPress={first} delayLongPress={300} />);
+    await show(<Pressable onLongPress={latest} delayLongPress={300} />);
+    await user.pointer({ target: button, keys: '[MouseLeft>]' });
+    await advanceTime(299);
+    expect(latest).not.toHaveBeenCalled();
+    await advanceTime(1);
+    expect(latest).toHaveBeenCalledOnce();
+    expect(latest).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'pointerdown' }),
+    );
+    expect(first).not.toHaveBeenCalled();
+    await user.pointer({ target: button, keys: '[/MouseLeft]' });
   });
 
   it('disabling stops pressing and resets the state', async () => {
@@ -385,15 +398,15 @@ describe('Pressable state and long presses', () => {
         style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
       />
     );
-    show(<App disabled={false} />);
-    await settle();
+    await show(<App disabled={false} />);
+
     const button = child(0);
     fire(button, 'pointerdown', { button: 0 });
-    await settle();
+
     expect(print()).toBe('view[view{opacity:0.5}]');
-    show(<App disabled />);
-    await settle();
-    expect(pressables.has(button)).toBe(false);
+    await show(<App disabled />);
+
+    expect(getTestRuntime().pressables.has(button)).toBe(false);
     expect(button.focusable).toBe(false);
     expect(print()).toBe('view[view{opacity:1}]');
   });
@@ -413,19 +426,24 @@ describe('useParameter', () => {
     function Readout() {
       return <Text>{useParameter(gain).toFixed(2)}</Text>;
     }
-    show(<Readout />);
+    await show(<Readout />);
     expect(print()).toBe('view[text"0.50"]');
-    value = 0.75;
-    for (const listener of listeners) listener(value);
-    await settle();
+    await reactAct(() => {
+      value = 0.75;
+      for (const listener of listeners) listener(value);
+    });
+
     expect(print()).toBe('view[text"0.75"]');
+    expect(screen.getByText('0.75')).toBeDefined();
+    await mounted!.unmount();
+    expect(listeners.size).toBe(0);
   });
 });
 
 describe('Canvas', () => {
-  it('sizes its drawing buffer, and leaves it alone while the size stays', () => {
+  it('sizes its drawing buffer, and leaves it alone while the size stays', async () => {
     let refNode: unknown = null;
-    show(
+    await show(
       <Canvas width={64} height={32} ref={(node) => void (refNode = node)} />,
     );
     const canvas = child(0);
@@ -441,9 +459,9 @@ describe('Canvas', () => {
       set: (value: number) => void sizes.push(value),
       configurable: true,
     });
-    show(<Canvas width={64} height={32} style={{ opacity: 0.5 }} />);
+    await show(<Canvas width={64} height={32} style={{ opacity: 0.5 }} />);
     expect(sizes).toEqual([]);
-    show(<Canvas width={128} height={32} />);
+    await show(<Canvas width={128} height={32} />);
     expect(sizes).toEqual([128]);
   });
 });

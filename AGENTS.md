@@ -47,7 +47,7 @@ A single package or test:
 
 ```sh
 pnpm --filter @soundor/react test                     # one package
-pnpm --filter @soundor/react exec vitest run src/modal.test.tsx -t "<test name>"
+pnpm --filter @soundor/react-tests exec vitest run src/modal.test.tsx -t "<test name>"
 pnpm --filter soundor test                            # the CLI package is named `soundor`
 ```
 
@@ -125,7 +125,15 @@ read the docs bundled with the installed package
   the plugin's log file and maps stack frames back through source maps.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
-  FocusScope. Tests use `src/testing/fake-ui.ts` in place of the runtime.
+  FocusScope. Tests live in the private `packages/react/testing` workspace and use the public
+  Testing Library with the simulated runtime. `pnpm --filter @soundor/react test`
+  delegates to that workspace to avoid renderer/test-tool dependency cycles.
+- `packages/test-runtime` — framework-independent in-memory UI, semantics, events,
+  services, parameters, and virtual animation clock.
+- `packages/vitest` and `packages/vitest-environment-soundor` — the `soundor()`
+  plugin and `environment: 'soundor'`, with isolated runtime state per test.
+- `packages/testing-library` — semantic queries and stateful user interactions;
+  `/react` renders through Soundor's reconciler. See `docs/testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
 - `runtimes/juce-runtime` — TypeScript side (`src/`: codegen of the C++
   framework, JUCE resolution, scaffolding) plus the C++ runtime in `native/`.

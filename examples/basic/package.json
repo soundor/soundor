@@ -10,7 +10,9 @@
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
@@ -21,9 +23,13 @@
   "devDependencies": {
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
+    "@soundor/testing-library": "workspace:^",
+    "@soundor/vitest": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "soundor": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
   }
 }
