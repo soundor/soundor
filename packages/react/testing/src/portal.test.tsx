@@ -9,8 +9,8 @@ import {
   type PortalHost,
 } from '@soundor/react';
 import { print as printNode, type TestNode } from '@soundor/test-runtime';
+import { getTestRuntime } from '@soundor/test-runtime';
 import { render, screen, userEvent } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import {
   createContext,
   useContext,

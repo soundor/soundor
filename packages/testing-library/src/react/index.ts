@@ -20,6 +20,10 @@ import {
 import { fireEvent as rawFireEvent } from '../events/fire';
 import { createUser, type UserOptions } from '../events/user';
 import { createQueries, resolveNode, type NodeTarget } from '../queries';
+import {
+  testParameters as rawTestParameters,
+  testHost as rawTestHost,
+} from '../setup';
 export type {
   TextMatch,
   MatchOptions,
@@ -160,3 +164,11 @@ export const fireEvent: typeof rawFireEvent = new Proxy(rawFireEvent, {
       : value;
   },
 });
+
+export { mockNative } from '../setup';
+export const testParameters: typeof rawTestParameters = {
+  set: (id, value) => syncUpdate(() => rawTestParameters.set(id, value)),
+};
+export const testHost: typeof rawTestHost = {
+  set: (state) => syncUpdate(() => rawTestHost.set(state)),
+};

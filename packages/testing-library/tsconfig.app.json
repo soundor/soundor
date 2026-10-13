@@ -11,5 +11,5 @@
     "node_modules/@soundor/core/runtime/globals.d.ts",
     "node_modules/@soundor/core/runtime/ui.d.ts"
   ],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test-contract.d.ts"]
 }

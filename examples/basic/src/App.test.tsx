@@ -2,10 +2,10 @@ import {
   render,
   screen,
   userEvent,
-  act,
+  testHost,
+  testParameters,
   waitFor,
 } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import { parameters } from 'soundor:parameters';
 import { storage } from 'soundor:storage';
 import { expect, test, vi } from 'vitest';
@@ -13,8 +13,7 @@ import { expect, test, vi } from 'vitest';
 import { App } from './App';
 
 test('changes gain, edits and saves a preset, then navigates to reset in one session', async () => {
-  const runtime = getTestRuntime(),
-    changed = vi.fn<(value: number) => void>();
+  const changed = vi.fn<(value: number) => void>();
   parameters.gain.subscribe(changed);
   await storage.set('presetName', 'Init');
   await render(<App />);
@@ -25,7 +24,7 @@ test('changes gain, edits and saves a preset, then navigates to reset in one ses
   expect(screen.getByText('0.61')).toBeDefined();
   await user.tab();
   const input = screen.getByRole('textinput');
-  expect(runtime.focusedNode()).toBe(input);
+  expect(input).toHaveFocus();
   await user.clear(input);
   await user.type(input, 'Warm');
   await user.keyboard('{Enter}');
@@ -33,22 +32,18 @@ test('changes gain, edits and saves a preset, then navigates to reset in one ses
     expect(await storage.get('presetName')).toBe('Warm'),
   );
   await user.tab();
-  expect(runtime.focusedNode()).toBe(
-    screen.getByRole('button', { name: 'Reset gain' }),
-  );
+  expect(screen.getByRole('button', { name: 'Reset gain' })).toHaveFocus();
   await user.keyboard('{Enter}');
   expect(parameters.gain.get()).toBe(0.5);
   expect(changed).toHaveBeenLastCalledWith(0.5);
   expect(screen.getByText('0.50')).toBeDefined();
-  expect(runtime.keys.size).toBe(0);
-  expect(runtime.pointer.down).toBeNull();
+  await user.keyboard('{ArrowUp}');
+  expect(parameters.gain.get()).toBe(0.5);
 });
 test('host and parameter subscriptions update the real application', async () => {
   await render(<App />);
-  await act(() => {
-    getTestRuntime().setHost({ hostName: 'Test DAW', sampleRate: 96000 });
-    parameters.gain.set(0.75);
-  });
+  testHost.set({ hostName: 'Test DAW', sampleRate: 96000 });
+  testParameters.set('gain', 0.75);
   expect(screen.getByText(/Test DAW · 96000 Hz/)).toBeDefined();
   expect(screen.getByText('0.75')).toBeDefined();
   await userEvent

@@ -1,5 +1,9 @@
 import { cleanupTestContext, resetTestContext } from '@soundor/test-runtime';
-import { aroundEach } from 'vitest';
+import { expect, aroundEach } from 'vitest';
+
+import { soundorMatchers } from './matchers';
+
+expect.extend(soundorMatchers);
 
 aroundEach(async (runTest, context) => {
   if (context.task.concurrent)

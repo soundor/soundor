@@ -26,15 +26,14 @@ transform. Published `@soundor/react` is transformed through Vite so its
 `soundor:ui` imports work too; React remains an application dependency.
 
 ```ts
-import { test, expect, vi } from 'vitest';
+import { test, expect } from 'vitest';
 import { createTextInput, root } from 'soundor:ui';
-import { getTestRuntime } from '@soundor/vitest';
 
 test('focuses an input', () => {
   const input = createTextInput({ value: 'Soundor' });
   root.appendChild(input);
   input.focus();
-  expect(getTestRuntime().focusedNode()).toBe(input);
+  expect(input).toHaveFocus();
 });
 ```
 
@@ -65,13 +64,16 @@ Each test starts with this initial state. In tests:
 
 ```ts
 import { beforeEach, vi } from 'vitest';
-import { getTestRuntime } from '@soundor/vitest';
+import {
+  testParameters,
+  testHost,
+  mockNative,
+} from '@soundor/testing-library/react';
 
 beforeEach(() => {
-  const runtime = getTestRuntime();
-  runtime.parameters.byId.gain!.set(0.75);
-  runtime.setHost({ hostName: 'Test DAW' });
-  runtime.mockNative(
+  testParameters.set('gain', 0.75);
+  testHost.set({ hostName: 'Test DAW' });
+  mockNative(
     'loadPreset',
     vi.fn(async () => ({ name: 'Warm' })),
   );
@@ -96,7 +98,7 @@ Parallel **test files** are supported in standard forks/threads pools. Tests in
 one file must run sequentially; `test.concurrent` is rejected. Keep
 `test.isolate` enabled (the default). VM pools are not supported.
 
-Animation time is explicit: `getTestRuntime().advanceTime(250)`. The environment
+Animation time is explicit: `await advanceTime(250)`. The environment
 provides `requestAnimationFrame`/`cancelAnimationFrame`, simulating 60 Hz frame
 batches on that clock, with native ordering and cancellation semantics. This
 also supports React's `useAnimationFrame`. Frame timestamps use runtime time;
@@ -133,3 +135,42 @@ The smoke test packs the real packages, installs them in an external project
 with isolated node_modules and strict peers, runs React interaction tests, and
 checks public TypeScript declarations. No workspace aliases or direct
 `@soundor/test-runtime` dependency are used.
+
+### Focus assertions and simulated setup
+
+The existing `soundor()` plugin automatically registers `expect(node).toHaveFocus()`
+and its negation. It reads Soundor focus, including portals and nested dialogs;
+foreign, detached, stale, and disposed-runtime nodes fail clearly, even with `.not`.
+Matcher types are included by importing `@soundor/vitest` in the TypeScript project
+(normally through `vitest.config.ts`). If your test TypeScript project excludes that
+config, add `"@soundor/vitest"` to `compilerOptions.types` or a type-only import.
+No DOM matchers or additional setup file are needed.
+
+```tsx
+await user.tab();
+expect(screen.getByRole('button', { name: 'Open dialog' })).toHaveFocus();
+```
+
+`testParameters.set(id, value)` validates declared IDs and value types at runtime,
+uses plain units, clamps numbers, rounds integers, and notifies subscriptions.
+`testHost.set(partialSnapshot)` merges the existing host snapshot and notifies
+subscribers; `transport` is a complete transport snapshot or `null`.
+`mockNative(name, implementation)` registers a declared native method with a normal
+function (including synchronous or asynchronous `vi.fn()`), preserving thrown
+errors and rejections. Unknown methods and non-function mocks fail clearly.
+All three helpers use the current test's runtime and reset with it. Use them in
+`beforeEach` or a test, rather than `beforeAll` or module initialization.
+The React entry coordinates parameter and host updates with synchronous `act`,
+both before rendering and after subscriptions mount. The root entry provides the
+same helpers without React.
+
+These setup helpers specifically configure the simulated environment; future
+native environments may require different setup. Queries, interactions, focus
+assertions and presentation assertions describe application behavior, but native
+support is not implemented or promised by these APIs today.
+Use `await advanceTime()` and `node.presentation` for application animation tests.
+Animation registry counts, ownership and cleanup belong in test-runtime unit tests.
+Renderer implementation tests may inspect submitted animation handles to verify
+reconciler behavior. `getTestRuntime()` from `@soundor/vitest` remains a deprecated
+advanced escape hatch for compatibility; runtime implementation tests should
+import context helpers and `createTestRuntime()` from `@soundor/test-runtime`.

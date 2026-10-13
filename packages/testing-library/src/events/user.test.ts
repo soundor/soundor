@@ -1,4 +1,4 @@
-import { getTestRuntime } from '@soundor/vitest';
+import { getTestRuntime } from '@soundor/test-runtime';
 import { expect, test, vi } from 'vitest';
 
 import { userEvent, fireEvent, advanceTime, waitFor } from '../index';

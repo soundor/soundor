@@ -1,4 +1,4 @@
-import { getTestRuntime } from '@soundor/vitest';
+import { getTestRuntime } from '@soundor/test-runtime';
 import { readText } from 'soundor:fs';
 import { snapshot, subscribe } from 'soundor:host';
 import { probe, load } from 'soundor:native';

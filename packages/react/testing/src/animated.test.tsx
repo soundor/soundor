@@ -1,6 +1,5 @@
 import { Animated, Text } from '@soundor/react';
 import { render, screen, advanceTime } from '@soundor/testing-library/react';
-import { getTestRuntime } from '@soundor/vitest';
 import { createRef } from 'react';
 import type { UiNode } from 'soundor:ui';
 import { expect, it } from 'vitest';
@@ -67,7 +66,8 @@ it('unmounting a parent automatically cancels its animated descendants', async (
   expect(animation.playState).toBe('running');
   await result.unmount();
   expect(animation.playState).toBe('idle');
-  expect(getTestRuntime().activeAnimations.size).toBe(0);
+  expect(screen.queryByLabelText('Child')).toBeNull();
+  await advanceTime(250);
 });
 it('holds the captured presentation during a transition delay before publishing the new base style', async () => {
   const component = (opacity: number) => (

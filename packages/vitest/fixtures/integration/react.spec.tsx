@@ -7,7 +7,7 @@ import {
   View,
   useAnimationFrame,
 } from '@soundor/react';
-import { getTestRuntime } from '@soundor/vitest';
+import { getTestRuntime } from '@soundor/test-runtime';
 import { root, focusedNode } from 'soundor:ui';
 import { test, expect } from 'vitest';
 for (const index of [1, 2])

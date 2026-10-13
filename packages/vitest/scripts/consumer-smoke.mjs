@@ -77,15 +77,24 @@ try {
   run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], temporary);
   await writeFile(
     resolve(temporary, 'vitest.config.ts'),
-    `import {defineConfig} from 'vitest/config';\nimport {soundor} from '@soundor/vitest';\nexport default defineConfig({plugins: [soundor({config: false})], test: {environment: 'soundor'}});\n`,
+    `import {defineConfig} from 'vitest/config';\nimport {soundor} from '@soundor/vitest';\nexport default defineConfig({plugins: [soundor({config: false, runtime: {parameters: [{id: 'gain', label: 'Gain', type: 'float', min: 0, max: 1, default: 0.5}]}, native: {methods: {probe: {returns: 'number'}, loadPreset: {returns: 'string', async: true}}}})], test: {environment: 'soundor'}});\n`,
   );
   await writeFile(
     resolve(temporary, 'component.test.tsx'),
     `import {expect, test, vi} from 'vitest';
 import {Pressable, Text, TextInput, useAnimationFrame} from '@soundor/react';
 import {useState} from 'react';
-import {render, screen, userEvent, advanceTime} from '@soundor/testing-library/react';
+import {render, screen, userEvent, advanceTime, testParameters, testHost, mockNative} from '@soundor/testing-library/react';
+import {parameters} from 'soundor:parameters';
+import {snapshot} from 'soundor:host';
+import {probe, loadPreset} from 'soundor:native';
 for (const index of [1,2]) test('packed testing library '+index, async () => {
+ expect(parameters.gain.get()).toBe(0.5);expect(snapshot().hostName).toBe('Soundor Test');
+ expect(() => probe()).toThrow('requires a configured test mock');
+ testParameters.set('gain', 0.75);testHost.set({hostName: 'Packed DAW'});
+ expect(parameters.gain.get()).toBe(0.75);expect(snapshot().hostName).toBe('Packed DAW');
+ mockNative('probe', vi.fn(() => 42));mockNative('loadPreset', vi.fn(async () => 'Warm'));
+ expect(probe()).toBe(42);expect(await loadPreset()).toBe('Warm');
  const onChange = vi.fn();const times: number[] = [];
  function App(){const [count,setCount] = useState(0);useAnimationFrame(time => times.push(time));return <>
  <TextInput accessibilityLabel="Name" />
@@ -93,7 +102,10 @@ for (const index of [1,2]) test('packed testing library '+index, async () => {
  <Text>Count: {count}</Text></>;}
  await render(<App/>);const user = userEvent.setup();
  await user.type(screen.getByRole('textinput', {name: 'Name'}), 'Soundor');
- await user.tab();await user.keyboard('{Enter}');
+ expect(screen.getByRole('textinput', {name: 'Name'})).toHaveFocus();
+ await user.tab();expect(screen.getByRole('button', {name: 'Increment'})).toHaveFocus();
+ expect(screen.getByRole('textinput', {name: 'Name'})).not.toHaveFocus();
+ await user.keyboard('{Enter}');
  expect(onChange).toHaveBeenCalledWith(1);expect(screen.getByText('Count: 1')).toBeDefined();
  await user.click(screen.getByRole('button', {name: 'Increment'}));
  expect(screen.getByText('Count: 2')).toBeDefined();
@@ -120,6 +132,31 @@ for (const index of [1,2]) test('packed testing library '+index, async () => {
     }),
   );
   console.log(run('pnpm', ['exec', 'tsc'], temporary));
+  // Verify matcher signatures independently of the project's generated globals.
+  await writeFile(
+    resolve(temporary, 'matcher-types.ts'),
+    `
+import type {} from '@soundor/vitest';
+import {expect} from 'vitest';
+declare const node: unknown;
+const result: void = expect(node).toHaveFocus();
+const negated: void = expect(node).not.toHaveFocus();
+const promised: Promise<void> = expect(Promise.resolve(node)).resolves.toHaveFocus();
+// @ts-expect-error focus matcher takes no arguments
+expect(node).toHaveFocus('unexpected');
+`,
+  );
+  const matcherConfig = JSON.parse(
+    await readFile(resolve(temporary, 'tsconfig.json'), 'utf8'),
+  );
+  matcherConfig.include = ['matcher-types.ts'];
+  await writeFile(
+    resolve(temporary, 'tsconfig.matchers.json'),
+    JSON.stringify(matcherConfig),
+  );
+  console.log(
+    run('pnpm', ['exec', 'tsc', '-p', 'tsconfig.matchers.json'], temporary),
+  );
   // Disable automatic peer installation to prove optional React peers are not needed.
   // Vite is explicit here because both Vitest and the plugin require that peer.
   await writeFile(
@@ -168,7 +205,7 @@ test('framework independent packed utilities', async () => {
  expect(() => require.resolve('react', {paths: [process.cwd()]})).toThrow('Cannot find module');
  const node = createTextInput();node.accessibility = {label: 'Name'};root.appendChild(node);
  await userEvent.setup().type(screen.getByRole('textinput', {name: 'Name'}), 'vanilla');
- expect(node.value).toBe('vanilla');
+ expect(node.value).toBe('vanilla');expect(node).toHaveFocus();
 });
 `,
   );

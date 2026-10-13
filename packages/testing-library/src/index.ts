@@ -16,3 +16,5 @@ export type {
 } from './events/fire';
 export { waitFor, advanceTime } from './async';
 export type { WaitOptions } from './async';
+
+export { testParameters, testHost, mockNative } from './setup';

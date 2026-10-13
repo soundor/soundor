@@ -83,4 +83,5 @@ Vitest integration uses the worker context helpers (`getTestRuntime`,
 package. The environment owns a symbol-keyed worker context shared across Node
 and Vite module copies. Creating ordinary standalone runtimes does not install
 or modify that context. Consumer tests normally access the active runtime via
-`getTestRuntime` from `@soundor/vitest`.
+Testing Library queries, focus assertions and simulated setup helpers instead.
+`getTestRuntime` from `@soundor/vitest` is a deprecated advanced escape hatch.
