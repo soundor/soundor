@@ -179,6 +179,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t nanoseconds = 0;
     };
 
+#if SOUNDOR_DEVTOOLS
+    struct AnimationInspectionTarget
+    {
+        std::uint32_t node = 0;
+        PropertyMask properties = 0;
+        Presentation presentation;
+    };
+    struct AnimationInspection
+    {
+        AnimationId id = 0;
+        std::uint32_t playbackGeneration = 0;
+        PlaybackState state = PlaybackState::Running;
+        double elapsed = 0;
+        Timing timing;
+        double delay = 0;
+        bool program = false;
+        std::optional<SpringParameters> spring;
+        std::size_t keyframes = 0;
+        std::vector<AnimationInspectionTarget> targets;
+        bool targetsTruncated = false;
+    };
+    struct AnimationInspectionChange
+    {
+        AnimationId id = 0;
+        std::uint32_t node = 0;
+        std::uint32_t playbackGeneration = 0;
+        PlaybackState state = PlaybackState::Running;
+    };
+#endif
+
     // No interpreter types or callbacks. Owned by one surface and advanced
     // only from its host's existing UI tick, never an audio thread.
     class AnimationTimeline
@@ -206,6 +236,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void setClock(Clock provided);
         void setReducedMotion(bool reduced);
         [[nodiscard]] bool reducedMotion() const noexcept { return reduceMotion; }
+
+#if SOUNDOR_DEVTOOLS
+        [[nodiscard]] std::vector<AnimationInspection> inspect(std::uint32_t node = 0, bool* truncated = nullptr) const;
+        void debugObserve(bool enabled);
+        [[nodiscard]] bool debugRunning() const noexcept { return ! active.empty(); }
+        [[nodiscard]] std::vector<AnimationInspectionChange> takeDebugChanges(bool& truncated);
+#endif
 
         [[nodiscard]] static double ease(Easing easing, double progress) noexcept;
 
@@ -254,6 +291,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void activate(AnimationId id, Animation& animation);
         void deactivate(AnimationId id, Animation& animation);
 
+#if SOUNDOR_DEVTOOLS
+        void debugNotify(AnimationId id, const Animation& animation, PlaybackState state);
+        bool debugObserved = false;
+        bool debugOverflow = false;
+        std::vector<AnimationInspectionChange> debugChanges;
+#endif
         Surface& surface;
         Clock clock;
         double lastTime = 0;

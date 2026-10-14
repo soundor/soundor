@@ -6,6 +6,9 @@
  * @typedef {import('@soundor/devtools-protocol').NodeRef} NodeRef
  * @typedef {import('@soundor/devtools-protocol').ServerMessage} ServerMessage
  * @typedef {import('@soundor/devtools-protocol').EventName} EventName
+ * @typedef {import('@soundor/devtools-protocol').DebugAnimation} DebugAnimation
+ * @typedef {import('@soundor/devtools-protocol').AnimationChange} AnimationChange
+ * @typedef {import('@soundor/devtools-protocol').DebugMetrics} DebugMetrics
  * @typedef {{level:string,message:string,source:string,timestamp:number,scope:string}} Log
  */
 /** @param {Window & typeof globalThis} win */
@@ -28,6 +31,14 @@ export function startInspector(win) {
   const details = element('details');
   const treeNote = element('tree-note');
   const logsView = element('logs');
+  /** @type {HTMLButtonElement} */ const recordButton =
+    element('record-performance');
+  /** @type {DebugMetrics | undefined} */ let performance;
+  /** @type {DebugAnimation[]} */ let activeAnimations = [];
+  /** @type {AnimationChange[]} */ const animationHistory = [];
+  let dock = 'console';
+  let animationLoading = false;
+  let diagnosticsBusy = false;
   /** @type {HTMLInputElement} */ const logFilter = element('log-filter');
   /** @type {HTMLSelectElement} */ const logLevel = element('log-level');
   /** @type {WebSocket | undefined} */ let socket;
@@ -146,14 +157,29 @@ export function startInspector(win) {
         ? 'Observer · another tab controls'
         : 'Observer · control available';
     pickerButton.disabled =
-      !connected || !ownsControl() || !supports('inspector');
+      !connected || !ownsControl() || !supports('inspector') || diagnosticsBusy;
     pickerButton.setAttribute('aria-pressed', String(picker));
     pickerButton.textContent = picker
       ? 'Cancel picker (Escape)'
       : 'Select element';
     refreshButton.disabled = !connected || !supports('inspector');
+    /** @type {HTMLButtonElement} */ (element('clear-selection')).disabled =
+      !selected;
+    recordButton.disabled =
+      !connected ||
+      !ownsControl() ||
+      !supports('performance') ||
+      diagnosticsBusy;
+    recordButton.textContent = performance?.recording
+      ? 'Stop recording'
+      : 'Start recording';
+    element('performance-status').textContent = !supports('performance')
+      ? 'This target does not support performance diagnostics'
+      : performance?.recording
+        ? 'Recording · 10 Hz samples'
+        : 'Recording is off';
     element('target-meta').textContent = target
-      ? `${target.runtime} · generation ${target.generation} · ${target.capabilities.join(', ')}${target.processId ? ` · PID ${target.processId}` : ''}`
+      ? `${target.runtime} · instance ${target.id.slice(0, 8)} · generation ${target.generation} · ${target.capabilities.join(', ')}${target.processId ? ` · PID ${target.processId}` : ''}`
       : '';
   }
   /** @param {string} message */
@@ -167,6 +193,13 @@ export function startInspector(win) {
     ++viewEpoch;
     ++selectionEpoch;
     inspectedGeneration = 0;
+    performance = undefined;
+    activeAnimations = [];
+    animationHistory.length = 0;
+    animationLoading = false;
+    diagnosticsBusy = false;
+    renderPerformance();
+    renderAnimations();
     tree = undefined;
     nodes.clear();
     selected = undefined;
@@ -215,6 +248,12 @@ export function startInspector(win) {
     try {
       await request('Events.subscribe', { events }, id);
       if (epoch !== viewEpoch) return;
+      if (supports('performance')) {
+        const metrics = await request('Diagnostics.getMetrics', {});
+        if (epoch !== viewEpoch) return;
+        acceptMetrics(metrics, true);
+      }
+      if (dock === 'animations') run(loadAnimations());
       if (supports('inspector')) await refreshTree();
       else emptyTree('This target does not support native UI inspection.');
     } catch (error) {
@@ -235,7 +274,13 @@ export function startInspector(win) {
     for (const target of targets) {
       const option = doc.createElement('option');
       option.value = target.id;
-      option.textContent = `${target.name} — ${target.runtime}`;
+      const duplicate = targets.some(
+        (other) =>
+          other.id !== target.id &&
+          other.name === target.name &&
+          other.runtime === target.runtime,
+      );
+      option.textContent = `${target.name} — ${target.runtime}${duplicate ? ` [${target.id.slice(0, 8)}]` : ''}`;
       targetsInput.append(option);
     }
     const after = currentTarget();
@@ -294,6 +339,7 @@ export function startInspector(win) {
       if (selected && !nodes.has(selected.id)) {
         selected = undefined;
         ++selectionEpoch;
+        updateControls();
         renderDetails();
       }
       renderTree();
@@ -456,6 +502,7 @@ export function startInspector(win) {
     const changed =
       selected?.id !== ref.id || selected?.generation !== ref.generation;
     selected = ref;
+    updateControls();
     if (changed) renderDetails();
     const epoch = viewEpoch;
     const selection = ++selectionEpoch;
@@ -497,8 +544,11 @@ export function startInspector(win) {
       }
       if (supports('animations')) {
         const animations = await request('Animation.getActive', { node: ref });
-        if (epoch === viewEpoch && selection === selectionEpoch)
+        if (epoch === viewEpoch && selection === selectionEpoch) {
           detailGroup('Animations', { active: animations });
+          activeAnimations = animations;
+          renderAnimations();
+        }
       }
     } catch (error) {
       if (epoch === viewEpoch && selection === selectionEpoch) {
@@ -513,7 +563,8 @@ export function startInspector(win) {
   }
   /** @param {NodeRef | null} ref */
   function queueHighlight(ref) {
-    if (!ownsControl() || picker || !supports('inspector')) return;
+    if (!ownsControl() || picker || diagnosticsBusy || !supports('inspector'))
+      return;
     nextHighlight = ref;
     if (!highlightTimer)
       highlightTimer = win.setTimeout(() => {
@@ -629,6 +680,201 @@ export function startInspector(win) {
     element('log-count').textContent = `${filtered.length} / ${logs.length}`;
     if (nearBottom) logsView.scrollTop = logsView.scrollHeight;
   }
+  /** @param {DebugMetrics} metrics @param {boolean} full */
+  function acceptMetrics(metrics, full = false) {
+    if (metrics.generation !== currentTarget()?.generation) return;
+    if (full || !performance || metrics.frameCount === 0) performance = metrics;
+    else {
+      const combined = new Map(
+        performance.frames.map((frame) => [frame.timestampMs, frame]),
+      );
+      for (const frame of metrics.frames)
+        combined.set(frame.timestampMs, frame);
+      performance = {
+        ...metrics,
+        frames: [...combined.values()]
+          .sort((a, b) => a.timestampMs - b.timestampMs)
+          .slice(-300),
+      };
+    }
+    updateControls();
+    renderPerformance();
+  }
+  function renderPerformance() {
+    const summary = element('performance-summary');
+    summary.replaceChildren();
+    const chart = doc.getElementById('performance-chart');
+    chart?.replaceChildren();
+    const phasesView = element('performance-phases');
+    phasesView.replaceChildren();
+    if (!performance) return;
+    const last = performance.frames.at(-1);
+    /** @type {Record<string,string|number>} */
+    const values = { 'Rendered frames': performance.frameCount };
+    if (performance.delayedTicks !== undefined)
+      values[
+        `Delayed UI ticks${performance.tickDelayThresholdMs ? ` (>${performance.tickDelayThresholdMs} ms)` : ''}`
+      ] = performance.delayedTicks;
+    if (performance.tickIntervalMs !== undefined)
+      values['Tick interval (ms)'] = performance.tickIntervalMs.toFixed(2);
+    if (last) {
+      for (const [name, value] of Object.entries({
+        'CPU frame (ms)': last.frameMs,
+        'Production (ms)': last.productionMs,
+        'Layout (ms)': last.layoutMs,
+        'Node raster (ms)': last.rasterMs,
+        'Composition (ms)': last.compositionMs,
+      }))
+        if (value !== undefined) values[name] = value.toFixed(2);
+      for (const [name, value] of Object.entries({
+        'Frame layers': last.layerCount,
+        'Rasterized layers': last.layersRasterized,
+        'GPU layers': last.gpuLayers,
+        'Uploaded bytes': last.bytesUploaded,
+        'GPU layer readbacks': last.gpuReadbacks,
+        'Compositor readbacks': last.compositorReadbacks,
+        'Draw calls': last.drawCalls,
+      }))
+        if (value !== undefined) values[name] = value;
+      if (last.mode || last.backend)
+        values['Compositor'] = [last.mode?.toUpperCase(), last.backend]
+          .filter(Boolean)
+          .join(' · ');
+    } else values['Frame samples'] = 'No rendered frames yet';
+    for (const [name, value] of Object.entries(values)) {
+      const item = doc.createElement('div');
+      item.className = 'metric';
+      item.textContent = name;
+      const number = doc.createElement('strong');
+      number.textContent = String(value);
+      item.append(number);
+      summary.append(item);
+    }
+    if (
+      chart &&
+      performance.frames.some((frame) => frame.frameMs !== undefined)
+    ) {
+      const frames = performance.frames.filter(
+        (frame) => frame.frameMs !== undefined,
+      );
+      const first = frames[0]?.timestampMs ?? 0;
+      const span = Math.max(1, (frames.at(-1)?.timestampMs ?? 0) - first);
+      const peak = Math.max(...frames.map((frame) => frame.frameMs ?? 0));
+      const axis = Math.max(1, peak);
+      const line = doc.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'polyline',
+      );
+      line.setAttribute('fill', 'none');
+      line.setAttribute('stroke', 'var(--accent)');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute(
+        'points',
+        frames
+          .map(
+            (frame) =>
+              `${((frame.timestampMs - first) / span) * 790 + 5},${75 - ((frame.frameMs ?? 0) / axis) * 65}`,
+          )
+          .join(' '),
+      );
+      const title = doc.createElementNS('http://www.w3.org/2000/svg', 'title');
+      title.textContent = `Measured CPU frame duration, ${frames.length} samples, peak ${peak.toFixed(2)} ms`;
+      chart.append(title, line);
+    }
+    if (Object.keys(performance.phases).length) {
+      const text = doc.createElement('pre');
+      text.className = 'diagnostic-note';
+      text.textContent = `Measured UI tick phases and work counters (latest sampling window)\n${JSON.stringify(performance.phases, null, 2)}`;
+      phasesView.append(text);
+    }
+  }
+  function renderAnimations() {
+    const panel = element('animations');
+    panel.replaceChildren();
+    const note = doc.createElement('div');
+    note.className = 'diagnostic-note';
+    note.textContent = !supports('animations')
+      ? 'This target does not support animation inspection.'
+      : `${selected ? 'Selected node' : 'All nodes'} · ${activeAnimations.length} active or paused animations (up to 256). Presentation values come from the engine.`;
+    if (activeAnimations.some((animation) => animation.snapshotTruncated))
+      note.textContent += ' Snapshot limit reached.';
+    panel.append(note);
+    for (const animation of activeAnimations) {
+      const row = doc.createElement('div');
+      row.className = 'animation-row';
+      row.textContent =
+        `#${animation.id} · ${animation.kind} · ${animation.state} · ${animation.elapsedMs.toFixed(1)} ms / ${animation.durationMs ?? 'infinite'} ms (${animation.durationScope}) · delay ${animation.delayMs} ms\n` +
+        animation.targets
+          .map(
+            (target) =>
+              `Node ${target.node.id}: ${target.properties.join(', ')} = ${JSON.stringify(target.presentation)}`,
+          )
+          .join('\n') +
+        (animation.spring
+          ? `\nSpring: ${JSON.stringify(animation.spring)}`
+          : animation.easing
+            ? `\nEasing: ${animation.easing}`
+            : '');
+      panel.append(row);
+    }
+    if (animationHistory.length) {
+      const heading = doc.createElement('div');
+      heading.className = 'diagnostic-note';
+      heading.textContent = 'Recent lifecycle events (this target, up to 100)';
+      panel.append(heading);
+      for (const entry of animationHistory.toReversed()) {
+        const row = doc.createElement('div');
+        row.className = 'animation-row';
+        row.textContent = `#${entry.id} · node ${entry.node.id} · ${entry.state} · playback ${entry.playbackGeneration}`;
+        panel.append(row);
+      }
+    }
+  }
+  async function loadAnimations() {
+    if (!supports('animations') || !connected || animationLoading) return;
+    animationLoading = true;
+    const epoch = viewEpoch;
+    const selection = selectionEpoch;
+    try {
+      const result = await request(
+        'Animation.getActive',
+        selected ? { node: selected } : {},
+      );
+      if (epoch === viewEpoch && selection === selectionEpoch) {
+        activeAnimations = result;
+        renderAnimations();
+      }
+    } catch (error) {
+      if (epoch === viewEpoch) fail(error);
+    } finally {
+      if (epoch === viewEpoch) animationLoading = false;
+    }
+  }
+  /** @param {string} name */
+  function showDock(name) {
+    dock = name;
+    for (const panel of ['console', 'animations', 'performance']) {
+      element(`panel-${panel}`).hidden = panel !== name;
+      element(`tab-${panel}`).setAttribute(
+        'aria-pressed',
+        String(panel === name),
+      );
+    }
+    if (name === 'animations') run(loadAnimations());
+    if (name === 'performance') {
+      renderPerformance();
+      if (supports('performance')) {
+        const epoch = viewEpoch;
+        void request('Diagnostics.getMetrics', {})
+          .then((value) => {
+            if (epoch === viewEpoch) acceptMetrics(value, true);
+          })
+          .catch((error) => {
+            if (epoch === viewEpoch) fail(error);
+          });
+      }
+    }
+  }
   /** @param {ServerMessage} message */
   function receive(message) {
     if (message.type === 'hello') {
@@ -714,7 +960,25 @@ export function startInspector(win) {
       }
       queueRefresh(change.kind !== 'properties');
     }
-    if (message.event === 'Animation.changed' && selected) queueRefresh(false);
+    if (message.event === 'Diagnostics.metrics')
+      acceptMetrics(/** @type {DebugMetrics} */ (message.data));
+    if (message.event === 'Animation.changed') {
+      const change =
+        /** @type {{generation:number,changes:AnimationChange[],truncated:boolean}} */ (
+          message.data
+        );
+      if (change.generation !== currentTarget()?.generation) return;
+      animationHistory.push(...change.changes);
+      if (animationHistory.length > 100)
+        animationHistory.splice(0, animationHistory.length - 100);
+      if (change.truncated)
+        report(
+          'Animation lifecycle notifications reached their bound. Refresh active animations for current state.',
+        );
+      renderAnimations();
+      if (dock === 'animations') run(loadAnimations());
+      if (selected) queueRefresh(false);
+    }
   }
   async function checkSession() {
     if (disposed || socket || !auth.hidden) return;
@@ -832,6 +1096,45 @@ export function startInspector(win) {
           picker = enabled;
           report('');
           updateControls();
+        }
+      })(),
+    );
+  for (const panel of ['console', 'animations', 'performance'])
+    element(`tab-${panel}`).onclick = () => showDock(panel);
+  element('clear-selection').onclick = () => {
+    selected = undefined;
+    ++selectionEpoch;
+    renderDetails();
+    renderTree();
+    updateControls();
+    queueHighlight(null);
+    if (dock === 'animations') run(loadAnimations());
+  };
+  recordButton.onclick = () =>
+    run(
+      (async () => {
+        if (!ownsControl() || diagnosticsBusy) return;
+        const epoch = viewEpoch;
+        diagnosticsBusy = true;
+        nextHighlight = undefined;
+        updateControls();
+        try {
+          while (highlighting && epoch === viewEpoch)
+            await new Promise((resolve) => win.setTimeout(resolve, 15));
+          if (epoch !== viewEpoch) return;
+          await request('Diagnostics.setRecording', {
+            enabled: !performance?.recording,
+          });
+          const metrics = await request('Diagnostics.getMetrics', {});
+          if (epoch === viewEpoch) {
+            acceptMetrics(metrics, true);
+            report('');
+          }
+        } finally {
+          if (epoch === viewEpoch) {
+            diagnosticsBusy = false;
+            updateControls();
+          }
         }
       })(),
     );

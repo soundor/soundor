@@ -732,6 +732,12 @@ namespace ${NS}
 
     void AudioProcessorEditor::renderFrame()
     {
+#if SOUNDOR_DEVTOOLS
+        if (debug && debug->recording()) {
+            debug->renderFrame(runtimeHost(), *compositor, compositorCapabilities);
+            return;
+        }
+#endif
         compositor->composite(runtimeHost().frame(compositorCapabilities));
     }
 

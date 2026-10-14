@@ -67,7 +67,7 @@ authentication token cannot authorize a browser.
 Manual authorization reads a key from the descriptor; there is no server-side
 filesystem-reading endpoint. Other local processes cannot obtain a browser
 cookie merely by fetching the dashboard. Access depends on descriptor filesystem
-permissions, including the user's Windows project ACLs. Cross-origin dashboard
+permissions, including the user's Windows temporary-directory ACLs. Cross-origin dashboard
 and authentication requests are rejected. `/browser` upgrades only with that
 cookie and an exact Origin matching this session's localhost or 127.0.0.1 URL.
 Credentials never go in WebSocket URLs. Cookies are unique to each session, so
@@ -140,6 +140,53 @@ refresh selected details independently of the hierarchy.
 The CLI reuses its source-mapped logging pipeline. Since the current shared log
 file lacks instance IDs, these messages have `scope:'session'` and no target ID.
 Instance-specific runtime log events carry a target ID and follow subscriptions.
+
+## Animation and performance data
+
+`Animation.getActive` returns `DebugAnimation[]`: generation-scoped targets,
+animated property names and actual presentation values, playback generation/state,
+engine elapsed time, duration, delay, iterations, and supported easing, spring or
+keyframe metadata. `durationScope` distinguishes an iteration from a compiled
+composition's whole program. A null duration/iteration count means unbounded.
+Compositions report their actual participating targets; unavailable child phase
+metadata is omitted. Snapshot limits are 256 animations, 64 targets per animation,
+and a transport budget. `targetsTruncated` and `snapshotTruncated` report limits.
+
+`Animation.changed` carries bounded `changes` (ID, node, playback generation,
+state) and `truncated`. JUCE captures these from the real timeline only while
+subscribed, including replacement, pause/resume, completion and cancellation.
+Running animations also invalidate presentation inspection at up to 10 Hz.
+Lifecycle queues retain at most 128 changes; the browser retains 100 entries.
+
+`Diagnostics.setRecording({enabled})` requires control. `Diagnostics.getMetrics`
+returns `DebugMetrics`; `Diagnostics.metrics` sends the same typed shape with
+only the newest frame sample, coalesced to 10 Hz. Full retrieval includes up to
+300 samples. Capture starts/stops explicitly, preserves the stopped recording,
+and resets on control loss, disconnection or runtime replacement. Idle recording
+reports tick work without fabricating frames when the application does not render.
+
+Frame fields are optional when a runtime cannot measure them; clients omit
+unsupported fields rather than display guessed zeroes. Frame times measure CPU work around normal frame production and composition,
+including GPU command submission but not GPU execution. `rasterMs` measures native
+node paint calls, excluding the debug overlay; `layoutMs` reuses actual Yoga work
+timing. Counters come from existing frame and compositor statistics: root frame
+layers, raster work, GPU layers/readbacks, uploads and draw calls. `phases` reports
+measured UI tick dispatch phases over its `windowMs`, including timers/async work,
+parameter dispatch, promise jobs, animation callbacks and native animation work.
+These are not total Hermes execution time. `tickIntervalMs` is the measured UI
+callback interval; JUCE's `delayedTicks` counts intervals over its reported
+`tickDelayThresholdMs` of 25 ms against the 60 Hz timer, not dropped GPU frames. GPU execution time is unavailable. Expensive raster
+and frame timing clocks run only during recording, on the owning UI thread.
+
+Property inspection is currently read-only. The reconciler writes complete base
+styles while native animations own presentation groups; there is no separate,
+reconciliation-aware temporary override layer. Direct mutation would risk replacing
+application-owned state, so v1 exposes no property-edit command. Node source
+navigation also requires new renderer metadata: `createInstance` currently stores
+only native type/props/context, without reliable component/file/line information.
+Existing source maps continue to map console error stacks. Future development
+instrumentation can attach explicit source metadata during node creation; tools
+must not infer it from arbitrary native nodes or stacks.
 
 ## Leases and bounds
 

@@ -33,6 +33,21 @@ Computed styles beyond stored normalized inputs and presentation values are
 not invented. Source component/file information and property overrides are
 not available from arbitrary native nodes.
 
+Native diagnostics reuse the real `AnimationTimeline` and existing host, surface,
+frame and compositor counters. Animation capture is subscription-driven, with
+bounded lifecycle queues and on-demand active snapshots. `Inspector::renderFrame`
+wraps the normal frame/composition path only during explicit recording. Node paint
+clocks are enabled only then; no new instrumentation touches audio callbacks.
+Recordings sample at up to 10 Hz and retain 300 samples. Reset clears recording
+state on lease loss, disconnect and reload; picker cancellation alone preserves
+an active recording. Stopping explicitly preserves the current samples.
+
+Frame timing measures CPU production/submission work, not GPU execution. Existing
+UI tick phases expose dispatch work, not total Hermes execution time. Delayed UI
+tick intervals are not claimed as dropped GPU frames. See the
+[protocol measurement contract](../../../packages/devtools-protocol/README.md#animation-and-performance-data)
+for fields, limits, read-only property inspection and source metadata limitations.
+
 Picker interception precedes normal event routing: active capture is cancelled,
 selection press/release and Escape are consumed, and suppressed releases remain
 suppressed after a disconnect or reload. Hit testing uses the engine's real

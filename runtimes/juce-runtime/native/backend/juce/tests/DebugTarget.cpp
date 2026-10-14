@@ -1,4 +1,5 @@
 #include <soundor/backend/JuceDebugBridge.h>
+#include <soundor/render/Compositor.h>
 
 #include <juce_core/juce_core.h>
 
@@ -8,6 +9,19 @@
 
 using namespace soundor;
 
+namespace
+{
+    struct RasterOutput final : render::RasterTarget
+    {
+        render::RasterSurface pixels;
+        Pixels acquire(int width, int height) override
+        {
+            const bool changed = pixels.resize(width, height);
+            return { pixels.bitmap(), ! changed };
+        }
+        void present(const render::Region&) override {}
+    };
+} // namespace
 // A real headless native engine, solely for protocol integration tests. Pointer
 // input is generated locally here; no automation method is added to the wire.
 int main()
@@ -31,9 +45,18 @@ int main()
         const auto canvas = surface.createNode(ui::NodeType::Canvas);
         surface.setCanvasSize(canvas, 20, 20);
         surface.insertChild(control, canvas);
+        ui::AnimationDescription animation;
+        animation.properties = ui::propertyBit(ui::AnimatedProperty::Opacity);
+        animation.from = ui::Presentation {};
+        animation.to[ui::AnimatedProperty::Opacity] = 0.5f;
+        animation.timing.duration = 1000;
+        animation.timing.iterations = std::numeric_limits<double>::infinity();
+        surface.animations().animate(control, animation);
         return host;
     };
     auto host = makeHost();
+    RasterOutput output;
+    render::RasterCompositor compositor(output);
     int events = 0;
     host->surface().setEventSink(
         [&](const ui::Event&)
@@ -80,7 +103,12 @@ int main()
             lastHighlight = highlight;
         }
         if (host->needsRender())
-            (void)host->frame();
+        {
+            if (bridge->recording())
+                bridge->renderFrame(*host, compositor, compositor.capabilities());
+            else
+                compositor.composite(host->frame(compositor.capabilities()));
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     const auto teardown = std::chrono::steady_clock::now();

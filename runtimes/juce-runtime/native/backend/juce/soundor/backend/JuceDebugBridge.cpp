@@ -196,7 +196,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                                              { "name", name },
                                              { "runtime", "JUCE Standalone" },
                                              { "generation", generation.load() },
-                                             { "capabilities", debug::Value::Array { "inspector", "accessibility" } },
+                                             { "capabilities", debug::Value::Array { "inspector", "accessibility",
+                                                                                     "animations", "performance" } },
                                          })
                                 .json();
                         const auto response = request(*descriptorData, "/runtime/register", "POST", registration, 0);
@@ -252,6 +253,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         const auto params = property(value, "params");
                         const auto node = property(params, "node");
                         command.node = nodeId(node);
+                        command.nodeRequested = node.isObject();
                         command.generation = number(node, "generation");
                         command.enabled = static_cast<bool>(property(params, "enabled"));
                         const auto events = property(value, "events");

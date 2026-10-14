@@ -19,6 +19,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         JuceDebugBridge(const JuceDebugBridge&) = delete;
         JuceDebugBridge& operator=(const JuceDebugBridge&) = delete;
         void tick(RuntimeHost& host, unsigned generation);
+        [[nodiscard]] bool recording() const noexcept { return inspector.recording(); }
+        void renderFrame(RuntimeHost& host, render::Compositor& compositor, const render::Capabilities& capabilities)
+        {
+            inspector.renderFrame(host, compositor, capabilities);
+        }
         bool pointer(RuntimeHost& host, const ui::PointerInput& input);
         bool key(RuntimeHost& host, const ui::KeyInput& input);
         [[nodiscard]] bool picking() const noexcept { return inspector.picking(); }
