@@ -484,6 +484,9 @@ importers:
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.2
+      happy-dom:
+        specifier: 'catalog:'
+        version: 20.14.5
       react:
         specifier: 'catalog:'
         version: 19.3.0

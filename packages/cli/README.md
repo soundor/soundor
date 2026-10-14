@@ -65,9 +65,38 @@ Set `devtools.open:true` to open and authorize the first browser tab automatical
 with a one-use ticket. Otherwise enter the `browserKey` from your protected
 session descriptor whose path is printed in the terminal into the dashboard. Keys are
 never printed in logs. Browser tabs can observe targets concurrently; native
-debug interactions require explicit control of the selected target. The full
-inspector and JUCE bridge are added in subsequent changes. See the
+debug interactions require explicit control of the selected target. See the
 [protocol contract](../devtools-protocol/README.md) for transports and security.
+
+### Native DevTools inspector
+
+For JUCE Standalone development, select a connected target to inspect the actual
+native UI hierarchy. Expand nodes or search by type, text, accessibility role/name,
+or node/debug ID. Selecting a node shows its real properties, layout and bounds,
+normalized base styles, current presentation values, and accessibility metadata.
+Unsupported fields are omitted. The application remains in its native window.
+
+Click **Request control** to enable native highlighting and the element picker.
+Hovering or selecting tree nodes highlights them in the native window. Click
+**Select element**, then click a native control: DevTools expands its ancestors,
+scrolls to the selected node, and shows its details. The selection click does not
+activate the application control. Escape cancels picking in either window.
+Observer tabs can select and read nodes independently; picking updates the
+controller's selection. A valid lease cannot be stolen. Release it explicitly,
+switch targets, or close the controlling tab to make it available.
+
+Ordinary tree updates retain surviving selections. Reload, node removal, and
+process disconnection invalidate references safely. WebSocket reconnect restores
+inspection, but never reacquires control automatically. Large snapshots are
+bounded; the picker can fetch omitted nodes and their ancestors on demand.
+
+The Console preserves existing mapped source locations and multiline error
+stacks, with timestamps, severity, text filtering and a per-tab Clear action.
+It retains the most recent 1,000 entries. The current CLI log file represents the
+development session, so these logs are labelled as session logs rather than
+attributed to a particular instance. Neither clearing nor filtering affects
+application logging or other tabs. The dashboard follows the browser's light or
+dark theme and supports keyboard tree navigation.
 
 TypeScript types for the runtime are generated into
 `.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and

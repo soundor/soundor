@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, open, readFile, rm } from 'node:fs/promises';
 import {
   createServer,
   type IncomingMessage,
@@ -475,7 +475,12 @@ export async function startDevToolsServer(
         'Content-Type': 'text/javascript',
         'X-Content-Type-Options': 'nosniff',
       });
-      response.end(dashboardScript);
+      response.end(
+        await readFile(
+          new URL('./dashboard-client.js', import.meta.url),
+          'utf8',
+        ),
+      );
       return;
     }
     if (path === '/browser/auth' && request.method === 'POST') {
@@ -885,13 +890,3 @@ export async function startDevToolsServer(
     },
   };
 }
-
-const dashboardScript = `const status=document.querySelector('#status'),targets=document.querySelector('#targets'),form=document.querySelector('#auth');
-async function authorize(key){const response=await fetch('/browser/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})});if(response.ok){form.hidden=true;connect();}else status.textContent='Invalid or expired browser key';}
-form.onsubmit=event=>{event.preventDefault();const input=document.querySelector('#key');const key=input.value;input.value='';authorize(key);};
-function connect(){const socket=new WebSocket(location.origin.replace('http','ws')+'/browser');
-socket.onopen=()=>{form.hidden=true;socket.send(JSON.stringify({type:'hello',version:1}));status.textContent='Connected to development session'};
-socket.onmessage=({data})=>{const message=JSON.parse(data);if(message.event==='Runtime.targetsChanged'){targets.replaceChildren(...message.data.map(target=>{const item=document.createElement('li');item.textContent=target.name+' — '+target.runtime+' (generation '+target.generation+')';return item;}));}};
-socket.onclose=()=>{status.textContent='Disconnected; authorize if the session restarted';form.hidden=false;targets.replaceChildren();setTimeout(checkSession,2000);};}
-async function checkSession(){try{const response=await fetch('/browser/session');if(response.ok&&(await response.json()).authenticated)connect();else status.textContent='Authorize this browser to connect';}catch{status.textContent='Session unavailable';setTimeout(checkSession,2000);}}
-const ticket=new URLSearchParams(location.hash.slice(1)).get('connect');history.replaceState(null,'',location.pathname);if(ticket)authorize(ticket);else checkSession();`;

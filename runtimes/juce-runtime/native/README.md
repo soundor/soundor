@@ -55,6 +55,19 @@ and accessibility details, highlighting, Canvas picking without application
 events, host replacement, disconnection, protected session handoff and bounded
 worker teardown. Actual cross-window interaction still needs a graphical desktop.
 
+The JUCE `soundor_debug_session` test also has optional real-browser coverage.
+With Playwright and its Chromium already installed, run from `native/`:
+
+```sh
+SOUNDOR_PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs ctest --test-dir build/juce -R soundor_debug_session --output-on-failure
+```
+
+This exercises the shipped inspector against the real headless native bridge:
+native picker synchronization, control ownership across tabs, runtime reload and
+mapped logs. It does not replace manual native-window overlay validation.
+`SOUNDOR_DEVTOOLS_SCREENSHOT=/tmp/inspector.png` optionally saves the browser view.
+The normal test workflow has no browser dependency and downloads no browser.
+
 ## Layout
 
 ```text

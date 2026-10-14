@@ -1,7 +1,9 @@
 {
   "extends": "@soundor/typescript-config/node-test",
   "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo"
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
+    "allowJs": true,
+    "lib": ["ES2023", "DOM"]
   },
   "include": ["src/**/*.test.ts"]
 }
