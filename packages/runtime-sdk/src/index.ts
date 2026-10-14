@@ -5,6 +5,9 @@ export { defineRuntime } from './runtime';
 export type {
   DoctorCheck,
   DoctorReport,
+  DevToolsCapabilities,
+  DevToolsConnection,
+  RuntimeCapabilities,
   LifecycleContext,
   Runtime,
   RuntimeConfig,

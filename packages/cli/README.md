@@ -52,6 +52,13 @@ plugin (parameters) or in `soundor:storage`, so it survives a reload.
   frames mapped back to your TypeScript sources.
 - Changes to `soundor.config.ts` or native code need a restart of `soundor dev`.
 
+`dev` discovers optional DevTools support from the runtime's capability
+declaration, independent of its name. For supported runtimes it resolves
+[user settings](../config/README.md#user-settings) before running development;
+unsupported runtimes do not load these settings. Set `devtools.enabled` to
+`false` to disable debugging. This foundation resolves configuration only;
+the local server and inspector are added in subsequent changes.
+
 TypeScript types for the runtime are generated into
 `.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and
 exactly the Web APIs the runtime provides. Use them with `lib: ["ES2023"]` and

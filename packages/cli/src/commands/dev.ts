@@ -4,6 +4,7 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { outro } from '@clack/prompts';
 import { parseConfig, resolveRuntime, runPhase } from '@soundor/config';
+import type { DevToolsSettings, UserConfigOptions } from '@soundor/config';
 import {
   createCodegenSink,
   createConsoleLogger,
@@ -13,6 +14,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { resolveDevToolsSettings } from '../dev/devtools';
 import { tailLog } from '../dev/log-tail';
 import { rewriteLocations, SourceMap } from '../dev/source-map';
 import { watchUi } from '../ui/bundle';
@@ -24,10 +26,13 @@ export interface RunDevOptions {
   cwd?: string;
   configPath?: string;
   runtime: string;
+  userConfig?: UserConfigOptions;
 }
 
 export interface RunDevResult {
   runtime: string;
+  /** Resolved opt-in for the session server (provided by the next lifecycle layer). */
+  devtools?: DevToolsSettings;
 }
 
 export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
@@ -37,6 +42,10 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   const logger = createConsoleLogger('soundor');
   const config = await parseConfig({ path: configPath });
   const resolved = resolveRuntime(config, options.runtime);
+  const devtools = await resolveDevToolsSettings(
+    resolved.runtime,
+    options.userConfig,
+  );
 
   await runGen({ cwd, configPath });
 
@@ -130,7 +139,10 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     tail.close();
   }
 
-  return { runtime: options.runtime };
+  return {
+    runtime: options.runtime,
+    ...(devtools === undefined ? {} : { devtools }),
+  };
 }
 
 export const devCommand = defineCommand({

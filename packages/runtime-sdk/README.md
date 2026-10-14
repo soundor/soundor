@@ -13,6 +13,31 @@ pnpm add @soundor/runtime-sdk @soundor/config @soundor/core
 Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
 `dev`, `build`, and `doctor` commands.
 
+### Optional DevTools capability
+
+Declare support on the definition passed to `defineRuntime`, without launching
+the runtime:
+
+```ts
+capabilities: {
+  devtools: { inspector: true, accessibility: true, animations: true, performance: true },
+},
+```
+
+All fields are optional. Existing definitions need no changes. Omit `devtools`
+for unsupported runtimes; an empty declaration advertises basic connection
+support. This static declaration is separate from the capabilities negotiated
+by each connected instance. The CLI checks support before loading user settings
+or initializing debugging infrastructure. The Web runtime does not declare it.
+
+`LifecycleContext.devtools`, when supplied, carries the active session's
+`endpoint`, `sessionId` and `token`. Dispatch forwards it only during `dev` in
+debug mode to a runtime declaring support. Treat these credentials as secrets:
+do not log them, include them in process arguments, or embed them in builds.
+The connection context is optional even for a supported runtime (disabled
+settings or unavailable infrastructure). Continue normal development without it.
+The server and protocol are delivered separately from this capability foundation.
+
 ### Signing
 
 The CLI resolves code signing once and hands it to every phase as

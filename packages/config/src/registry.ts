@@ -54,6 +54,7 @@ export interface DispatchContextInput {
   fs: FileSystemHost;
   codegen: CodegenSink;
   ui?: LifecycleContext['ui'];
+  devtools?: LifecycleContext['devtools'];
   /** Defaults to `'debug'`; the build command passes `'production'`. */
   mode?: RuntimeMode;
   signal?: AbortSignal;
@@ -83,6 +84,12 @@ export async function runPhase(
     fs: input.fs,
     codegen: input.codegen,
     ui: input.ui,
+    devtools:
+      phase === 'dev' &&
+      (input.mode ?? 'debug') === 'debug' &&
+      resolved.runtime.capabilities?.devtools !== undefined
+        ? input.devtools
+        : undefined,
     signing: resolveSigning(config, input.env),
     signal: input.signal ?? new AbortController().signal,
   };

@@ -76,6 +76,34 @@ describe('runDev', () => {
     expect(globalThis.__soundorDevEvents).toEqual([]);
   });
 
+  it('resolves supported settings before gen and preserves disabled development', async () => {
+    await writeConfig(root, { devtools: true });
+    const path = join(root, 'user.json');
+    await writeFile(path, '{"devtools":{"port":9000,"open":true}}');
+    await expect(
+      runDev({ cwd: root, runtime: 'test', userConfig: { path } }),
+    ).resolves.toMatchObject({
+      devtools: { enabled: true, port: 9000, open: true, portSource: 'config' },
+    });
+    expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
+    globalThis.__soundorDevEvents = [];
+    await writeFile(path, '{"devtools":{"enabled":false}}');
+    await expect(
+      runDev({ cwd: root, runtime: 'test', userConfig: { path } }),
+    ).resolves.toEqual({ runtime: 'test' });
+    expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
+    globalThis.__soundorDevEvents = [];
+    await writeFile(path, '{"devtools":{"port":0}}');
+    await expect(
+      runDev({ cwd: root, runtime: 'test', userConfig: { path } }),
+    ).rejects.toThrow('Invalid Soundor user config');
+    expect(globalThis.__soundorDevEvents).toEqual([]);
+    await writeConfig(root);
+    await expect(
+      runDev({ cwd: root, runtime: 'test', userConfig: { path } }),
+    ).resolves.toEqual({ runtime: 'test' });
+  });
+
   it('aborts runtime dev on SIGINT', async () => {
     await writeConfig(root, { abortOnDev: true });
 
@@ -136,7 +164,11 @@ declare global {
 
 async function writeConfig(
   root: string,
-  options: { abortOnDev?: boolean; logFromPlugin?: boolean } = {},
+  options: {
+    abortOnDev?: boolean;
+    logFromPlugin?: boolean;
+    devtools?: boolean;
+  } = {},
 ): Promise<void> {
   await writeFile(
     join(root, 'soundor.config.ts'),
@@ -144,6 +176,7 @@ async function writeConfig(
 
 const runtime = {
   id: 'test',
+  ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
   async init() {},
   async gen(_config, ctx) {
     globalThis.__soundorDevEvents.push('gen:' + ctx.mode);

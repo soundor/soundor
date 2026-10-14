@@ -103,6 +103,30 @@ notarization (see the JUCE runtime's README).
 
 MIT
 
+## User settings
+
+Soundor reads optional JSON user settings from:
+
+- Linux and other Unix platforms: `$XDG_CONFIG_HOME/soundor/config.json`, or
+  `~/.config/soundor/config.json` when XDG_CONFIG_HOME is unset or relative.
+- macOS: `~/Library/Application Support/Soundor/config.json`.
+- Windows: `%APPDATA%\Soundor\config.json`, falling back to
+  `~/AppData/Roaming/Soundor/config.json`.
+
+```json
+{
+  "devtools": { "enabled": true, "port": 4545, "open": false }
+}
+```
+
+These are the defaults; the file need not exist. A port must be an integer in
+1–65535. `loadUserSettings()` validates the file using Soundor's config errors;
+`parseUserSettings()` validates an object and `userConfigPath()` resolves its
+location. An explicit path passed to the loader takes precedence over discovery.
+User settings are separate from the plugin contract in `soundor.config.ts`.
+The resolved `portSource` distinguishes an omitted port from an explicit 4545:
+the DevTools server may choose a higher available port only for the default.
+
 `locateConfig(cwd)` returns the nearest `soundor.config.ts` path by searching
 `cwd` and its parent directories. It throws a `ConfigError` with kind
 `not-found` when discovery fails. Integrations can reuse discovery before

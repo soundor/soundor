@@ -250,6 +250,14 @@ export async function juceDoctor(
 /** The factory a config author registers: `runtimes: [juceRuntime({ ... })]`. */
 export const juceRuntime = defineRuntime<JuceOptions>({
   id: RUNTIME_ID,
+  capabilities: {
+    devtools: {
+      inspector: true,
+      accessibility: true,
+      animations: true,
+      performance: true,
+    },
+  },
   init: juceInit,
   gen: juceGen,
   dev: (config, ctx) => juceDev(config, ctx),
