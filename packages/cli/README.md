@@ -56,8 +56,18 @@ plugin (parameters) or in `soundor:storage`, so it survives a reload.
 declaration, independent of its name. For supported runtimes it resolves
 [user settings](../config/README.md#user-settings) before running development;
 unsupported runtimes do not load these settings. Set `devtools.enabled` to
-`false` to disable debugging. This foundation resolves configuration only;
-the local server and inspector are added in subsequent changes.
+`false` to disable debugging. The session server serves the browser dashboard at
+the displayed URL, using port 4545 by default. Only an implicit default advances
+to the next port when occupied; explicit collisions report a fix. The server
+binds to loopback and stops with the development lifecycle.
+
+Set `devtools.open:true` to open and authorize the first browser tab automatically
+with a one-use ticket. Otherwise enter the `browserKey` from your protected
+`.soundor/dev/sessions/<sessionId>.json` descriptor in the dashboard. Keys are
+never printed in logs. Browser tabs can observe targets concurrently; native
+debug interactions require explicit control of the selected target. The full
+inspector and JUCE bridge are added in subsequent changes. See the
+[protocol contract](../devtools-protocol/README.md) for transports and security.
 
 TypeScript types for the runtime are generated into
 `.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and

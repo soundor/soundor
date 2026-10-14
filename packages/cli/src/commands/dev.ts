@@ -12,11 +12,18 @@ import {
   createProjectPaths,
   rootFromConfigPath,
 } from '@soundor/core';
+import type { Capability } from '@soundor/devtools-protocol';
 import { defineCommand } from 'citty';
 
 import { resolveDevToolsSettings } from '../dev/devtools';
 import { tailLog } from '../dev/log-tail';
 import { rewriteLocations, SourceMap } from '../dev/source-map';
+import { openDevTools } from '../devtools/open';
+import {
+  startDevToolsServer,
+  DevToolsPortError,
+  type DevToolsServer,
+} from '../devtools/server';
 import { watchUi } from '../ui/bundle';
 import { runGen } from './gen';
 
@@ -101,6 +108,40 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   await watcher?.ready;
   await sourceMapLoaded;
 
+  const controller = new AbortController();
+  let debug: DevToolsServer | undefined;
+  if (devtools) {
+    try {
+      debug = await startDevToolsServer({
+        projectRoot: root,
+        settings: devtools,
+        signal: controller.signal,
+        supportedCapabilities: Object.entries(
+          resolved.runtime.capabilities!.devtools!,
+        )
+          .filter(([, value]) => value === true)
+          .map(([name]) => name as Capability),
+        onTarget: (target) =>
+          logger.info(`Connected: ${target.name} — ${target.runtime}`),
+      });
+      logger.info(`DevTools: ${debug.url}`);
+      if (devtools.open)
+        await openDevTools(debug.browserLaunchUrl()).catch(() =>
+          logger.warn(
+            `Could not open DevTools automatically. Open ${debug!.url} in your browser.`,
+          ),
+        );
+    } catch (error) {
+      if (error instanceof DevToolsPortError) {
+        watcher?.close();
+        throw error;
+      }
+      logger.warn(
+        'DevTools could not start; continuing normal runtime development. Check local listener and user config permissions.',
+      );
+    }
+  }
+
   const uiLogger = logger.child('ui');
   const tail = await tailLog(logFile, (entry) => {
     let message = entry.message;
@@ -108,9 +149,13 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     if (moduleMap !== undefined)
       message = rewriteLocations(message, moduleMap, 'bundle.mjs');
     uiLogger[entry.level](`${entry.source}: ${message}`);
+    debug?.publishLog({ ...entry, message });
+  }).catch(async (error: unknown) => {
+    watcher?.close();
+    await debug?.close();
+    throw error;
   });
 
-  const controller = new AbortController();
   const onSigint = (): void => {
     logger.info('Stopping dev mode');
     controller.abort();
@@ -125,6 +170,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       codegen: createCodegenSink(),
       mode: 'debug',
       signal: controller.signal,
+      devtools: debug?.connection,
       ui: watcher && {
         dir: uiDir,
         entry: 'bundle.js',
@@ -137,6 +183,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     watcher?.close();
     await tail.poll().catch(() => {});
     tail.close();
+    await debug?.close();
   }
 
   return {
