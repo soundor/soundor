@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { devCommand, runDev } from './dev';
 
+vi.mock('../devtools/open', () => ({ openDevTools: vi.fn(async () => {}) }));
+
 vi.mock('@clack/prompts', () => ({
   outro: vi.fn<() => void>(),
   spinner: vi.fn<() => { start: () => void; stop: (msg?: string) => void }>(
@@ -77,7 +79,7 @@ describe('runDev', () => {
   });
 
   it('resolves supported settings before gen and preserves disabled development', async () => {
-    await writeConfig(root, { devtools: true });
+    await writeConfig(root, { devtools: true, checkDevTools: true });
     const path = join(root, 'user.json');
     await writeFile(path, '{"devtools":{"port":9000,"open":true}}');
     await expect(
@@ -85,13 +87,21 @@ describe('runDev', () => {
     ).resolves.toMatchObject({
       devtools: { enabled: true, port: 9000, open: true, portSource: 'config' },
     });
-    expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
+    expect(globalThis.__soundorDevEvents).toEqual([
+      'gen:debug',
+      'dev:debug',
+      'devtools:true',
+    ]);
     globalThis.__soundorDevEvents = [];
     await writeFile(path, '{"devtools":{"enabled":false}}');
     await expect(
       runDev({ cwd: root, runtime: 'test', userConfig: { path } }),
     ).resolves.toEqual({ runtime: 'test' });
-    expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
+    expect(globalThis.__soundorDevEvents).toEqual([
+      'gen:debug',
+      'dev:debug',
+      'devtools:false',
+    ]);
     globalThis.__soundorDevEvents = [];
     await writeFile(path, '{"devtools":{"port":0}}');
     await expect(
@@ -168,6 +178,7 @@ async function writeConfig(
     abortOnDev?: boolean;
     logFromPlugin?: boolean;
     devtools?: boolean;
+    checkDevTools?: boolean;
   } = {},
 ): Promise<void> {
   await writeFile(
@@ -185,6 +196,7 @@ const runtime = {
   async dev(_config, ctx) {
     globalThis.__soundorDevEvents.push('dev:' + ctx.mode);
     ctx.logger.info('runtime ready');
+    if (${String(options.checkDevTools)}) globalThis.__soundorDevEvents.push('devtools:' + String(Boolean(ctx.devtools)));
     if (${String(options.logFromPlugin)}) {
       // Plays the plugin: logs an error thrown at the bundle's \`throw\`.
       const fs = await import('node:fs');

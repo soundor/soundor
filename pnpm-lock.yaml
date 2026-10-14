@@ -218,6 +218,9 @@ catalogs:
     '@types/three':
       specifier: 0.186.0
       version: 0.186.0
+    '@types/ws':
+      specifier: ^8.18.1
+      version: 8.18.2
     citty:
       specifier: ^0.2.2
       version: 0.2.2
@@ -266,6 +269,9 @@ catalogs:
     vitest:
       specifier: ^5.0.3
       version: 5.0.3
+    ws:
+      specifier: ^8.22.0
+      version: 8.22.0
     zod:
       specifier: ^4.6.5
       version: 4.6.5
@@ -444,12 +450,18 @@ importers:
       '@clack/prompts':
         specifier: 'catalog:'
         version: 1.8.1
+      '@soundor/devtools-protocol':
+        specifier: workspace:^
+        version: link:../devtools-protocol
       citty:
         specifier: 'catalog:'
         version: 0.2.2
       tsdown:
         specifier: 'catalog:'
         version: 0.23.0(typescript@7.0.2)
+      ws:
+        specifier: 'catalog:'
+        version: 8.22.0
     devDependencies:
       '@soundor/config':
         specifier: workspace:^
@@ -469,6 +481,9 @@ importers:
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.2
       react:
         specifier: 'catalog:'
         version: 19.3.0
@@ -573,6 +588,31 @@ importers:
       citty:
         specifier: 'catalog:'
         version: 0.2.2
+    devDependencies:
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:^
+        version: link:../../configs/typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.1
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.0(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
+
+  packages/devtools-protocol:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.5
     devDependencies:
       '@soundor/tsdown-config':
         specifier: workspace:^

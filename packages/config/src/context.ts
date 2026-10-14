@@ -26,6 +26,8 @@ export interface DevToolsConnection {
   readonly endpoint: string;
   readonly sessionId: string;
   readonly token: string;
+  /** Protected descriptor for launchers; pass its path, never credentials, to processes. */
+  readonly descriptorPath?: string;
 }
 
 /**
