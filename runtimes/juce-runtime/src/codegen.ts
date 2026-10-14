@@ -191,6 +191,9 @@ target_sources(\${PROJECT_NAME}
             ),
           )
           .join('\n        ')})
+if(SOUNDOR_ENABLE_DEVTOOLS)
+  target_sources(\${PROJECT_NAME} PRIVATE ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce/soundor/backend/JuceDebugBridge.cpp`))})
+endif()
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
@@ -428,6 +431,9 @@ function renderEditorHeader(): string {
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
+#if SOUNDOR_DEVTOOLS
+#include <soundor/backend/JuceDebugBridge.h>
+#endif
 
 #include <map>
 #include <memory>
@@ -507,6 +513,9 @@ namespace ${NS}
         bool gpuLost = false;
         // Where the runtime's log goes: diagnostics go there too.
         js::LogSink log;
+#if SOUNDOR_DEVTOOLS
+        std::unique_ptr<backend::JuceDebugBridge> debug;
+#endif
         bool releaseKeys(bool all);
 
         // Keys held down, by JUCE key code, with their Web names: JUCE reports
@@ -629,12 +638,24 @@ namespace ${NS}
         setWantsKeyboardFocus(true);
         setOpaque(true);
         setSize(800, 600);
+#if SOUNDOR_DEVTOOLS
+        if (owner.wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
+            const auto descriptor = juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {});
+            if (descriptor.isNotEmpty()) {
+                try { debug = std::make_unique<backend::JuceDebugBridge>(descriptor.toStdString(), AudioProcessor::pluginName, log); }
+                catch (const std::exception&) { log(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally."); }
+            }
+        }
+#endif
         startTimerHz(60);
     }
 
     AudioProcessorEditor::~AudioProcessorEditor()
     {
         stopTimer();
+#if SOUNDOR_DEVTOOLS
+        debug.reset();
+#endif
         // Before the host whose tree it presents.
         detachAccessibility();
         // While the native view it presents in still exists.
@@ -724,6 +745,15 @@ namespace ${NS}
         host->tick();
 #endif
         updateAccessibility();
+#if SOUNDOR_DEVTOOLS
+        if (debug) {
+    #if SOUNDOR_UI_DEV
+            debug->tick(runtimeHost(), session->reloadCount() + 1);
+    #else
+            debug->tick(runtimeHost(), 1);
+    #endif
+        }
+#endif
         updateCompositor();
         if (runtimeHost().needsRender())
             renderFrame();
@@ -791,6 +821,9 @@ namespace ${NS}
 
     void AudioProcessorEditor::deliver(const ui::PointerInput& input)
     {
+#if SOUNDOR_DEVTOOLS
+        if (debug && debug->pointer(runtimeHost(), input)) return;
+#endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
     }
@@ -827,6 +860,9 @@ namespace ${NS}
 
     void AudioProcessorEditor::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
     {
+#if SOUNDOR_DEVTOOLS
+        if (debug && debug->picking()) return;
+#endif
         const bool handled = runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));
         runtimeHost().runtime().runPendingJobs();
         if (! handled)
@@ -839,6 +875,9 @@ namespace ${NS}
         if (name.empty())
             return false;
         const bool repeat = ! heldKeys.emplace(key.getKeyCode(), name).second;
+#if SOUNDOR_DEVTOOLS
+        if (debug && debug->key(runtimeHost(), { .down = true, .key = name, .repeat = repeat })) return true;
+#endif
         auto& surface = runtimeHost().surface();
         bool handled = surface.key({ .down = true,
                                      .key = name,
@@ -872,8 +911,13 @@ namespace ${NS}
                 ++key;
                 continue;
             }
-            handled = runtimeHost().surface().key(
-                          { .down = false, .key = key->second, .repeat = false, .modifiers = modifiers })
+            const ui::KeyInput input { .down = false, .key = key->second, .repeat = false, .modifiers = modifiers };
+#if SOUNDOR_DEVTOOLS
+            const bool intercepted = debug && debug->key(runtimeHost(), input);
+#else
+            constexpr bool intercepted = false;
+#endif
+            handled = intercepted || runtimeHost().surface().key(input)
                       || handled;
             key = heldKeys.erase(key);
         }

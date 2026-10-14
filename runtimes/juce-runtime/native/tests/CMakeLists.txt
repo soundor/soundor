@@ -50,6 +50,9 @@ if(WIN32)
   target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
 endif()
 soundor_configure_target(soundor_runtime_tests)
+if(SOUNDOR_ENABLE_DEVTOOLS)
+  target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp)
+endif()
 
 # Generated code is checked by its generator's tests, not linted.
 set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)

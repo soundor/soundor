@@ -1,10 +1,11 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { chmod, mkdir, open, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
 import {
   createServer,
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { DevToolsConnection, DevToolsSettings } from '@soundor/config';
@@ -137,6 +138,7 @@ export async function startDevToolsServer(
   let closing = false;
   let port = options.settings.port;
   let descriptorPath = '';
+  let descriptorDirectory = '';
   let closePromise: Promise<void> | undefined;
   const websocket = new WebSocketServer({
     noServer: true,
@@ -400,7 +402,9 @@ export async function startDevToolsServer(
       ),
     });
     if (requiresControl(request.method)) target.interactive = id;
-    if (!enqueue(target, { ...request, id }))
+    if (
+      !enqueue(target, { ...request, id, generation: target.info.generation })
+    )
       finish(id, undefined, {
         code: 'BUSY',
         message: 'Runtime command queue is full',
@@ -591,6 +595,7 @@ export async function startDevToolsServer(
         if (target.poll?.response === response) {
           clearTimeout(target.poll.timer);
           target.poll = undefined;
+          if (!response.writableEnded) disconnect(target);
         }
       });
       flush(target);
@@ -817,7 +822,8 @@ export async function startDevToolsServer(
         http.close(() => resolve());
         http.closeAllConnections();
       });
-      if (descriptorPath) await rm(descriptorPath, { force: true });
+      if (descriptorDirectory)
+        await rm(descriptorDirectory, { recursive: true, force: true });
     })();
     return closePromise;
   }
@@ -825,8 +831,8 @@ export async function startDevToolsServer(
     void close();
   }
   try {
-    const directory = join(options.projectRoot, '.soundor', 'dev', 'sessions');
-    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const directory = await mkdtemp(join(tmpdir(), 'soundor-devtools-'));
+    descriptorDirectory = directory;
     if (process.platform !== 'win32') await chmod(directory, 0o700);
     descriptorPath = join(directory, `${sessionId}.json`);
     const file = await open(descriptorPath, 'wx', 0o600);

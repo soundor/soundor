@@ -63,7 +63,7 @@ binds to loopback and stops with the development lifecycle.
 
 Set `devtools.open:true` to open and authorize the first browser tab automatically
 with a one-use ticket. Otherwise enter the `browserKey` from your protected
-`.soundor/dev/sessions/<sessionId>.json` descriptor in the dashboard. Keys are
+session descriptor whose path is printed in the terminal into the dashboard. Keys are
 never printed in logs. Browser tabs can observe targets concurrently; native
 debug interactions require explicit control of the selected target. The full
 inspector and JUCE bridge are added in subsequent changes. See the

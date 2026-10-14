@@ -13,6 +13,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "SOUNDOR_BUILD_TESTS": "ON",
+        "SOUNDOR_ENABLE_DEVTOOLS": "ON",
         "SOUNDOR_WARNINGS_AS_ERRORS": "ON"
       }
     },

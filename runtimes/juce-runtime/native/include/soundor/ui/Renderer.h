@@ -55,6 +55,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         };
         void render(Surface& surface, const render::Bitmap& target, double seconds,
                     const render::Region* only = nullptr, const Layering* layering = nullptr);
+#if SOUNDOR_DEVTOOLS
+        void renderHighlight(Surface& surface, NodeId id, const render::Bitmap& target);
+#endif
 
     private:
         struct Impl;

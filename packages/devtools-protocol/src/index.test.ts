@@ -5,7 +5,24 @@ import {
   requestSchema,
   responseSchema,
   runtimeEventSchema,
+  runtimeCommandSchema,
 } from './index';
+
+it('validates dispatcher-stamped generations separately from browser requests', () => {
+  const command = {
+    type: 'request',
+    id: '1',
+    targetId: 'target',
+    method: 'UI.clearHighlight',
+    generation: 2,
+    params: {},
+  };
+  expect(runtimeCommandSchema.safeParse(command).success).toBe(true);
+  expect(requestSchema.safeParse(command).success).toBe(false);
+  expect(
+    runtimeCommandSchema.safeParse({ ...command, generation: 0 }).success,
+  ).toBe(false);
+});
 
 it('validates version negotiation and instance capabilities', () => {
   const target = {

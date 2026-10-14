@@ -28,6 +28,16 @@ target_link_libraries(soundor_juce_platform_tests
     soundor_doctest
     juce::juce_audio_processors
     juce::juce_recommended_config_flags)
+if(SOUNDOR_ENABLE_DEVTOOLS)
+  target_sources(soundor_juce_platform_tests PRIVATE JuceDebugBridgeTests.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceDebugBridge.cpp)
+  juce_add_console_app(soundor_debug_target)
+  target_sources(soundor_debug_target PRIVATE DebugTarget.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceDebugBridge.cpp)
+  target_include_directories(soundor_debug_target PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+  target_compile_definitions(soundor_debug_target PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+  target_link_libraries(soundor_debug_target PRIVATE soundor::runtime juce::juce_core juce::juce_recommended_config_flags)
+  add_test(NAME soundor_debug_session COMMAND ${SOUNDOR_NODE_EXE} ${CMAKE_CURRENT_SOURCE_DIR}/DebugSession.mjs $<TARGET_FILE:soundor_debug_target>)
+  set_tests_properties(soundor_debug_session PROPERTIES TIMEOUT 45)
+endif()
 add_test(NAME soundor_juce_platform_tests COMMAND soundor_juce_platform_tests)
 target_include_directories(soundor_juce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_compile_definitions(soundor_juce_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)

@@ -13,6 +13,48 @@ top of it.
 > `soundor:fs` modules are in place and tested, and JUCE plugins host a runtime
 > per plugin view. Loading the plugin's own JavaScript bundle comes next.
 
+## Development inspection
+
+`SOUNDOR_ENABLE_DEVTOOLS` defaults to OFF. Native development/test presets enable
+it only for Debug; release configurations compile `SOUNDOR_DEVTOOLS=0` and plugin
+production builds force it off. `debug::Inspector` accepts plain protocol
+commands on the owning thread, reading the actual `RuntimeHost`/`Surface` without
+retaining either across generations. It exposes bounded snapshots of both UI
+roots, relevant normalized style/presentation data, layout, text, visibility,
+focus and the existing semantic tree. Semantic inspection preserves pending
+platform accessibility updates.
+
+Full snapshots are on demand and bounded to 5000 nodes and a transport budget,
+with truncation reported. Subscribed revision notifications are coalesced to
+10 Hz. Structure changes invalidate the tree; text/role/name changes include
+bounded metadata patches (up to 128 nodes/200 KB). Geometry-only changes do not
+serialize the full tree. Metadata capture is inactive without subscribers.
+Computed styles beyond stored normalized inputs and presentation values are
+not invented. Source component/file information and property overrides are
+not available from arbitrary native nodes.
+
+Picker interception precedes normal event routing: active capture is cancelled,
+selection press/release and Escape are consumed, and suppressed releases remain
+suppressed after a disconnect or reload. Hit testing uses the engine's real
+stacking, portals, scrolling and transforms. Highlighting stores only a scoped
+node ID on the surface, not a UI node or a style override. `render::DebugOverlay`
+appends a Skia raster layer after normal content for CPU or GPU composition,
+with ancestor clipping and world transforms. Static highlights keep their
+rasterization even when unrelated UI styles change; no WebGL readback is added.
+
+The JUCE adapter supplies authenticated asynchronous HTTP IPC on worker threads;
+it reads a protected descriptor provided by the launcher, never discovers ports.
+Commands carry a server-stamped target generation, including commands without
+node references. Cancellation removes queued work; host replacement rejects
+old-generation commands. Network results contain no JSI values or native node
+references. Worker failures cannot perform engine mutations or stop audio.
+
+`cmake --preset juce -DJUCE_DIR=/opt/JUCE`, then the JUCE build/test presets,
+add a headless real-engine test against the actual Node server. It covers tree
+and accessibility details, highlighting, Canvas picking without application
+events, host replacement, disconnection, protected session handoff and bounded
+worker teardown. Actual cross-window interaction still needs a graphical desktop.
+
 ## Layout
 
 ```text

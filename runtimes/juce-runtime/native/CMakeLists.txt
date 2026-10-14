@@ -44,6 +44,10 @@ option(SOUNDOR_PRECOMPILE_JS "Compile JavaScript to Hermes bytecode at build tim
 # production plugin runs only the bytecode its build compiled, so it links the
 # VM alone, without the compiler.
 option(SOUNDOR_JS_SOURCE "Link Hermes's compiler, so that JavaScript source can be evaluated (development)" ON)
+option(SOUNDOR_ENABLE_DEVTOOLS "Compile development-only UI inspection (never enable for production plugins)" OFF)
+if(SOUNDOR_ENABLE_DEVTOOLS AND NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+  message(FATAL_ERROR "Soundor DevTools requires a Debug build. Disable SOUNDOR_ENABLE_DEVTOOLS for production.")
+endif()
 # -fno-inline keeps every function's frame in stack traces: measured, inlining
 # saved no time (examples/benchmark) and 315 bytes of a 1.1 MB bundle.
 set(SOUNDOR_HERMESC_FLAGS "-O -fno-inline" CACHE STRING "hermesc's options for the bytecode the build compiles")
@@ -136,6 +140,9 @@ else()
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/gpu/webgl/NoWebGL.cpp)
 endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
+if(SOUNDOR_ENABLE_DEVTOOLS)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Inspector.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/render/DebugOverlay.cpp)
+endif()
 
 add_library(soundor_runtime STATIC ${SOUNDOR_RUNTIME_SOURCES})
 add_library(soundor::runtime ALIAS soundor_runtime)
@@ -164,6 +171,7 @@ soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/genera
 function(soundor_configure_runtime target namespace)
   target_compile_features(${target} PUBLIC cxx_std_20)
   target_compile_definitions(${target} PUBLIC SOUNDOR_ABI_NAMESPACE=${namespace})
+  target_compile_definitions(${target} PUBLIC SOUNDOR_DEVTOOLS=$<AND:$<BOOL:${SOUNDOR_ENABLE_DEVTOOLS}>,$<CONFIG:Debug>>)
   # Bytecode is only run by the Hermes it was compiled for (src/js/Bytecode.h).
   target_compile_definitions(${target} PRIVATE SOUNDOR_HERMES_REVISION="${SOUNDOR_HERMES_REVISION}")
   target_include_directories(${target}

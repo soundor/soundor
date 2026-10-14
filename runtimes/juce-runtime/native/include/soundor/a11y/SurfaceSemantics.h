@@ -36,6 +36,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         // since the last call. `full`: every node (an adapter that just
         // attached, or that lost its tree).
         [[nodiscard]] TreeUpdate update(bool full = false);
+#if SOUNDOR_DEVTOOLS
+        // Inspection must not consume updates destined for platform adapters.
+        [[nodiscard]] const Tree& inspect();
+#endif
 
         // The tree as of the last update().
         [[nodiscard]] const Tree& tree() const noexcept { return current; }
@@ -51,6 +55,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 
     private:
         struct Build;
+        [[nodiscard]] TreeUpdate refresh(bool full);
+#if SOUNDOR_DEVTOOLS
+        bool inspectedChanges = false;
+#endif
 
         ui::Surface& surface;
         Tree current;

@@ -200,7 +200,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         if (useAnimations)
         {
             wasAnimated = true;
-            return animated.update(surface, seconds, gpuDevice);
+            const auto& content = animated.update(surface, seconds, gpuDevice);
+#if SOUNDOR_DEVTOOLS
+            return debugOverlay.append(content, surface, painter);
+#else
+            return content;
+#endif
         }
         if (std::exchange(wasAnimated, false))
         {
@@ -297,6 +302,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             }
         }
         frame.damage = std::move(damaged);
+#if SOUNDOR_DEVTOOLS
+        return debugOverlay.append(frame, surface, painter);
+#else
         return frame;
+#endif
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render

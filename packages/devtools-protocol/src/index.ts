@@ -177,6 +177,9 @@ export const eventPayloads = {
   'UI.treeChanged': z.strictObject({
     generation: z.number().int().positive(),
     revision: z.number().int().nonnegative(),
+    kind: z.enum(['structure', 'properties']).optional(),
+    nodes: z.array(nodeSchema).max(128).optional(),
+    metadataIncomplete: z.boolean().optional(),
   }),
   'UI.nodeSelected': z.strictObject({ node: nodeRefSchema }),
   'UI.pickerChanged': z.strictObject({ enabled: z.boolean() }),
@@ -218,10 +221,19 @@ export type ServerMessage =
   | { type: 'event'; event: 'Runtime.targetsChanged'; data: DebugTarget[] }
   | (RuntimeEvent & { targetId?: string; scope?: 'session' });
 export type RuntimeCommand =
-  | DebugRequest
+  | (DebugRequest & { generation: number })
   | { type: 'cancel'; id: string }
   | { type: 'subscribe'; events: EventName[] }
   | { type: 'resetControl' };
+export const runtimeCommandSchema = z.union([
+  requestSchema.safeExtend({ generation: z.number().int().positive() }),
+  cancelSchema,
+  z.strictObject({
+    type: z.literal('subscribe'),
+    events: z.array(eventNameSchema).max(7),
+  }),
+  z.strictObject({ type: z.literal('resetControl') }),
+]);
 export interface MethodResults {
   'Runtime.getTargets': DebugTarget[];
   'Control.acquire': { controller: string };
