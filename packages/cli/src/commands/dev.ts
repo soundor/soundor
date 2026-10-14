@@ -125,6 +125,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
           logger.info(`Connected: ${target.name} — ${target.runtime}`),
       });
       logger.info(`DevTools: ${debug.url}`);
+      logger.info(`DevTools session file: ${debug.descriptorPath}`);
       if (devtools.open)
         await openDevTools(debug.browserLaunchUrl()).catch(() =>
           logger.warn(

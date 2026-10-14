@@ -10,3 +10,7 @@
 #ifndef SOUNDOR_ABI_NAMESPACE
     #define SOUNDOR_ABI_NAMESPACE v0
 #endif
+
+#ifndef SOUNDOR_DEVTOOLS
+    #define SOUNDOR_DEVTOOLS 0
+#endif

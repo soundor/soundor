@@ -283,6 +283,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 
     TreeUpdate SurfaceSemantics::update(bool full)
     {
+#if SOUNDOR_DEVTOOLS
+        full = std::exchange(inspectedChanges, false) || full;
+#endif
+        return refresh(full);
+    }
+#if SOUNDOR_DEVTOOLS
+    const Tree& SurfaceSemantics::inspect()
+    {
+        const auto changes = refresh(false);
+        inspectedChanges = inspectedChanges || ! changes.empty();
+        return current;
+    }
+#endif
+    TreeUpdate SurfaceSemantics::refresh(bool full)
+    {
         const ui::NodeId focused = surface.focused();
         if (built && ! full && surface.revision() == builtRevision && focused == builtFocus)
             return {};

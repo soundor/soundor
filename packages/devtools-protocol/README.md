@@ -13,10 +13,11 @@ An implicit 4545 advances on collision; an explicitly configured port fails
 with an actionable error. Sessions do not discover one another by port scanning.
 
 `ctx.devtools` gives a supported runtime `endpoint`, `sessionId`, `token` and
-`descriptorPath`. The JSON descriptor is created exclusively under
-`.soundor/dev/sessions/<sessionId>.json` with mode 0600 (directory 0700 on Unix),
-and removed on shutdown. Windows uses the user's project-directory access
-permissions. Never log its contents or bake it into an artifact. A launcher can
+`descriptorPath`. The JSON descriptor is created exclusively in a unique
+directory under the platform's user temporary directory, with mode 0600
+(directory 0700 on Unix), and removed on shutdown. Windows inherits the private
+user temporary directory's access permissions rather than a shared project's.
+Never log its contents or bake it into an artifact. A launcher can
 give its child only the descriptor path through an environment variable, or a
 future adapter can use another protected means to deliver the same credentials.
 Direct CLI launch is not part of the protocol contract.
@@ -46,6 +47,11 @@ subscriptions), and `resetControl`. Reset must clear highlights, picker mode,
 profiling and any temporary overrides. Also reset independently when transport
 is lost, without waiting for another poll. Drop cancelled and expired work
 before it reaches the owning thread. Responses to cancelled requests are stale.
+Runtime request envelopes additionally carry the server-stamped `generation`;
+validate it against the owning world even for commands without node refs. Use
+`runtimeCommandSchema` rather than the browser-only `requestSchema` to validate
+native incoming commands. Cancelling a long poll disconnects that target;
+re-register explicitly after transport loss.
 
 ## Browser connections
 
@@ -125,6 +131,11 @@ may request a new snapshot), `UI.nodeSelected`, `UI.pickerChanged`,
 producers must coalesce geometry and revision notifications and enable expensive
 instrumentation only when requested. `Runtime.targetsChanged` is a server event
 delivered to every tab, including controller ownership changes.
+`UI.treeChanged.kind` distinguishes hierarchy invalidation from property changes;
+optional `nodes` metadata patches avoid repeated whole-tree serialization for
+text/name/role changes. `metadataIncomplete` signals that a patch exceeded its
+budget; a client can offer an explicit snapshot refresh. Geometry changes can
+refresh selected details independently of the hierarchy.
 
 The CLI reuses its source-mapped logging pipeline. Since the current shared log
 file lacks instance IDs, these messages have `scope:'session'` and no target ID.

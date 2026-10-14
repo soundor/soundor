@@ -74,10 +74,38 @@ that knowingly runs long in one call.
 ### Lifecycle phases
 
 The runtime declares optional Soundor DevTools support for native inspection,
-accessibility, animations and performance. This declaration lets the CLI
-discover support before launch; connected instances negotiate their available
-features separately. The capability foundation does not yet start a debug
-bridge or server. Development works normally without `ctx.devtools`.
+accessibility, animations and performance. The CLI discovers support before
+launch; connected instances negotiate the features actually implemented.
+Currently the development Standalone bridge negotiates inspection and
+accessibility. Animation/performance diagnostics are added separately.
+
+`soundor dev juce` enables the bridge only with an active `ctx.devtools` session.
+Include `standalone` in `formats` to launch a native window. The CLI passes only
+the protected descriptor path through `SOUNDOR_DEVTOOLS_SESSION`, including on
+macOS where it launches the bundle's executable directly to preserve that
+environment. It discovers both `Debug/Standalone` and older unconfigured
+artifact directories. There is one server per development session, not per view.
+
+The bridge reads Soundor's actual C++ tree, normalized base/presentation styles,
+Yoga layout results, focus and accessibility semantics. Highlights are a cached
+final compositor layer, independent of UI layout and hit testing. Native picking
+intercepts press/release, capture, focus and Escape before application dispatch;
+selecting a control does not activate it. Reloads change node generations;
+disconnects clear debug state. Nothing traverses JUCE components or streams the
+window into the browser.
+
+Networking and JSON parsing run on workers, with bounded plain-data queues.
+Hermes, tree inspection and debug mutations remain on the UI thread. The bridge
+connects only to its designated protected session; no port scanning. It retries
+after transport loss and can accept an explicit descriptor update for a new
+session of the same project. Existing Standalones disconnected by a CLI restart
+are not automatically transferred into another session.
+
+Production builds force `SOUNDOR_ENABLE_DEVTOOLS=OFF` and clear development
+bundle/log paths. Debug sources and interfaces are excluded at compile time;
+no listener or bridge starts in a release artifact. The generated integration
+activates only for the Standalone wrapper, never a DAW plugin. Development
+continues normally when debugging is disabled or unavailable.
 
 | Phase    | What it does                                                                                                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

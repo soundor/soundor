@@ -147,7 +147,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     bool RuntimeHost::needsRender()
     {
         const bool blinked = blink();
-        return uiSurface->takeChanges() || blinked;
+        bool debugChanged = false;
+#if SOUNDOR_DEVTOOLS
+        debugChanged = uiSurface->takeDebugChanges();
+#endif
+        return uiSurface->takeChanges() || blinked || debugChanged;
     }
 
     const render::Frame& RuntimeHost::frame(const render::Capabilities& compositor)

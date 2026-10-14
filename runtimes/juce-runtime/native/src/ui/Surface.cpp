@@ -354,6 +354,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Node* parent = child.parentNode;
         if (parent == nullptr)
             return;
+#if SOUNDOR_DEVTOOLS
+        ++structureChanges;
+#endif
         YGNodeRemoveChild(parent->yoga, child.yoga);
         std::erase(parent->childNodes, &child);
         child.parentNode = nullptr;
@@ -421,6 +424,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         parent.childNodes.insert(position, &child);
         YGNodeInsertChild(parent.yoga, child.yoga, index);
         child.parentNode = &parent;
+#if SOUNDOR_DEVTOOLS
+        ++structureChanges;
+#endif
         restack(parent);
         markChanged(child);
     }
@@ -481,6 +487,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             throw std::invalid_argument("only text and input nodes have text");
         if (node.textContent == text)
             return;
+#if SOUNDOR_DEVTOOLS
+        debugMetadataChanged(node);
+#endif
         node.textContent = std::move(text);
         node.layoutWidth = -1;
         YGNodeMarkDirty(node.yoga);
@@ -668,6 +677,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Node& node = get(id);
         if (node.semantics == properties)
             return;
+#if SOUNDOR_DEVTOOLS
+        if (node.semantics.label != properties.label || node.semantics.role != properties.role
+            || node.semantics.accessible != properties.accessible)
+            debugMetadataChanged(node);
+        if (node.semantics.modal != properties.modal && metadataSubscribed)
+            metadataOverflow = true;
+#endif
         node.semantics = std::move(properties);
         ++changes;
     }
@@ -1082,6 +1098,71 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             dispatch(event);
         }
     }
+
+#if SOUNDOR_DEVTOOLS
+    void Surface::debugMetadataChanged(const Node& node)
+    {
+        if (! metadataSubscribed || metadataOverflow)
+            return;
+        for (const Node* current = &node; current; current = current->parent())
+        {
+            if (! metadataDirty.contains(current->id()) && metadataDirty.size() >= 128)
+            {
+                metadataOverflow = true;
+                return;
+            }
+            metadataDirty.insert(current->id());
+        }
+        if (node.accessibilityParent() != noNode)
+        {
+            if (! metadataDirty.contains(node.accessibilityParent()) && metadataDirty.size() >= 128)
+                metadataOverflow = true;
+            else
+                metadataDirty.insert(node.accessibilityParent());
+        }
+    }
+    void Surface::debugMetadataSubscription(bool enabled) noexcept
+    {
+        if (metadataSubscribed == enabled)
+            return;
+        metadataSubscribed = enabled;
+        metadataDirty.clear();
+        metadataOverflow = false;
+    }
+    std::vector<NodeId> Surface::takeDebugMetadataChanges(bool& overflow)
+    {
+        std::vector<NodeId> ids(metadataDirty.begin(), metadataDirty.end());
+        metadataDirty.clear();
+        overflow = std::exchange(metadataOverflow, false);
+        return ids;
+    }
+    void Surface::debugHighlight(NodeId id) noexcept
+    {
+        if (highlighted != id)
+        {
+            highlighted = id;
+            highlightChanged = true;
+        }
+    }
+    bool Surface::takeDebugChanges() noexcept
+    {
+        return std::exchange(highlightChanged, false);
+    }
+    std::vector<int> Surface::cancelPointers()
+    {
+        std::vector<int> ids;
+        std::vector<int> captured;
+        for (const auto& [id, state] : pointers)
+        {
+            ids.push_back(id);
+            if (state.captured != noNode)
+                captured.push_back(id);
+        }
+        for (const int id : ids)
+            pointer({ .phase = PointerInput::Phase::Cancel, .pointerId = id });
+        return captured;
+    }
+#endif
 
     bool Surface::pointer(const PointerInput& input)
     {

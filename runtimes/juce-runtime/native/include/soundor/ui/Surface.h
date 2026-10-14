@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -407,7 +408,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void focus(NodeId id);
         [[nodiscard]] NodeId focused() noexcept;
 
+#if SOUNDOR_DEVTOOLS
+        // Debug state is separate from layout, styles and event targets.
+        void debugHighlight(NodeId id) noexcept;
+        [[nodiscard]] NodeId debugHighlight() const noexcept { return highlighted; }
+        [[nodiscard]] bool takeDebugChanges() noexcept;
+        [[nodiscard]] std::uint64_t debugStructureRevision() const noexcept { return structureChanges; }
+        [[nodiscard]] std::vector<int> cancelPointers();
+        void debugMetadataSubscription(bool enabled) noexcept;
+        [[nodiscard]] std::vector<NodeId> takeDebugMetadataChanges(bool& overflow);
+#endif
+
     private:
+#if SOUNDOR_DEVTOOLS
+        NodeId highlighted = noNode;
+        bool highlightChanged = false;
+        std::uint64_t structureChanges = 0;
+        bool metadataSubscribed = false;
+        bool metadataOverflow = false;
+        std::set<NodeId> metadataDirty;
+        void debugMetadataChanged(const Node& node);
+#endif
         friend class Node;
         friend struct NodeAccess;
 

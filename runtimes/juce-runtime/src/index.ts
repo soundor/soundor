@@ -7,7 +7,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, type Dirent } from 'node:fs';
+import { existsSync, readdirSync, type Dirent } from 'node:fs';
 import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,6 +62,7 @@ type StandaloneLauncher = (
   target: string,
   platform: NodeJS.Platform,
   logger: Logger,
+  descriptorPath?: string,
 ) => boolean;
 
 /**
@@ -129,6 +130,8 @@ export async function juceDev(
     '-B',
     buildDir,
     ...generatorArgs(platform),
+    '-DCMAKE_BUILD_TYPE=Debug',
+    `-DSOUNDOR_ENABLE_DEVTOOLS=${ctx.devtools === undefined ? 'OFF' : 'ON'}`,
     `-DJUCE_DIR=${jucePath}`,
     // The Node running the CLI lowers the runtime's own modules.
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
@@ -197,6 +200,9 @@ export async function juceBuild(
     buildDir,
     ...generatorArgs(platform),
     '-DCMAKE_BUILD_TYPE=Release',
+    '-DSOUNDOR_ENABLE_DEVTOOLS=OFF',
+    '-DSOUNDOR_UI_DEV_DIR=',
+    '-DSOUNDOR_UI_DEV_LOG=',
     `-DJUCE_DIR=${jucePath}`,
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
@@ -382,7 +388,11 @@ async function launchStandaloneBuild(
     );
     return;
   }
-  if (launch(target, platform, ctx.logger)) {
+  const launched =
+    ctx.devtools?.descriptorPath === undefined
+      ? launch(target, platform, ctx.logger)
+      : launch(target, platform, ctx.logger, ctx.devtools.descriptorPath);
+  if (launched) {
     ctx.logger.info(`Launching standalone app: ${target}`);
   }
 }
@@ -400,11 +410,13 @@ async function findStandaloneTarget(
 
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.endsWith('_artefacts')) continue;
-    const target = await findLaunchableInDir(
-      join(buildDir, entry.name, 'Standalone'),
-      platform,
-    );
-    if (target !== undefined) return target;
+    for (const configuration of ['Debug', '']) {
+      const target = await findLaunchableInDir(
+        join(buildDir, entry.name, configuration, 'Standalone'),
+        platform,
+      );
+      if (target !== undefined) return target;
+    }
   }
   return undefined;
 }
@@ -444,9 +456,26 @@ function launchStandalone(
   target: string,
   platform: NodeJS.Platform,
   logger: Logger,
+  descriptorPath?: string,
 ): boolean {
+  const debugEnv =
+    descriptorPath === undefined
+      ? {}
+      : { SOUNDOR_DEVTOOLS_SESSION: descriptorPath };
   const child = (() => {
     if (platform === 'darwin') {
+      if (descriptorPath !== undefined) {
+        const directory = join(target, 'Contents', 'MacOS');
+        const executable = readdirSync(directory, { withFileTypes: true }).find(
+          (entry) => entry.isFile(),
+        );
+        if (executable === undefined) return undefined;
+        return spawn(join(directory, executable.name), [], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env, ...debugEnv },
+        });
+      }
       return spawn('open', [target], { detached: true, stdio: 'ignore' });
     }
     if (platform === 'win32') {
@@ -455,14 +484,17 @@ function launchStandalone(
         detached: true,
         stdio: 'ignore',
         shell: true,
+        env: { ...process.env, ...debugEnv },
       });
     }
-    const env = linuxDesktopEnv();
+    const env = { ...linuxDesktopEnv(), ...debugEnv };
     if (!canLaunchLinuxGui(env)) {
       logger.warn(
         'Skipping standalone auto-launch: no reachable Linux GUI display was found.',
       );
-      logger.warn(`Run manually: ${shellQuote(target)}`);
+      logger.warn(
+        `Run manually: ${descriptorPath === undefined ? '' : `SOUNDOR_DEVTOOLS_SESSION=${shellQuote(descriptorPath)} `}${shellQuote(target)}`,
+      );
       return undefined;
     }
     return spawn('sh', ['-c', 'exec "$1"', 'soundor-standalone', target], {

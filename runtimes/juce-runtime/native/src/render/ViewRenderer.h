@@ -2,6 +2,9 @@
 
 #include "render/AnimationRenderer.h"
 #include "render/Damage.h"
+#if SOUNDOR_DEVTOOLS
+    #include "render/DebugOverlay.h"
+#endif
 
 #include <soundor/render/Frame.h>
 #include <soundor/ui/Renderer.h>
@@ -72,5 +75,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         std::vector<std::pair<ui::NodeId, LayerId>> canvasLayers;
         std::uint64_t revision = 0;
         Frame frame;
+#if SOUNDOR_DEVTOOLS
+        DebugOverlay debugOverlay;
+#endif
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
