@@ -173,6 +173,80 @@ export const cancelSchema = z.strictObject({
   id: identifier,
 });
 
+export const animationStateSchema = z.enum([
+  'running',
+  'paused',
+  'finished',
+  'cancelled',
+]);
+export const animationChangeSchema = z.strictObject({
+  id: identifier,
+  playbackGeneration: z.number().int().nonnegative(),
+  node: nodeRefSchema,
+  state: animationStateSchema,
+});
+export const animationSchema = z.strictObject({
+  id: identifier,
+  playbackGeneration: z.number().int().nonnegative(),
+  state: animationStateSchema,
+  kind: z.enum(['timing', 'spring', 'keyframes', 'composition']),
+  elapsedMs: z.number().finite().nonnegative(),
+  durationMs: z.number().finite().nonnegative().nullable(),
+  durationScope: z.enum(['iteration', 'program']),
+  delayMs: z.number().finite().nonnegative(),
+  iterations: z.number().finite().nonnegative().nullable(),
+  easing: identifier.optional(),
+  spring: properties.optional(),
+  keyframeCount: z.number().int().nonnegative().optional(),
+  targets: z
+    .array(
+      z.strictObject({
+        node: nodeRefSchema,
+        properties: z.array(identifier).max(9),
+        presentation: properties,
+      }),
+    )
+    .max(64),
+  targetsTruncated: z.boolean(),
+  snapshotTruncated: z.boolean().optional(),
+});
+export type DebugAnimation = z.infer<typeof animationSchema>;
+export type AnimationChange = z.infer<typeof animationChangeSchema>;
+export const frameMetricsSchema = z.strictObject({
+  timestampMs: z.number().finite().nonnegative(),
+  frameMs: z.number().finite().nonnegative().optional(),
+  productionMs: z.number().finite().nonnegative().optional(),
+  compositionMs: z.number().finite().nonnegative().optional(),
+  rasterMs: z.number().finite().nonnegative().optional(),
+  layoutMs: z.number().finite().nonnegative().optional(),
+  mode: z.enum(['cpu', 'gpu']).optional(),
+  backend: text.optional(),
+  layerCount: z.number().int().nonnegative().optional(),
+  layersRasterized: z.number().int().nonnegative().optional(),
+  pixelsRasterized: z.number().nonnegative().optional(),
+  gpuLayers: z.number().int().nonnegative().optional(),
+  gpuReadbacks: z.number().int().nonnegative().optional(),
+  cachedRasterBytes: z.number().nonnegative().optional(),
+  layersComposited: z.number().int().nonnegative().optional(),
+  pixelsComposited: z.number().nonnegative().optional(),
+  bytesUploaded: z.number().nonnegative().optional(),
+  textureAllocations: z.number().int().nonnegative().optional(),
+  drawCalls: z.number().int().nonnegative().optional(),
+  compositorReadbacks: z.number().int().nonnegative().optional(),
+});
+export const metricsSchema = z.strictObject({
+  generation: z.number().int().positive(),
+  recording: z.boolean(),
+  elapsedMs: z.number().finite().nonnegative(),
+  frameCount: z.number().int().nonnegative(),
+  delayedTicks: z.number().int().nonnegative().optional(),
+  tickDelayThresholdMs: z.number().finite().positive().optional(),
+  tickIntervalMs: z.number().finite().nonnegative().optional(),
+  phases: properties,
+  frames: z.array(frameMetricsSchema).max(300),
+});
+export type DebugMetrics = z.infer<typeof metricsSchema>;
+
 export const eventPayloads = {
   'UI.treeChanged': z.strictObject({
     generation: z.number().int().positive(),
@@ -194,8 +268,10 @@ export const eventPayloads = {
   }),
   'Animation.changed': z.strictObject({
     generation: z.number().int().positive(),
+    changes: z.array(animationChangeSchema).max(128),
+    truncated: z.boolean(),
   }),
-  'Diagnostics.metrics': properties,
+  'Diagnostics.metrics': metricsSchema,
 } as const;
 export const runtimeEventSchema = z
   .strictObject({
@@ -247,8 +323,8 @@ export interface MethodResults {
   'UI.highlightNode': null;
   'UI.clearHighlight': null;
   'UI.setPickerEnabled': null;
-  'Animation.getActive': Record<string, unknown>[];
-  'Diagnostics.getMetrics': Record<string, unknown>;
+  'Animation.getActive': DebugAnimation[];
+  'Diagnostics.getMetrics': DebugMetrics;
   'Diagnostics.setRecording': null;
 }
 export type Response<M extends DebugMethod> = {
@@ -273,8 +349,8 @@ export const methodResults = {
   'UI.highlightNode': z.null(),
   'UI.clearHighlight': z.null(),
   'UI.setPickerEnabled': z.null(),
-  'Animation.getActive': z.array(properties).max(MAX_NODES),
-  'Diagnostics.getMetrics': properties,
+  'Animation.getActive': z.array(animationSchema).max(256),
+  'Diagnostics.getMetrics': metricsSchema,
   'Diagnostics.setRecording': z.null(),
 } as const;
 

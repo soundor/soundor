@@ -98,6 +98,30 @@ attributed to a particular instance. Neither clearing nor filtering affects
 application logging or other tabs. The dashboard follows the browser's light or
 dark theme and supports keyboard tree navigation.
 
+### Animation and performance diagnostics
+
+The **Animations** panel reads native active/paused animations and their target
+properties, elapsed time, duration/delay, easing or spring metadata, and current
+presentation values. Node selection filters active results; **Clear selection**
+returns to all nodes. Recent engine lifecycle events show pause/resume,
+replacement cancellation, completion and cancellation. Reload clears this history.
+
+In **Performance**, request control and click **Start recording**. The panel shows
+measured CPU frame/layout/node raster/composition work, actual CPU/GPU compositor
+mode, layer/work counters, and a bounded frame-duration chart. Observers can read
+the same recording. **Stop recording** preserves samples for inspection; starting
+again begins a new recording. Control release, disconnect and reload discard it.
+Capture is sampled at up to 10 Hz, with at most 300 frame samples. An unchanged UI
+may render no frames: tick phases still report their real work. Delayed UI ticks
+are reported separately from GPU presentation. GPU execution and total Hermes
+execution time are not measured; no audio-thread profiling is performed.
+
+Property inspection remains read-only because the renderer has no safe temporary
+override layer independent of React-owned styles and native animation ownership.
+Nodes also lack reliable component/TSX source metadata; mapped error stacks remain
+available in the Console. These limitations and the typed measurement contract
+are documented in the [debug protocol](../devtools-protocol/README.md).
+
 TypeScript types for the runtime are generated into
 `.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and
 exactly the Web APIs the runtime provides. Use them with `lib: ["ES2023"]` and

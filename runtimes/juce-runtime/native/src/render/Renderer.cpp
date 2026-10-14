@@ -2,6 +2,9 @@
 #include "render/SkiaText.h"
 
 #include <soundor/ui/Renderer.h>
+#if SOUNDOR_DEVTOOLS
+    #include <chrono>
+#endif
 
 #include <include/codec/SkCodec.h>
 #include <include/codec/SkJpegDecoder.h>
@@ -131,6 +134,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (target.empty() || (only != nullptr && only->empty()))
             return;
         surface.layout();
+#if SOUNDOR_DEVTOOLS
+        const bool profiling = surface.debugRecording();
+        const auto rasterStarted =
+            profiling ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point {};
+#endif
         impl->surface = &surface;
         impl->seconds = seconds;
         impl->layering = layering;
@@ -177,6 +185,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         impl->surface = nullptr;
         impl->layering = nullptr;
+#if SOUNDOR_DEVTOOLS
+        if (profiling)
+            surface.debugRasterTime(static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - rasterStarted)
+                    .count()));
+#endif
     }
 
     void Renderer::Impl::draw(SkCanvas& canvas)

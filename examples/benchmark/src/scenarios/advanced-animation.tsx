@@ -1,3 +1,8 @@
+import {
+  sampleSpring,
+  springDuration,
+  springParameters,
+} from '@soundor/core/spring';
 import { View } from '@soundor/react';
 import { useEffect, useRef } from 'react';
 import {
@@ -9,11 +14,6 @@ import {
   type UiNode,
 } from 'soundor:ui';
 
-import {
-  sampleSpring,
-  springDuration,
-  springParameters,
-} from '../../../../runtimes/web-runtime/src/client/ui/spring';
 import { ANIMATION_STEP, animationValue } from './animation-workload';
 import {
   STAGE_WIDTH,

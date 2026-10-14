@@ -357,6 +357,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return bytes;
         }
         [[nodiscard]] double duration() const { return phases[root].span; }
+#if SOUNDOR_DEVTOOLS
+        [[nodiscard]] double debugDelay() const { return rootDelay; }
+#endif
         [[nodiscard]] const Target* find(std::uint32_t node) const
         {
             const auto found = targetIndex.find(node);
@@ -960,6 +963,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         for (const AnimationId id : conflicts)
         {
             Animation& previous = get(id);
+#if SOUNDOR_DEVTOOLS
+            debugNotify(id, previous, PlaybackState::Cancelled);
+#endif
             if (! previous.notified)
                 settled.push_back({ id, true, previous.generation });
             const auto abandon = [&](std::uint32_t target, PropertyMask mask)
@@ -993,6 +999,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             if (target.node != node)
                 byNode[target.node].push_back(id);
         activate(id, at->second);
+#if SOUNDOR_DEVTOOLS
+        debugNotify(id, at->second, PlaybackState::Running);
+#endif
         sample(id, at->second, time);
         return id;
     }
@@ -1034,6 +1043,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         for (const AnimationId id : conflicts)
         {
             Animation& previous = get(id);
+#if SOUNDOR_DEVTOOLS
+            debugNotify(id, previous, PlaybackState::Cancelled);
+#endif
             if (! previous.notified)
                 settled.push_back({ id, true, previous.generation });
             // Transfer overlapping presentation ownership atomically: its
@@ -1057,6 +1069,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         (void)inserted;
         byNode[node].push_back(id);
         activate(id, at->second);
+#if SOUNDOR_DEVTOOLS
+        debugNotify(id, at->second, PlaybackState::Running);
+#endif
         sample(id, at->second, time);
         return id;
     }
@@ -1184,6 +1199,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (animation.program)
             animation.program->clearVelocity();
         animation.state = cancelled ? PlaybackState::Cancelled : PlaybackState::Finished;
+#if SOUNDOR_DEVTOOLS
+        debugNotify(id, animation, animation.state);
+#endif
         if (! animation.notified)
         {
             settled.push_back({ id, cancelled, animation.generation });
@@ -1250,6 +1268,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         deactivate(id, animation);
         animation.pausedAt = time;
         animation.state = PlaybackState::Paused;
+#if SOUNDOR_DEVTOOLS
+        debugNotify(id, animation, animation.state);
+#endif
     }
 
     void AnimationTimeline::play(AnimationId id)
@@ -1265,6 +1286,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             ++animation.generation;
         }
         animation.state = PlaybackState::Running;
+#if SOUNDOR_DEVTOOLS
+        debugNotify(id, animation, animation.state);
+#endif
         activate(id, animation);
         sample(id, animation, time);
     }
@@ -1315,6 +1339,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             {
                 animation.pausedAt = time;
                 animation.state = PlaybackState::Paused;
+#if SOUNDOR_DEVTOOLS
+                debugNotify(id, animation, animation.state);
+#endif
                 deactivate(id, animation);
             }
             else
@@ -1357,6 +1384,78 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return std::clamp(time - animation.started, 0.0,
                           activeDuration(animation.description.timing) + animation.description.timing.delay);
     }
+
+#if SOUNDOR_DEVTOOLS
+    void AnimationTimeline::debugObserve(bool enabled)
+    {
+        if (debugObserved == enabled)
+            return;
+        debugObserved = enabled;
+        debugChanges.clear();
+        debugOverflow = false;
+    }
+    void AnimationTimeline::debugNotify(AnimationId id, const Animation& animation, PlaybackState state)
+    {
+        if (! debugObserved)
+            return;
+        if (debugChanges.size() >= 128)
+        {
+            debugOverflow = true;
+            return;
+        }
+        debugChanges.push_back({ id, animation.node, animation.generation, state });
+    }
+    std::vector<AnimationInspectionChange> AnimationTimeline::takeDebugChanges(bool& truncated)
+    {
+        truncated = std::exchange(debugOverflow, false);
+        return std::exchange(debugChanges, {});
+    }
+    std::vector<AnimationInspection> AnimationTimeline::inspect(std::uint32_t node, bool* truncated) const
+    {
+        std::vector<AnimationId> ids;
+        for (const auto& [id, animation] : animations)
+            if ((animation.state == PlaybackState::Running || animation.state == PlaybackState::Paused)
+                && (node == 0 || ownership(animation, node) != 0))
+                ids.push_back(id);
+        std::ranges::sort(ids);
+        if (truncated)
+            *truncated = ids.size() > 256;
+        std::vector<AnimationInspection> result;
+        for (const auto id : ids)
+        {
+            if (result.size() == 256)
+                break;
+            const auto& animation = animations.at(id);
+            AnimationInspection item;
+            item.id = id;
+            item.playbackGeneration = animation.generation;
+            item.state = animation.state;
+            item.elapsed = currentTime(id);
+            item.timing = animation.description.timing;
+            item.delay = animation.program ? animation.program->debugDelay() : item.timing.delay;
+            item.program = animation.program != nullptr;
+            item.spring = animation.description.spring;
+            item.keyframes = animation.description.keyframes.size();
+            const auto append = [&](std::uint32_t target, PropertyMask mask)
+            {
+                if (item.targets.size() >= 64)
+                {
+                    item.targetsTruncated = true;
+                    return;
+                }
+                if (surface.find(target))
+                    item.targets.push_back({ target, mask, surface.presentation(target) });
+            };
+            if (animation.program)
+                for (const auto& target : animation.program->targets)
+                    append(target.node, target.properties);
+            else
+                append(animation.node, animation.description.properties);
+            result.push_back(std::move(item));
+        }
+        return result;
+    }
+#endif
 
     void AnimationTimeline::reduce(Animation& animation)
     {

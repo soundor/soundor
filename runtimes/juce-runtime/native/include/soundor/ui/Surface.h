@@ -411,6 +411,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 #if SOUNDOR_DEVTOOLS
         // Debug state is separate from layout, styles and event targets.
         void debugHighlight(NodeId id) noexcept;
+        void debugRecording(bool enabled) noexcept { recordingDebug = enabled; }
+        [[nodiscard]] bool debugRecording() const noexcept { return recordingDebug; }
+        void debugRasterTime(std::uint64_t nanoseconds) noexcept { rasterDebugNanoseconds += nanoseconds; }
+        [[nodiscard]] std::uint64_t debugRasterTime() const noexcept { return rasterDebugNanoseconds; }
         [[nodiscard]] NodeId debugHighlight() const noexcept { return highlighted; }
         [[nodiscard]] bool takeDebugChanges() noexcept;
         [[nodiscard]] std::uint64_t debugStructureRevision() const noexcept { return structureChanges; }
@@ -421,9 +425,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     private:
 #if SOUNDOR_DEVTOOLS
-        NodeId highlighted = noNode;
-        bool highlightChanged = false;
+        std::uint64_t rasterDebugNanoseconds = 0;
         std::uint64_t structureChanges = 0;
+        NodeId highlighted = noNode;
+        bool recordingDebug = false;
+        bool highlightChanged = false;
         bool metadataSubscribed = false;
         bool metadataOverflow = false;
         std::set<NodeId> metadataDirty;

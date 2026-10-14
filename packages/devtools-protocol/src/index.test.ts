@@ -92,3 +92,65 @@ it('requires structured responses and typed events', () => {
     }).success,
   ).toBe(false);
 });
+
+it('validates bounded animation lifecycle changes and requires typed diagnostics', async () => {
+  const { metricsSchema, animationSchema } = await import('./index');
+  const metrics = {
+    generation: 1,
+    recording: false,
+    elapsedMs: 0,
+    frameCount: 0,
+    delayedTicks: 0,
+    tickIntervalMs: 0,
+    phases: {},
+    frames: [],
+  };
+  expect(metricsSchema.safeParse(metrics).success).toBe(true);
+  expect(
+    metricsSchema.safeParse({ ...metrics, gpuExecutionMs: 2 }).success,
+  ).toBe(false);
+  expect(
+    metricsSchema.safeParse({ ...metrics, tickIntervalMs: Infinity }).success,
+  ).toBe(false);
+  const change = {
+    id: '1',
+    playbackGeneration: 0,
+    state: 'cancelled',
+    node: { generation: 1, id: '3' },
+  };
+  expect(
+    runtimeEventSchema.safeParse({
+      type: 'event',
+      event: 'Animation.changed',
+      data: { generation: 1, changes: [change], truncated: false },
+    }).success,
+  ).toBe(true);
+  expect(
+    runtimeEventSchema.safeParse({
+      type: 'event',
+      event: 'Animation.changed',
+      data: {
+        generation: 1,
+        changes: Array(129).fill(change),
+        truncated: true,
+      },
+    }).success,
+  ).toBe(false);
+  const animation = {
+    id: '1',
+    playbackGeneration: 0,
+    state: 'running',
+    kind: 'timing',
+    elapsedMs: 1,
+    durationMs: null,
+    durationScope: 'iteration',
+    delayMs: 0,
+    iterations: null,
+    targets: [],
+    targetsTruncated: false,
+  };
+  expect(animationSchema.safeParse(animation).success).toBe(true);
+  expect(
+    animationSchema.safeParse({ ...animation, elapsedMs: -1 }).success,
+  ).toBe(false);
+});

@@ -19,6 +19,21 @@ export async function inspectInBrowser(server, nativeOutput) {
       .click();
     await page.getByText('You control this target', { exact: true }).waitFor();
     await page
+      .getByRole('button', { name: 'Performance', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Start recording', exact: true })
+      .click();
+    await page
+      .getByText('Recording · 10 Hz samples', { exact: true })
+      .waitFor();
+    await page
+      .locator('#performance-summary')
+      .filter({ hasText: 'CPU frame (ms)' })
+      .waitFor();
+    await page.getByRole('button', { name: 'Animations', exact: true }).click();
+    await page.locator('#animations').filter({ hasText: 'opacity' }).waitFor();
+    await page
       .getByRole('button', { name: 'Select element', exact: true })
       .click();
     await page
@@ -26,6 +41,15 @@ export async function inspectInBrowser(server, nativeOutput) {
       .filter({ hasText: 'Canvas' })
       .waitFor();
     await page.getByText('Properties', { exact: true }).waitFor();
+    await page
+      .getByRole('button', { name: 'Performance', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Stop recording', exact: true })
+      .click();
+    await page
+      .getByRole('button', { name: 'Start recording', exact: true })
+      .waitFor();
     assert.match(nativeOutput(), /PICKED applicationEvents=0/);
     if (process.env.SOUNDOR_DEVTOOLS_SCREENSHOT)
       await page.screenshot({ path: process.env.SOUNDOR_DEVTOOLS_SCREENSHOT });
@@ -51,6 +75,7 @@ export async function inspectInBrowser(server, nativeOutput) {
         exact: true,
       })
       .waitFor();
+    await page.getByRole('button', { name: 'Console', exact: true }).click();
     server.publishLog({
       level: 'error',
       source: 'application',

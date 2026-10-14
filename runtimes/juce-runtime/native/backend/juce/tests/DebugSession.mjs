@@ -150,9 +150,17 @@ try {
     assert.equal(details.result.accessibility.name, 'Gain');
     assert.equal(details.result.accessibility.value.now, 0.5);
     assert.equal(details.result.bounds.width, 40);
+    const animations = await request('Animation.getActive', target.id);
+    assert.equal(animations.result[0].kind, 'timing');
+    assert.equal(animations.result[0].targets[0].node.id, '3');
     await request('Control.acquire', target.id);
+    await request('Diagnostics.setRecording', target.id, { enabled: true });
     await request('UI.highlightNode', target.id, { node: control.ref });
     await until(() => output.includes('generation=1 highlight=3'));
+    const metrics = await request('Diagnostics.getMetrics', target.id);
+    assert.equal(metrics.result.recording, true);
+    assert.ok(metrics.result.frameCount > 0);
+    assert.equal(metrics.result.frames[0].mode, 'cpu');
     await request('Events.subscribe', target.id, {
       events: ['UI.nodeSelected', 'Runtime.generationChanged'],
     });

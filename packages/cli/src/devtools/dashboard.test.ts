@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import type {
   DebugNode,
+  DebugAnimation,
+  DebugMetrics,
   DebugTree,
   RuntimeCommand,
 } from '@soundor/devtools-protocol';
@@ -57,7 +59,7 @@ const originalNodes = [
     layout: { scale: 1 },
   }),
 ];
-async function setup() {
+async function setup(diagnostics = false) {
   const root = await mkdtemp(join(tmpdir(), 'soundor-inspector-'));
   cleanup.push(() => rm(root, { recursive: true, force: true }));
   const server = await startDevToolsServer({
@@ -65,10 +67,14 @@ async function setup() {
     settings: { enabled: true, port: 0, open: false, portSource: 'config' },
   });
   cleanup.push(() => server.close());
-  const native = await target(server);
+  const native = await target(server, 'Gain Plugin', diagnostics);
   return { server, native, page: await page(server) };
 }
-async function target(server: DevToolsServer, name = 'Gain Plugin') {
+async function target(
+  server: DevToolsServer,
+  name = 'Gain Plugin',
+  diagnostics = false,
+) {
   const headers = {
     Authorization: `Bearer ${server.connection.token}`,
     'X-Soundor-Session': server.connection.sessionId,
@@ -85,7 +91,9 @@ async function target(server: DevToolsServer, name = 'Gain Plugin') {
         generation: 1,
         name,
         runtime: 'Fake Native',
-        capabilities: ['inspector', 'accessibility'],
+        capabilities: diagnostics
+          ? ['inspector', 'accessibility', 'animations', 'performance']
+          : ['inspector', 'accessibility'],
       }),
     },
   );
@@ -106,6 +114,38 @@ async function target(server: DevToolsServer, name = 'Gain Plugin') {
   const errors = new Map<string, string>();
   let treeRequests = 0;
   let delayedNode = false;
+  let metrics: DebugMetrics = {
+    generation: 1,
+    recording: false,
+    elapsedMs: 0,
+    frameCount: 0,
+    delayedTicks: 0,
+    tickIntervalMs: 0,
+    phases: {},
+    frames: [],
+  };
+  let animations: DebugAnimation[] = [
+    {
+      id: '1',
+      playbackGeneration: 0,
+      state: 'running',
+      kind: 'timing',
+      elapsedMs: 50,
+      durationMs: 100,
+      durationScope: 'iteration',
+      delayMs: 0,
+      iterations: 1,
+      easing: 'linear',
+      targets: [
+        {
+          node: { generation: 1, id: '3' },
+          properties: ['opacity'],
+          presentation: { opacity: 0.5 },
+        },
+      ],
+      targetsTruncated: false,
+    },
+  ];
   const post = (message: unknown) =>
     fetch(server.connection.endpoint + '/runtime/messages', {
       method: 'POST',
@@ -123,10 +163,48 @@ async function target(server: DevToolsServer, name = 'Gain Plugin') {
         const batch = (await response.json()) as { commands: RuntimeCommand[] };
         for (const command of batch.commands) {
           commands.push(command);
+          if (command.type === 'resetControl') {
+            metrics = {
+              ...metrics,
+              generation,
+              recording: false,
+              frameCount: 0,
+              frames: [],
+              phases: {},
+            };
+            if (diagnostics)
+              await post({
+                type: 'event',
+                event: 'Diagnostics.metrics',
+                data: metrics,
+              });
+          }
           if (command.type !== 'request') continue;
           methods.push(command.method);
           let result: unknown = null;
           let error = errors.get(command.method);
+          if (command.method === 'Diagnostics.getMetrics') result = metrics;
+          if (command.method === 'Diagnostics.setRecording') {
+            metrics = {
+              ...metrics,
+              recording: (command.params as { enabled: boolean }).enabled,
+            };
+            await post({
+              type: 'event',
+              event: 'Diagnostics.metrics',
+              data: metrics,
+            });
+          }
+          if (command.method === 'Animation.getActive') {
+            const filter = (command.params as { node?: { id: string } }).node;
+            result = animations.filter(
+              (animation) =>
+                !filter ||
+                animation.targets.some(
+                  (target) => target.node.id === filter.id,
+                ),
+            );
+          }
           if (command.method === 'UI.getTree') {
             ++treeRequests;
             result = {
@@ -181,6 +259,17 @@ async function target(server: DevToolsServer, name = 'Gain Plugin') {
     },
     setNodes(value: DebugNode[]) {
       treeNodes = value;
+    },
+    setAnimations(value: DebugAnimation[]) {
+      animations = value;
+    },
+    async setMetrics(value: DebugMetrics) {
+      metrics = value;
+      await post({
+        type: 'event',
+        event: 'Diagnostics.metrics',
+        data: metrics,
+      });
     },
     async event(event: string, data: unknown) {
       await post({ type: 'event', event, data });
@@ -545,4 +634,127 @@ it('serves the shipped browser module and a restrictive dashboard policy', async
   const script = await fetch(server.url + '/dashboard.js');
   expect(script.headers.get('content-type')).toBe('text/javascript');
   expect(await script.text()).toContain('startInspector');
+});
+
+it('shows native animation targets and lifecycle events, and clears them on reload', async () => {
+  const { page: browser, native } = await setup(true);
+  await browser.ready();
+  browser.click('tab-animations');
+  await until(() => browser.text('animations').includes('opacity'));
+  expect(browser.text('animations')).toContain('50.0 ms');
+  await browser.select();
+  await until(() => browser.text('details').includes('Animations'));
+  native.setAnimations([]);
+  await native.event('Animation.changed', {
+    generation: 1,
+    changes: [
+      {
+        id: '1',
+        node: { generation: 1, id: '3' },
+        playbackGeneration: 0,
+        state: 'cancelled',
+      },
+    ],
+    truncated: false,
+  });
+  await until(() => browser.text('animations').includes('cancelled'));
+  await native.reload();
+  await until(() => browser.text('target-meta').includes('generation 2'));
+  expect(browser.text('animations')).not.toContain('cancelled');
+});
+it('records diagnostics only with control and shares measured samples with observers', async () => {
+  const { server, page: controller, native } = await setup(true);
+  await controller.ready();
+  const observer = await page(server);
+  await observer.ready();
+  observer.click('tab-performance');
+  expect(observer.get('record-performance').hasAttribute('disabled')).toBe(
+    true,
+  );
+  await controller.control();
+  controller.click('tab-performance');
+  controller.click('record-performance');
+  await until(
+    () =>
+      controller.text('performance-status') === 'Recording · 10 Hz samples' &&
+      !controller.get('record-performance').hasAttribute('disabled'),
+  );
+  const sample: DebugMetrics = {
+    generation: 1,
+    recording: true,
+    elapsedMs: 100,
+    frameCount: 6,
+    delayedTicks: 0,
+    tickIntervalMs: 16.5,
+    phases: { webMs: 0.1, ticks: 6 },
+    frames: [
+      {
+        timestampMs: 100,
+        frameMs: 4,
+        productionMs: 3,
+        compositionMs: 1,
+        rasterMs: 2,
+        layoutMs: 0.5,
+        mode: 'cpu',
+        backend: 'Skia raster',
+        layerCount: 2,
+        layersRasterized: 1,
+        pixelsRasterized: 100,
+        gpuLayers: 0,
+        gpuReadbacks: 0,
+        cachedRasterBytes: 400,
+        layersComposited: 2,
+        pixelsComposited: 100,
+        bytesUploaded: 0,
+        textureAllocations: 0,
+        drawCalls: 0,
+        compositorReadbacks: 0,
+      },
+    ],
+  };
+  await native.setMetrics(sample);
+  await until(() =>
+    observer.text('performance-summary').includes('Skia raster'),
+  );
+  expect(
+    controller.get('performance-chart').querySelector('polyline'),
+  ).not.toBeNull();
+  controller.click('record-performance');
+  await until(
+    () => controller.text('record-performance') === 'Start recording',
+  );
+  expect(controller.text('performance-summary')).toContain('4.00');
+  controller.click('control');
+  await until(() => observer.text('ownership').includes('available'));
+  await until(
+    () => !observer.text('performance-summary').includes('Skia raster'),
+  );
+});
+it('reports unsupported diagnostics and never enables a recording for an observer', async () => {
+  const { page: browser, native } = await setup();
+  await browser.ready();
+  browser.click('tab-performance');
+  expect(browser.text('performance-status')).toContain('does not support');
+  browser.click('record-performance');
+  expect(native.methods).not.toContain('Diagnostics.setRecording');
+  browser.click('tab-animations');
+  expect(browser.text('animations')).toContain('does not support');
+});
+
+it('omits unavailable performance fields for partially instrumented runtimes', async () => {
+  const { page: browser, native } = await setup(true);
+  await browser.ready();
+  browser.click('tab-performance');
+  await native.setMetrics({
+    generation: 1,
+    recording: false,
+    elapsedMs: 100,
+    frameCount: 1,
+    phases: {},
+    frames: [{ timestampMs: 100, productionMs: 1.25 }],
+  });
+  await until(() => browser.text('performance-summary').includes('1.25'));
+  expect(browser.text('performance-summary')).not.toContain('Node raster');
+  expect(browser.text('performance-summary')).not.toContain('CPU frame');
+  expect(browser.get('performance-chart').querySelector('polyline')).toBeNull();
 });

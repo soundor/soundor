@@ -117,6 +117,9 @@ continues normally when debugging is disabled or unavailable.
 
 The browser Elements inspector supports searchable native nodes, normalized base
 styles and presentation values, accessibility details, and two-way selection.
+Animation and performance panels inspect the real native timeline and measured
+UI/rendering work. Profiling starts explicitly and requires control; expensive
+frame/raster timing is inactive otherwise. Production builds exclude the bridge.
 Request control before highlighting or activating the picker. Picker selection
 updates only the controller's browser view; observers keep independent selection.
 Runtime reload clears all old node references. See the
