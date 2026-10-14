@@ -73,6 +73,12 @@ that knowingly runs long in one call.
 
 ### Lifecycle phases
 
+The runtime declares optional Soundor DevTools support for native inspection,
+accessibility, animations and performance. This declaration lets the CLI
+discover support before launch; connected instances negotiate their available
+features separately. The capability foundation does not yet start a debug
+bridge or server. Development works normally without `ctx.devtools`.
+
 | Phase    | What it does                                                                                                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`   | Scaffolds the **user-owned** host under `runtimes/juce/` (`CMakeLists.txt`, `PluginProcessor`, `PluginEditor`). Written once; idempotent.                                           |

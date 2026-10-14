@@ -12,6 +12,19 @@
 import type { LifecycleContext } from './context';
 import type { SoundorConfig } from './types';
 
+/** Optional debugging support, discoverable before any lifecycle runs. */
+export interface DevToolsCapabilities {
+  readonly inspector?: boolean;
+  readonly accessibility?: boolean;
+  readonly animations?: boolean;
+  readonly performance?: boolean;
+}
+
+export interface RuntimeCapabilities {
+  /** Declaration of support; each connected instance negotiates its own subset. */
+  readonly devtools?: DevToolsCapabilities;
+}
+
 /** Result of a single environment/toolchain check performed by `doctor`. */
 export interface DoctorCheck {
   label: string;
@@ -34,6 +47,7 @@ export interface DoctorReport {
 export interface Runtime<Options extends object = object> {
   /** Stable id; must match the `id` used in `config.runtimes[]`. */
   readonly id: string;
+  readonly capabilities?: RuntimeCapabilities;
   /** Scaffold/prepare a project for this runtime. */
   init(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
   /** Produce generated sources via `ctx.codegen`. */

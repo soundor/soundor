@@ -16,6 +16,14 @@ function makeRuntime(id = 'juce'): Runtime {
 }
 
 describe('defineRuntime', () => {
+  it('preserves optional capabilities on factories and descriptors', () => {
+    const legacy = defineRuntime(makeRuntime('legacy'));
+    expect(legacy.runtime.capabilities).toBeUndefined();
+    const capabilities = { devtools: { inspector: true } };
+    const supported = defineRuntime({ ...makeRuntime('custom'), capabilities });
+    expect(supported.runtime.capabilities).toBe(capabilities);
+    expect(supported().runtime.capabilities).toBe(capabilities);
+  });
   it('returns a callable factory exposing id and the implementation', () => {
     const runtime = makeRuntime();
     const factory = defineRuntime(runtime);

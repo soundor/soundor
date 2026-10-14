@@ -91,6 +91,51 @@ describe('resolveRuntime', () => {
 });
 
 describe('runPhase', () => {
+  it('provides credentials only to supported debug development lifecycles', async () => {
+    const seen: unknown[] = [];
+    const record: Runtime['dev'] = async (_config, ctx) => {
+      seen.push(ctx.devtools);
+    };
+    const runtime: Runtime = {
+      id: 'custom',
+      capabilities: { devtools: {} },
+      init: record,
+      gen: record,
+      dev: record,
+      build: record,
+      doctor: async () => ({ checks: [] }),
+    };
+    const cfg = config(descriptor('custom', runtime));
+    const resolved = resolveRuntime(cfg, 'custom');
+    const devtools = {
+      endpoint: 'local-endpoint',
+      sessionId: 'session',
+      token: 'secret',
+    };
+    for (const phase of ['init', 'gen', 'dev', 'build'] as const) {
+      await runPhase(resolved, phase, cfg, dispatchInput({ devtools }));
+    }
+    await runPhase(
+      resolved,
+      'dev',
+      cfg,
+      dispatchInput({ devtools, mode: 'production' }),
+    );
+    await runPhase(
+      { ...resolved, runtime: { ...runtime, capabilities: undefined } },
+      'dev',
+      cfg,
+      dispatchInput({ devtools }),
+    );
+    expect(seen).toEqual([
+      undefined,
+      undefined,
+      devtools,
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
   it('dispatches by phase and threads options + mode into the context', async () => {
     const seen: Array<{ phase: string; mode: string; options: unknown }> = [];
     const runtime: Runtime = {

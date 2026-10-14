@@ -21,6 +21,13 @@ export type RuntimeMode = 'debug' | 'production';
 /** The five lifecycle phases every runtime implements. */
 export type RuntimePhase = 'init' | 'gen' | 'dev' | 'build' | 'doctor';
 
+/** Credentials for one development session. Never log or embed in artifacts. */
+export interface DevToolsConnection {
+  readonly endpoint: string;
+  readonly sessionId: string;
+  readonly token: string;
+}
+
 /**
  * The plugin UI bundle the CLI built before dispatching `dev` or `build`: a
  * directory holding `entry` (the JavaScript bundle) and its assets. The CLI
@@ -76,6 +83,8 @@ export interface LifecycleContext<Options extends object = object> {
   readonly codegen: CodegenSink;
   /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
   readonly ui?: UiBundleContext;
+  /** Only provided for supported runtimes in the debug development phase. */
+  readonly devtools?: DevToolsConnection;
   /**
    * The resolved code signing (environment, then `config.signing`, then
    * ad-hoc). A runtime that produces macOS binaries signs every one of them

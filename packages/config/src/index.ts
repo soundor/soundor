@@ -24,12 +24,15 @@ export type { ParseConfigOptions } from './parse';
 export type {
   DoctorCheck,
   DoctorReport,
+  DevToolsCapabilities,
+  RuntimeCapabilities,
   Runtime,
   RuntimeDescriptor,
   RuntimeFactory,
 } from './runtime';
 export type {
   LifecycleContext,
+  DevToolsConnection,
   RuntimeMode,
   RuntimePhase,
   LiveUiContext,
@@ -72,3 +75,5 @@ export type {
 } from '@soundor/core';
 
 export { locateConfig } from './load';
+export { loadUserSettings, parseUserSettings, userConfigPath } from './user';
+export type { DevToolsSettings, UserSettings, UserConfigOptions } from './user';
