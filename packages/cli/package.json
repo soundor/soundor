@@ -31,6 +31,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/ws": "catalog:",
+    "happy-dom": "catalog:",
     "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

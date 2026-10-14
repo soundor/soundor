@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -42,6 +49,10 @@ const bundle = await rolldown({
 });
 await bundle.write({ file: join(root, 'server.mjs'), format: 'esm' });
 await bundle.close();
+await copyFile(
+  new URL('packages/cli/src/devtools/dashboard-client.js', repository),
+  join(root, 'dashboard-client.js'),
+);
 const { startDevToolsServer } = await import(join(root, 'server.mjs'));
 const settings = { enabled: true, port: 0, open: false, portSource: 'config' };
 let server = await startDevToolsServer({ projectRoot: root, settings });
@@ -118,72 +129,83 @@ async function request(method, targetId, params = {}) {
   return take((message) => message.type === 'response' && message.id === id);
 }
 try {
-  await connect();
-  const changed = await take(
-    (message) =>
-      message.event === 'Runtime.targetsChanged' && message.data.length > 0,
-  );
-  const target = changed.data[0];
-  assert.equal(target.name, 'Native Bridge Test');
-  const tree = await request('UI.getTree', target.id);
-  assert.equal(tree.result.nodes.length, 4);
-  const control = tree.result.nodes.find((node) => node.ref.id === '3');
-  const details = await request('UI.getNode', target.id, { node: control.ref });
-  assert.equal(details.result.accessibility.name, 'Gain');
-  assert.equal(details.result.accessibility.value.now, 0.5);
-  assert.equal(details.result.bounds.width, 40);
-  await request('Control.acquire', target.id);
-  await request('UI.highlightNode', target.id, { node: control.ref });
-  await until(() => output.includes('generation=1 highlight=3'));
-  await request('Events.subscribe', target.id, {
-    events: ['UI.nodeSelected', 'Runtime.generationChanged'],
-  });
-  await request('UI.setPickerEnabled', target.id, { enabled: true });
-  const selected = await take((message) => message.event === 'UI.nodeSelected');
-  assert.deepEqual(selected.data.node, { generation: 1, id: '4' });
-  await until(() => output.includes('PICKED applicationEvents=0'));
-  await request('UI.setPickerEnabled', target.id, { enabled: true });
-  await take(
-    (message) =>
-      message.event === 'Runtime.targetsChanged' &&
-      message.data.some((info) => info.generation === 2),
-  );
-  assert.equal(
-    (await request('UI.getNode', target.id, { node: control.ref })).error.code,
-    'STALE_NODE',
-  );
-  await request('UI.highlightNode', target.id, {
-    node: { generation: 2, id: '3' },
-  });
-  await until(() => output.includes('generation=2 highlight=3'));
-  const port = Number(new URL(server.url).port);
-  await server.close();
-  socket.terminate();
-  await until(() => output.includes('generation=2 highlight=0'));
-  // Explicit protected descriptor handoff designates a new session, without
-  // port discovery. The bridge checks that its project association is unchanged.
-  server = await startDevToolsServer({
-    projectRoot: root,
-    settings: { ...settings, port },
-  });
-  await mkdir(dirname(descriptorPath), { recursive: true, mode: 0o700 });
-  await writeFile(descriptorPath, await readFile(server.descriptorPath), {
-    mode: 0o600,
-  });
-  await connect();
-  const reconnect = await take(
-    (message) =>
-      message.event === 'Runtime.targetsChanged' && message.data.length > 0,
-  );
-  assert.notEqual(reconnect.data[0].id, target.id);
-  assert.equal(
-    (await request('UI.getTree', reconnect.data[0].id)).result.generation,
-    2,
-  );
-  await finished;
-  console.log(
-    'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, clean teardown',
-  );
+  if (process.env.SOUNDOR_PLAYWRIGHT_MODULE) {
+    const { inspectInBrowser } = await import('./BrowserInspector.mjs');
+    await inspectInBrowser(server, () => output);
+    await finished;
+  } else {
+    await connect();
+    const changed = await take(
+      (message) =>
+        message.event === 'Runtime.targetsChanged' && message.data.length > 0,
+    );
+    const target = changed.data[0];
+    assert.equal(target.name, 'Native Bridge Test');
+    const tree = await request('UI.getTree', target.id);
+    assert.equal(tree.result.nodes.length, 4);
+    const control = tree.result.nodes.find((node) => node.ref.id === '3');
+    const details = await request('UI.getNode', target.id, {
+      node: control.ref,
+    });
+    assert.equal(details.result.accessibility.name, 'Gain');
+    assert.equal(details.result.accessibility.value.now, 0.5);
+    assert.equal(details.result.bounds.width, 40);
+    await request('Control.acquire', target.id);
+    await request('UI.highlightNode', target.id, { node: control.ref });
+    await until(() => output.includes('generation=1 highlight=3'));
+    await request('Events.subscribe', target.id, {
+      events: ['UI.nodeSelected', 'Runtime.generationChanged'],
+    });
+    await request('UI.setPickerEnabled', target.id, { enabled: true });
+    const selected = await take(
+      (message) => message.event === 'UI.nodeSelected',
+    );
+    assert.deepEqual(selected.data.node, { generation: 1, id: '4' });
+    await until(() => output.includes('PICKED applicationEvents=0'));
+    await request('UI.setPickerEnabled', target.id, { enabled: true });
+    await take(
+      (message) =>
+        message.event === 'Runtime.targetsChanged' &&
+        message.data.some((info) => info.generation === 2),
+    );
+    assert.equal(
+      (await request('UI.getNode', target.id, { node: control.ref })).error
+        .code,
+      'STALE_NODE',
+    );
+    await request('UI.highlightNode', target.id, {
+      node: { generation: 2, id: '3' },
+    });
+    await until(() => output.includes('generation=2 highlight=3'));
+    const port = Number(new URL(server.url).port);
+    await server.close();
+    socket.terminate();
+    await until(() => output.includes('generation=2 highlight=0'));
+    // Explicit protected descriptor handoff designates a new session, without
+    // port discovery. The bridge checks that its project association is unchanged.
+    server = await startDevToolsServer({
+      projectRoot: root,
+      settings: { ...settings, port },
+    });
+    await mkdir(dirname(descriptorPath), { recursive: true, mode: 0o700 });
+    await writeFile(descriptorPath, await readFile(server.descriptorPath), {
+      mode: 0o600,
+    });
+    await connect();
+    const reconnect = await take(
+      (message) =>
+        message.event === 'Runtime.targetsChanged' && message.data.length > 0,
+    );
+    assert.notEqual(reconnect.data[0].id, target.id);
+    assert.equal(
+      (await request('UI.getTree', reconnect.data[0].id)).result.generation,
+      2,
+    );
+    await finished;
+    console.log(
+      'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, clean teardown',
+    );
+  }
 } finally {
   socket?.terminate();
   await server.close();

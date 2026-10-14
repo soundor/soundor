@@ -115,6 +115,13 @@ continues normally when debugging is disabled or unavailable.
 | `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
 | `doctor` | Verifies CMake, a C++ compiler, the tools Skia and ANGLE are built with (git, Python 3, Ninja), and a locatable JUCE checkout.                                                      |
 
+The browser Elements inspector supports searchable native nodes, normalized base
+styles and presentation values, accessibility details, and two-way selection.
+Request control before highlighting or activating the picker. Picker selection
+updates only the controller's browser view; observers keep independent selection.
+Runtime reload clears all old node references. See the
+[CLI inspector guide](../../packages/cli/README.md#native-devtools-inspector).
+
 ### init vs gen: you own the host, Soundor owns the framework
 
 `gen` produces the config-derived framework into `.soundor/generated/`: the
