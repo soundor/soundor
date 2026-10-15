@@ -21,17 +21,18 @@ function run(command, args, cwd) {
 }
 try {
   const packages = [
-    'core',
-    'config',
-    'test-runtime',
-    'react',
-    'testing-library',
-    'vitest',
-    'vitest-environment-soundor',
+    'runtimes/engine',
+    'packages/core',
+    'packages/config',
+    'packages/test-runtime',
+    'packages/react',
+    'packages/testing-library',
+    'packages/vitest',
+    'packages/vitest-environment-soundor',
   ];
   const tarballs = {};
   for (const folder of packages) {
-    const path = resolve(repository, 'packages', folder);
+    const path = resolve(repository, folder);
     const manifest = JSON.parse(
       await readFile(resolve(path, 'package.json'), 'utf8'),
     );

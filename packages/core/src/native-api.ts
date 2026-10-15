@@ -24,8 +24,6 @@
  * deterministic description.
  */
 
-import { createHash } from 'node:crypto';
-
 // ── Config form ──────────────────────────────────────────────────────────────
 
 /**
@@ -340,17 +338,6 @@ export function describeNativeApi(
 
   if (issues.length > 0) return { ok: false, issues };
   return { ok: true, model: { types: orderStructs(types), methods } };
-}
-
-/**
- * The C++ inline namespace that isolates one plugin's native symbols from every
- * other Soundor plugin in the same host process: `p_` plus the first 8 hex
- * digits of the SHA-256 of the plugin id. Deterministic across builds and
- * machines; never visible to JavaScript.
- */
-export function nativeAbiNamespace(pluginId: string): string {
-  const digest = createHash('sha256').update(pluginId, 'utf8').digest('hex');
-  return `p_${digest.slice(0, 8)}`;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

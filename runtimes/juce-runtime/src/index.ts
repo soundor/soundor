@@ -14,7 +14,6 @@ import { fileURLToPath } from 'node:url';
 
 import {
   defineRuntime,
-  nativeAbiNamespace,
   EnvError,
   probeCommand,
   runCommand,
@@ -103,7 +102,6 @@ export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
       options,
       jucePath: resolution.path,
       nativeDir: NATIVE_DIR,
-      abiNamespace: nativeAbiNamespace(config.plugin.id),
     }),
   );
 }

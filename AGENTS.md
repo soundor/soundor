@@ -22,7 +22,7 @@ same lifecycle phases. Two runtimes exist:
   Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
 
 The packages' READMEs are the authoritative spec of behavior (especially
-`runtimes/juce-runtime/README.md`, `runtimes/juce-runtime/native/README.md`,
+`runtimes/juce-runtime/README.md`, `runtimes/engine/README.md`,
 `runtimes/web-runtime/README.md`, `packages/react/README.md`). Keep them in
 sync when behavior changes.
 
@@ -54,7 +54,7 @@ pnpm --filter soundor test                            # the CLI package is named
 `test` depends on `^build` in turbo, so filtered vitest runs need the
 dependencies built first (`pnpm build` or `pnpm turbo run build --filter=<pkg>...`).
 
-Native runtime (`runtimes/juce-runtime/native`, from that directory):
+Native runtime (`runtimes/engine`, from that directory):
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build/dev
@@ -62,7 +62,7 @@ cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
-cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g. /opt/JUCE)
+(cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
 
@@ -70,7 +70,7 @@ The first native configure builds Skia, ANGLE and Hermes from source
 (minutes) and caches them in the user cache dir (`SOUNDOR_CACHE` overrides);
 later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
-tests' Three.js) are lowered with `@soundor/core`'s source while building.
+tests' Three.js) are lowered with the engine's module-lowering source while building.
 
 Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
 rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
@@ -115,7 +115,7 @@ read the docs bundled with the installed package
   (`juceRuntime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (the `.d.ts` for `soundor:*`, parameters, native API, Web globals), paths,
-  logger, errors, command running, and `toNativeModule()` (Babel: an ES module
+  logger, errors, command running, and the `toNativeModule()` re-export (implemented by Engine: an ES module
   into the native runtime's module form).
 - `packages/cli` (`soundor`) — `init`, `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
@@ -141,8 +141,8 @@ read the docs bundled with the installed package
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See `docs/testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
-- `runtimes/juce-runtime` — TypeScript side (`src/`: codegen of the C++
-  framework, JUCE resolution, scaffolding) plus the C++ runtime in `native/`.
+- `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
   `soundor:ui`, IndexedDB storage/fs, the host UI).
@@ -166,7 +166,7 @@ The backends are ARIA (web), AccessKit (Windows, Linux) and Soundor's own
 Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
 types never leave `src/a11y/accesskit/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
-swizzle (see `native/src/a11y/apple/README.md`).
+swizzle (see `runtimes/engine/src/a11y/apple/README.md`).
 
 ### init vs gen ownership
 
@@ -175,7 +175,7 @@ overwrites them. `gen` regenerates `.soundor/generated/` (deterministic,
 `soundor gen --check`). Code that belongs to every plugin goes in the
 generated framework or the runtime package, not in `init` templates.
 
-### Native runtime invariants (`runtimes/juce-runtime/native`)
+### Native runtime invariants (`runtimes/engine`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
   adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
@@ -192,12 +192,12 @@ generated framework or the runtime package, not in `init` templates.
 - JavaScript the runtime runs is in its module form (a CommonJS module
   function, lowered for Hermes by `@soundor/core`'s `toNativeModule()`): the
   CLI's `bundle.js`, and the runtime's own modules, lowered from
-  `native/src/**/*.js` while building (so native builds need Node and the
+  `runtimes/engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
   everything is hidden-visibility, statically linked, and inside the inline
-  namespace `soundor::SOUNDOR_ABI_NAMESPACE` (derived from `plugin.id`).
+  namespace `soundor::SOUNDOR_ABI_NAMESPACE` (derived from the exact engine package version).
   `soundor_exported_symbols` and `soundor_coexistence` tests enforce it; a new
   dependency must keep its symbols hidden.
 - Dependencies are pinned in `cmake/SoundorDependencies.cmake` (FetchContent,

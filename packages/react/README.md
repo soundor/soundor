@@ -362,9 +362,9 @@ runtime's platform backend then presents it:
 - **Cost:** nothing is computed until assistive technology is listening.
   After that, each frame sends only the elements that changed.
 
-See the [native runtime's README](../../runtimes/juce-runtime/native/README.md#accessibility)
+See the [native runtime's README](../../runtimes/engine/README.md#accessibility)
 for the rules in detail and the backends, and its
-[Apple bridge notes](../../runtimes/juce-runtime/native/src/a11y/apple/README.md)
+[Apple bridge notes](../../runtimes/engine/src/a11y/apple/README.md)
 for how the macOS and iOS bridges stay safe in a plugin host.
 
 ## Focus
@@ -472,7 +472,7 @@ Removing `animation` or unmounting cancels its handle, including descendants.
 Explicit programs take precedence over automatic style transitions. Neither
 mode updates React on intermediate animation frames. Refs retain the underlying
 `UiNode`, whose `animate()` method exposes composition and playback controls.
-See the [animation contract](../../runtimes/juce-runtime/native/README.md#advanced-animations)
+See the [animation contract](../../runtimes/engine/README.md#advanced-animations)
 for timing, cancellation, spring physics, paint damage and browser approximation.
 
 ## Testing

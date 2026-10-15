@@ -1,0 +1,50 @@
+#pragma once
+
+#include <string>
+
+#ifdef SOUNDOR_ABI_NAMESPACE
+#error "The ABI namespace must come from the installed engine package"
+#endif
+#define SOUNDOR_ABI_NAMESPACE @SOUNDOR_ABI_NAMESPACE@
+#define SOUNDOR_ENGINE_VERSION "@SOUNDOR_ENGINE_VERSION@"
+
+#ifndef SOUNDOR_DEVTOOLS
+#define SOUNDOR_DEVTOOLS 0
+#endif
+#ifdef NDEBUG
+#define SOUNDOR_ABI_DEBUG 0
+#else
+#define SOUNDOR_ABI_DEBUG 1
+#endif
+#ifndef _ITERATOR_DEBUG_LEVEL
+#define SOUNDOR_ABI_ITERATORS 0
+#else
+#define SOUNDOR_ABI_ITERATORS _ITERATOR_DEBUG_LEVEL
+#endif
+#if defined(_LIBCPP_ABI_VERSION)
+#define SOUNDOR_ABI_STDLIB (1000 + _LIBCPP_ABI_VERSION)
+#elif defined(_MSVC_STL_VERSION)
+#define SOUNDOR_ABI_STDLIB (2000 + _MSVC_STL_VERSION)
+#elif defined(_GLIBCXX_USE_CXX11_ABI)
+#define SOUNDOR_ABI_STDLIB (10 + _GLIBCXX_USE_CXX11_ABI)
+#else
+#define SOUNDOR_ABI_STDLIB 0
+#endif
+
+#ifdef _DLL
+#define SOUNDOR_ABI_CRT 1
+#else
+#define SOUNDOR_ABI_CRT 0
+#endif
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE
+{
+    // A different namespace, variant, public feature layout, standard-library
+    // ABI or iterator ABI must resolve a different out-of-line symbol.
+    template <int Debug, int Devtools, int Iterators, int Stdlib, int Crt>
+    struct EngineAbiTag
+    {
+    };
+    using EngineAbi = EngineAbiTag<SOUNDOR_ABI_DEBUG, SOUNDOR_DEVTOOLS, SOUNDOR_ABI_ITERATORS, SOUNDOR_ABI_STDLIB, SOUNDOR_ABI_CRT>;
+    void requireEngineAbi(EngineAbi*) noexcept;
+}

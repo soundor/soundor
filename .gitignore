@@ -67,3 +67,7 @@ opencode.jsonc
 # Playwright
 test-results/
 playwright-report/
+
+# Python build-recipe caches
+__pycache__/
+*.pyc

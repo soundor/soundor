@@ -60,7 +60,7 @@ export const fixtureNativeApi: NativeApiDeclaration = {
 
 const goldenDir = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../native/tests/generated',
+  '../../engine/tests/generated',
 );
 
 function modelOf(declaration: NativeApiDeclaration) {

@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   describeNativeApi,
   enumeratorName,
-  nativeAbiNamespace,
   type NativeApiDeclaration,
 } from './native-api';
 import { renderNativeDts } from './native-dts';
@@ -210,23 +209,6 @@ describe('enumeratorName', () => {
     expect(enumeratorName('low-cut')).toBe('LowCut');
     expect(enumeratorName('48k')).toBe('Value48k');
     expect(enumeratorName('---')).toBe('Value');
-  });
-});
-
-describe('nativeAbiNamespace', () => {
-  it('is a deterministic C++ identifier derived from the plugin id', () => {
-    const namespace = nativeAbiNamespace('com.acme.reverb');
-    expect(namespace).toMatch(/^p_[0-9a-f]{8}$/);
-    expect(nativeAbiNamespace('com.acme.reverb')).toBe(namespace);
-    // Pinned so an accidental algorithm change (which would silently change
-    // every plugin's symbol names) fails loudly.
-    expect(namespace).toBe('p_023872d6');
-  });
-
-  it('differs between plugins', () => {
-    expect(nativeAbiNamespace('com.acme.reverb')).not.toBe(
-      nativeAbiNamespace('com.acme.delay'),
-    );
   });
 });
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const webgl = join(root, 'native/src/gpu/webgl');
+const webgl = join(root, '../engine/src/gpu/webgl');
 
 describe('WebGL codegen', () => {
   it('has generated files matching the IDL (pnpm gen:webgl regenerates them)', () => {

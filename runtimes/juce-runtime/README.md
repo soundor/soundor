@@ -6,7 +6,7 @@ side of the plugin's `soundor:native` API, and owns the build/packaging and dev
 workflows for VST3/AU.
 
 Each plugin view hosts Soundor's embedded JavaScript runtime
-([`native/`](./native/README.md)), running the project's UI bundle (`src/main.ts[x]`,
+([`native/`](../engine/README.md)), running the project's UI bundle (`src/main.ts[x]`,
 bundled by the CLI) with the `soundor:*` modules. Rendering a UI from it comes
 later; until then the view is empty.
 
@@ -154,8 +154,8 @@ dependency that generates code at run time (a schema validator compiling its
 checks, a template engine) needs its build-time form, and this shows up in
 development rather than in the built plugin. The bundle the CLI makes for this runtime (`bundle.js`) is a CommonJS module
 function with the syntax Hermes lacks lowered; see
-[`native/README.md`](./native/README.md#modules) for what that changes, and
-[the engine](./native/README.md#the-javascript-engine) for the language.
+[`../engine/README.md`](../engine/README.md#modules) for what that changes, and
+[the engine](../engine/README.md#the-javascript-engine) for the language.
 
 ### `soundor:parameters`
 
@@ -196,13 +196,13 @@ std::shared_ptr<soundor::native::NativeApi> createNativeApi() override
 JavaScript imports the methods from `soundor:native` with full types (from
 `.soundor/generated/native.d.ts`). Typed arrays are passed to C++ without
 copying, native objects travel as opaque handles, and a C++ exception becomes a
-JavaScript `Error`. See [`native/README.md`](./native/README.md).
+JavaScript `Error`. See [`../engine/README.md`](../engine/README.md).
 
 ### Web APIs, `soundor:host`, `soundor:storage`, `soundor:fs`
 
 Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 `fetch`, `crypto`, …) and the host/storage/file modules (see
-[`native/README.md`](./native/README.md)). The JUCE backend provides:
+[`../engine/README.md`](../engine/README.md)). The JUCE backend provides:
 
 - **`fetch`** over `juce::URL` on a small thread pool. Linux builds use
   `JUCE_USE_CURL=0`, which supports plain `http` only; `https` there needs
@@ -222,7 +222,7 @@ hardware GPU. Where there is none (a VM, a headless Linux machine),
 should fall back. Three.js's `WebGLRenderer` runs on it unmodified, and the
 native tests check that. The GPU compositor shows WebGL as it is, without copies;
 where the UI is composited on the CPU (Linux), WebGL is read back. See
-[`native/README.md`](./native/README.md).
+[`../engine/README.md`](../engine/README.md).
 
 ### Performance: what a frame costs
 
@@ -262,7 +262,7 @@ Linux x64 (AT-SPI) that backend is AccessKit, fetched prebuilt and pinned
 the editor hands JUCE a container of Soundor's elements as its native
 accessibility child (`AccessibilityHandler::setNativeChildForComponent`),
 JUCE's only part in it. See
-[`native/README.md`](./native/README.md#platform-accessibility).
+[`../engine/README.md`](../engine/README.md#platform-accessibility).
 
 A plugin binary then contains AccessKit (MIT or Apache-2.0, with Chromium
 BSD-3-Clause code): ship its notices with the plugin.
@@ -273,7 +273,7 @@ BSD-3-Clause code): ship its notices with the plugin.
 plugin. Hermes is fetched at a pinned revision and built once per machine into
 Soundor's cache (several minutes, the first time); no extra developer installs
 are needed. Every Soundor symbol is mangled into the plugin's own ABI
-namespace, derived from `plugin.id`. The plugin binary exports only its format
+namespace, derived from the exact `@soundor/engine` version. The plugin binary exports only its format
 entry points.
 
 The UI bundle the CLI built is compiled into the plugin (`soundor_embed_directory`),
@@ -286,7 +286,7 @@ another generator (as earlier Soundor versions left on macOS and Linux) is
 deleted and configured afresh.
 
 The last build step of every format is `soundor_finalize_plugin`
-(`native/cmake/SoundorPluginBundle.cmake`), deferred to the end of the
+(`native/SoundorPluginBundle.cmake`), deferred to the end of the
 project's `CMakeLists.txt` so it also follows steps the project adds: it writes
 the VST3 `moduleinfo.json` (JUCE's automatic manifest is turned off, since
 JUCE writes it after signing) and, on macOS, signs and verifies each bundle.
@@ -364,6 +364,20 @@ MIT
 The runtime implements native timing, springs, keyframes, composition, repetition,
 opacity, ordered transforms and paint animations through
 `soundor:ui` and `Animated.View` in `@soundor/react`. See the
-[native animation contract](native/README.md#native-timing-animations) for playback,
+[native animation contract](../engine/README.md#native-timing-animations) for playback,
 presentation, caching and reduced-motion behavior. Animation execution stays on
 the existing UI tick, independent of Hermes and the audio thread.
+
+## Soundor Engine
+
+The native engine is the independently versioned `@soundor/engine` package.
+This runtime depends on its exact version and resolves its installed source
+tree through normal package resolution. Use `juceRuntime({ engine: { mode:
+"source" } })` (currently the default). Workspace engine edits are compiled
+directly; no npm publication is needed. Both JUCE integration and generated
+bindings link `Soundor::Engine`. The engine never includes JUCE.
+
+The engine version owns the inline C++ ABI namespace. Each final Apple plugin
+format compiles a small accessibility class-registration shim with a distinct
+binary identity, while retaining the engine’s conservative module pinning and
+callback lifetime protections. See the [engine documentation](../engine/README.md).

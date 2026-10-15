@@ -13,6 +13,8 @@ import type { SoundorConfig } from '@soundor/runtime-sdk';
 export type JuceFormat = 'vst3' | 'au' | 'standalone';
 
 export interface JuceOptions {
+  /** Compile the installed @soundor/engine sources (the workspace package during development). */
+  readonly engine?: { readonly mode: 'source' };
   /**
    * Absolute or project-relative path to a JUCE checkout. When omitted, the
    * runtime searches `JUCE_DIR` and well-known locations. JUCE is never
@@ -72,6 +74,11 @@ export function resolveJuceOptions(
   options: JuceOptions,
   plugin: SoundorConfig['plugin'],
 ): ResolvedJuceOptions {
+  if (options.engine && options.engine.mode !== 'source')
+    throw new RuntimeError(
+      'juceRuntime({ engine: { mode } }) currently supports "source" only.',
+      { runtimeId: 'juce' },
+    );
   const formats =
     options.formats && options.formats.length > 0
       ? [...options.formats]

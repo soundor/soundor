@@ -78,7 +78,6 @@ export {
   PRIMITIVE_TYPES,
   describeNativeApi,
   enumeratorName,
-  nativeAbiNamespace,
 } from './native-api';
 export { renderNativeDts } from './native-dts';
 

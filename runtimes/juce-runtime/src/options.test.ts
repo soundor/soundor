@@ -19,6 +19,15 @@ describe('resolveJuceOptions', () => {
     });
   });
 
+  it('accepts the installed source engine provider', () => {
+    expect(() =>
+      resolveJuceOptions({ engine: { mode: 'source' } }, plugin),
+    ).not.toThrow();
+    expect(() =>
+      resolveJuceOptions({ engine: { mode: 'unknown' as 'source' } }, plugin),
+    ).toThrow(/supports "source" only/);
+  });
+
   it('takes a time limit in milliseconds, or none', () => {
     expect(resolveJuceOptions({ timeLimit: 60_000 }, plugin).timeLimit).toBe(
       60_000,

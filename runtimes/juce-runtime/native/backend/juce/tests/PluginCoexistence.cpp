@@ -1,7 +1,7 @@
 // Loads two real Soundor plugins (VST3) into one process with JUCE's plugin
 // hosting, like a DAW: processes audio in both, moves a parameter in one,
 // opens both editors and draws them. Each plugin carries its own runtime,
-// JavaScript engine and renderer under its own ABI namespace; nothing may
+// JavaScript engine and renderer under the same engine ABI namespace; nothing may
 // leak from one into the other.
 //
 //   soundor_juce_coexistence <plugin.vst3> <other plugin.vst3>

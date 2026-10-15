@@ -1,33 +1,39 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import {
-  copyFile,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { channel } from 'node:diagnostics_channel';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repository = new URL('../../../../../../', import.meta.url);
-const cliRequire = createRequire(
-  new URL('packages/cli/package.json', repository),
+const serverRequire = createRequire(
+  new URL('packages/devtools-server/package.json', repository),
 );
 const configRequire = createRequire(
   new URL('packages/config/package.json', repository),
 );
-const { rolldown } = await import(configRequire.resolve('rolldown'));
-const { WebSocket } = await import(
-  join(dirname(cliRequire.resolve('ws')), 'wrapper.mjs')
+const { rolldown } = await import(
+  pathToFileURL(configRequire.resolve('rolldown')).href
 );
+const { WebSocket } = await import(
+  pathToFileURL(join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')).href
+);
+// Record paths and statuses only, never session credentials or payloads.
+const requests = [];
+channel('http.server.request.start').subscribe(({ request, response }) => {
+  requests.push(
+    `${request.method} ${request.url}: started (length=${request.headers['content-length'] ?? 'none'})`,
+  );
+  response.once('finish', () => {
+    requests.push(`${request.method} ${request.url}: ${response.statusCode}`);
+  });
+});
 const root = await mkdtemp(join(tmpdir(), 'soundor-native-debug-'));
 const bundle = await rolldown({
   input: fileURLToPath(
-    new URL('packages/cli/src/devtools/server.ts', repository),
+    new URL('packages/devtools-server/src/server.ts', repository),
   ),
   platform: 'node',
   plugins: [
@@ -36,7 +42,9 @@ const bundle = await rolldown({
       resolveId(source) {
         if (source === 'ws')
           return {
-            id: join(dirname(cliRequire.resolve('ws')), 'wrapper.mjs'),
+            id: pathToFileURL(
+              join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs'),
+            ).href,
             external: true,
           };
         if (source === '@soundor/devtools-protocol')
@@ -49,13 +57,17 @@ const bundle = await rolldown({
 });
 await bundle.write({ file: join(root, 'server.mjs'), format: 'esm' });
 await bundle.close();
-await copyFile(
-  new URL('packages/cli/src/devtools/dashboard-client.js', repository),
-  join(root, 'dashboard-client.js'),
+const { startDevToolsServer } = await import(
+  pathToFileURL(join(root, 'server.mjs')).href
 );
-const { startDevToolsServer } = await import(join(root, 'server.mjs'));
-const settings = { enabled: true, port: 0, open: false, portSource: 'config' };
-let server = await startDevToolsServer({ projectRoot: root, settings });
+const staticDir = fileURLToPath(
+  new URL('packages/devtools-client/dist', repository),
+);
+let server = await startDevToolsServer({
+  projectRoot: root,
+  port: 0,
+  staticDir,
+});
 const descriptorPath = server.descriptorPath;
 const processTarget = spawn(process.argv[2], [], {
   env: { ...process.env, SOUNDOR_DEVTOOLS_SESSION: descriptorPath },
@@ -81,6 +93,7 @@ const finished = new Promise((resolve, reject) => {
 });
 // Mark handled immediately; the final await still observes native failures.
 void finished.catch(() => {});
+let phase = 'browser connection';
 let socket;
 let messages = [];
 async function until(predicate, timeout = 10000) {
@@ -89,7 +102,9 @@ async function until(predicate, timeout = 10000) {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`Timed out. Native output: ${output}\n${errors}`);
+  throw new Error(
+    `Timed out during ${phase}. Native output: ${output}\n${errors}\nHTTP: ${requests.join(', ')}`,
+  );
 }
 async function take(predicate) {
   await until(() => messages.some(predicate));
@@ -122,6 +137,7 @@ async function connect() {
   socket.send(JSON.stringify({ type: 'hello', version: 1 }));
 }
 async function request(method, targetId, params = {}) {
+  phase = method;
   const id = crypto.randomUUID();
   socket.send(
     JSON.stringify({ type: 'request', id, targetId, method, params }),
@@ -135,6 +151,7 @@ try {
     await finished;
   } else {
     await connect();
+    phase = 'native registration';
     const changed = await take(
       (message) =>
         message.event === 'Runtime.targetsChanged' && message.data.length > 0,
@@ -193,7 +210,8 @@ try {
     // port discovery. The bridge checks that its project association is unchanged.
     server = await startDevToolsServer({
       projectRoot: root,
-      settings: { ...settings, port },
+      port,
+      staticDir,
     });
     await mkdir(dirname(descriptorPath), { recursive: true, mode: 0o700 });
     await writeFile(descriptorPath, await readFile(server.descriptorPath), {

@@ -1,0 +1,7 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["scripts/native-module.ts"]
+}

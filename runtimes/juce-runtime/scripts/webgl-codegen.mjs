@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const webgl = join(root, 'native/src/gpu/webgl');
+const webgl = join(root, '../engine/src/gpu/webgl');
 const coreSource = join(root, '../../packages/core/src');
 
 /** IDL types by how a value of theirs travels: its WebIDL conversion and C++ reader. */

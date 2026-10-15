@@ -1,0 +1,195 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug build with tests",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SOUNDOR_BUILD_TESTS": "ON",
+        "SOUNDOR_ENABLE_DEVTOOLS": "ON",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "dev",
+      "displayName": "Debug build with ASan + UBSan",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "SOUNDOR_ENABLE_SANITIZERS": "ON"
+      }
+    },
+    {
+      "name": "tidy",
+      "inherits": "dev",
+      "displayName": "Debug build checked by clang-tidy",
+      "binaryDir": "${sourceDir}/build/tidy",
+      "cacheVariables": {
+        "SOUNDOR_ENABLE_CLANG_TIDY": "ON"
+      }
+    },
+    {
+      "name": "nogpu",
+      "inherits": "dev",
+      "displayName": "Debug build without the GPU (ANGLE), as on iOS",
+      "binaryDir": "${sourceDir}/build/nogpu",
+      "cacheVariables": {
+        "SOUNDOR_ENABLE_GPU": "OFF"
+      }
+    },
+    {
+      "name": "bench",
+      "displayName": "Release build of soundor_run_ui, for benchmarks",
+      "binaryDir": "${sourceDir}/build/bench",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_BUILD_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "configuration": "Debug"
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "configuration": "Debug"
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "configuration": "Debug"
+    },
+    {
+      "name": "nogpu",
+      "configurePreset": "nogpu",
+      "configuration": "Debug"
+    },
+    {
+      "name": "bench",
+      "configurePreset": "bench",
+      "configuration": "Release",
+      "targets": ["soundor_run_ui"]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1",
+        "LSAN_OPTIONS": "suppressions=${sourceDir}/tests/lsan.supp:print_suppressions=0"
+      }
+    },
+    {
+      "name": "nogpu",
+      "configurePreset": "nogpu",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "dev",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "dev"
+        },
+        {
+          "type": "build",
+          "name": "dev"
+        },
+        {
+          "type": "test",
+          "name": "dev"
+        }
+      ]
+    },
+    {
+      "name": "sanitize",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize"
+        },
+        {
+          "type": "build",
+          "name": "sanitize"
+        },
+        {
+          "type": "test",
+          "name": "sanitize"
+        }
+      ]
+    },
+    {
+      "name": "tidy",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "tidy"
+        },
+        {
+          "type": "build",
+          "name": "tidy"
+        }
+      ]
+    },
+    {
+      "name": "nogpu",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nogpu"
+        },
+        {
+          "type": "build",
+          "name": "nogpu"
+        },
+        {
+          "type": "test",
+          "name": "nogpu"
+        }
+      ]
+    },
+    {
+      "name": "bench",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "bench"
+        },
+        {
+          "type": "build",
+          "name": "bench"
+        }
+      ]
+    }
+  ]
+}

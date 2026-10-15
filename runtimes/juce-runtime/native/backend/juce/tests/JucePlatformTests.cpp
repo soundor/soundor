@@ -3,7 +3,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 
-#include "../../../tests/support/Modules.h"
+#include "support/Modules.h"
 
 #include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceTransport.h>
@@ -12,7 +12,9 @@
 #include <doctest/doctest.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -36,10 +38,13 @@ namespace
             REQUIRE(listener.createListener(0, "127.0.0.1"));
             thread = std::thread([this] { serve(); });
         }
-        ~OneShotServer()
+        ~OneShotServer() { finish(); }
+
+        void finish()
         {
             listener.close();
-            thread.join();
+            if (thread.joinable())
+                thread.join();
         }
         OneShotServer(const OneShotServer&) = delete;
         OneShotServer& operator=(const OneShotServer&) = delete;
@@ -60,17 +65,24 @@ namespace
             char buffer[4096];
             while (request.find("\r\n\r\n") == std::string::npos)
             {
+                if (client->waitUntilReady(true, 5000) != 1)
+                    return;
                 const int read = client->read(buffer, sizeof buffer, false);
                 if (read <= 0)
                     return;
                 request.append(buffer, std::size_t(read));
             }
-            const auto lengthAt = request.find("Content-Length: ");
+            auto headers = request.substr(0, request.find("\r\n\r\n"));
+            std::transform(headers.begin(), headers.end(), headers.begin(),
+                           [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+            const auto lengthAt = headers.find("content-length: ");
             if (lengthAt != std::string::npos)
             {
                 const auto length = std::stoul(request.substr(lengthAt + 16));
                 while (request.size() < request.find("\r\n\r\n") + 4 + length)
                 {
+                    if (client->waitUntilReady(true, 5000) != 1)
+                        return;
                     const int read = client->read(buffer, sizeof buffer, false);
                     if (read <= 0)
                         break;
@@ -170,6 +182,8 @@ TEST_CASE("fetch() through JuceHttpClient talks to a real server")
     const auto result = f.await("const r = await fetch('" + server.url("/presets?x=1")
                                 + "', { method: 'POST', headers: { 'X-Token': 'abc' }, body: 'payload' });"
                                   "return [r.status, r.headers.get('x-reply'), (await r.json()).ok].join('|');");
+    server.finish();
+    INFO(server.request);
     CHECK(result == "201|yes|true");
     CHECK(server.request.starts_with("POST /presets?x=1 HTTP/1.1\r\n"));
     CHECK(server.request.find("x-token: abc\r\n") != std::string::npos); // Fetch lowercases names
