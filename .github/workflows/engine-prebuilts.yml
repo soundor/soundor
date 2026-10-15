@@ -1,0 +1,349 @@
+name: Engine prebuilts
+
+# The native libraries of @soundor/engine as a GitHub release,
+# engine-prebuilts-v<version>-<short sha>-r<revision> (runtimes/engine/README.md,
+# "Prebuilt engines"). Modes:
+#
+#   validate  build, test and pack every archive; keep them as run artifacts
+#             only (pull requests that change the prebuilt tooling)
+#   stage     validate, then upload them to a draft release, verify it and
+#             delete it: the release path, without publishing (main only)
+#   publish   validate, then publish the release and verify its public assets
+#             (main only; the release workflow calls this before npm)
+#
+# A published release of the same version, commit and revision is verified
+# and reused, never rebuilt or replaced; a draft left by an interrupted run is
+# finished. A defective published release needs a higher revision.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/engine-prebuilts.yml
+      - .github/scripts/engine-prebuilts*.mjs
+      - .github/actions/**
+      - runtimes/engine/CMakePresets.json
+      - runtimes/engine/cmake/SoundorAbi.cmake
+      - runtimes/engine/cmake/SoundorEngine*.cmake
+      - runtimes/engine/cmake/SoundorPlatformLibraries.cmake
+      - runtimes/engine/licenses/**
+      - runtimes/engine/tests/prebuilt/**
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: validate, stage (draft release, then deleted) or publish
+        type: choice
+        options: [validate, stage, publish]
+        default: validate
+      revision:
+        description: Build revision (empty, the highest published one or 1)
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        default: publish
+      revision:
+        type: string
+        default: ''
+    outputs:
+      tag:
+        description: The prebuilt release of this commit
+        value: ${{ jobs.result.outputs.tag }}
+
+concurrency:
+  # One run per commit and mode at a time; a pull request's newer push
+  # cancels its older run. Releases are never cancelled halfway.
+  group: engine-prebuilts-${{ github.event_name == 'pull_request' && github.ref || github.sha }}-${{ inputs.mode || 'validate' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+jobs:
+  # Validation needs no GitHub access: build revision 1 of this commit.
+  plan-validate:
+    name: Plan
+    if: (inputs.mode || 'validate') == 'validate'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      action: build
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: plan
+        run: |
+          node --input-type=module -e "
+            import { appendFileSync } from 'node:fs';
+            import { engineVersion, plan } from './.github/scripts/engine-prebuilts.mjs';
+            const planned = plan({ version: engineVersion(), commit: process.env.GITHUB_SHA, revision: 1 });
+            appendFileSync(process.env.GITHUB_OUTPUT, 'tag=' + planned.tag + '\n');
+            console.log(planned.tag);"
+
+  # A release is planned against the releases that exist (drafts included,
+  # which only a token that can write sees), from main only.
+  plan-release:
+    name: Plan release
+    if: inputs.mode == 'stage' || inputs.mode == 'publish'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      action: ${{ steps.plan.outputs.action }}
+      tag: ${{ steps.plan.outputs.tag }}
+      draft: ${{ steps.plan.outputs.draft }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Only main's commits are released
+        run: |
+          git fetch --quiet origin main
+          if [ "$GITHUB_REF" != "refs/heads/main" ] || ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Engine prebuilts are released from main only ($GITHUB_REF, $GITHUB_SHA)"
+            exit 1
+          fi
+      - id: plan
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVISION: ${{ inputs.revision }}
+        run: node .github/scripts/engine-prebuilts.mjs plan --commit "$GITHUB_SHA" ${REVISION:+--revision "$REVISION"}
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: [plan-validate, plan-release]
+    if: >-
+      always() && !cancelled() && !contains(needs.*.result, 'failure') &&
+      (needs.plan-validate.outputs.action || needs.plan-release.outputs.action) == 'build'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # cache: the native dependency cache to share with Verify's jobs
+          # where the builds are the same.
+          - {
+              target: linux-x64,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              cache: linux-clang,
+            }
+          - {
+              target: macos-universal,
+              os: macos-15,
+              cc: clang,
+              cxx: clang++,
+              cache: prebuilt-macos-universal,
+            }
+          - {
+              target: windows-x64,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              cache: windows,
+            }
+    defaults:
+      run:
+        shell: bash
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      SOUNDOR_ENGINE_SOURCE_COMMIT: ${{ github.sha }}
+      SOUNDOR_REQUIRE_GPU: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: ${{ matrix.cache }}
+
+      # The archives carry these notices (runtimes/engine/licenses).
+      - name: AccessKit's crate notices match its Cargo.lock
+        if: runner.os == 'Linux'
+        run: node .github/scripts/accesskit-notices.mjs --check
+
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
+      # The DevTools session test serves the DevTools client.
+      - name: Build workspace
+        run: pnpm build
+
+      # Universal, with the oldest macOS it supports named.
+      - name: Stage the engine
+        working-directory: runtimes/engine
+        env:
+          CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
+        run: |
+          set -o pipefail
+          { cmake --workflow --preset prebuilt-debug && cmake --workflow --preset prebuilt-release; } 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Pack
+        run: |
+          set -o pipefail
+          for variant in debug release; do
+            node .github/scripts/engine-prebuilts.mjs pack "runtimes/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
+              --commit "$GITHUB_SHA" --target ${{ matrix.target }}
+          done 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # Everything below uses the archives as a consumer gets them: extracted
+      # from the packed files, outside the build that made them.
+      - name: Extract
+        run: |
+          version=$(node -p "require('./runtimes/engine/package.json').version")
+          # Forward slashes on Windows too: these paths go to CMake.
+          temp=$(cygpath -m "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")
+          for variant in debug release; do
+            mkdir -p "$temp/extracted"
+            cmake -E chdir "$temp/extracted" cmake -E tar xf "$temp/prebuilts/soundor-engine-$version-${{ matrix.target }}-$variant.tar.gz"
+            echo "PREBUILT_$(echo $variant | tr a-z A-Z)=$temp/extracted/soundor-engine-$version-${{ matrix.target }}-$variant" >> "$GITHUB_ENV"
+          done
+
+      - name: Both architectures in every macOS library
+        if: runner.os == 'macOS'
+        run: |
+          for root in "$PREBUILT_DEBUG" "$PREBUILT_RELEASE"; do
+            find "$root" -name '*.a' -print0 | xargs -0 -n1 lipo -verify_arch arm64 x86_64
+            lipo -verify_arch arm64 x86_64 "$root/hermes/bin/hermesc"
+          done
+
+      - name: Native tests against the debug engine
+        working-directory: runtimes/engine
+        run: set -o pipefail; SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset prebuilt-check-debug 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Bytecode-only tests against the release engine
+        working-directory: runtimes/engine
+        run: set -o pipefail; SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset prebuilt-check-release 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # The universal archive links for the architecture this runner is not.
+      - name: The x86_64 slice links
+        if: runner.os == 'macOS'
+        working-directory: runtimes/engine
+        run: |
+          set -o pipefail
+          { cmake -S . -B build/prebuilt-check-x86_64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+              -DSOUNDOR_BUILD_TESTS=ON "-DSOUNDOR_ENGINE_PREBUILT_RELEASE_DIR=$PREBUILT_RELEASE" &&
+            cmake --build build/prebuilt-check-x86_64 --target soundor_coexist_a soundor_coexist_b; } 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # CI-only checkout, outside either npm package; never distributed.
+      - name: Checkout JUCE integration fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
+          path: .soundor/ci-juce
+      - name: JUCE platform dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev xvfb
+
+      # The JUCE adapters and the DevTools bridge, linked to the debug engine.
+      - name: JUCE adapters against the debug engine
+        run: |
+          set -eo pipefail
+          {
+            cmake -S runtimes/juce-runtime/native -B .soundor/juce-prebuilt -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON \
+              -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce" \
+              "-DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=$PREBUILT_DEBUG"
+            cmake --build .soundor/juce-prebuilt --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
+            if [ "${{ runner.os }}" = "Linux" ]; then
+              xvfb-run -a ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+            else
+              ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+            fi
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Keep the archives
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: engine-prebuilt-${{ matrix.target }}
+          path: ${{ runner.temp }}/prebuilts
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      # A failed step's errors and the end of its output as an annotation,
+      # readable through the API without downloading the log.
+      - name: Report the failure
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/step.log" ] || exit 0
+          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}
+
+  # Every archive of every target, checked as one set, then released. Nothing
+  # is uploaded unless all of them were built and passed.
+  release:
+    name: Release
+    needs: [plan-release, build]
+    if: >-
+      always() && !cancelled() && needs.plan-release.result == 'success' &&
+      needs.plan-release.outputs.action == 'build' && needs.build.result == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: engine-prebuilt-*
+          path: ${{ runner.temp }}/prebuilts
+          merge-multiple: true
+      - name: Assemble and release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan-release.outputs.tag }}
+          DRAFT: ${{ needs.plan-release.outputs.draft }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -eo pipefail
+          revision=${TAG##*-r}
+          assets="$RUNNER_TEMP/assets"
+          node .github/scripts/engine-prebuilts.mjs assemble "$RUNNER_TEMP/prebuilts" "$assets" --commit "$GITHUB_SHA" --revision "$revision"
+          cp "$RUNNER_TEMP"/prebuilts/*.tar.gz "$assets/"
+          node .github/scripts/engine-prebuilts.mjs release "$assets" --commit "$GITHUB_SHA" --revision "$revision" --mode "$MODE" ${DRAFT:+--draft "$DRAFT"} | tee "$RUNNER_TEMP/release.txt"
+          {
+            echo "### Engine prebuilts: $MODE"
+            echo
+            echo "\`$TAG\`"
+            echo
+            cat "$assets/release-notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if grep -q '^immutable=false$' "$RUNNER_TEMP/release.txt"; then
+            echo "::warning::$TAG is published but not immutable: enable release immutability in the repository settings"
+          fi
+
+  result:
+    name: Result
+    needs: [plan-validate, plan-release, build, release]
+    if: always()
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ needs.plan-release.outputs.tag || needs.plan-validate.outputs.tag }}
+    steps:
+      - name: Require every applicable job
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          case "$RESULTS" in
+            *failure*|*cancelled*) echo "Engine prebuilts did not complete: $RESULTS"; exit 1 ;;
+            *) echo "Engine prebuilts complete: $RESULTS" ;;
+          esac

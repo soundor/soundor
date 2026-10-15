@@ -14,5 +14,7 @@ export default defineConfig({
     // C++ (included into Hermes's hermes.cpp), not JavaScript.
     'runtimes/engine/cmake/hermes/*.inc',
     'packages/core/src/webgl-dts.ts',
+    // Third-party license texts, verbatim, and generated crate notices.
+    'runtimes/engine/licenses/**',
   ],
 });

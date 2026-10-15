@@ -64,6 +64,9 @@ jobs:
       - name: Native input detection regression tests
         run: node --test .github/scripts/native-changes.test.mjs
 
+      - name: Engine prebuilt release tooling tests
+        run: node --test .github/scripts/engine-prebuilts.test.mjs
+
       # Each step keeps its output for "Report the failure".
       - name: Run formatter
         run: set -o pipefail; pnpm run format 2>&1 | tee "$RUNNER_TEMP/step.log"

@@ -12,6 +12,7 @@
     "scripts",
     "artifacts/manifest.json",
     "NOTICE.md",
+    "licenses",
     "dist"
   ],
   "type": "module",

@@ -1234,9 +1234,9 @@ cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
 cd ../juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
-The JUCE adapter tests need a JUCE checkout. JUCE is never downloaded, so CI
-does not run them; run them wherever JUCE is installed, for example the
-two-plugin host test:
+The JUCE adapter tests need a JUCE checkout. JUCE is never part of either
+package; CI checks out a pinned JUCE for them, outside both. Run them wherever
+JUCE is installed, for example the two-plugin host test:
 
 ```sh
 cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
@@ -1247,6 +1247,135 @@ cmake --build build/juce && (cd build/juce && xvfb-run -a ctest -R coexistence)
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,
 and MSVC on Windows, and runs the sanitizer preset on Linux.
+
+## Prebuilt engines
+
+The engine's native libraries, compiled once per engine version and published
+as a GitHub release, so that a plugin build links them instead of compiling
+Hermes, Skia and ANGLE. A release has six archives: three targets, two
+variants each.
+
+| Target            | Architectures    | Toolchain                |
+| ----------------- | ---------------- | ------------------------ |
+| `macos-universal` | arm64 and x86_64 | Apple Clang, macOS 12.0+ |
+| `linux-x64`       | x86_64 (glibc)   | Clang 18 (Ubuntu 24.04)  |
+| `windows-x64`     | x64              | MSVC, DLL C runtime      |
+
+| Variant   | Configuration                             | Hermes                         | DevTools | Windows C runtime |
+| --------- | ----------------------------------------- | ------------------------------ | -------- | ----------------- |
+| `debug`   | Debug                                     | with its compiler (source too) | yes      | `/MDd`            |
+| `release` | Release (also RelWithDebInfo, MinSizeRel) | bytecode only                  | no       | `/MD`             |
+
+Skia, ANGLE and Hermes are always optimized builds; on Windows each is built
+per C runtime, so the debug archive links the debug one. The C++ ABI identity
+is the engine version (`soundor::v0_2_1`) plus the variant, standard library,
+iterator debugging, C runtime and DevTools layout, all in the link-time anchor
+(`requireEngineAbi()`): a consumer compiled for anything else does not link.
+
+### An archive
+
+`soundor-engine-<version>-<target>-<variant>.tar.gz` holds one directory:
+
+```text
+soundor-engine.json      what the archive is: version, ABI namespace, source commit,
+                         variant, target, toolchain, features, Hermes, link order
+lib/                     the engine, ada, Yoga
+hermes/                  the variant's Hermes libraries, its headers (JSI), bin/hermesc
+skia/  angle/  accesskit/  their static libraries; ANGLE's and AccessKit's headers
+include/soundor/Abi.h    the generated ABI header, for reference
+licenses/                the notices of everything linked (licenses/README.md here)
+```
+
+The engine's own headers, sources and CMake come from this package; the archive
+adds only what compiling would. `hermesc` is the archive's own build: it runs
+where the archive's target runs (a universal binary on macOS).
+
+### Using one
+
+Point the engine's CMake at extracted archives and it imports them instead of
+compiling, with the same targets (`Soundor::Engine`, `soundor::runtime_internal`,
+`soundor_hermesc`...):
+
+```sh
+cmake ... -DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=<extracted debug archive> \
+          -DSOUNDOR_ENGINE_PREBUILT_RELEASE_DIR=<extracted release archive>
+```
+
+A single-configuration build needs the archive its `CMAKE_BUILD_TYPE` uses; a
+multi-configuration build (Visual Studio) uses both, and a configuration whose
+archive is missing fails to build rather than link the other's C runtime.
+Before anything links an archive, it is checked against this package and the
+build: format, engine version, ABI namespace, variant, Hermes revision, target
+platform and every target architecture (`CMAKE_OSX_ARCHITECTURES`, not the
+machine the build runs on), the macOS deployment target, MSVC and its C
+runtime, and that every listed library is there. Each mismatch fails the
+configure, saying which (`tests/prebuilt/Rejects.cmake`). Where the build
+machine cannot run the archive's `hermesc`, only the debug engine (which
+evaluates source) can be used.
+
+### Building them
+
+```sh
+SOUNDOR_ENGINE_SOURCE_COMMIT=$(git rev-parse HEAD) cmake --workflow --preset prebuilt-debug
+SOUNDOR_ENGINE_SOURCE_COMMIT=$(git rev-parse HEAD) cmake --workflow --preset prebuilt-release
+node ../../.github/scripts/engine-prebuilts.mjs pack build/prebuilt-debug/stage <out> --commit <sha>
+SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug
+SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-release
+```
+
+The `prebuilt-*` presets stage a variant (`soundor_engine_stage`,
+`cmake/SoundorEngineStage.cmake`); on macOS set
+`CMAKE_OSX_ARCHITECTURES="arm64;x86_64"` and `MACOSX_DEPLOYMENT_TARGET=12.0`.
+Packing checks the stage (variant, features, that the release engine has no
+Hermes compiler, every library and license notice) and writes a deterministic
+archive: sorted entries, fixed times and owners. The `prebuilt-check-*`
+presets run the native tests against an extracted archive: all of them against
+the debug engine (coexistence, symbol isolation, the macOS accessibility host,
+ABI rejection...), and against the release engine those that run without
+Hermes's compiler (two plugins running embedded bytecode, symbol isolation, no
+DevTools code, ABI rejection).
+
+### Releases
+
+`.github/workflows/engine-prebuilts.yml` builds all six archives on GitHub's
+runners, tests each extracted (the JUCE adapters and the DevTools bridge
+included), and releases them as one set, named after the engine version, the
+commit and a build revision:
+
+```text
+engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
+  soundor-engine-<version>-<target>-<variant>.tar.gz   ×6
+  build-info.json   per archive: target, variant, toolchain, SHA-256...; the
+                    engine version, ABI namespace, full source commit, revision
+  SHA256SUMS        the same checksums, for sha256sum -c
+```
+
+The release notes are generated from the same data. Pull requests that change
+the prebuilt tooling run it in `validate` mode: archives as run artifacts, no
+release. From `main` only, `stage` uploads them to a draft release, verifies
+the draft and deletes it (the whole release path, published nowhere), and
+`publish` publishes the release (never as the repository's latest) and then
+downloads every asset anonymously to check it against `build-info.json`.
+
+A run first looks for the release of its commit: a published one is verified
+and reused, never rebuilt or replaced; a draft left by an interrupted run is
+finished; a release whose assets or metadata disagree fails the run. Published
+releases are immutable (with the repository's release immutability setting):
+a defective one is superseded by a higher revision, never edited. A new engine
+version always needs its own release, even when only documentation changed,
+since the version is the ABI namespace. This release is separate from the
+engine's own npm release and its Changesets GitHub release.
+
+### Licenses
+
+Every archive carries `licenses/`: the notices that ship with each linked
+dependency (Skia, Hermes, ANGLE per third-party library, AccessKit), plus those
+in this package's `licenses/` for what they leave out: Skia's image libraries,
+Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada, Yoga, the
+Rust crates and standard library in AccessKit
+(`node .github/scripts/accesskit-notices.mjs` regenerates those). Staging fails
+when a linked component has no notice. JUCE is never part of an archive.
+Distributing a plugin means distributing these notices with it.
 
 ## Native timing animations
 

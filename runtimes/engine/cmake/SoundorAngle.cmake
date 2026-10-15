@@ -16,6 +16,7 @@
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 
 option(SOUNDOR_ENABLE_GPU "Build the GPU renderer (ANGLE); OFF renders on the CPU only" ON)
 set(SOUNDOR_ANGLE_DIR "" CACHE PATH "An ANGLE install made by SoundorAngleBuild.cmake; empty: build one into the Soundor cache")
@@ -164,10 +165,7 @@ if(WIN32)
 else()
   set_target_properties(soundor_angle PROPERTIES IMPORTED_LOCATION "${SOUNDOR_ANGLE_DIR}/lib/release/libangle.a")
 endif()
-# The headers declare everything, extensions included, without dllimport or
-# default visibility.
-target_compile_definitions(soundor_angle INTERFACE KHRONOS_STATIC ANGLE_EXPORT= GL_GLEXT_PROTOTYPES=1
-                                                   EGL_EGLEXT_PROTOTYPES=1)
+target_compile_definitions(soundor_angle INTERFACE ${SOUNDOR_ANGLE_DEFINITIONS})
 target_include_directories(soundor_angle SYSTEM INTERFACE "${SOUNDOR_ANGLE_DIR}/include")
 file(STRINGS "${SOUNDOR_ANGLE_DIR}/libs.txt" soundor_angle_libs)
 file(STRINGS "${SOUNDOR_ANGLE_DIR}/frameworks.txt" soundor_angle_frameworks)

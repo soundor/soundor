@@ -18,7 +18,12 @@ and is never part of the engine.
 
 Distributors must include applicable dependency license texts and attribution
 notices from the exact fetched revisions, including compiled transitive code.
+`licenses/` holds the notices the dependencies' own builds and archives leave
+out (README.md there); prebuilt engine archives carry all of them, assembled
+in their `licenses/` directory.
 The dependency and redistribution sections of README.md describe the current
 build graph. Building from source does not waive those redistribution duties.
 Doctest and Three.js are test-only dependencies and are not shipped in this
-source package. No compiled native libraries are included in this npm package.
+source package. No compiled native libraries are included in this npm
+package; they are published separately as prebuilt engine releases
+(README.md, "Prebuilt engines").

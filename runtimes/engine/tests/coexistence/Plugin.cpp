@@ -1,9 +1,12 @@
 // A stand-in for one Soundor plugin binary in the coexistence test: the whole
 // runtime under the same engine ABI namespace, a UI that draws a color of its own and
 // counts clicks, behind a small C entry point table. With the GPU, each
-// instance also draws its color with its own ANGLE device.
+// instance also draws its color with its own ANGLE device. Like a plugin, it
+// runs the UI bundle its build embedded (bytecode where the build compiles
+// it), so it also runs on an engine without Hermes's compiler.
 
 #include <soundor/a11y/Platform.h>
+#include <soundor/platform/Resources.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #if SOUNDOR_HAS_GPU
@@ -11,9 +14,12 @@
     #include "gpu/Egl.h"
 #endif
 
+#include <charconv>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #if defined(_WIN32)
@@ -21,6 +27,12 @@
 #else
     #define SOUNDOR_COEXIST_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
+
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
+{
+    // soundor_embed_ui() in tests/CMakeLists.txt: this plugin's bundle.
+    std::span<const platform::EmbeddedFile> coexistUi();
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 
 namespace
 {
@@ -31,20 +43,23 @@ namespace
         Instance()
         {
             host.surface().setSize({ size, size });
-            // In the runtime's module form (no test helper here: a plugin
-            // binary must not pick up std::regex's exported statics).
-            const std::string ui =
-                std::string("(function (exports, require) { const COLOR = '") + SOUNDOR_COEXIST_COLOR + "';\n" + R"(
-                const { root, createView } = require('soundor:ui');
-                globalThis.count = 0;
-                const box = createView({ width: 64, height: 64, backgroundColor: COLOR });
-                box.addEventListener('click', () => { globalThis.count += 1; });
-                root.appendChild(box);
-            }))";
-            ok = host.context().evaluateModule(ui, "/coexist.js").ok();
+            ok = host.entryResult().ok();
         }
 
-        soundor::RuntimeHost host { {} };
+        // The bundle logs "count=<n>" on every click.
+        int count = 0;
+        soundor::RuntimeHost host { {
+            .runtime = { .log =
+                             [this](soundor::js::LogLevel, std::string_view message)
+                         {
+                             constexpr std::string_view prefix = "count=";
+                             if (message.starts_with(prefix))
+                                 std::from_chars(message.data() + prefix.size(), message.data() + message.size(),
+                                                 count);
+                         } },
+            .resources = std::make_shared<soundor::platform::EmbeddedResources>(soundor::embedded::coexistUi()),
+            .entry = "/bundle.js",
+        } };
         // Each plugin's own platform accessibility (AccessKit on Linux and
         // Windows), side by side in one process.
         std::unique_ptr<soundor::a11y::PlatformAccessibility> accessibility =
@@ -150,8 +165,7 @@ SOUNDOR_COEXIST_EXPORT int soundor_coexist_click(void* handle)
     instance.host.tick();
     if (instance.accessibility != nullptr)
         instance.accessibility->tick(instance.host);
-    auto count = instance.host.context().evaluateScript("count");
-    return count ? static_cast<int>(count.value().asNumber()) : -1;
+    return instance.count;
 }
 
 // Renders the instance; returns the pixel in the middle (0xAARRGGBB).

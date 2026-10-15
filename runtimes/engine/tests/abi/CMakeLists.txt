@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
 project(SoundorEngineAbiChecks LANGUAGES CXX)
-set(CMAKE_TRY_COMPILE_CONFIGURATION Debug)
+# The configuration the engine archive was built in: matching consumers are
+# compiled in it, and a consumer of the other configuration must not link.
+if(NOT ENGINE_CONFIG)
+  set(ENGINE_CONFIG Debug)
+endif()
+set(CMAKE_TRY_COMPILE_CONFIGURATION ${ENGINE_CONFIG})
 file(READ "${ENGINE_ABI_HEADER}" header)
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/matching/soundor" "${CMAKE_CURRENT_BINARY_DIR}/wrong/soundor")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/matching/soundor/Abi.h" "${header}")
@@ -13,8 +18,10 @@ foreach(case matching namespace configuration features)
   set(definitions -DSOUNDOR_DEVTOOLS=${ENGINE_DEVTOOLS})
   if(case STREQUAL namespace)
     set(include "${CMAKE_CURRENT_BINARY_DIR}/wrong")
-  elseif(case STREQUAL configuration)
+  elseif(case STREQUAL configuration AND ENGINE_CONFIG STREQUAL "Debug")
     list(APPEND definitions -DNDEBUG)
+  elseif(case STREQUAL configuration)
+    list(APPEND definitions -UNDEBUG)
   elseif(case STREQUAL features)
     if(ENGINE_DEVTOOLS)
       set(definitions -DSOUNDOR_DEVTOOLS=0)
@@ -24,7 +31,7 @@ foreach(case matching namespace configuration features)
   endif()
   try_compile(linked "${CMAKE_CURRENT_BINARY_DIR}/${case}-build"
     SOURCES "${CMAKE_CURRENT_BINARY_DIR}/consumer.cpp"
-    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${include}" "-DCMAKE_CXX_STANDARD=20" "-DCMAKE_BUILD_TYPE=Debug"
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${include}" "-DCMAKE_CXX_STANDARD=20" "-DCMAKE_BUILD_TYPE=${ENGINE_CONFIG}"
     COMPILE_DEFINITIONS ${definitions}
     LINK_LIBRARIES "${ENGINE_ARCHIVE}"
     OUTPUT_VARIABLE output)

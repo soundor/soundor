@@ -52,6 +52,56 @@
         "CMAKE_BUILD_TYPE": "Release",
         "SOUNDOR_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "prebuilt-debug",
+      "displayName": "The debug prebuilt engine, staged for packing (SOUNDOR_ENGINE_SOURCE_COMMIT)",
+      "binaryDir": "${sourceDir}/build/prebuilt-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SOUNDOR_BUILD_TESTS": "OFF",
+        "SOUNDOR_ENABLE_DEVTOOLS": "ON",
+        "SOUNDOR_JS_SOURCE": "ON",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON",
+        "SOUNDOR_ENGINE_STAGE_DIR": "${sourceDir}/build/prebuilt-debug/stage",
+        "SOUNDOR_ENGINE_SOURCE_COMMIT": "$env{SOUNDOR_ENGINE_SOURCE_COMMIT}"
+      }
+    },
+    {
+      "name": "prebuilt-release",
+      "displayName": "The release prebuilt engine, staged for packing (SOUNDOR_ENGINE_SOURCE_COMMIT)",
+      "binaryDir": "${sourceDir}/build/prebuilt-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_BUILD_TESTS": "OFF",
+        "SOUNDOR_ENABLE_DEVTOOLS": "OFF",
+        "SOUNDOR_JS_SOURCE": "OFF",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON",
+        "SOUNDOR_ENGINE_STAGE_DIR": "${sourceDir}/build/prebuilt-release/stage",
+        "SOUNDOR_ENGINE_SOURCE_COMMIT": "$env{SOUNDOR_ENGINE_SOURCE_COMMIT}"
+      }
+    },
+    {
+      "name": "prebuilt-check-debug",
+      "displayName": "The native tests against an extracted debug prebuilt (SOUNDOR_ENGINE_PREBUILT_DIR)",
+      "binaryDir": "${sourceDir}/build/prebuilt-check-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SOUNDOR_BUILD_TESTS": "ON",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON",
+        "SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR": "$env{SOUNDOR_ENGINE_PREBUILT_DIR}"
+      }
+    },
+    {
+      "name": "prebuilt-check-release",
+      "displayName": "The bytecode-only native tests against an extracted release prebuilt (SOUNDOR_ENGINE_PREBUILT_DIR)",
+      "binaryDir": "${sourceDir}/build/prebuilt-check-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_BUILD_TESTS": "ON",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON",
+        "SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR": "$env{SOUNDOR_ENGINE_PREBUILT_DIR}"
+      }
     }
   ],
   "buildPresets": [
@@ -80,6 +130,28 @@
       "configurePreset": "bench",
       "configuration": "Release",
       "targets": ["soundor_run_ui"]
+    },
+    {
+      "name": "prebuilt-debug",
+      "configurePreset": "prebuilt-debug",
+      "configuration": "Debug",
+      "targets": ["soundor_engine_stage"]
+    },
+    {
+      "name": "prebuilt-check-debug",
+      "configurePreset": "prebuilt-check-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "prebuilt-release",
+      "configurePreset": "prebuilt-release",
+      "configuration": "Release",
+      "targets": ["soundor_engine_stage"]
+    },
+    {
+      "name": "prebuilt-check-release",
+      "configurePreset": "prebuilt-check-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -108,6 +180,22 @@
       "name": "nogpu",
       "configurePreset": "nogpu",
       "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "prebuilt-check-debug",
+      "configurePreset": "prebuilt-check-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "prebuilt-check-release",
+      "configurePreset": "prebuilt-check-release",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       }
@@ -188,6 +276,66 @@
         {
           "type": "build",
           "name": "bench"
+        }
+      ]
+    },
+    {
+      "name": "prebuilt-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "prebuilt-debug"
+        },
+        {
+          "type": "build",
+          "name": "prebuilt-debug"
+        }
+      ]
+    },
+    {
+      "name": "prebuilt-check-debug",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "prebuilt-check-debug"
+        },
+        {
+          "type": "build",
+          "name": "prebuilt-check-debug"
+        },
+        {
+          "type": "test",
+          "name": "prebuilt-check-debug"
+        }
+      ]
+    },
+    {
+      "name": "prebuilt-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "prebuilt-release"
+        },
+        {
+          "type": "build",
+          "name": "prebuilt-release"
+        }
+      ]
+    },
+    {
+      "name": "prebuilt-check-release",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "prebuilt-check-release"
+        },
+        {
+          "type": "build",
+          "name": "prebuilt-check-release"
+        },
+        {
+          "type": "test",
+          "name": "prebuilt-check-release"
         }
       ]
     }
