@@ -35,6 +35,8 @@ test('native input detection covers engine, adapters and shared build inputs', (
       ['pnpm-lock.yaml', true, true],
       ['.github/workflows/verify.yml', true, true],
       ['.clang-tidy', true, true],
+      ['.nvmrc', true, true],
+      ['.npmrc', true, true],
     ]) {
       git('reset', '--hard', base);
       git('clean', '-fdq');

@@ -13,7 +13,7 @@ if (base && !/^0+$/.test(base)) {
     .trim()
     .split('\n');
   engine = paths.some((path) =>
-    /^(runtimes\/engine\/|runtimes\/juce-runtime\/(src\/native-codegen|scripts\/webgl-codegen)|packages\/(core|config|runtime-sdk)\/|configs\/|scripts\/|examples\/benchmark\/|\.github\/|\.clang|pnpm-|package\.json$|turbo\.json$)/.test(
+    /^(runtimes\/engine\/|runtimes\/juce-runtime\/(src\/native-codegen|scripts\/webgl-codegen)|packages\/(core|config|runtime-sdk)\/|configs\/|scripts\/|examples\/benchmark\/|\.github\/|\.clang|\.nvmrc$|\.node-version$|\.npmrc$|pnpm-|package\.json$|turbo\.json$)/.test(
       path,
     ),
   );
