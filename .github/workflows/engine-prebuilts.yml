@@ -140,7 +140,7 @@ jobs:
               os: macos-15,
               cc: clang,
               cxx: clang++,
-              cache: prebuilt-macos-universal,
+              cache: macos-universal,
             }
           - {
               target: windows-x64,

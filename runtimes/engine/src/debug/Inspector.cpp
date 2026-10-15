@@ -3,8 +3,10 @@
 #if SOUNDOR_DEVTOOLS
 
     #include <algorithm>
-    #include <charconv>
     #include <cmath>
+    #include <iomanip>
+    #include <locale>
+    #include <sstream>
     #include <stdexcept>
     #include <type_traits>
 
@@ -14,6 +16,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     {
         using Object = Value::Object;
         using Array = Value::Array;
+        // The shortest of 15 to 17 significant digits that reads back as
+        // <value>, in the classic locale whatever the host set. Not
+        // std::to_chars: the macOS 12 C++ library has none for doubles.
+        std::string number(double value)
+        {
+            std::string text;
+            for (int precision = 15; precision <= 17; ++precision)
+            {
+                std::ostringstream out;
+                out.imbue(std::locale::classic());
+                out << std::setprecision(precision) << value;
+                text = out.str();
+                std::istringstream in(text);
+                in.imbue(std::locale::classic());
+                double read = 0;
+                if (in >> read && read == value)
+                    break;
+            }
+            return text;
+        }
         std::string quoted(const std::string& text)
         {
             std::string out = "\"";
@@ -191,9 +213,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 {
                     if (! std::isfinite(value))
                         return "null";
-                    char buffer[64];
-                    const auto result = std::to_chars(std::begin(buffer), std::end(buffer), value);
-                    return std::string(buffer, result.ptr);
+                    return number(value);
                 }
                 else if constexpr (std::is_same_v<T, std::string>)
                     return quoted(value);
