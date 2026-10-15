@@ -116,14 +116,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             juce::URL url(juce::String(data.endpoint + path));
             if (! body.empty())
                 url = url.withPOSTData(juce::String::fromUTF8(body.data(), static_cast<int>(body.size())));
+            // Registration has no target credentials yet. Omit those headers
+            // until issued, rather than passing empty values to native HTTP APIs.
+            juce::String headers = "Content-Type: application/json\r\nAuthorization: Bearer " + juce::String(data.token)
+                                   + "\r\nX-Soundor-Session: " + juce::String(data.session) + "\r\n";
+            if (! data.target.empty())
+                headers += "X-Soundor-Target: " + juce::String(data.target)
+                           + "\r\nX-Soundor-Target-Token: " + juce::String(data.targetToken) + "\r\n";
             auto stream = std::make_shared<juce::WebInputStream>(url, false);
             stream->withCustomRequestCommand(method)
                 .withConnectionTimeout(25000)
                 .withNumRedirectsToFollow(0)
-                .withExtraHeaders("Content-Type: application/json\r\nAuthorization: Bearer " + juce::String(data.token)
-                                  + "\r\nX-Soundor-Session: " + juce::String(data.session)
-                                  + "\r\nX-Soundor-Target: " + juce::String(data.target)
-                                  + "\r\nX-Soundor-Target-Token: " + juce::String(data.targetToken) + "\r\n");
+                .withExtraHeaders(headers);
             {
                 std::lock_guard lock(mutex);
                 if (stopped.load())
@@ -368,7 +372,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                     : error == 400 ? "DevTools protocol mismatch; use matching Soundor CLI and runtime versions."
                     : error == 1   ? "DevTools session descriptor is unavailable; native UI continues normally."
                                    : "DevTools server disconnected; native UI continues normally, reconnecting to the "
-                                     "designated session.");
+                                     "designated session (status "
+                                       + std::to_string(error) + ").");
         }
         const auto epoch = state->epoch.load();
         if (epoch != observedEpoch)

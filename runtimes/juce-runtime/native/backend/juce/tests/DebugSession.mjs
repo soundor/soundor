@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { channel } from 'node:diagnostics_channel';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,13 @@ const { rolldown } = await import(
 const { WebSocket } = await import(
   pathToFileURL(join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')).href
 );
+// Record paths and statuses only, never session credentials or payloads.
+const requests = [];
+channel('http.server.request.start').subscribe(({ request, response }) => {
+  response.once('finish', () => {
+    requests.push(`${request.method} ${request.url}: ${response.statusCode}`);
+  });
+});
 const root = await mkdtemp(join(tmpdir(), 'soundor-native-debug-'));
 const bundle = await rolldown({
   input: fileURLToPath(
@@ -92,7 +100,7 @@ async function until(predicate, timeout = 10000) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error(
-    `Timed out during ${phase}. Native output: ${output}\n${errors}`,
+    `Timed out during ${phase}. Native output: ${output}\n${errors}\nHTTP: ${requests.join(', ')}`,
   );
 }
 async function take(predicate) {
