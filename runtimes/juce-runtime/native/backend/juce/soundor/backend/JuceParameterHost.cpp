@@ -42,6 +42,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     double JuceParameterHost::value(std::size_t index) const
     {
         const auto* parameter = bound[index];
+        // Preserve the stored plain float instead of round-tripping through
+        // normalised space (FMA can turn an exact default zero into an epsilon).
+        if (const auto* floating = dynamic_cast<const juce::AudioParameterFloat*>(parameter))
+            return double(floating->get());
         return double(parameter->convertFrom0to1(parameter->getValue()));
     }
 
