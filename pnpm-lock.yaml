@@ -941,7 +941,17 @@ importers:
         specifier: 'catalog:'
         version: 5.0.3(@types/node@24.19.1)(happy-dom@20.14.5)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
 
+  runtimes/engine:
+    dependencies:
+      '@soundor/core':
+        specifier: workspace:^
+        version: link:../../packages/core
+
   runtimes/juce-runtime:
+    dependencies:
+      '@soundor/engine':
+        specifier: workspace:*
+        version: link:../engine
     devDependencies:
       '@soundor/config':
         specifier: workspace:^

@@ -9,12 +9,12 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, type Dirent } from 'node:fs';
 import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
   defineRuntime,
-  nativeAbiNamespace,
   EnvError,
   probeCommand,
   runCommand,
@@ -47,6 +47,9 @@ export const RUNTIME_ID = 'juce';
  * generated setup.cmake builds into the plugin. Resolves from both `dist/` and
  * `src/`.
  */
+export const ENGINE_DIR = dirname(
+  createRequire(import.meta.url).resolve('@soundor/engine/package.json'),
+);
 export const NATIVE_DIR = fileURLToPath(new URL('../native', import.meta.url));
 
 /** Injectable toolchain dependencies (defaulted; overridden in tests). */
@@ -103,7 +106,7 @@ export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
       options,
       jucePath: resolution.path,
       nativeDir: NATIVE_DIR,
-      abiNamespace: nativeAbiNamespace(config.plugin.id),
+      engineDir: ENGINE_DIR,
     }),
   );
 }

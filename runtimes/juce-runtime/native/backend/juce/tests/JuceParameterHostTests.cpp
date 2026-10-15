@@ -1,7 +1,7 @@
 // The JUCE parameter adapter against a real AudioProcessorValueTreeState.
 
 #define DOCTEST_CONFIG_IMPLEMENT
-#include "../../../tests/support/Modules.h"
+#include "support/Modules.h"
 
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/runtime/RuntimeHost.h>

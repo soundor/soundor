@@ -1,0 +1,16 @@
+# Consumers cannot choose a different identity from the installed npm package.
+if(DEFINED SOUNDOR_ABI_NAMESPACE)
+  message(FATAL_ERROR "SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine; remove the consumer override (or delete a build directory created by an older runtime)")
+endif()
+file(READ "${CMAKE_CURRENT_LIST_DIR}/../package.json" soundor_package)
+string(JSON SOUNDOR_ENGINE_VERSION GET "${soundor_package}" version)
+if(NOT SOUNDOR_ENGINE_VERSION MATCHES "^([0-9]+)[.]([0-9]+)[.]([0-9]+)(.*)$")
+  message(FATAL_ERROR "Invalid engine package version: ${SOUNDOR_ENGINE_VERSION}")
+endif()
+set(SOUNDOR_ABI_NAMESPACE "v${CMAKE_MATCH_1}_${CMAKE_MATCH_2}_${CMAKE_MATCH_3}")
+# Encode prerelease/build suffixes injectively instead of replacing punctuation.
+if(NOT CMAKE_MATCH_4 STREQUAL "")
+  string(HEX "${CMAKE_MATCH_4}" suffix)
+  string(APPEND SOUNDOR_ABI_NAMESPACE "_p${suffix}")
+endif()
+configure_file("${CMAKE_CURRENT_LIST_DIR}/SoundorAbi.h.in" "${CMAKE_CURRENT_BINARY_DIR}/generated/soundor/Abi.h" @ONLY)

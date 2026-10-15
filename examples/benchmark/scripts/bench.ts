@@ -42,7 +42,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 const example = path.resolve(import.meta.dirname, '..');
-const native = path.resolve(example, '../../runtimes/juce-runtime/native');
+const native = path.resolve(example, '../../runtimes/engine');
 
 const { values: options } = parseArgs({
   options: {

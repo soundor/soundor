@@ -24,7 +24,7 @@ target_include_directories(soundor_juce_platform_tests PRIVATE ${CMAKE_CURRENT_S
 target_compile_definitions(soundor_juce_platform_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_platform_tests
   PRIVATE
-    soundor::runtime
+    Soundor::Engine
     soundor_doctest
     juce::juce_audio_processors
     juce::juce_recommended_config_flags)
@@ -34,7 +34,7 @@ if(SOUNDOR_ENABLE_DEVTOOLS)
   target_sources(soundor_debug_target PRIVATE DebugTarget.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceDebugBridge.cpp)
   target_include_directories(soundor_debug_target PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
   target_compile_definitions(soundor_debug_target PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
-  target_link_libraries(soundor_debug_target PRIVATE soundor::runtime juce::juce_core juce::juce_recommended_config_flags)
+  target_link_libraries(soundor_debug_target PRIVATE Soundor::Engine juce::juce_core juce::juce_recommended_config_flags)
   add_test(NAME soundor_debug_session COMMAND ${SOUNDOR_NODE_EXE} ${CMAKE_CURRENT_SOURCE_DIR}/DebugSession.mjs $<TARGET_FILE:soundor_debug_target>)
   set_tests_properties(soundor_debug_session PROPERTIES TIMEOUT 45)
 endif()
@@ -43,7 +43,7 @@ target_include_directories(soundor_juce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR
 target_compile_definitions(soundor_juce_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_tests
   PRIVATE
-    soundor::runtime
+    Soundor::Engine
     soundor_doctest
     juce::juce_audio_processors
     juce::juce_recommended_config_flags)
@@ -67,3 +67,10 @@ endif()
 if(SOUNDOR_COEXISTENCE_PLUGINS)
   add_test(NAME soundor_juce_coexistence COMMAND soundor_juce_coexistence ${SOUNDOR_COEXISTENCE_PLUGINS})
 endif()
+
+foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_target)
+  if(TARGET ${consumer})
+    target_include_directories(${consumer} PRIVATE "${engine_dir}/tests")
+    soundor_attach_plugin_shim(${consumer})
+  endif()
+endforeach()

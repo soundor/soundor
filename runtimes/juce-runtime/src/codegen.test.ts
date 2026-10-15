@@ -40,7 +40,7 @@ const options = resolveJuceOptions(
 const params = {
   options,
   nativeDir: '/opt/soundor/native',
-  abiNamespace: 'p_12345678',
+  engineDir: '/opt/soundor/engine',
 };
 
 function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
@@ -184,15 +184,18 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('builds the Soundor runtime into the plugin under its own ABI namespace', () => {
+  it('builds the installed engine with its package ABI namespace', () => {
     const setup = fileMap(config).get('setup.cmake')!;
-    expect(setup).toContain('set(SOUNDOR_ABI_NAMESPACE p_12345678)');
+    expect(setup).toContain(
+      'add_subdirectory("/opt/soundor/engine" soundor-engine)',
+    );
+    expect(setup).not.toContain('set(SOUNDOR_ABI_NAMESPACE');
     expect(setup).toContain('set(SOUNDOR_BUILD_TESTS OFF)');
     expect(setup).toContain(
-      'add_subdirectory("/opt/soundor/native" soundor-runtime)',
+      'add_subdirectory("/opt/soundor/engine" soundor-engine)',
     );
     expect(setup).toContain(
-      'target_link_libraries(soundor_generated PUBLIC soundor::runtime PRIVATE soundor::runtime_internal)',
+      'target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal)',
     );
     expect(setup).toContain(
       '"/opt/soundor/native/backend/juce/soundor/backend/JuceParameterHost.cpp"',

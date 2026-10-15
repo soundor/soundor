@@ -286,7 +286,7 @@ another generator (as earlier Soundor versions left on macOS and Linux) is
 deleted and configured afresh.
 
 The last build step of every format is `soundor_finalize_plugin`
-(`native/cmake/SoundorPluginBundle.cmake`), deferred to the end of the
+(`native/SoundorPluginBundle.cmake`), deferred to the end of the
 project's `CMakeLists.txt` so it also follows steps the project adds: it writes
 the VST3 `moduleinfo.json` (JUCE's automatic manifest is turned off, since
 JUCE writes it after signing) and, on macOS, signs and verifies each bundle.
@@ -367,3 +367,17 @@ opacity, ordered transforms and paint animations through
 [native animation contract](native/README.md#native-timing-animations) for playback,
 presentation, caching and reduced-motion behavior. Animation execution stays on
 the existing UI tick, independent of Hermes and the audio thread.
+
+## Soundor Engine
+
+The native engine is the independently versioned `@soundor/engine` package.
+This runtime depends on its exact version and resolves its installed source
+tree through normal package resolution. Use `juceRuntime({ engine: { mode:
+"source" } })` (currently the default). Workspace engine edits are compiled
+directly; no npm publication is needed. Both JUCE integration and generated
+bindings link `Soundor::Engine`. The engine never includes JUCE.
+
+The engine version owns the inline C++ ABI namespace. Each final Apple plugin
+format compiles a small accessibility class-registration shim with a distinct
+binary identity, while retaining the engine’s conservative module pinning and
+callback lifetime protections. See the [engine documentation](../engine/README.md).

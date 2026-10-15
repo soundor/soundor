@@ -3,7 +3,7 @@
 
 #define DOCTEST_CONFIG_IMPLEMENT
 
-#include "../../../tests/support/Modules.h"
+#include "support/Modules.h"
 
 #include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceTransport.h>

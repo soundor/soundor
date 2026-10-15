@@ -9,8 +9,27 @@ on:
 permissions: {}
 
 jobs:
+  changes:
+    name: Native input detection
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      native: ${{ steps.detect.outputs.native }}
+      juce: ${{ steps.detect.outputs.juce }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: node .github/scripts/native-changes.mjs
+
   verify:
     name: Verify
+    needs: changes
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -34,6 +53,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup native dependencies
+        if: needs.changes.outputs.native == 'true'
         id: deps
         uses: ./.github/actions/native-deps
         with:
@@ -47,18 +67,29 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
+      - name: Native input detection regression tests
+        run: node --test .github/scripts/native-changes.test.mjs
+
       # Each step keeps its output for "Report the failure".
       - name: Run formatter
         run: set -o pipefail; pnpm run format 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run linter
-        run: set -o pipefail; pnpm run lint 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: set -o pipefail; pnpm run lint:check 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Native static analysis
+        if: needs.changes.outputs.native == 'true'
+        run: pnpm turbo run lint:native
+
+      - name: Native runtime tests
+        if: needs.changes.outputs.native == 'true'
+        run: pnpm --filter @soundor/engine test:native
 
       - name: Run build
         run: set -o pipefail; pnpm run build 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run test
-        run: set -o pipefail; pnpm run test 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: set -o pipefail; pnpm turbo run test --filter=!./examples/* --filter=!@soundor/react-tests 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Example application tests, types and web builds
         run: |
@@ -85,6 +116,7 @@ jobs:
         run: pnpm --filter soundor-benchmark test
 
       - name: Animation benchmark smoke
+        if: needs.changes.outputs.native == 'true'
         run: |
           pnpm --filter soundor-benchmark bench --only animation --runs 1 --frames 12 --warmup 3 --backend vulkan --software --out "$RUNNER_TEMP/animation.json"
           node examples/benchmark/scripts/verify-animation-report.ts "$RUNNER_TEMP/animation.json"
@@ -111,6 +143,7 @@ jobs:
 
   native:
     name: Native (${{ matrix.name }})
+    needs: changes
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -154,7 +187,7 @@ jobs:
       SOUNDOR_REQUIRE_GPU: ${{ matrix.require-gpu || '1' }}
     defaults:
       run:
-        working-directory: runtimes/juce-runtime/native
+        working-directory: runtimes/engine
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -165,6 +198,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup native dependencies
+        if: needs.changes.outputs.native == 'true'
         id: deps
         uses: ./.github/actions/native-deps
         with:
@@ -179,6 +213,7 @@ jobs:
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
       - name: Build and test the native runtime
+        if: needs.changes.outputs.native == 'true'
         timeout-minutes: 60
         shell: bash
         run: set -o pipefail; cmake --workflow --preset ${{ matrix.preset }} 2>&1 | tee "$RUNNER_TEMP/step.log"
@@ -218,6 +253,76 @@ jobs:
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Save Skia, ANGLE and Hermes
+        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/soundor-cache
+          key: ${{ steps.deps.outputs.cache-key }}
+
+  juce:
+    name: Native JUCE integration (${{ matrix.name }})
+    needs: changes
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux, os: ubuntu-24.04, cc: clang, cxx: clang++ }
+          - { name: macos, os: macos-15, cc: clang, cxx: clang++ }
+          - { name: windows, os: windows-2025, cc: cl, cxx: cl }
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        if: needs.changes.outputs.juce == 'true'
+        uses: ./.github/actions/setup
+      - name: Setup native dependencies
+        if: needs.changes.outputs.juce == 'true'
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: juce-${{ matrix.name }}
+      # CI-only checkout, outside either npm package; never distributed.
+      - name: Checkout JUCE integration fixture
+        if: needs.changes.outputs.juce == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
+          path: .soundor/ci-juce
+      - name: JUCE platform dependencies
+        if: needs.changes.outputs.juce == 'true' && runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev xvfb
+      - name: Use Ninja
+        if: needs.changes.outputs.juce == 'true' && runner.os != 'Windows'
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+      - name: Build workspace
+        if: needs.changes.outputs.juce == 'true'
+        run: pnpm build
+      - name: Build and test JUCE adapters
+        if: needs.changes.outputs.juce == 'true'
+        run: |
+          cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
+          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          else
+            ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          fi
+      - name: Build a generated source-powered VST3 consumer
+        if: needs.changes.outputs.juce == 'true'
+        env:
+          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
+        run: pnpm --filter basic exec soundor build juce
+      - name: Save native dependencies
         if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

@@ -10,10 +10,7 @@ describe('three', () => {
   it('is the same release in the catalog (examples) and the native tests', () => {
     const catalog = readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8');
     const cmake = readFileSync(
-      join(
-        root,
-        'runtimes/juce-runtime/native/cmake/SoundorDependencies.cmake',
-      ),
+      join(root, 'runtimes/engine/cmake/SoundorDependencies.cmake'),
       'utf8',
     );
     const inCatalog = /^\s+three: (\S+)$/m.exec(catalog)?.[1];
