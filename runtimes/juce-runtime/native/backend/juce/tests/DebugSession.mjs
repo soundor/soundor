@@ -82,6 +82,7 @@ const finished = new Promise((resolve, reject) => {
 });
 // Mark handled immediately; the final await still observes native failures.
 void finished.catch(() => {});
+let phase = 'browser connection';
 let socket;
 let messages = [];
 async function until(predicate, timeout = 10000) {
@@ -90,7 +91,9 @@ async function until(predicate, timeout = 10000) {
     if (predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error(`Timed out. Native output: ${output}\n${errors}`);
+  throw new Error(
+    `Timed out during ${phase}. Native output: ${output}\n${errors}`,
+  );
 }
 async function take(predicate) {
   await until(() => messages.some(predicate));
@@ -123,6 +126,7 @@ async function connect() {
   socket.send(JSON.stringify({ type: 'hello', version: 1 }));
 }
 async function request(method, targetId, params = {}) {
+  phase = method;
   const id = crypto.randomUUID();
   socket.send(
     JSON.stringify({ type: 'request', id, targetId, method, params }),
@@ -136,6 +140,7 @@ try {
     await finished;
   } else {
     await connect();
+    phase = 'native registration';
     const changed = await take(
       (message) =>
         message.event === 'Runtime.targetsChanged' && message.data.length > 0,

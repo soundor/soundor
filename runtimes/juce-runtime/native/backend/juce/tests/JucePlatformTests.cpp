@@ -12,7 +12,9 @@
 #include <doctest/doctest.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -70,7 +72,10 @@ namespace
                     return;
                 request.append(buffer, std::size_t(read));
             }
-            const auto lengthAt = request.find("Content-Length: ");
+            auto headers = request.substr(0, request.find("\r\n\r\n"));
+            std::transform(headers.begin(), headers.end(), headers.begin(),
+                           [](unsigned char character) { return static_cast<char>(std::tolower(character)); });
+            const auto lengthAt = headers.find("content-length: ");
             if (lengthAt != std::string::npos)
             {
                 const auto length = std::stoul(request.substr(lengthAt + 16));

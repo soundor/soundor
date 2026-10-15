@@ -26,6 +26,7 @@ namespace
 // input is generated locally here; no automation method is added to the wire.
 int main()
 {
+    std::cout << "START native target" << std::endl;
     const auto makeHost = []
     {
         auto host = std::make_unique<RuntimeHost>(RuntimeHost::Options {});
@@ -65,7 +66,9 @@ int main()
             return false;
         });
     auto bridge = std::make_unique<backend::JuceDebugBridge>(
-        juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {}).toStdString(), "Native Bridge Test");
+        juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {}).toStdString(), "Native Bridge Test",
+        [](js::LogLevel, std::string_view message) { std::cerr << message << std::endl; });
+    std::cout << "READY native target" << std::endl;
     unsigned generation = 1;
     ui::NodeId lastHighlight = ui::noNode;
     bool picked = false;
