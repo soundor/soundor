@@ -1,5 +1,17 @@
 # @soundor/web-runtime
 
+## 0.5.1
+
+### Patch Changes
+
+- [#113](https://github.com/soundor/soundor/pull/113) [`9d8474e`](https://github.com/soundor/soundor/commit/9d8474ebfd40028eca8193a2bacaa248d17e3e5e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Extract an isolated, framework independent testing runtime with semantic trees,
+  input, services and deterministic animation time. Share the analytic spring solver
+  with the Web runtime and preserve React tests through a temporary adapter.
+
+  Make modal focus eligibility and pointer ownership deterministic, bound animation
+  ownership without losing fills or replay, and fix native and simulated target
+  capture propagation so stopPropagation preserves same-target bubble listeners.
+
 ## 0.5.0
 
 ### Minor Changes

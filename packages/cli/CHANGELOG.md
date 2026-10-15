@@ -1,5 +1,39 @@
 # soundor
 
+## 0.8.0
+
+### Minor Changes
+
+- [#125](https://github.com/soundor/soundor/pull/125) [`5cc746e`](https://github.com/soundor/soundor/commit/5cc746efe099cf5ed5b564647168a1f2def020f2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the browser DevTools Elements inspector, live native node details, two-way picker selection, explicit target control, and filtered application console. Handle target switching, runtime reload, and WebSocket reconnection safely.
+
+- [#127](https://github.com/soundor/soundor/pull/127) [`640fca8`](https://github.com/soundor/soundor/commit/640fca812d39e560c89494b645169e0377df7e32) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Expose real native animation snapshots and bounded lifecycle events, plus explicit performance recording of measured UI tick, layout, raster, frame and compositor work. Add animation and performance panels to DevTools with controller-only recording and safe reload/disconnect cleanup. Keep inspection read-only where reconciler-safe property overrides or source metadata are unavailable.
+
+- [#122](https://github.com/soundor/soundor/pull/122) [`04ff5cf`](https://github.com/soundor/soundor/commit/04ff5cf759658cfda0f0ee748f1287fd29ee9848) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add optional runtime DevTools capabilities, development connection context and validated platform-specific user settings. Discover DevTools support before development without requiring existing runtimes to change.
+
+- [#123](https://github.com/soundor/soundor/pull/123) [`7e5e33b`](https://github.com/soundor/soundor/commit/7e5e33b8aee3b3fbd07b1edab105b6d319843c7f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the versioned Soundor Debug Protocol and local development session server with browser WebSockets, authenticated asynchronous native IPC, instance routing, generation validation, control leases, bounded subscriptions and lifecycle cleanup.
+
+### Patch Changes
+
+- [#128](https://github.com/soundor/soundor/pull/128) [`5ec0815`](https://github.com/soundor/soundor/commit/5ec081578c4f7667e5942cf1ca8e8c8d172a195a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Extract DevTools into an independent Node server and TypeScript/Vite application,
+  preserving the shared protocol and dashboard behavior. Add secure optional static
+  serving, headless operation, reusable simulated runtimes and scenarios, standalone
+  frontend development, browser E2E coverage and packed-consumer validation.
+
+  Allow Vite development to attach to an existing loopback backend through an
+  explicit CLI Origin opt-in, retaining normal browser authentication and backend
+  ownership. Derive simulated tree roots from the current fixture nodes.
+
+  Separate browser session handling, protocol state, and dashboard rendering into
+  focused client modules. Cover state transitions with DOM-independent tests,
+  model cancellable simulated operations without error side effects, and isolate
+  frontend development tests with ephemeral ports. Canonicalize localhost browser
+  bootstrap links onto the explicitly trusted loopback origin.
+
+- [#124](https://github.com/soundor/soundor/pull/124) [`2807b91`](https://github.com/soundor/soundor/commit/2807b91593c45278d51e400892b399368e1f55c7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Connect JUCE development Standalones to the designated DevTools session through asynchronous authenticated IPC. Inspect actual native nodes, styles, layout, accessibility and focus, render independent CPU/GPU highlight layers, and intercept native picker clicks safely across disconnects and reloads. Exclude the bridge from production builds.
+- Updated dependencies [[`5ec0815`](https://github.com/soundor/soundor/commit/5ec081578c4f7667e5942cf1ca8e8c8d172a195a)]:
+  - @soundor/devtools-server@0.8.0
+  - @soundor/devtools-client@0.8.0
+
 ## 0.7.0
 
 ### Minor Changes

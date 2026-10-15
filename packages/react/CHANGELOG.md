@@ -1,5 +1,23 @@
 # @soundor/react
 
+## 0.8.0
+
+### Patch Changes
+
+- [#119](https://github.com/soundor/soundor/pull/119) [`5caf476`](https://github.com/soundor/soundor/commit/5caf476f4956e5e87f98fdad8ccdc97e187668a0) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Adopt Soundor Testing Library for the React renderer's tests, remove the temporary fake UI adapter, and document the public testing workflow. Add behavioral tests and explicit checks for the basic and primitives applications.
+
+- [#113](https://github.com/soundor/soundor/pull/113) [`9d8474e`](https://github.com/soundor/soundor/commit/9d8474ebfd40028eca8193a2bacaa248d17e3e5e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Extract an isolated, framework independent testing runtime with semantic trees,
+  input, services and deterministic animation time. Share the analytic spring solver
+  with the Web runtime and preserve React tests through a temporary adapter.
+
+  Make modal focus eligibility and pointer ownership deterministic, bound animation
+  ownership without losing fills or replay, and fix native and simulated target
+  capture propagation so stopPropagation preserves same-target bubble listeners.
+
+- [#115](https://github.com/soundor/soundor/pull/115) [`51d1f5d`](https://github.com/soundor/soundor/commit/51d1f5d012dab9e8cbc60c38fa74c2bde9e4d024) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the Soundor Vitest plugin and simulated environment with virtual modules,
+  per-test runtime isolation, deterministic service configuration, and published
+  package consumer validation. Make React focus scopes read the active roots.
+
 ## 0.7.0
 
 ### Minor Changes
