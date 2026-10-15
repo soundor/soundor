@@ -2,6 +2,7 @@
 if(DEFINED SOUNDOR_ABI_NAMESPACE)
   message(FATAL_ERROR "SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine; remove the consumer override (or delete a build directory created by an older runtime)")
 endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../package.json")
 file(READ "${CMAKE_CURRENT_LIST_DIR}/../package.json" soundor_package)
 string(JSON SOUNDOR_ENGINE_VERSION GET "${soundor_package}" version)
 if(NOT SOUNDOR_ENGINE_VERSION MATCHES "^([0-9]+)[.]([0-9]+)[.]([0-9]+)(.*)$")

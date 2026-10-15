@@ -304,6 +304,8 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      # Match the Clang 18 bitcode emitted by JUCE's Release LTO flags.
+      LDFLAGS: ${{ runner.os == 'Linux' && '-fuse-ld=lld-18' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup

@@ -24,7 +24,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends ccache ninja-build libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers libvulkan1
+        sudo apt-get install -y --no-install-recommends ccache lld-18 ninja-build libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers libvulkan1
 
     - name: Install build tools (macOS)
       if: runner.os == 'macOS'
