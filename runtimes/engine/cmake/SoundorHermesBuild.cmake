@@ -85,8 +85,11 @@ if(DEFINED CC AND NOT CC STREQUAL "")
   list(APPEND configure "-DCMAKE_C_COMPILER=${CC}" "-DCMAKE_CXX_COMPILER=${CXX}")
 endif()
 if(DEFINED OSX_ARCHITECTURES AND NOT OSX_ARCHITECTURES STREQUAL "")
-  list(JOIN OSX_ARCHITECTURES "\\;" architectures)
-  list(APPEND configure "-DCMAKE_OSX_ARCHITECTURES=${architectures}")
+  # A list cannot cross execute_process() as one argument (run() splits it:
+  # Hermes was built for the first architecture only), so it goes in an
+  # initial cache instead.
+  file(WRITE "${work}/architectures.cmake" "set(CMAKE_OSX_ARCHITECTURES \"${OSX_ARCHITECTURES}\" CACHE STRING \"\")\n")
+  list(APPEND configure -C "${work}/architectures.cmake")
 endif()
 if(DEFINED OSX_DEPLOYMENT_TARGET AND NOT OSX_DEPLOYMENT_TARGET STREQUAL "")
   list(APPEND configure "-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_DEPLOYMENT_TARGET}")
