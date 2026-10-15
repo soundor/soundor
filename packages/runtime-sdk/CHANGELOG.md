@@ -1,5 +1,11 @@
 # @soundor/runtime-sdk
 
+## 0.8.0
+
+### Minor Changes
+
+- [#122](https://github.com/soundor/soundor/pull/122) [`04ff5cf`](https://github.com/soundor/soundor/commit/04ff5cf759658cfda0f0ee748f1287fd29ee9848) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add optional runtime DevTools capabilities, development connection context and validated platform-specific user settings. Discover DevTools support before development without requiring existing runtimes to change.
+
 ## 0.7.0
 
 No changes in this release.
