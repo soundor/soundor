@@ -1,13 +1,10 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import websocketPlugin from '@fastify/websocket';
 import {
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
@@ -28,7 +25,8 @@ import {
   type RuntimeCommand,
   type RuntimeEvent,
 } from '@soundor/devtools-protocol';
-import { WebSocket, WebSocketServer } from 'ws';
+import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
+import { WebSocket } from 'ws';
 
 import { serveStatic } from './static';
 
@@ -49,7 +47,7 @@ interface Target {
   token: string;
   lastSeen: number;
   queue: RuntimeCommand[];
-  poll?: { response: ServerResponse; timer: ReturnType<typeof setTimeout> };
+  poll?: { response: FastifyReply; timer: ReturnType<typeof setTimeout> };
   interactive?: string;
 }
 interface Pending {
@@ -110,24 +108,10 @@ function matches(actual: string | undefined, expected: string): boolean {
     timingSafeEqual(bytes, expectedBytes)
   );
 }
-function json(response: ServerResponse, status: number, value: unknown): void {
-  if (!response.destroyed && !response.writableEnded) {
-    response.writeHead(status, {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    });
-    response.end(JSON.stringify(value));
+function json(response: FastifyReply, status: number, value: unknown): void {
+  if (!response.raw.destroyed && !response.sent) {
+    response.code(status).header('Cache-Control', 'no-store').send(value);
   }
-}
-async function body(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += Buffer.byteLength(chunk);
-    if (size > MAX_MESSAGE_BYTES) throw new Error('Message too large');
-    chunks.push(Buffer.from(chunk));
-  }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
 /** One session, one loopback HTTP port. All native I/O is asynchronous IPC. */
@@ -162,10 +146,49 @@ export async function startDevToolsServer(
   let descriptorPath = '';
   let descriptorDirectory = '';
   let closePromise: Promise<void> | undefined;
-  const websocket = new WebSocketServer({
-    noServer: true,
-    maxPayload: MAX_MESSAGE_BYTES,
-    perMessageDeflate: false,
+  const app = Fastify({
+    bodyLimit: MAX_MESSAGE_BYTES,
+    requestTimeout: 25000,
+    forceCloseConnections: true,
+    exposeHeadRoutes: false,
+    routerOptions: {
+      onBadUrl: (_path, _request, response) => {
+        response.writeHead(404, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        });
+        response.end(JSON.stringify({ error: 'Not found' }));
+      },
+    },
+  });
+  const http = app.server;
+  http.headersTimeout = 10000;
+  http.maxConnections = 128;
+  // Native clients and the browser bootstrap also send JSON as text/plain or
+  // without a Content-Type. Fastify still bounds and parses these payloads.
+  app.removeAllContentTypeParsers();
+  app.addContentTypeParser(
+    '*',
+    { parseAs: 'string' },
+    (_request, body, done) => {
+      try {
+        done(null, body === '' ? undefined : JSON.parse(body as string));
+      } catch (error) {
+        done(error as Error);
+      }
+    },
+  );
+  app.setErrorHandler((_error, _request, reply) => {
+    json(reply, 400, { error: 'Invalid or oversized request' });
+  });
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    if (closing) return json(reply, 503, { error: 'Session closing' });
+    if (!trustedHost(request.raw))
+      return json(reply, 403, { error: 'Invalid host' });
+  });
+  await app.register(websocketPlugin, {
+    options: { maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false },
   });
 
   const origins = (): string[] => [
@@ -457,46 +480,31 @@ export async function startDevToolsServer(
         send(browser, { ...event, targetId: target.info.id });
   }
 
-  async function handle(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): Promise<void> {
-    response.setHeader('Cache-Control', 'no-store');
-    if (closing) {
-      json(response, 503, { error: 'Session closing' });
-      return;
-    }
-    if (!trustedHost(request)) {
-      json(response, 403, { error: 'Invalid host' });
-      return;
-    }
-    const path = request.url?.split('?')[0];
+  app.setNotFoundHandler(async (request, response) => {
+    const path = request.raw.url?.split('?')[0] ?? '/';
     if (
-      !path?.startsWith('/runtime/') &&
-      path !== '/browser' &&
-      !path?.startsWith('/browser/')
-    ) {
-      if (
-        (request.headers.origin && !trustedOrigin(request)) ||
-        request.headers['sec-fetch-site'] === 'cross-site'
-      ) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      if (
-        options.staticDir &&
-        (await serveStatic(options.staticDir, request, response))
-      )
-        return;
-      json(response, 404, { error: 'Not found' });
+      (request.headers.origin && !trustedOrigin(request.raw)) ||
+      request.headers['sec-fetch-site'] === 'cross-site'
+    )
+      return json(response, 403, { error: 'Invalid origin' });
+    if (
+      !/^\/(runtime|browser|api)(\/|$)/.test(path) &&
+      options.staticDir &&
+      (await serveStatic(options.staticDir, request, response))
+    )
       return;
-    }
-    if (path === '/browser/auth' && request.method === 'POST') {
-      if (!trustedOrigin(request)) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      const value = (await body(request)) as { key?: unknown };
+    json(response, 404, { error: 'Not found' });
+  });
+  app.post(
+    '/browser/auth',
+    {
+      onRequest: async (request, response) => {
+        if (!trustedOrigin(request.raw))
+          json(response, 403, { error: 'Invalid origin' });
+      },
+    },
+    async (request, response) => {
+      const value = request.body as { key?: unknown };
       const key = typeof value?.key === 'string' ? value.key : undefined;
       const ticket = key ? browserTickets.get(key) : undefined;
       if (!matches(key, browserKey) && !(ticket && ticket > Date.now())) {
@@ -504,21 +512,26 @@ export async function startDevToolsServer(
         return;
       }
       if (key) browserTickets.delete(key);
-      response.setHeader(
+      response.header(
         'Set-Cookie',
         `${cookieName}=${browserToken}; HttpOnly; SameSite=Strict; Path=/`,
       );
       json(response, 200, null);
       return;
-    }
-    if (path === '/browser/session' && request.method === 'GET') {
-      if (request.headers.origin && !trustedOrigin(request)) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      json(response, 200, { authenticated: authenticatedBrowser(request) });
+    },
+  );
+  app.get('/browser/session', async (request, response) => {
+    if (request.headers.origin && !trustedOrigin(request.raw)) {
+      json(response, 403, { error: 'Invalid origin' });
       return;
     }
+    json(response, 200, { authenticated: authenticatedBrowser(request.raw) });
+    return;
+  });
+  async function runtimeAuth(
+    request: FastifyRequest,
+    response: FastifyReply,
+  ): Promise<void> {
     if (
       request.headers.origin ||
       !matches(request.headers.authorization, `Bearer ${token}`) ||
@@ -527,8 +540,12 @@ export async function startDevToolsServer(
       json(response, 401, { error: 'Runtime authentication required' });
       return;
     }
-    if (path === '/runtime/register' && request.method === 'POST') {
-      const parsed = registrationSchema.safeParse(await body(request));
+  }
+  app.post(
+    '/runtime/register',
+    { onRequest: runtimeAuth },
+    async (request, response) => {
+      const parsed = registrationSchema.safeParse(request.body);
       if (!parsed.success) {
         json(response, 400, {
           error: {
@@ -576,7 +593,14 @@ export async function startDevToolsServer(
       broadcastTargets();
       options.onTarget?.(target.info);
       return;
-    }
+    },
+  );
+  async function targetAuth(
+    request: FastifyRequest,
+    response: FastifyReply,
+  ): Promise<void> {
+    await runtimeAuth(request, response);
+    if (response.sent) return;
     const id = request.headers['x-soundor-target'];
     const target = typeof id === 'string' ? targets.get(id) : undefined;
     if (
@@ -592,30 +616,39 @@ export async function startDevToolsServer(
       return;
     }
     target.lastSeen = Date.now();
-    if (path === '/runtime/poll' && request.method === 'GET') {
-      if (target.poll) {
-        json(response, 409, { error: 'One poll per target' });
-        return;
-      }
-      target.poll = {
-        response,
-        timer: setTimeout(() => {
-          target.poll = undefined;
-          json(response, 200, { commands: [] });
-        }, 20000),
-      };
-      response.on('close', () => {
-        if (target.poll?.response === response) {
-          clearTimeout(target.poll.timer);
-          target.poll = undefined;
-          if (!response.writableEnded) disconnect(target);
-        }
-      });
-      flush(target);
+  }
+  app.get('/runtime/poll', { onRequest: targetAuth }, (request, response) => {
+    const target = targets.get(request.headers['x-soundor-target'] as string)!;
+
+    if (target.poll) {
+      json(response, 409, { error: 'One poll per target' });
       return;
     }
-    if (path === '/runtime/messages' && request.method === 'POST') {
-      const value = await body(request);
+    target.poll = {
+      response,
+      timer: setTimeout(() => {
+        target.poll = undefined;
+        json(response, 200, { commands: [] });
+      }, 20000),
+    };
+    response.raw.on('close', () => {
+      if (target.poll?.response === response) {
+        clearTimeout(target.poll.timer);
+        target.poll = undefined;
+        if (!response.raw.writableEnded) disconnect(target);
+      }
+    });
+    flush(target);
+    return response;
+  });
+  app.post(
+    '/runtime/messages',
+    { onRequest: targetAuth },
+    async (request, response) => {
+      const target = targets.get(
+        request.headers['x-soundor-target'] as string,
+      )!;
+      const value = request.body;
       const event = runtimeEventSchema.safeParse(value);
       if (event.success) {
         publish(target, event.data);
@@ -667,131 +700,122 @@ export async function startDevToolsServer(
       } else finish(parsed.data.id, result, parsed.data.error);
       json(response, 200, null);
       return;
-    }
-    if (path === '/runtime/disconnect' && request.method === 'POST') {
+    },
+  );
+  app.post(
+    '/runtime/disconnect',
+    { onRequest: targetAuth },
+    async (request, response) => {
+      const target = targets.get(
+        request.headers['x-soundor-target'] as string,
+      )!;
       disconnect(target);
       json(response, 200, null);
       return;
-    }
-    json(response, 404, { error: 'Not found' });
-  }
-  const http = createServer((request, response) => {
-    void handle(request, response).catch(() =>
-      json(response, 400, { error: 'Invalid or oversized request' }),
-    );
-  });
-  http.requestTimeout = 25000;
-  http.headersTimeout = 10000;
-  http.maxConnections = 128;
-  http.on('upgrade', (request, socket, head) => {
-    if (
-      closing ||
-      request.url !== '/browser' ||
-      !trustedHost(request) ||
-      !trustedOrigin(request) ||
-      !authenticatedBrowser(request) ||
-      browsers.size >= MAX_CLIENTS
-    ) {
-      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
-      return;
-    }
-    websocket.handleUpgrade(request, socket, head, (client) =>
-      websocket.emit('connection', client),
-    );
-  });
-  websocket.on('connection', (socket: WebSocket) => {
-    const browser: Browser = {
-      id: randomUUID(),
-      socket,
-      negotiated: false,
-      lastHeartbeat: Date.now(),
-      subscriptions: new Map(),
-    };
-    browsers.set(browser.id, browser);
-    send(browser, {
-      type: 'hello',
-      version: PROTOCOL_VERSION,
-      sessionId,
-      clientId: browser.id,
-      project: options.projectRoot,
-    });
-    broadcastTargets();
-    socket.on('pong', () => {
-      if (browser.negotiated) browser.lastHeartbeat = Date.now();
-    });
-    socket.on('message', (raw) => {
-      let value: unknown;
-      try {
-        value = JSON.parse(raw.toString());
-      } catch {
-        socket.close(1007, 'Invalid JSON');
-        return;
-      }
-      if (!browser.negotiated) {
-        if (!helloSchema.safeParse(value).success) {
+    },
+  );
+  app.route({
+    method: 'GET',
+    url: '/browser',
+    onRequest: async (request, response) => {
+      if (
+        request.raw.url !== '/browser' ||
+        !trustedOrigin(request.raw) ||
+        !authenticatedBrowser(request.raw) ||
+        browsers.size >= MAX_CLIENTS
+      )
+        json(response, 403, { error: 'Browser authentication required' });
+    },
+    handler: async (_request, response) => {
+      json(response, 404, { error: 'Not found' });
+    },
+    wsHandler: (socket) => {
+      const browser: Browser = {
+        id: randomUUID(),
+        socket,
+        negotiated: false,
+        lastHeartbeat: Date.now(),
+        subscriptions: new Map(),
+      };
+      browsers.set(browser.id, browser);
+      send(browser, {
+        type: 'hello',
+        version: PROTOCOL_VERSION,
+        sessionId,
+        clientId: browser.id,
+        project: options.projectRoot,
+      });
+      broadcastTargets();
+      socket.on('pong', () => {
+        if (browser.negotiated) browser.lastHeartbeat = Date.now();
+      });
+      socket.on('message', (raw) => {
+        let value: unknown;
+        try {
+          value = JSON.parse(raw.toString());
+        } catch {
+          socket.close(1007, 'Invalid JSON');
+          return;
+        }
+        if (!browser.negotiated) {
+          if (!helloSchema.safeParse(value).success) {
+            send(browser, {
+              type: 'error',
+              error: {
+                code: 'PROTOCOL_MISMATCH',
+                message: 'Send a hello with protocol version 1',
+              },
+            });
+            socket.close(1002, 'Protocol mismatch');
+            return;
+          }
+          browser.negotiated = true;
+          return;
+        }
+        const cancelled = cancelSchema.safeParse(value);
+        if (cancelled.success) {
+          for (const [id, operation] of pending)
+            if (
+              operation.browser === browser &&
+              operation.request.id === cancelled.data.id
+            )
+              cancel(id, { code: 'CANCELLED', message: 'Request cancelled' });
+          return;
+        }
+        const parsed = requestSchema.safeParse(value);
+        if (!parsed.success) {
           send(browser, {
             type: 'error',
             error: {
-              code: 'PROTOCOL_MISMATCH',
-              message: 'Send a hello with protocol version 1',
+              code: 'INVALID_REQUEST',
+              message: 'Invalid method or payload',
             },
           });
-          socket.close(1002, 'Protocol mismatch');
           return;
         }
-        browser.negotiated = true;
-        return;
-      }
-      const cancelled = cancelSchema.safeParse(value);
-      if (cancelled.success) {
-        for (const [id, operation] of pending)
-          if (
-            operation.browser === browser &&
-            operation.request.id === cancelled.data.id
-          )
-            cancel(id, { code: 'CANCELLED', message: 'Request cancelled' });
-        return;
-      }
-      const parsed = requestSchema.safeParse(value);
-      if (!parsed.success) {
-        send(browser, {
-          type: 'error',
-          error: {
-            code: 'INVALID_REQUEST',
-            message: 'Invalid method or payload',
-          },
-        });
-        return;
-      }
-      browserRequest(browser, parsed.data);
-    });
-    socket.on('error', () => dropBrowser(browser));
-    socket.on('close', () => dropBrowser(browser));
+        browserRequest(browser, parsed.data);
+      });
+      socket.on('error', () => dropBrowser(browser));
+      socket.on('close', () => dropBrowser(browser));
+    },
   });
   for (;;) {
     try {
-      await new Promise<void>((resolve, reject) => {
-        const error = (error: Error): void => {
-          http.off('listening', listening);
-          reject(error);
-        };
-        const listening = (): void => {
-          http.off('error', error);
-          resolve();
-        };
-        http.once('error', error);
-        http.once('listening', listening);
-        http.listen(port, '127.0.0.1');
-      });
+      await app.listen({ port, host: '127.0.0.1' });
       const address = http.address();
       if (address && typeof address !== 'string') port = address.port;
       break;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
-      if (!options.portFallback || port >= 65535)
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') {
+        await app.close();
+        throw error;
+      }
+      if (!options.portFallback || port >= 65535) {
+        await app.close();
         throw new DevToolsPortError(
           `DevTools port ${port} is occupied. Close the other listener or change devtools.port in your Soundor user config.`,
         );
+      }
       port++;
     }
   }
@@ -799,7 +823,7 @@ export async function startDevToolsServer(
   http.on('error', () => {
     void close().catch(() => {});
   });
-  websocket.on('error', () => {
+  app.websocketServer.on('error', () => {
     void close().catch(() => {});
   });
   const connection = { endpoint: `http://127.0.0.1:${port}`, sessionId, token };
@@ -830,11 +854,7 @@ export async function startDevToolsServer(
       for (const browser of browsers.values()) browser.socket.terminate();
       browsers.clear();
       browserTickets.clear();
-      websocket.close();
-      await new Promise<void>((resolve) => {
-        http.close(() => resolve());
-        http.closeAllConnections();
-      });
+      await app.close();
       if (descriptorDirectory)
         await rm(descriptorDirectory, { recursive: true, force: true });
     })();

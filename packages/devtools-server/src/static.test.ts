@@ -119,7 +119,9 @@ it('rejects traversal, symlinks, hidden files, missing resources and API fallbac
     expect(await raw(server, path)).toBe(404);
   for (const path of ['/browser/missing', '/runtime/missing']) {
     const response = await fetch(server.connection.endpoint + path);
-    expect(response.headers.get('content-type')).toBe('application/json');
+    expect(response.headers.get('content-type')).toMatch(
+      /^application\/json(?:;|$)/,
+    );
     expect(await response.text()).not.toContain('<html>');
   }
   expect(await raw(server, '/%5c..%5csecret.txt')).toBe(404);

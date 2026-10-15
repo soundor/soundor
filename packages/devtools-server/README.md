@@ -1,8 +1,9 @@
 # @soundor/devtools-server
 
-Standalone Node HTTP/WebSocket backend for Soundor DevTools. Requires Node
-22.18+ or 24.11+. It depends on the shared `@soundor/devtools-protocol` contract
-and `ws`, and has no dependency on the CLI, configuration package, or frontend.
+Standalone Fastify HTTP/WebSocket backend for Soundor DevTools. Requires Node
+22.18+ or 24.11+. It depends on the shared `@soundor/devtools-protocol` contract,
+`fastify`, `@fastify/websocket`, and `ws`, and has no dependency on the CLI,
+configuration package, or frontend.
 
 ```ts
 import { startDevToolsServer } from '@soundor/devtools-server';
@@ -34,7 +35,9 @@ regular files beneath `staticDir`, including nested binary assets. Extensionless
 navigation falls back to `index.html`; missing assets, API namespaces, hidden
 files, private keys, traversal paths, and escaping symlinks return 404.
 HTML revalidates; hashed assets can be cached immutably. GET and HEAD are
-supported. The same Host/Origin validation and CSP apply to any supplied UI.
+supported. Fastify handles routing, bounded JSON parsing, replies, WebSocket upgrades, and
+listener shutdown; static-file confinement remains an explicit server policy.
+The same Host/Origin validation and CSP apply to any supplied UI.
 
 Browser authentication exchanges a protected descriptor key or one-use ticket
 for an HttpOnly SameSite=Strict cookie. The launch fragment must be removed from

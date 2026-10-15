@@ -1,5 +1,4 @@
 import { readFile, realpath, stat } from 'node:fs/promises';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   dirname,
   extname,
@@ -8,6 +7,8 @@ import {
   resolve,
   sep,
 } from 'node:path';
+
+import type { FastifyRequest, FastifyReply } from 'fastify';
 
 const mime: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -46,13 +47,13 @@ function inside(root: string, path: string): boolean {
 /** Serves regular files and extensionless SPA navigation, confined to root. */
 export async function serveStatic(
   directory: string,
-  request: IncomingMessage,
-  response: ServerResponse,
+  request: FastifyRequest,
+  response: FastifyReply,
 ): Promise<boolean> {
   if (request.method !== 'GET' && request.method !== 'HEAD') return false;
   let path: string;
   try {
-    path = decodeURIComponent((request.url ?? '/').split('?')[0]!);
+    path = decodeURIComponent((request.raw.url ?? '/').split('?')[0]!);
   } catch {
     return false;
   }
@@ -104,7 +105,7 @@ export async function serveStatic(
       return false;
     const data = await readFile(actual);
     const html = extname(actual) === '.html';
-    response.writeHead(200, {
+    response.code(200).headers({
       'Content-Type':
         mime[extname(actual).toLowerCase()] ?? 'application/octet-stream',
       'Content-Length': data.byteLength,
@@ -118,7 +119,7 @@ export async function serveStatic(
       'X-Content-Type-Options': 'nosniff',
       'Referrer-Policy': 'no-referrer',
     });
-    response.end(request.method === 'HEAD' ? undefined : data);
+    response.send(request.method === 'HEAD' ? undefined : data);
     return true;
   } catch {
     return false;
