@@ -7,11 +7,12 @@ export function createBrowserSession(options: {
   onMessage(message: ServerMessage): void;
   onDisconnect(): void;
   report(message: string): void;
+  isAuthorizing(): boolean;
+  setAuthRequired(value: boolean): void;
+  setStatus(value: string): void;
 }) {
   const { win, state, onMessage, onDisconnect, report } = options;
-  const auth = win.document.getElementById('auth') as HTMLFormElement;
-  const keyInput = win.document.getElementById('key') as HTMLInputElement;
-  const status = win.document.getElementById('status')!;
+  const { isAuthorizing, setAuthRequired, setStatus } = options;
   let socket: WebSocket | undefined;
   let disposed = false;
   let reconnectTimer = 0;
@@ -19,16 +20,16 @@ export function createBrowserSession(options: {
     report(error instanceof Error ? error.message : String(error));
   }
   async function checkSession() {
-    if (disposed || socket || !auth.hidden) return;
+    if (disposed || socket || isAuthorizing()) return;
     try {
       const response = await win.fetch('/browser/session');
       if (response.ok && (await response.json()).authenticated) connect();
       else {
-        auth.hidden = false;
-        status.textContent = 'Authorization required';
+        setAuthRequired(true);
+        setStatus('Authorization required');
       }
     } catch {
-      status.textContent = 'Session unavailable · reconnecting';
+      setStatus('Session unavailable · reconnecting');
       scheduleReconnect();
     }
   }
@@ -36,7 +37,7 @@ export function createBrowserSession(options: {
     win.clearTimeout(reconnectTimer);
     if (!disposed)
       reconnectTimer = win.setTimeout(() => {
-        auth.hidden = true;
+        setAuthRequired(false);
         void checkSession();
       }, 1500);
   }
@@ -46,7 +47,7 @@ export function createBrowserSession(options: {
       win.location.origin.replace(/^http/, 'ws') + '/browser',
     );
     socket = ws;
-    status.textContent = 'Connecting…';
+    setStatus('Connecting…');
     ws.onmessage = (event) => {
       try {
         if (typeof event.data !== 'string' || event.data.length > 1024 * 1024)
@@ -62,12 +63,12 @@ export function createBrowserSession(options: {
       state.connected = false;
       state.clientId = '';
       onDisconnect();
-      status.textContent = 'Disconnected · reconnecting';
-      auth.hidden = true;
+      setStatus('Disconnected · reconnecting');
+      setAuthRequired(false);
       scheduleReconnect();
     };
     ws.onerror = () => {
-      status.textContent = 'Connection failed · reconnecting';
+      setStatus('Connection failed · reconnecting');
     };
   }
   async function authorize(key: string) {
@@ -82,22 +83,17 @@ export function createBrowserSession(options: {
         }),
       });
       if (!response.ok) throw new Error('Invalid or expired browser key');
-      auth.hidden = true;
+      setAuthRequired(false);
       report('');
       connect();
     } catch (error) {
-      auth.hidden = false;
+      setAuthRequired(true);
       fail(error);
     }
   }
-  auth.onsubmit = (event) => {
-    event.preventDefault();
-    const key = keyInput.value;
-    keyInput.value = '';
-    void authorize(key);
-  };
 
   return {
+    authorize,
     get socket() {
       return socket;
     },
@@ -108,7 +104,7 @@ export function createBrowserSession(options: {
       win.history.replaceState(null, '', win.location.pathname);
       if (ticket) void authorize(ticket);
       else {
-        auth.hidden = true;
+        setAuthRequired(false);
         void checkSession();
       }
     },
