@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
 project(SoundorJuceIntegration VERSION 0.1.0 LANGUAGES C CXX)
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 find_program(SOUNDOR_NODE_EXE NAMES node REQUIRED)
 execute_process(COMMAND "${SOUNDOR_NODE_EXE}" --input-type=module -e
   "import {createRequire} from 'node:module'; console.log(createRequire(process.argv[1]).resolve('@soundor/engine/package.json'))"

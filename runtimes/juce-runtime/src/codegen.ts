@@ -106,6 +106,9 @@ endif()
 if(NOT JUCE_DIR OR NOT EXISTS "\${JUCE_DIR}/CMakeLists.txt")
   message(FATAL_ERROR "JUCE not found. Set jucePath in juceRuntime({ jucePath }) or JUCE_DIR.")
 endif()
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
 add_subdirectory("\${JUCE_DIR}" JUCE)
 
 juce_add_plugin(\${PROJECT_NAME}

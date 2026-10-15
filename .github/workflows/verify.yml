@@ -332,18 +332,36 @@ jobs:
       - name: Build and test JUCE adapters
         if: needs.changes.outputs.juce == 'true'
         run: |
-          cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
-          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-          else
-            ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-          fi
+          set -eo pipefail
+          {
+            cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
+            cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
+            if [ "${{ runner.os }}" = "Linux" ]; then
+              xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+            else
+              ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+            fi
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
       - name: Build a generated source-powered VST3 consumer
         if: needs.changes.outputs.juce == 'true'
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
-        run: pnpm --filter basic exec soundor build juce
+        run: set -o pipefail; pnpm --filter basic exec soundor build juce 2>&1 | tee "$RUNNER_TEMP/step.log"
+      - name: Report JUCE integration failure
+        if: failure()
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          log = Path(os.environ['RUNNER_TEMP']) / 'step.log'
+          if log.exists():
+              lines = log.read_text(errors='replace').splitlines()
+              errors = [line for line in lines if any(word in line.lower() for word in ['error', 'failed', 'undefined'])]
+              report = '\n'.join(errors[:30] + lines[-35:])[-7000:]
+              for start in range(0, len(report), 2500):
+                  chunk = report[start:start + 2500].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print(f'::error title=JUCE integration failure::{chunk}')
+          PYTHON
       - name: Save native dependencies
         if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
