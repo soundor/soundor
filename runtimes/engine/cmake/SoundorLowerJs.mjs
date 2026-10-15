@@ -12,16 +12,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 
-// In Soundor's repository, @soundor/core's source, so that nothing has to be
-// built first; in an installed @soundor/engine, the @soundor/core
-// installed with it.
-const repository = new URL(
-  '../../../packages/core/src/native-module.ts',
-  import.meta.url,
-);
-const { toNativeModule } = existsSync(repository)
-  ? await import(repository.href)
-  : await import('@soundor/core');
+// Workspace builds use the engine's source immediately; installed packages
+// use its ordinary JS build. Neither path compiles native code in pnpm build.
+const workspace = new URL('../../../pnpm-workspace.yaml', import.meta.url);
+const module = existsSync(workspace)
+  ? new URL('../scripts/native-module.ts', import.meta.url)
+  : new URL('../dist/native-module.mjs', import.meta.url);
+const { toNativeModule } = await import(module.href);
 
 const [input, output, name] = process.argv.slice(2);
 if (input === undefined || output === undefined) {

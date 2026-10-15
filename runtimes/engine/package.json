@@ -11,22 +11,42 @@
     "src",
     "scripts",
     "artifacts/manifest.json",
-    "NOTICE.md"
+    "NOTICE.md",
+    "dist"
   ],
   "type": "module",
   "exports": {
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./native-module": {
+      "types": "./dist/native-module.d.mts",
+      "import": "./dist/native-module.mjs"
+    }
   },
   "scripts": {
     "format:native": "node ../../scripts/clang-format.mjs --check include src tests",
     "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests",
     "lint:native": "cmake --workflow --preset tidy",
-    "test:native": "cmake --workflow --preset dev"
+    "test:native": "cmake --workflow --preset dev",
+    "build": "tsc -p tsconfig.node.json && tsdown --clean"
+  },
+  "dependencies": {
+    "@babel/core": "catalog:",
+    "@babel/plugin-transform-async-generator-functions": "catalog:",
+    "@babel/plugin-transform-async-to-generator": "catalog:",
+    "@babel/plugin-transform-block-scoping": "catalog:",
+    "@babel/plugin-transform-class-properties": "catalog:",
+    "@babel/plugin-transform-class-static-block": "catalog:",
+    "@babel/plugin-transform-classes": "catalog:",
+    "@babel/plugin-transform-dynamic-import": "catalog:",
+    "@babel/plugin-transform-modules-commonjs": "catalog:",
+    "@babel/plugin-transform-private-methods": "catalog:",
+    "@babel/plugin-transform-private-property-in-object": "catalog:"
   },
   "devDependencies": {
-    "@soundor/core": "workspace:^"
-  },
-  "peerDependencies": {
-    "@soundor/core": "workspace:>=0.0.0 <1.0.0"
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
   }
 }

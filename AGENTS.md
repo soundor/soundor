@@ -70,7 +70,7 @@ The first native configure builds Skia, ANGLE and Hermes from source
 (minutes) and caches them in the user cache dir (`SOUNDOR_CACHE` overrides);
 later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
-tests' Three.js) are lowered with `@soundor/core`'s source while building.
+tests' Three.js) are lowered with the engine's module-lowering source while building.
 
 Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
 rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
@@ -115,7 +115,7 @@ read the docs bundled with the installed package
   (`juceRuntime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (the `.d.ts` for `soundor:*`, parameters, native API, Web globals), paths,
-  logger, errors, command running, and `toNativeModule()` (Babel: an ES module
+  logger, errors, command running, and the `toNativeModule()` re-export (implemented by Engine: an ES module
   into the native runtime's module form).
 - `packages/cli` (`soundor`) — `init`, `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
@@ -141,7 +141,7 @@ read the docs bundled with the installed package
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See `docs/testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
-- `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes and native tests.
+- `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed

@@ -70,8 +70,11 @@ function(soundor_lower_js_command input output name)
   endif()
   set(script "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorLowerJs.mjs")
   set(depends "${input}" "${script}")
-  # In Soundor's repository, the lowering itself (what the script imports).
-  set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../packages/core/src/native-module.ts")
+  # The lowering itself (source in the workspace, JS in an installed package).
+  set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../scripts/native-module.ts")
+  if(NOT EXISTS "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../../../pnpm-workspace.yaml")
+    set(lowering "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../dist/native-module.mjs")
+  endif()
   if(EXISTS "${lowering}")
     list(APPEND depends "${lowering}")
   endif()

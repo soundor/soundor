@@ -4,9 +4,10 @@ The independently versioned C++ engine owns the native UI runtime, its public
 headers, embedded resources and dependency recipes. JUCE integration lives in
 `@soundor/juce-runtime`; JUCE itself is not included here.
 
-The source build uses `@soundor/core` as a toolchain peer, as the JUCE runtime
-already does. Engine is outside the fixed Changesets group; ordinary in-range
-core updates do not force an engine release.
+The engine owns the Hermes module-lowering tool, re-exported by `@soundor/core`.
+Engine is outside the fixed Changesets group and does not depend on core.
+Ordinary core releases therefore do not force an engine release. The ordinary
+package build compiles this small JavaScript tool only, never native libraries.
 
 Source consumers use `add_subdirectory()` on the installed engine package and
 link `Soundor::Engine`. JUCE resolves that package normally, so pnpm workspace
