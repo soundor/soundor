@@ -40,7 +40,6 @@ const options = resolveJuceOptions(
 const params = {
   options,
   nativeDir: '/opt/soundor/native',
-  engineDir: '/opt/soundor/engine',
 };
 
 function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
@@ -186,13 +185,13 @@ describe('generateJuceSources', () => {
 
   it('builds the installed engine with its package ABI namespace', () => {
     const setup = fileMap(config).get('setup.cmake')!;
-    expect(setup).toContain(
-      'add_subdirectory("/opt/soundor/engine" soundor-engine)',
+    expect(setup).toMatch(
+      /add_subdirectory\("[^"\n]+\/engine" soundor-engine\)/,
     );
     expect(setup).not.toContain('set(SOUNDOR_ABI_NAMESPACE');
     expect(setup).toContain('set(SOUNDOR_BUILD_TESTS OFF)');
-    expect(setup).toContain(
-      'add_subdirectory("/opt/soundor/engine" soundor-engine)',
+    expect(setup).toMatch(
+      /add_subdirectory\("[^"\n]+\/engine" soundor-engine\)/,
     );
     expect(setup).toContain(
       'target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal)',

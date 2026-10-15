@@ -22,14 +22,15 @@ function run(command, args, cwd = temporary, env = process.env) {
 try {
   const tarballs = {};
   for (const folder of [
-    'core',
-    'config',
-    'cli',
-    'devtools-protocol',
-    'devtools-server',
-    'devtools-client',
+    'runtimes/engine',
+    'packages/core',
+    'packages/config',
+    'packages/cli',
+    'packages/devtools-protocol',
+    'packages/devtools-server',
+    'packages/devtools-client',
   ]) {
-    const path = resolve(repository, 'packages', folder);
+    const path = resolve(repository, folder);
     const manifest = JSON.parse(
       await readFile(resolve(path, 'package.json'), 'utf8'),
     );
