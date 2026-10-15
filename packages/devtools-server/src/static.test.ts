@@ -45,12 +45,20 @@ async function setup() {
   cleanup.push(() => server.close());
   return server;
 }
-function raw(server: DevToolsServer, path: string): Promise<number> {
+function raw(
+  server: DevToolsServer,
+  path: string,
+  headers: Record<string, string> = {},
+): Promise<number> {
   return new Promise((resolve, reject) => {
-    const req = request(server.connection.endpoint + '/', { path }, (res) => {
-      res.resume();
-      resolve(res.statusCode!);
-    });
+    const req = request(
+      server.connection.endpoint + '/',
+      { path, headers },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode!);
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -66,9 +74,9 @@ it('serves arbitrary nested binary assets, MIME types, HEAD, caching and SPA nav
     "frame-ancestors 'none'",
   );
   for (const [file, mime] of [
-    ['chunk-a1234567.js', 'text/javascript'],
+    ['chunk-a1234567.js', 'application/javascript'],
     ['styles.css', 'text/css'],
-    ['deep/module-a1234567.js', 'text/javascript'],
+    ['deep/module-a1234567.js', 'application/javascript'],
     ['icon.svg', 'image/svg+xml'],
     ['data.json', 'application/json'],
     ['image.webp', 'image/webp'],
@@ -79,7 +87,7 @@ it('serves arbitrary nested binary assets, MIME types, HEAD, caching and SPA nav
       server.connection.endpoint + '/assets/' + file,
     );
     expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe(mime);
+    expect(response.headers.get('content-type')?.split(';')[0]).toBe(mime);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
   }
   const binary = await fetch(server.connection.endpoint + '/assets/image.webp');
@@ -165,4 +173,22 @@ it('runs the complete backend headlessly and permits only an explicit developmen
       developmentOrigin: 'http://evil.test',
     }),
   ).rejects.toThrow('loopback');
+});
+
+it('uses standard conditional and range requests for static assets', async () => {
+  const server = await setup();
+  const url = server.connection.endpoint + '/assets/chunk-a1234567.js';
+  const asset = await fetch(url);
+  const etag = asset.headers.get('etag');
+  expect(etag).toBeTruthy();
+  await asset.arrayBuffer();
+  // Node fetch adds Cache-Control: no-cache to conditional requests, which
+  // deliberately bypasses freshness. Send a plain HTTP conditional request.
+  expect(
+    await raw(server, '/assets/chunk-a1234567.js', { 'If-None-Match': etag! }),
+  ).toBe(304);
+  const partial = await fetch(url, { headers: { Range: 'bytes=0-5' } });
+  expect(partial.status).toBe(206);
+  expect(partial.headers.get('content-range')).toBe('bytes 0-5/16');
+  expect(await partial.text()).toBe('export');
 });

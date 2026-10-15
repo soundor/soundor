@@ -2,7 +2,7 @@
 
 Standalone Fastify HTTP/WebSocket backend for Soundor DevTools. Requires Node
 22.18+ or 24.11+. It depends on the shared `@soundor/devtools-protocol` contract,
-`fastify`, `@fastify/websocket`, and `ws`, and has no dependency on the CLI,
+`fastify`, its static, cookie and WebSocket plugins, and `ws`, and has no dependency on the CLI,
 configuration package, or frontend.
 
 ```ts
@@ -36,7 +36,10 @@ navigation falls back to `index.html`; missing assets, API namespaces, hidden
 files, private keys, traversal paths, and escaping symlinks return 404.
 HTML revalidates; hashed assets can be cached immutably. GET and HEAD are
 supported. Fastify handles routing, bounded JSON parsing, replies, WebSocket upgrades, and
-listener shutdown; static-file confinement remains an explicit server policy.
+listener shutdown. Its static plugin handles streaming, MIME types, HEAD, caching,
+conditional and range requests; only public-file selection and SPA fallback
+remain explicit server policies. Its cookie plugin parses and serializes browser
+session cookies.
 The same Host/Origin validation and CSP apply to any supplied UI.
 
 Browser authentication exchanges a protected descriptor key or one-use ticket

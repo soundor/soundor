@@ -2,8 +2,10 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
 import type { IncomingMessage } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 
+import cookiePlugin from '@fastify/cookie';
+import staticPlugin from '@fastify/static';
 import websocketPlugin from '@fastify/websocket';
 import {
   MAX_MESSAGE_BYTES,
@@ -28,7 +30,7 @@ import {
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { WebSocket } from 'ws';
 
-import { serveStatic } from './static';
+import { resolveStaticFile } from './static';
 
 const MAX_CLIENTS = 32;
 const MAX_TARGETS = 64;
@@ -108,12 +110,6 @@ function matches(actual: string | undefined, expected: string): boolean {
     timingSafeEqual(bytes, expectedBytes)
   );
 }
-function json(response: FastifyReply, status: number, value: unknown): void {
-  if (!response.raw.destroyed && !response.sent) {
-    response.code(status).header('Cache-Control', 'no-store').send(value);
-  }
-}
-
 /** One session, one loopback HTTP port. All native I/O is asynchronous IPC. */
 export async function startDevToolsServer(
   options: DevToolsServerOptions,
@@ -167,26 +163,25 @@ export async function startDevToolsServer(
   // Native clients and the browser bootstrap also send JSON as text/plain or
   // without a Content-Type. Fastify still bounds and parses these payloads.
   app.removeAllContentTypeParsers();
+  const parseJson = app.getDefaultJsonParser('error', 'error');
   app.addContentTypeParser(
     '*',
     { parseAs: 'string' },
-    (_request, body, done) => {
-      try {
-        done(null, body === '' ? undefined : JSON.parse(body as string));
-      } catch (error) {
-        done(error as Error);
-      }
+    (request, body, done) => {
+      if (body === '') done(null, undefined);
+      else parseJson(request, body, done);
     },
   );
   app.setErrorHandler((_error, _request, reply) => {
-    json(reply, 400, { error: 'Invalid or oversized request' });
+    reply.code(400).send({ error: 'Invalid or oversized request' });
   });
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Cache-Control', 'no-store');
-    if (closing) return json(reply, 503, { error: 'Session closing' });
+    if (closing) return reply.code(503).send({ error: 'Session closing' });
     if (!trustedHost(request.raw))
-      return json(reply, 403, { error: 'Invalid host' });
+      return reply.code(403).send({ error: 'Invalid host' });
   });
+  await app.register(cookiePlugin);
   await app.register(websocketPlugin, {
     options: { maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false },
   });
@@ -207,13 +202,8 @@ export async function startDevToolsServer(
       origins().includes(request.headers.origin)
     );
   }
-  function authenticatedBrowser(request: IncomingMessage): boolean {
-    const value = request.headers.cookie
-      ?.split(';')
-      .map((value) => value.trim())
-      .find((value) => value.startsWith(`${cookieName}=`))
-      ?.slice(cookieName.length + 1);
-    return matches(value, browserToken);
+  function authenticatedBrowser(request: FastifyRequest): boolean {
+    return matches(request.cookies[cookieName], browserToken);
   }
   function send(browser: Browser, value: unknown): void {
     if (browser.socket.readyState !== WebSocket.OPEN) return;
@@ -253,7 +243,7 @@ export async function startDevToolsServer(
     const poll = target.poll;
     target.poll = undefined;
     clearTimeout(poll.timer);
-    json(poll.response, 200, { commands: target.queue.splice(0, 32) });
+    poll.response.code(200).send({ commands: target.queue.splice(0, 32) });
   }
   function enqueue(target: Target, command: RuntimeCommand): boolean {
     if (target.queue.length >= MAX_QUEUE) return false;
@@ -314,7 +304,7 @@ export async function startDevToolsServer(
     if (!targets.delete(target.info.id)) return;
     if (target.poll) {
       clearTimeout(target.poll.timer);
-      json(target.poll.response, 410, { error: 'Target disconnected' });
+      target.poll.response.code(410).send({ error: 'Target disconnected' });
     }
     for (const [id, operation] of pending)
       if (operation.target === target)
@@ -480,27 +470,49 @@ export async function startDevToolsServer(
         send(browser, { ...event, targetId: target.info.id });
   }
 
+  if (options.staticDir) {
+    await app.register(staticPlugin, {
+      serve: false,
+      dotfiles: 'ignore',
+      cacheControl: false,
+      setHeaders(reply, path) {
+        reply.setHeader(
+          'Cache-Control',
+          extname(path) !== '.html' &&
+            /[-.][a-zA-Z0-9_-]{8,}\.[^.]+$/.test(path)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        );
+        reply.setHeader(
+          'Content-Security-Policy',
+          "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+        );
+        reply.setHeader('X-Content-Type-Options', 'nosniff');
+        reply.setHeader('Referrer-Policy', 'no-referrer');
+      },
+    });
+  }
   app.setNotFoundHandler(async (request, response) => {
-    const path = request.raw.url?.split('?')[0] ?? '/';
     if (
       (request.headers.origin && !trustedOrigin(request.raw)) ||
       request.headers['sec-fetch-site'] === 'cross-site'
     )
-      return json(response, 403, { error: 'Invalid origin' });
-    if (
-      !/^\/(runtime|browser|api)(\/|$)/.test(path) &&
+      return response.code(403).send({ error: 'Invalid origin' });
+    const file =
       options.staticDir &&
-      (await serveStatic(options.staticDir, request, response))
-    )
-      return;
-    json(response, 404, { error: 'Not found' });
+      (await resolveStaticFile(options.staticDir, request));
+    if (file) {
+      response.removeHeader('Cache-Control');
+      return response.sendFile(file.file, file.root);
+    }
+    return response.code(404).send({ error: 'Not found' });
   });
   app.post(
     '/browser/auth',
     {
       onRequest: async (request, response) => {
         if (!trustedOrigin(request.raw))
-          json(response, 403, { error: 'Invalid origin' });
+          response.code(403).send({ error: 'Invalid origin' });
       },
     },
     async (request, response) => {
@@ -508,24 +520,25 @@ export async function startDevToolsServer(
       const key = typeof value?.key === 'string' ? value.key : undefined;
       const ticket = key ? browserTickets.get(key) : undefined;
       if (!matches(key, browserKey) && !(ticket && ticket > Date.now())) {
-        json(response, 401, { error: 'Invalid or expired browser key' });
+        response.code(401).send({ error: 'Invalid or expired browser key' });
         return;
       }
       if (key) browserTickets.delete(key);
-      response.header(
-        'Set-Cookie',
-        `${cookieName}=${browserToken}; HttpOnly; SameSite=Strict; Path=/`,
-      );
-      json(response, 200, null);
+      response.setCookie(cookieName, browserToken, {
+        httpOnly: true,
+        sameSite: 'strict',
+        path: '/',
+      });
+      response.code(200).send(null);
       return;
     },
   );
   app.get('/browser/session', async (request, response) => {
     if (request.headers.origin && !trustedOrigin(request.raw)) {
-      json(response, 403, { error: 'Invalid origin' });
+      response.code(403).send({ error: 'Invalid origin' });
       return;
     }
-    json(response, 200, { authenticated: authenticatedBrowser(request.raw) });
+    response.code(200).send({ authenticated: authenticatedBrowser(request) });
     return;
   });
   async function runtimeAuth(
@@ -537,7 +550,7 @@ export async function startDevToolsServer(
       !matches(request.headers.authorization, `Bearer ${token}`) ||
       request.headers['x-soundor-session'] !== sessionId
     ) {
-      json(response, 401, { error: 'Runtime authentication required' });
+      response.code(401).send({ error: 'Runtime authentication required' });
       return;
     }
   }
@@ -547,7 +560,7 @@ export async function startDevToolsServer(
     async (request, response) => {
       const parsed = registrationSchema.safeParse(request.body);
       if (!parsed.success) {
-        json(response, 400, {
+        response.code(400).send({
           error: {
             code: 'PROTOCOL_MISMATCH',
             message: 'Invalid registration or unsupported protocol version',
@@ -556,7 +569,7 @@ export async function startDevToolsServer(
         return;
       }
       if (parsed.data.sessionId !== sessionId) {
-        json(response, 401, { error: 'Wrong session' });
+        response.code(401).send({ error: 'Wrong session' });
         return;
       }
       if (
@@ -565,7 +578,7 @@ export async function startDevToolsServer(
           (capability) => !options.supportedCapabilities!.includes(capability),
         )
       ) {
-        json(response, 400, {
+        response.code(400).send({
           error: {
             code: 'MISSING_CAPABILITY',
             message: 'Instance capabilities exceed the runtime declaration',
@@ -574,7 +587,7 @@ export async function startDevToolsServer(
         return;
       }
       if (targets.size >= MAX_TARGETS) {
-        json(response, 429, { error: 'Too many runtime instances' });
+        response.code(429).send({ error: 'Too many runtime instances' });
         return;
       }
       const { version: _version, sessionId: _sessionId, ...info } = parsed.data;
@@ -585,7 +598,7 @@ export async function startDevToolsServer(
         queue: [],
       };
       targets.set(target.info.id, target);
-      json(response, 200, {
+      response.code(200).send({
         version: PROTOCOL_VERSION,
         targetId: target.info.id,
         targetToken: target.token,
@@ -612,7 +625,7 @@ export async function startDevToolsServer(
         target.token,
       )
     ) {
-      json(response, 401, { error: 'Target authentication required' });
+      response.code(401).send({ error: 'Target authentication required' });
       return;
     }
     target.lastSeen = Date.now();
@@ -621,14 +634,14 @@ export async function startDevToolsServer(
     const target = targets.get(request.headers['x-soundor-target'] as string)!;
 
     if (target.poll) {
-      json(response, 409, { error: 'One poll per target' });
+      response.code(409).send({ error: 'One poll per target' });
       return;
     }
     target.poll = {
       response,
       timer: setTimeout(() => {
         target.poll = undefined;
-        json(response, 200, { commands: [] });
+        response.code(200).send({ commands: [] });
       }, 20000),
     };
     response.raw.on('close', () => {
@@ -652,17 +665,17 @@ export async function startDevToolsServer(
       const event = runtimeEventSchema.safeParse(value);
       if (event.success) {
         publish(target, event.data);
-        json(response, 200, null);
+        response.code(200).send(null);
         return;
       }
       const parsed = responseSchema.safeParse(value);
       if (!parsed.success) {
-        json(response, 400, { error: 'Invalid runtime message' });
+        response.code(400).send({ error: 'Invalid runtime message' });
         return;
       }
       const operation = pending.get(parsed.data.id);
       if (!operation || operation.target !== target) {
-        json(response, 409, { error: 'Stale or foreign request' });
+        response.code(409).send({ error: 'Stale or foreign request' });
         return;
       }
       const result = parsed.data.result;
@@ -678,7 +691,7 @@ export async function startDevToolsServer(
               : undefined
           : undefined;
       if (parsed.data.targetId && parsed.data.targetId !== target.info.id) {
-        json(response, 409, { error: 'Foreign target response' });
+        response.code(409).send({ error: 'Foreign target response' });
         return;
       }
       if (
@@ -698,7 +711,7 @@ export async function startDevToolsServer(
           message: 'Invalid runtime result',
         });
       } else finish(parsed.data.id, result, parsed.data.error);
-      json(response, 200, null);
+      response.code(200).send(null);
       return;
     },
   );
@@ -710,7 +723,7 @@ export async function startDevToolsServer(
         request.headers['x-soundor-target'] as string,
       )!;
       disconnect(target);
-      json(response, 200, null);
+      response.code(200).send(null);
       return;
     },
   );
@@ -721,13 +734,13 @@ export async function startDevToolsServer(
       if (
         request.raw.url !== '/browser' ||
         !trustedOrigin(request.raw) ||
-        !authenticatedBrowser(request.raw) ||
+        !authenticatedBrowser(request) ||
         browsers.size >= MAX_CLIENTS
       )
-        json(response, 403, { error: 'Browser authentication required' });
+        response.code(403).send({ error: 'Browser authentication required' });
     },
     handler: async (_request, response) => {
-      json(response, 404, { error: 'Not found' });
+      response.code(404).send({ error: 'Not found' });
     },
     wsHandler: (socket) => {
       const browser: Browser = {
