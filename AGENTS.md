@@ -230,6 +230,6 @@ generated framework or the runtime package, not in `init` templates.
   The pre-commit hook runs lint-staged.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
-- Releases are Changesets; the six core packages are a fixed version group.
+- Releases are Changesets; the thirteen packages under `packages/` are a fixed version group.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

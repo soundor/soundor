@@ -12,9 +12,16 @@
       "@soundor/core",
       "@soundor/runtime-sdk",
       "@soundor/config",
+      "@soundor/react",
       "soundor",
       "create-soundor-app",
-      "@soundor/react"
+      "@soundor/devtools-client",
+      "@soundor/devtools-protocol",
+      "@soundor/devtools-server",
+      "@soundor/test-runtime",
+      "@soundor/testing-library",
+      "@soundor/vitest",
+      "vitest-environment-soundor"
     ]
   ],
   "linked": [],
