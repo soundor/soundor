@@ -285,11 +285,11 @@ jobs:
           echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Save native dependencies
-        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
         with:
-          path: ${{ runner.temp }}/soundor-cache
           key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
 
   # Every archive of every target, checked as one set, then released. Nothing
   # is uploaded unless all of them were built and passed.
