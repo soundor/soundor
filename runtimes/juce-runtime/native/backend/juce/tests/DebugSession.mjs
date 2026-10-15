@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repository = new URL('../../../../../../', import.meta.url);
 const serverRequire = createRequire(
@@ -13,9 +13,11 @@ const serverRequire = createRequire(
 const configRequire = createRequire(
   new URL('packages/config/package.json', repository),
 );
-const { rolldown } = await import(configRequire.resolve('rolldown'));
+const { rolldown } = await import(
+  pathToFileURL(configRequire.resolve('rolldown')).href
+);
 const { WebSocket } = await import(
-  join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')
+  pathToFileURL(join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')).href
 );
 const root = await mkdtemp(join(tmpdir(), 'soundor-native-debug-'));
 const bundle = await rolldown({
@@ -29,7 +31,9 @@ const bundle = await rolldown({
       resolveId(source) {
         if (source === 'ws')
           return {
-            id: join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs'),
+            id: pathToFileURL(
+              join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs'),
+            ).href,
             external: true,
           };
         if (source === '@soundor/devtools-protocol')
@@ -42,7 +46,9 @@ const bundle = await rolldown({
 });
 await bundle.write({ file: join(root, 'server.mjs'), format: 'esm' });
 await bundle.close();
-const { startDevToolsServer } = await import(join(root, 'server.mjs'));
+const { startDevToolsServer } = await import(
+  pathToFileURL(join(root, 'server.mjs')).href
+);
 const staticDir = fileURLToPath(
   new URL('packages/devtools-client/dist', repository),
 );
