@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 
-/** Opens only the credential-free dashboard URL, never a session descriptor. */
+/** Opens the dashboard privately without logging its bootstrap credentials. */
 export async function openDevTools(url: string): Promise<void> {
   const command =
     process.platform === 'darwin'

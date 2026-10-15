@@ -72,6 +72,15 @@ jobs:
       - name: Packed Vitest consumer smoke
         run: set -o pipefail; pnpm --filter @soundor/vitest test:consumer 2>&1 | tee "$RUNNER_TEMP/step.log"
 
+      - name: Install DevTools browser
+        run: set -o pipefail; pnpm --filter @soundor/devtools-client exec playwright install --with-deps chromium 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: DevTools browser E2E
+        run: set -o pipefail; pnpm --filter @soundor/devtools-client test:e2e 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Packed DevTools consumer smoke
+        run: set -o pipefail; pnpm --filter soundor test:devtools-consumer 2>&1 | tee "$RUNNER_TEMP/step.log"
+
       - name: Animation benchmark driver tests
         run: pnpm --filter soundor-benchmark test
 

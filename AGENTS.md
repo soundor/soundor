@@ -123,6 +123,12 @@ read the docs bundled with the installed package
   and `bundle.js` (the native runtime's module form, lowered for Hermes), then
   calls each runtime's phase. `dev` tails
   the plugin's log file and maps stack frames back through source maps.
+- `packages/devtools-server` — standalone authenticated HTTP/WebSocket backend,
+  optional static UI directory, and a separate `/testing` runtime simulator.
+- `packages/devtools-client` — TypeScript/Vite dashboard application; depends on
+  the server only for development and tests. The CLI resolves its installed
+  `dist` directory and passes it to the server.
+- `packages/devtools-protocol` — shared DevTools protocol contract.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
   FocusScope. Tests live in the private `packages/react/testing` workspace and use the public

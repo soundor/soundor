@@ -29,7 +29,7 @@ async function serve(
   cleanup.push(() => rm(projectRoot, { recursive: true, force: true }));
   const server = await startDevToolsServer({
     projectRoot,
-    settings: { enabled: true, port: 0, open: false, portSource: 'config' },
+    port: 0,
     ...overrides,
   });
   cleanup.push(() => server.close());
@@ -177,12 +177,13 @@ it('selects the next default port and reports explicit collisions', async () => 
   );
   const port = (occupied.address() as { port: number }).port;
   const server = await serve({
-    settings: { enabled: true, port, open: false, portSource: 'default' },
+    port,
+    portFallback: true,
   });
   expect(Number(new URL(server.url).port)).toBeGreaterThan(port);
   await expect(
     serve({
-      settings: { enabled: true, port, open: false, portSource: 'config' },
+      port,
     }),
   ).rejects.toThrow('change devtools.port');
 });
@@ -196,7 +197,7 @@ it('protects descriptors and removes them on shutdown', async () => {
     expect((await stat(server.descriptorPath)).mode & 0o777).toBe(0o600);
   const response = await fetch(server.connection.endpoint);
   const html = await response.text();
-  expect(html).toContain('Soundor DevTools');
+  expect(response.status).toBe(404);
   expect(html).not.toContain(server.connection.token);
   expect(response.headers.get('set-cookie')).toBeNull();
   await server.close();
@@ -506,7 +507,7 @@ it('expires crashed native targets and rejects old credentials after a server re
   const port = Number(new URL(server.url).port);
   await server.close();
   const restarted = await serve({
-    settings: { enabled: true, open: false, port, portSource: 'config' },
+    port,
   });
   expect(
     (
