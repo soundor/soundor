@@ -1,797 +1,108 @@
-import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import cookiePlugin from '@fastify/cookie';
+import websocketPlugin from '@fastify/websocket';
 import {
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
-  cancelSchema,
-  helloSchema,
-  methodCapability,
-  methodResults,
-  registrationSchema,
-  requestSchema,
-  requiresControl,
-  responseSchema,
-  runtimeEventSchema,
-  type DebugError,
-  type Capability,
-  type DebugRequest,
-  type DebugTarget,
-  type EventName,
-  type RuntimeCommand,
-  type RuntimeEvent,
 } from '@soundor/devtools-protocol';
-import { WebSocket, WebSocketServer } from 'ws';
+import Fastify from 'fastify';
 
-import { serveStatic } from './static';
-
-const MAX_CLIENTS = 32;
-const MAX_TARGETS = 64;
-const MAX_PENDING = 64;
-const MAX_QUEUE = 128;
-
-interface Browser {
-  id: string;
-  socket: WebSocket;
-  negotiated: boolean;
-  lastHeartbeat: number;
-  subscriptions: Map<string, Set<EventName>>;
-}
-interface Target {
-  info: DebugTarget;
-  token: string;
-  lastSeen: number;
-  queue: RuntimeCommand[];
-  poll?: { response: ServerResponse; timer: ReturnType<typeof setTimeout> };
-  interactive?: string;
-}
-interface Pending {
-  browser: Browser;
-  target: Target;
-  request: DebugRequest;
-  timer: ReturnType<typeof setTimeout>;
-}
-
-export interface DevToolsServerOptions {
-  projectRoot: string;
-  port?: number;
-  /** Try following ports on collision. The CLI enables this for its default port. */
-  portFallback?: boolean;
-  /** Omit to run the complete backend without a frontend. */
-  staticDir?: string;
-  /** Explicit loopback frontend origin, for a local development proxy only. */
-  developmentOrigin?: string;
-  signal?: AbortSignal;
-  commandTimeout?: number;
-  heartbeatTimeout?: number;
-  targetTimeout?: number;
-  onTarget?: (target: DebugTarget) => void;
-  /** Static runtime declaration; connected instances may negotiate a subset. */
-  supportedCapabilities?: readonly Capability[];
-}
-export interface DevToolsConnection {
-  readonly endpoint: string;
-  readonly sessionId: string;
-  readonly token: string;
-  readonly descriptorPath?: string;
-}
-export interface DevToolsServer {
-  readonly url: string;
-  readonly connection: DevToolsConnection;
-  readonly descriptorPath: string;
-  /** One-use browser bootstrap ticket; never print this URL in logs. */
-  browserLaunchUrl(): string;
-  publishLog(entry: {
-    level: 'debug' | 'info' | 'warn' | 'error';
-    source: string;
-    message: string;
-  }): void;
-  close(): Promise<void>;
-}
-
-export class DevToolsPortError extends Error {}
-
-function secret(): string {
-  return randomBytes(32).toString('hex');
-}
-function matches(actual: string | undefined, expected: string): boolean {
-  if (actual === undefined) return false;
-  const bytes = Buffer.from(actual);
-  const expectedBytes = Buffer.from(expected);
-  return (
-    bytes.length === expectedBytes.length &&
-    timingSafeEqual(bytes, expectedBytes)
-  );
-}
-function json(response: ServerResponse, status: number, value: unknown): void {
-  if (!response.destroyed && !response.writableEnded) {
-    response.writeHead(status, {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    });
-    response.end(JSON.stringify(value));
-  }
-}
-async function body(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += Buffer.byteLength(chunk);
-    if (size > MAX_MESSAGE_BYTES) throw new Error('Message too large');
-    chunks.push(Buffer.from(chunk));
-  }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
-}
+import { createAuthentication } from './authentication';
+import { registerBrowserRoutes } from './browser';
+import { registerRuntimeRoutes } from './runtime';
+import { createSession } from './session';
+import { registerStaticRoutes } from './static';
+import {
+  DevToolsPortError,
+  type DevToolsServer,
+  type DevToolsServerOptions,
+} from './types';
+export { DevToolsPortError } from './types';
+export type {
+  DevToolsServer,
+  DevToolsServerOptions,
+  DevToolsConnection,
+} from './types';
 
 /** One session, one loopback HTTP port. All native I/O is asynchronous IPC. */
 export async function startDevToolsServer(
   options: DevToolsServerOptions,
 ): Promise<DevToolsServer> {
-  if (options.developmentOrigin) {
-    const origin = new URL(options.developmentOrigin);
-    if (
-      origin.protocol !== 'http:' ||
-      !['localhost', '127.0.0.1'].includes(origin.hostname) ||
-      origin.origin !== options.developmentOrigin
-    )
-      throw new Error(
-        'developmentOrigin must be an exact HTTP loopback origin',
-      );
-  }
-  const sessionId = randomUUID();
-  const token = secret();
-  const browserToken = secret();
-  const browserKey = secret();
-  const browserTickets = new Map<string, number>();
-  const cookieName = `soundor_${sessionId.replaceAll('-', '')}`;
-  const targets = new Map<string, Target>();
-  const browsers = new Map<string, Browser>();
-  const pending = new Map<string, Pending>();
-  const commandTimeout = options.commandTimeout ?? 5000;
-  const heartbeatTimeout = options.heartbeatTimeout ?? 30000;
-  const targetTimeout = options.targetTimeout ?? 60000;
-  let closing = false;
   let port = options.port ?? 0;
+  const auth = createAuthentication(options.developmentOrigin, () => port);
+  const { sessionId, token, browserKey } = auth;
+  const session = createSession(options);
+  let closing = false;
   let descriptorPath = '';
   let descriptorDirectory = '';
   let closePromise: Promise<void> | undefined;
-  const websocket = new WebSocketServer({
-    noServer: true,
-    maxPayload: MAX_MESSAGE_BYTES,
-    perMessageDeflate: false,
+  const app = Fastify({
+    bodyLimit: MAX_MESSAGE_BYTES,
+    requestTimeout: 25000,
+    forceCloseConnections: true,
+    exposeHeadRoutes: false,
+    routerOptions: {
+      onBadUrl: (_path, _request, response) => {
+        response.writeHead(404, {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        });
+        response.end(JSON.stringify({ error: 'Not found' }));
+      },
+    },
   });
-
-  const origins = (): string[] => [
-    `http://localhost:${port}`,
-    `http://127.0.0.1:${port}`,
-    ...(options.developmentOrigin ? [options.developmentOrigin] : []),
-  ];
-  function trustedHost(request: IncomingMessage): boolean {
-    return [`localhost:${port}`, `127.0.0.1:${port}`].includes(
-      request.headers.host ?? '',
-    );
-  }
-  function trustedOrigin(request: IncomingMessage): boolean {
-    return (
-      typeof request.headers.origin === 'string' &&
-      origins().includes(request.headers.origin)
-    );
-  }
-  function authenticatedBrowser(request: IncomingMessage): boolean {
-    const value = request.headers.cookie
-      ?.split(';')
-      .map((value) => value.trim())
-      .find((value) => value.startsWith(`${cookieName}=`))
-      ?.slice(cookieName.length + 1);
-    return matches(value, browserToken);
-  }
-  function send(browser: Browser, value: unknown): void {
-    if (browser.socket.readyState !== WebSocket.OPEN) return;
-    const message = JSON.stringify(value);
-    if (
-      Buffer.byteLength(message) > MAX_MESSAGE_BYTES ||
-      browser.socket.bufferedAmount > MAX_MESSAGE_BYTES * 2
-    ) {
-      browser.socket.terminate();
-      return;
-    }
-    browser.socket.send(message);
-  }
-  function broadcastTargets(): void {
-    const message = {
-      type: 'event',
-      event: 'Runtime.targetsChanged',
-      data: [...targets.values()].map((target) => target.info),
-    };
-    for (const browser of browsers.values()) send(browser, message);
-  }
-  function reply(
-    browser: Browser,
-    request: DebugRequest,
-    result: unknown = null,
-    error?: DebugError,
-  ): void {
-    send(browser, {
-      type: 'response',
-      id: request.id,
-      targetId: request.targetId,
-      ...(error ? { error } : { result }),
-    });
-  }
-  function flush(target: Target): void {
-    if (!target.poll || target.queue.length === 0) return;
-    const poll = target.poll;
-    target.poll = undefined;
-    clearTimeout(poll.timer);
-    json(poll.response, 200, { commands: target.queue.splice(0, 32) });
-  }
-  function enqueue(target: Target, command: RuntimeCommand): boolean {
-    if (target.queue.length >= MAX_QUEUE) return false;
-    target.queue.push(command);
-    flush(target);
-    return true;
-  }
-  function finish(id: string, result?: unknown, error?: DebugError): void {
-    const operation = pending.get(id);
-    if (!operation) return;
-    clearTimeout(operation.timer);
-    pending.delete(id);
-    if (operation.target.interactive === id)
-      operation.target.interactive = undefined;
-    operation.target.queue = operation.target.queue.filter(
-      (command) => !(command.type === 'request' && command.id === id),
-    );
-    reply(operation.browser, operation.request, result, error);
-  }
-  function cancel(id: string, error: DebugError): void {
-    const operation = pending.get(id);
-    if (!operation) return;
-    enqueue(operation.target, { type: 'cancel', id });
-    finish(id, undefined, error);
-  }
-  function subscriptions(target: Target): void {
-    const events = new Set<EventName>();
-    for (const browser of browsers.values())
-      for (const event of browser.subscriptions.get(target.info.id) ?? [])
-        events.add(event);
-    target.queue = target.queue.filter(
-      (command) => command.type !== 'subscribe',
-    );
-    enqueue(target, { type: 'subscribe', events: [...events] });
-  }
-  function release(target: Target): void {
-    if (!target.info.controller) return;
-    const controller = target.info.controller;
-    target.info.controller = null;
-    for (const [id, operation] of pending)
-      if (
-        operation.target === target &&
-        operation.browser.id === controller &&
-        requiresControl(operation.request.method)
-      )
-        cancel(id, {
-          code: 'LEASE_REQUIRED',
-          message: 'Control lease released',
-        });
-    // Reset is a transport command, so cleanup never depends on a browser lease.
-    target.queue = target.queue.filter(
-      (command) => command.type !== 'resetControl',
-    );
-    if (!enqueue(target, { type: 'resetControl' })) disconnect(target);
-    broadcastTargets();
-  }
-  function disconnect(target: Target): void {
-    if (!targets.delete(target.info.id)) return;
-    if (target.poll) {
-      clearTimeout(target.poll.timer);
-      json(target.poll.response, 410, { error: 'Target disconnected' });
-    }
-    for (const [id, operation] of pending)
-      if (operation.target === target)
-        finish(id, undefined, {
-          code: 'TARGET_GONE',
-          message: 'Runtime disconnected',
-        });
-    for (const browser of browsers.values())
-      browser.subscriptions.delete(target.info.id);
-    broadcastTargets();
-  }
-  function dropBrowser(browser: Browser): void {
-    if (!browsers.delete(browser.id)) return;
-    for (const [id, operation] of pending)
-      if (operation.browser === browser)
-        cancel(id, { code: 'CANCELLED', message: 'Browser disconnected' });
-    for (const target of targets.values()) {
-      if (target.info.controller === browser.id) release(target);
-      subscriptions(target);
-    }
-  }
-  function browserRequest(browser: Browser, request: DebugRequest): void {
-    if (
-      [...pending.values()].some(
-        (operation) =>
-          operation.browser === browser && operation.request.id === request.id,
-      )
-    ) {
-      reply(browser, request, undefined, {
-        code: 'INVALID_REQUEST',
-        message: 'Duplicate request ID',
-      });
-      return;
-    }
-    if (request.method === 'Runtime.getTargets') {
-      reply(
-        browser,
-        request,
-        [...targets.values()].map((target) => target.info),
-      );
-      return;
-    }
-    const target = targets.get(request.targetId!);
-    if (!target) {
-      reply(browser, request, undefined, {
-        code: 'TARGET_GONE',
-        message: 'Target is not connected to this session',
-      });
-      return;
-    }
-    if (request.method === 'Control.acquire') {
-      if (target.info.controller && target.info.controller !== browser.id) {
-        reply(browser, request, undefined, {
-          code: 'LEASE_BUSY',
-          message:
-            'Another tab controls this target; ask it to release control',
-        });
-        return;
-      }
-      target.info.controller = browser.id;
-      reply(browser, request, { controller: browser.id });
-      broadcastTargets();
-      return;
-    }
-    if (request.method === 'Control.release') {
-      if (target.info.controller !== browser.id) {
-        reply(browser, request, undefined, {
-          code: 'LEASE_REQUIRED',
-          message: 'You do not own control',
-        });
-        return;
-      }
-      release(target);
-      reply(browser, request);
-      return;
-    }
-    if (request.method === 'Events.subscribe') {
-      browser.subscriptions.set(
-        target.info.id,
-        new Set((request.params as { events: EventName[] }).events),
-      );
-      subscriptions(target);
-      reply(browser, request);
-      return;
-    }
-    const capability = methodCapability(request.method);
-    if (capability && !target.info.capabilities.includes(capability)) {
-      reply(browser, request, undefined, {
-        code: 'MISSING_CAPABILITY',
-        message: `Target does not support ${capability}`,
-      });
-      return;
-    }
-    const ref = (request.params as { node?: { generation: number } }).node;
-    if (ref && ref.generation !== target.info.generation) {
-      reply(browser, request, undefined, {
-        code: 'STALE_NODE',
-        message: 'Node belongs to an old runtime generation',
-      });
-      return;
-    }
-    if (
-      requiresControl(request.method) &&
-      target.info.controller !== browser.id
-    ) {
-      reply(browser, request, undefined, {
-        code: 'LEASE_REQUIRED',
-        message: 'Acquire control before modifying native debug state',
-      });
-      return;
-    }
-    if (
-      pending.size >= MAX_PENDING ||
-      (requiresControl(request.method) && target.interactive)
-    ) {
-      reply(browser, request, undefined, {
-        code: 'BUSY',
-        message: 'Target has outstanding operations; retry after completion',
-      });
-      return;
-    }
-    const id = randomUUID();
-    pending.set(id, {
-      browser,
-      target,
-      request,
-      timer: setTimeout(
-        () =>
-          cancel(id, { code: 'TIMEOUT', message: 'Runtime command timed out' }),
-        commandTimeout,
-      ),
-    });
-    if (requiresControl(request.method)) target.interactive = id;
-    if (
-      !enqueue(target, { ...request, id, generation: target.info.generation })
-    )
-      finish(id, undefined, {
-        code: 'BUSY',
-        message: 'Runtime command queue is full',
-      });
-  }
-
-  function publish(target: Target, event: RuntimeEvent): void {
-    const data = event.data as {
-      generation?: number;
-      node?: { generation: number };
-    };
-    if (event.event === 'Runtime.generationChanged') {
-      if (!data.generation || data.generation <= target.info.generation) return;
-      target.info.generation = data.generation;
-      for (const [id, operation] of pending)
-        if (operation.target === target)
-          cancel(id, { code: 'STALE_NODE', message: 'Runtime reloaded' });
-      enqueue(target, { type: 'resetControl' });
-      broadcastTargets();
-    } else if (
-      (data.generation && data.generation !== target.info.generation) ||
-      (data.node && data.node.generation !== target.info.generation)
-    )
-      return;
-    for (const browser of browsers.values())
-      if (browser.subscriptions.get(target.info.id)?.has(event.event))
-        send(browser, { ...event, targetId: target.info.id });
-  }
-
-  async function handle(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): Promise<void> {
-    response.setHeader('Cache-Control', 'no-store');
-    if (closing) {
-      json(response, 503, { error: 'Session closing' });
-      return;
-    }
-    if (!trustedHost(request)) {
-      json(response, 403, { error: 'Invalid host' });
-      return;
-    }
-    const path = request.url?.split('?')[0];
-    if (
-      !path?.startsWith('/runtime/') &&
-      path !== '/browser' &&
-      !path?.startsWith('/browser/')
-    ) {
-      if (
-        (request.headers.origin && !trustedOrigin(request)) ||
-        request.headers['sec-fetch-site'] === 'cross-site'
-      ) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      if (
-        options.staticDir &&
-        (await serveStatic(options.staticDir, request, response))
-      )
-        return;
-      json(response, 404, { error: 'Not found' });
-      return;
-    }
-    if (path === '/browser/auth' && request.method === 'POST') {
-      if (!trustedOrigin(request)) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      const value = (await body(request)) as { key?: unknown };
-      const key = typeof value?.key === 'string' ? value.key : undefined;
-      const ticket = key ? browserTickets.get(key) : undefined;
-      if (!matches(key, browserKey) && !(ticket && ticket > Date.now())) {
-        json(response, 401, { error: 'Invalid or expired browser key' });
-        return;
-      }
-      if (key) browserTickets.delete(key);
-      response.setHeader(
-        'Set-Cookie',
-        `${cookieName}=${browserToken}; HttpOnly; SameSite=Strict; Path=/`,
-      );
-      json(response, 200, null);
-      return;
-    }
-    if (path === '/browser/session' && request.method === 'GET') {
-      if (request.headers.origin && !trustedOrigin(request)) {
-        json(response, 403, { error: 'Invalid origin' });
-        return;
-      }
-      json(response, 200, { authenticated: authenticatedBrowser(request) });
-      return;
-    }
-    if (
-      request.headers.origin ||
-      !matches(request.headers.authorization, `Bearer ${token}`) ||
-      request.headers['x-soundor-session'] !== sessionId
-    ) {
-      json(response, 401, { error: 'Runtime authentication required' });
-      return;
-    }
-    if (path === '/runtime/register' && request.method === 'POST') {
-      const parsed = registrationSchema.safeParse(await body(request));
-      if (!parsed.success) {
-        json(response, 400, {
-          error: {
-            code: 'PROTOCOL_MISMATCH',
-            message: 'Invalid registration or unsupported protocol version',
-          },
-        });
-        return;
-      }
-      if (parsed.data.sessionId !== sessionId) {
-        json(response, 401, { error: 'Wrong session' });
-        return;
-      }
-      if (
-        options.supportedCapabilities &&
-        parsed.data.capabilities.some(
-          (capability) => !options.supportedCapabilities!.includes(capability),
-        )
-      ) {
-        json(response, 400, {
-          error: {
-            code: 'MISSING_CAPABILITY',
-            message: 'Instance capabilities exceed the runtime declaration',
-          },
-        });
-        return;
-      }
-      if (targets.size >= MAX_TARGETS) {
-        json(response, 429, { error: 'Too many runtime instances' });
-        return;
-      }
-      const { version: _version, sessionId: _sessionId, ...info } = parsed.data;
-      const target: Target = {
-        info: { ...info, id: randomUUID(), controller: null },
-        token: secret(),
-        lastSeen: Date.now(),
-        queue: [],
-      };
-      targets.set(target.info.id, target);
-      json(response, 200, {
-        version: PROTOCOL_VERSION,
-        targetId: target.info.id,
-        targetToken: target.token,
-      });
-      broadcastTargets();
-      options.onTarget?.(target.info);
-      return;
-    }
-    const id = request.headers['x-soundor-target'];
-    const target = typeof id === 'string' ? targets.get(id) : undefined;
-    if (
-      !target ||
-      !matches(
-        typeof request.headers['x-soundor-target-token'] === 'string'
-          ? request.headers['x-soundor-target-token']
-          : undefined,
-        target.token,
-      )
-    ) {
-      json(response, 401, { error: 'Target authentication required' });
-      return;
-    }
-    target.lastSeen = Date.now();
-    if (path === '/runtime/poll' && request.method === 'GET') {
-      if (target.poll) {
-        json(response, 409, { error: 'One poll per target' });
-        return;
-      }
-      target.poll = {
-        response,
-        timer: setTimeout(() => {
-          target.poll = undefined;
-          json(response, 200, { commands: [] });
-        }, 20000),
-      };
-      response.on('close', () => {
-        if (target.poll?.response === response) {
-          clearTimeout(target.poll.timer);
-          target.poll = undefined;
-          if (!response.writableEnded) disconnect(target);
-        }
-      });
-      flush(target);
-      return;
-    }
-    if (path === '/runtime/messages' && request.method === 'POST') {
-      const value = await body(request);
-      const event = runtimeEventSchema.safeParse(value);
-      if (event.success) {
-        publish(target, event.data);
-        json(response, 200, null);
-        return;
-      }
-      const parsed = responseSchema.safeParse(value);
-      if (!parsed.success) {
-        json(response, 400, { error: 'Invalid runtime message' });
-        return;
-      }
-      const operation = pending.get(parsed.data.id);
-      if (!operation || operation.target !== target) {
-        json(response, 409, { error: 'Stale or foreign request' });
-        return;
-      }
-      const result = parsed.data.result;
-      const resultGeneration =
-        result && typeof result === 'object'
-          ? 'generation' in result
-            ? result.generation
-            : 'ref' in result &&
-                result.ref &&
-                typeof result.ref === 'object' &&
-                'generation' in result.ref
-              ? result.ref.generation
-              : undefined
-          : undefined;
-      if (parsed.data.targetId && parsed.data.targetId !== target.info.id) {
-        json(response, 409, { error: 'Foreign target response' });
-        return;
-      }
-      if (
-        resultGeneration !== undefined &&
-        resultGeneration !== target.info.generation
-      ) {
-        finish(parsed.data.id, undefined, {
-          code: 'STALE_NODE',
-          message: 'Response belongs to an old generation',
-        });
-      } else if (
-        !parsed.data.error &&
-        !methodResults[operation.request.method].safeParse(result).success
-      ) {
-        finish(parsed.data.id, undefined, {
-          code: 'INVALID_REQUEST',
-          message: 'Invalid runtime result',
-        });
-      } else finish(parsed.data.id, result, parsed.data.error);
-      json(response, 200, null);
-      return;
-    }
-    if (path === '/runtime/disconnect' && request.method === 'POST') {
-      disconnect(target);
-      json(response, 200, null);
-      return;
-    }
-    json(response, 404, { error: 'Not found' });
-  }
-  const http = createServer((request, response) => {
-    void handle(request, response).catch(() =>
-      json(response, 400, { error: 'Invalid or oversized request' }),
-    );
-  });
-  http.requestTimeout = 25000;
+  const http = app.server;
   http.headersTimeout = 10000;
   http.maxConnections = 128;
-  http.on('upgrade', (request, socket, head) => {
-    if (
-      closing ||
-      request.url !== '/browser' ||
-      !trustedHost(request) ||
-      !trustedOrigin(request) ||
-      !authenticatedBrowser(request) ||
-      browsers.size >= MAX_CLIENTS
-    ) {
-      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
-      return;
-    }
-    websocket.handleUpgrade(request, socket, head, (client) =>
-      websocket.emit('connection', client),
-    );
+  // Native clients and the browser bootstrap also send JSON as text/plain or
+  // without a Content-Type. Fastify still bounds and parses these payloads.
+  app.removeAllContentTypeParsers();
+  const parseJson = app.getDefaultJsonParser('error', 'error');
+  app.addContentTypeParser(
+    '*',
+    { parseAs: 'string' },
+    (request, body, done) => {
+      if (body === '') done(null, undefined);
+      else parseJson(request, body as string, done);
+    },
+  );
+  app.setErrorHandler((_error, _request, reply) => {
+    reply.code(400).send({ error: 'Invalid or oversized request' });
   });
-  websocket.on('connection', (socket: WebSocket) => {
-    const browser: Browser = {
-      id: randomUUID(),
-      socket,
-      negotiated: false,
-      lastHeartbeat: Date.now(),
-      subscriptions: new Map(),
-    };
-    browsers.set(browser.id, browser);
-    send(browser, {
-      type: 'hello',
-      version: PROTOCOL_VERSION,
-      sessionId,
-      clientId: browser.id,
-      project: options.projectRoot,
-    });
-    broadcastTargets();
-    socket.on('pong', () => {
-      if (browser.negotiated) browser.lastHeartbeat = Date.now();
-    });
-    socket.on('message', (raw) => {
-      let value: unknown;
-      try {
-        value = JSON.parse(raw.toString());
-      } catch {
-        socket.close(1007, 'Invalid JSON');
-        return;
-      }
-      if (!browser.negotiated) {
-        if (!helloSchema.safeParse(value).success) {
-          send(browser, {
-            type: 'error',
-            error: {
-              code: 'PROTOCOL_MISMATCH',
-              message: 'Send a hello with protocol version 1',
-            },
-          });
-          socket.close(1002, 'Protocol mismatch');
-          return;
-        }
-        browser.negotiated = true;
-        return;
-      }
-      const cancelled = cancelSchema.safeParse(value);
-      if (cancelled.success) {
-        for (const [id, operation] of pending)
-          if (
-            operation.browser === browser &&
-            operation.request.id === cancelled.data.id
-          )
-            cancel(id, { code: 'CANCELLED', message: 'Request cancelled' });
-        return;
-      }
-      const parsed = requestSchema.safeParse(value);
-      if (!parsed.success) {
-        send(browser, {
-          type: 'error',
-          error: {
-            code: 'INVALID_REQUEST',
-            message: 'Invalid method or payload',
-          },
-        });
-        return;
-      }
-      browserRequest(browser, parsed.data);
-    });
-    socket.on('error', () => dropBrowser(browser));
-    socket.on('close', () => dropBrowser(browser));
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    if (closing) return reply.code(503).send({ error: 'Session closing' });
+    if (!auth.trustedHost(request))
+      return reply.code(403).send({ error: 'Invalid host' });
   });
+  await app.register(cookiePlugin);
+  await app.register(websocketPlugin, {
+    options: { maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false },
+  });
+
+  await registerStaticRoutes(app, auth, options.staticDir);
+  registerBrowserRoutes(app, auth, session, options);
+  registerRuntimeRoutes(app, auth, session, options);
   for (;;) {
     try {
-      await new Promise<void>((resolve, reject) => {
-        const error = (error: Error): void => {
-          http.off('listening', listening);
-          reject(error);
-        };
-        const listening = (): void => {
-          http.off('error', error);
-          resolve();
-        };
-        http.once('error', error);
-        http.once('listening', listening);
-        http.listen(port, '127.0.0.1');
-      });
+      await app.listen({ port, host: '127.0.0.1' });
       const address = http.address();
       if (address && typeof address !== 'string') port = address.port;
       break;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
-      if (!options.portFallback || port >= 65535)
+      if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') {
+        await app.close();
+        throw error;
+      }
+      if (!options.portFallback || port >= 65535) {
+        await app.close();
         throw new DevToolsPortError(
           `DevTools port ${port} is occupied. Close the other listener or change devtools.port in your Soundor user config.`,
         );
+      }
       port++;
     }
   }
@@ -799,26 +110,15 @@ export async function startDevToolsServer(
   http.on('error', () => {
     void close().catch(() => {});
   });
-  websocket.on('error', () => {
+  app.websocketServer.on('error', () => {
     void close().catch(() => {});
   });
   const connection = { endpoint: `http://127.0.0.1:${port}`, sessionId, token };
-  const heartbeat = setInterval(
-    () => {
-      const now = Date.now();
-      for (const [key, expires] of browserTickets)
-        if (expires <= now) browserTickets.delete(key);
-      for (const browser of browsers.values()) {
-        if (now - browser.lastHeartbeat > heartbeatTimeout) {
-          dropBrowser(browser);
-          browser.socket.terminate();
-        } else browser.socket.ping();
-      }
-      for (const target of targets.values())
-        if (now - target.lastSeen > targetTimeout) disconnect(target);
-    },
-    Math.min(10000, heartbeatTimeout / 3, targetTimeout / 3),
-  );
+  const heartbeat = setInterval(() => {
+    const now = Date.now();
+    auth.expireTickets(now);
+    session.tick(now);
+  }, session.heartbeatInterval);
   heartbeat.unref();
   async function close(): Promise<void> {
     if (closePromise) return closePromise;
@@ -826,15 +126,9 @@ export async function startDevToolsServer(
       closing = true;
       clearInterval(heartbeat);
       options.signal?.removeEventListener('abort', onAbort);
-      for (const target of [...targets.values()]) disconnect(target);
-      for (const browser of browsers.values()) browser.socket.terminate();
-      browsers.clear();
-      browserTickets.clear();
-      websocket.close();
-      await new Promise<void>((resolve) => {
-        http.close(() => resolve());
-        http.closeAllConnections();
-      });
+      session.close();
+      auth.clear();
+      await app.close();
       if (descriptorDirectory)
         await rm(descriptorDirectory, { recursive: true, force: true });
     })();
@@ -872,29 +166,9 @@ export async function startDevToolsServer(
     connection: { ...connection, descriptorPath },
     descriptorPath,
     browserLaunchUrl() {
-      const key = secret();
-      if (browserTickets.size >= 32)
-        browserTickets.delete(browserTickets.keys().next().value!);
-      browserTickets.set(key, Date.now() + 60000);
-      return `${url}/#connect=${key}`;
+      return `${url}/#connect=${auth.createTicket()}`;
     },
     close,
-    publishLog(entry) {
-      const event = runtimeEventSchema.safeParse({
-        type: 'event',
-        event: 'Console.message',
-        data: {
-          ...entry,
-          timestamp: Date.now(),
-          message: entry.message.slice(0, 16384),
-          source: entry.source.slice(0, 128) || 'runtime',
-        },
-      });
-      // The existing shared log file lacks instance IDs. Keep these logs at
-      // session scope rather than attributing a message to every native target.
-      if (event.success)
-        for (const browser of browsers.values())
-          send(browser, { ...event.data, scope: 'session' });
-    },
+    publishLog: session.publishLog,
   };
 }

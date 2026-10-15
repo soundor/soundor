@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
   type DebugMethod,
   type DebugResponse,
@@ -622,4 +623,40 @@ it('authorizes browsers only with protected keys or one-use tickets', async () =
     (await authenticate(server.connection.endpoint, server.url, browserKey))
       .status,
   ).toBe(200);
+});
+
+it('bounds HTTP bodies, rejects malformed JSON and authenticates before parsing', async () => {
+  const server = await serve();
+  const url = server.connection.endpoint + '/runtime/register';
+  const headers = {
+    Authorization: `Bearer ${server.connection.token}`,
+    'X-Soundor-Session': server.connection.sessionId,
+  };
+  for (const contentType of [
+    'application/json',
+    'text/plain',
+    'application/octet-stream',
+  ]) {
+    for (const body of ['{', '"' + 'x'.repeat(MAX_MESSAGE_BYTES) + '"']) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': contentType },
+        body,
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: 'Invalid or oversized request',
+      });
+    }
+  }
+  const rejected = await fetch(url, { method: 'POST', body: '{' });
+  expect(rejected.status).toBe(401);
+  const foreign = await fetch(server.connection.endpoint + '/browser/auth', {
+    method: 'POST',
+    headers: { Origin: 'http://evil.test' },
+    body: '{',
+  });
+  expect(foreign.status).toBe(403);
+  // A parse failure must not poison the listener or the next runtime session.
+  await native(server);
 });

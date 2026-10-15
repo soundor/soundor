@@ -1,5 +1,4 @@
-import { readFile, realpath, stat } from 'node:fs/promises';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { realpath, stat } from 'node:fs/promises';
 import {
   dirname,
   extname,
@@ -9,30 +8,11 @@ import {
   sep,
 } from 'node:path';
 
-const mime: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-  '.avif': 'image/avif',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf',
-  '.otf': 'font/otf',
-  '.wasm': 'application/wasm',
-  '.map': 'application/json',
-  '.txt': 'text/plain; charset=utf-8',
-  '.mp4': 'video/mp4',
-  '.webm': 'video/webm',
-};
+import staticPlugin from '@fastify/static';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+
+import type { Authentication } from './authentication';
+
 function inside(root: string, path: string): boolean {
   const rel = relative(root, path);
   return (
@@ -43,18 +23,17 @@ function inside(root: string, path: string): boolean {
   );
 }
 
-/** Serves regular files and extensionless SPA navigation, confined to root. */
-export async function serveStatic(
+/** Select a confined public file or SPA entry; @fastify/static handles delivery. */
+async function resolveStaticFile(
   directory: string,
-  request: IncomingMessage,
-  response: ServerResponse,
-): Promise<boolean> {
-  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  request: FastifyRequest,
+): Promise<{ root: string; file: string } | undefined> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') return undefined;
   let path: string;
   try {
-    path = decodeURIComponent((request.url ?? '/').split('?')[0]!);
+    path = decodeURIComponent((request.raw.url ?? '/').split('?')[0]!);
   } catch {
-    return false;
+    return undefined;
   }
   if (
     !path.startsWith('/') ||
@@ -65,21 +44,22 @@ export async function serveStatic(
     path.split('/').some((part) => part.startsWith('.')) ||
     /^\/(browser|runtime|api)(\/|$)/.test(path)
   )
-    return false;
+    return undefined;
   try {
     const root = await realpath(directory);
     let file = resolve(root, '.' + path);
-    if (!inside(root, file)) return false;
+    if (!inside(root, file)) return undefined;
     // Check existing ancestors before SPA fallback too: a missing child of an
     // escaping directory symlink must never become a navigation response.
     let ancestor = file;
     for (;;) {
       try {
-        if (!inside(root, await realpath(ancestor))) return false;
+        if (!inside(root, await realpath(ancestor))) return undefined;
         break;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return false;
-        if (ancestor === root) return false;
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT')
+          return undefined;
+        if (ancestor === root) return undefined;
         ancestor = dirname(ancestor);
       }
     }
@@ -92,7 +72,7 @@ export async function serveStatic(
         path.startsWith('/assets/') ||
         (path !== '/' && !request.headers.accept?.includes('text/html'))
       )
-        return false;
+        return undefined;
       file = resolve(root, 'index.html');
     }
     const actual = await realpath(file);
@@ -101,26 +81,52 @@ export async function serveStatic(
       /\.(pem|key|p12|pfx)$/i.test(actual) ||
       !(await stat(actual)).isFile()
     )
-      return false;
-    const data = await readFile(actual);
-    const html = extname(actual) === '.html';
-    response.writeHead(200, {
-      'Content-Type':
-        mime[extname(actual).toLowerCase()] ?? 'application/octet-stream',
-      'Content-Length': data.byteLength,
-      'Cache-Control': html
-        ? 'no-cache'
-        : /[-.][a-zA-Z0-9_-]{8,}\.[^.]+$/.test(actual)
-          ? 'public, max-age=31536000, immutable'
-          : 'no-cache',
-      'Content-Security-Policy':
-        "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'",
-      'X-Content-Type-Options': 'nosniff',
-      'Referrer-Policy': 'no-referrer',
-    });
-    response.end(request.method === 'HEAD' ? undefined : data);
-    return true;
+      return undefined;
+    return { root, file: relative(root, actual) };
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+/** Standard static delivery with DevTools public-file and SPA fallback rules. */
+export async function registerStaticRoutes(
+  app: FastifyInstance,
+  auth: Authentication,
+  directory: string | undefined,
+) {
+  if (directory) {
+    await app.register(staticPlugin, {
+      serve: false,
+      dotfiles: 'ignore',
+      cacheControl: false,
+      setHeaders(reply, path) {
+        reply.setHeader(
+          'Cache-Control',
+          extname(path) !== '.html' &&
+            /[-.][a-zA-Z0-9_-]{8,}\.[^.]+$/.test(path)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        );
+        reply.setHeader(
+          'Content-Security-Policy',
+          "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+        );
+        reply.setHeader('X-Content-Type-Options', 'nosniff');
+        reply.setHeader('Referrer-Policy', 'no-referrer');
+      },
+    });
+  }
+  app.setNotFoundHandler(async (request, response) => {
+    if (
+      (request.headers.origin && !auth.trustedOrigin(request)) ||
+      request.headers['sec-fetch-site'] === 'cross-site'
+    )
+      return response.code(403).send({ error: 'Invalid origin' });
+    const file = directory && (await resolveStaticFile(directory, request));
+    if (file) {
+      response.removeHeader('Cache-Control');
+      return response.sendFile(file.file, file.root);
+    }
+    return response.code(404).send({ error: 'Not found' });
+  });
 }

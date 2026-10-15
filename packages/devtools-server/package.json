@@ -23,7 +23,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@fastify/cookie": "catalog:",
+    "@fastify/static": "catalog:",
+    "@fastify/websocket": "catalog:",
     "@soundor/devtools-protocol": "workspace:^",
+    "fastify": "catalog:",
     "ws": "catalog:"
   },
   "devDependencies": {

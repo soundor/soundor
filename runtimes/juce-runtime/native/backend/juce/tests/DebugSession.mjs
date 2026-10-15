@@ -30,6 +30,16 @@ channel('http.server.request.start').subscribe(({ request, response }) => {
     requests.push(`${request.method} ${request.url}: ${response.statusCode}`);
   });
 });
+const serverDependencies = new Set(
+  Object.keys(
+    JSON.parse(
+      await readFile(
+        new URL('packages/devtools-server/package.json', repository),
+        'utf8',
+      ),
+    ).dependencies,
+  ),
+);
 const root = await mkdtemp(join(tmpdir(), 'soundor-native-debug-'));
 const bundle = await rolldown({
   input: fileURLToPath(
@@ -40,10 +50,18 @@ const bundle = await rolldown({
     {
       name: 'test-dependencies',
       resolveId(source) {
-        if (source === 'ws')
+        // Keep production dependencies external. Bundling CommonJS plugins
+        // can turn their require('ws') into require('file://...'), which Node
+        // cannot resolve. Native tests exercise the installed dependencies.
+        if (
+          source !== '@soundor/devtools-protocol' &&
+          serverDependencies.has(source)
+        )
           return {
             id: pathToFileURL(
-              join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs'),
+              source === 'ws'
+                ? join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')
+                : serverRequire.resolve(source),
             ).href,
             external: true,
           };

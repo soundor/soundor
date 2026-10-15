@@ -1,8 +1,9 @@
 # @soundor/devtools-server
 
-Standalone Node HTTP/WebSocket backend for Soundor DevTools. Requires Node
-22.18+ or 24.11+. It depends on the shared `@soundor/devtools-protocol` contract
-and `ws`, and has no dependency on the CLI, configuration package, or frontend.
+Standalone Fastify HTTP/WebSocket backend for Soundor DevTools. Requires Node
+22.18+ or 24.11+. It depends on the shared `@soundor/devtools-protocol` contract,
+`fastify`, its static, cookie and WebSocket plugins, and `ws`, and has no dependency on the CLI,
+configuration package, or frontend.
 
 ```ts
 import { startDevToolsServer } from '@soundor/devtools-server';
@@ -34,13 +35,24 @@ regular files beneath `staticDir`, including nested binary assets. Extensionless
 navigation falls back to `index.html`; missing assets, API namespaces, hidden
 files, private keys, traversal paths, and escaping symlinks return 404.
 HTML revalidates; hashed assets can be cached immutably. GET and HEAD are
-supported. The same Host/Origin validation and CSP apply to any supplied UI.
+supported. Fastify handles routing, bounded JSON parsing, replies, WebSocket upgrades, and
+listener shutdown. Its static plugin handles streaming, MIME types, HEAD, caching,
+conditional and range requests; only public-file selection and SPA fallback
+remain explicit server policies. Its cookie plugin parses and serializes browser
+session cookies.
+The same Host/Origin validation and CSP apply to any supplied UI.
 
 Browser authentication exchanges a protected descriptor key or one-use ticket
 for an HttpOnly SameSite=Strict cookie. The launch fragment must be removed from
 history by the frontend. Runtime credentials never authenticate browser sockets.
 `developmentOrigin` permits one exact HTTP localhost/127.0.0.1 origin for a local
 frontend proxy; it does not relax Host validation or allow remote origins.
+
+The implementation separates lifecycle (`server.ts`), credentials and trusted
+origins (`authentication.ts`), browser routes/WebSockets (`browser.ts`), runtime
+registration and long polling (`runtime.ts`), leases/queues/subscriptions
+(`session.ts`), and static delivery/SPA fallback (`static.ts`). Public server
+interfaces live in `types.ts` and remain exported from the package entry.
 
 ## Testing and simulation
 
