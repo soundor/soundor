@@ -216,10 +216,21 @@ jobs:
       - name: Both architectures in every macOS library
         if: runner.os == 'macOS'
         run: |
-          for root in "$PREBUILT_DEBUG" "$PREBUILT_RELEASE"; do
-            find "$root" -name '*.a' -print0 | xargs -0 -n1 lipo -verify_arch arm64 x86_64
-            lipo -verify_arch arm64 x86_64 "$root/hermes/bin/hermesc"
-          done
+          set -o pipefail
+          {
+            status=0
+            for root in "$PREBUILT_DEBUG" "$PREBUILT_RELEASE"; do
+              while IFS= read -r -d '' file; do
+                archs=$(lipo -archs "$file" 2>&1)
+                echo "$archs: ${file#"$root"/}"
+                if ! echo " $archs " | grep -q ' arm64 ' || ! echo " $archs " | grep -q ' x86_64 '; then
+                  echo "error: ${file#"$root"/} is not universal ($archs)"
+                  status=1
+                fi
+              done < <(find "$root" \( -name '*.a' -o -path '*/bin/hermesc' \) -print0)
+            done
+            exit $status
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Native tests against the debug engine
         working-directory: runtimes/engine
@@ -281,7 +292,7 @@ jobs:
         if: failure()
         run: |
           [ -f "$RUNNER_TEMP/step.log" ] || exit 0
-          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30 || true; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Save native dependencies
