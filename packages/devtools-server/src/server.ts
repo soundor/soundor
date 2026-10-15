@@ -169,7 +169,7 @@ export async function startDevToolsServer(
     { parseAs: 'string' },
     (request, body, done) => {
       if (body === '') done(null, undefined);
-      else parseJson(request, body, done);
+      else parseJson(request, body as string, done);
     },
   );
   app.setErrorHandler((_error, _request, reply) => {
