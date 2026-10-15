@@ -27,22 +27,19 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: node .github/scripts/native-changes.mjs
 
-  verify:
-    name: Verify
+  fast:
+    name: Fast checks
     needs: changes
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     env:
-      # Native checks (clang-format, clang-tidy, native tests) use the same
-      # Clang 18 toolchain as local development.
+      # Native formatting uses the installed Clang 18 toolchain.
       CC: clang
       CXX: clang++
       # Without it CMake defaults to Makefiles, which build one file at a time;
       # the native-deps action installs Ninja.
       CMAKE_GENERATOR: Ninja
-      # GPU tests run on Mesa's lavapipe; without a device they fail, not skip.
-      SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,13 +48,6 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
-
-      - name: Setup native dependencies
-        if: needs.changes.outputs.native == 'true'
-        id: deps
-        uses: ./.github/actions/native-deps
-        with:
-          job: verify
 
       - name: Cache Turborepo
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -76,14 +66,6 @@ jobs:
 
       - name: Run linter
         run: set -o pipefail; pnpm run lint:check 2>&1 | tee "$RUNNER_TEMP/step.log"
-
-      - name: Native static analysis
-        if: needs.changes.outputs.native == 'true'
-        run: pnpm turbo run lint:native
-
-      - name: Native runtime tests
-        if: needs.changes.outputs.native == 'true'
-        run: pnpm --filter @soundor/engine test:native
 
       - name: Run build
         run: set -o pipefail; pnpm run build 2>&1 | tee "$RUNNER_TEMP/step.log"
@@ -115,6 +97,47 @@ jobs:
       - name: Animation benchmark driver tests
         run: pnpm --filter soundor-benchmark test
 
+      - name: Report the failure
+        if: failure()
+        shell: bash
+        run: |
+          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+  engine:
+    name: Native (linux-clang)
+    needs: changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      CC: clang
+      CXX: clang++
+      CMAKE_GENERATOR: Ninja
+      SOUNDOR_REQUIRE_GPU: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        if: needs.changes.outputs.native == 'true'
+        uses: ./.github/actions/setup
+      - name: Setup native dependencies
+        if: needs.changes.outputs.native == 'true'
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: verify
+
+      - name: Build workspace
+        if: needs.changes.outputs.native == 'true'
+        run: pnpm build
+      - name: Native static analysis
+        if: needs.changes.outputs.native == 'true'
+        run: pnpm turbo run lint:native
+
+      - name: Native runtime tests
+        if: needs.changes.outputs.native == 'true'
+        run: pnpm --filter @soundor/engine test:native
+
       - name: Animation benchmark smoke
         if: needs.changes.outputs.native == 'true'
         run: |
@@ -127,13 +150,6 @@ jobs:
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
-      - name: Report the failure
-        if: failure()
-        shell: bash
-        run: |
-          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
-          echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
-
       - name: Save Skia, ANGLE and Hermes
         if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -267,9 +283,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux, os: ubuntu-24.04, cc: clang, cxx: clang++ }
-          - { name: macos, os: macos-15, cc: clang, cxx: clang++ }
-          - { name: windows, os: windows-2025, cc: cl, cxx: cl }
+          - {
+              name: linux,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              cache: verify,
+            }
+          - { name: macos, os: macos-15, cc: clang, cxx: clang++, cache: macos }
+          - { name: windows, os: windows-2025, cc: cl, cxx: cl, cache: windows }
     defaults:
       run:
         shell: bash
@@ -288,7 +310,7 @@ jobs:
         id: deps
         uses: ./.github/actions/native-deps
         with:
-          job: juce-${{ matrix.name }}
+          job: ${{ matrix.cache }}
       # CI-only checkout, outside either npm package; never distributed.
       - name: Checkout JUCE integration fixture
         if: needs.changes.outputs.juce == 'true'
@@ -328,3 +350,18 @@ jobs:
         with:
           path: ${{ runner.temp }}/soundor-cache
           key: ${{ steps.deps.outputs.cache-key }}
+
+  verify:
+    name: Verify
+    if: always()
+    needs: [changes, fast, engine, native, juce]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all applicable checks
+        env:
+          RESULTS: ${{ join(needs.*.result, ',') }}
+        run: |
+          case "$RESULTS" in
+            *failure*|*cancelled*|*skipped*) echo "Verification did not complete successfully: $RESULTS"; exit 1 ;;
+            *) echo "All applicable verification passed" ;;
+          esac

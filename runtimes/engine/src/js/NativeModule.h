@@ -35,7 +35,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         // `initialize` fills its exports object, throwing jsi::JSError on
         // failure — or written in JavaScript embedded in the runtime: its
         // `bytecode` when the build compiled it (hermesc), else its `source`,
-        // both in the runtime's module form (native/README.md, "Modules").
+        // both in the runtime's module form (engine/README.md, "Modules").
         struct NativeModule
         {
             std::function<void(ContextState&, jsi::Object& exports)> initialize;

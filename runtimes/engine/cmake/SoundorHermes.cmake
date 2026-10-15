@@ -25,7 +25,7 @@ set(SOUNDOR_HERMES_DIR "" CACHE PATH "A Hermes install made by SoundorHermesBuil
 # Hermes compiled for link-time optimization (ThinLTO with Clang): its code is
 # then optimized and pruned with the plugin's when the plugin links with LTO
 # (JUCE's juce_recommended_lto_flags, in Release builds). Off: see
-# native/README.md for what it measured.
+# engine/README.md for what it measured.
 option(SOUNDOR_HERMES_LTO "Build Hermes for link-time optimization" OFF)
 
 if(WIN32)

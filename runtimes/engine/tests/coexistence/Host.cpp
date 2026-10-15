@@ -1,5 +1,5 @@
 // Loads two Soundor "plugins", each with its own copy of the runtime under its
-// own ABI namespace, into one process, the way a host loads two plugins, and
+// shared engine ABI namespace, into one process, the way a host loads two plugins, and
 // checks that they run side by side without interfering: several instances
 // of each, interleaved, destroyed in any order, and the libraries unloaded
 // and loaded again.

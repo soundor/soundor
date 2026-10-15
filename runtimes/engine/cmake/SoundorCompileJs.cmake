@@ -1,7 +1,7 @@
 # cmake -DHERMESC=<hermesc> -DINPUT=<module.js> -DOUTPUT=<bytecode> -DNAME=<module name>
 #       -DREVISION=<Hermes revision> [-DFLAGS=<hermesc options>] -P SoundorCompileJs.cmake
 #
-# Compiles a module (in the runtime's module form, native/README.md "Modules") to Hermes
+# Compiles a module (in the runtime's module form, engine/README.md "Modules") to Hermes
 # bytecode for the VM of the same Hermes build: NAME, the name the runtime
 # loads it under ("/bundle.js", "soundor:ui"), is the file name its stack
 # traces show (a sourceURL comment), and the bytecode ends with an epilogue

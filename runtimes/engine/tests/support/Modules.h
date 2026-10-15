@@ -1,7 +1,7 @@
 #pragma once
 
 // Test-only: the native tests write their snippets as ES modules; the runtime
-// runs modules in its own form (native/README.md, "Modules"), which @soundor/core's
+// runs modules in its own form (engine/README.md, "Modules"), which @soundor/core's
 // toNativeModule() makes from ES modules at build time. This makes the same
 // from a test snippet with regular expressions over its import and export
 // declarations — enough for snippets, and nothing a plugin goes through.

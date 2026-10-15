@@ -1,5 +1,5 @@
 // A stand-in for one Soundor plugin binary in the coexistence test: the whole
-// runtime under its own ABI namespace, a UI that draws a color of its own and
+// runtime under the same engine ABI namespace, a UI that draws a color of its own and
 // counts clicks, behind a small C entry point table. With the GPU, each
 // instance also draws its color with its own ANGLE device.
 

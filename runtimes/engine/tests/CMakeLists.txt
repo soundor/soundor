@@ -210,9 +210,8 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   endif()
 endif()
 
-# Coexistence: two plugin-shaped libraries, each with its own copy of the
-# runtime under its own ABI namespace (as two plugins built from different
-# plugin ids), loaded into one process by a host program.
+# Coexistence: two plugin-shaped libraries link the same engine archive and
+# package ABI namespace, loaded into one process by a host program.
 add_library(soundor_coexist_a MODULE coexistence/Plugin.cpp)
 target_link_libraries(soundor_coexist_a PRIVATE Soundor::Engine)
 target_compile_definitions(soundor_coexist_a PRIVATE SOUNDOR_COEXIST_COLOR="red")

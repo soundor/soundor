@@ -51,7 +51,7 @@ runs:
         echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
         echo "CCACHE_DIR=${{ runner.temp }}/ccache" >> "$GITHUB_ENV"
         echo "CCACHE_BASEDIR=${{ github.workspace }}" >> "$GITHUB_ENV"
-        ccache --max-size=500M
+        echo "CCACHE_MAXSIZE=500M" >> "$GITHUB_ENV"
 
     - name: Restore compiler cache (Linux)
       if: runner.os == 'Linux'

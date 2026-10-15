@@ -62,7 +62,7 @@ cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
-cmake --workflow --preset juce       # + JUCE adapter tests (needs JUCE_DIR, e.g. /opt/JUCE)
+(cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
 
@@ -166,7 +166,7 @@ The backends are ARIA (web), AccessKit (Windows, Linux) and Soundor's own
 Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
 types never leave `src/a11y/accesskit/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
-swizzle (see `native/src/a11y/apple/README.md`).
+swizzle (see `runtimes/engine/src/a11y/apple/README.md`).
 
 ### init vs gen ownership
 
@@ -192,7 +192,7 @@ generated framework or the runtime package, not in `init` templates.
 - JavaScript the runtime runs is in its module form (a CommonJS module
   function, lowered for Hermes by `@soundor/core`'s `toNativeModule()`): the
   CLI's `bundle.js`, and the runtime's own modules, lowered from
-  `native/src/**/*.js` while building (so native builds need Node and the
+  `runtimes/engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
