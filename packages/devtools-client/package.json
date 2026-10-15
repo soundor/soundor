@@ -17,12 +17,18 @@
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
+  "dependencies": {
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
   "devDependencies": {
     "@playwright/test": "catalog:",
     "@soundor/devtools-protocol": "workspace:^",
     "@soundor/devtools-server": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@types/ws": "catalog:",
     "happy-dom": "catalog:",
     "typescript": "catalog:",

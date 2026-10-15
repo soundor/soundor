@@ -1,9 +1,11 @@
 # @soundor/devtools-client
 
-Soundor DevTools browser application: vanilla TypeScript, built with Vite.
+Soundor DevTools browser application: React and React DOM with TypeScript, built
+with Vite.
 The extracted dashboard preserves its UI, keyboard controls, authentication,
 tree inspection, accessibility, control ownership, logs, animations and metrics.
-The shared protocol supplies browser types; no framework or mock backend is used.
+The shared protocol supplies browser types; production connects to the real
+DevTools backend.
 
 ```sh
 pnpm turbo run build --filter=@soundor/devtools-client...
@@ -60,8 +62,12 @@ pnpm --filter soundor test:devtools-consumer
 
 Unit tests cover tree/filter and metric transformations, message processing,
 selection changes, stale-response guards, and target/generation state.
-Browser session management, protocol state, tree/details views, and diagnostics
-rendering live in separate modules; the inspector coordinates their actions. Integration suites are
+React owns the dashboard shell, tree/details views, and diagnostics rendering.
+`controller.ts` coordinates asynchronous commands and publishes revisions through
+`useSyncExternalStore`; `state.ts` retains protocol state and stale-response guards.
+Browser session management handles transport and authentication through callbacks,
+without mutating the DOM. The inspector mounts one React root and unmounts it with
+the controller on disposal. Integration suites are
 organized by inspector, connection/control, and diagnostics, using Happy DOM,
 the real backend, and the reusable simulator. Playwright separately verifies
 the actual production assets, bootstrap/cookies/WebSocket, discovery, selection,

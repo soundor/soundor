@@ -8,6 +8,7 @@ import {
 } from '@soundor/devtools-server';
 import { startSimulatedRuntime } from '@soundor/devtools-server/testing';
 import { Window as TestWindow, HTMLElement as TestElement } from 'happy-dom';
+import { flushSync } from 'react-dom';
 import { afterEach, expect } from 'vitest';
 import { WebSocket } from 'ws';
 
@@ -95,11 +96,13 @@ export async function page(server: DevToolsServer, ticket = false) {
   const get = (id: string) =>
     win.document.getElementById(id)! as unknown as TestElement;
   const click = (id: string) =>
-    (get(id) as unknown as HTMLButtonElement).click();
+    flushSync(() => (get(id) as unknown as HTMLButtonElement).click());
   const text = (id: string) => get(id).textContent;
   const search = (query: string) => {
     (get('search') as unknown as HTMLInputElement).value = query;
-    get('search').dispatchEvent(new win.Event('input'));
+    flushSync(() =>
+      get('search').dispatchEvent(new win.Event('input', { bubbles: true })),
+    );
   };
   if (!ticket) {
     await until(() => !get('auth').hidden);
@@ -107,7 +110,9 @@ export async function page(server: DevToolsServer, ticket = false) {
       await readFile(server.descriptorPath, 'utf8'),
     );
     (get('key') as unknown as HTMLInputElement).value = browserKey;
-    get('auth').dispatchEvent(new win.Event('submit', { cancelable: true }));
+    get('auth').dispatchEvent(
+      new win.Event('submit', { cancelable: true, bubbles: true }),
+    );
   }
   await until(() => text('status').includes('Connected'));
   return {

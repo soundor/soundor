@@ -140,3 +140,34 @@ it('omits unavailable performance fields for partially instrumented runtimes', a
   expect(browser.text('performance-summary')).not.toContain('CPU frame');
   expect(browser.get('performance-chart').querySelector('polyline')).toBeNull();
 });
+
+it('preserves the focused tree row while React reconciles metadata updates', async () => {
+  const { page: browser, native } = await setup();
+  await browser.ready();
+  await browser.select();
+  const row = browser.win.document.querySelector(
+    '[data-node-id="3"]',
+  )! as unknown as HTMLElement;
+  row.focus();
+  const updated = structuredClone(originalNodes);
+  updated[2]!.text = 'Updated gain';
+  native.setNodes(updated);
+  await native.event('UI.treeChanged', {
+    generation: 1,
+    revision: 2,
+    kind: 'properties',
+    nodes: [updated[2]],
+  });
+  await until(() => browser.text('tree').includes('Updated gain'));
+  expect(browser.win.document.querySelector('[data-node-id="3"]')).toBe(row);
+  expect(browser.win.document.activeElement).toBe(row);
+});
+
+it('unmounts the React root and closes the socket on disposal', async () => {
+  const { page: browser } = await setup();
+  await browser.ready();
+  browser.dispose();
+  browser.dispose();
+  expect(browser.get('app').childNodes).toHaveLength(0);
+  await until(() => browser.sockets.every((socket) => socket.readyState === 3));
+});

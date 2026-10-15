@@ -69,7 +69,9 @@ it('cleans subscriptions and releases control when switching targets', async () 
     browser.get('targets').textContent.includes('Other Plugin'),
   );
   (browser.get('targets') as unknown as HTMLSelectElement).value = second.id;
-  browser.get('targets').dispatchEvent(new browser.win.Event('change'));
+  browser
+    .get('targets')
+    .dispatchEvent(new browser.win.Event('change', { bubbles: true }));
   await until(() => browser.text('details').includes('Select a node'));
   await until(() =>
     native.commands.some((command) => command.type === 'resetControl'),
@@ -127,7 +129,9 @@ it('displays mapped session logs safely, filters severity/text, and clears only 
   expect(browser.text('logs')).toContain('development session');
   expect(browser.get('logs').querySelector('script')).toBeNull();
   (browser.get('log-level') as unknown as HTMLSelectElement).value = 'error';
-  browser.get('log-level').dispatchEvent(new browser.win.Event('change'));
+  browser
+    .get('log-level')
+    .dispatchEvent(new browser.win.Event('change', { bubbles: true }));
   expect(browser.text('logs')).not.toContain('Hello');
   browser.click('clear-logs');
   expect(browser.text('logs')).toBe('');
