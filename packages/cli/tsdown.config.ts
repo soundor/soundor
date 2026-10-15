@@ -6,7 +6,6 @@ export default defineConfig(
     entry: ['src/index.ts'],
     tsconfig: './tsconfig.app.json',
     dts: false,
-    copy: ['src/devtools/dashboard-client.js'],
     banner: { js: '#!/usr/bin/env node' },
   }),
 );

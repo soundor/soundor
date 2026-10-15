@@ -13,17 +13,18 @@ import {
   rootFromConfigPath,
 } from '@soundor/core';
 import type { Capability } from '@soundor/devtools-protocol';
+import {
+  startDevToolsServer,
+  DevToolsPortError,
+  type DevToolsServer,
+} from '@soundor/devtools-server';
 import { defineCommand } from 'citty';
 
 import { resolveDevToolsSettings } from '../dev/devtools';
 import { tailLog } from '../dev/log-tail';
 import { rewriteLocations, SourceMap } from '../dev/source-map';
+import { resolveDevToolsClientDist } from '../devtools/client';
 import { openDevTools } from '../devtools/open';
-import {
-  startDevToolsServer,
-  DevToolsPortError,
-  type DevToolsServer,
-} from '../devtools/server';
 import { watchUi } from '../ui/bundle';
 import { runGen } from './gen';
 
@@ -114,7 +115,10 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     try {
       debug = await startDevToolsServer({
         projectRoot: root,
-        settings: devtools,
+        port: devtools.port,
+        portFallback: devtools.portSource === 'default',
+        staticDir: resolveDevToolsClientDist(),
+        developmentOrigin: process.env.SOUNDOR_DEVTOOLS_ORIGIN,
         signal: controller.signal,
         supportedCapabilities: Object.entries(
           resolved.runtime.capabilities!.devtools!,

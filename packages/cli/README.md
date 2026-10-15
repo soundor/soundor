@@ -147,3 +147,27 @@ only.
 ## License
 
 MIT
+
+The CLI resolves the installed `@soundor/devtools-client` production directory
+and supplies it to `@soundor/devtools-server`. The server and browser application
+are maintained independently; `@soundor/devtools-protocol` remains their shared
+contract. See [the server API](../devtools-server/README.md) and
+[frontend development and tests](../devtools-client/README.md).
+The CLI owns user settings, default-port fallback, browser opening, mapped log
+forwarding and runtime shutdown. Its production build does not include simulators.
+
+```sh
+pnpm --filter soundor test:devtools-consumer
+```
+
+This packs and installs the CLI, both DevTools packages and their workspace
+dependencies in an isolated consumer, then verifies installed asset resolution
+and serves production chunks without a native plugin.
+
+To develop the frontend against this CLI's live native backend, start the CLI
+with `SOUNDOR_DEVTOOLS_ORIGIN=http://127.0.0.1:5173`. The server validates this
+as one exact HTTP loopback origin; ordinary sessions keep their normal Origin
+restrictions. In another terminal, set `SOUNDOR_DEVTOOLS_BACKEND` to the
+credential-free backend URL when starting the client. See the
+[external-backend workflow](../devtools-client/README.md). The client never owns
+or shuts down a backend started by the CLI.

@@ -1,0 +1,38 @@
+{
+  "name": "@soundor/devtools-server",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@soundor/devtools-protocol": "workspace:^",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

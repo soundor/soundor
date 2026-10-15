@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Soundor DevTools</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>
+        Soundor
+        <span style="font-weight: 400; color: var(--muted)">DevTools</span>
+      </h1>
+      <span id="status" role="status">Connecting…</span>
+    </header>
+    <form id="auth" hidden>
+      <strong>Authorize this browser</strong>
+      <p>
+        Enter the browserKey from the protected session file shown in your
+        terminal. Enabling devtools.open authorizes the first tab automatically.
+      </p>
+      <label for="key">Browser key</label><br /><input
+        id="key"
+        type="password"
+        autocomplete="off"
+        required
+      />
+      <button>Connect</button>
+    </form>
+    <div class="toolbar">
+      <label for="targets">Target</label
+      ><select id="targets">
+        <option value="">No connected runtimes</option></select
+      ><span id="target-meta"></span><span id="ownership">Observer</span
+      ><button id="control" disabled>Request control</button>
+    </div>
+    <div class="toolbar">
+      <button id="picker" aria-pressed="false" disabled>Select element</button
+      ><button id="refresh" disabled>Refresh</button
+      ><button id="clear-selection" disabled>Clear selection</button
+      ><input
+        id="search"
+        type="search"
+        placeholder="Search type, text, role or ID"
+        aria-label="Search nodes"
+      /><span style="color: var(--muted)"
+        >Native UI stays in its own window</span
+      >
+    </div>
+    <div id="notice" role="alert" hidden></div>
+    <main>
+      <section class="elements">
+        <h2>Elements</h2>
+        <div id="tree" role="tree" aria-label="Native UI hierarchy">
+          <div class="empty">Waiting for a runtime to connect.</div>
+        </div>
+        <div id="tree-note" hidden></div>
+      </section>
+      <section id="details" aria-label="Node details">
+        <h2>Details</h2>
+        <div class="empty">Select a node to inspect its live engine state.</div>
+      </section>
+    </main>
+    <section class="console" aria-label="Diagnostics">
+      <nav class="dock-tabs" aria-label="Diagnostics panels">
+        <button id="tab-console" aria-pressed="true">Console</button
+        ><button id="tab-animations" aria-pressed="false">Animations</button
+        ><button id="tab-performance" aria-pressed="false">Performance</button>
+      </nav>
+      <div id="panel-console" class="dock-panel">
+        <div class="console-tools">
+          <strong>Console</strong
+          ><select id="log-level" aria-label="Log severity">
+            <option value="all">All levels</option>
+            <option value="error">Errors</option>
+            <option value="warn">Warnings</option>
+            <option value="info">Info</option>
+            <option value="debug">Debug</option></select
+          ><input
+            id="log-filter"
+            type="search"
+            placeholder="Filter logs"
+            aria-label="Filter logs"
+          /><button id="clear-logs">Clear</button><span id="log-count"></span>
+        </div>
+        <div id="logs" role="log" aria-label="Application logs"></div>
+      </div>
+      <div id="panel-animations" class="dock-panel" hidden>
+        <div id="animations"></div>
+      </div>
+      <div id="panel-performance" class="dock-panel" hidden>
+        <div class="console-tools">
+          <button id="record-performance" disabled>Start recording</button
+          ><span id="performance-status" role="status">Recording is off</span>
+        </div>
+        <div id="performance">
+          <div id="performance-summary" class="metric-grid"></div>
+          <svg
+            id="performance-chart"
+            viewBox="0 0 800 80"
+            role="img"
+            aria-label="Measured CPU frame duration over time"
+          ></svg>
+          <div class="diagnostic-note">
+            CPU frame work and submission time. GPU execution time and dropped
+            GPU frames are not measured.
+          </div>
+          <div id="performance-phases"></div>
+        </div>
+      </div>
+    </section>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

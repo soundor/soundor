@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { chmod, mkdtemp, open, readFile, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, open, rm } from 'node:fs/promises';
 import {
   createServer,
   type IncomingMessage,
@@ -8,7 +8,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { DevToolsConnection, DevToolsSettings } from '@soundor/config';
 import {
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
@@ -31,7 +30,7 @@ import {
 } from '@soundor/devtools-protocol';
 import { WebSocket, WebSocketServer } from 'ws';
 
-import { dashboard } from './dashboard';
+import { serveStatic } from './static';
 
 const MAX_CLIENTS = 32;
 const MAX_TARGETS = 64;
@@ -62,7 +61,13 @@ interface Pending {
 
 export interface DevToolsServerOptions {
   projectRoot: string;
-  settings: DevToolsSettings;
+  port?: number;
+  /** Try following ports on collision. The CLI enables this for its default port. */
+  portFallback?: boolean;
+  /** Omit to run the complete backend without a frontend. */
+  staticDir?: string;
+  /** Explicit loopback frontend origin, for a local development proxy only. */
+  developmentOrigin?: string;
   signal?: AbortSignal;
   commandTimeout?: number;
   heartbeatTimeout?: number;
@@ -70,6 +75,12 @@ export interface DevToolsServerOptions {
   onTarget?: (target: DebugTarget) => void;
   /** Static runtime declaration; connected instances may negotiate a subset. */
   supportedCapabilities?: readonly Capability[];
+}
+export interface DevToolsConnection {
+  readonly endpoint: string;
+  readonly sessionId: string;
+  readonly token: string;
+  readonly descriptorPath?: string;
 }
 export interface DevToolsServer {
   readonly url: string;
@@ -123,6 +134,17 @@ async function body(request: IncomingMessage): Promise<unknown> {
 export async function startDevToolsServer(
   options: DevToolsServerOptions,
 ): Promise<DevToolsServer> {
+  if (options.developmentOrigin) {
+    const origin = new URL(options.developmentOrigin);
+    if (
+      origin.protocol !== 'http:' ||
+      !['localhost', '127.0.0.1'].includes(origin.hostname) ||
+      origin.origin !== options.developmentOrigin
+    )
+      throw new Error(
+        'developmentOrigin must be an exact HTTP loopback origin',
+      );
+  }
   const sessionId = randomUUID();
   const token = secret();
   const browserToken = secret();
@@ -136,7 +158,7 @@ export async function startDevToolsServer(
   const heartbeatTimeout = options.heartbeatTimeout ?? 30000;
   const targetTimeout = options.targetTimeout ?? 60000;
   let closing = false;
-  let port = options.settings.port;
+  let port = options.port ?? 0;
   let descriptorPath = '';
   let descriptorDirectory = '';
   let closePromise: Promise<void> | undefined;
@@ -149,6 +171,7 @@ export async function startDevToolsServer(
   const origins = (): string[] => [
     `http://localhost:${port}`,
     `http://127.0.0.1:${port}`,
+    ...(options.developmentOrigin ? [options.developmentOrigin] : []),
   ];
   function trustedHost(request: IncomingMessage): boolean {
     return [`localhost:${port}`, `127.0.0.1:${port}`].includes(
@@ -448,7 +471,11 @@ export async function startDevToolsServer(
       return;
     }
     const path = request.url?.split('?')[0];
-    if (path === '/' && request.method === 'GET') {
+    if (
+      !path?.startsWith('/runtime/') &&
+      path !== '/browser' &&
+      !path?.startsWith('/browser/')
+    ) {
       if (
         (request.headers.origin && !trustedOrigin(request)) ||
         request.headers['sec-fetch-site'] === 'cross-site'
@@ -456,31 +483,12 @@ export async function startDevToolsServer(
         json(response, 403, { error: 'Invalid origin' });
         return;
       }
-      response.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy':
-          "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'no-referrer',
-      });
-      response.end(dashboard);
-      return;
-    }
-    if (path === '/dashboard.js' && request.method === 'GET') {
-      if (request.headers.origin && !trustedOrigin(request)) {
-        json(response, 401, { error: 'Browser authentication required' });
+      if (
+        options.staticDir &&
+        (await serveStatic(options.staticDir, request, response))
+      )
         return;
-      }
-      response.writeHead(200, {
-        'Content-Type': 'text/javascript',
-        'X-Content-Type-Options': 'nosniff',
-      });
-      response.end(
-        await readFile(
-          new URL('./dashboard-client.js', import.meta.url),
-          'utf8',
-        ),
-      );
+      json(response, 404, { error: 'Not found' });
       return;
     }
     if (path === '/browser/auth' && request.method === 'POST') {
@@ -780,7 +788,7 @@ export async function startDevToolsServer(
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
-      if (options.settings.portSource === 'config' || port >= 65535)
+      if (!options.portFallback || port >= 65535)
         throw new DevToolsPortError(
           `DevTools port ${port} is occupied. Close the other listener or change devtools.port in your Soundor user config.`,
         );

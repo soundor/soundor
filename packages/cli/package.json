@@ -14,24 +14,24 @@
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test:watch": "vitest watch",
+    "test:devtools-consumer": "node scripts/devtools-consumer-smoke.mjs"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
-    "@soundor/devtools-protocol": "workspace:^",
+    "@soundor/devtools-client": "workspace:^",
+    "@soundor/devtools-server": "workspace:^",
     "citty": "catalog:",
-    "tsdown": "catalog:",
-    "ws": "catalog:"
+    "tsdown": "catalog:"
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
     "@soundor/core": "workspace:^",
+    "@soundor/devtools-protocol": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "@types/ws": "catalog:",
-    "happy-dom": "catalog:",
     "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

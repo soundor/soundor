@@ -63,3 +63,7 @@ opencode.jsonc
 
 # Soundor
 .soundor
+
+# Playwright
+test-results/
+playwright-report/

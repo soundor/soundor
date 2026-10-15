@@ -53,6 +53,7 @@ describe('runDev', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     delete globalThis.__soundorDevEvents;
     await rm(root, { recursive: true, force: true });
   });
@@ -114,6 +115,22 @@ describe('runDev', () => {
     ).resolves.toEqual({ runtime: 'test' });
   });
 
+  it('opts into exactly one Vite origin while keeping the default origin restrictions', async () => {
+    await writeConfig(root, {
+      devtools: true,
+      browserOrigin: 'http://127.0.0.1:5173',
+    });
+    const path = join(root, 'user.json');
+    await writeFile(path, '{"devtools":{"open":false}}');
+    vi.stubEnv('SOUNDOR_DEVTOOLS_ORIGIN', undefined);
+    await runDev({ cwd: root, runtime: 'test', userConfig: { path } });
+    expect(globalThis.__soundorDevEvents).toContain('browser-origin:403');
+    globalThis.__soundorDevEvents = [];
+    vi.stubEnv('SOUNDOR_DEVTOOLS_ORIGIN', 'http://127.0.0.1:5173');
+    await runDev({ cwd: root, runtime: 'test', userConfig: { path } });
+    expect(globalThis.__soundorDevEvents).toContain('browser-origin:200');
+  });
+
   it('aborts runtime dev on SIGINT', async () => {
     await writeConfig(root, { abortOnDev: true });
 
@@ -142,6 +159,7 @@ describe('runDev with a UI', () => {
 
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     delete globalThis.__soundorDevEvents;
     await rm(root, { recursive: true, force: true });
   });
@@ -179,6 +197,7 @@ async function writeConfig(
     logFromPlugin?: boolean;
     devtools?: boolean;
     checkDevTools?: boolean;
+    browserOrigin?: string;
   } = {},
 ): Promise<void> {
   await writeFile(
@@ -197,6 +216,12 @@ const runtime = {
     globalThis.__soundorDevEvents.push('dev:' + ctx.mode);
     ctx.logger.info('runtime ready');
     if (${String(options.checkDevTools)}) globalThis.__soundorDevEvents.push('devtools:' + String(Boolean(ctx.devtools)));
+    if (${JSON.stringify(options.browserOrigin)}) {
+      const response = await fetch(ctx.devtools.endpoint + '/browser/session', {
+        headers: { Origin: ${JSON.stringify(options.browserOrigin)} },
+      });
+      globalThis.__soundorDevEvents.push('browser-origin:' + response.status);
+    }
     if (${String(options.logFromPlugin)}) {
       // Plays the plugin: logs an error thrown at the bundle's \`throw\`.
       const fs = await import('node:fs');
