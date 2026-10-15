@@ -83,7 +83,7 @@ endif()
 set(soundor_stage_flavor release)
 set(soundor_stage_crt "")
 if(WIN32)
-  if(soundor_stage_variant STREQUAL debug)
+  if(soundor_stage_variant STREQUAL "debug")
     set(soundor_stage_flavor mdd)
     set(soundor_stage_crt MultiThreadedDebugDLL)
   else()
@@ -176,7 +176,7 @@ set(soundor_stage_licenses
   "yoga|${SoundorEngine_SOURCE_DIR}/licenses/yoga"
   "skia|${SOUNDOR_SKIA_DIR}/LICENSE"
   "skia|${SoundorEngine_SOURCE_DIR}/licenses/skia")
-if(soundor_stage_os STREQUAL linux)
+if(soundor_stage_os STREQUAL "linux")
   list(APPEND soundor_stage_licenses "hermes|${SoundorEngine_SOURCE_DIR}/licenses/hermes/quickjs-ng")
 endif()
 if(SOUNDOR_HAS_GPU)

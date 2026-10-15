@@ -121,7 +121,9 @@ jobs:
     permissions:
       contents: read
     strategy:
-      fail-fast: true
+      # Every target's result, even when one fails: nothing is released
+      # unless all of them pass (the release job).
+      fail-fast: false
       matrix:
         include:
           # cache: the native dependency cache to share with Verify's jobs

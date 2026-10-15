@@ -228,7 +228,7 @@ function(soundor_prebuilt_paths out group)
     foreach(item IN LISTS items)
       if(NOT CMAKE_CONFIGURATION_TYPES)
         list(APPEND paths "${item}")
-      elseif(variant STREQUAL debug)
+      elseif(variant STREQUAL "debug")
         list(APPEND paths "$<$<CONFIG:Debug>:${item}>")
       else()
         list(APPEND paths "$<$<NOT:$<CONFIG:Debug>>:${item}>")
@@ -243,16 +243,15 @@ endfunction()
 add_library(soundor_prebuilt_link INTERFACE)
 if(CMAKE_CONFIGURATION_TYPES AND NOT (SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR AND SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR))
   if(SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR)
-    set(debug_ok true)
-    set(release_ok false)
+    set(available "$<CONFIG:Debug>")
+    set(missing RELEASE)
   else()
-    set(debug_ok false)
-    set(release_ok true)
+    set(available "$<NOT:$<CONFIG:Debug>>")
+    set(missing DEBUG)
   endif()
   add_custom_target(soundor_engine_prebuilt_check
-    COMMAND ${CMAKE_COMMAND} -E echo
-            "$<IF:$<CONFIG:Debug>,$<IF:${debug_ok},,Set SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR to build $<CONFIG>>,$<IF:${release_ok},,Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build $<CONFIG>>>"
-    COMMAND ${CMAKE_COMMAND} -E $<IF:$<CONFIG:Debug>,${debug_ok},${release_ok}>
+    COMMAND ${CMAKE_COMMAND} -E echo "$<IF:${available},,Set SOUNDOR_ENGINE_PREBUILT_${missing}_DIR to build $<CONFIG>>"
+    COMMAND ${CMAKE_COMMAND} -E $<IF:${available},true,false>
     VERBATIM)
   add_dependencies(soundor_prebuilt_link soundor_engine_prebuilt_check)
 endif()
@@ -272,20 +271,20 @@ if(CMAKE_CONFIGURATION_TYPES)
   # Debug takes the debug archive; every other configuration the release one.
   # A missing archive maps to the other, never built (soundor_engine_prebuilt_check).
   if(SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR)
-    set(others RELEASE)
+    set(soundor_prebuilt_others RELEASE)
   else()
-    set(others DEBUG)
+    set(soundor_prebuilt_others DEBUG)
   endif()
   if(SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR)
-    set(debug DEBUG)
+    set(soundor_prebuilt_debug DEBUG)
   else()
-    set(debug RELEASE)
+    set(soundor_prebuilt_debug RELEASE)
   endif()
   set_target_properties(soundor_runtime PROPERTIES
-    MAP_IMPORTED_CONFIG_DEBUG ${debug}
-    MAP_IMPORTED_CONFIG_RELEASE ${others}
-    MAP_IMPORTED_CONFIG_RELWITHDEBINFO ${others}
-    MAP_IMPORTED_CONFIG_MINSIZEREL ${others})
+    MAP_IMPORTED_CONFIG_DEBUG ${soundor_prebuilt_debug}
+    MAP_IMPORTED_CONFIG_RELEASE ${soundor_prebuilt_others}
+    MAP_IMPORTED_CONFIG_RELWITHDEBINFO ${soundor_prebuilt_others}
+    MAP_IMPORTED_CONFIG_MINSIZEREL ${soundor_prebuilt_others})
   set(devtools "$<IF:$<CONFIG:Debug>,$<BOOL:${soundor_prebuilt_debug_has_devtools}>,$<BOOL:${soundor_prebuilt_release_has_devtools}>>")
 else()
   list(GET soundor_prebuilt_${soundor_prebuilt_first}_engine 0 library)
