@@ -163,11 +163,19 @@ it('preserves the focused tree row while React reconciles metadata updates', asy
   expect(browser.win.document.activeElement).toBe(row);
 });
 
-it('unmounts the React root and closes the socket on disposal', async () => {
-  const { page: browser } = await setup();
+it('unmounts the React root and cancels pending work on disposal', async () => {
+  const { page: browser, native } = await setup();
   await browser.ready();
+  native.delayNode();
+  (
+    browser.win.document.querySelector(
+      '[data-node-id="1"]',
+    ) as unknown as HTMLElement
+  ).click();
+  await until(() => native.pendingRequests > 0);
   browser.dispose();
   browser.dispose();
   expect(browser.get('app').childNodes).toHaveLength(0);
   await until(() => browser.sockets.every((socket) => socket.readyState === 3));
+  await until(() => native.pendingRequests === 0);
 });

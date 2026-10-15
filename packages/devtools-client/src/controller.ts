@@ -596,6 +596,9 @@ export function createInspector(win: Window & typeof globalThis) {
     win.clearTimeout(logTimer);
     win.clearTimeout(highlightTimer);
     win.document.removeEventListener('keydown', escapePicker);
+    state.clearInspection();
+    state.connected = false;
+    nextHighlight = undefined;
     cancelRequests(undefined);
     session.dispose();
   }
