@@ -8,7 +8,10 @@ import {
   sep,
 } from 'node:path';
 
-import type { FastifyRequest } from 'fastify';
+import staticPlugin from '@fastify/static';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
+
+import type { Authentication } from './authentication';
 
 function inside(root: string, path: string): boolean {
   const rel = relative(root, path);
@@ -21,7 +24,7 @@ function inside(root: string, path: string): boolean {
 }
 
 /** Select a confined public file or SPA entry; @fastify/static handles delivery. */
-export async function resolveStaticFile(
+async function resolveStaticFile(
   directory: string,
   request: FastifyRequest,
 ): Promise<{ root: string; file: string } | undefined> {
@@ -83,4 +86,47 @@ export async function resolveStaticFile(
   } catch {
     return undefined;
   }
+}
+
+/** Standard static delivery with DevTools public-file and SPA fallback rules. */
+export async function registerStaticRoutes(
+  app: FastifyInstance,
+  auth: Authentication,
+  directory: string | undefined,
+) {
+  if (directory) {
+    await app.register(staticPlugin, {
+      serve: false,
+      dotfiles: 'ignore',
+      cacheControl: false,
+      setHeaders(reply, path) {
+        reply.setHeader(
+          'Cache-Control',
+          extname(path) !== '.html' &&
+            /[-.][a-zA-Z0-9_-]{8,}\.[^.]+$/.test(path)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        );
+        reply.setHeader(
+          'Content-Security-Policy',
+          "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'",
+        );
+        reply.setHeader('X-Content-Type-Options', 'nosniff');
+        reply.setHeader('Referrer-Policy', 'no-referrer');
+      },
+    });
+  }
+  app.setNotFoundHandler(async (request, response) => {
+    if (
+      (request.headers.origin && !auth.trustedOrigin(request)) ||
+      request.headers['sec-fetch-site'] === 'cross-site'
+    )
+      return response.code(403).send({ error: 'Invalid origin' });
+    const file = directory && (await resolveStaticFile(directory, request));
+    if (file) {
+      response.removeHeader('Cache-Control');
+      return response.sendFile(file.file, file.root);
+    }
+    return response.code(404).send({ error: 'Not found' });
+  });
 }

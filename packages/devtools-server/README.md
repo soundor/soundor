@@ -48,6 +48,12 @@ history by the frontend. Runtime credentials never authenticate browser sockets.
 `developmentOrigin` permits one exact HTTP localhost/127.0.0.1 origin for a local
 frontend proxy; it does not relax Host validation or allow remote origins.
 
+The implementation separates lifecycle (`server.ts`), credentials and trusted
+origins (`authentication.ts`), browser routes/WebSockets (`browser.ts`), runtime
+registration and long polling (`runtime.ts`), leases/queues/subscriptions
+(`session.ts`), and static delivery/SPA fallback (`static.ts`). Public server
+interfaces live in `types.ts` and remain exported from the package entry.
+
 ## Testing and simulation
 
 The production entry does not include testing helpers:
