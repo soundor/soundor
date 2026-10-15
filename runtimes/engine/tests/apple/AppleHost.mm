@@ -1,5 +1,5 @@
 // A host process for two Soundor plugin binaries with the macOS accessibility
-// bridge (Module.mm, built twice under different ABI namespaces), checking
+// bridge (Module.mm, both linked to the same engine archive), checking
 // what a plugin host needs: both load, their element classes do not collide,
 // their trees are independent, destroying one leaves the other working, and
 // an element VoiceOver still holds after its plugin is destroyed and

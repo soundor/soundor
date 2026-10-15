@@ -9,6 +9,9 @@
     #include <condition_variable>
     #include <deque>
     #include <mutex>
+    #if SOUNDOR_DEBUG_BRIDGE_TEST_TRACE
+        #include <iostream>
+    #endif
     #include <thread>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
@@ -134,7 +137,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                     return {};
                 streams[worker] = stream;
             }
+    #if SOUNDOR_DEBUG_BRIDGE_TEST_TRACE
+            std::cerr << "HTTP connecting " << method << " " << path << std::endl;
+    #endif
             bool valid = stream->connect(nullptr);
+    #if SOUNDOR_DEBUG_BRIDGE_TEST_TRACE
+            std::cerr << "HTTP connected " << path << " valid=" << valid << " status=" << stream->getStatusCode()
+                      << std::endl;
+    #endif
             std::string contents;
             std::array<char, 8192> buffer {};
             while (valid && ! stopped.load() && ! stream->isExhausted())
@@ -154,6 +164,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 if (streams[worker] == stream)
                     streams[worker].reset();
             }
+    #if SOUNDOR_DEBUG_BRIDGE_TEST_TRACE
+            std::cerr << "HTTP finished " << path << " bytes=" << contents.size() << std::endl;
+    #endif
             if (! valid || stopped.load() || stream->isError())
                 return {};
             return std::pair { stream->getStatusCode(), juce::JSON::parse(juce::String::fromUTF8(

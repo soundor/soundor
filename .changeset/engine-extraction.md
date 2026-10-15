@@ -1,5 +1,7 @@
 ---
 '@soundor/engine': minor
+'@soundor/core': minor
+'@soundor/runtime-sdk': minor
 '@soundor/juce-runtime': minor
 ---
 

@@ -23,6 +23,9 @@ const { WebSocket } = await import(
 // Record paths and statuses only, never session credentials or payloads.
 const requests = [];
 channel('http.server.request.start').subscribe(({ request, response }) => {
+  requests.push(
+    `${request.method} ${request.url}: started (length=${request.headers['content-length'] ?? 'none'})`,
+  );
   response.once('finish', () => {
     requests.push(`${request.method} ${request.url}: ${response.statusCode}`);
   });
