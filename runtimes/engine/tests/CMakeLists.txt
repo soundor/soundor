@@ -266,7 +266,10 @@ add_test(
 if(WIN32)
   # A crashed runtime or a loader-lock deadlock must fail the job rather than
   # prevent its subsequent crash diagnostics from ever running.
-  set_tests_properties(soundor_runtime_tests soundor_coexistence PROPERTIES TIMEOUT 180)
+  set_tests_properties(soundor_coexistence PROPERTIES TIMEOUT 180)
+  if(SOUNDOR_JS_SOURCE)
+    set_tests_properties(soundor_runtime_tests PROPERTIES TIMEOUT 180)
+  endif()
 endif()
 # The macOS accessibility bridge in a plugin host: two plugin binaries with
 # their own runtimes (and so their own element classes), loaded together,
