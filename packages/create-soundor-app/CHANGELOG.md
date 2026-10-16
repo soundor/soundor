@@ -1,5 +1,11 @@
 # create-soundor-app
 
+## 0.9.0
+
+### Patch Changes
+
+- [#137](https://github.com/soundor/soundor/pull/137) [`ee85daa`](https://github.com/soundor/soundor/commit/ee85daa245fe5f71f2faa90eafb9b86db2f6026a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Name the source repository and directory in every package, so npm links each package to its source and resolves its README's relative links.
+
 ## 0.8.0
 
 No changes in this release.

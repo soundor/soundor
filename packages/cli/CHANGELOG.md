@@ -1,5 +1,14 @@
 # soundor
 
+## 0.9.0
+
+### Patch Changes
+
+- [#137](https://github.com/soundor/soundor/pull/137) [`ee85daa`](https://github.com/soundor/soundor/commit/ee85daa245fe5f71f2faa90eafb9b86db2f6026a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Name the source repository and directory in every package, so npm links each package to its source and resolves its README's relative links.
+- Updated dependencies [[`b1f3261`](https://github.com/soundor/soundor/commit/b1f3261faf930dcd6640926d7bb8180a7147adb8), [`ee85daa`](https://github.com/soundor/soundor/commit/ee85daa245fe5f71f2faa90eafb9b86db2f6026a), [`421939b`](https://github.com/soundor/soundor/commit/421939b530a63aaaf15d0761a4b3c553279efd70)]:
+  - @soundor/devtools-server@0.9.0
+  - @soundor/devtools-client@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
