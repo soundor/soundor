@@ -16,9 +16,9 @@ React applications also need their normal `react` and `@soundor/react`
 dependencies. React peers are optional for the framework-independent root entry.
 
 ```ts
+import { soundor } from '@soundor/vitest';
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import { soundor } from '@soundor/vitest';
 
 export default defineConfig({
   plugins: [soundor()],
@@ -32,10 +32,10 @@ Component libraries without a project can use `soundor({ config: false })`.
 No aliases, setup file, DOM environment, or direct runtime installation are needed.
 
 ```tsx
-import { expect, test, vi } from 'vitest';
-import { useState } from 'react';
 import { Pressable, Text } from '@soundor/react';
 import { render, screen, userEvent } from '@soundor/testing-library/react';
+import { useState } from 'react';
+import { expect, test, vi } from 'vitest';
 
 function Counter({ onChange }: { onChange: (value: number) => void }) {
   const [count, setCount] = useState(0);

@@ -29,8 +29,8 @@ are intended for a worker; tree access and mutations must be dispatched to the
 engine's owning thread. Never issue blocking IPC on UI or audio threads.
 
 1. `POST /runtime/register` with `{version:1, sessionId, name, runtime,
-generation:1, capabilities, processId?}`. Receive `{version:1, targetId,
-targetToken}`. Each registration gets a fresh unpredictable instance ID.
+   generation:1, capabilities, processId?}`. Receive `{version:1, targetId,
+   targetToken}`. Each registration gets a fresh unpredictable instance ID.
    Instance capabilities must be a subset of the runtime's static declaration.
 2. Further requests also require `X-Soundor-Target` and
    `X-Soundor-Target-Token`. This prevents one registered instance from replying

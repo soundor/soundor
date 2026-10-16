@@ -4,8 +4,8 @@ React for Soundor plugin UIs: a renderer for the plugin view (`soundor:ui`)
 and the components a UI is made of.
 
 ```tsx
-import { useState } from 'react';
 import { render, Pressable, Text, View, useParameter } from '@soundor/react';
+import { useState } from 'react';
 import { parameters } from 'soundor:parameters';
 
 function Gain() {
@@ -483,9 +483,9 @@ Install `vitest`, `@soundor/vitest`, `vitest-environment-soundor`, and
 Tests run against a simulated Soundor runtime, using the real React reconciler.
 
 ```tsx
-import { expect, test, vi } from 'vitest';
-import { render, screen, userEvent } from '@soundor/testing-library/react';
 import { Pressable, Text } from '@soundor/react';
+import { render, screen, userEvent } from '@soundor/testing-library/react';
+import { expect, test, vi } from 'vitest';
 
 test('activates a control', async () => {
   const onPress = vi.fn();
