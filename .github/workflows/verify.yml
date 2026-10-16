@@ -64,6 +64,9 @@ jobs:
       - name: Native input detection regression tests
         run: node --test .github/scripts/native-changes.test.mjs
 
+      - name: Engine prebuilt release tooling tests
+        run: node --test .github/scripts/engine-prebuilts.test.mjs
+
       # Each step keeps its output for "Report the failure".
       - name: Run formatter
         run: set -o pipefail; pnpm run format 2>&1 | tee "$RUNNER_TEMP/step.log"
@@ -154,12 +157,12 @@ jobs:
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.
-      - name: Save Skia, ANGLE and Hermes
-        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
         with:
-          path: ${{ runner.temp }}/soundor-cache
           key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
 
   native:
     name: Native (${{ matrix.name }})
@@ -272,12 +275,12 @@ jobs:
           { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
           echo "::error title=${{ github.job }} failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
-      - name: Save Skia, ANGLE and Hermes
-        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
         with:
-          path: ${{ runner.temp }}/soundor-cache
           key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
 
   juce:
     name: Native JUCE integration (${{ matrix.name }})
@@ -369,11 +372,11 @@ jobs:
                   print(f'::error title=JUCE integration failure::{chunk}')
           PYTHON
       - name: Save native dependencies
-        if: always() && steps.deps.outputs.cache-key != '' && steps.deps.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
         with:
-          path: ${{ runner.temp }}/soundor-cache
           key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
 
   verify:
     name: Verify

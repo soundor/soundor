@@ -62,6 +62,9 @@ cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
+cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
+                                            # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
+SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
 (cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 ```
@@ -213,6 +216,12 @@ generated framework or the runtime package, not in `init` templates.
   every frame; nothing waits for the GPU on the CPU (no `glFinish`); all of
   a device's contexts share textures, so WebGL contexts delete their own
   when they go; Apple code adds no Objective-C classes or categories.
+- Prebuilt engines (`runtimes/engine/README.md`, "Prebuilt engines") are the
+  same build, staged and packed per target and variant (debug, release) by
+  `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
+  extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
+  targets a source build defines, after checking them. A new linked
+  dependency needs its license notice in the archive (`runtimes/engine/licenses/`).
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).

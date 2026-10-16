@@ -9,161 +9,168 @@ soundor_fetch_source(
 add_library(soundor_doctest INTERFACE)
 target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SOURCE_DIR})
 
-add_executable(soundor_runtime_tests
-  main.cpp
-  a11y/SemanticsTests.cpp
-  js/ContextTests.cpp
-  js/ErrorTests.cpp
-  js/JobTests.cpp
-  js/LifecycleTests.cpp
-  js/ModuleTests.cpp
-  js/RuntimeTests.cpp
-  native/NativeModuleTests.cpp
-  parameters/ParametersTests.cpp
-  render/CompositorTests.cpp
-  render/AnimationFrameTests.cpp
-  render/FrameTests.cpp
-  render/RegionTests.cpp
-  runtime/DevSessionTests.cpp
-  runtime/ResourcesTests.cpp
-  runtime/StatisticsTests.cpp
-  runtime/BytecodeTests.cpp
-  runtime/TimeLimitTests.cpp
-  ui/AnimationModuleTests.cpp
-  ui/AnimationTests.cpp
-  ui/SurfaceTests.cpp
-  ui/PrimitivesTests.cpp
-  ui/RendererTests.cpp
-  ui/CanvasTests.cpp
-  ui/UiModuleTests.cpp
-  web/FetchTests.cpp
-  web/GlobalsTests.cpp
-  web/PlatformModulesTests.cpp
-  web/UrlTests.cpp
-  web/WebApiTests.cpp
-  # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
-  generated/soundor/native/SoundorNative.cpp)
-target_include_directories(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
-# Tests exercise internal seams (native modules), so they may see Hermes.
-target_link_libraries(soundor_runtime_tests PRIVATE Soundor::Engine soundor_hermes soundor_doctest)
-if(WIN32)
-  target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
-endif()
-soundor_configure_target(soundor_runtime_tests)
-if(SOUNDOR_ENABLE_DEVTOOLS)
-  target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp debug/DiagnosticsTests.cpp)
-endif()
-
-# Generated code is checked by its generator's tests, not linted.
-set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)
-
-soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
-# The same, with its modules compiled to bytecode (where the build can).
-soundor_embed_ui(soundor_runtime_tests fixtureUiCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
-# A bundle that never returns, compiled as a plugin's: its bytecode must stop
-# at the time limit.
-soundor_embed_ui(soundor_runtime_tests fixtureRunawayCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/runaway)
-soundor_precompiles_js(soundor_tests_precompile)
-if(soundor_tests_precompile)
-  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
-  # Override Context.cpp in this test executable with an incompatible marker.
-  # All its other code and embedded modules come from the normal runtime.
-  # This exercises an actual constructor failure, without a test hook in the API.
-  add_executable(soundor_context_init_failure js/ContextInitFailure.cpp ${SoundorEngine_SOURCE_DIR}/src/js/Context.cpp)
-  target_include_directories(soundor_context_init_failure PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
-  target_link_libraries(soundor_context_init_failure PRIVATE Soundor::Engine soundor_hermes)
-  target_compile_definitions(soundor_context_init_failure PRIVATE SOUNDOR_HERMES_REVISION="incompatible-test-revision")
-  soundor_configure_target(soundor_context_init_failure)
-  add_test(NAME soundor_context_init_failure COMMAND soundor_context_init_failure)
-  set_tests_properties(soundor_context_init_failure PROPERTIES TIMEOUT 30)
-endif()
-target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
-
-if(SOUNDOR_HAS_GPU)
-  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_GPU=1)
-  # Three.js, unmodified, from npm: its build/ is loaded as the tests' UI files.
-  FetchContent_Declare(
-    SOUNDOR_THREE
-    URL "https://registry.npmjs.org/three/-/three-${SOUNDOR_THREE_VERSION}.tgz"
-    URL_HASH "SHA256=${SOUNDOR_THREE_SHA256}"
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    SOURCE_SUBDIR "soundor-populate-only")
-  FetchContent_MakeAvailable(SOUNDOR_THREE)
-  # In the runtime's module form, as a plugin's bundle would have it: lowered
-  # by @soundor/core's toNativeModule() (with Node, at build time).
-  set(soundor_three_dir "${CMAKE_CURRENT_BINARY_DIR}/three")
-  set(soundor_three_outputs "")
-  foreach(file three.module.js three.core.js)
-    soundor_lower_js_command("${soundor_three_SOURCE_DIR}/build/${file}" "${soundor_three_dir}/${file}" "${file}")
-    list(APPEND soundor_three_outputs "${soundor_three_dir}/${file}")
-  endforeach()
-  add_custom_target(soundor_three_modules DEPENDS ${soundor_three_outputs})
-  add_dependencies(soundor_runtime_tests soundor_three_modules)
-  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_dir}")
-  target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp
-    gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp gpu/ThreeTests.cpp)
-  if(APPLE)
-    target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.mm)
-  else()
-    target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.cpp)
+# Everything below up to the coexistence test evaluates JavaScript source:
+# not for an engine without Hermes's compiler (a release prebuilt), which the
+# coexistence and ABI tests check.
+if(SOUNDOR_JS_SOURCE)
+  add_executable(soundor_runtime_tests
+    main.cpp
+    a11y/SemanticsTests.cpp
+    js/ContextTests.cpp
+    js/ErrorTests.cpp
+    js/JobTests.cpp
+    js/LifecycleTests.cpp
+    js/ModuleTests.cpp
+    js/RuntimeTests.cpp
+    native/NativeModuleTests.cpp
+    parameters/ParametersTests.cpp
+    render/CompositorTests.cpp
+    render/AnimationFrameTests.cpp
+    render/FrameTests.cpp
+    render/RegionTests.cpp
+    runtime/DevSessionTests.cpp
+    runtime/ResourcesTests.cpp
+    runtime/StatisticsTests.cpp
+    runtime/BytecodeTests.cpp
+    runtime/TimeLimitTests.cpp
+    ui/AnimationModuleTests.cpp
+    ui/AnimationTests.cpp
+    ui/SurfaceTests.cpp
+    ui/PrimitivesTests.cpp
+    ui/RendererTests.cpp
+    ui/CanvasTests.cpp
+    ui/UiModuleTests.cpp
+    web/FetchTests.cpp
+    web/GlobalsTests.cpp
+    web/PlatformModulesTests.cpp
+    web/UrlTests.cpp
+    web/WebApiTests.cpp
+    # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
+    generated/soundor/native/SoundorNative.cpp)
+  target_include_directories(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
+  # Tests exercise internal seams (native modules), so they may see Hermes.
+  target_link_libraries(soundor_runtime_tests PRIVATE Soundor::Engine soundor_hermes soundor_doctest)
+  if(WIN32)
+    target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
   endif()
-  target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
+  soundor_configure_target(soundor_runtime_tests)
+  if(SOUNDOR_ENABLE_DEVTOOLS)
+    target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp debug/DiagnosticsTests.cpp)
+  endif()
+
+  # Generated code is checked by its generator's tests, not linted.
+  set_source_files_properties(generated/soundor/native/SoundorNative.cpp PROPERTIES SKIP_LINTING ON)
+
+  soundor_embed_directory(soundor_runtime_tests fixtureUi ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+  # The same, with its modules compiled to bytecode (where the build can).
+  soundor_embed_ui(soundor_runtime_tests fixtureUiCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ui)
+  # A bundle that never returns, compiled as a plugin's: its bytecode must stop
+  # at the time limit.
+  soundor_embed_ui(soundor_runtime_tests fixtureRunawayCompiled ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/runaway)
+  soundor_precompiles_js(soundor_tests_precompile)
+  if(soundor_tests_precompile)
+    target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TESTS_PRECOMPILE_JS=1)
+    # Override Context.cpp in this test executable with an incompatible marker.
+    # All its other code and embedded modules come from the normal runtime.
+    # This exercises an actual constructor failure, without a test hook in the API.
+    add_executable(soundor_context_init_failure js/ContextInitFailure.cpp ${SoundorEngine_SOURCE_DIR}/src/js/Context.cpp)
+    target_include_directories(soundor_context_init_failure PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
+    target_link_libraries(soundor_context_init_failure PRIVATE Soundor::Engine soundor_hermes)
+    target_compile_definitions(soundor_context_init_failure PRIVATE SOUNDOR_HERMES_REVISION="incompatible-test-revision")
+    soundor_configure_target(soundor_context_init_failure)
+    add_test(NAME soundor_context_init_failure COMMAND soundor_context_init_failure)
+    set_tests_properties(soundor_context_init_failure PROPERTIES TIMEOUT 30)
+  endif()
+  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_FIXTURES="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+
+  if(SOUNDOR_HAS_GPU)
+    target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_GPU=1)
+    # Three.js, unmodified, from npm: its build/ is loaded as the tests' UI files.
+    FetchContent_Declare(
+      SOUNDOR_THREE
+      URL "https://registry.npmjs.org/three/-/three-${SOUNDOR_THREE_VERSION}.tgz"
+      URL_HASH "SHA256=${SOUNDOR_THREE_SHA256}"
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+      SOURCE_SUBDIR "soundor-populate-only")
+    FetchContent_MakeAvailable(SOUNDOR_THREE)
+    # In the runtime's module form, as a plugin's bundle would have it: lowered
+    # by @soundor/core's toNativeModule() (with Node, at build time).
+    set(soundor_three_dir "${CMAKE_CURRENT_BINARY_DIR}/three")
+    set(soundor_three_outputs "")
+    foreach(file three.module.js three.core.js)
+      soundor_lower_js_command("${soundor_three_SOURCE_DIR}/build/${file}" "${soundor_three_dir}/${file}" "${file}")
+      list(APPEND soundor_three_outputs "${soundor_three_dir}/${file}")
+    endforeach()
+    add_custom_target(soundor_three_modules DEPENDS ${soundor_three_outputs})
+    add_dependencies(soundor_runtime_tests soundor_three_modules)
+    target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_THREE_DIR="${soundor_three_dir}")
+    target_sources(soundor_runtime_tests PRIVATE gpu/CompositorTests.cpp gpu/DeviceTests.cpp gpu/PresentationTests.cpp
+      gpu/WebGLTests.cpp gpu/ZeroCopyTests.cpp gpu/ThreeTests.cpp)
+    if(APPLE)
+      target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.mm)
+    else()
+      target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.cpp)
+    endif()
+    target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
+  endif()
+
+  if(SOUNDOR_HAS_ACCESSKIT)
+    target_sources(soundor_runtime_tests PRIVATE a11y/AccessKitTests.cpp)
+    target_link_libraries(soundor_runtime_tests PRIVATE soundor_accesskit)
+    target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
+  endif()
+
+  if(APPLE AND NOT IOS)
+    target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm)
+    target_link_libraries(soundor_runtime_tests PRIVATE "-framework AppKit")
+    set_target_properties(soundor_runtime_tests PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON)
+    target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
+  endif()
+
+  add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
+
+  # soundor_embed_directory() called from another project's scope (as setup.cmake
+  # does) must still find its script.
+  add_test(
+    NAME soundor_embed_from_consumer_scope
+    COMMAND ${CMAKE_COMMAND} -E env --unset=CMAKE_GENERATOR
+            ${CMAKE_CTEST_COMMAND}
+            --build-and-test ${CMAKE_CURRENT_SOURCE_DIR}/embed-scope ${CMAKE_CURRENT_BINARY_DIR}/embed-scope
+            --build-generator ${CMAKE_GENERATOR}
+            --build-target embed_scope_check
+            --build-options -DSOUNDOR_NATIVE_DIR=${SoundorEngine_SOURCE_DIR}
+                            -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR}
+                            -DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=${SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR}
+                            -DCMAKE_BUILD_TYPE=Debug)
 endif()
-
-if(SOUNDOR_HAS_ACCESSKIT)
-  target_sources(soundor_runtime_tests PRIVATE a11y/AccessKitTests.cpp)
-  target_link_libraries(soundor_runtime_tests PRIVATE soundor_accesskit)
-  target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
-endif()
-
-if(APPLE AND NOT IOS)
-  target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm)
-  target_link_libraries(soundor_runtime_tests PRIVATE "-framework AppKit")
-  set_target_properties(soundor_runtime_tests PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED ON)
-  target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
-endif()
-
-add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
-
-# soundor_embed_directory() called from another project's scope (as setup.cmake
-# does) must still find its script.
-add_test(
-  NAME soundor_embed_from_consumer_scope
-  COMMAND ${CMAKE_COMMAND} -E env --unset=CMAKE_GENERATOR
-          ${CMAKE_CTEST_COMMAND}
-          --build-and-test ${CMAKE_CURRENT_SOURCE_DIR}/embed-scope ${CMAKE_CURRENT_BINARY_DIR}/embed-scope
-          --build-generator ${CMAKE_GENERATOR}
-          --build-target embed_scope_check
-          --build-options -DSOUNDOR_NATIVE_DIR=${SoundorEngine_SOURCE_DIR}
-                          -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR}
-                          -DCMAKE_BUILD_TYPE=Debug)
 
 # Symbol isolation: a plugin-shaped shared library that links the runtime must
 # export only its own entry point — never Hermes or Soundor internals.
 # Sanitizer builds export their own instrumentation markers, so the check runs
 # on regular builds only.
 if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
-  add_library(soundor_symbol_probe MODULE symbols/Probe.cpp)
-  target_link_libraries(soundor_symbol_probe PRIVATE Soundor::Engine)
-  soundor_configure_target(soundor_symbol_probe)
-  # The probe renders on the GPU too, so ANGLE is linked in and checked.
-  target_include_directories(soundor_symbol_probe PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
-  if(SOUNDOR_HAS_GPU)
-    target_link_libraries(soundor_symbol_probe PRIVATE soundor_angle)
-    target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=1)
-  else()
-    target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=0)
-  endif()
-
   find_program(SOUNDOR_NM_EXE NAMES nm llvm-nm REQUIRED)
-  add_test(
-    NAME soundor_exported_symbols
-    COMMAND ${CMAKE_COMMAND}
-      -DLIBRARY=$<TARGET_FILE:soundor_symbol_probe>
-      -DNM=${SOUNDOR_NM_EXE}
-      -DAPPLE=${APPLE}
-      -DALLOWED=soundor_probe_entry
-      -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+  if(SOUNDOR_JS_SOURCE)
+    add_library(soundor_symbol_probe MODULE symbols/Probe.cpp)
+    target_link_libraries(soundor_symbol_probe PRIVATE Soundor::Engine)
+    soundor_configure_target(soundor_symbol_probe)
+    # The probe renders on the GPU too, so ANGLE is linked in and checked.
+    target_include_directories(soundor_symbol_probe PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
+    if(SOUNDOR_HAS_GPU)
+      target_link_libraries(soundor_symbol_probe PRIVATE soundor_angle)
+      target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=1)
+    else()
+      target_compile_definitions(soundor_symbol_probe PRIVATE SOUNDOR_HAS_GPU=0)
+    endif()
+    add_test(
+      NAME soundor_exported_symbols
+      COMMAND ${CMAKE_COMMAND}
+        -DLIBRARY=$<TARGET_FILE:soundor_symbol_probe>
+        -DNM=${SOUNDOR_NM_EXE}
+        -DAPPLE=${APPLE}
+        -DALLOWED=soundor_probe_entry
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+  endif()
 
   # Negative control: proves the check really fails on a leaked symbol.
   add_library(soundor_symbol_leak_probe MODULE symbols/LeakyProbe.cpp)
@@ -211,16 +218,28 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
 endif()
 
 # Coexistence: two plugin-shaped libraries link the same engine archive and
-# package ABI namespace, loaded into one process by a host program.
-add_library(soundor_coexist_a MODULE coexistence/Plugin.cpp)
-target_link_libraries(soundor_coexist_a PRIVATE Soundor::Engine)
-target_compile_definitions(soundor_coexist_a PRIVATE SOUNDOR_COEXIST_COLOR="red")
-soundor_configure_target(soundor_coexist_a)
-
-add_library(soundor_coexist_b MODULE coexistence/Plugin.cpp)
-target_link_libraries(soundor_coexist_b PRIVATE Soundor::Engine)
-target_compile_definitions(soundor_coexist_b PRIVATE SOUNDOR_COEXIST_COLOR="blue")
-soundor_configure_target(soundor_coexist_b)
+# package ABI namespace, loaded into one process by a host program. Each
+# embeds its own UI bundle, as a plugin does: a box in its color that logs
+# its click count.
+foreach(plugin a:red b:blue)
+  string(REPLACE ":" ";" plugin "${plugin}")
+  list(GET plugin 0 name)
+  list(GET plugin 1 color)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/coexist-${name}/bundle.js" "\
+(function (exports, require) {
+  const { root, createView } = require('soundor:ui');
+  let count = 0;
+  const box = createView({ width: 64, height: 64, backgroundColor: '${color}' });
+  box.addEventListener('click', () => { count += 1; console.log('count=' + count); });
+  root.appendChild(box);
+});
+")
+  add_library(soundor_coexist_${name} MODULE coexistence/Plugin.cpp)
+  target_link_libraries(soundor_coexist_${name} PRIVATE Soundor::Engine)
+  target_compile_definitions(soundor_coexist_${name} PRIVATE SOUNDOR_COEXIST_COLOR="${color}")
+  soundor_embed_ui(soundor_coexist_${name} coexistUi "${CMAKE_CURRENT_BINARY_DIR}/coexist-${name}")
+  soundor_configure_target(soundor_coexist_${name})
+endforeach()
 
 # Each "plugin" drives the GPU through the runtime's own ANGLE, linked into it.
 foreach(module soundor_coexist_a soundor_coexist_b)
@@ -247,12 +266,15 @@ add_test(
 if(WIN32)
   # A crashed runtime or a loader-lock deadlock must fail the job rather than
   # prevent its subsequent crash diagnostics from ever running.
-  set_tests_properties(soundor_runtime_tests soundor_coexistence PROPERTIES TIMEOUT 180)
+  set_tests_properties(soundor_coexistence PROPERTIES TIMEOUT 180)
+  if(SOUNDOR_JS_SOURCE)
+    set_tests_properties(soundor_runtime_tests PROPERTIES TIMEOUT 180)
+  endif()
 endif()
 # The macOS accessibility bridge in a plugin host: two plugin binaries with
 # their own runtimes (and so their own element classes), loaded together,
 # destroyed and unloaded while an element is still held.
-if(APPLE AND NOT IOS)
+if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
   foreach(variant a b)
     add_library(soundor_apple_module_${variant} MODULE apple/Module.mm)
     target_include_directories(soundor_apple_module_${variant} PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
@@ -304,7 +326,7 @@ endif()
 
 
 # soundor_run_ui: a UI bundle run headless on the GPU (see tools/RunUi.cpp).
-if(SOUNDOR_HAS_GPU)
+if(SOUNDOR_HAS_GPU AND SOUNDOR_JS_SOURCE)
   add_executable(soundor_run_ui tools/RunUi.cpp)
   target_include_directories(soundor_run_ui PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
   target_link_libraries(soundor_run_ui PRIVATE Soundor::Engine soundor_angle)
@@ -317,6 +339,32 @@ foreach(consumer soundor_runtime_tests soundor_symbol_probe soundor_coexist_a so
   endif()
 endforeach()
 
+add_test(NAME soundor_engine_abi_namespace COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/abi/Namespace.cmake)
+
+# Without DevTools (production, the release prebuilt), none of its code is in
+# the engine.
+if(NOT WIN32 AND NOT SOUNDOR_ENABLE_DEVTOOLS AND SOUNDOR_NM_EXE)
+  add_test(NAME soundor_engine_without_devtools
+    COMMAND ${CMAKE_COMMAND} -DLIBRARY=$<TARGET_FILE:soundor_runtime> -DNM=${SOUNDOR_NM_EXE}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckNoDevTools.cmake)
+endif()
+
+# A prebuilt engine for another version, platform, variant... is rejected
+# before anything links it, saying why.
+if(SOUNDOR_ENGINE_PREBUILT)
+  foreach(variant debug release)
+    string(TOUPPER "${variant}" upper)
+    if(SOUNDOR_ENGINE_PREBUILT_${upper}_DIR)
+      add_test(NAME soundor_prebuilt_rejects_${variant}
+        COMMAND ${CMAKE_COMMAND} -DENGINE=${SoundorEngine_SOURCE_DIR}
+                -DARCHIVE=${SOUNDOR_ENGINE_PREBUILT_${upper}_DIR} -DVARIANT=${variant}
+                -DGENERATOR=${CMAKE_GENERATOR} -DWORK=${CMAKE_CURRENT_BINARY_DIR}/prebuilt-rejects-${variant}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/prebuilt/Rejects.cmake)
+      set_tests_properties(soundor_prebuilt_rejects_${variant} PROPERTIES TIMEOUT 600)
+    endif()
+  endforeach()
+endif()
+
 if(NOT SOUNDOR_ENABLE_SANITIZERS)
   add_test(NAME soundor_engine_abi
     COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/abi -B ${CMAKE_CURRENT_BINARY_DIR}/abi
@@ -324,10 +372,11 @@ if(NOT SOUNDOR_ENABLE_SANITIZERS)
       -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
       -DENGINE_ARCHIVE=$<TARGET_FILE:soundor_runtime>
       -DENGINE_ABI_HEADER=${CMAKE_CURRENT_BINARY_DIR}/../generated/soundor/Abi.h
+      -DENGINE_CONFIG=$<IF:$<CONFIG:Debug>,Debug,Release>
       -DENGINE_DEVTOOLS=$<IF:$<AND:$<BOOL:${SOUNDOR_ENABLE_DEVTOOLS}>,$<CONFIG:Debug>>,1,0>)
 endif()
 
-if(APPLE AND NOT IOS)
+if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_EXPECTED_ABI="${SOUNDOR_ABI_NAMESPACE}")
   target_compile_definitions(soundor_apple_host PRIVATE SOUNDOR_EXPECTED_ABI="${SOUNDOR_ABI_NAMESPACE}")
 endif()

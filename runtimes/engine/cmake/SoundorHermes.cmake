@@ -20,6 +20,7 @@
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 
 set(SOUNDOR_HERMES_DIR "" CACHE PATH "A Hermes install made by SoundorHermesBuild.cmake; empty: build one into the Soundor cache")
 # Hermes compiled for link-time optimization (ThinLTO with Clang): its code is
@@ -171,7 +172,6 @@ if(NOT TARGET soundor_hermesc)
 endif()
 
 file(STRINGS "${soundor_hermes_main}/system.txt" soundor_hermes_system)
-find_package(Threads REQUIRED)
 
 foreach(variant full lean)
   set(target soundor_hermes_${variant})
@@ -208,8 +208,5 @@ foreach(variant full lean)
     INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${soundor_hermes_main}/include"
     # As Hermes was built (cmake/hermes/CMakeLists.txt): nothing exported.
     INTERFACE_COMPILE_DEFINITIONS "JSI_EXPORT=;HERMES_EXPORT=")
-  target_link_libraries(${target} INTERFACE ${libraries} ${soundor_hermes_system} Threads::Threads ${CMAKE_DL_LIBS})
-  if(APPLE)
-    target_link_libraries(${target} INTERFACE "-framework CoreFoundation" "-framework Foundation")
-  endif()
+  target_link_libraries(${target} INTERFACE ${libraries} ${soundor_hermes_system} ${SOUNDOR_HERMES_SYSTEM_LIBRARIES})
 endforeach()

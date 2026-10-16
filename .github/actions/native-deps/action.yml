@@ -10,9 +10,9 @@ outputs:
   cache-key:
     description: The key to save the cache under at the end of the job
     value: ${{ steps.restore.outputs.cache-primary-key }}
-  cache-hit:
-    description: Whether the cache was restored from exactly that key
-    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-matched-key:
+    description: The key of the restored cache, for ./.github/actions/native-deps-save
+    value: ${{ steps.restore.outputs.cache-matched-key }}
 
 runs:
   using: composite
@@ -64,11 +64,9 @@ runs:
 
     # Each build lives in a directory keyed by what made it, so an older cache
     # is a fine start: only what changed is built again. The job saves it at
-    # its end, also when tests failed (see verify.yml), so a long build is
-    # never done twice.
-    # The key covers what each of them is built from: a cache that matches it
-    # exactly is not saved again, so a change it missed would be built anew
-    # by every run.
+    # its end, also when tests failed, under this key and the builds it holds
+    # complete (./.github/actions/native-deps-save), so a long build is never
+    # done twice. The newest entry for the same recipes is restored first.
     - name: Restore Skia, ANGLE and Hermes
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -76,4 +74,5 @@ runs:
         path: ${{ runner.temp }}/soundor-cache
         key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
         restore-keys: |
+          native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
           native-deps-${{ inputs.job }}-

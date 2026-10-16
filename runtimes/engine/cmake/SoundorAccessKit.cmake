@@ -22,6 +22,7 @@
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 
 option(SOUNDOR_ACCESSKIT "Present accessibility through AccessKit on Windows and Linux" ON)
 set(SOUNDOR_ACCESSKIT_DIR "" CACHE PATH "An extracted accesskit-c release; empty: download the pinned one")
@@ -102,21 +103,7 @@ if(soundor_accesskit_platform)
   set_target_properties(soundor_accesskit PROPERTIES IMPORTED_LOCATION "${soundor_accesskit_library}")
   # A system include: the header is AccessKit's, not Soundor's to lint.
   target_include_directories(soundor_accesskit SYSTEM INTERFACE "${SOUNDOR_ACCESSKIT_DIR}/include")
-  if(WIN32)
-    # The libraries the Rust standard library and UI Automation need; comctl32
-    # for the window subclass Soundor installs.
-    target_link_libraries(soundor_accesskit INTERFACE
-      bcrypt ntdll propsys runtimeobject uiautomationcore userenv ws2_32 comctl32)
-  else()
-    # The archive's symbols have default visibility: hide every one of them
-    # in whatever shared library links it. A flag in the link line (not a
-    # link option) so it reaches the plugin through static libraries.
-    target_link_libraries(soundor_accesskit INTERFACE
-      "-Wl,--exclude-libs,libaccesskit.a" m ${CMAKE_DL_LIBS} Threads::Threads)
-    if(ANDROID)
-      target_link_libraries(soundor_accesskit INTERFACE android log)
-    endif()
-  endif()
+  target_link_libraries(soundor_accesskit INTERFACE ${SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES})
   set(SOUNDOR_HAS_ACCESSKIT ON)
 elseif(SOUNDOR_ACCESSKIT AND NOT APPLE)
   message(STATUS "No prebuilt AccessKit for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}: building without platform accessibility")

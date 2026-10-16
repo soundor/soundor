@@ -1,0 +1,49 @@
+name: Save native dependencies
+description: Saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked
+
+inputs:
+  key:
+    description: native-deps's cache-key output
+    required: true
+  restored:
+    description: native-deps's cache-matched-key output (empty when nothing was restored)
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # A cache key cannot be overwritten, and a job may stop halfway (a failed
+    # test, a dependency's server down). So the key names which builds are
+    # complete: a job that completed more saves a new entry, which later jobs
+    # restore (by prefix, the most recent first); one that completed nothing
+    # new saves nothing.
+    - name: Name the complete builds
+      id: key
+      shell: bash
+      env:
+        KEY: ${{ inputs.key }}
+        RESTORED: ${{ inputs.restored }}
+      run: |
+        node --input-type=module -e "
+          import { createHash } from 'node:crypto';
+          import { appendFileSync, existsSync, readdirSync } from 'node:fs';
+          import { join } from 'node:path';
+          const root = process.env.SOUNDOR_CACHE;
+          // What marks each build complete (SoundorSkia/Angle/Hermes/AccessKit.cmake).
+          const complete = (name) =>
+            ['defines.txt', 'libs.txt', 'include/accesskit.h', 'release/hermes.txt', 'md/hermes.txt', 'mdd/hermes.txt']
+              .filter((marker) => existsSync(join(root, name, marker)))
+              .map((marker) => name + '/' + marker);
+          const builds = existsSync(root) ? readdirSync(root).sort().flatMap(complete) : [];
+          const key = process.env.KEY + '-' + createHash('sha256').update(builds.join('\n')).digest('hex').slice(0, 16);
+          const save = builds.length > 0 && key !== process.env.RESTORED;
+          console.log((save ? 'Saving ' : 'Not saving ') + key + ':\n  ' + builds.join('\n  '));
+          appendFileSync(process.env.GITHUB_OUTPUT, 'key=' + key + '\nsave=' + save + '\n');"
+
+    - name: Save
+      if: steps.key.outputs.save == 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/soundor-cache
+        key: ${{ steps.key.outputs.key }}

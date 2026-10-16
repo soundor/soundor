@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <string>
 #include <vector>
 #if SOUNDOR_TEST_GPU
@@ -59,6 +60,17 @@ namespace
 
 TEST_SUITE("Native DevTools inspector")
 {
+    TEST_CASE("numbers are JSON that reads back exactly, in the shortest form")
+    {
+        CHECK(debug::Value(0.5).json() == "0.5");
+        CHECK(debug::Value(0.1).json() == "0.1");
+        CHECK(debug::Value(3.0).json() == "3");
+        CHECK(debug::Value(-1e21).json() == "-1e+21");
+        CHECK(debug::Value(std::numeric_limits<double>::infinity()).json() == "null");
+        for (const double value : { 1.0 / 3.0, 2.0 / 3.0, 0.1 + 0.2, 123456.789e-30 })
+            CHECK(std::stod(debug::Value(value).json()) == value);
+    }
+
     TEST_CASE("real tree snapshots and details include layout, presentation and accessibility")
     {
         Fixture f;

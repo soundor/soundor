@@ -16,6 +16,7 @@
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 
 set(SOUNDOR_SKIA_DIR "" CACHE PATH "A Skia install made by SoundorSkiaBuild.cmake; empty: build one into the Soundor cache")
 
@@ -129,14 +130,4 @@ file(STRINGS "${SOUNDOR_SKIA_DIR}/defines.txt" soundor_skia_defines REGEX "^SK")
 # Skia is always a release build; its headers must agree whatever we build.
 target_compile_definitions(soundor_skia INTERFACE SK_RELEASE ${soundor_skia_defines})
 target_include_directories(soundor_skia SYSTEM INTERFACE "${SOUNDOR_SKIA_DIR}")
-
-if(APPLE)
-  target_link_libraries(soundor_skia INTERFACE
-    "-framework CoreFoundation" "-framework CoreGraphics" "-framework CoreText" "-framework ImageIO")
-elseif(WIN32)
-  target_link_libraries(soundor_skia INTERFACE dwrite usp10 fontsub user32 ole32 oleaut32)
-else()
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(SOUNDOR_FONTS REQUIRED IMPORTED_TARGET GLOBAL fontconfig freetype2)
-  target_link_libraries(soundor_skia INTERFACE PkgConfig::SOUNDOR_FONTS ${CMAKE_DL_LIBS})
-endif()
+target_link_libraries(soundor_skia INTERFACE ${SOUNDOR_SKIA_SYSTEM_LIBRARIES})
