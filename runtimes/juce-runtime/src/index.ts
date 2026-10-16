@@ -165,7 +165,7 @@ export async function juceDev(
   });
   await run({
     cmd: 'cmake',
-    args: ['--build', buildDir, '--config', 'Debug'],
+    args: ['--build', buildDir, '--config', 'Debug', '--parallel'],
     cwd: projectDir,
     logger: ctx.logger,
     signal: ctx.signal,
@@ -263,7 +263,7 @@ export async function juceBuild(
   });
   await run({
     cmd: 'cmake',
-    args: ['--build', buildDir, '--config', 'Release'],
+    args: ['--build', buildDir, '--config', 'Release', '--parallel'],
     cwd: projectDir,
     logger: ctx.logger,
     signal: ctx.signal,

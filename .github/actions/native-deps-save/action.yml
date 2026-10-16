@@ -1,5 +1,5 @@
 name: Save native dependencies
-description: Saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked
+description: Saves the Skia, ANGLE and Hermes builds of ./.github/actions/native-deps when the job completed any that the restored cache lacked, and on main the compiler cache
 
 inputs:
   key:
@@ -47,3 +47,10 @@ runs:
       with:
         path: ${{ runner.temp }}/soundor-cache
         key: ${{ steps.key.outputs.key }}
+
+    - name: Save compiler cache
+      if: env.SOUNDOR_CCACHE_KEY != '' && github.ref == 'refs/heads/main'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/ccache
+        key: ${{ env.SOUNDOR_CCACHE_KEY }}

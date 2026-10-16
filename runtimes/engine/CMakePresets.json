@@ -164,6 +164,14 @@
       }
     },
     {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "sanitize",
       "configurePreset": "sanitize",
       "configuration": "Debug",
