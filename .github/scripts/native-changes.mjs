@@ -1,4 +1,6 @@
 // Unknown bases run all native coverage. Keep shared codegen and CI inputs broad.
+// Markdown is documentation, except the engine's notices: prebuilt archives
+// carry NOTICE.md and licenses/ (SoundorEngineStage.cmake).
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 const base = process.env.BASE_SHA;
@@ -11,7 +13,12 @@ if (base && !/^0+$/.test(base)) {
     { encoding: 'utf8' },
   )
     .trim()
-    .split('\n');
+    .split('\n')
+    .filter(
+      (path) =>
+        !path.endsWith('.md') ||
+        /^runtimes\/engine\/(NOTICE\.md$|licenses\/)/.test(path),
+    );
   engine = paths.some((path) =>
     /^(runtimes\/engine\/|runtimes\/juce-runtime\/(src\/native-codegen|scripts\/webgl-codegen)|packages\/(core|config|runtime-sdk)\/|configs\/|scripts\/|examples\/benchmark\/|\.github\/|\.clang|\.nvmrc$|\.node-version$|\.npmrc$|pnpm-|package\.json$|turbo\.json$)/.test(
       path,
