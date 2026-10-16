@@ -2,16 +2,6 @@
 
 Project scaffolder for Soundor applications.
 
-## Usage
-
-```sh
-pnpm create soundor-app my-plugin
-```
-
-The generated project includes a Soundor config (plugin identity, parameters,
-the JUCE runtime) and its dependencies. The plugin UI entry point arrives with
-Soundor's JavaScript UI bundling.
-
-## License
-
-MIT
+- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/create-soundor-app.md)
+- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)

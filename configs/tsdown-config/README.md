@@ -2,11 +2,6 @@
 
 Workspace-only shared `tsdown` presets for Soundor packages.
 
-## Usage
-
-This package is private to the Soundor monorepo and is not published to npm.
-Soundor packages import it from the pnpm workspace during development and CI.
-
-## License
-
-MIT
+- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/tsdown-config.md)
+- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)

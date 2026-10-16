@@ -1,7 +1,18 @@
 # The iOS bridge
 
+[Documentation](README.md) · [The idea](overview.md) · [Getting started](getting-started.md) · [Architecture](architecture.md)
+
+Source: [`runtimes/engine/src/a11y/apple/`](../runtimes/engine/src/a11y/apple/).
+
+**On this page**
+
+- [State](#state)
+- [What a runtime has to provide](#what-a-runtime-has-to-provide)
+- [How VoiceOver's gestures map](#how-voiceovers-gestures-map)
+- [Device checklist](#device-checklist)
+
 `IosPlatform.mm` presents the semantic tree to VoiceOver on iOS as virtual
-`UIAccessibilityElement`s. It follows the macOS bridge's rules (`README.md`):
+`UIAccessibilityElement`s. It follows the [macOS bridge's rules](apple-accessibility.md):
 
 - one runtime-made element class per binary, with a random,
   ABI-namespaced name, from `AppleShared.mm`;
@@ -78,3 +89,7 @@ On an iPhone or iPad with VoiceOver on, once a runtime hosts Soundor on iOS:
       the right controls.
 - [ ] Closing and reopening the plugin view: no stale or missing elements.
 - [ ] Two instances of the plugin, where the host allows: each reads its own.
+
+---
+
+Previous: [Soundor's Apple accessibility bridge](apple-accessibility.md) · Next: [WebGL IDL](webgl-codegen.md)

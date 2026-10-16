@@ -5,8 +5,6 @@
 `714857a28445e8f5d8d6ae1c78498578009534d8`, unchanged (their license is in
 their headers).
 
-`runtimes/juce-runtime/scripts/webgl-codegen.mjs` generates the constants and
-the plain methods of Soundor's `WebGL2RenderingContext` from them
-(`../generated/`); `pnpm --filter @soundor/juce-runtime gen:webgl` runs it, and
-a test checks the checked-in output is up to date. Updating the IDL is
-replacing these two files and regenerating.
+- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/webgl-codegen.md)
+- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)

@@ -1,5 +1,20 @@
 # Soundor Engine
 
+[Documentation](README.md) · [The idea](overview.md) · [Getting started](getting-started.md) · [Architecture](architecture.md)
+
+**On this page**
+
+- [Architecture and dependencies](#architecture-and-dependencies)
+- [Prebuilt and source mode](#prebuilt-and-source-mode)
+- [Debug and Release](#debug-and-release)
+- [Supported platforms](#supported-platforms)
+- [ABI versioning](#abi-versioning)
+- [Distribution and integrity](#distribution-and-integrity)
+- [Developing the engine (pnpm workspace)](#developing-the-engine-pnpm-workspace)
+- [Debugging native engine code](#debugging-native-engine-code)
+- [Troubleshooting](#troubleshooting)
+- [Licenses and attribution](#licenses-and-attribution)
+
 The Soundor Engine (`@soundor/engine`) is the native C++ runtime inside every
 Soundor plugin: it runs the UI's JavaScript in Hermes, lays it out with Yoga,
 draws it with Skia (and WebGL through ANGLE), and presents its accessibility
@@ -15,7 +30,7 @@ bindings, and links the engine as one CMake target, `Soundor::Engine`.
 | Depends on JUCE | never                                              | yes (your JUCE checkout, never downloaded)    |
 | Ships binaries  | as a separate prebuilt release                     | no                                            |
 
-The [engine reference](../runtimes/engine/README.md) documents its API, its
+The [engine reference](engine-reference.md) documents its API, its
 modules and its internals; this page is about getting it into a plugin.
 
 ## Architecture and dependencies
@@ -134,7 +149,7 @@ cmake --workflow --preset sanitize     # with ASan/UBSan
 
 `cmake --workflow --preset prebuilt-debug` (and `-release`) builds an archive's
 contents locally; `.github/workflows/engine-prebuilts.yml` builds the real ones
-(see the [reference](../runtimes/engine/README.md#prebuilt-engines)).
+(see the [reference](engine-reference.md#prebuilt-engines)).
 
 ## Debugging native engine code
 
@@ -168,3 +183,7 @@ npm package the ones the dependencies' own builds leave out
 contains the engine**, so distribute those notices with it, whichever mode
 built it. JUCE is never part of the engine; its license is between you and
 JUCE.
+
+---
+
+Previous: [@soundor/web-runtime](web-runtime.md) · Next: [Testing Soundor](testing.md)
