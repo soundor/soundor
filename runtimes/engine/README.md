@@ -310,7 +310,7 @@ source.
   file name in stack traces (a `sourceURL` comment); the bytecode keeps line
   and column numbers, not the source. Without `-fno-inline`, `-O` would inline
   small functions and drop their frames from stack traces; measured with
-  `examples/benchmark`, inlining saved no time.
+  `tools/benchmark`, inlining saved no time.
 - **Only from the build:** Hermes runs bytecode without defending against a
   hostile writer, so only bytecode compiled into the binary is read
   (`Resources::builtIn()`): a UI in a directory (`soundor dev`) is always
@@ -796,7 +796,7 @@ its headers.
   total and per phase: a UI names what it is doing in
   `globalThis.soundorRunUiPhase`. Ticks that render nothing are counted and
   timed apart. `--json` writes the report, `--backend` picks ANGLE's backend,
-  `--time-native-calls` times native calls. `examples/benchmark` uses it
+  `--time-native-calls` times native calls. `tools/benchmark` uses it
   (`pnpm bench` there).
 - **Tests:** the GPU tests run on whatever device there is, software ones
   included, and say they were skipped when there is none. CI provides one
@@ -971,7 +971,7 @@ For repeatable scenario comparisons, `--collect-between-phases` collects and
 drains detached-stage finalizers once before each named phase, flushes setup
 damage, and then resets timing/counter baselines. Collections triggered by the
 measured workload remain included. Normal plugin execution does not use this
-benchmark-only preparation. See [animation benchmarks](../../../examples/benchmark/README.md#animation-baselines)
+benchmark-only preparation. See [animation benchmarks](../../tools/benchmark/README.md#animation-baselines)
 for scenarios, recorded Hermes revisions and alternating saved-build comparisons.
 
 ### `DevSession`
@@ -1201,7 +1201,7 @@ build with QuickJS-NG before it (both linked with `--gc-sections`):
 | What                                     | QuickJS-NG | Hermes   | Difference |
 | ---------------------------------------- | ---------- | -------- | ---------- |
 | `examples/basic` (React UI), VST3 binary | 20.79 MB   | 21.84 MB | +1.05 MB   |
-| `examples/benchmark` (React, Three.js)   | 21.44 MB   | 22.72 MB | +1.29 MB   |
+| `tools/benchmark` (React, Three.js)      | 21.44 MB   | 22.72 MB | +1.29 MB   |
 | …its UI bundle's bytecode                | 832 kB     | 1,149 kB | +316 kB    |
 | …the runtime's own modules' bytecode     | 205 kB     | 400 kB   | +195 kB    |
 | `examples/basic`'s UI bundle's bytecode  | 184 kB     | 262 kB   | +78 kB     |

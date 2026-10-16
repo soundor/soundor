@@ -292,7 +292,9 @@ and host/parameter subscriptions. `primitives` tests pointer/keyboard/accessibil
 knob changes, nested modal focus, hosted portals, and animation lifecycle.
 
 Native application builds remain separate: `pnpm --filter basic --filter primitives
-exec soundor build juce`. These simulated tests cannot replace native runtime
+exec soundor build juce`. CI does not build the examples natively; the JUCE
+integration job builds `@soundor/juce-runtime`'s own test plugin
+(`pnpm --filter @soundor/juce-runtime test:plugin`). These simulated tests cannot replace native runtime
 checks or validate pixels, DSP, plugin formats, or host integration. Future native
 Vitest support can supply its own environment and `@soundor/vitest/native` plugin;
 no placeholder native entry point is published today.

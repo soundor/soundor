@@ -122,7 +122,7 @@ published, naming each archive's URL and SHA-256.
 ## Developing the engine (pnpm workspace)
 
 Inside this repository `@soundor/engine` is the local package: it has no
-manifest, so the examples use `mode: 'source'`, and an engine edit is compiled
+manifest, so the examples and the JUCE test plugin use `mode: 'source'`, and an engine edit is compiled
 into the next `soundor dev` or `soundor build` with no publishing. The native
 tests run without JUCE:
 

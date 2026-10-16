@@ -6,11 +6,11 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
-// The packages each job builds. An example counts only for its own files: it
-// depends on every package its plugin uses, which the job is not about.
+// The package each job tests.
 const JOBS = {
-  native: { '@soundor/engine': 'any', 'soundor-benchmark': 'own' },
-  juce: { '@soundor/juce-runtime': 'any', basic: 'own' },
+  native: '@soundor/engine',
+  juce: '@soundor/juce-runtime',
+  benchmark: 'soundor-benchmark',
 };
 const CI =
   /^\.github\/(workflows\/verify\.yml|actions\/|scripts\/native-changes)/;
@@ -31,7 +31,7 @@ function affectedPackages() {
     'query',
     'affected',
     '--packages',
-    ...Object.values(JOBS).flatMap(Object.keys),
+    ...Object.values(JOBS),
     '--base',
     base,
     '--head',
@@ -43,7 +43,9 @@ function affectedPackages() {
         encoding: 'utf8',
         shell: process.platform === 'win32',
       });
-  return JSON.parse(output).data.affectedPackages.items;
+  return new Set(
+    JSON.parse(output).data.affectedPackages.items.map((item) => item.name),
+  );
 }
 
 // The detection job does not install the workspace: it runs the locked turbo.
@@ -60,15 +62,6 @@ const affected =
 appendFileSync(
   process.env.GITHUB_OUTPUT,
   Object.entries(JOBS)
-    .map(([job, packages]) => {
-      const run =
-        affected === null ||
-        affected.some(
-          ({ name, reason }) =>
-            packages[name] === 'any' ||
-            (packages[name] === 'own' && reason.__typename === 'FileChanged'),
-        );
-      return `${job}=${run}\n`;
-    })
+    .map(([job, name]) => `${job}=${affected === null || affected.has(name)}\n`)
     .join(''),
 );

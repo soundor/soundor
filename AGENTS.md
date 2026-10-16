@@ -67,6 +67,7 @@ cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -rel
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
 (cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
+pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
 ```
 
 The first native configure builds Skia, ANGLE and Hermes from source
@@ -75,13 +76,21 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/primitives`, `examples/benchmark`:
-rendering scenarios for WebGL, Canvas 2D and UI updates) are real projects
-using the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
-`... soundor build web|juce`.
+Examples (`examples/basic`, `examples/primitives`) are real projects using
+the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
+`... soundor build web|juce`. They are examples only: no test or native CI job
+builds them. Tests have their own fixtures, inside the package they test:
+`runtimes/juce-runtime/tests/plugin` (and `plugin-prebuilt`, the same plugin
+with a prebuilt engine, which `engine-prebuilts.yml` builds).
 
-Benchmarks (rendering performance, JUCE runtime, headless; see
-`examples/benchmark/README.md`). Measure an optimization against a saved
+Native CI jobs each test one package and run when `turbo query affected`
+reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
+Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
+`soundor-benchmark`. What a job builds must therefore be a dependency of its
+package.
+
+Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
+UI updates in the JUCE runtime, headless; see `tools/benchmark/README.md`). Measure an optimization against a saved
 build run alternately in the same session, not against an old report:
 machines drift by several percent between sessions. The "work per frame"
 counts (native calls, style changes, layouts, uploads) do not depend on
