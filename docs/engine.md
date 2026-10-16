@@ -112,9 +112,12 @@ published, naming each archive's URL and SHA-256.
   `~/.cache/soundor`, `~/Library/Caches/Soundor`, `%LOCALAPPDATA%\Soundor\cache`),
   is keyed by SHA-256. An archive is used only after it matched; a corrupt or
   interrupted one is downloaded again. Parallel builds share it safely.
-- Published releases are immutable. A defective one is never edited: a new
-  revision (`-r2`) supersedes it, named by the next engine release. A
-  published npm version keeps the manifest it shipped with.
+- Published releases are immutable, and a published npm version keeps the
+  manifest it shipped with. A defective release is never edited. Before its
+  engine version is on npm, a rebuild of the same commit under the next
+  revision (`-r2`, a manual `publish` run of the workflow) replaces it: the
+  release workflow names the highest published revision. After, the fix is a
+  new engine version, whose release starts again at `-r1`.
 
 ## Developing the engine (pnpm workspace)
 

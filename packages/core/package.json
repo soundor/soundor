@@ -2,6 +2,11 @@
   "name": "@soundor/core",
   "version": "0.8.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/core"
+  },
   "files": [
     "README.md",
     "dist",

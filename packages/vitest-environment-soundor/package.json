@@ -3,6 +3,11 @@
   "version": "0.8.0",
   "description": "Simulated Soundor environment for Vitest",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/vitest-environment-soundor"
+  },
   "files": [
     "README.md",
     "dist"

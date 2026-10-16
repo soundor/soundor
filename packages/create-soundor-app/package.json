@@ -2,6 +2,11 @@
   "name": "create-soundor-app",
   "version": "0.8.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/create-soundor-app"
+  },
   "bin": {
     "create-soundor-app": "./dist/index.mjs"
   },

@@ -37,6 +37,14 @@ test('native input detection covers engine, adapters and shared build inputs', (
       ['.clang-tidy', true, true],
       ['.nvmrc', true, true],
       ['.npmrc', true, true],
+      ['runtimes/engine/README.md', false, false],
+      ['runtimes/engine/CHANGELOG.md', false, false],
+      ['runtimes/engine/src/a11y/apple/README.md', false, false],
+      ['runtimes/juce-runtime/README.md', false, false],
+      ['examples/basic/README.md', false, false],
+      ['.github/pull_request_template.md', false, false],
+      ['runtimes/engine/NOTICE.md', true, true],
+      ['runtimes/engine/licenses/accesskit/crates-linux-x64.md', true, true],
     ]) {
       git('reset', '--hard', base);
       git('clean', '-fdq');
