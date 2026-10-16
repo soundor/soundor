@@ -11,9 +11,9 @@ pnpm add -D vitest @soundor/vitest vitest-environment-soundor @soundor/testing-l
 ```
 
 ```ts
+import { soundor } from '@soundor/vitest';
 // vitest.config.ts
 import { defineConfig } from 'vitest/config';
-import { soundor } from '@soundor/vitest';
 
 export default defineConfig({
   plugins: [soundor()],
@@ -26,8 +26,8 @@ transform. Published `@soundor/react` is transformed through Vite so its
 `soundor:ui` imports work too; React remains an application dependency.
 
 ```ts
-import { test, expect } from 'vitest';
 import { createTextInput, root } from 'soundor:ui';
+import { test, expect } from 'vitest';
 
 test('focuses an input', () => {
   const input = createTextInput({ value: 'Soundor' });
@@ -63,12 +63,12 @@ plugins: [soundor({ runtime: { host: { sampleRate: 96000 } } })];
 Each test starts with this initial state. In tests:
 
 ```ts
-import { beforeEach, vi } from 'vitest';
 import {
   testParameters,
   testHost,
   mockNative,
 } from '@soundor/testing-library/react';
+import { beforeEach, vi } from 'vitest';
 
 beforeEach(() => {
   testParameters.set('gain', 0.75);

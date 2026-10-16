@@ -6,8 +6,8 @@ Install this package and `@soundor/vitest` as direct devDependencies alongside
 Vitest, then configure:
 
 ```ts
-import { defineConfig } from 'vitest/config';
 import { soundor } from '@soundor/vitest';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [soundor()],

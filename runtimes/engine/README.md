@@ -347,7 +347,7 @@ soundor::native::install(context, std::make_shared<Api>());
 
 - **Validation.** Every argument is type-checked before C++ runs, and a mismatch
   is a `TypeError` naming the path, e.g. `centroid(): points[1].y: expected
-number, got undefined`. Missing arguments are errors; extra ones are ignored,
+  number, got undefined`. Missing arguments are errors; extra ones are ignored,
   as for any JavaScript function.
 - **Binary data.** Typed-array and `ArrayBuffer` arguments arrive as read-only
   `std::span`s into the JavaScript buffer: zero-copy, valid until the method
@@ -435,9 +435,9 @@ writes already started complete, and late results are dropped.
 ### `soundor:host`, `soundor:storage`, `soundor:fs`
 
 ```ts
+import { readText, writeText } from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
 import { storage } from 'soundor:storage';
-import { readText, writeText } from 'soundor:fs';
 
 subscribe(({ transport }) => drawPlayhead(transport?.ppqPosition));
 await storage.set('lastPreset', 'warm');
