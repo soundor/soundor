@@ -23,11 +23,11 @@ catalog:
   '@fastify/cookie': ^11.1.3
   '@fastify/static': ^8.3.0
   '@fastify/websocket': ^11.3.4
-  '@playwright/test': 1.63.0
-  '@types/node': ^24.19.1
+  '@playwright/test': 1.64.0
+  '@types/node': ^24.19.2
   '@types/react': ^19.2.17
   '@types/react-dom': ^19.3.0
-  '@types/react-reconciler': ^0.33.1
+  '@types/react-reconciler': ^0.34.0
   '@types/three': 0.186.0
   '@types/ws': ^8.18.1
   citty: ^0.2.2
@@ -36,20 +36,20 @@ catalog:
   happy-dom: ^20.14.5
   husky: ^9.1.7
   lint-staged: ^17.6.0
-  oxfmt: ^0.71.0
-  oxlint: ^1.86.0
+  oxfmt: ^0.73.0
+  oxlint: ^1.88.0
   react: ^19.3.0
   react-dom: ^19.3.0
   react-reconciler: ^0.34.0
-  rolldown: ^1.2.12
+  rolldown: ^1.2.13
   # Exact: the native tests pin the same release (SoundorDependencies.cmake).
   three: 0.186.1
-  tsdown: ^0.23.0
+  tsdown: ^0.23.1
   turbo: ^2.11.6
   typescript: ^7.0.2
-  vite: ^8.3.2
-  vitest: ^5.0.3
-  zod: ^4.6.5
+  vite: ^8.3.4
+  vitest: ^5.0.4
+  zod: ^4.6.7
   ws: ^8.22.0
 
 catalogMode: strict
