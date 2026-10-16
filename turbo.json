@@ -41,11 +41,27 @@
     },
     "lint:native": {
       "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
-      "passThroughEnv": ["CI", "SOUNDOR_CACHE"]
+      "passThroughEnv": [
+        "CI",
+        "SOUNDOR_CACHE",
+        "CMAKE_C_COMPILER_LAUNCHER",
+        "CMAKE_CXX_COMPILER_LAUNCHER",
+        "CMAKE_BUILD_PARALLEL_LEVEL",
+        "CCACHE_*",
+        "SOUNDOR_CLANG_TIDY_CACHE"
+      ]
     },
     "test:native": {
       "env": ["CC", "CXX", "CFLAGS", "CXXFLAGS", "LDFLAGS", "CMAKE_GENERATOR"],
-      "passThroughEnv": ["CI", "SOUNDOR_CACHE"]
+      "passThroughEnv": [
+        "CI",
+        "SOUNDOR_CACHE",
+        "CMAKE_C_COMPILER_LAUNCHER",
+        "CMAKE_CXX_COMPILER_LAUNCHER",
+        "CMAKE_BUILD_PARALLEL_LEVEL",
+        "CCACHE_*",
+        "SOUNDOR_REQUIRE_GPU"
+      ]
     }
   }
 }

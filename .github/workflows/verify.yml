@@ -138,13 +138,34 @@ jobs:
       - name: Build workspace
         if: needs.changes.outputs.native == 'true'
         run: pnpm build
+      # clang-tidy's passes (runtimes/engine/cmake/SoundorClangTidyCache.mjs):
+      # a translation unit whose source, headers and configuration are as
+      # main last saw them is not analyzed again. Saved only on main.
+      - name: Restore clang-tidy results
+        if: needs.changes.outputs.native == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
+          restore-keys: clang-tidy-
       - name: Native static analysis
         if: needs.changes.outputs.native == 'true'
+        env:
+          SOUNDOR_CLANG_TIDY_CACHE: ${{ runner.temp }}/clang-tidy
         run: pnpm turbo run lint:native
+      - name: Save clang-tidy results
+        if: needs.changes.outputs.native == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
 
+      # The tests of the build clang-tidy just made (the dev preset plus
+      # clang-tidy), not a second build of the same sources.
       - name: Native runtime tests
         if: needs.changes.outputs.native == 'true'
-        run: pnpm --filter @soundor/engine test:native
+        working-directory: runtimes/engine
+        run: ctest --preset tidy
 
       # A failed step's errors and the end of its output as an annotation: shown on the PR's
       # checks, and readable through the API without downloading the log.

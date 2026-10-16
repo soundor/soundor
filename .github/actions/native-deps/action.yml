@@ -29,12 +29,22 @@ runs:
     - name: Install build tools (macOS)
       if: runner.os == 'macOS'
       shell: bash
-      run: command -v ninja || brew install ninja
+      run: |
+        command -v ninja || brew install ninja
+        command -v ccache || brew install ccache
 
     - name: Install build tools (Windows)
       if: runner.os == 'Windows'
       shell: bash
       run: command -v ninja || choco install ninja -y --no-progress
+
+    # Visual Studio builds one project at a time unless told otherwise; every
+    # cmake --build reads this (sources within a project: /MP, which the
+    # engine's CMake and JUCE's flags set).
+    - name: Build projects in parallel (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: echo "CMAKE_BUILD_PARALLEL_LEVEL=$NUMBER_OF_PROCESSORS" >> "$GITHUB_ENV"
 
     # Soundor builds Skia, ANGLE and Hermes once per machine into SOUNDOR_CACHE
     # (see runtimes/engine/cmake/SoundorSkia.cmake,
@@ -43,8 +53,12 @@ runs:
       shell: bash
       run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
 
-    - name: Enable compiler cache (Linux)
-      if: runner.os == 'Linux'
+    # Compiler cache where CMake can launch the compiler through it: Ninja and
+    # Makefiles (Linux, macOS), not Visual Studio. Saved only on main
+    # (./.github/actions/native-deps-save): pull requests start from main's,
+    # and one entry per pull request commit would fill the repository's cache.
+    - name: Enable compiler cache
+      if: runner.os != 'Windows'
       shell: bash
       run: |
         echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
@@ -52,15 +66,16 @@ runs:
         echo "CCACHE_DIR=${{ runner.temp }}/ccache" >> "$GITHUB_ENV"
         echo "CCACHE_BASEDIR=${{ github.workspace }}" >> "$GITHUB_ENV"
         echo "CCACHE_MAXSIZE=500M" >> "$GITHUB_ENV"
+        echo "SOUNDOR_CCACHE_KEY=ccache-${{ inputs.job }}-${{ github.job }}-${{ github.sha }}" >> "$GITHUB_ENV"
 
-    - name: Restore compiler cache (Linux)
-      if: runner.os == 'Linux'
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+    - name: Restore compiler cache
+      if: runner.os != 'Windows'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/ccache
-        key: ccache-${{ inputs.job }}-${{ github.sha }}
+        key: ccache-${{ inputs.job }}-${{ github.job }}-${{ github.sha }}
         restore-keys: |
-          ccache-${{ inputs.job }}-
+          ccache-${{ inputs.job }}-${{ github.job }}-
 
     # Each build lives in a directory keyed by what made it, so an older cache
     # is a fine start: only what changed is built again. The job saves it at

@@ -18,6 +18,25 @@ if(SOUNDOR_ENABLE_CLANG_TIDY)
     message(WARNING "clang-tidy not found; building without static analysis")
     set(SOUNDOR_ENABLE_CLANG_TIDY OFF)
   endif()
+  # A directory to remember clang-tidy's passes in (SoundorClangTidyCache.mjs),
+  # so a translation unit that passed is not analyzed again; CI keeps it
+  # across runs. Empty: clang-tidy runs on every compiled file.
+  set(SOUNDOR_CLANG_TIDY_CACHE "$ENV{SOUNDOR_CLANG_TIDY_CACHE}"
+      CACHE PATH "Directory remembering clang-tidy passes (empty: none)")
+  set(SOUNDOR_CLANG_TIDY_COMMAND "${SOUNDOR_CLANG_TIDY_EXE}")
+  if(SOUNDOR_ENABLE_CLANG_TIDY AND SOUNDOR_CLANG_TIDY_CACHE)
+    find_program(SOUNDOR_NODE_EXE NAMES node REQUIRED)
+    set(SOUNDOR_CLANG_TIDY_COMMAND "${SOUNDOR_NODE_EXE}" "${CMAKE_CURRENT_LIST_DIR}/SoundorClangTidyCache.mjs"
+                                   "${SOUNDOR_CLANG_TIDY_CACHE}" "${SOUNDOR_CLANG_TIDY_EXE}")
+  endif()
+endif()
+
+# Visual Studio builds a project's sources one at a time unless cl.exe is
+# given /MP (Ninja and Makefiles run one compiler per source anyway), so every
+# target here, the dependencies Soundor compiles included, compiles in
+# parallel. It changes nothing in what is compiled.
+if(MSVC AND CMAKE_GENERATOR MATCHES "^Visual Studio")
+  add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/MP>)
 endif()
 
 # Sanitizers instrument every object this build compiles, the dependencies it
@@ -68,6 +87,6 @@ function(soundor_configure_target target)
   endif()
 
   if(SOUNDOR_ENABLE_CLANG_TIDY)
-    set_target_properties(${target} PROPERTIES CXX_CLANG_TIDY "${SOUNDOR_CLANG_TIDY_EXE}")
+    set_target_properties(${target} PROPERTIES CXX_CLANG_TIDY "${SOUNDOR_CLANG_TIDY_COMMAND}")
   endif()
 endfunction()
