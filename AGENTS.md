@@ -21,9 +21,9 @@ same lifecycle phases. Two runtimes exist:
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
 
-The packages' READMEs are the authoritative spec of behavior (especially
-`runtimes/juce-runtime/README.md`, `runtimes/engine/README.md`,
-`runtimes/web-runtime/README.md`, `packages/react/README.md`). Keep them in
+The guides in `docs/` are the authoritative spec of behavior (especially
+`docs/juce-runtime.md`, `docs/engine-reference.md`,
+`docs/web-runtime.md`, `docs/react.md`). Keep them in
 sync when behavior changes.
 
 ## Commands
@@ -90,7 +90,7 @@ Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
-UI updates in the JUCE runtime, headless; see `tools/benchmark/README.md`). Measure an optimization against a saved
+UI updates in the JUCE runtime, headless; see `docs/benchmark.md`). Measure an optimization against a saved
 build run alternately in the same session, not against an old report:
 machines drift by several percent between sessions. The "work per frame"
 counts (native calls, style changes, layouts, uploads) do not depend on
@@ -178,7 +178,7 @@ The backends are ARIA (web), AccessKit (Windows, Linux) and Soundor's own
 Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
 types never leave `src/a11y/accesskit/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
-swizzle (see `runtimes/engine/src/a11y/apple/README.md`).
+swizzle (see `docs/apple-accessibility.md`).
 
 ### init vs gen ownership
 
@@ -229,7 +229,7 @@ generated framework or the runtime package, not in `init` templates.
   named by the published engine's `artifacts/manifest.json` (written by the
   release workflow, never committed); the workspace has none, so the
   examples use `source`. User-facing docs: `docs/engine.md`.
-- Prebuilt engines (`runtimes/engine/README.md`, "Prebuilt engines") are the
+- Prebuilt engines (`docs/engine-reference.md`, "Prebuilt engines") are the
   same build, staged and packed per target and variant (debug, release) by
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the

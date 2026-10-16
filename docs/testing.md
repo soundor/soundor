@@ -1,5 +1,20 @@
 # Testing Soundor
 
+[Documentation](README.md) · [The idea](overview.md) · [Getting started](getting-started.md) · [Architecture](architecture.md)
+
+**On this page**
+
+- [Installation and configuration](#installation-and-configuration)
+- [Unit tests](#unit-tests)
+- [Rendering and lifecycle](#rendering-and-lifecycle)
+- [Queries and debugging](#queries-and-debugging)
+- [User interactions](#user-interactions)
+- [Async assertions and animation time](#async-assertions-and-animation-time)
+- [Parameters, host and native services](#parameters-host-and-native-services)
+- [Framework-independent testing](#framework-independent-testing)
+- [Limitations](#limitations)
+- [Repository tests and examples](#repository-tests-and-examples)
+
 Test Soundor applications through their UI and accessibility behavior. Vitest is
 the supported runner. Tests run against the in-memory Soundor runtime in Node;
 they do not execute Hermes, C++, or a browser.
@@ -337,3 +352,7 @@ Renderer implementation tests may inspect submitted animation handles to verify
 reconciler behavior. `getTestRuntime()` from `@soundor/vitest` remains a deprecated
 advanced escape hatch for compatibility; runtime implementation tests should
 import context helpers and `createTestRuntime()` from `@soundor/test-runtime`.
+
+---
+
+Previous: [Soundor Engine](engine.md) · Next: [basic](example-basic.md)
