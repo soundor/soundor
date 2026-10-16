@@ -1378,7 +1378,11 @@ A run first looks for the release of its commit: a published one is verified
 and reused, never rebuilt or replaced; a draft left by an interrupted run is
 finished; a release whose assets or metadata disagree fails the run. Published
 releases are immutable (with the repository's release immutability setting):
-a defective one is superseded by a higher revision, never edited. A new engine
+a defective one is never edited. Only a `publish` run given a higher
+`revision` rebuilds a commit; without one, a run reuses the highest published
+revision, or builds `r1`. So a rebuild replaces a defective release only until
+the engine version is on npm, whose manifest is final: after that, the fix is
+a new engine version. A new engine
 version always needs its own release, even when only documentation changed,
 since the version is the ABI namespace. This release is separate from the
 engine's own npm release and its Changesets GitHub release.
