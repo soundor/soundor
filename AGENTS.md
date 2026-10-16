@@ -216,6 +216,10 @@ generated framework or the runtime package, not in `init` templates.
   every frame; nothing waits for the GPU on the CPU (no `glFinish`); all of
   a device's contexts share textures, so WebGL contexts delete their own
   when they go; Apple code adds no Objective-C classes or categories.
+- `juceRuntime({ engine: { mode } })`: `prebuilt` (default) links the release
+  named by the published engine's `artifacts/manifest.json` (written by the
+  release workflow, never committed); the workspace has none, so the
+  examples use `source`. User-facing docs: `docs/engine.md`.
 - Prebuilt engines (`runtimes/engine/README.md`, "Prebuilt engines") are the
   same build, staged and packed per target and variant (debug, release) by
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports

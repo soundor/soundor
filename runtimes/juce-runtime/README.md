@@ -38,14 +38,15 @@ export default defineSoundorConfig({
 All options are JUCE-specific; the plugin's identity comes from the config's
 top-level `plugin`.
 
-| Option             | Default                                                                       |
-| ------------------ | ----------------------------------------------------------------------------- |
-| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                             |
-| `formats`          | `['vst3']`                                                                    |
-| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                |
-| `pluginCode`       | a stable four-character code derived from `plugin.id`                         |
-| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`      |
-| `timeLimit`        | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none |
+| Option             | Default                                                                         |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `engine`           | `{ mode: 'prebuilt' }`: link the verified prebuilt engine; `'source'` builds it |
+| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                               |
+| `formats`          | `['vst3']`                                                                      |
+| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                  |
+| `pluginCode`       | a stable four-character code derived from `plugin.id`                           |
+| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`        |
+| `timeLimit`        | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none   |
 
 `plugin.id` becomes the bundle identifier and `plugin.name` the product name.
 Deriving the four-character codes from the id keeps two Soundor plugins from
@@ -269,12 +270,15 @@ BSD-3-Clause code): ship its notices with the plugin.
 
 ### Build integration
 
-`setup.cmake` builds the runtime from this package's `native/` sources into the
-plugin. Hermes is fetched at a pinned revision and built once per machine into
-Soundor's cache (several minutes, the first time); no extra developer installs
-are needed. Every Soundor symbol is mangled into the plugin's own ABI
-namespace, derived from the exact `@soundor/engine` version. The plugin binary exports only its format
-entry points.
+`setup.cmake` adds the installed `@soundor/engine` to the plugin and links
+`Soundor::Engine`, with the JUCE adapters from this package's `native/`. By
+default the engine is its prebuilt release: the Debug or Release libraries for
+the platform the plugin targets, downloaded once into Soundor's cache and
+verified by SHA-256 (see [Soundor Engine](#soundor-engine)). In source mode it
+is compiled, Skia, ANGLE and Hermes included (once per machine into the same
+cache; the first time takes a while). Every Soundor symbol is mangled into the
+ABI namespace of the exact `@soundor/engine` version. The plugin binary exports
+only its format entry points.
 
 The UI bundle the CLI built is compiled into the plugin (`soundor_embed_directory`),
 so a plugin needs no files beside itself. The generated editor loads its
@@ -371,13 +375,25 @@ the existing UI tick, independent of Hermes and the audio thread.
 ## Soundor Engine
 
 The native engine is the independently versioned `@soundor/engine` package.
-This runtime depends on its exact version and resolves its installed source
-tree through normal package resolution. Use `juceRuntime({ engine: { mode:
-"source" } })` (currently the default). Workspace engine edits are compiled
-directly; no npm publication is needed. Both JUCE integration and generated
-bindings link `Soundor::Engine`. The engine never includes JUCE.
+This runtime depends on its exact version and resolves it through normal
+package resolution. Both modes give the plugin the same `Soundor::Engine`:
+
+```ts
+juceRuntime(); // { engine: { mode: 'prebuilt' } }: the published engine's prebuilt release
+juceRuntime({ engine: { mode: 'source' } }); // compile the installed engine's sources
+```
+
+`soundor dev` (Debug) links the debug engine: Hermes with its compiler, for
+reloading the UI's source, and DevTools. `soundor build` (Release) links the
+release engine: bytecode only, no DevTools. A prebuilt that is missing, for
+another platform or engine version, or fails its checksum stops the configure
+with the reason; it never falls back to compiling. Inside the pnpm workspace
+the engine is the local package, which has no prebuilt release, so the
+examples use `mode: 'source'` and engine edits are compiled directly. The
+engine never includes JUCE.
 
 The engine version owns the inline C++ ABI namespace. Each final Apple plugin
 format compiles a small accessibility class-registration shim with a distinct
 binary identity, while retaining the engine’s conservative module pinning and
-callback lifetime protections. See the [engine documentation](../engine/README.md).
+callback lifetime protections. See [Soundor Engine](../../docs/engine.md) and
+the [engine reference](../engine/README.md).

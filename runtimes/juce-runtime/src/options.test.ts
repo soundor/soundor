@@ -8,6 +8,7 @@ describe('resolveJuceOptions', () => {
   it('derives every JUCE identity from the plugin', () => {
     const resolved = resolveJuceOptions({}, plugin);
     expect(resolved).toEqual({
+      engineMode: 'prebuilt',
       jucePath: undefined,
       formats: ['vst3'],
       bundleId: 'com.acme.reverb',
@@ -19,13 +20,17 @@ describe('resolveJuceOptions', () => {
     });
   });
 
-  it('accepts the installed source engine provider', () => {
-    expect(() =>
-      resolveJuceOptions({ engine: { mode: 'source' } }, plugin),
-    ).not.toThrow();
+  it('links the prebuilt engine unless the source engine is asked for', () => {
+    expect(resolveJuceOptions({}, plugin).engineMode).toBe('prebuilt');
+    expect(
+      resolveJuceOptions({ engine: { mode: 'prebuilt' } }, plugin).engineMode,
+    ).toBe('prebuilt');
+    expect(
+      resolveJuceOptions({ engine: { mode: 'source' } }, plugin).engineMode,
+    ).toBe('source');
     expect(() =>
       resolveJuceOptions({ engine: { mode: 'unknown' as 'source' } }, plugin),
-    ).toThrow(/supports "source" only/);
+    ).toThrow(/"prebuilt" or "source", not "unknown"/);
   });
 
   it('takes a time limit in milliseconds, or none', () => {

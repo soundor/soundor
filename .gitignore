@@ -71,3 +71,6 @@ playwright-report/
 # Python build-recipe caches
 __pycache__/
 *.pyc
+
+# Written when @soundor/engine is published (.github/workflows/release.yml), never committed
+runtimes/engine/artifacts/manifest.json

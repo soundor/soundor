@@ -39,11 +39,23 @@ option(SOUNDOR_ENABLE_DEVTOOLS "Compile development-only UI inspection (never en
 # saved no time (examples/benchmark) and 315 bytes of a 1.1 MB bundle.
 set(SOUNDOR_HERMESC_FLAGS "-O -fno-inline" CACHE STRING "hermesc's options for the bytecode the build compiles")
 
-# A prebuilt engine: the extracted archives of an engine prebuilt release, one
-# per configuration (README.md, "Prebuilt engines"). Without them, the engine
-# is built from this package's sources.
+# Where the engine comes from (README.md, "Prebuilt engines"):
+#   source    built from this package's sources
+#   prebuilt  the verified archives of the prebuilt release this package names
+#             (downloaded into the Soundor cache; SoundorEngineResolve.cmake)
+# Plugin builds pass juceRuntime({ engine: { mode } }), "prebuilt" by default.
+# Extracted archives can also be given directly, one per configuration.
+set(SOUNDOR_ENGINE_MODE source CACHE STRING "Where the engine comes from: source or prebuilt")
+set_property(CACHE SOUNDOR_ENGINE_MODE PROPERTY STRINGS source prebuilt)
 set(SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR "" CACHE PATH "An extracted Debug engine prebuilt; empty: build from source")
 set(SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR "" CACHE PATH "An extracted Release engine prebuilt; empty: build from source")
+if(NOT SOUNDOR_ENGINE_MODE MATCHES "^(source|prebuilt)$")
+  message(FATAL_ERROR "SOUNDOR_ENGINE_MODE is source or prebuilt, not '${SOUNDOR_ENGINE_MODE}'")
+endif()
+if(SOUNDOR_ENGINE_MODE STREQUAL "prebuilt" AND NOT SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR
+   AND NOT SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR)
+  include(SoundorEngineResolve)
+endif()
 if(SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR OR SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR)
   include(SoundorEnginePrebuilt)
 else()

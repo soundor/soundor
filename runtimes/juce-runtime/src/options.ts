@@ -12,9 +12,18 @@ import type { SoundorConfig } from '@soundor/runtime-sdk';
 /** Plugin binary formats JUCE can emit. */
 export type JuceFormat = 'vst3' | 'au' | 'standalone';
 
+/**
+ * Where the native engine comes from:
+ * - `'prebuilt'` (default): the verified libraries of the prebuilt release the
+ *   installed `@soundor/engine` names, downloaded once into the Soundor cache.
+ * - `'source'`: compiled from the installed `@soundor/engine` sources (in the
+ *   pnpm workspace, the local engine), Skia, ANGLE and Hermes included.
+ */
+export type EngineMode = 'prebuilt' | 'source';
+
 export interface JuceOptions {
-  /** Compile the installed @soundor/engine sources (the workspace package during development). */
-  readonly engine?: { readonly mode: 'source' };
+  /** Where the native engine comes from. Defaults to `{ mode: 'prebuilt' }`. */
+  readonly engine?: { readonly mode: EngineMode };
   /**
    * Absolute or project-relative path to a JUCE checkout. When omitted, the
    * runtime searches `JUCE_DIR` and well-known locations. JUCE is never
@@ -51,6 +60,7 @@ export interface JuceOptions {
 
 /** Everything the JUCE runtime needs, with defaults applied. */
 export interface ResolvedJuceOptions {
+  readonly engineMode: EngineMode;
   readonly jucePath?: string;
   readonly formats: readonly JuceFormat[];
   /** `plugin.id`, used as the bundle identifier. */
@@ -74,9 +84,10 @@ export function resolveJuceOptions(
   options: JuceOptions,
   plugin: SoundorConfig['plugin'],
 ): ResolvedJuceOptions {
-  if (options.engine && options.engine.mode !== 'source')
+  const engineMode = options.engine?.mode ?? 'prebuilt';
+  if (engineMode !== 'prebuilt' && engineMode !== 'source')
     throw new RuntimeError(
-      'juceRuntime({ engine: { mode } }) currently supports "source" only.',
+      `juceRuntime({ engine: { mode } }) is "prebuilt" or "source", not ${JSON.stringify(engineMode)}.`,
       { runtimeId: 'juce' },
     );
   const formats =
@@ -85,6 +96,7 @@ export function resolveJuceOptions(
       : [...DEFAULT_FORMATS];
   const vendor = vendorOf(plugin.id);
   return {
+    engineMode,
     jucePath: options.jucePath,
     formats,
     bundleId: plugin.id,

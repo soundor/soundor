@@ -9,9 +9,13 @@ Engine is outside the fixed Changesets group and does not depend on core.
 Ordinary core releases therefore do not force an engine release. The ordinary
 package build compiles this small JavaScript tool only, never native libraries.
 
-Source consumers use `add_subdirectory()` on the installed engine package and
-link `Soundor::Engine`. JUCE resolves that package normally, so pnpm workspace
-source changes are immediately available to plugin builds.
+Consumers `add_subdirectory()` the installed engine package and link
+`Soundor::Engine`, built from its sources (`SOUNDOR_ENGINE_MODE=source`) or
+taken from its verified prebuilt release (`prebuilt`, the JUCE runtime's
+default; see [Prebuilt engines](#prebuilt-engines) and
+[docs/engine.md](../../docs/engine.md)). JUCE resolves that package normally,
+so pnpm workspace source changes are immediately available to source-mode
+plugin builds.
 
 # Soundor native runtime
 
@@ -1292,9 +1296,22 @@ where the archive's target runs (a universal binary on macOS).
 
 ### Using one
 
-Point the engine's CMake at extracted archives and it imports them instead of
-compiling, with the same targets (`Soundor::Engine`, `soundor::runtime_internal`,
-`soundor_hermesc`...):
+`-DSOUNDOR_ENGINE_MODE=prebuilt` (what `juceRuntime()` passes by default) uses
+the release this package names in `artifacts/manifest.json`, which only the
+published npm package has: `cmake/SoundorEngineResolve.cmake` picks the
+archive for the build's target and configuration (Debug: debug; any other:
+release; a multi-configuration generator: what `CMAKE_BUILD_TYPE` names, else
+both), downloads it into `<SOUNDOR_CACHE>/engine-prebuilts/<sha256>.tar.gz`,
+verifies its SHA-256, extracts it once and checks it was built from the
+commit the manifest names. A cached, verified archive is reused offline; a
+corrupt or interrupted one is downloaded again; parallel configures wait for
+each other. Without a manifest, for an unsupported target, or when a download
+fails, the configure stops and names source mode; it never compiles instead
+(`tests/prebuilt/Resolve.cmake`).
+
+Extracted archives can also be given directly, and the engine's CMake imports
+them instead of compiling, with the same targets (`Soundor::Engine`,
+`soundor::runtime_internal`, `soundor_hermesc`...):
 
 ```sh
 cmake ... -DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=<extracted debug archive> \
@@ -1365,6 +1382,14 @@ a defective one is superseded by a higher revision, never edited. A new engine
 version always needs its own release, even when only documentation changed,
 since the version is the ABI namespace. This release is separate from the
 engine's own npm release and its Changesets GitHub release.
+
+`.github/workflows/release.yml` publishes it when a Changesets publish plan
+includes `@soundor/engine` (calling `engine-prebuilts.yml` in `publish` mode,
+which reuses the commit's release if it exists), then writes
+`artifacts/manifest.json` from the release, downloaded anonymously and checked
+archive by archive, packs the packages and checks that the packed engine
+carries exactly that manifest, and only then publishes to npm. The manifest
+is never committed. Releases of other packages build nothing native.
 
 ### Licenses
 

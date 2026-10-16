@@ -18,10 +18,14 @@ import { after, describe, test } from 'node:test';
 import {
   abiNamespace,
   assemble,
+  checkPack,
   decide,
   github,
+  manifest,
+  manifestText,
   pack,
   plan,
+  plannedEngine,
   release,
   targets,
   variants,
@@ -493,4 +497,126 @@ describe('the release', async () => {
       await gh.close();
     }
   });
+});
+
+describe('the npm release', async () => {
+  test('finds @soundor/engine in a Changesets publish plan', () => {
+    const entry = (name, version) => ({
+      kind: 'publish',
+      name,
+      version,
+      access: 'public',
+      tag: 'latest',
+    });
+    assert.equal(
+      plannedEngine({
+        version: 1,
+        plan: [
+          [entry('@soundor/core', '0.4.0'), entry('@soundor/engine', '0.2.1')],
+        ],
+      }),
+      '0.2.1',
+    );
+    assert.equal(
+      plannedEngine({ version: 1, plan: [[entry('@soundor/core', '0.4.0')]] }),
+      null,
+    );
+    assert.equal(
+      plannedEngine({
+        version: 1,
+        plan: [[{ kind: 'tag', name: '@soundor/engine', version: '0.2.1' }]],
+      }),
+      null,
+    );
+    assert.throws(() => plannedEngine({ plan: [] }), /format/);
+  });
+
+  const directory = join(work, 'npm-archives');
+  await packAll(directory);
+  const assets = join(work, 'npm-assets');
+  await assemble(directory, assets, planned);
+  for (const file of planned.archives.map((a) => a.file))
+    writeFileSync(join(assets, file), readFileSync(join(directory, file)));
+
+  test('writes the manifest from the verified public release only', async () => {
+    const gh = await fakeGitHub();
+    try {
+      const draft = await gh.client.call('POST', '/releases', {
+        body: { tag_name: planned.tag, draft: true },
+      });
+      await assert.rejects(
+        manifest(gh.client, draft, planned),
+        /not published/,
+      );
+      await gh.client.call('DELETE', `/releases/${draft.id}`);
+      await release(gh.client, assets, planned, { mode: 'publish' });
+      const published = await gh.client.call(
+        'GET',
+        `/releases/tags/${planned.tag}`,
+      );
+      const value = await manifest(gh.client, published, planned);
+      assert.equal(value.sourceCommit, commit);
+      assert.equal(value.tag, planned.tag);
+      assert.equal(value.artifacts.length, 6);
+      for (const artifact of value.artifacts) {
+        const response = await fetch(artifact.url);
+        const bytes = Buffer.from(await response.arrayBuffer());
+        assert.equal(
+          createHash('sha256').update(bytes).digest('hex'),
+          artifact.sha256,
+        );
+      }
+      // A release whose archive changed after publishing yields no manifest.
+      gh.releases[0].assets[0].contents = Buffer.from('changed');
+      await assert.rejects(manifest(gh.client, published, planned));
+    } finally {
+      await gh.close();
+    }
+  });
+
+  function packed(name, files) {
+    const root = mkdtempSync(join(work, 'npm-'));
+    for (const [path, contents] of Object.entries(files)) {
+      mkdirSync(join(root, 'package', path, '..'), { recursive: true });
+      writeFileSync(join(root, 'package', path), contents);
+    }
+    const out = mkdtempSync(join(work, 'pack-dir-'));
+    execFileSync('tar', ['-czf', join(out, name), '-C', root, 'package']);
+    return out;
+  }
+  const expected = { engineVersion: '0.2.1', tag: planned.tag, artifacts: [] };
+
+  test('accepts the packed engine that carries exactly the manifest', () => {
+    const out = packed('soundor-engine-0.2.1.tgz', {
+      'package.json': '{"name":"@soundor/engine","version":"0.2.1"}',
+      'artifacts/manifest.json': manifestText(expected),
+      'cmake/SoundorEngineResolve.cmake': '',
+    });
+    assert.equal(checkPack(out, expected), 'soundor-engine-0.2.1.tgz');
+  });
+
+  const wrong = {
+    'no manifest': [{}, /no artifacts\/manifest.json/],
+    'another manifest': [
+      {
+        'artifacts/manifest.json': manifestText({ ...expected, tag: 'other' }),
+      },
+      /another/,
+    ],
+    'build output': [
+      {
+        'artifacts/manifest.json': manifestText(expected),
+        'build/dev/libsoundor_runtime.a': '',
+      },
+      /build output/,
+    ],
+  };
+  for (const [name, [files, message]] of Object.entries(wrong))
+    test(`rejects a packed engine with ${name}`, () => {
+      const out = packed('soundor-engine-0.2.1.tgz', {
+        'package.json': '{"name":"@soundor/engine","version":"0.2.1"}',
+        ...files,
+      });
+      assert.throws(() => checkPack(out, expected), message);
+    });
 });

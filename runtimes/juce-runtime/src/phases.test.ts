@@ -132,6 +132,8 @@ describe('juceDev', () => {
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     expect(configure).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
+    // The prebuilt engine unless the project asks for the source one.
+    expect(configure).toContain('-DSOUNDOR_ENGINE_MODE=prebuilt');
     // No UI: the cached UI directory is cleared explicitly.
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');
     expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=');
@@ -231,7 +233,7 @@ describe('juceBuild', () => {
     const ctx = makeCtx({
       root,
       fs: createNodeFileSystem(root),
-      options: { jucePath: join(root, 'JUCE') },
+      options: { jucePath: join(root, 'JUCE'), engine: { mode: 'source' } },
       mode: 'production',
     });
     const calls: string[][] = [];
@@ -249,6 +251,7 @@ describe('juceBuild', () => {
 
     expect(calls[0]).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     expect(calls[0]).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
+    expect(calls[0]).toContain('-DSOUNDOR_ENGINE_MODE=source');
     const copied = join(
       ctx.paths.dist,
       'Plugin_artefacts',
