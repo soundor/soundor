@@ -1,6 +1,6 @@
 // soundor_run_ui: runs a plugin UI bundle headless, on the GPU, the way the
 // generated editor would, and reports what its frames cost. For benchmarks
-// (examples/benchmark) and for looking at a UI without building a plugin.
+// (tools/benchmark) and for looking at a UI without building a plugin.
 //
 //   soundor_run_ui <ui directory> [--size 800x600] [--scale 1] [--seconds N]
 //                  [--eval <expression>] [--backend <name>] [--software]

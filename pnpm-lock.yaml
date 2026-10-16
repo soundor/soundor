@@ -377,49 +377,6 @@ importers:
         specifier: workspace:^
         version: link:../../packages/vitest-environment-soundor
 
-  examples/benchmark:
-    dependencies:
-      '@soundor/juce-runtime':
-        specifier: workspace:*
-        version: link:../../runtimes/juce-runtime
-      '@soundor/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      '@soundor/web-runtime':
-        specifier: workspace:*
-        version: link:../../runtimes/web-runtime
-      react:
-        specifier: 'catalog:'
-        version: 19.3.0
-      three:
-        specifier: 'catalog:'
-        version: 0.186.1
-    devDependencies:
-      '@soundor/config':
-        specifier: workspace:*
-        version: link:../../packages/config
-      '@soundor/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.3.0
-      '@types/three':
-        specifier: 'catalog:'
-        version: 0.186.0
-      soundor:
-        specifier: workspace:*
-        version: link:../../packages/cli
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.4(@types/node@24.19.2)(happy-dom@20.14.5)(vite@8.3.4(@types/node@24.19.2)(yaml@2.9.1))
-
   examples/primitives:
     dependencies:
       '@soundor/juce-runtime':
@@ -1030,6 +987,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      soundor:
+        specifier: workspace:^
+        version: link:../../packages/cli
       tsdown:
         specifier: 'catalog:'
         version: 0.23.1(typescript@7.0.2)
@@ -1082,6 +1042,49 @@ importers:
       tsdown:
         specifier: 'catalog:'
         version: 0.23.1(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.4(@types/node@24.19.2)(happy-dom@20.14.5)(vite@8.3.4(@types/node@24.19.2)(yaml@2.9.1))
+
+  tools/benchmark:
+    dependencies:
+      '@soundor/juce-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/juce-runtime
+      '@soundor/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+      three:
+        specifier: 'catalog:'
+        version: 0.186.1
+    devDependencies:
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@soundor/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      '@types/three':
+        specifier: 'catalog:'
+        version: 0.186.0
+      soundor:
+        specifier: workspace:*
+        version: link:../../packages/cli
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

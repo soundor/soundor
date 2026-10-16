@@ -231,7 +231,7 @@ The UI's JavaScript runs in an interpreter (Hermes, with no JIT: plugin hosts
 do not all allow one), on the host's message thread, so a slow frame also
 stalls the host's own UI. Layout, drawing and compositing are native and cheap;
 what costs is JavaScript run every frame. Measured with
-[`examples/benchmark`](../../examples/benchmark) (Linux, an RTX 4050), per
+[`tools/benchmark`](../../tools/benchmark) (Linux, an RTX 4050), per
 frame:
 
 - **Give per-frame work to the GPU.** 200,000 points moved by JavaScript: 28

@@ -36,7 +36,7 @@ option(SOUNDOR_PRECOMPILE_JS "Compile JavaScript to Hermes bytecode at build tim
 option(SOUNDOR_JS_SOURCE "Link Hermes's compiler, so that JavaScript source can be evaluated (development)" ON)
 option(SOUNDOR_ENABLE_DEVTOOLS "Compile development-only UI inspection (never enable for production plugins)" OFF)
 # -fno-inline keeps every function's frame in stack traces: measured, inlining
-# saved no time (examples/benchmark) and 315 bytes of a 1.1 MB bundle.
+# saved no time (tools/benchmark) and 315 bytes of a 1.1 MB bundle.
 set(SOUNDOR_HERMESC_FLAGS "-O -fno-inline" CACHE STRING "hermesc's options for the bytecode the build compiles")
 
 # Where the engine comes from (README.md, "Prebuilt engines"):
@@ -65,7 +65,7 @@ else()
 endif()
 
 # `cmake -DINPUT=<module.js> -DOUTPUT=<bytecode> -DNAME=<module name> -P <this>`
-# compiles a module like the build does (examples/benchmark's `pnpm bench`).
+# compiles a module like the build does (tools/benchmark's `pnpm bench`).
 configure_file(cmake/SoundorCompileJsTool.cmake.in ${CMAKE_BINARY_DIR}/soundor-compile-js.cmake @ONLY)
 
 # The engine library and the names consumers link: the same in both modes.

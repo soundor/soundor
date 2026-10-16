@@ -58,28 +58,46 @@ const relock = (name) => (root) => {
   );
 };
 
-// [change, native, juce]. Native: @soundor/engine (and examples/benchmark's own
-// files); JUCE: @soundor/juce-runtime (and examples/basic's own files).
+// [change, native, juce, benchmark]: the jobs testing @soundor/engine,
+// @soundor/juce-runtime and soundor-benchmark, from the packages they depend on.
 const cases = [
-  // Neither package depends on them.
-  ['docs/guide.md', create('docs/guide.md'), false, false],
-  [
-    'packages/react source',
-    append('packages/react/src/index.ts'),
-    false,
-    false,
-  ],
+  // None of them depends on these.
+  ['docs/guide.md', create('docs/guide.md'), false, false, false],
+  ['an example', append('examples/basic/src/main.tsx'), false, false, false],
+  ['oxfmt.config.ts', append('oxfmt.config.ts'), false, false, false],
+  ['lockfile comment', append('pnpm-lock.yaml', '#'), false, false, false],
+  // The benchmark's React scenarios (and its web runtime); the test plugin's
+  // UI is soundor:ui itself.
   [
     'web runtime source',
     append('runtimes/web-runtime/src/index.ts'),
     false,
     false,
+    true,
   ],
-  ['oxfmt.config.ts', append('oxfmt.config.ts'), false, false],
-  ['Fastify (DevTools server)', relock('fastify'), false, false],
-  ['lockfile comment', append('pnpm-lock.yaml', '#'), false, false],
-  // juce-runtime depends on core, the engine on neither.
-  ['packages/core source', append('packages/core/src/index.ts'), false, true],
+  [
+    'packages/react source',
+    append('packages/react/src/index.ts'),
+    false,
+    false,
+    true,
+  ],
+  // What both build plugins with: the CLI, and the codegen in core.
+  [
+    'packages/cli source',
+    append('packages/cli/src/index.ts'),
+    false,
+    true,
+    true,
+  ],
+  ['Fastify (the CLI’s DevTools)', relock('fastify'), false, true, true],
+  [
+    'packages/core source',
+    append('packages/core/src/index.ts'),
+    false,
+    true,
+    true,
+  ],
   [
     'version-only bumps (release PR)',
     (root) => {
@@ -89,45 +107,54 @@ const cases = [
     },
     false,
     true,
+    true,
   ],
   [
     'JUCE adapter',
     create('runtimes/juce-runtime/native/backend/juce/Fixture.cpp'),
     false,
     true,
+    true,
   ],
   [
-    'juce-runtime codegen',
-    append('runtimes/juce-runtime/src/native-codegen.ts'),
+    'the test plugin',
+    append('runtimes/juce-runtime/tests/plugin/src/main.tsx'),
+    false,
+    true,
+    true,
+  ],
+  [
+    'the benchmark',
+    append('tools/benchmark/scripts/bench.ts'),
+    false,
     false,
     true,
   ],
-  ['basic example', append('examples/basic/src/main.tsx'), false, true],
+  // The engine, which everything native builds on, and what it depends on.
   [
-    'benchmark example',
-    append('examples/benchmark/scripts/bench.ts'),
+    'engine source',
+    append('runtimes/engine/src/js/Bindings.h'),
     true,
-    false,
+    true,
+    true,
   ],
-  // The engine, which juce-runtime depends on, and what it depends on.
-  ['engine source', append('runtimes/engine/src/js/Bindings.h'), true, true],
   [
     'engine lowering',
     append('runtimes/engine/scripts/native-module.ts'),
     true,
     true,
+    true,
   ],
-  ['engine NOTICE.md', append('runtimes/engine/NOTICE.md'), true, true],
-  ['engine README.md', append('runtimes/engine/README.md'), true, true],
-  ['Babel (the lowering)', relock('@babel/core'), true, true],
-  ['configs/', append('configs/typescript-config/node.json'), true, true],
+  ['engine NOTICE.md', append('runtimes/engine/NOTICE.md'), true, true, true],
+  ['Babel (the lowering)', relock('@babel/core'), true, true, true],
+  ['configs/', append('configs/typescript-config/node.json'), true, true, true],
   // turbo's global dependencies and CI itself.
-  ['.clang-tidy', append('.clang-tidy'), true, true],
-  ['.nvmrc', append('.nvmrc'), true, true],
-  ['verify workflow', append('.github/workflows/verify.yml'), true, true],
+  ['.clang-tidy', append('.clang-tidy'), true, true, true],
+  ['.nvmrc', append('.nvmrc'), true, true, true],
+  ['verify workflow', append('.github/workflows/verify.yml'), true, true, true],
 ];
 
-test('native jobs follow turbo’s affected packages', () => {
+test('native jobs follow the affected packages they test', () => {
   const root = mkdtempSync(join(tmpdir(), 'soundor-inputs-'));
   const git = (...args) =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -162,7 +189,7 @@ test('native jobs follow turbo’s affected packages', () => {
       '--no-verify',
     );
     const base = git('rev-parse', 'HEAD');
-    for (const [name, change, native, juce] of cases) {
+    for (const [name, change, native, juce, benchmark] of cases) {
       git('reset', '-q', '--hard', base);
       git('clean', '-qfd');
       change(root);
@@ -191,7 +218,7 @@ test('native jobs follow turbo’s affected packages', () => {
       });
       assert.equal(
         readFileSync(output, 'utf8'),
-        `native=${native}\njuce=${juce}\n`,
+        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\n`,
         name,
       );
       rmSync(output);
@@ -209,7 +236,10 @@ test('an unknown base runs every native job', () => {
       cwd: root,
       env: { ...process.env, BASE_SHA: '0'.repeat(40), GITHUB_OUTPUT: output },
     });
-    assert.equal(readFileSync(output, 'utf8'), 'native=true\njuce=true\n');
+    assert.equal(
+      readFileSync(output, 'utf8'),
+      'native=true\njuce=true\nbenchmark=true\n',
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

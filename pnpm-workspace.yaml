@@ -4,6 +4,7 @@ packages:
   - runtimes/*
   - configs/*
   - examples/*
+  - tools/*
 
 catalog:
   '@babel/core': ^8.0.7

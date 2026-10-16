@@ -41,8 +41,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
-const example = path.resolve(import.meta.dirname, '..');
-const native = path.resolve(example, '../../runtimes/engine');
+const benchmark = path.resolve(import.meta.dirname, '..');
+const native = path.resolve(benchmark, '../../runtimes/engine');
 
 const { values: options } = parseArgs({
   options: {
@@ -305,7 +305,7 @@ function run(command: string, args: string[], cwd: string): void {
 }
 
 function git(...args: string[]): string {
-  const result = spawnSync('git', args, { cwd: example, encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd: benchmark, encoding: 'utf8' });
   return result.status === 0 ? result.stdout.trim() : '';
 }
 
@@ -651,7 +651,7 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
 
 // --- main ---
 
-const bench = path.join(example, '.soundor/bench');
+const bench = path.join(benchmark, '.soundor/bench');
 if (!options['no-build']) {
   console.log('Building the UI bundle and soundor_run_ui (Release)…');
   // The bundle takes the workspace packages (@soundor/react…) as built:
@@ -659,12 +659,12 @@ if (!options['no-build']) {
   run(
     'pnpm',
     ['turbo', 'run', 'build', '--filter=soundor-benchmark^...'],
-    example,
+    benchmark,
   );
-  run('pnpm', ['exec', 'soundor', 'build', 'web'], example);
+  run('pnpm', ['exec', 'soundor', 'build', 'web'], benchmark);
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
-const ui = path.join(example, '.soundor/ui/production');
+const ui = path.join(benchmark, '.soundor/ui/production');
 const compiled = path.join(ui, 'bundle.js.hbc');
 rmSync(compiled, { force: true });
 if (!options.source) {
@@ -677,7 +677,7 @@ if (!options.source) {
       '-P',
       findCompiler(),
     ],
-    example,
+    benchmark,
   );
 }
 const current: Build = {
