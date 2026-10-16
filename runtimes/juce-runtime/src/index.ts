@@ -129,6 +129,7 @@ export async function juceDev(
     buildDir,
     ...generatorArgs(platform),
     '-DCMAKE_BUILD_TYPE=Debug',
+    `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
     `-DSOUNDOR_ENABLE_DEVTOOLS=${ctx.devtools === undefined ? 'OFF' : 'ON'}`,
     `-DJUCE_DIR=${jucePath}`,
     // The Node running the CLI lowers the runtime's own modules.
@@ -198,6 +199,7 @@ export async function juceBuild(
     buildDir,
     ...generatorArgs(platform),
     '-DCMAKE_BUILD_TYPE=Release',
+    `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
     '-DSOUNDOR_ENABLE_DEVTOOLS=OFF',
     '-DSOUNDOR_UI_DEV_DIR=',
     '-DSOUNDOR_UI_DEV_LOG=',
@@ -248,7 +250,10 @@ export async function juceDoctor(
   ctx: Ctx,
 ): Promise<DoctorReport> {
   const options = resolveJuceOptions(ctx.options, config.plugin);
-  return buildDoctorReport(ctx.fs, options);
+  return buildDoctorReport(ctx.fs, {
+    jucePath: options.jucePath,
+    engine: { mode: options.engineMode },
+  });
 }
 
 /** The factory a config author registers: `runtimes: [juceRuntime({ ... })]`. */

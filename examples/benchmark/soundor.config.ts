@@ -9,7 +9,14 @@ export default defineSoundorConfig({
   },
   // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
   // and in the browser.
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] }), webRuntime()],
+  runtimes: [
+    juceRuntime({
+      formats: ['vst3', 'standalone'],
+      // The workspace engine: its local sources, which have no prebuilt release.
+      engine: { mode: 'source' },
+    }),
+    webRuntime(),
+  ],
   parameters: [
     {
       type: 'float',

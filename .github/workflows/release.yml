@@ -1,5 +1,23 @@
 name: Release
 
+# Changesets, in its steps (changesets/action v2's sub-actions):
+#
+#   select    version (changesets pending), publish (versions not on npm) or none
+#   version   create or update the release pull request
+#   prebuilts when @soundor/engine is to be published: its prebuilt release
+#             for this commit, built and published if missing, verified if not
+#             (engine-prebuilts.yml); nothing native otherwise
+#   pack      build, write the engine's artifacts/manifest.json from the
+#             verified public release, pack the planned packages, and check
+#             the packed engine carries that manifest
+#   publish   publish exactly those tarballs to npm; tag and create a GitHub
+#             release per package
+#
+# npm is published only once the engine's binaries are publicly downloadable.
+# A failed run is safe to repeat: a published prebuilt release is reused,
+# npm never republishes a version, and versions already published leave the
+# plan.
+
 on:
   push:
     branches:
@@ -12,14 +30,121 @@ concurrency:
 permissions: {}
 
 jobs:
-  release:
-    name: Release
+  select:
+    name: Select
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      publish-plan: ${{ steps.mode.outputs.publish-plan-artifact-id }}
+      engine: ${{ steps.engine.outputs.engine || 'false' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Select the mode
+        id: mode
+        uses: changesets/action/select-mode@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+
+      # The same plan select-mode made: does it publish @soundor/engine?
+      - name: Is the engine released
+        id: engine
+        if: steps.mode.outputs.mode == 'publish'
+        run: |
+          pnpm changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
+          node .github/scripts/engine-prebuilts.mjs planned-engine "$RUNNER_TEMP/publish-plan.json"
+
+  version:
+    name: Version
+    needs: select
+    if: needs.select.outputs.mode == 'version'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Create or update the release pull request
+        uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          script: pnpm run version
+          pr-title: 'chore: release packages'
+          commit-message: 'chore: release packages'
+
+  prebuilts:
+    name: Engine prebuilts
+    needs: select
+    if: needs.select.outputs.mode == 'publish' && needs.select.outputs.engine == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/engine-prebuilts.yml
+    with:
+      mode: publish
+
+  pack:
+    name: Pack
+    needs: [select, prebuilts]
+    if: >-
+      always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
+      (needs.select.outputs.engine != 'true' || needs.prebuilts.result == 'success')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      pack-dir: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build
+        run: pnpm build
+
+      # Never committed: written from the release, which is downloaded
+      # anonymously and checked against build-info.json first.
+      - name: The engine's prebuilt manifest
+        if: needs.select.outputs.engine == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prebuilts.outputs.tag }}
+        run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out runtimes/engine/artifacts/manifest.json
+
+      - name: Pack
+        id: pack
+        uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          publish-plan-artifact-id: ${{ needs.select.outputs.publish-plan }}
+
+      - name: Download the packed packages
+        if: needs.select.outputs.engine == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+          path: ${{ runner.temp }}/packed
+
+      - name: The packed engine carries the manifest
+        if: needs.select.outputs.engine == 'true'
+        run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" runtimes/engine/artifacts/manifest.json
+
+  publish:
+    name: Publish
+    needs: [select, pack]
+    if: always() && !cancelled() && needs.pack.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       id-token: write
-      issues: write
-      pull-requests: write
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,17 +155,11 @@ jobs:
           cache: false
           registry-url: https://registry.npmjs.org
 
-      - name: Create Release Pull Request or Publish
-        id: changesets
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+      - name: Publish
+        uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version-script: pnpm run version
-          publish-script: pnpm release
-          pr-title: 'chore: release packages'
-          commit-message: 'chore: release packages'
+          pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir }}
         env:
-          # changesets/action v2 no longer writes .npmrc from NPM_TOKEN; the
-          # setup step's registry-url makes npm read NODE_AUTH_TOKEN instead.
+          # The setup step's registry-url makes npm read NODE_AUTH_TOKEN.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true

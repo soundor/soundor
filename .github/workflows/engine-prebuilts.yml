@@ -27,6 +27,8 @@ on:
       - runtimes/engine/cmake/SoundorPlatformLibraries.cmake
       - runtimes/engine/licenses/**
       - runtimes/engine/tests/prebuilt/**
+      - runtimes/juce-runtime/src/index.ts
+      - runtimes/juce-runtime/src/options.ts
   workflow_dispatch:
     inputs:
       mode:
@@ -276,6 +278,34 @@ jobs:
               ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
             fi
           } 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      # A plugin as a project builds it by default (juceRuntime's prebuilt
+      # mode), from these archives: a manifest of them by file:// URL stands
+      # in for the release the published package names.
+      - name: A plugin with the prebuilt engine
+        env:
+          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
+          # JUCE's Release LTO flags emit Clang 18 bitcode (as in verify.yml).
+          LDFLAGS: ${{ runner.os == 'Linux' && '-fuse-ld=lld-18' || '' }}
+        run: |
+          set -eo pipefail
+          {
+            node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" --out runtimes/engine/artifacts/manifest.json
+            node -e "
+              const fs = require('node:fs');
+              const path = 'examples/basic/soundor.config.ts';
+              const config = fs.readFileSync(path, 'utf8');
+              if (!config.includes(\"mode: 'source'\")) throw new Error('examples/basic does not set the engine mode');
+              fs.writeFileSync(path, config.replace(\"mode: 'source'\", \"mode: 'prebuilt'\"));"
+            pnpm --filter basic exec soundor build juce
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+          if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/step.log"; then
+            echo "::error::The plugin build compiled the engine instead of linking the prebuilt one"
+            exit 1
+          fi
+          grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/step.log"
+          git checkout -- examples/basic/soundor.config.ts
+          rm runtimes/engine/artifacts/manifest.json
 
       - name: Keep the archives
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

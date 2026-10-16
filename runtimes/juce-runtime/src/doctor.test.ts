@@ -25,6 +25,18 @@ describe('buildDoctorReport', () => {
       {
         probe: ok,
         env: {},
+        engine: {
+          version: '0.2.1',
+          manifest: {
+            tag: 'engine-prebuilts-v0.2.1-a3f91c2d-r1',
+            artifacts: [
+              { target: 'linux-x64', variant: 'debug' },
+              { target: 'linux-x64', variant: 'release' },
+            ],
+          },
+        },
+        platform: 'linux',
+        arch: 'x64',
       },
     );
     expect(report.checks.map((c) => c.status)).toEqual([
@@ -32,7 +44,65 @@ describe('buildDoctorReport', () => {
       'ok',
       'ok',
       'ok',
+      'ok',
     ]);
+  });
+
+  const published = {
+    version: '0.2.1',
+    manifest: {
+      tag: 'engine-prebuilts-v0.2.1-a3f91c2d-r1',
+      artifacts: ['debug', 'release'].map((variant) => ({
+        target: 'linux-x64',
+        variant,
+      })),
+    },
+  };
+  async function engineCheck(
+    deps: Parameters<typeof buildDoctorReport>[2],
+    mode?: 'prebuilt' | 'source',
+  ) {
+    const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
+      '/proj/JUCE/modules',
+    ]);
+    const report = await buildDoctorReport(
+      fs,
+      { jucePath: '/proj/JUCE', engine: mode ? { mode } : undefined },
+      { probe: ok, env: {}, ...deps },
+    );
+    return check(report, 'Soundor Engine');
+  }
+
+  it('names the prebuilt release a build downloads', async () => {
+    expect(
+      await engineCheck({ engine: published, platform: 'linux', arch: 'x64' }),
+    ).toMatchObject({
+      status: 'ok',
+      detail: expect.stringContaining(
+        'engine-prebuilts-v0.2.1-a3f91c2d-r1 (linux-x64',
+      ),
+    });
+  });
+
+  it('suggests source mode where no prebuilt engine can be used', async () => {
+    for (const deps of [
+      { engine: { version: '0.2.1' }, platform: 'linux' as const, arch: 'x64' },
+      { engine: published, platform: 'win32' as const, arch: 'x64' },
+      { engine: published, platform: 'linux' as const, arch: 'arm64' },
+    ])
+      expect(await engineCheck(deps)).toMatchObject({
+        status: 'fail',
+        suggestion: expect.stringContaining("mode: 'source'"),
+      });
+    expect(
+      await engineCheck(
+        { engine: { version: '0.2.1' }, platform: 'linux', arch: 'arm64' },
+        'source',
+      ),
+    ).toMatchObject({
+      status: 'ok',
+      detail: expect.stringContaining('Source mode'),
+    });
   });
 
   it('names the tools missing to build Skia and ANGLE', async () => {

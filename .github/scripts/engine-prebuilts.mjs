@@ -7,8 +7,19 @@
 //   release <assets> --mode <m>      draft (stage) or publish, then verify
 //   verify --tag <tag>               a published release, downloaded anonymously
 //
+// and for .github/workflows/release.yml, when @soundor/engine is published:
+//
+//   planned-engine <publish plan>    whether the Changesets plan publishes it
+//   manifest --tag <tag> --out <f>   its artifacts/manifest.json, from the
+//                                    verified public release
+//   check-pack <pack dir> <manifest> the packed tarball carries exactly that
+//   local-manifest <archives> --out <f>  a manifest of packed archives on disk
+//                                    (file:// URLs), to build plugins with
+//                                    them before any release exists
+//
 // The release is named engine-prebuilts-v<version>-<short sha>-r<revision>.
 // GitHub access: GITHUB_REPOSITORY, GITHUB_TOKEN, GITHUB_API_URL.
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   createReadStream,
@@ -19,9 +30,9 @@ import {
   readdirSync,
   writeFileSync,
 } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createGzip } from 'node:zlib';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -591,11 +602,136 @@ export async function release(client, directory, planned, { mode, draft }) {
   };
 }
 
+// ── The npm release ───────────────────────────────────────────────────────
+
+/**
+ * The version of @soundor/engine a Changesets publish plan (`changeset
+ * publish-plan --output`) publishes, or null when it publishes none.
+ */
+export function plannedEngine(publishPlan) {
+  if (publishPlan?.version !== 1 || !Array.isArray(publishPlan.plan))
+    throw new Error('Unknown Changesets publish plan format');
+  const entry = publishPlan.plan
+    .flat()
+    .find((e) => e.kind === 'publish' && e.name === '@soundor/engine');
+  return entry ? entry.version : null;
+}
+
+/**
+ * artifacts/manifest.json for the npm package: the archives of the verified,
+ * published prebuilt release (every one downloaded anonymously and checked),
+ * with the URLs they are downloaded from and their SHA-256.
+ */
+export async function manifest(client, release, planned) {
+  if (release.draft) throw new Error(`${release.tag_name} is not published`);
+  const info = await verifyRelease(client, release, planned);
+  return {
+    format: 1,
+    engineVersion: info.engineVersion,
+    abiNamespace: info.abiNamespace,
+    sourceCommit: info.sourceCommit,
+    revision: info.revision,
+    tag: info.tag,
+    release: release.html_url,
+    artifacts: info.artifacts.map((artifact) => ({
+      file: artifact.file,
+      target: artifact.target,
+      variant: artifact.variant,
+      os: artifact.os,
+      architectures: artifact.architectures,
+      minimumOsVersion: artifact.minimumOsVersion,
+      sha256: artifact.sha256,
+      size: artifact.size,
+      url: release.assets.find((a) => a.name === artifact.file)
+        .browser_download_url,
+    })),
+  };
+}
+
+/** A manifest of the archives `pack` wrote into <directory>, by file:// URL. */
+export function localManifest(directory) {
+  const sidecars = readdirSync(directory)
+    .filter((name) => name.endsWith('.tar.gz.json'))
+    .sort()
+    .map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
+  if (!sidecars.length) throw new Error(`No packed archives in ${directory}`);
+  const [first] = sidecars;
+  return {
+    format: 1,
+    engineVersion: first.engine.version,
+    abiNamespace: first.engine.abiNamespace,
+    sourceCommit: first.engine.sourceCommit,
+    revision: 0,
+    tag: 'local',
+    release: null,
+    artifacts: sidecars.map((sidecar) => ({
+      file: sidecar.file,
+      target: sidecar.target.name,
+      variant: sidecar.variant,
+      os: sidecar.target.os,
+      architectures: sidecar.target.architectures,
+      minimumOsVersion: sidecar.target.minimumOsVersion || null,
+      sha256: sidecar.sha256,
+      size: sidecar.size,
+      url: pathToFileURL(join(directory, sidecar.file)).href,
+    })),
+  };
+}
+
+export function manifestText(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+/**
+ * Checks the @soundor/engine tarball Changesets packed into <directory>: its
+ * version, exactly <expected> as artifacts/manifest.json, and no native
+ * build output.
+ */
+export function checkPack(directory, expected) {
+  const tarballs = files(directory).filter((path) =>
+    /(^|\/)soundor-engine-[^/]*\.tgz$/.test(path),
+  );
+  if (tarballs.length !== 1)
+    throw new Error(
+      `Expected one packed @soundor/engine in ${directory}, found ${tarballs.length}`,
+    );
+  const tarball = join(directory, tarballs[0]);
+  const read = (member) =>
+    execFileSync('tar', ['-xzOf', tarball, member], { encoding: 'utf8' });
+  const entries = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean);
+  const version = JSON.parse(read('package/package.json')).version;
+  if (version !== expected.engineVersion)
+    throw new Error(
+      `The packed engine is ${version}, not ${expected.engineVersion}`,
+    );
+  if (!entries.includes('package/artifacts/manifest.json'))
+    throw new Error('The packed engine has no artifacts/manifest.json');
+  if (read('package/artifacts/manifest.json') !== manifestText(expected))
+    throw new Error(
+      'The packed engine carries another artifacts/manifest.json',
+    );
+  const built = entries.filter((entry) =>
+    /\.(a|lib|o|obj|so|dylib|dll|tar\.gz)$|\/build\//.test(entry),
+  );
+  if (built.length)
+    throw new Error(
+      `The packed engine contains build output: ${built.slice(0, 5).join(', ')}`,
+    );
+  return tarballs[0];
+}
+
 // ── Command line ──────────────────────────────────────────────────────────
 
 function option(args, name) {
   const index = args.indexOf(`--${name}`);
   return index === -1 ? undefined : args[index + 1];
+}
+
+function write(path, text) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text);
 }
 
 function output(values) {
@@ -686,9 +822,59 @@ async function main([command, ...args]) {
       );
       break;
     }
+    case 'planned-engine': {
+      const planned = plannedEngine(JSON.parse(readFileSync(args[0], 'utf8')));
+      if (planned !== null && planned !== version)
+        throw new Error(
+          `The publish plan publishes @soundor/engine ${planned}, the checkout is ${version}`,
+        );
+      output({ engine: planned !== null, version });
+      break;
+    }
+    case 'manifest': {
+      const tag = option(args, 'tag');
+      const tagged = /-r(\d+)$/.exec(tag ?? '');
+      if (!tagged)
+        throw new Error(
+          'manifest --tag engine-prebuilts-v<version>-<sha>-r<revision>',
+        );
+      const expected = plan({ version, commit, revision: Number(tagged[1]) });
+      if (expected.tag !== tag)
+        throw new Error(`${tag} is not a release of ${commit}`);
+      const client = github();
+      const found = await client.call(
+        'GET',
+        `/releases/tags/${encodeURIComponent(tag)}`,
+      );
+      if (!found) throw new Error(`There is no published release ${tag}`);
+      const value = await manifest(client, found, expected);
+      write(option(args, 'out'), manifestText(value));
+      console.log(
+        `${option(args, 'out')}: ${value.artifacts.length} archives of ${tag}`,
+      );
+      break;
+    }
+    case 'local-manifest': {
+      const value = localManifest(args[0]);
+      write(option(args, 'out'), manifestText(value));
+      console.log(
+        `${option(args, 'out')}: ${value.artifacts.length} local archives`,
+      );
+      break;
+    }
+    case 'check-pack': {
+      const tarball = checkPack(
+        args[0],
+        JSON.parse(readFileSync(args[1], 'utf8')),
+      );
+      console.log(
+        `${tarball} carries the manifest of the verified prebuilt release`,
+      );
+      break;
+    }
     default:
       throw new Error(
-        'usage: engine-prebuilts.mjs plan|pack|assemble|release|verify ...',
+        'usage: engine-prebuilts.mjs plan|pack|assemble|release|verify|planned-engine|manifest|check-pack ...',
       );
   }
 }

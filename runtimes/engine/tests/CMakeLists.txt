@@ -349,6 +349,13 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_DEVTOOLS AND SOUNDOR_NM_EXE)
             -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckNoDevTools.cmake)
 endif()
 
+# Prebuilt mode: the release this package names is downloaded, verified,
+# cached and reused offline; a wrong manifest, checksum or archive is refused.
+add_test(NAME soundor_prebuilt_resolve
+  COMMAND ${CMAKE_COMMAND} -DENGINE=${SoundorEngine_SOURCE_DIR} -DGENERATOR=${CMAKE_GENERATOR}
+          -DWORK=${CMAKE_CURRENT_BINARY_DIR}/prebuilt-resolve -P ${CMAKE_CURRENT_SOURCE_DIR}/prebuilt/Resolve.cmake)
+set_tests_properties(soundor_prebuilt_resolve PROPERTIES TIMEOUT 600)
+
 # A prebuilt engine for another version, platform, variant... is rejected
 # before anything links it, saying why.
 if(SOUNDOR_ENGINE_PREBUILT)

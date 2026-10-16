@@ -181,6 +181,9 @@ target_sources(\${PROJECT_NAME}
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
         ${[
+          // Compiles to nothing unless the engine has DevTools (SOUNDOR_DEVTOOLS,
+          // which the engine defines: a debug prebuilt always has them).
+          'JuceDebugBridge',
           'JuceHttpClient',
           'JuceInput',
           'JuceParameterHost',
@@ -195,9 +198,6 @@ target_sources(\${PROJECT_NAME}
             ),
           )
           .join('\n        ')})
-if(SOUNDOR_ENABLE_DEVTOOLS)
-  target_sources(\${PROJECT_NAME} PRIVATE ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce/soundor/backend/JuceDebugBridge.cpp`))})
-endif()
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
