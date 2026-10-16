@@ -2,6 +2,11 @@
   "name": "@soundor/web-runtime",
   "version": "0.5.1",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "runtimes/web-runtime"
+  },
   "files": [
     "README.md",
     "dist"
