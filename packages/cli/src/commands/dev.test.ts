@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -67,6 +67,23 @@ describe('runDev', () => {
 
     expect(globalThis.__soundorDevEvents).toEqual(['gen:debug', 'dev:debug']);
     expect(info).toHaveBeenCalledWith('[soundor:test] runtime ready');
+  });
+
+  it('prints a summary when the runtime is ready and logs its build', async () => {
+    await writeConfig(root, { ready: true });
+
+    await runDev({ cwd: root, runtime: 'test' });
+
+    const summary = info.mock.calls
+      .map((call: unknown[]) => String(call[0]))
+      .find((text: string) => text.includes('SOUNDOR'));
+    expect(summary).toMatch(/dev · test {2}ready in \d/);
+    expect(summary).toContain('➜  Plugin:  Test\n');
+    expect(summary).toContain('➜  Built:   yes\n');
+    expect(summary).not.toContain('press h');
+    expect(
+      await readFile(join(root, '.soundor', 'dev', 'build.log'), 'utf8'),
+    ).toBe('[1/1] Linking\n');
   });
 
   it('fails fast for an unknown runtime before gen', async () => {
@@ -194,6 +211,7 @@ async function writeConfig(
   root: string,
   options: {
     abortOnDev?: boolean;
+    ready?: boolean;
     logFromPlugin?: boolean;
     devtools?: boolean;
     checkDevTools?: boolean;
@@ -215,6 +233,10 @@ const runtime = {
   async dev(_config, ctx) {
     globalThis.__soundorDevEvents.push('dev:' + ctx.mode);
     ctx.logger.info('runtime ready');
+    if (${String(options.ready)}) {
+      ctx.logger.pipe('[1/1] Linking');
+      ctx.session.ready([{ label: 'Built', value: 'yes' }]);
+    }
     if (${String(options.checkDevTools)}) globalThis.__soundorDevEvents.push('devtools:' + String(Boolean(ctx.devtools)));
     if (${JSON.stringify(options.browserOrigin)}) {
       const response = await fetch(ctx.devtools.endpoint + '/browser/session', {

@@ -4,10 +4,15 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 
 import { outro } from '@clack/prompts';
 import { parseConfig, resolveRuntime, runPhase } from '@soundor/config';
-import type { DevToolsSettings, UserConfigOptions } from '@soundor/config';
+import type {
+  DevSessionContext,
+  DevShortcut,
+  DevSummaryRow,
+  DevToolsSettings,
+  UserConfigOptions,
+} from '@soundor/config';
 import {
   createCodegenSink,
-  createConsoleLogger,
   createNodeFileSystem,
   createProjectPaths,
   rootFromConfigPath,
@@ -20,12 +25,16 @@ import {
 } from '@soundor/devtools-server';
 import { defineCommand } from 'citty';
 
+import { copyToClipboard } from '../dev/clipboard';
 import { resolveDevToolsSettings } from '../dev/devtools';
 import { tailLog } from '../dev/log-tail';
+import { bindShortcuts } from '../dev/shortcuts';
 import { rewriteLocations, SourceMap } from '../dev/source-map';
+import { createDevTerminal, formatSummary } from '../dev/terminal';
 import { resolveDevToolsClientDist } from '../devtools/client';
 import { openDevTools } from '../devtools/open';
 import { watchUi } from '../ui/bundle';
+import { cliVersion } from '../version';
 import { runGen } from './gen';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -35,6 +44,11 @@ export interface RunDevOptions {
   configPath?: string;
   runtime: string;
   userConfig?: UserConfigOptions;
+  /**
+   * Collapse the build output and bind shortcuts. Defaults to whether stdin
+   * and stdout are a terminal (outside CI).
+   */
+  interactive?: boolean;
 }
 
 export interface RunDevResult {
@@ -44,10 +58,15 @@ export interface RunDevResult {
 }
 
 export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
+  const started = performance.now();
   const cwd = options.cwd ?? process.cwd();
   const configPath = resolveConfigPath(cwd, options.configPath);
   const root = rootFromConfigPath(configPath);
-  const logger = createConsoleLogger('soundor');
+  const interactive =
+    options.interactive ??
+    (process.stdin.isTTY === true &&
+      process.stdout.isTTY === true &&
+      process.env['CI'] === undefined);
   const config = await parseConfig({ path: configPath });
   const resolved = resolveRuntime(config, options.runtime);
   const devtools = await resolveDevToolsSettings(
@@ -68,6 +87,12 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   const logFile = resolve(root, '.soundor', 'dev', 'ui.log');
   await mkdir(dirname(logFile), { recursive: true });
   await writeFile(logFile, '');
+  const terminal = createDevTerminal({
+    scope: 'soundor',
+    buildLog: resolve(root, '.soundor', 'dev', 'build.log'),
+    collapse: interactive,
+  });
+  const { logger } = terminal;
 
   // The native runtime's frames name /bundle.js, the Web's bundle.mjs.
   let sourceMap: SourceMap | undefined;
@@ -139,6 +164,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     } catch (error) {
       if (error instanceof DevToolsPortError) {
         watcher?.close();
+        await terminal.close();
         throw error;
       }
       logger.warn(
@@ -146,6 +172,80 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       );
     }
   }
+
+  const server = debug;
+  const ownRows: DevSummaryRow[] = [
+    { label: 'Plugin', value: config.plugin.name },
+    ...(server === undefined ? [] : [{ label: 'DevTools', value: server.url }]),
+  ];
+  let runtimeRows: readonly DevSummaryRow[] = [];
+  let readyOnce = false;
+  const printSummary = (readyMs?: number): void =>
+    terminal.print(
+      formatSummary({
+        version: cliVersion(),
+        runtime: options.runtime,
+        readyMs,
+        rows: [...ownRows, ...runtimeRows],
+        hint: interactive,
+      }),
+    );
+  const stop = (): void => {
+    logger.info('Stopping dev mode');
+    controller.abort();
+  };
+  const shortcuts: DevShortcut[] = [
+    {
+      key: 'u',
+      description: 'show the summary and URLs',
+      action: () => printSummary(),
+    },
+    ...(server === undefined
+      ? []
+      : [
+          {
+            key: 'o',
+            description: 'open DevTools, signed in',
+            action: () =>
+              openDevTools(server.browserLaunchUrl()).catch(() =>
+                logger.warn(
+                  'Could not open a browser. Press c + enter to copy a signed-in DevTools link instead.',
+                ),
+              ),
+          },
+          {
+            key: 'c',
+            description: 'copy a signed-in DevTools link',
+            action: async () => {
+              const target = await copyToClipboard(server.browserLaunchUrl());
+              logger.info(
+                `${target === 'system' ? 'Copied a DevTools link' : 'Asked the terminal to copy a DevTools link'}; it signs in one browser tab within a minute.`,
+              );
+            },
+          },
+        ]),
+    { key: 'q', description: 'quit', action: stop },
+  ];
+  const builtIn = new Set(['h', ...shortcuts.map((entry) => entry.key)]);
+  const session: DevSessionContext = {
+    ready(rows = []) {
+      runtimeRows = rows;
+      terminal.settle();
+      printSummary(readyOnce ? undefined : performance.now() - started);
+      readyOnce = true;
+    },
+    shortcut(shortcut) {
+      if (builtIn.has(shortcut.key)) {
+        logger.warn(
+          `Ignoring the runtime's shortcut '${shortcut.key}': soundor dev uses that key.`,
+        );
+        return;
+      }
+      const index = shortcuts.findIndex((entry) => entry.key === shortcut.key);
+      if (index === -1) shortcuts.splice(-1, 0, shortcut);
+      else shortcuts[index] = shortcut;
+    },
+  };
 
   const uiLogger = logger.child('ui');
   const tail = await tailLog(logFile, (entry) => {
@@ -158,15 +258,19 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   }).catch(async (error: unknown) => {
     watcher?.close();
     await debug?.close();
+    await terminal.close();
     throw error;
   });
 
-  const onSigint = (): void => {
-    logger.info('Stopping dev mode');
-    controller.abort();
-  };
-
-  process.once('SIGINT', onSigint);
+  process.once('SIGINT', stop);
+  const unbind = interactive
+    ? bindShortcuts({
+        shortcuts: () => shortcuts,
+        print: (text) => terminal.print(text),
+        onError: (error) =>
+          logger.error(error instanceof Error ? error.message : String(error)),
+      })
+    : undefined;
   try {
     await runPhase(resolved, 'dev', config, {
       paths,
@@ -176,6 +280,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       mode: 'debug',
       signal: controller.signal,
       devtools: debug?.connection,
+      session,
       ui: watcher && {
         dir: uiDir,
         entry: 'bundle.js',
@@ -183,12 +288,17 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
         live: { logFile },
       },
     });
+  } catch (error) {
+    terminal.flush();
+    throw error;
   } finally {
-    process.removeListener('SIGINT', onSigint);
+    process.removeListener('SIGINT', stop);
+    unbind?.();
     watcher?.close();
     await tail.poll().catch(() => {});
     tail.close();
     await debug?.close();
+    await terminal.close();
   }
 
   return {

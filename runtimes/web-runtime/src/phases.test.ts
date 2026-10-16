@@ -4,6 +4,8 @@ import { join, relative } from 'node:path';
 import {
   checkGeneratedFiles,
   GeneratedFilesOutOfDateError,
+  type DevShortcut,
+  type DevSummaryRow,
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
 import type { InlineConfig } from 'vite';
@@ -432,6 +434,40 @@ describe('webDev', () => {
       { createServer: createServer as never },
     );
     expect(createServer.mock.calls[0]![0].server?.port).toBe(4321);
+  });
+
+  it('reports its URL to the dev session and opens it on a shortcut', async () => {
+    const root = await preparedProject();
+    const controller = new AbortController();
+    const openBrowser = vi.fn<() => void>();
+    const server = {
+      ...fakeServer(),
+      resolvedUrls: { local: ['http://localhost:5173/'], network: [] },
+      openBrowser,
+    };
+    const shortcuts: DevShortcut[] = [];
+    const ready: (readonly DevSummaryRow[] | undefined)[] = [];
+    const ctx = {
+      ...makeCtx(root, { signal: controller.signal }),
+      session: {
+        ready(rows?: readonly DevSummaryRow[]) {
+          ready.push(rows);
+          controller.abort();
+        },
+        shortcut: (shortcut: DevShortcut) => shortcuts.push(shortcut),
+      },
+    };
+
+    await webDev(testConfig, ctx, {
+      createServer: (() => Promise.resolve(server)) as never,
+    });
+
+    expect(ready).toEqual([
+      [{ label: 'Web host', value: 'http://localhost:5173/' }],
+    ]);
+    expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['w']);
+    await shortcuts[0]!.action();
+    expect(openBrowser).toHaveBeenCalledOnce();
   });
 });
 

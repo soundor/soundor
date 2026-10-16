@@ -19,6 +19,7 @@ import {
   runCommand,
   type CommandProbe,
   type CommandRunner,
+  type DevSummaryRow,
   type DoctorReport,
   type LifecycleContext,
   type Logger,
@@ -28,7 +29,11 @@ import {
 
 import { generateJuceSources } from './codegen';
 import { buildDoctorReport, findCMake, findCppCompiler } from './doctor';
-import { resolveJuceOptions, type JuceOptions } from './options';
+import {
+  resolveJuceOptions,
+  type JuceFormat,
+  type JuceOptions,
+} from './options';
 import { resolveJuce } from './resolve-juce';
 import { juceScaffoldFiles } from './scaffold';
 
@@ -57,6 +62,12 @@ export interface JucePhaseDeps {
 }
 
 type Ctx = LifecycleContext<JuceOptions>;
+
+const FORMAT_NAMES: Record<JuceFormat, string> = {
+  vst3: 'VST3',
+  au: 'AU',
+  standalone: 'Standalone',
+};
 type StandaloneLauncher = (
   target: string,
   platform: NodeJS.Platform,
@@ -160,13 +171,34 @@ export async function juceDev(
     signal: ctx.signal,
   });
 
+  const rows: DevSummaryRow[] = [
+    {
+      label: 'Formats',
+      value: options.formats.map((format) => FORMAT_NAMES[format]).join(', '),
+    },
+  ];
+  const artefacts = await findArtefactsDir(buildDir);
+  if (artefacts !== undefined)
+    rows.push({ label: 'Plugins', value: artefacts });
   if (options.formats.includes('standalone')) {
-    await launchStandaloneBuild(
-      buildDir,
-      ctx,
-      deps.launchStandalone ?? launchStandalone,
-      deps.platform ?? process.platform,
-    );
+    const relaunch = (): Promise<string | undefined> =>
+      launchStandaloneBuild(
+        buildDir,
+        ctx,
+        deps.launchStandalone ?? launchStandalone,
+        deps.platform ?? process.platform,
+      );
+    const target = await relaunch();
+    if (target !== undefined) {
+      rows.push({ label: 'Standalone', value: target });
+      ctx.session?.shortcut({
+        key: 's',
+        description: 'launch the Standalone again',
+        action: async () => {
+          await relaunch();
+        },
+      });
+    }
   }
 
   ctx.logger.info(
@@ -174,6 +206,7 @@ export async function juceDev(
       ? 'Debug build ready.'
       : 'Debug build ready. The plugin UI reloads on every change; its console appears here.',
   );
+  ctx.session?.ready(rows);
   await waitForAbort(ctx.signal);
 }
 
@@ -383,13 +416,13 @@ async function launchStandaloneBuild(
   ctx: Ctx,
   launch: StandaloneLauncher,
   platform: NodeJS.Platform,
-): Promise<void> {
+): Promise<string | undefined> {
   const target = await findStandaloneTarget(buildDir, platform);
   if (target === undefined) {
     ctx.logger.warn(
       `Standalone build finished, but no app was found under ${buildDir}`,
     );
-    return;
+    return undefined;
   }
   const launched =
     ctx.devtools?.descriptorPath === undefined
@@ -398,6 +431,24 @@ async function launchStandaloneBuild(
   if (launched) {
     ctx.logger.info(`Launching standalone app: ${target}`);
   }
+  return target;
+}
+
+/** The directory JUCE puts the debug plugin formats in. */
+async function findArtefactsDir(buildDir: string): Promise<string | undefined> {
+  let entries: Dirent<string>[];
+  try {
+    entries = await readdir(buildDir, { withFileTypes: true });
+  } catch {
+    return undefined;
+  }
+  const entry = entries.find(
+    (candidate) =>
+      candidate.isDirectory() && candidate.name.endsWith('_artefacts'),
+  );
+  if (entry === undefined) return undefined;
+  const dir = join(buildDir, entry.name);
+  return existsSync(join(dir, 'Debug')) ? join(dir, 'Debug') : dir;
 }
 
 async function findStandaloneTarget(

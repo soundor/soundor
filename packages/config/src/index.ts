@@ -32,6 +32,9 @@ export type {
 } from './runtime';
 export type {
   LifecycleContext,
+  DevSessionContext,
+  DevShortcut,
+  DevSummaryRow,
   DevToolsConnection,
   RuntimeMode,
   RuntimePhase,
