@@ -38,6 +38,16 @@ The connection context is optional even for a supported runtime (disabled
 settings or unavailable infrastructure). Continue normal development without it.
 The server and protocol are delivered separately from this capability foundation.
 
+`LifecycleContext.session`, supplied by `soundor dev`, is how a long-lived
+`dev` phase talks to the developer's terminal. Call `ctx.session.ready(rows)`
+once the runtime is up (and again after anything it rebuilds): the CLI prints
+its summary with `rows` (`{ label, value }`, such as a URL to open) after its
+own. `ctx.session.shortcut({ key, description, action })` adds a shortcut that
+runs when `key` and enter are typed; the CLI's own keys (`h`, `u`, `o`, `c`,
+`q`) are reserved. Output piped through `ctx.logger.pipe` (as `runCommand`
+does) is collapsed into a progress line in a terminal and kept in
+`.soundor/dev/build.log`, so the summary stays on screen.
+
 ### Signing
 
 The CLI resolves code signing once and hands it to every phase as

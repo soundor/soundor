@@ -12,6 +12,8 @@ import { join } from 'node:path';
 import {
   createNodeFileSystem,
   type CommandProbe,
+  type DevShortcut,
+  type DevSummaryRow,
   type RunCommandOptions,
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
@@ -225,6 +227,64 @@ describe('juceDev', () => {
       ]);
     },
   );
+
+  it('reports the build to the dev session and relaunches on its shortcut', async () => {
+    const root = await tempProjectWithJuce();
+    const controller = new AbortController();
+    controller.abort();
+    const shortcuts: DevShortcut[] = [];
+    const ready: (readonly DevSummaryRow[] | undefined)[] = [];
+    const ctx = {
+      ...makeCtx({
+        root,
+        fs: createNodeFileSystem(root),
+        options: {
+          jucePath: join(root, 'JUCE'),
+          formats: ['vst3', 'standalone'],
+        },
+        signal: controller.signal,
+      }),
+      session: {
+        ready: (rows?: readonly DevSummaryRow[]) => ready.push(rows),
+        shortcut: (shortcut: DevShortcut) => shortcuts.push(shortcut),
+      },
+    };
+    const artefacts = join(
+      ctx.paths.cache,
+      'build-debug',
+      'SoundorBasic_artefacts',
+      'Debug',
+    );
+    const standalone = join(artefacts, 'Standalone', 'Soundor Basic');
+    const run = async (o: RunCommandOptions) => {
+      if (o.args[0] !== '--build') return;
+      await mkdir(join(standalone, '..'), { recursive: true });
+      await writeFile(standalone, 'binary');
+      await chmod(standalone, 0o755);
+    };
+    const launched: string[] = [];
+
+    await juceDev(config, ctx, {
+      run,
+      probe: okProbe,
+      platform: 'linux',
+      launchStandalone: (target) => {
+        launched.push(target);
+        return true;
+      },
+    });
+
+    expect(ready).toEqual([
+      [
+        { label: 'Formats', value: 'VST3, Standalone' },
+        { label: 'Plugins', value: artefacts },
+        { label: 'Standalone', value: standalone },
+      ],
+    ]);
+    expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['s']);
+    await shortcuts[0]!.action();
+    expect(launched).toEqual([standalone, standalone]);
+  });
 });
 
 describe('juceBuild', () => {

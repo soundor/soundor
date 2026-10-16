@@ -121,9 +121,21 @@ export async function webDev(
       throw viteFailure('start the Web host dev server', 'dev', error);
     }
     const url = server.resolvedUrls?.local[0];
-    ctx.logger.info(
-      url === undefined ? 'Web host ready.' : `Web host ready: ${url}`,
-    );
+    if (ctx.session === undefined)
+      ctx.logger.info(
+        url === undefined ? 'Web host ready.' : `Web host ready: ${url}`,
+      );
+    else {
+      if (url !== undefined)
+        ctx.session.shortcut({
+          key: 'w',
+          description: 'open the Web host in a browser',
+          action: () => server.openBrowser(),
+        });
+      ctx.session.ready(
+        url === undefined ? [] : [{ label: 'Web host', value: url }],
+      );
+    }
     await waitForAbort(ctx.signal);
   } finally {
     // Closes Vite's watchers and connections too, so the process can exit.

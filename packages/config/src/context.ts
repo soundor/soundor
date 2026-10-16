@@ -67,6 +67,34 @@ export interface LiveUiContext {
 }
 
 /**
+ * Set by `soundor dev`: how a long-lived `dev` phase talks to the terminal
+ * the developer is watching.
+ */
+export interface DevSessionContext {
+  /**
+   * Reports that the runtime is up (and again after anything it rebuilds):
+   * the CLI prints its summary, with `rows` after its own.
+   */
+  ready(rows?: readonly DevSummaryRow[]): void;
+  /** Adds a terminal shortcut, run by typing `key` and enter. */
+  shortcut(shortcut: DevShortcut): void;
+}
+
+/** One line of the summary `soundor dev` prints, such as a URL to open. */
+export interface DevSummaryRow {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** A terminal shortcut a runtime adds to `soundor dev`. */
+export interface DevShortcut {
+  /** What the developer types before enter: one or a few characters. */
+  readonly key: string;
+  readonly description: string;
+  action(): void | Promise<void>;
+}
+
+/**
  * Context passed to every lifecycle method. Generic over the runtime's opaque
  * options bag so a runtime reads its own `options` with full types.
  */
@@ -87,6 +115,8 @@ export interface LifecycleContext<Options extends object = object> {
   readonly ui?: UiBundleContext;
   /** Only provided for supported runtimes in the debug development phase. */
   readonly devtools?: DevToolsConnection;
+  /** Only provided in `dev`, by a host that shows the session in a terminal. */
+  readonly session?: DevSessionContext;
   /**
    * The resolved code signing (environment, then `config.signing`, then
    * ad-hoc). A runtime that produces macOS binaries signs every one of them

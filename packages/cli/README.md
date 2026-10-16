@@ -52,6 +52,27 @@ plugin (parameters) or in `soundor:storage`, so it survives a reload.
   frames mapped back to your TypeScript sources.
 - Changes to `soundor.config.ts` or native code need a restart of `soundor dev`.
 
+When the runtime is ready, `dev` prints a summary: the plugin, the DevTools URL
+and what the runtime adds (the JUCE runtime's build output and Standalone, the
+Web host's URL). In a terminal, the output of the native build is collapsed
+into one progress line; all of it is kept in `.soundor/dev/build.log`, and a
+failed build prints it. Type a key and enter for a shortcut:
+
+| Key | Action                                                          |
+| --- | --------------------------------------------------------------- |
+| `h` | Show the shortcuts                                              |
+| `u` | Show the summary again                                          |
+| `o` | Open DevTools in the browser, signed in                         |
+| `c` | Copy a signed-in DevTools link (it works once, within a minute) |
+| `s` | JUCE: launch the Standalone again                               |
+| `w` | Web: open the Web host in the browser                           |
+| `q` | Quit (as Ctrl+C)                                                |
+
+`c` uses the platform's clipboard command; over SSH, or without one, it asks
+the terminal to copy the link (OSC 52), which most terminals support. Outside
+a terminal (piped, or in CI) there are no shortcuts and the build output is
+printed as is.
+
 `dev` discovers optional DevTools support from the runtime's capability
 declaration, independent of its name. For supported runtimes it resolves
 [user settings](../config/README.md#user-settings) before running development;
@@ -62,9 +83,10 @@ to the next port when occupied; explicit collisions report a fix. The server
 binds to loopback and stops with the development lifecycle.
 
 Set `devtools.open:true` to open and authorize the first browser tab automatically
-with a one-use ticket. Otherwise enter the `browserKey` from your protected
-session descriptor whose path is printed in the terminal into the dashboard. Keys are
-never printed in logs. Browser tabs can observe targets concurrently; native
+with a one-use ticket. Otherwise press `o` (open) or `c` (copy a link) for a
+signed-in tab, or enter the `browserKey` from your protected session descriptor
+whose path is printed in the terminal into the dashboard. Keys are never
+printed in logs. Browser tabs can observe targets concurrently; native
 debug interactions require explicit control of the selected target. See the
 [protocol contract](../devtools-protocol/README.md) for transports and security.
 
