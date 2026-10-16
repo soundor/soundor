@@ -3,11 +3,10 @@
   "ui": "tui",
   "agentGuidance": false,
   "globalDependencies": [
-    "oxfmt.config.ts",
-    "oxlint.config.ts",
     "package.json",
     "pnpm-lock.yaml",
     "pnpm-workspace.yaml",
+    ".nvmrc",
     ".clang-format",
     ".clang-tidy",
     "scripts/**"
