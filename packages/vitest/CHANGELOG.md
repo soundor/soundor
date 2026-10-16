@@ -1,5 +1,15 @@
 # @soundor/vitest
 
+## 0.9.0
+
+### Patch Changes
+
+- [#137](https://github.com/soundor/soundor/pull/137) [`ee85daa`](https://github.com/soundor/soundor/commit/ee85daa245fe5f71f2faa90eafb9b86db2f6026a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Name the source repository and directory in every package, so npm links each package to its source and resolves its README's relative links.
+- Updated dependencies [[`99053ab`](https://github.com/soundor/soundor/commit/99053abfa9dc615ff9b81d6e2ec668e3d392288f), [`ee85daa`](https://github.com/soundor/soundor/commit/ee85daa245fe5f71f2faa90eafb9b86db2f6026a)]:
+  - @soundor/core@0.9.0
+  - @soundor/config@0.9.0
+  - @soundor/test-runtime@0.9.0
+
 ## 0.8.0
 
 ### Minor Changes
