@@ -22,11 +22,27 @@ html > body[data-scroll-locked] {
   padding: 0 40px;
 }
 .home-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.65fr);
-  gap: 48px;
-  align-items: center;
-  padding: 72px 0 56px;
+  display: flex;
+  justify-content: center;
+  padding: 88px 0 64px;
+  text-align: center;
+}
+.home-intro {
+  max-width: 1060px;
+}
+.home-intro .home-eyebrow,
+.home-intro .home-hero-actions,
+.home-intro .home-targets {
+  justify-content: center;
+}
+.home-intro .home-lead {
+  max-width: 580px;
+  margin-inline: auto;
+}
+.home-example {
+  padding: 72px 0;
+  border-bottom: 1px solid var(--color-fd-border);
+  scroll-margin-top: 80px;
 }
 .home-eyebrow {
   display: flex;
@@ -46,7 +62,7 @@ html > body[data-scroll-locked] {
   background: var(--color-fd-primary);
 }
 .home-intro h1 {
-  font-size: clamp(36px, 3.8vw, 54px);
+  font-size: clamp(40px, 4.6vw, 64px);
   line-height: 1.08;
   font-weight: 550;
   letter-spacing: -0.055em;
@@ -116,6 +132,8 @@ html > body[data-scroll-locked] {
 .home-demo {
   min-width: 0;
   position: relative;
+  max-width: 920px;
+  margin: 32px auto 0;
 }
 .orbit-demo {
   container-type: inline-size;
@@ -459,13 +477,6 @@ html > body[data-scroll-locked] {
   .home-content {
     padding-inline: 28px;
   }
-  .home-hero {
-    gap: 28px;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
-  }
-  .home-intro h1 {
-    font-size: 40px;
-  }
   .home-foundation {
     gap: 20px;
   }
@@ -482,27 +493,16 @@ html > body[data-scroll-locked] {
     padding-inline: 24px;
   }
   .home-hero {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 40px;
-    padding-top: 44px;
+    padding-top: 56px;
   }
   .home-intro h1 {
     font-size: 48px;
-  }
-  .home-intro h1 > br:nth-of-type(2),
-  .home-intro h1 > span > br {
-    display: none;
-  }
-  .home-intro h1 > span::before {
-    content: ' ';
   }
   .home-lead {
     max-width: 520px;
   }
   .home-demo {
-    max-width: 700px;
     width: 100%;
-    justify-self: center;
   }
   .home-foundation {
     display: grid;
@@ -525,7 +525,8 @@ html > body[data-scroll-locked] {
   .home-workflow-grid {
     gap: 22px;
   }
-  .home-workflow {
+  .home-workflow,
+  .home-example {
     padding-block: 56px;
   }
   .home-start {
@@ -548,7 +549,6 @@ html > body[data-scroll-locked] {
   .home-hero {
     padding-top: 36px;
     padding-bottom: 36px;
-    gap: 30px;
   }
   .home-demo-note {
     font-size: 9px;

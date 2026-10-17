@@ -50,12 +50,8 @@ function Home() {
               <span /> A toolkit for plugin makers
             </p>
             <h1 id="home-title">
-              Audio plugins <br />
-              with a React UI. <br />
-              <span>
-                Your sound. <br />
-                Your interface.
-              </span>
+              Audio plugins with a React UI. <br />
+              <span>Your sound. Your interface.</span>
             </h1>
             <p className="home-lead">
               Build the interface in TypeScript and React. Run it in a native
@@ -76,6 +72,9 @@ function Home() {
               >
                 Read the docs <ArrowUpRight size={16} aria-hidden />
               </Link>
+              <a href="#try-orbit" className="home-text-link">
+                Try Orbit ↓
+              </a>
             </div>
             <div className="home-targets" aria-label="Supported plugin formats">
               <span>VST3</span>
@@ -83,13 +82,6 @@ function Home() {
               <span>Standalone</span>
               <span>Web</span>
             </div>
-          </div>
-          <div className="home-demo">
-            <OrbitDemo />
-            <p className="home-demo-note">
-              <span className="home-note-line" /> This is a real plugin. The
-              same React UI runs in the DAW.
-            </p>
           </div>
         </section>
 
@@ -111,6 +103,33 @@ function Home() {
               <strong>Browser experience</strong>
               <span>The same UI · your Web Audio processor</span>
             </span>
+          </div>
+        </section>
+
+        <section
+          id="try-orbit"
+          className="home-example"
+          aria-labelledby="orbit-title"
+        >
+          <div className="home-section-heading">
+            <p className="home-eyebrow">Try something made with Soundor</p>
+            <h2 id="orbit-title">
+              Meet Orbit.
+              <br />
+              Make some space.
+            </h2>
+            <p>
+              A three-voice stereo delay you can play right here. Press Play,
+              drag the echoes, and compare Original with Orbit to hear the
+              difference.
+            </p>
+          </div>
+          <div className="home-demo">
+            <OrbitDemo />
+            <p className="home-demo-note">
+              <span className="home-note-line" /> This is a real plugin. The
+              same React UI runs in the DAW.
+            </p>
           </div>
         </section>
 
