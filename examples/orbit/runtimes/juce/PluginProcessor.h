@@ -4,6 +4,8 @@
 
 #include <soundor/soundor.h>
 
+#include <limits>
+
 class OrbitProcessor final : public soundor::AudioProcessor
 {
 public:
@@ -17,7 +19,12 @@ public:
     const juce::String getName() const override { return "Orbit"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
-    double getTailLengthSeconds() const override { return 120.0; }
+    double getTailLengthSeconds() const override
+    {
+        // A captured loop sustains indefinitely. Allow the slowest 9-second
+        // taps at maximum feedback to decay below -70 dB when not held.
+        return holdParameter->load() >= 0.5f ? std::numeric_limits<double>::infinity() : 900.0;
+    }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
