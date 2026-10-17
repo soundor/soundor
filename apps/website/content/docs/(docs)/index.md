@@ -1,6 +1,6 @@
 ---
-title: 'The idea behind Soundor'
-description: 'What is shared across runtimes, what you implement, and where state belongs.'
+title: 'Why Soundor'
+description: 'What Soundor is for, what is shared across runtimes, what you implement, and where state belongs.'
 ---
 
 Soundor separates an audio plugin's UI from the framework hosting it. You write
@@ -10,6 +10,27 @@ choose runtimes that implement that contract.
 The same fader can control a C++ processor in a DAW and a Web Audio graph in a
 browser. It imports `soundor:parameters` in both places; the runtime connects
 that import to the appropriate parameter store.
+
+## Why
+
+An audio plugin's UI is usually written for one framework, in its language:
+C++ components drawn by hand, rebuilt and reopened in the DAW for every
+change. The other common route embeds a web view, which brings a browser
+engine into every plugin instance and its differences between platforms.
+Soundor takes a third way:
+
+- **A UI written once, in React and TypeScript**, with their tooling: types
+  from the plugin's own config, components, a reload on every save, tests that run in
+  Node without a DAW.
+- **No browser in the plugin.** The UI runs in Soundor's embedded JavaScript
+  runtime, laid out and drawn by Soundor's engine, with the platform's own
+  accessibility.
+- **The same plugin in the browser.** The web runtime runs the same UI with
+  Web Audio: for demos, previews, and live examples in documentation, like
+  the ones on this site.
+- **One contract.** Parameters and the native API are declared once, in
+  `soundor.config.ts`; each runtime implements them, and generated types
+  keep the UI and the runtimes in agreement.
 
 ## What a project contains
 

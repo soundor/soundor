@@ -1,6 +1,6 @@
 ---
 title: 'Architecture'
-description: 'Build-time and runtime boundaries, packages, rendering, threads, and accessibility.'
+description: 'How a project becomes a plugin: build time and run time, rendering, threads and accessibility.'
 ---
 
 Soundor has a build-time toolchain and runtime implementations. The toolchain
@@ -29,25 +29,11 @@ the runtime. It emits an ES module for the web and a module function lowered
 for Hermes. Production native builds compile that module to bytecode with the
 matching `hermesc`.
 
-## Package responsibilities
+## Packages
 
-| Area              | Package                                                                                                                                                                             | Responsibility                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Configuration     | [`@soundor/config`](/docs/api/config)                                                                                                                                               | Config loading, validation, runtime types, and user settings                                 |
-| Runtime authoring | [`@soundor/runtime-sdk`](/docs/api/runtime-sdk)                                                                                                                                     | Factories and lifecycle hooks for runtime packages                                           |
-| Shared toolchain  | [`@soundor/core`](/docs/contribute/core)                                                                                                                                            | Code generation, paths, errors, logging, commands, and shared helpers                        |
-| Commands          | [`soundor`](/docs/api/cli)                                                                                                                                                          | `init`, `gen`, `dev`, `build`, and `doctor`; UI bundling and development sessions            |
-| New projects      | [`create-soundor-app`](/docs/api/create-soundor-app)                                                                                                                                | Project template, dependency installation, and runtime initialization                        |
-| UI                | [`@soundor/react`](/docs/react)                                                                                                                                                     | React reconciler, components, hooks, focus scopes, portals, and modals                       |
-| Native engine     | [`@soundor/engine`](/docs/contribute/engine-reference)                                                                                                                              | Backend-independent C++ UI engine and Hermes module lowering                                 |
-| Native host       | [`@soundor/juce-runtime`](/docs/juce-runtime)                                                                                                                                       | JUCE code generation, parameter and native API adapters, plugin builds                       |
-| Browser host      | [`@soundor/web-runtime`](/docs/web-runtime)                                                                                                                                         | DOM-backed UI, Web Audio host, browser services, and Vite integration                        |
-| DevTools          | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                              | Browser dashboard, authenticated session backend, and shared transport contract              |
-| Testing           | [Vitest plugin](/docs/api/vitest), [environment](/docs/api/vitest-environment-soundor), [Testing Library](/docs/api/testing-library), [test runtime](/docs/contribute/test-runtime) | Per-test runtime isolation, semantic queries, interactions, and deterministic animation time |
-
-The engine is versioned independently of the shared package release group.
-The JUCE runtime depends on an exact engine version. `@soundor/core` re-exports
-the engine's JavaScript module-lowering tool; the engine does not depend on core.
+The toolchain, the React renderer, the runtimes and the engine are separate
+packages; a project installs the CLI, `@soundor/react` and its runtimes.
+[Packages](/docs/contribute/packages) lists them all, for contributors.
 
 ## The runtime contract
 
@@ -146,7 +132,7 @@ DevTools connects a browser dashboard to an authenticated local server. The
 native development Standalone connects through a worker-based bridge, while
 inspection and mutations run on the owning UI thread. Node references include a
 generation so reload invalidates stale requests. Release builds exclude the
-native debug bridge. See [CLI development](/docs/api/cli#native-devtools-inspector).
+native debug bridge. See [CLI development](/docs/cli#native-devtools-inspector).
 
 Application tests run in Node against an in-memory runtime. They use the real
 React renderer and shared semantic rules, with a virtual clock for animations.

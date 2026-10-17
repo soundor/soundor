@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
+import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins/remark-mdx-mermaid';
 import { getSlugs } from 'fumadocs-core/source';
 import { fumadocsMdx } from 'fumadocs-mdx/vite';
 import { remarkAutoTypeTable } from 'fumadocs-typescript';
@@ -78,6 +79,7 @@ export default defineConfig({
           remarkPlugins: (defaults) => [
             remarkPlaceholders(values),
             remarkSnippets(readSnippet),
+            remarkMdxMermaid,
             [
               remarkAutoTypeTable,
               {

@@ -1,0 +1,39 @@
+---
+title: useParameter
+description: A parameter's value, re-rendering the component whenever it changes.
+---
+
+```ts
+function useParameter<T>(parameter: ParameterLike<T>): T;
+```
+
+`useParameter(parameters.gain)` returns the parameter's current value and
+re-renders the component when it changes, whoever changes it: the host's
+automation, a preset, another view, the audio side, or this UI.
+
+<Snippet name="parameters" height={240} />
+
+- **The parameter stays the source of truth.** Show its value and change it
+  with `set()`; do not copy it into React state, or the host's automation
+  and presets will not show.
+- **Changes arrive once a frame.** A burst of changes (automation from the
+  audio thread) re-renders once, with the latest value.
+- **Typed from the config:** a `float` or `int` parameter gives a `number`, a
+  `bool` a `boolean`, an `enum` one of its values.
+- **During a drag,** bracket the `set()`s with `beginGesture()` and
+  `endGesture()`, so the host records one edit:
+
+```tsx
+const gain = useParameter(parameters.gain);
+
+<View
+  onPointerDown={() => parameters.gain.beginGesture()}
+  onPointerMove={(event) => parameters.gain.set(valueAt(event.locationY))}
+  onPointerUp={() => parameters.gain.endGesture()}
+/>;
+```
+
+It takes anything with `get()` and `subscribe()`, as
+[`soundor:parameters`](/docs/api/parameters)' parameters have. The
+[Parameters guide](/docs/parameters) shows how to declare them and connect
+them to audio.

@@ -42,7 +42,7 @@ test('focuses an input', () => {
 });
 ```
 
-See [@soundor/testing-library](/docs/api/testing-library) for rendering, semantic
+See [@soundor/testing-library](/docs/testing/testing-library) for rendering, semantic
 queries, and stateful user interactions.
 
 ## Configuration and declarations

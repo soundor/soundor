@@ -1,0 +1,15 @@
+---
+title: Hooks
+description: The React hooks @soundor/react adds, for parameters and frames.
+---
+
+`@soundor/react` adds two hooks to React's own: one connects a component to a
+plugin parameter, the other runs code before every frame. React's hooks
+(`useState`, `useEffect`, `useRef`, …) work as everywhere else.
+
+| Hook                                                   | What it is for                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------ |
+| [`useParameter`](/docs/hooks/use-parameter)            | A parameter's value, re-rendering when it changes.                 |
+| [`useAnimationFrame`](/docs/hooks/use-animation-frame) | A callback before every frame, to draw a canvas or follow a value. |
+
+<Snippet name="gain" height={200} />

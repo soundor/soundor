@@ -25,8 +25,9 @@ The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
 (especially `juce-runtime.md`, `web-runtime.md`, `react.mdx`), `components/`
 (a page per `@soundor/react` component, its props table generated from its
-type and doc comments), `api/` (a page per `soundor:*` module and tool),
-`contribute/` for internals (especially `engine-reference.md`). Keep them in
+type and doc comments), `hooks/`, `api/` (a page per `soundor:*` module),
+`testing/`, `cli/` (commands, config, create-soundor-app), and `contribute/`
+for internals (especially `engine-reference.md`). Keep them in
 sync when behavior changes; a prop or a `Style` property needs a doc comment,
 which its table shows.
 

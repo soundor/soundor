@@ -80,7 +80,7 @@ printed as is.
 
 `dev` discovers optional DevTools support from the runtime's capability
 declaration, independent of its name. For supported runtimes it resolves
-[user settings](/docs/api/config#user-settings) before running development;
+[user settings](/docs/cli/config#user-settings) before running development;
 unsupported runtimes do not load these settings. Set `devtools.enabled` to
 `false` to disable debugging. The session server serves the browser dashboard at
 the displayed URL, using port 4545 by default. Only an implicit default advances

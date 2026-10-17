@@ -34,6 +34,24 @@ Every component takes:
 - `ref`: its `soundor:ui` node, for its layout, bounds, focus and animations
   ([`soundor:ui`](/docs/api/ui)).
 
-A plugin's `src/main.tsx` renders its root component with `render(<App />)`
-([rendering and hooks](/docs/api/react)). The
+## Rendering
+
+A plugin's `src/main.tsx` renders its root component into the plugin view:
+
+```tsx
+import { render } from '@soundor/react';
+
+import { App } from './App';
+
+render(<App />);
+```
+
+- **`render(element)`** renders into the whole plugin view, replacing what it
+  showed, and returns its root.
+- **`createRoot(node?)`** makes a root that renders into a `soundor:ui` node
+  (by default the view's root): `{ render(element), unmount() }`.
+- **`flushSync(fn)`** runs `fn` and applies the updates it schedules before
+  returning, for code that needs the nodes to be there at once.
+
+The [hooks](/docs/hooks) connect components to parameters and frames, and the
 [React UI guide](/docs/react) explains how the renderer works.

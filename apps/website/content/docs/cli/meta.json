@@ -1,0 +1,6 @@
+{
+  "title": "CLI",
+  "description": "Commands, configuration and new projects",
+  "root": true,
+  "pages": ["index", "config", "create-soundor-app"]
+}

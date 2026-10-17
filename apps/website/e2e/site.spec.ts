@@ -252,3 +252,26 @@ test("a snippet's image loads, from the example's build", async ({ page }) => {
     .toBe(480);
   expect(problems).toEqual([]);
 });
+
+test('a Mermaid block is drawn as a diagram', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/contribute/packages');
+  const diagram = page.locator('figure svg').first();
+  await expect(diagram).toBeVisible();
+  await expect(diagram).toContainText('@soundor/engine');
+  expect(problems).toEqual([]);
+});
+
+test('each tab has its own pages: hooks, testing, the CLI', async ({
+  page,
+}) => {
+  for (const [path, heading] of [
+    ['/docs/hooks/use-parameter', 'useParameter'],
+    ['/docs/testing', 'Testing'],
+    ['/docs/cli', 'CLI'],
+    ['/docs/cli/config', 'Configuration'],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(heading);
+  }
+});

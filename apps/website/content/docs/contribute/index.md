@@ -18,7 +18,7 @@ pnpm build
 The workspace contains public packages under `packages/` and `runtimes/`,
 private shared configs under `configs/`, application examples under `examples/`,
 and rendering benchmarks under `tools/benchmark/`. See
-[Architecture](/docs/architecture#package-responsibilities) for package ownership.
+[Packages](/docs/contribute/packages) for package ownership.
 
 `pnpm build` builds TypeScript packages and tools; it does not compile the native
 engine. Native checks build it separately. The first native configure compiles
@@ -170,9 +170,11 @@ uploads, and readbacks do not depend on timing and help explain a change.
 
 The documentation is the website, [soundor.dev](https://soundor.dev): guides and
 references live in `apps/website/content/docs/`, one folder per tab:
-`(docs)/` (guides for plugin authors), `components/` (a page per component),
-`api/` (a page per module and tool) and `contribute/` (work on Soundor
-itself). Each folder's `meta.json` orders its sidebar, and a page's
+`(docs)/` (why Soundor, getting started, guides, runtimes and examples, for
+plugin authors, without a tour of the packages), `components/` (a page per
+component), `hooks/`, `api/` (a page per `soundor:*` module), `testing/`,
+`cli/` (commands, config, create-soundor-app) and `contribute/` (work on
+Soundor itself). Each folder's `meta.json` orders its sidebar, and a page's
 frontmatter gives its title and description. Write
 `.md`; use `.mdx` only for a page that needs a component, such as
 `<Example name="basic" />`, which embeds an example's web build, or
@@ -202,7 +204,11 @@ name of its own for the component's own props. Its descriptions are the
 props' doc comments, so a new prop needs one: the same comment shows in the
 editor's hover and in a user's IDE.
 
-Link pages by their site path (`/docs/api/react#hooks`) and repository files by
+A ` ```mermaid ` code block is drawn as a diagram (Mermaid, in the
+site's theme; the page's Markdown keeps its source): prefer one to a long
+description of a flow, a pipeline or a set of dependencies.
+
+Link pages by their site path (`/docs/hooks`) and repository files by
 their GitHub URL. Write versions as placeholders such as
 `%version:<package>%`, which the build fills in from the repository (the list is
 in `apps/website/plugins/values.ts`). Package READMEs are

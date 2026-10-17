@@ -4,7 +4,7 @@ description: The plugin view's node tree, styles, events, canvases and animation
 ---
 
 `soundor:ui` is the plugin view itself: a tree of nodes laid out with
-flexbox, with DOM-style events. [`@soundor/react`](/docs/api/react) renders
+flexbox, with DOM-style events. [`@soundor/react`](/docs/components#rendering) renders
 into it, so most UIs never import it; reach for it to animate a node, read
 the view's size, or build a renderer.
 

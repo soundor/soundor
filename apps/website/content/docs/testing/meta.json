@@ -1,0 +1,12 @@
+{
+  "title": "Testing",
+  "description": "Test a plugin UI without a plugin host",
+  "root": true,
+  "pages": [
+    "index",
+    "---Packages---",
+    "testing-library",
+    "vitest",
+    "vitest-environment-soundor"
+  ]
+}
