@@ -15,7 +15,9 @@ pnpm --filter orbit build:web
 pnpm --filter orbit exec soundor build juce
 ```
 
-Press the host's Play button to hear the original, synthesized demo loop.
+Press the host's Play button to hear a short, bright pluck phrase followed by
+silence. Listen for Orbit's answer in those gaps. The **Original / Orbit**
+buttons compare the dry input with the current effect without changing its settings.
 The source selector above the plugin switches to the host's input; choose an
 audio file in the host settings. Those controls belong to the browser demo,
 not to the plugin. The JUCE version always processes the host's audio input.
@@ -29,7 +31,8 @@ not to the plugin. The JUCE version always processes the host's audio input.
   remains until released, with a short seam crossfade; time changes alter
   playback speed. The dry input continues, and new input does not enter the
   captured loops. Feedback is ignored while held. Tone, width and mix still work.
-- Bypass smoothly returns to the original audio. The delay continues running.
+- **Original** smoothly bypasses Orbit; **Orbit** restores the effect. The delay
+  continues running while bypassed.
 - Preset arrows apply four starting points and release Hold. The preset name
   identifies the starting point; parameter edits do not rename it.
 

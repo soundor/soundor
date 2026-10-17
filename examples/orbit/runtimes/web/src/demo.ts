@@ -9,26 +9,28 @@ export function demoLoop(context: BaseAudioContext): AudioBuffer {
     seed = (seed * 16807) % 2147483647;
     return seed / 1073741823.5 - 1;
   };
-  for (let step = 0; step < 32; step++) {
-    const start = Math.round(step * 0.25 * rate);
-    const note = [57, 64, 69, 72, 55, 62, 67, 71][Math.floor(step / 4) % 8]!;
-    const frequency = 440 * 2 ** ((note - 69) / 12);
-    for (let i = 0; i < rate * 0.6 && start + i < left.length; i++) {
+  // Two short calls, each followed by three seconds of space for the answer.
+  // Dense source material masks a delay, especially for a first-time listener.
+  const starts = [0, 0.5, 1, 4, 4.5, 5];
+  const notes = [57, 64, 69, 55, 62, 67];
+  for (let note = 0; note < starts.length; note++) {
+    const start = Math.round(starts[note]! * rate);
+    const frequency = 440 * 2 ** ((notes[note]! - 69) / 12);
+    for (let i = 0; i < rate * 0.3; i++) {
       const t = i / rate;
-      const pluck =
-        Math.sin(2 * Math.PI * frequency * t) +
-        0.3 * Math.sin(4 * Math.PI * frequency * t);
-      let value = pluck * Math.exp(-t * 12) * 0.16 * Math.min(1, t * 800);
-      if (step % 4 === 0)
-        value +=
-          Math.sin(2 * Math.PI * (48 * t + 2 * (1 - Math.exp(-t * 32)))) *
-          Math.exp(-t * 16) *
-          0.3;
-      if (step % 4 === 2) value += noise() * Math.exp(-t * 42) * 0.1;
-      value += noise() * Math.exp(-t * 170) * (step % 2 === 0 ? 0.035 : 0.025);
-      const pan = step % 2 === 0 ? 0.85 : 1;
-      left[start + i]! += value * pan;
-      right[start + i]! += value * (1.85 - pan);
+      let pluck = 0;
+      // A bright pluck makes the Tone control audible across its range.
+      for (let harmonic = 1; harmonic <= 8; harmonic++) {
+        pluck +=
+          (Math.sin(2 * Math.PI * frequency * harmonic * t) /
+            harmonic ** 1.25) *
+          Math.exp(-t * harmonic * 3);
+      }
+      const envelope = Math.min(1, t * 800) * Math.exp(-t * 20);
+      const value =
+        (pluck * 0.3 + noise() * Math.exp(-t * 180) * 0.08) * envelope;
+      left[start + i] = value;
+      right[start + i] = value;
     }
   }
   return buffer;

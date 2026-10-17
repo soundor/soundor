@@ -85,7 +85,7 @@ export default defineSoundorConfig({
       max: 1,
       default: 0.75,
     },
-    { type: 'float', id: 'mix', label: 'Mix', min: 0, max: 1, default: 0.35 },
+    { type: 'float', id: 'mix', label: 'Mix', min: 0, max: 1, default: 0.6 },
     { type: 'bool', id: 'sync', label: 'Tempo sync', default: true },
     { type: 'bool', id: 'hold', label: 'Hold', default: false },
     { type: 'bool', id: 'bypass', label: 'Bypass', default: false },

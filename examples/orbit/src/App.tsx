@@ -112,17 +112,47 @@ export function App() {
             <Text style={styles.arrowText}>›</Text>
           </Pressable>
         </View>
-        <Pressable
-          accessibilityLabel="Bypass"
-          accessibilityRole="togglebutton"
-          accessibilityState={{ checked: bypass }}
-          onPress={() => toggle(parameters.bypass)}
-          style={[styles.power, bypass && { backgroundColor: '#d9d9d2' }]}
+        <View
+          accessibilityRole="radiogroup"
+          accessibilityLabel="Compare audio"
+          style={styles.compare}
         >
-          <Text style={{ color: bypass ? '#777d73' : '#e2f1c6', fontSize: 18 }}>
-            ⏻
-          </Text>
-        </Pressable>
+          {[
+            { label: 'Original', dry: true },
+            { label: 'Orbit', dry: false },
+          ].map(({ label, dry }) => (
+            <Pressable
+              key={label}
+              accessibilityRole="radio"
+              accessibilityLabel={label}
+              accessibilityState={{ checked: bypass === dry }}
+              accessibilityHint={
+                dry
+                  ? 'Hear the input without Orbit'
+                  : 'Hear the current Orbit settings'
+              }
+              onPress={() => {
+                parameters.bypass.beginGesture();
+                parameters.bypass.set(dry);
+                parameters.bypass.endGesture();
+              }}
+              style={[
+                styles.compareOption,
+                bypass === dry && { backgroundColor: '#30362f' },
+              ]}
+            >
+              <Text
+                style={{
+                  color: bypass === dry ? '#e2f1c6' : '#6e7867',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                }}
+              >
+                {label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
       <View style={{ marginTop: 14 }}>
         <EchoField bpm={bpm} playing={host.transport?.playing ?? false} />
@@ -295,11 +325,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   arrowText: { color: '#737b6d', fontSize: 24, lineHeight: 28 },
-  power: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#30362f',
+  compare: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: 8,
+    backgroundColor: '#dce0d4',
+    borderWidth: 1,
+    borderColor: '#c5ccba',
+  },
+  compareOption: {
+    width: 59,
+    height: 30,
+    borderRadius: 5,
     alignItems: 'center',
     justifyContent: 'center',
   },

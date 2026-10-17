@@ -12,10 +12,21 @@ test('Orbit plays real audio and edits its delay through the portable controls',
   });
   await page.addInitScript(() => {
     const original = AudioNode.prototype.connect;
-    const destination = window as unknown as { orbitAnalyser?: AnalyserNode };
+    const destination = window as unknown as {
+      orbitAnalyser?: AnalyserNode;
+      orbitInputAnalyser?: AnalyserNode;
+      orbitDemoStart?: number;
+    };
     Object.defineProperty(AudioNode.prototype, 'connect', {
       value: function (this: AudioNode, ...args: unknown[]) {
         const result = Reflect.apply(original, this, args);
+        if (args[0] instanceof AudioWorkletNode) {
+          destination.orbitInputAnalyser ??= this.context.createAnalyser();
+          destination.orbitInputAnalyser.fftSize = 2048;
+          Reflect.apply(original, this, [destination.orbitInputAnalyser]);
+          if (this instanceof AudioBufferSourceNode)
+            destination.orbitDemoStart = this.context.currentTime;
+        }
         if (args[0] === this.context.destination) {
           const analyser = this.context.createAnalyser();
           analyser.fftSize = 2048;
@@ -48,6 +59,39 @@ test('Orbit plays real audio and edits its delay through the portable controls',
     )
     .toBeGreaterThan(0.001);
 
+  // In the deliberate gap after the phrase, the input is silent but Orbit
+  // must produce clearly measurable repeats. Nonzero output alone would let
+  // a broken passthrough implementation pass this test.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const meter = window as unknown as {
+            orbitAnalyser: AnalyserNode;
+            orbitInputAnalyser: AnalyserNode;
+            orbitDemoStart: number;
+          };
+          if (!meter.orbitInputAnalyser || meter.orbitDemoStart === undefined)
+            return false;
+          const elapsed =
+            (meter.orbitAnalyser.context.currentTime - meter.orbitDemoStart) %
+            4;
+          if (elapsed < 1.5 || elapsed > 3.8) return false;
+          const input = new Float32Array(2048),
+            output = new Float32Array(2048);
+          meter.orbitInputAnalyser.getFloatTimeDomainData(input);
+          meter.orbitAnalyser.getFloatTimeDomainData(output);
+          const rms = (samples: Float32Array) =>
+            Math.sqrt(
+              samples.reduce((sum, sample) => sum + sample * sample, 0) /
+                samples.length,
+            );
+          return rms(input) < 0.00001 && rms(output) > 0.002;
+        }),
+      { timeout: 10000, intervals: [50] },
+    )
+    .toBe(true);
+
   const echo = page.getByRole('slider', { name: 'Echo 1 time', exact: true });
   const box = (await echo.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -72,8 +116,8 @@ test('Orbit plays real audio and edits its delay through the portable controls',
   await page.keyboard.press('ArrowUp');
   await expect(
     page.getByRole('slider', { name: 'Mix', exact: true }),
-  ).toHaveAttribute('aria-valuenow', '0.33');
-  await page.getByRole('button', { name: 'Bypass', exact: true }).click();
+  ).toHaveAttribute('aria-valuenow', '0.61');
+  await page.getByRole('radio', { name: 'Original', exact: true }).click();
   await expect(
     page.getByText('Bypassed · original audio', { exact: true }),
   ).toBeVisible();

@@ -38,12 +38,16 @@ test('echoes and knobs support keyboard editing; toggles expose their state', as
   expect(parameters.feedback.get()).toBeGreaterThan(0.48);
   await user.keyboard('{Home}');
   expect(parameters.feedback.get()).toBe(0.48);
-  await user.click(screen.getByRole('togglebutton', { name: 'Bypass' }));
+  await user.click(screen.getByRole('radio', { name: 'Original' }));
   expect(parameters.bypass.get()).toBe(true);
   expect(
-    screen.getByRole('togglebutton', { name: 'Bypass' }).accessibility.state
+    screen.getByRole('radio', { name: 'Original' }).accessibility.state
       ?.checked,
   ).toBe(true);
+  const mix = parameters.mix.get();
+  await user.click(screen.getByRole('radio', { name: 'Orbit' }));
+  expect(parameters.bypass.get()).toBe(false);
+  expect(parameters.mix.get()).toBe(mix);
 });
 
 const settings = (): DelaySettings => ({
