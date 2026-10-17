@@ -48,8 +48,12 @@ should fit that boundary without adding runtime-specific branches to the CLI.
    generated files, every `soundor:*` module and Web globals.
 3. [Implementation choices](/docs/contribute/build-runtime/implementation):
    embed the Soundor engine or implement the contract on another platform.
-4. [Conformance](/docs/contribute/build-runtime/conformance): what to test now
+4. [A minimal runtime package](/docs/contribute/build-runtime/walkthrough):
+   build the lifecycle integration, then connect execution.
+5. [Conformance](/docs/contribute/build-runtime/conformance): what to test now
    and a proposed suite shared by all runtimes.
+6. [Publishing](/docs/contribute/build-runtime/publishing): entry points, peers,
+   engine compatibility and packed consumer checks.
 
 ## Invariants and tests
 

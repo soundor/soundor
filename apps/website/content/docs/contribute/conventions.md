@@ -43,8 +43,8 @@ Each subsystem page follows this structure:
 
 Preserve old anchors or update their callers when splitting a page. Keep the
 application-facing contract in API and component pages, and implementation
-mechanics in Contribute. Record an unresolved design reason as an open question
-rather than inventing a rationale.
+mechanics in Contribute. Explain technical tradeoffs and link recorded decision
+history; distinguish an architectural inference from an original decision record.
 
 ## Documentation and live examples
 

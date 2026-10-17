@@ -1,4 +1,12 @@
 {
   "title": "Build a runtime",
-  "pages": ["index", "lifecycle", "contract", "implementation", "conformance"]
+  "pages": [
+    "index",
+    "lifecycle",
+    "contract",
+    "implementation",
+    "walkthrough",
+    "conformance",
+    "publishing"
+  ]
 }

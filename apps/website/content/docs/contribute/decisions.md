@@ -1,11 +1,12 @@
 ---
 title: 'Design decisions'
-description: 'Recorded choices, their evidence, and design questions that still need an answer.'
+description: 'Why the major choices fit Soundor, the tradeoffs they carry, and the evidence behind them.'
 ---
 
-These notes separate reasons recorded in the repository from questions that
-still need the project's authors to answer. Historical measurements describe
-the build and machine used then; they are not current performance guarantees.
+These notes explain the technical reasons for Soundor's major choices and the
+tradeoffs they carry. Linked PRs record historical decisions. Sections without
+a historical source give an architectural rationale inferred from the current
+design. Historical measurements describe the build and machine used then.
 
 ## Hermes instead of QuickJS-NG
 
@@ -31,8 +32,11 @@ that plugin hosts do not all allow a JIT. Layout, painting and composition run
 in native code; the UI's JavaScript runs on the message thread. Portable UI
 performance therefore cannot depend on a JIT becoming available.
 
-Open question: record any additional deployment or predictability reasons
-behind this constraint, beyond host compatibility.
+An interpreter keeps the execution model usable in those hosts, while build-time
+bytecode compilation keeps parsing and compilation out of production UI startup.
+The cost is lower JavaScript throughput than a design that could assume a JIT.
+Soundor handles layout, drawing, compositing and native animation timelines in
+C++, and performance work measures the JavaScript that remains on each frame.
 
 ## Skia on the CPU, ANGLE for the GPU
 
@@ -41,19 +45,33 @@ and the GPU composition path where supported. Soundor's compositor combines
 those layers, with a CPU fallback. A compatible GPU compositor shares WebGL
 textures without readback. See [Rendering](/docs/contribute/engine-reference#rendering).
 
-This is the current division of work. Open question: record the original
-reasons for starting with CPU Skia and adding ANGLE rather than choosing a
-different rendering stack. Do not infer that history from today's code.
+This division keeps ordinary UI painting available without a GPU and lets
+platform presentation evolve separately from drawing. Cached CPU layers can be
+reused until their content changes; GPU composition can move or fade those
+layers without repainting them. ANGLE supplies the graphics API adaptation for
+WebGL and composition on supported platforms.
+
+The tradeoff is maintaining CPU and GPU presentation paths and their resource
+handoff. CPU composition of a GPU canvas can require readback, so sharing the
+device and avoiding readback on the GPU path are explicit tested invariants.
 
 ## Yoga for layout
 
-Native nodes use Yoga. The web runtime reproduces its layout defaults on DOM
-elements so shared React code has consistent behavior. See
+Soundor needs a layout algorithm for a custom native node tree, independent of
+JUCE widgets and browser layout. [Yoga](https://www.yogalayout.dev/) supplies a
+portable engine targeting web layout standards. Its flex layout model fits
+Soundor's React component and style API, and native code can calculate layout
+without implementing that algorithm in JavaScript.
+
+The web runtime reproduces Yoga's layout defaults on DOM elements so shared
+React code has consistent behavior. See
 [UI implementation](/docs/contribute/engine-reference#soundorui) and the
 [web implementation](/docs/web-runtime#vite-and-the-plugin-ui).
 
-Open question: record the selection criteria and alternatives considered when
-Yoga was chosen.
+The tradeoff is a deliberate layout subset and defaults to maintain across both
+implementations. A browser's CSS defaults are not automatically Soundor's
+defaults; a new style property needs declarations, native mapping, browser
+mapping and corresponding tests.
 
 ## Soundor owns accessibility semantics
 
@@ -63,16 +81,26 @@ keeps roles, values, modal visibility and logical ownership consistent across
 runtime implementations. JUCE supplies a view and attachment point rather
 than defining Soundor's control semantics.
 
-The semantic rules live in engine `src/a11y/` and web client `ui/semantics.ts`,
-with tests in both implementations. Open question: record any original reasons
-for this ownership beyond the cross-runtime behavior the implementation now
-enforces.
+The native UI is a custom-drawn node tree, so its controls are not individual
+JUCE widgets whose semantics can simply be reused. Soundor also knows about
+logical ownership through portals and modal visibility. Deriving semantics
+where that information lives gives every platform the same meaning for a
+control, including the browser implementation.
+
+The cost is owning the semantic rules and testing their platform mappings.
+Those rules live in engine `src/a11y/` and web client `ui/semantics.ts`, with
+tests in both implementations.
 
 ## AccessKit on Windows/Linux, own bridges on Apple
 
 [PR #84](https://github.com/soundor/soundor/pull/84) adds the AccessKit backend
-for Windows and Linux. Soundor keeps AccessKit types private to that backend.
-Apple platforms use Soundor's own bridges.
+for Windows and Linux. AccessKit's
+[tree-and-action model](https://accesskit.dev/how-it-works/) fits Soundor's
+semantic tree: Soundor sends updates, and assistive technology requests actions
+through the adapter. Its Windows and Unix adapters supply UI Automation and
+AT-SPI integration, so Soundor can reuse those platform implementations.
+AccessKit types stay private to the backend. The pinned C release supplies
+static libraries, avoiding a Rust toolchain requirement for plugin authors.
 
 Several plugins and engine versions may share a host process. Objective-C class
 names are process-global, so hiding C++ symbols cannot prevent their collisions.
@@ -81,8 +109,11 @@ an element subclass with a unique runtime name, avoids fixed class names,
 categories and swizzling, and keeps late platform callbacks safe after view
 teardown. Tests load multiple plugin binaries in one process.
 
-Open question: record the complete selection rationale for AccessKit and for
-implementing the Apple bridges directly, including alternatives considered.
+Soundor's own bridge on Apple gives it control over that class registration,
+attachment and callback lifetime. That control matters when a host loads
+several copies or versions and retains accessibility objects after an editor
+closes. The tradeoff is maintaining the macOS and iOS mappings and manual
+assistive-technology checks as well as the automated lifetime tests.
 
 ## No DSP abstraction
 
@@ -91,5 +122,14 @@ their host project; web projects implement their audio with Web Audio. The
 native API is a typed bridge to that code, rather than a portable DSP language.
 See [Web runtime limitations](/docs/web-runtime#limitations).
 
-Open question: record why a portable DSP abstraction is outside the project's
-scope and which boundaries future audio integrations should preserve.
+Keeping audio in the host project lets authors use its existing processing
+model: a JUCE audio callback in C++, or browser audio nodes and routing. Sharing
+the UI does not require adopting a Soundor signal-processing language or
+translating an existing processor into one. Parameters and the typed native API
+provide the boundary the UI needs.
+
+A shared DSP layer would also need to define processing, real-time state and
+compatibility across those backends. Keeping that responsibility with the
+plugin author keeps Soundor focused on the UI and its integration. The tradeoff
+is explicit: shared UI and API declarations do not make the audio implementation
+portable. A project targeting both runtimes supplies both audio implementations.
