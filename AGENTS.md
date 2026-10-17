@@ -90,12 +90,14 @@ The website (`apps/website`) embeds the examples' web builds:
 ```sh
 pnpm turbo run build --filter=website   # packages, examples' build:web, the site → apps/website/dist/client
 pnpm turbo run dev --filter=website     # the site with live content reload
+pnpm --filter website test              # unit tests: placeholders, link check, examples sync
 ```
 
 It depends on the examples' `build:web` only (`website#build` in `turbo.json`),
 never their `build`, which would build the JUCE plugin and the native engine.
 Its build fails on a broken internal link or anchor, or an incomplete page
-(`scripts/check-links.ts`). `.github/workflows/website.yml` deploys it: called
+(`scripts/links.ts`). Its unit tests need nothing built (`website#test` has no
+dependencies), so the root `test` runs them. `.github/workflows/website.yml` deploys it: called
 by the release workflow after npm publishing, or run by hand.
 
 Native CI jobs each test one package and run when `turbo query affected`

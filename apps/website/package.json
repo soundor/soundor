@@ -7,7 +7,8 @@
   "scripts": {
     "build": "node scripts/sync-examples.ts && vite build && node scripts/check-links.ts && tsc --noEmit",
     "dev": "node scripts/sync-examples.ts && vite dev",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tanstack/react-router": "catalog:",
@@ -34,6 +35,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vfile": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -39,6 +39,9 @@
     "test": {
       "dependsOn": ["^test", "^build"]
     },
+    "website#test": {
+      "dependsOn": []
+    },
     "test:watch": {
       "dependsOn": ["^build"],
       "cache": false,

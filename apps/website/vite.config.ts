@@ -5,9 +5,9 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
 import { getSlugs } from 'fumadocs-core/source';
 import { fumadocsMdx } from 'fumadocs-mdx/vite';
-import convert from 'npm-to-yarn';
 import { defineConfig } from 'vite';
 
+import { packageManagers } from './plugins/package-managers.ts';
 import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
 import { siteValues } from './plugins/values.ts';
 
@@ -28,16 +28,6 @@ for await (const file of glob('**/*.{md,mdx}', { cwd: 'content/docs' })) {
     { path: `${slugs.length === 0 ? '/docs/index' : url}.md` },
   );
 }
-
-/** Install commands as tabs for the package managers Soundor supports. */
-const packageManagers = (['pnpm', 'npm'] as const).map((name) => ({
-  name,
-  command: (command: string) =>
-    command
-      .split('\n')
-      .map((line) => convert(line, name))
-      .join('\n'),
-}));
 
 export default defineConfig({
   define: {
