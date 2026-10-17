@@ -1,0 +1,71 @@
+name: Website
+
+# soundor.dev: the static site apps/website builds (the docs, with the
+# examples' web builds), deployed to GitHub Pages.
+#
+# Release calls it once npm has the release, with the released commit, so the
+# docs describe what is published; run it by hand to deploy a website-only
+# change between releases (Actions → Website → Run workflow, or
+# `gh workflow run website.yml -f ref=main`). A release's GITHUB_TOKEN cannot
+# start other workflows, hence a call rather than `on: release`.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to build the site from
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to deploy
+        type: string
+        default: main
+
+# One deploy at a time; a newer one waits rather than cancelling.
+concurrency:
+  group: website-deploy
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      # The packages, the examples' web builds (never their native builds),
+      # then the site; it fails on a broken link or an incomplete page.
+      - name: Build the site
+        run: pnpm turbo run build --filter=website
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/website/dist/client
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

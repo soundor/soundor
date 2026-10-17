@@ -1,0 +1,39 @@
+{
+  "name": "website",
+  "version": "0.0.0",
+  "private": true,
+  "description": "soundor.dev: the Soundor documentation website",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/sync-examples.ts && vite build && node scripts/check-links.ts && tsc --noEmit",
+    "dev": "node scripts/sync-examples.ts && vite dev",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "catalog:",
+    "@tanstack/react-start": "catalog:",
+    "@tanstack/start-static-server-functions": "catalog:",
+    "fumadocs-core": "catalog:",
+    "fumadocs-mdx": "catalog:",
+    "fumadocs-ui": "catalog:",
+    "lucide-react": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "catalog:",
+    "@types/mdast": "catalog:",
+    "@types/mdx": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "basic": "workspace:*",
+    "npm-to-yarn": "catalog:",
+    "primitives": "workspace:*",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vfile": "catalog:",
+    "vite": "catalog:"
+  }
+}

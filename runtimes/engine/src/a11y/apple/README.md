@@ -6,6 +6,6 @@ On macOS, VoiceOver perceives a Soundor view through virtual
 `NSView` per node. The Skia surface stays a single custom-drawn view. AccessKit's
 Apple adapters and JUCE's `AccessibilityHandler` are not involved.
 
-- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/apple-accessibility.md)
+- [Guide and reference](https://soundor.dev/docs/contribute/apple-accessibility)
 - [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
-- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)
+- [Architecture](https://soundor.dev/docs/architecture)

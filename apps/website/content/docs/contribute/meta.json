@@ -1,0 +1,26 @@
+{
+  "title": "Contribute",
+  "description": "Work on Soundor itself",
+  "root": true,
+  "pages": [
+    "index",
+    "---Engine---",
+    "engine-reference",
+    "webgl-codegen",
+    "benchmark",
+    "---Accessibility---",
+    "apple-accessibility",
+    "ios-accessibility",
+    "---Toolchain---",
+    "core",
+    "devtools-protocol",
+    "devtools-server",
+    "devtools-client",
+    "---Testing---",
+    "test-runtime",
+    "react-tests",
+    "---Shared configs---",
+    "typescript-config",
+    "tsdown-config"
+  ]
+}

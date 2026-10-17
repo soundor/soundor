@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "turbo run build --filter=!./examples/* --filter=!./tools/*",
+    "build": "turbo run build --filter=!./apps/* --filter=!./examples/* --filter=!./tools/*",
     "changeset": "changeset",
     "check": "pnpm run format && pnpm run lint && pnpm run build && pnpm run test",
     "ci:publish": "changeset publish",
-    "dev": "turbo run dev --filter=!./examples/* --filter=!./tools/*",
+    "dev": "turbo run dev --filter=!./apps/* --filter=!./examples/* --filter=!./tools/*",
     "format": "turbo run //#format:check format:native",
     "format:check": "oxfmt --check",
     "format:fix": "oxfmt . && turbo run format:native:fix",
@@ -16,7 +16,7 @@
     "lint:fix": "oxlint --fix .",
     "prepare": "husky",
     "release": "pnpm build && pnpm ci:publish",
-    "test": "turbo run test test:native --filter=!./examples/* --filter=!./tools/* --filter=!@soundor/react-tests",
+    "test": "turbo run test test:native --filter=!./apps/* --filter=!./examples/* --filter=!./tools/* --filter=!@soundor/react-tests",
     "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/* --filter=!./tools/* --filter=!@soundor/react-tests",
     "version": "changeset version && pnpm install --lockfile-only"
   },

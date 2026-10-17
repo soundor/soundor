@@ -6,6 +6,6 @@ Three.js (the expensive way and the GPU way) and raw calls, Canvas 2D, UI
 updates through React and `soundor:ui`, and a plugin-like mix. `pnpm bench`
 measures them headless in the JUCE runtime.
 
-- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/benchmark.md)
+- [Guide and reference](https://soundor.dev/docs/contribute/benchmark)
 - [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
-- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)
+- [Architecture](https://soundor.dev/docs/architecture)

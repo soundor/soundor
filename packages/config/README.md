@@ -2,6 +2,6 @@
 
 Configuration helpers and schema validation for `soundor.config.ts` files.
 
-- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/config.md)
+- [Guide and reference](https://soundor.dev/docs/reference/config)
 - [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
-- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)
+- [Architecture](https://soundor.dev/docs/architecture)

@@ -12,6 +12,8 @@ name: Release
 #             the packed engine carries that manifest
 #   publish   publish exactly those tarballs to npm; tag and create a GitHub
 #             release per package
+#   website   deploy soundor.dev from the released commit (website.yml), so
+#             the docs describe what npm has
 #
 # npm is published only once the engine's binaries are publicly downloadable.
 # A failed run is safe to repeat: a published prebuilt release is reused,
@@ -163,3 +165,15 @@ jobs:
           # The setup step's registry-url makes npm read NODE_AUTH_TOKEN.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+
+  website:
+    name: Website
+    needs: publish
+    if: always() && !cancelled() && needs.publish.result == 'success'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/website.yml
+    with:
+      ref: ${{ github.sha }}

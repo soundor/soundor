@@ -2,6 +2,6 @@
 
 Vitest 5 environment for Soundor's in-memory simulated runtime.
 
-- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/vitest-environment-soundor.md)
+- [Guide and reference](https://soundor.dev/docs/reference/vitest-environment-soundor)
 - [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
-- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)
+- [Architecture](https://soundor.dev/docs/architecture)
