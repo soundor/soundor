@@ -85,9 +85,10 @@ jobs:
         run: |
           set -o pipefail
           {
-            pnpm --filter basic --filter primitives test &&
-            pnpm --filter basic --filter primitives typecheck &&
-            pnpm --filter basic --filter primitives build:web
+            pnpm --filter basic --filter primitives --filter orbit test &&
+            pnpm --filter orbit test:native &&
+            pnpm --filter basic --filter primitives --filter orbit typecheck &&
+            pnpm --filter basic --filter primitives --filter orbit build:web
           } 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       # The docs and the examples' web builds they embed; fails on a broken
