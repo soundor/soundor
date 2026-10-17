@@ -19,10 +19,13 @@ the repository's [browser example](#try-the-repository-example).
 
 ## Requirements
 
-Use Node.js 24 and pnpm 12 for the workflows below. Native builds also need
-CMake, a C++20 compiler, and a JUCE checkout. Plugin builds use Ninja on macOS
-and Linux, and Visual Studio on Windows. Source engine builds additionally need
-the tools described in [Soundor Engine](engine.md#prebuilt-and-source-mode).
+Use Node.js 24 and pnpm 12 for the workflows below; npm works too. Soundor
+supports these two package managers only: Yarn's Plug'n'Play leaves no
+`node_modules` for native builds to find packages in, and bun is untested.
+
+Native builds also need CMake, a C++20 compiler, and a JUCE checkout. Plugin
+builds use Ninja on macOS and Linux, and Visual Studio on Windows. Source engine
+builds additionally need the tools described in [Soundor Engine](engine.md#prebuilt-and-source-mode).
 
 Soundor discovers JUCE in standard locations, including `/opt/JUCE` on Linux,
 or through `jucePath` or `JUCE_DIR`. You provide the JUCE checkout; Soundor never
@@ -42,10 +45,18 @@ pnpm doctor
 pnpm exec soundor dev juce
 ```
 
+With npm, run `npm create soundor-app my-plugin`, then `npm run doctor` and
+`npx soundor dev juce`.
+
 The scaffolder prompts for the runtime and package manager, copies the template,
 installs dependencies, and runs `soundor init`. It currently offers the JUCE
 runtime, with VST3 and Standalone formats. Native development builds and launches
 the Standalone; it needs a graphical desktop to open the window.
+
+Soundor is pre-1.0, and a minor release (0.10 to 0.11) can change its APIs. The
+new project therefore pins each Soundor package to the exact version the
+scaffolder was released with. Upgrade them together, after reading their
+changelogs.
 
 The template includes a gain control UI and a JUCE processor scaffold. Implement
 your audio behavior in the processor; declaring a parameter does not apply it to

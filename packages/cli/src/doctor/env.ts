@@ -11,8 +11,13 @@ import { probeCommand } from '@soundor/core';
 /** Lowest Node major the CLI supports (mirrors `package.json` engines `>=22`). */
 export const REQUIRED_NODE_MAJOR = 22;
 
-/** Package managers we recognize, in the order we probe for one. */
-const KNOWN_PACKAGE_MANAGERS = ['pnpm', 'npm', 'yarn', 'bun'] as const;
+/**
+ * The package managers Soundor supports, in the order we probe for one. Yarn
+ * (Plug'n'Play has no node_modules for the native build to find packages
+ * in) and bun are not supported.
+ */
+const PACKAGE_MANAGERS = ['pnpm', 'npm'] as const;
+type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 
 /** Runs the CLI-owned environment checks. Pure/synchronous, no side effects. */
 export function runEnvironmentChecks(): DoctorCheck[] {
@@ -46,37 +51,47 @@ function checkNodeVersion(): DoctorCheck {
 }
 
 function checkPackageManager(): DoctorCheck {
-  const preferred = detectPackageManager();
-  const order = preferred
-    ? [preferred, ...KNOWN_PACKAGE_MANAGERS.filter((pm) => pm !== preferred)]
-    : [...KNOWN_PACKAGE_MANAGERS];
+  const running = runningPackageManager();
+  const order =
+    running !== undefined && isSupported(running)
+      ? [running, ...PACKAGE_MANAGERS.filter((pm) => pm !== running)]
+      : [...PACKAGE_MANAGERS];
 
   for (const pm of order) {
     const probe = probeCommand(pm, ['--version']);
-    if (probe.ok) {
+    if (!probe.ok) continue;
+    const found = probe.version ? `${pm} ${probe.version}` : `${pm}`;
+    if (running !== undefined && !isSupported(running)) {
       return {
         label: 'Package manager',
-        status: 'ok',
-        detail: probe.version ? `${pm} ${probe.version}.` : `${pm} available.`,
+        status: 'warn',
+        detail: `Running under ${running}, which Soundor does not support; ${found} is available.`,
+        suggestion: `Use ${PACKAGE_MANAGERS.join(' or ')} for Soundor projects.`,
       };
     }
+    return {
+      label: 'Package manager',
+      status: 'ok',
+      detail: `${found}.`,
+    };
   }
 
   return {
     label: 'Package manager',
     status: 'fail',
-    detail: `No supported package manager found (looked for ${KNOWN_PACKAGE_MANAGERS.join(', ')}).`,
+    detail: `No supported package manager found (looked for ${PACKAGE_MANAGERS.join(', ')}).`,
     suggestion:
-      'Install a package manager such as pnpm (https://pnpm.io/installation).',
+      'Install pnpm (https://pnpm.io/installation), or use the npm that comes with Node.',
   };
 }
 
-/** Best-effort detection of the active package manager from the environment. */
-function detectPackageManager():
-  | (typeof KNOWN_PACKAGE_MANAGERS)[number]
-  | undefined {
+/** The package manager running this command, by name, if any. */
+function runningPackageManager(): string | undefined {
   const agent = process.env['npm_config_user_agent'];
   if (!agent) return undefined;
-  const name = agent.split('/')[0];
-  return KNOWN_PACKAGE_MANAGERS.find((pm) => pm === name);
+  return agent.split('/')[0] || undefined;
+}
+
+function isSupported(name: string): name is PackageManager {
+  return (PACKAGE_MANAGERS as readonly string[]).includes(name);
 }
