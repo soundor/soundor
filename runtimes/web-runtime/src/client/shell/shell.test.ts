@@ -1,31 +1,18 @@
 // @vitest-environment happy-dom
 import {
-  configure,
   fireEvent,
   getByRole,
   queryByRole,
   within,
 } from '@testing-library/dom';
 import { act } from 'preact/test-utils';
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createShell, type Presentation } from '.';
 import { WebAudioHost } from '../audio';
 import { WebHost } from '../host';
 import { createParameterStore } from '../parameters';
-
-beforeAll(() => {
-  // Events apply Preact's updates before the test looks.
-  configure({
-    eventWrapper: (callback) => {
-      let result: unknown;
-      act(() => {
-        result = callback();
-      });
-      return result;
-    },
-  });
-});
+import '../testing/preact';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -265,6 +252,46 @@ describe('the panel', () => {
     expect(parameters.byId['gain']!.inGesture).toBe(true);
     fireEvent.pointerUp(gain);
     expect(parameters.byId['gain']!.inGesture).toBe(false);
+  });
+});
+
+describe('the stage', () => {
+  it('scales the plugin down to fit, never up', () => {
+    let resized: (() => void) | undefined;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          resized = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const { shell } = setup();
+    const stage = shell.element.querySelector<HTMLElement>('.soundor-stage')!;
+    const frame = shell.element.querySelector<HTMLElement>('.soundor-frame')!;
+    const resize = (width: number, height: number) => {
+      Object.defineProperty(stage, 'clientWidth', {
+        value: width,
+        configurable: true,
+      });
+      Object.defineProperty(stage, 'clientHeight', {
+        value: height,
+        configurable: true,
+      });
+      act(() => resized!());
+    };
+    // The stage's padding: 16px around, 76px under it for the dock.
+    resize(432, 392);
+    expect(shell.viewport.style.transform).toBe('scale(0.5)');
+    expect([frame.style.width, frame.style.height]).toEqual(['400px', '300px']);
+    expect(shell.viewport.style.width).toBe('800px');
+
+    resize(3000, 2000);
+    expect(shell.viewport.style.transform).toBe('');
+    expect(frame.style.width).toBe('800px');
+    vi.unstubAllGlobals();
   });
 });
 

@@ -13,6 +13,7 @@
   },
   "include": [
     "src/**/*.test.ts",
+    "src/**/*.test.tsx",
     "src/client/testing/*.d.ts",
     "src/client/testing/native.ts",
     "src/client/internal.d.ts",
