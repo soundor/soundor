@@ -164,6 +164,11 @@ read the docs bundled with the installed package
   the server only for development and tests. The CLI resolves its installed
   `dist` directory and passes it to the server.
 - `packages/devtools-protocol` — shared DevTools protocol contract.
+- `packages/driver` (`@soundor/driver`) — Soundor Driver: a Node.js control
+  client of a running DevTools session (the dashboard's authenticated
+  `/browser` transport, never a runtime): targets, tree and node inspection,
+  lazy locators (`getByDebugId`, role, text). The CLI's `soundor driver`
+  commands use it. Nodes get a `debugId` from the components' `debugId` prop.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
   FocusScope. Tests live in the private `packages/react/testing` workspace and use the public
@@ -289,6 +294,6 @@ generated framework or the runtime package, not in `init` templates.
   The pre-commit hook runs lint-staged.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
-- Releases are Changesets; the thirteen packages under `packages/` are a fixed version group.
+- Releases are Changesets; the fourteen packages under `packages/` are a fixed version group.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

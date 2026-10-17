@@ -261,6 +261,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         };
         if (! item->text().empty())
             result["text"] = prefix(item->text(), details ? 16384 : 256);
+        if (! item->debugId().empty())
+            result["debugId"] = item->debugId();
         if (! details)
         {
             const auto semantics = accessibility(host, *item);

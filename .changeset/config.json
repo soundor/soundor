@@ -18,6 +18,7 @@
       "@soundor/devtools-client",
       "@soundor/devtools-protocol",
       "@soundor/devtools-server",
+      "@soundor/driver",
       "@soundor/test-runtime",
       "@soundor/testing-library",
       "@soundor/vitest",

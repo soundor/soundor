@@ -211,6 +211,18 @@ describe('UiNode content', () => {
     expect(seen).toEqual(['overlay']);
   });
 
+  it('keeps a debugId for developer tools as a data attribute', () => {
+    setup();
+    const node = view.createNode('view');
+    expect(node.debugId).toBe('');
+    node.debugId = 'reset';
+    expect(el(node).dataset['soundorDebugId']).toBe('reset');
+    node.debugId = '';
+    expect(el(node).dataset['soundorDebugId']).toBeUndefined();
+    expect(() => (node.debugId = 'x'.repeat(129))).toThrow(RangeError);
+    expect(node.debugId).toBe('');
+  });
+
   it('shows text, and rejects it on nodes without text', () => {
     setup();
     const text = view.createNode('text');

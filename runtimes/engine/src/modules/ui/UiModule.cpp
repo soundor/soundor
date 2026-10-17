@@ -680,6 +680,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        jsi::Value setDebugId(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "setDebugId", count, 2,
+                        [&](Surface& surface)
+                        {
+                            std::string debugId;
+                            bind::read(context, args[1], bind::Path { "debugId" }, debugId);
+                            surface.setDebugId(readId(args[0]), std::move(debugId));
+                            return jsi::Value::undefined();
+                        });
+        }
+
         jsi::Value focus(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             return call(context, "focus", count, 1,
@@ -1276,6 +1288,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setStyle", setStyle, 2 },
             { "setText", setText, 2 },
             { "setFocusable", setFocusable, 2 },
+            { "setDebugId", setDebugId, 2 },
             { "setAccessibility", setAccessibility, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },

@@ -126,6 +126,7 @@ export class TestNode {
   focusable: boolean;
   accessibility: Accessibility = {};
   accessibilityParent: TestNode | null = null;
+  #debugId = '';
   readonly listeners = new Map<string, Listener[]>();
 
   constructor(
@@ -136,6 +137,18 @@ export class TestNode {
     this.id = runtime.nextId++;
     runtime.nodes.set(this.id, this);
     this.focusable = type === 'input';
+  }
+
+  /** The name developer tools find the node by; empty for none. */
+  get debugId(): string {
+    return this.#debugId;
+  }
+
+  set debugId(value: string) {
+    const debugId = String(value ?? '');
+    if (debugId.length > 128)
+      throw new RangeError('debugId is at most 128 characters');
+    this.#debugId = debugId;
   }
 
   get children(): readonly TestNode[] {

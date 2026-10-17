@@ -146,6 +146,7 @@ export class UiNode extends TreeEventTarget {
   #accessibility: Readonly<Accessibility> = Object.freeze({});
   #semantics: NormalizedAccessibility = normalizeAccessibility({});
   #accessibilityParent: UiNode | null = null;
+  #debugId = '';
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(
@@ -528,6 +529,23 @@ export class UiNode extends TreeEventTarget {
       throw new Error('a node cannot be its own accessibility parent');
     this.#accessibilityParent = value ?? null;
     this.#view.semanticsChanged();
+  }
+
+  /**
+   * The name developer tools (DevTools, Soundor Driver) find the node by;
+   * empty for none. Not shown, nor read to assistive technology.
+   */
+  get debugId(): string {
+    return this.#debugId;
+  }
+
+  set debugId(value: string) {
+    const debugId = String(value ?? '');
+    if (debugId.length > 128)
+      throw new RangeError('debugId is at most 128 characters');
+    this.#debugId = debugId;
+    if (debugId) this.#element.dataset['soundorDebugId'] = debugId;
+    else delete this.#element.dataset['soundorDebugId'];
   }
 
   // ── Focus ──────────────────────────────────────────────────────────────────

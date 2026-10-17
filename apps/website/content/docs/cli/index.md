@@ -26,8 +26,9 @@ scripts.
 | [`soundor dev <runtime>`](/docs/cli/dev)     | Develops with one runtime: builds, watches, reloads the UI.         |
 | [`soundor build [runtime]`](/docs/cli/build) | Builds the plugin for release, with every runtime or one.           |
 | [`soundor doctor`](/docs/cli/doctor)         | Checks the machine, the config and each runtime's prerequisites.    |
+| [`soundor driver`](/docs/driver/cli)         | Inspects a running plugin's native UI (Soundor Driver).             |
 
-Every command takes `--config <path>`. Without it, the CLI looks for
+Every project command takes `--config <path>`. Without it, the CLI looks for
 `soundor.config.ts` in the current directory, then in its parents, so it
 runs from anywhere in the project.
 

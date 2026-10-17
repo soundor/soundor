@@ -28,6 +28,7 @@ export {
   Text,
   TextInput,
   View,
+  type DebugProps,
   type EventProps,
   type CanvasProps,
   type ImageProps,

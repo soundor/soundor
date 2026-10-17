@@ -56,6 +56,12 @@ attributed to a particular instance. Neither clearing nor filtering affects
 application logging or other tabs. The dashboard follows the browser's light or
 dark theme and supports keyboard tree navigation.
 
+## From scripts
+
+[Soundor Driver](/docs/driver) reads the same session from Node.js and from
+`soundor driver`: the tree, node details and locators, for scripts and coding
+agents. It signs in like a dashboard tab and can run beside one.
+
 ## Animations and performance
 
 The **Animations** panel reads native active/paused animations and their target

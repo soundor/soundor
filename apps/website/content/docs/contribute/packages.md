@@ -27,6 +27,8 @@ flowchart LR
     cli --> core["@soundor/core"]
     cli --> dtserver["@soundor/devtools-server"]
     cli --> dtclient["@soundor/devtools-client"]
+    cli --> driver["@soundor/driver"]
+    driver --> dtprotocol
     dtserver --> dtprotocol["@soundor/devtools-protocol"]
     config --> core
     core --> engine["@soundor/engine"]
@@ -54,13 +56,14 @@ depends on none either: it copies a template and installs the others.
 | Configuration     | [`@soundor/config`](/docs/cli/config)                                                                                                                                           | Config loading, validation, runtime types, and user settings                                 |
 | Runtime authoring | [`@soundor/runtime-sdk`](/docs/contribute/runtime-sdk)                                                                                                                          | Factories and lifecycle hooks for runtime packages                                           |
 | Shared toolchain  | [`@soundor/core`](/docs/contribute/core)                                                                                                                                        | Code generation, paths, errors, logging, commands, and shared helpers                        |
-| Commands          | [`soundor`](/docs/cli)                                                                                                                                                          | `init`, `gen`, `dev`, `build`, and `doctor`; UI bundling and development sessions            |
+| Commands          | [`soundor`](/docs/cli)                                                                                                                                                          | `init`, `gen`, `dev`, `build`, `doctor`, `driver`; UI bundling and development sessions      |
 | New projects      | [`create-soundor-app`](/docs/cli/create-soundor-app)                                                                                                                            | Project template, dependency installation, and runtime initialization                        |
 | UI                | [`@soundor/react`](/docs/react)                                                                                                                                                 | React reconciler, components, hooks, focus scopes, portals, and modals                       |
 | Native engine     | [`@soundor/engine`](/docs/contribute/engine-reference)                                                                                                                          | Backend-independent C++ UI engine and Hermes module lowering                                 |
 | Native host       | [`@soundor/juce-runtime`](/docs/juce-runtime)                                                                                                                                   | JUCE code generation, parameter and native API adapters, plugin builds                       |
 | Browser host      | [`@soundor/web-runtime`](/docs/web-runtime)                                                                                                                                     | DOM-backed UI, Web Audio host, browser services, and Vite integration                        |
 | DevTools          | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                          | Browser dashboard, authenticated session backend, and shared transport contract              |
+| Driver            | [`@soundor/driver`](/docs/driver)                                                                                                                                               | Connected inspection of running plugins from Node.js and `soundor driver`                    |
 | Testing           | [Vitest plugin](/docs/testing/vitest), [environment](/docs/testing/vitest-environment-soundor), [Testing Library](/docs/testing), [test runtime](/docs/contribute/test-runtime) | Per-test runtime isolation, semantic queries, interactions, and deterministic animation time |
 
 The engine is versioned independently of the shared package release group.

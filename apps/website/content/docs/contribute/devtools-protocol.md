@@ -209,8 +209,9 @@ connections exceeding their bounded outgoing buffer are disconnected. Commands
 time out after 5 seconds. A browser can send `{type:'cancel',id}`. Shutdown
 invalidates pending requests, subscriptions, transports and the descriptor.
 
-Future E2E clients can reuse queries and controlled selection through this same
-protocol. Input automation and audio processing are not part of v1.
+[Soundor Driver](/docs/driver) is a client of this same protocol and browser
+transport for scripts, the CLI and coding agents. Audio processing is not part
+of v1.
 
 ## License
 

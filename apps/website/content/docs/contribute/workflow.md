@@ -99,7 +99,7 @@ changes, and the checks run. Follow the
 Keep related implementation, generated files, tests and documentation together.
 
 Add a changeset for a published-package change with `pnpm changeset`. The
-thirteen public packages under `packages/` form a fixed version group; the
+fourteen public packages under `packages/` form a fixed version group; the
 engine and runtime packages have their own versions. The source of truth is
 [Changesets config](https://github.com/soundor/soundor/blob/main/.changeset/config.json).
 Before 1.0, breaking changes use a `minor` changeset. Website-only documentation
