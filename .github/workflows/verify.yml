@@ -79,7 +79,7 @@ jobs:
         run: set -o pipefail; pnpm run build 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Run test
-        run: set -o pipefail; pnpm turbo run test --filter=!./examples/* --filter=!@soundor/react-tests 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: set -o pipefail; pnpm turbo run test --filter=!./apps/* --filter=!./examples/* --filter=!@soundor/react-tests 2>&1 | tee "$RUNNER_TEMP/step.log"
 
       - name: Example application tests, types and web builds
         run: |
