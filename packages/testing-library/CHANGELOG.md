@@ -1,5 +1,13 @@
 # @soundor/testing-library
 
+## 0.11.0
+
+### Patch Changes
+
+- Updated dependencies [[`35b671b`](https://github.com/soundor/soundor/commit/35b671bfab1197431ead7d0b2c6e3f967462a86a)]:
+  - @soundor/react@0.11.0
+  - @soundor/test-runtime@0.11.0
+
 ## 0.10.1
 
 ### Patch Changes

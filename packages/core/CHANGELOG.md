@@ -1,5 +1,13 @@
 # @soundor/core
 
+## 0.11.0
+
+### Patch Changes
+
+- [#154](https://github.com/soundor/soundor/pull/154) [`35b671b`](https://github.com/soundor/soundor/commit/35b671bfab1197431ead7d0b2c6e3f967462a86a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Every component prop and `Style` property has a doc comment, which editors show on hover and soundor.dev's component pages list in their props tables.
+- Updated dependencies [[`e423f17`](https://github.com/soundor/soundor/commit/e423f17f789e8eb69cc3cf3c524b0c6e28cae174)]:
+  - @soundor/engine@0.2.2
+
 ## 0.10.1
 
 ### Patch Changes

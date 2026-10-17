@@ -1,5 +1,13 @@
 # create-soundor-app
 
+## 0.11.0
+
+### Minor Changes
+
+- [#148](https://github.com/soundor/soundor/pull/148) [`c47273e`](https://github.com/soundor/soundor/commit/c47273ed269a5c0b5e50da5ad8a222708b46743d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - New projects pin every Soundor package to the exact version `create-soundor-app` was released with, instead of `latest`: before 1.0 a minor release can change APIs, so a project changes Soundor versions only when it is upgraded. React, TypeScript and the Node and React types take the ranges Soundor is built and tested with.
+
+  Soundor supports pnpm and npm. `create-soundor-app` no longer offers Yarn or bun, and prints `npm run dev` rather than `npm dev` for npm projects; `soundor doctor` warns when it runs under another package manager.
+
 ## 0.10.1
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @soundor/web-runtime
 
+## 0.8.0
+
+### Minor Changes
+
+- [#152](https://github.com/soundor/soundor/pull/152) [`9b7e411`](https://github.com/soundor/soundor/commit/9b7e4118e1a69c1694f35c05dba37e657b1fa9ee) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The web host starts audio on the page's first user gesture, wherever it is (a knob in the plugin, a key, Play), so its dock no longer has a Start audio button: the speaker button mutes and unmutes, and offers a retry only when audio failed to start.
+
+- [#158](https://github.com/soundor/soundor/pull/158) [`3c82edc`](https://github.com/soundor/soundor/commit/3c82edc8430cbce7515bee3b55b0415dfb13f1a6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add microphone input and named custom audio inputs to the web host's Audio settings. `startSoundorWebHost` accepts `audioInputs` with typed source factories and `defaultAudioInput` for a custom default. Inputs use the host's AudioContext and feed the plugin's normal DSP input. Capture and custom resources are released on pause, source changes, or disposal, including late asynchronous results. The panel reports permission/startup errors and supports retrying an input.
+
+- [#153](https://github.com/soundor/soundor/pull/153) [`c70bdfb`](https://github.com/soundor/soundor/commit/c70bdfb2c3591d2081cc60e25d25065242b1d36f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A static build opened with `?embed` shows the plugin view alone, as big as the page or iframe: no dock or settings panel, and no scaling to the editor's size. The Soundor website uses it, with playground mode, to run its documentation's snippets.
+
+- [#151](https://github.com/soundor/soundor/pull/151) [`f183169`](https://github.com/soundor/soundor/commit/f183169b1ced9ac6dd75ddc1d500192ddd4fb472) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Playground mode: opened with `?playground=<script>`, a static build loads that script (from the page's own origin only) instead of the plugin UI, gives it the host's `soundor:*` modules, and lets it run UI code a page sends it. The Soundor website uses it to let readers edit an example's code. The host shell also gains `clearMessages()`.
+
 ## 0.7.0
 
 ### Minor Changes
