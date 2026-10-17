@@ -10,7 +10,11 @@
  *
  * It renders the host page, installs the project's native API, then
  * evaluates the plugin UI bundle the CLI built, whose `soundor:*` imports
- * reach this page's host. Audio starts with the first Play.
+ * reach this page's host. Audio starts with the page's first gesture.
+ *
+ * A static build opened with `?embed` shows the plugin alone, filling the
+ * page (a docs page's snippet), and with `?playground=<script>` runs the code
+ * that script is sent instead of the plugin UI (see `playground.ts`).
  */
 
 import {
@@ -25,7 +29,7 @@ import { forwardLogs } from './dev-log';
 import { installNative } from './native';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
-import { createShell, type Presentation } from './shell';
+import { createShell, EMBED_PARAM, type Presentation } from './shell';
 
 export interface WebHostOptions {
   /** Where the host renders: by default `#soundor`, or else `<body>`. */
@@ -38,8 +42,10 @@ export interface WebHostOptions {
   /** Loads the project's audio (a module exporting `setupAudio`). */
   readonly audio?: () => Promise<unknown>;
   /**
-   * 'demo': toolbar, plugin and status. 'dev': with an inspector. By default
-   * 'dev' under `soundor dev` and 'demo' in a build.
+   * 'demo': the plugin, a dock and a settings panel. 'dev': with an
+   * inspector. 'embed': the plugin alone, filling the page. By default 'dev'
+   * under `soundor dev`, and in a build 'embed' when the page's URL has
+   * `?embed`, 'demo' otherwise.
    */
   readonly presentation?: Presentation;
 }
@@ -77,7 +83,7 @@ export async function startSoundorWebHost(
   });
   const shell = createShell(container, {
     pluginName: context.plugin.name,
-    presentation: options.presentation ?? defaultPresentation,
+    presentation: options.presentation ?? pagePresentation(),
     host: context.host,
     parameters: context.parameters,
     audio,
@@ -143,6 +149,13 @@ export async function startSoundorWebHost(
       shell.remove();
     },
   };
+}
+
+function pagePresentation(): Presentation {
+  if (defaultPresentation === 'dev') return 'dev';
+  return new URL(window.location.href).searchParams.has(EMBED_PARAM)
+    ? 'embed'
+    : defaultPresentation;
 }
 
 async function loadSetup(load: () => Promise<unknown>): Promise<WebAudioSetup> {

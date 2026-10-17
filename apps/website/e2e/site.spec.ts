@@ -146,3 +146,45 @@ test('an example opens full screen, its editor beside it', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Full screen' })).toBeVisible();
   await expect(page.locator('.cm-content')).toBeVisible();
 });
+
+test('a snippet runs in its page, with its code under it', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/react');
+  const snippet = page.locator('figure', {
+    has: page.locator('iframe[title*="gain snippet"]'),
+  });
+  const plugin = snippet.frameLocator('iframe');
+  await expect(plugin.getByText('Gain 0.50')).toBeVisible();
+  // The embed: the plugin view alone, no host controls.
+  await expect(plugin.getByRole('toolbar', { name: 'Host' })).toHaveCount(0);
+  await expect(snippet.locator('pre')).toContainText(
+    'export default function Gain()',
+  );
+
+  await plugin.getByRole('button', { name: '+' }).click();
+  await expect(plugin.getByText('Gain 0.60')).toBeVisible();
+
+  // Edited, it shows only the snippet, and runs the change.
+  await snippet.getByRole('button', { name: 'Edit code' }).click();
+  await expect(snippet.getByRole('button', { name: /^src\// })).toHaveText([
+    'src/snippets/gain.tsx',
+  ]);
+  await snippet.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.keyboard.type('Gain {');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.keyboard.type('Level {');
+  await page.keyboard.press('ControlOrMeta+Enter');
+  await expect(plugin.getByText('Level 0.60')).toBeVisible();
+
+  await snippet.getByRole('button', { name: 'Replay' }).click();
+  await expect(plugin.getByText('Level 0.60')).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test("a page's Markdown has its snippets' code", async ({ request }) => {
+  const markdown = await (await request.get('/docs/react.md')).text();
+  expect(markdown).toContain('export default function Gain()');
+  expect(markdown).not.toContain('<Snippet');
+});

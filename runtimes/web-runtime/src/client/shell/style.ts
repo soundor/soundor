@@ -22,6 +22,9 @@ body { margin: 0; background: var(--sd-bg); }
   background-size: 20px 20px;
 }
 .soundor-frame { position: relative; flex: none; }
+/* Embedded: the plugin view is the page. */
+.soundor-fill { padding: 0; background: none; }
+.soundor-fill .soundor-viewport { inset: 0; border-radius: 0; box-shadow: none; }
 .soundor-viewport {
   position: absolute; left: 0; top: 0; overflow: hidden; background: #17181c;
   transform-origin: 0 0; border-radius: 6px;

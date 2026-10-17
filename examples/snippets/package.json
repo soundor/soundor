@@ -1,0 +1,34 @@
+{
+  "name": "snippets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "soundor build",
+    "build:web": "soundor build web",
+    "dev": "soundor dev",
+    "dev:web": "soundor dev web",
+    "doctor": "soundor doctor",
+    "gen": "soundor gen",
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
+    "react": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/config": "workspace:*",
+    "@soundor/core": "workspace:*",
+    "@soundor/testing-library": "workspace:^",
+    "@soundor/vitest": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "soundor": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
+  }
+}

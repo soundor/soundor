@@ -12,7 +12,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { syncExamples } from './examples.ts';
+import { snippetSources, syncExamples } from './examples.ts';
 
 let root: string;
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -115,6 +115,54 @@ describe('syncExamples', () => {
     const site = workspace({ basic: 'examples/basic' }, []);
     expect(() => syncExamples(site)).toThrow(
       /basic has no web build .*pnpm turbo run build --filter=website/,
+    );
+  });
+});
+
+describe('snippets', () => {
+  it('writes one sources file per snippet: only the snippet is editable', () => {
+    const site = workspace({ snippets: 'examples/snippets' }, ['snippets']);
+    const dir = join(root, 'examples/snippets');
+    mkdirSync(join(dir, 'src/snippets'));
+    writeFileSync(join(dir, 'src/frame.tsx'), 'export function Frame() {}');
+    writeFileSync(
+      join(dir, 'src/snippets/gain.tsx'),
+      'export default function Gain() {}',
+    );
+    syncExamples(site);
+    const sources = JSON.parse(
+      readFileSync(
+        join(site, 'public/examples/snippets/snippets/gain.json'),
+        'utf-8',
+      ),
+    ) as ReturnType<typeof snippetSources>;
+    expect(sources.entry).toBe('src/snippet.tsx');
+    expect(sources.editable).toEqual(['src/snippets/gain.tsx']);
+    expect(Object.keys(sources.files).sort()).toEqual([
+      'src/frame.tsx',
+      'src/snippet.tsx',
+      'src/snippets/gain.tsx',
+    ]);
+    // The entry renders the snippet alone, in the example's frame.
+    expect(sources.files['src/snippet.tsx']).toContain(
+      "import Snippet from './snippets/gain';",
+    );
+    expect(sources.files['src/snippet.tsx']).toContain('<Frame>');
+  });
+
+  it('needs a frame to show the snippets in', () => {
+    workspace({ snippets: 'examples/snippets' }, ['snippets']);
+    const dir = join(root, 'examples/snippets');
+    mkdirSync(join(dir, 'src/snippets'));
+    writeFileSync(join(dir, 'src/snippets/gain.tsx'), '');
+    expect(() => snippetSources(dir, 'gain')).toThrow(/no src\/frame\.tsx/);
+  });
+
+  it('writes none for an example without snippets', () => {
+    const site = workspace({ basic: 'examples/basic' }, ['basic']);
+    syncExamples(site);
+    expect(existsSync(join(site, 'public/examples/basic/snippets'))).toBe(
+      false,
     );
   });
 });

@@ -14,6 +14,14 @@ export interface ReadyMessage {
   readonly type: 'soundor:playground:ready';
 }
 
+/**
+ * The page to the host: say whether you are ready. The host may have said
+ * so before the page listened (a page still hydrating); it says it again.
+ */
+export interface PingMessage {
+  readonly type: 'soundor:playground:ping';
+}
+
 /** The page to the host: run these files, replacing what ran before. */
 export interface RunMessage {
   readonly type: 'soundor:playground:run';
@@ -28,7 +36,11 @@ export interface ResultMessage {
   readonly error: string | null;
 }
 
-export type PlaygroundMessage = ReadyMessage | RunMessage | ResultMessage;
+export type PlaygroundMessage =
+  | ReadyMessage
+  | PingMessage
+  | RunMessage
+  | ResultMessage;
 
 export function isPlaygroundMessage(data: unknown): data is PlaygroundMessage {
   return (

@@ -1,7 +1,8 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 
+import { docsLlms } from '@/lib/llms';
 import { decodeMarkdownUrl } from '@/lib/shared';
-import { docsLlms, source } from '@/lib/source';
+import { source } from '@/lib/source';
 
 export const Route = createFileRoute('/docs/{$}.md')({
   server: {

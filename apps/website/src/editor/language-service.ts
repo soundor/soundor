@@ -76,6 +76,9 @@ const COMPLETION_TYPES: Readonly<Record<string, string>> = {
   string: 'text',
 };
 
+/** What, typed just before a word, asks for completions. */
+const TRIGGERS = new Set(['.', '<', '"', "'", '`']);
+
 /** The identifier, or the start of one, that ends at `pos`. */
 function wordStart(text: string, pos: number): number {
   let start = pos;
@@ -162,7 +165,8 @@ export function createLanguageService(
 
     /**
      * What may be typed at `pos`: nothing after whitespace, unless asked
-     * for (`explicit`, Ctrl+Space) or just after a `.` or `<`.
+     * for (`explicit`, Ctrl+Space) or just after a trigger: `.` (members),
+     * `<` (JSX) or a quote (a string's values: an enum's, say).
      */
     complete(
       file: string,
@@ -172,16 +176,14 @@ export function createLanguageService(
       const path = `/${file}`;
       const text = read(path) ?? '';
       const from = wordStart(text, pos);
-      const before = text[from - 1];
-      if (!explicit && from === pos && before !== '.' && before !== '<') {
-        return null;
-      }
+      const before = text[from - 1] ?? '';
+      const trigger = TRIGGERS.has(before)
+        ? (before as ts.CompletionsTriggerCharacter)
+        : undefined;
+      if (!explicit && from === pos && trigger === undefined) return null;
       const info = service.getCompletionsAtPosition(path, pos, {
         includeCompletionsWithInsertText: true,
-        triggerCharacter:
-          from === pos && (before === '.' || before === '<')
-            ? before
-            : undefined,
+        triggerCharacter: from === pos ? trigger : undefined,
       });
       if (info === undefined) return null;
       return {

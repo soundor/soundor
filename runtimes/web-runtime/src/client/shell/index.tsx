@@ -13,9 +13,11 @@
  * renders children into. The shell controls the page's one WebHost and
  * WebAudioHost; there is no second transport here.
  *
- * Two presentations: `demo` (for static builds and docs) and `dev` (what
+ * Three presentations: `demo` (for static builds and docs), `dev` (what
  * `soundor dev` shows: the panel also inspects the host state, and remembers
- * whether it was open).
+ * whether it was open) and `embed` (a static build opened with `?embed`, as
+ * a docs page's snippet: the plugin view fills the page, with no dock or
+ * panel).
  */
 
 import { render, type ComponentChildren } from 'preact';
@@ -32,7 +34,10 @@ import { STYLE } from './style';
 /** The plugin view's size in logical pixels, as the JUCE editor opens it. */
 export const VIEW_SIZE = { width: 800, height: 600 } as const;
 
-export type Presentation = 'demo' | 'dev';
+export type Presentation = 'demo' | 'dev' | 'embed';
+
+/** The URL parameter that opens a static build in the `embed` presentation. */
+export const EMBED_PARAM = 'embed';
 
 export interface ShellOptions {
   readonly pluginName: string;
@@ -109,6 +114,7 @@ export function createShell(
 }
 
 function Shell(options: ShellOptions) {
+  if (options.presentation === 'embed') return <Stage fill />;
   const remember = options.presentation === 'dev';
   const [panelOpen, setPanelOpen] = useState(
     () => remember && readPanel() === 'open',
@@ -147,14 +153,23 @@ function Shell(options: ShellOptions) {
 
 /**
  * The plugin, centred at its size, or scaled down to fit a smaller stage
- * (an iframe in docs, the panel open).
+ * (an iframe in docs, the panel open). Filling (`embed`), the plugin view is
+ * the stage's size instead, whatever it is.
  */
-function Stage({ children }: { readonly children: ComponentChildren }) {
+function Stage({
+  fill = false,
+  children,
+}: {
+  readonly fill?: boolean;
+  readonly children?: ComponentChildren;
+}) {
   const stage = useRef<HTMLElement>(null);
   const [scale, setScale] = useState(1);
   useLayoutEffect(() => {
     const element = stage.current;
-    if (element === null || typeof ResizeObserver === 'undefined') return;
+    if (fill || element === null || typeof ResizeObserver === 'undefined') {
+      return;
+    }
     const fit = (): void => {
       const styles = getComputedStyle(element);
       const width =
@@ -174,8 +189,15 @@ function Stage({ children }: { readonly children: ComponentChildren }) {
     const observer = new ResizeObserver(fit);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [fill]);
 
+  if (fill) {
+    return (
+      <main ref={stage} class="soundor-stage soundor-fill">
+        <div class="soundor-viewport" />
+      </main>
+    );
+  }
   return (
     <main ref={stage} class="soundor-stage">
       <div

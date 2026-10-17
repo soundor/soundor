@@ -23,7 +23,7 @@ same lifecycle phases. Two runtimes exist:
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
-(especially `juce-runtime.md`, `web-runtime.md`, `react.md`), `contribute/`
+(especially `juce-runtime.md`, `web-runtime.md`, `react.mdx`), `contribute/`
 for internals (especially `engine-reference.md`). Keep them in sync when
 behavior changes.
 
@@ -77,7 +77,8 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/primitives`) are real projects using
+Examples (`examples/basic`, `examples/primitives`, and `examples/snippets`:
+the docs' live snippets, web runtime only) are real projects using
 the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
 `... soundor build web|juce`. No native CI job builds them; CI's Fast checks
 run their tests, typecheck and web builds, and the website embeds those web
@@ -184,7 +185,10 @@ read the docs bundled with the installed package
   replaced at build time (`plugins/values.ts`). Its examples can be edited
   in the page: the web runtime's playground mode (`?playground=<script>`,
   same origin only) runs the code the site's playground script
-  (`playground/`, React + `@soundor/react` + Sucrase) is sent. The editor
+  (`playground/`, React + `@soundor/react` + Sucrase) is sent.
+  `<Snippet name>` runs one file of `examples/snippets/src/snippets/` in the
+  host's `?embed` presentation (the view alone, filling the iframe), its
+  code inlined at build time (`plugins/remark-snippets.ts`). The editor
   (`src/editor/`) runs TypeScript's language service in a worker over the
   example's declarations (`types.json`, from `scripts/types.ts`); it uses
   the catalog's `typescript-6`, the last TypeScript with a JavaScript API.
