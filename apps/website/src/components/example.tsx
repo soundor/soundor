@@ -1,10 +1,18 @@
 import { Maximize2, Minimize2 } from 'lucide-react';
-import { type ComponentType, useEffect, useRef, useState } from 'react';
+import {
+  type ComponentType,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { repository } from '@/lib/shared';
 
 import { PLAYGROUND_SCRIPT } from '../../playground/protocol.ts';
 import type { ExampleEditorProps } from './example-editor';
+
+const noChanges = () => () => {};
 
 export interface ExampleProps {
   /** The example's package name: a directory of `examples/`. */
@@ -30,8 +38,11 @@ export function Example({ name, height = 560 }: ExampleProps) {
   const figure = useRef<HTMLElement>(null);
   const [expanded, setExpanded] = useState(false);
   // The buttons work once the page has hydrated; until then, they say so.
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
+  const hydrated = useSyncExternalStore(
+    noChanges,
+    () => true,
+    () => false,
+  );
 
   const edit = () => {
     if (opening) return;
