@@ -296,33 +296,46 @@ source → input bus → setupAudio's nodes → output bus → master gain → s
 ```
 
 - The host owns one AudioContext. Browsers allow audio only after a user
-  gesture, so the host creates the context on the first Play.
+  gesture, so the host creates the context on **Start audio** or the first
+  Play.
 - Without an `audio.ts`, or when it throws, the input passes straight through,
-  and the status bar says why.
+  and the panel's Audio section says why.
 - `soundor:parameters` and `soundor:host` work in `audio.ts` too. The `gain`
   above is the same parameter the plugin UI moves.
 
 ## The host UI
 
+The plugin is the page. Its view keeps the JUCE editor's size (800×600) and
+is scaled down, never up, when the page is smaller (an iframe in docs, a
+phone, the panel open). The host stays out of its way:
+
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│ Name  ▶ ■ ↻  1.1   120 BPM  4/4          [Oscillator ▾]  ──●─ 🔊 │
-├──────────────────────────────────────────────────────────────────┤
-│                           plugin UI                              │
-├──────────────────────────────────────────────────────────────────┤
-│ Soundor Web   48 kHz · 128 samples   Audio on                    │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┬──────────────────┐
+│                                             │ Name           ✕ │
+│        ┌───────────────────────────┐        │ TRANSPORT        │
+│        │                           │        │  Tempo, 4/4, ↻   │
+│        │         plugin UI         │        │ AUDIO            │
+│        │                           │        │  Input, format   │
+│        └───────────────────────────┘        │ PARAMETERS       │
+│                                             │  live controls   │
+│   [🔊 Start audio ──●─ │ ▶ ■ 1.1 │ ⚙]        │ ▸ HOST STATE     │
+└─────────────────────────────────────────────┴──────────────────┘
+               dock                               panel (closed by default)
 ```
 
-- **Transport:** play/pause, stop, loop (four bars), tempo and time signature.
-  These drive the same `WebHost` that `soundor:host` reports to the plugin;
-  the plugin observes the transport and never controls it.
-- **Sources:** an oscillator, an audio file of yours, or no input. A source
-  plays while the transport does.
-- **Output:** volume and mute.
-- **Presentations:** `soundor dev` adds an inspector of the host state and the
-  live parameter values (the `dev` presentation). A build shows the clean
-  `demo`. `startSoundorWebHost({ presentation })` overrides either default.
+- **Dock** (floating under the plugin): **Start audio**, then mute, and the
+  output volume; play/pause, stop and the position (bar.beat); the button
+  that opens the panel.
+- **Panel:** the transport's tempo, time signature and loop (four bars); the
+  input source (an oscillator, an audio file of yours, or no input; a source
+  plays while the transport does), the audio format and status; and a control
+  per parameter, moving the same values the plugin does. The transport drives
+  the same `WebHost` that `soundor:host` reports to the plugin; the plugin
+  observes the transport and never controls it.
+- **Presentations:** `soundor dev` (the `dev` presentation) adds the host
+  state to the panel and remembers whether the panel was open. A build shows
+  the `demo` presentation. `startSoundorWebHost({ presentation })` overrides
+  either default.
 
 ## Static builds and iframes
 
