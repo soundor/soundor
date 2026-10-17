@@ -8,7 +8,12 @@ import { configure } from '@testing-library/dom';
 import { render, type ComponentChild } from 'preact';
 import { act } from 'preact/test-utils';
 
-import type { AudioStatus, WebAudioHost } from '../audio';
+import {
+  BUILTIN_AUDIO_INPUTS,
+  type AudioStatus,
+  type WebAudioInputInfo,
+  type WebAudioHost,
+} from '../audio';
 import { Listeners } from '../listeners';
 
 configure({
@@ -58,11 +63,16 @@ export interface FakeAudio {
   failSetSource(error: Error): void;
 }
 
-export function fakeAudio(initial: Partial<AudioStatus> = {}): FakeAudio {
+export function fakeAudio(
+  initial: Partial<AudioStatus> = {},
+  inputs: readonly WebAudioInputInfo[] = BUILTIN_AUDIO_INPUTS,
+): FakeAudio {
   let status: AudioStatus = {
     state: 'off',
     sampleRate: null,
     source: 'oscillator',
+    inputState: 'idle',
+    inputError: null,
     fileName: null,
     volume: 0.8,
     muted: false,
@@ -78,6 +88,7 @@ export function fakeAudio(initial: Partial<AudioStatus> = {}): FakeAudio {
     setVolume: [],
   };
   const audio = {
+    inputs,
     get status() {
       return status;
     },

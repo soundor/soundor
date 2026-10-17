@@ -151,7 +151,7 @@ function Audio({
   // Rendering again shows the source in use (a file dialog was cancelled).
   const [, setRenders] = useState(0);
   const revert = (): void => setRenders((count) => count + 1);
-  const error = status.error ?? failure;
+  const error = status.inputError ?? status.error ?? failure;
 
   return (
     <Section title="Audio">
@@ -168,9 +168,11 @@ function Audio({
             else void audio.setSource(value).catch(fail);
           }}
         >
-          <option value="oscillator">Oscillator</option>
-          <option value="file">Audio file…</option>
-          <option value="none">No input</option>
+          {audio.inputs.map((input) => (
+            <option key={input.id} value={input.id}>
+              {input.label}
+            </option>
+          ))}
         </select>
       </Row>
       <input
@@ -195,6 +197,31 @@ function Audio({
         <span>
           {snapshot.sampleRate / 1000} kHz · {snapshot.blockSize} samples
         </span>
+        {status.inputState === 'starting' ? (
+          <span role="status">
+            {status.source === 'microphone'
+              ? 'Waiting for microphone…'
+              : 'Loading input…'}
+          </span>
+        ) : null}
+        {status.source === 'microphone' && status.inputState === 'running' ? (
+          <span role="status">Microphone active</span>
+        ) : null}
+        {status.source === 'microphone' && status.inputState === 'idle' ? (
+          <span>Press Play to use the microphone</span>
+        ) : null}
+        {status.inputState === 'failed' ? (
+          <button
+            type="button"
+            class="soundor-field"
+            onClick={() => {
+              if (status.source === 'file') file.current?.click();
+              else void audio.setSource(status.source).catch(fail);
+            }}
+          >
+            Retry input
+          </button>
+        ) : null}
         <span>
           {status.state === 'running'
             ? `Audio on${status.fileName !== null && status.source === 'file' ? ` · ${status.fileName}` : ''}`

@@ -15,8 +15,8 @@ to change their level. Turn the knobs to shape their feedback, tone, motion,
 stereo spread, and wet/dry mix. **Hold** captures the echoes as repeating loops;
 release it to let new sound enter again. The original audio keeps playing.
 
-The selector above the plugin switches from the demo loop to the host input.
-Choose your own audio file in the host settings. **Sync** follows the host's
+Open **Host settings → Audio → Input** to switch from the demo phrase to
+your own audio file, the microphone, an oscillator, or no input. **Sync** follows the host's
 tempo; **Free** keeps delay times independent of tempo.
 
 ## One interface, two audio implementations
@@ -29,8 +29,8 @@ React handles remain interactive in either rendering mode.
 The browser processes audio in an AudioWorklet. The JUCE processor implements
 the same three delay lines in C++, with no JavaScript on the audio thread.
 Soundor shares the interface and parameter contract; the example owns its DSP.
-The browser's source selector and demo loop are host features outside the
-portable plugin interface.
+The browser's demo loop is a registered custom host input outside the
+portable plugin interface; there is no extra toolbar around the plugin.
 
 ## Controls
 

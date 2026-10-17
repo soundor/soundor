@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { WebAudioHost, type WebAudioSetup } from './audio';
+import {
+  WebAudioHost,
+  type WebAudioSetup,
+  type WebAudioHostOptions,
+  type WebAudioInputContext,
+} from './audio';
 import { WebHost } from './host';
 
 /** A Web Audio node that records what it is connected to. */
@@ -53,6 +58,7 @@ class FakeContext {
   state = 'suspended';
   readonly destination = new FakeNode('destination');
   readonly sources: FakeSource[] = [];
+  readonly mediaSources: FakeNode[] = [];
   closed = false;
   resume = vi.fn<() => Promise<void>>(async () => {
     this.state = 'running';
@@ -70,6 +76,11 @@ class FakeContext {
     this.sources.push(source);
     return source;
   }
+  createMediaStreamSource(): FakeNode {
+    const node = new FakeNode('microphone');
+    this.mediaSources.push(node);
+    return node;
+  }
   async decodeAudioData(): Promise<{ duration: number }> {
     return { duration: 4 };
   }
@@ -78,7 +89,10 @@ class FakeContext {
   }
 }
 
-function setup(loadSetup?: () => Promise<WebAudioSetup | undefined>) {
+function setup(
+  loadSetup?: () => Promise<WebAudioSetup | undefined>,
+  options: Omit<WebAudioHostOptions, 'loadSetup' | 'createContext'> = {},
+) {
   let now = 0;
   const frames = { request: () => 1, cancel: () => {} };
   const host = new WebHost({ now: () => now, frames });
@@ -86,7 +100,11 @@ function setup(loadSetup?: () => Promise<WebAudioSetup | undefined>) {
   const createContext = vi.fn<() => AudioContext>(
     () => context as unknown as AudioContext,
   );
-  const audio = new WebAudioHost(host, { loadSetup, createContext });
+  const audio = new WebAudioHost(host, {
+    ...options,
+    loadSetup,
+    createContext,
+  });
   return {
     host,
     audio,
@@ -266,4 +284,317 @@ describe('WebAudioHost', () => {
     audio.setVolume(3);
     expect(audio.status.volume).toBe(1);
   });
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  return { promise, resolve, reject };
+}
+
+function microphone() {
+  class Track extends EventTarget {
+    readyState = 'live';
+    stop = vi.fn<() => void>(() => {
+      this.readyState = 'ended';
+    });
+  }
+  const track = new Track();
+  const stream = {
+    getTracks: () => [track],
+    getAudioTracks: () => [track],
+  } as unknown as MediaStream;
+  return { track, stream };
+}
+
+describe('custom audio inputs', () => {
+  it('registers labeled inputs, selects a default, and validates ids before starting audio', () => {
+    const start = vi.fn<() => () => void>(() => () => {});
+    const { audio, createContext } = setup(undefined, {
+      inputs: [{ id: 'loop', label: 'My loop', start }],
+      defaultInput: 'loop',
+    });
+    expect(audio.inputs).toContainEqual({ id: 'loop', label: 'My loop' });
+    expect(audio.status.source).toBe('loop');
+    expect(start).not.toHaveBeenCalled();
+    expect(createContext).not.toHaveBeenCalled();
+    for (const id of ['', 'oscillator', 'microphone', 'file', 'none']) {
+      expect(() =>
+        setup(undefined, { inputs: [{ id, label: 'Invalid', start }] }),
+      ).toThrow(/id/);
+    }
+    expect(() =>
+      setup(undefined, {
+        inputs: [
+          { id: 'x', label: 'X', start },
+          { id: 'x', label: 'Again', start },
+        ],
+      }),
+    ).toThrow(/id/);
+    expect(() => setup(undefined, { defaultInput: 'unknown' })).toThrow(
+      /Unknown default/,
+    );
+    expect(() => setup(undefined, { defaultInput: 'microphone' })).toThrow(
+      /explicitly/,
+    );
+  });
+
+  it('routes custom inputs through DSP and recreates them at the transport position on replay', async () => {
+    const cleanup = vi.fn<() => void>(() => {});
+    const starts: WebAudioInputContext[] = [];
+    let source: FakeSource | undefined, effect: FakeGain | undefined;
+    const { audio, host, context } = setup(
+      async () =>
+        ({ input, output }) => {
+          effect = new FakeGain();
+          (input as unknown as FakeNode).connect(effect);
+          effect.connect(output as unknown as FakeNode);
+        },
+      {
+        inputs: [
+          {
+            id: 'loop',
+            label: 'Loop',
+            start(input) {
+              starts.push(input);
+              source = new FakeSource('custom');
+              source.connect(input.destination as unknown as FakeNode);
+              return () => {
+                source!.disconnect();
+                cleanup();
+              };
+            },
+          },
+        ],
+        defaultInput: 'loop',
+      },
+    );
+    await audio.start();
+    expect(starts).toHaveLength(0);
+    host.play();
+    expect(reaches(source!, effect!)).toBe(true);
+    expect(reaches(effect!, context.destination)).toBe(true);
+    expect(starts[0]!.timeInSeconds).toBe(0);
+    context.currentTime = 2;
+    host.pause();
+    expect(starts[0]!.signal.aborted).toBe(true);
+    expect(cleanup).toHaveBeenCalledOnce();
+    host.play();
+    expect(starts[1]!.timeInSeconds).toBe(2);
+    await audio.setSource('oscillator');
+    expect(starts[1]!.signal.aborted).toBe(true);
+    expect(cleanup).toHaveBeenCalledTimes(2);
+    audio.dispose();
+    expect(cleanup).toHaveBeenCalledTimes(2);
+  });
+
+  it('disconnects an obsolete async input immediately and cleans up its late result', async () => {
+    const pending = deferred<() => void>();
+    const cleanup = vi.fn<() => void>(() => {});
+    let instance: WebAudioInputContext | undefined;
+    const { audio, host } = setup(undefined, {
+      inputs: [
+        {
+          id: 'slow',
+          label: 'Slow',
+          start(input) {
+            instance = input;
+            return pending.promise;
+          },
+        },
+      ],
+      defaultInput: 'slow',
+    });
+    await audio.start();
+    host.play();
+    expect(audio.status.inputState).toBe('starting');
+    await audio.setSource('oscillator');
+    expect(instance!.signal.aborted).toBe(true);
+    expect(
+      (instance!.destination as unknown as FakeNode).connections.size,
+    ).toBe(0);
+    pending.resolve(cleanup);
+    await vi.waitFor(() => expect(cleanup).toHaveBeenCalledOnce());
+    expect(audio.status).toMatchObject({
+      source: 'oscillator',
+      inputState: 'running',
+      inputError: null,
+    });
+    audio.dispose();
+  });
+
+  it('ignores stale failures, surfaces current failures, and can retry', async () => {
+    const pending = deferred<() => void>();
+    const start = vi.fn<() => Promise<() => void>>(() => pending.promise);
+    const { audio, host } = setup(undefined, {
+      inputs: [{ id: 'slow', label: 'Slow', start }],
+    });
+    await audio.start();
+    host.play();
+    await audio.setSource('slow');
+    await audio.setSource('oscillator');
+    pending.reject(new Error('obsolete'));
+    await Promise.resolve();
+    expect(audio.status.inputError).toBeNull();
+    await audio.setSource('slow');
+    await vi.waitFor(() =>
+      expect(audio.status.inputError).toContain('obsolete'),
+    );
+    start.mockImplementation(() => Promise.resolve(() => {}));
+    await audio.setSource('slow');
+    await vi.waitFor(() => expect(audio.status.inputState).toBe('running'));
+    expect(audio.status.inputError).toBeNull();
+    audio.dispose();
+  });
+});
+
+describe('microphone input', () => {
+  it('requests permission only when selected and playing, and releases capture on pause and switch', async () => {
+    const first = microphone(),
+      second = microphone();
+    const getUserMedia = vi
+      .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+      .mockResolvedValueOnce(first.stream)
+      .mockResolvedValueOnce(second.stream);
+    const { audio, host, context } = setup(undefined, { getUserMedia });
+    await audio.start();
+    expect(getUserMedia).not.toHaveBeenCalled();
+    await audio.setSource('microphone');
+    expect(getUserMedia).not.toHaveBeenCalled();
+    host.play();
+    await vi.waitFor(() => expect(audio.status.inputState).toBe('running'));
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+      video: false,
+    });
+    expect(reaches(context.mediaSources[0]!, context.destination)).toBe(true);
+    host.pause();
+    expect(first.track.stop).toHaveBeenCalledOnce();
+    host.play();
+    await vi.waitFor(() => expect(context.mediaSources).toHaveLength(2));
+    await audio.setSource('none');
+    expect(second.track.stop).toHaveBeenCalledOnce();
+    expect(context.mediaSources[1]!.connections.size).toBe(0);
+    audio.dispose();
+  });
+
+  it.each(['switch', 'pause', 'dispose'] as const)(
+    'stops a late permission result after %s, without connecting it',
+    async (action) => {
+      const pending = deferred<MediaStream>(),
+        mic = microphone();
+      const { audio, host, context } = setup(undefined, {
+        getUserMedia: () => pending.promise,
+      });
+      await audio.start();
+      host.play();
+      await audio.setSource('microphone');
+      if (action === 'switch') await audio.setSource('oscillator');
+      else if (action === 'pause') host.pause();
+      else audio.dispose();
+      pending.resolve(mic.stream);
+      await vi.waitFor(() => expect(mic.track.stop).toHaveBeenCalledOnce());
+      expect(context.mediaSources).toHaveLength(0);
+      expect(audio.status.inputState).not.toBe('failed');
+      audio.dispose();
+    },
+  );
+
+  it('reports denied permission and allows another input to work', async () => {
+    const getUserMedia = vi
+      .fn<(constraints: MediaStreamConstraints) => Promise<MediaStream>>()
+      .mockRejectedValue(new DOMException('denied', 'NotAllowedError'));
+    const { audio, host } = setup(undefined, { getUserMedia });
+    await audio.start();
+    host.play();
+    await audio.setSource('microphone');
+    await vi.waitFor(() => expect(audio.status.inputState).toBe('failed'));
+    expect(audio.status.inputError).toMatch(/permission was denied/);
+    expect(audio.status.state).toBe('running');
+    await audio.setSource('oscillator');
+    expect(audio.status).toMatchObject({
+      source: 'oscillator',
+      inputState: 'running',
+      inputError: null,
+    });
+    audio.dispose();
+  });
+
+  it('releases all tracks and exposes device disconnection', async () => {
+    const mic = microphone();
+    const { audio, host } = setup(undefined, {
+      getUserMedia: async () => mic.stream,
+    });
+    await audio.start();
+    host.play();
+    await audio.setSource('microphone');
+    await vi.waitFor(() => expect(audio.status.inputState).toBe('running'));
+    mic.track.dispatchEvent(new Event('ended'));
+    expect(mic.track.stop).toHaveBeenCalledOnce();
+    expect(audio.status).toMatchObject({ inputState: 'failed' });
+    expect(audio.status.inputError).toMatch(/disconnected/);
+    audio.dispose();
+  });
+});
+
+it('does not restore an old file selection after its decode completes late', async () => {
+  const pending = deferred<{ duration: number }>();
+  const { audio, host, context } = setup();
+  vi.spyOn(context, 'decodeAudioData').mockReturnValue(pending.promise);
+  await audio.start();
+  host.play();
+  const loading = audio.setSource('file', new Blob(['data']));
+  await vi.waitFor(() =>
+    expect(context.decodeAudioData).toHaveBeenCalledOnce(),
+  );
+  await audio.setSource('none');
+  pending.resolve({ duration: 4 });
+  await loading;
+  expect(audio.status).toMatchObject({
+    source: 'none',
+    fileName: null,
+    inputState: 'idle',
+  });
+  audio.dispose();
+});
+
+it('cleans up DSP that finishes setting up after disposal, without creating a source', async () => {
+  const pending = deferred<() => void>(),
+    cleanup = vi.fn<() => void>(() => {});
+  const projectSetup = vi.fn<WebAudioSetup>(() => pending.promise);
+  const { audio, host, context } = setup(async () => projectSetup);
+  host.play();
+  const starting = audio.start();
+  await vi.waitFor(() => expect(projectSetup).toHaveBeenCalledOnce());
+  audio.dispose();
+  pending.resolve(cleanup);
+  await starting;
+  expect(cleanup).toHaveBeenCalledOnce();
+  expect(context.sources).toHaveLength(0);
+  expect(context.closed).toBe(true);
+});
+
+it('releases a granted microphone if the Web Audio connection cannot be created', async () => {
+  const mic = microphone();
+  const { audio, host, context } = setup(undefined, {
+    getUserMedia: async () => mic.stream,
+  });
+  vi.spyOn(context, 'createMediaStreamSource').mockImplementation(() => {
+    throw new Error('Device connection failed');
+  });
+  await audio.start();
+  host.play();
+  await audio.setSource('microphone');
+  await vi.waitFor(() => expect(audio.status.inputState).toBe('failed'));
+  expect(mic.track.stop).toHaveBeenCalledOnce();
+  expect(audio.status.inputError).toContain('Device connection failed');
+  audio.dispose();
 });
