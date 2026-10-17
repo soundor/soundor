@@ -1,0 +1,30 @@
+---
+title: ScrollView
+description: Content that scrolls by wheel or from code.
+---
+
+`ScrollView` clips its content and scrolls it by wheel or trackpad, or from
+code: `ref.current.scrollTo({ top })`, or `scrollTop` and `scrollLeft`. It
+draws thin scroll indicators.
+
+<Snippet name="scroll-view" height={230} />
+
+- **Two boxes:** `style` is the scrolling box, which needs a size (or a
+  `flex` that gives it one); `contentContainerStyle` is the box inside that
+  holds the children and scrolls.
+- **`onScroll`** fires as it scrolls; read the node's `scrollTop` and
+  `scrollLeft`.
+- **To assistive technology** a scroll view is not an element itself; what
+  it contains is.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="ScrollViewOwnProps"
+  type="Pick<ScrollViewProps, 'contentContainerStyle' | 'onScroll' | 'style' | 'ref' | 'children'>"
+/>
+
+`ScrollView` also takes a [`View`](/docs/components/view)'s props, the
+[event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

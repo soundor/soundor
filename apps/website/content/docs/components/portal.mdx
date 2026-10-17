@@ -1,0 +1,69 @@
+---
+title: Portal
+description: Children rendered elsewhere in the view, over everything or into a host.
+---
+
+`Portal` renders its children elsewhere in the plugin view while they stay
+in their component's React tree: their context, state and effects are kept.
+It is a Soundor extension, not a React Native component, built on the
+renderer's own portals: no ReactDOM, and no other window.
+
+A tooltip is the trigger's box in surface coordinates and a portal:
+
+<Snippet name="tooltip" height={180} />
+
+## Over everything
+
+`<Portal>` (also `host={null}`) renders into the view's overlay layer:
+
+- above all of the content, whatever its `zIndex`, and out of any `overflow`
+  clipping or scrolling;
+- in surface coordinates: place it with an event's `pageX`/`pageY` or a
+  node's `getBoundingClientRect()` ([coordinates](/docs/components/events#coordinates));
+- filling the view, letting the pointer through where it draws nothing;
+- above the portals opened before it, so one opened from inside another (a
+  dropdown in a dialog) is on top of it.
+
+There is one overlay layer, not one per kind of overlay, and it is not
+exported: `<Portal>` is the way in. A context menu is `onContextMenu`, the
+pointer's position and a portal:
+
+<Snippet name="context-menu" height={240} />
+
+## Into a host
+
+`<Portal host={host}>` renders into the `<Portal.Host host={host}>`, as its
+children: clipped, stacked and scrolled wherever that host is. Hosts are
+opaque handles from `createPortalHost()`.
+
+```tsx
+const panelHost = createPortalHost();
+
+<View style={{ overflow: 'hidden' }}>
+  <Portal.Host
+    host={panelHost}
+    style={{ position: 'absolute', inset: 0, pointerEvents: 'box-none' }}
+  />
+</View>
+
+<Portal host={panelHost}>…</Portal>
+```
+
+Content waits, rendering nothing, until its host mounts, goes when the host
+unmounts, and comes back with it. Showing one host in two places at once is
+an error.
+
+## Events and focus
+
+Pointer and key events bubble through the nodes as they are shown: from a
+portal's content up to its host (or the overlay layer), not through the
+component that declared it. Focus follows React: content a `FocusScope`
+renders through a portal belongs to that scope.
+
+## Props
+
+<auto-type-table path="packages/react/src/portal.ts" name="PortalProps" />
+
+`Portal.Host`:
+
+<auto-type-table path="packages/react/src/portal.ts" name="PortalHostProps" />

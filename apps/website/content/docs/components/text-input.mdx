@@ -1,0 +1,33 @@
+---
+title: TextInput
+description: A single-line text input, controlled or uncontrolled.
+---
+
+`TextInput` is a single-line input that edits itself: typing, selection with
+the mouse and Shift, word-wise moves and deletes, Home and End, and copy,
+cut and paste through the system clipboard.
+
+<Snippet name="text-input" height={260} />
+
+- **Controlled:** `value` and `onChangeText` keep the text in your state.
+  **Uncontrolled:** `defaultValue` gives the initial text, and the input keeps
+  it.
+- **Events:** `onChangeText` after every edit, with the text;
+  `onSubmitEditing` on Enter; `onChange` when the text is committed (Enter,
+  or losing focus).
+- **Focus:** pressing it focuses it. `ref.current.focus()` does too.
+- **Its own editing** is the default action of its events, so a listener's
+  `preventDefault()` (on `onKeyDown`, say) takes over that key.
+- **To assistive technology** it is a text field with its current text and
+  placeholder. It offers `activate` (start editing), `focus` and `setValue`.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="TextInputOwnProps"
+  type="Omit<TextInputProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+`TextInput` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

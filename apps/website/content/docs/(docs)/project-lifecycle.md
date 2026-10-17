@@ -59,8 +59,8 @@ Runtime generation adds its own implementation contract:
 
 The shared UI TypeScript project includes the generated declarations and uses
 `lib: ["ES2023"]` without `DOM`. Browser host files use a separate configuration
-with browser types. See [CLI bundling](/docs/reference/cli#the-plugin-ui-bundle) and
-[Configuration](/docs/reference/config).
+with browser types. See [CLI bundling](/docs/api/cli#the-plugin-ui-bundle) and
+[Configuration](/docs/api/config).
 
 ## The UI bundle
 
@@ -97,7 +97,7 @@ used to map UI stack frames back to TypeScript.
 The CLI can also start a local DevTools session for a runtime that declares
 support. The native development Standalone offers tree inspection, picking,
 animation information, and measured rendering diagnostics. See
-[CLI development](/docs/reference/cli#development).
+[CLI development](/docs/api/cli#development).
 
 ## Production builds
 
@@ -122,7 +122,7 @@ Install its package, add its factory to `runtimes`, and run `soundor init <id>`.
 Implement that host's audio and native API while keeping the UI contract shared.
 
 Runtime authors implement `init`, `gen`, `dev`, `build`, and `doctor` with
-[`@soundor/runtime-sdk`](/docs/reference/runtime-sdk). Lifecycle context carries the project
+[`@soundor/runtime-sdk`](/docs/api/runtime-sdk). Lifecycle context carries the project
 paths, config, file system, logger, codegen sink, build mode, UI bundle, signing
 settings, and optional development-session services. Runtimes own platform
 behavior; the CLI owns common orchestration.

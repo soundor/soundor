@@ -35,5 +35,5 @@ run in native snapshot order at simulated 60 Hz when runtime time advances.
 No browser, React, Hermes, or native runtime dependency is introduced by the
 environment. It has no peer dependency on the plugin or another environment.
 
-See [@soundor/vitest](/docs/reference/vitest) for installation, runtime configuration,
+See [@soundor/vitest](/docs/api/vitest) for installation, runtime configuration,
 mocking, watch mode, declarations, and simulation limits.

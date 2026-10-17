@@ -1,0 +1,29 @@
+---
+title: Text
+description: Text, in one run with nested Text for inline styles.
+---
+
+`Text` shows text. Strings, numbers and nested `<Text>` inside it become one
+run of text, each part with its own style; `numberOfLines` cuts it short.
+
+<Snippet name="text" height={220} />
+
+- **Strings go in `Text`.** A string anywhere else is an error, as in React
+  Native: there is no text outside a text node.
+- **Styles:** `fontSize`, `fontWeight`, `fontStyle`, `fontFamily`,
+  `lineHeight`, `letterSpacing`, `textAlign` and `color`, besides a view's
+  layout and paint ([Style](/docs/components/style)). A nested `<Text>`
+  inherits its parent's and overrides some.
+- **To assistive technology** a `Text` is read as its text, nested ones
+  included, once. Accessibility props of a nested `<Text>` have no effect.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="TextOwnProps"
+  type="Omit<TextProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+`Text` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

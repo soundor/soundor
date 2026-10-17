@@ -1,0 +1,27 @@
+---
+title: FocusScope
+description: A boundary for keyboard focus, to trap it, start it and restore it.
+---
+
+`FocusScope` groups its children for keyboard focus. It adds no node, so
+layout is as if it were not there.
+
+<Snippet name="focus-scope" height={220} />
+
+- **`trapped`:** Tab and Shift+Tab cycle through the scope's focusable
+  nodes, wrapping at the ends, and focus moved outside comes back. The
+  innermost trapping scope wins.
+- **`autoFocus`:** on mount, focuses the first focusable node, unless focus is
+  already inside.
+- **`restoreFocus`:** on unmount, gives focus back to the node that had it on
+  mount, if that node is still there and focusable.
+
+All three are `false` by default. Membership follows React, not the node
+tree: what the scope's children render belongs to it wherever it shows,
+through a [`Portal`](/docs/components/portal) too. A
+[`Modal`](/docs/components/modal) is a trapped scope with `autoFocus` and
+`restoreFocus`.
+
+## Props
+
+<auto-type-table path="packages/react/src/focus.ts" name="FocusScopeProps" />

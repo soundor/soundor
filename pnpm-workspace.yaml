@@ -52,6 +52,7 @@ catalog:
   fake-indexeddb: ^6.2.5
   fumadocs-core: ^16.17.3
   fumadocs-mdx: ^15.4.7
+  fumadocs-typescript: ^5.5.2
   fumadocs-ui: npm:@fumadocs/base-ui@^16.17.3
   happy-dom: ^20.14.5
   husky: ^9.1.7

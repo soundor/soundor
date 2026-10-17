@@ -1,0 +1,37 @@
+---
+title: Modal
+description: A layer over the whole view that takes its input until it closes.
+---
+
+`Modal` is a layer over the whole view that takes its input until it
+closes. It is not a window: it is drawn in the plugin's one view, so it
+works the same in any host, and in the browser.
+
+<Snippet name="modal" height={260} />
+
+It is a [`Portal`](/docs/components/portal) plus:
+
+- **A backdrop** over the whole view that blocks the pointer from everything
+  below, transparent unless `backdropStyle` says otherwise. Its children fill
+  the view above it and stay interactive: place a dialog with
+  `margin: 'auto'`, say.
+- **A trapped [`FocusScope`](/docs/components/focus-scope)** with `autoFocus`
+  and `restoreFocus`: focus goes to its first focusable child on open, Tab
+  stays inside, and focus returns on close.
+- **Close requests:** Escape, and with `dismissOnBackdropPress` a press on
+  the backdrop itself (not its content), call `onRequestClose`. The modal
+  stays until `visible` is `false`: the caller decides.
+
+Modals stack like portals: a modal opened from a modal is above it and owns
+focus until it closes, and a `<Portal>` opened from a modal (a dropdown, a
+tooltip) shows above that modal and belongs to its focus trap.
+
+To assistive technology a modal is a modal dialog, named by
+`accessibilityLabel`. While it shows, everything else is hidden from it,
+except the portals opened from inside it; a modal opened from it takes
+over until it closes. With `onRequestClose` it offers `escape` (VoiceOver's
+scrub), which asks it to close as Escape does.
+
+## Props
+
+<auto-type-table path="packages/react/src/modal.ts" name="ModalProps" />

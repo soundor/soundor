@@ -91,10 +91,19 @@ declare module 'soundor:ui' {
    * asked) and text properties.
    */
   export interface Style {
+    /** 'none': the node takes no room and is not drawn. 'flex' by default. */
     display?: 'flex' | 'none';
+    /**
+     * 'relative' (the default): laid out by its parent, then offset by
+     * top/left/…; 'absolute': out of the flow, placed by top/left/… in its
+     * parent's box; 'static': laid out, ignoring the offsets.
+     */
     position?: 'relative' | 'absolute' | 'static';
+    /** The main axis children are laid out along: 'column' by default. */
     flexDirection?: 'column' | 'column-reverse' | 'row' | 'row-reverse';
+    /** Whether children that do not fit wrap onto more lines: 'nowrap' by default. */
     flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse';
+    /** Children along the main axis: 'flex-start' by default. */
     justifyContent?:
       | 'flex-start'
       | 'center'
@@ -102,24 +111,35 @@ declare module 'soundor:ui' {
       | 'space-between'
       | 'space-around'
       | 'space-evenly';
+    /** Children across the main axis: 'stretch' by default. */
     alignItems?: FlexAlign;
+    /** This node across its parent's main axis, overriding the parent's alignItems. */
     alignSelf?: FlexAlign;
+    /** Wrapped lines across the main axis. */
     alignContent?: FlexAlign;
     /** `flex: n` (n > 0) grows by n, shrinks, and starts from zero. */
     flex?: number;
+    /** How much of the free room along the main axis it takes, against its siblings. */
     flexGrow?: number;
+    /** How much it gives up when the room runs short: 0 by default, as in React Native. */
     flexShrink?: number;
+    /** Its size along the main axis before growing or shrinking. */
     flexBasis?: Dimension;
 
+    /** Logical pixels, a percentage of the parent's, or 'auto' (the content's). */
     width?: Dimension;
+    /** Logical pixels, a percentage of the parent's, or 'auto' (the content's). */
     height?: Dimension;
     minWidth?: Percentage;
     minHeight?: Percentage;
     maxWidth?: Percentage;
     maxHeight?: Percentage;
+    /** Width divided by height: one given, the other follows. */
     aspectRatio?: number;
+    /** Whether width and height include the padding and border. */
     boxSizing?: 'border-box' | 'content-box';
 
+    /** Room outside the border, on every side; 'auto' takes the free room (centring). */
     margin?: Dimension;
     marginHorizontal?: Dimension;
     marginVertical?: Dimension;
@@ -127,6 +147,7 @@ declare module 'soundor:ui' {
     marginRight?: Dimension;
     marginBottom?: Dimension;
     marginLeft?: Dimension;
+    /** Room inside the border, around the children, on every side. */
     padding?: Percentage;
     paddingHorizontal?: Percentage;
     paddingVertical?: Percentage;
@@ -134,6 +155,7 @@ declare module 'soundor:ui' {
     paddingRight?: Percentage;
     paddingBottom?: Percentage;
     paddingLeft?: Percentage;
+    /** The border's width on every side, in logical pixels; borderColor paints it. */
     borderWidth?: number;
     borderHorizontalWidth?: number;
     borderVerticalWidth?: number;
@@ -141,15 +163,19 @@ declare module 'soundor:ui' {
     borderRightWidth?: number;
     borderBottomWidth?: number;
     borderLeftWidth?: number;
+    /** top, right, bottom and left at once. */
     inset?: Dimension;
+    /** The offset of a 'relative' node, or the place of an 'absolute' one. */
     top?: Dimension;
     right?: Dimension;
     bottom?: Dimension;
     left?: Dimension;
+    /** Room between children, in logical pixels: rows and columns. */
     gap?: number;
     rowGap?: number;
     columnGap?: number;
 
+    /** 'hidden' clips the children to the box; 'visible' by default. */
     overflow?: 'visible' | 'hidden' | 'scroll';
     /** 'box-none': not the node, but its children; 'box-only': the reverse. */
     pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
@@ -161,20 +187,28 @@ declare module 'soundor:ui' {
      */
     zIndex?: number;
 
+    /** The font family's name. */
     fontFamily?: string;
+    /** In logical pixels. */
     fontSize?: number;
+    /** 100 to 900, 'normal' (400) or 'bold' (700). */
     fontWeight?: number | 'normal' | 'bold';
     fontStyle?: 'normal' | 'italic';
+    /** The height of a line, in logical pixels. */
     lineHeight?: number;
+    /** Extra room between letters, in logical pixels. */
     letterSpacing?: number;
     textAlign?: 'auto' | 'left' | 'center' | 'right';
     /** Text nodes: at most this many lines (0: no limit). */
     numberOfLines?: number;
+    /** The text's color: any CSS color. */
     color?: Color;
 
     /** Any CSS color: '#rgb[a]', '#rrggbb[aa]', rgb(), hsl(), a name, 'transparent'. */
     backgroundColor?: Color;
+    /** The border's color: any CSS color. */
     borderColor?: Color;
+    /** Rounds the corners, in logical pixels. */
     borderRadius?: number;
     borderTopLeftRadius?: number;
     borderTopRightRadius?: number;
@@ -182,6 +216,10 @@ declare module 'soundor:ui' {
     borderBottomLeftRadius?: number;
     /** 0 to 1, for the node and everything in it. */
     opacity?: number;
+    /**
+     * Moves, scales and rotates how the node is drawn (and hit), about its
+     * centre, in order; layout is unchanged.
+     */
     transform?: readonly TransformOperation[];
     /** Images: how the image fills the box. */
     resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';

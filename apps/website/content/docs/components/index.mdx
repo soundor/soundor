@@ -1,0 +1,39 @@
+---
+title: Components
+description: The components a Soundor plugin UI is made of, from @soundor/react.
+---
+
+`@soundor/react` renders a plugin's UI with React Native's components and
+conventions, in every runtime: natively, where there is no DOM, and in the
+browser. Each page here runs its component live: edit the code, then apply.
+
+<Snippet name="gain" height={200} />
+
+| Component                                         | What it is                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| [`View`](/docs/components/view)                   | A box laid out with flexbox: the building block.              |
+| [`Text`](/docs/components/text)                   | Text. Every string goes in one.                               |
+| [`Image`](/docs/components/image)                 | A bundled image.                                              |
+| [`Pressable`](/docs/components/pressable)         | A view that responds to presses, with its state for styling.  |
+| [`TextInput`](/docs/components/text-input)        | A single-line text input.                                     |
+| [`ScrollView`](/docs/components/scroll-view)      | Content that scrolls.                                         |
+| [`Canvas`](/docs/components/canvas)               | Pixels code draws, with a 2D or WebGL 2 context.              |
+| [`Animated.View`](/docs/components/animated-view) | A view whose style changes animate.                           |
+| [`Portal`](/docs/components/portal)               | Children rendered elsewhere: over everything, or into a host. |
+| [`Modal`](/docs/components/modal)                 | A layer over the view that takes its input until it closes.   |
+| [`FocusScope`](/docs/components/focus-scope)      | A boundary for keyboard focus: trap, autofocus, restore.      |
+
+Every component takes:
+
+- [`style`](/docs/components/style): flexbox layout, spacing, text and paint,
+  as in React Native. `StyleSheet.create()` names styles with their types.
+- [Event props](/docs/components/events): Web-style pointer, wheel, key and
+  focus events that capture and bubble as in the DOM.
+- [Accessibility props](/docs/components/accessibility): what the component is
+  to a screen reader.
+- `ref`: its `soundor:ui` node, for its layout, bounds, focus and animations
+  ([`soundor:ui`](/docs/api/ui)).
+
+A plugin's `src/main.tsx` renders its root component with `render(<App />)`
+([rendering and hooks](/docs/api/react)). The
+[React UI guide](/docs/react) explains how the renderer works.

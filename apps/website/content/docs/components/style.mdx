@@ -1,0 +1,77 @@
+---
+title: Style
+description: Flexbox layout, spacing, text and paint, as in React Native.
+---
+
+Styles are React Native's: flexbox laid out by
+[Yoga](https://www.yogalayout.dev), spacing shorthands, percentages, CSS
+colors, rounded corners, opacity and transforms. Every component takes a
+`style`.
+
+<Snippet name="view" height={230} />
+
+## Values
+
+- **Lengths** are numbers, in logical pixels; CSS pixels (`'120px'`, kept as
+  the number); or percentages of the parent (`'50%'`). Sizes, margins,
+  positions and `flexBasis` also take `'auto'`.
+- **Colors** are any CSS color: `'#rgb[a]'`, `'#rrggbb[aa]'`, `rgb()`,
+  `hsl()`, a name, or `'transparent'`.
+- **An invalid value throws** a `TypeError` naming the property.
+
+## Layout
+
+A view lays out its children with flexbox, as in React Native rather than
+on the Web:
+
+- **A column** by default (`flexDirection: 'column'`), children stretched
+  across it (`alignItems: 'stretch'`).
+- **No shrinking** unless asked: `flexShrink` is 0 by default. `flex: n`
+  (n > 0) grows by n, shrinks, and starts from zero.
+- **Spacing:** `margin`, `padding` and `borderWidth` with their
+  `…Horizontal`, `…Vertical` and per-side forms; `gap`, `rowGap` and
+  `columnGap` between children.
+- **Position:** `position: 'absolute'` takes a node out of the flow, placed
+  by `top`, `right`, `bottom`, `left` (or `inset`) in its parent's box.
+- **Stacking:** `zIndex` (an integer) stacks a node among its siblings, for
+  drawing and hit testing alike; layout keeps the tree's order.
+- **Clipping and input:** `overflow: 'hidden'` clips the children;
+  `pointerEvents` lets the pointer through a node, its children, or both.
+
+## Text
+
+`fontFamily`, `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`,
+`letterSpacing`, `textAlign` and `color` style a [`Text`](/docs/components/text)
+(and a [`TextInput`](/docs/components/text-input)'s text).
+
+## Paint and transforms
+
+`backgroundColor`, `borderColor`, `borderRadius` (all corners, or each),
+`opacity` (for the node and everything in it), and `transform`: an ordered
+list of `translateX`, `translateY`, `scale`, `scaleX`, `scaleY` and `rotate`
+(radians as a number, or `'90deg'`), about the node's centre. A transform
+moves how the node is drawn and hit, not its layout;
+[`Animated.View`](/docs/components/animated-view) animates it.
+
+## Combining styles
+
+`style` takes arrays and falsy entries, merged in order (later wins), so a
+condition can add a style:
+
+```tsx
+import { StyleSheet, View } from '@soundor/react';
+
+const styles = StyleSheet.create({
+  knob: { width: 48, height: 48, borderRadius: 24 },
+  active: { backgroundColor: '#3a7bfd' },
+});
+
+<View style={[styles.knob, active && styles.active]} />;
+```
+
+`StyleSheet.create()` returns its styles as they are, typed, and
+`StyleSheet.flatten()` merges a style prop into one object.
+
+## Every property
+
+<auto-type-table path="packages/react/src/components.tsx" name="Style" />
