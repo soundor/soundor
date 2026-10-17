@@ -1,5 +1,12 @@
 # @soundor/juce-runtime
 
+## 0.10.2
+
+### Patch Changes
+
+- Updated dependencies [[`e423f17`](https://github.com/soundor/soundor/commit/e423f17f789e8eb69cc3cf3c524b0c6e28cae174)]:
+  - @soundor/engine@0.2.2
+
 ## 0.10.1
 
 ### Patch Changes

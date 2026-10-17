@@ -1,5 +1,11 @@
 # @soundor/engine
 
+## 0.2.2
+
+### Patch Changes
+
+- [#154](https://github.com/soundor/soundor/pull/154) [`e423f17`](https://github.com/soundor/soundor/commit/e423f17f789e8eb69cc3cf3c524b0c6e28cae174) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Images drawn much smaller than their pixels no longer alias: bundled images get mipmaps when decoded, and image nodes are drawn between the two nearest.
+
 ## 0.2.1
 
 ### Patch Changes

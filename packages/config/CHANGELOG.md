@@ -1,5 +1,9 @@
 # @soundor/config
 
+## 0.11.0
+
+No changes in this release.
+
 ## 0.10.1
 
 ### Patch Changes
