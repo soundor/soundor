@@ -7,6 +7,11 @@ Source: [`packages/runtime-sdk/`](https://github.com/soundor/soundor/tree/main/p
 
 SDK for implementing Soundor runtime packages.
 
+For the full authoring path, start with [Build a runtime](/docs/contribute/build-runtime).
+Its [lifecycle guide](/docs/contribute/build-runtime/lifecycle) covers the shared
+context, and its [execution contract](/docs/contribute/build-runtime/contract)
+describes the environment a runtime must provide in addition to these hooks.
+
 ## Install
 
 ```sh

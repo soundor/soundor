@@ -1,228 +1,57 @@
 ---
 title: 'Contributing'
-description: 'Workspace setup, checks, native builds, examples, generation, and documentation conventions.'
+description: 'A repository map and a reading path for each kind of change.'
 ---
 
-This guide covers the monorepo. For building a plugin with published packages,
-start with [Getting started](/docs/getting-started).
+Start here when changing Soundor itself. To build a plugin with published
+packages, use [Getting started](/docs/getting-started).
 
-## Set up the workspace
+Read [Setup](/docs/contribute/setup), then [Workflow](/docs/contribute/workflow)
+and [Conventions](/docs/contribute/conventions). Subsystem guides describe their
+purpose, source, operation, invariants and tests, and how to change them.
 
-Use Node.js 24 and pnpm 12, matching the root `package.json` and `.nvmrc`.
+## Repository map
 
-```sh
-pnpm install
-pnpm build
+```mermaid
+flowchart TD
+    project["Plugin project"] --> toolchain["packages/: config, CLI, codegen"]
+    toolchain --> contract["Generated contract and UI bundle"]
+    contract --> juce["runtimes/juce-runtime: native host"]
+    contract --> web["runtimes/web-runtime: browser host"]
+    juce --> engine["runtimes/engine: C++ engine"]
+    react["packages/react: UI renderer"] --> contract
+    tests["packages/: simulated runtime and testing tools"] --> react
+    examples["examples/: plugins and snippets"] --> site["apps/website: docs and playground"]
 ```
 
-The workspace contains public packages under `packages/` and `runtimes/`,
-private shared configs under `configs/`, application examples under `examples/`,
-and rendering benchmarks under `tools/benchmark/`. See
-[Packages](/docs/contribute/packages) for package ownership.
+The [package map](/docs/contribute/packages) gives dependency direction and
+ownership. `configs/` contains private TypeScript and bundler presets;
+`tools/benchmark/` measures the native runtime; `.github/` owns CI and releases.
 
-`pnpm build` builds TypeScript packages and tools; it does not compile the native
-engine. Native checks build it separately. The first native configure compiles
-Skia, ANGLE, and Hermes and caches them in the user cache directory;
-`SOUNDOR_CACHE` overrides the location. Later builds reuse this cache.
+## Where to start a change
 
-## Run repository checks
+| Change                                | Read first                                                                                                                             | Main source                                                            |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| A config option or generated type     | [Pipeline](/docs/contribute/pipeline), [ownership](/docs/contribute/ownership)                                                         | `packages/config/src/`, `packages/core/src/`                           |
+| A CLI command or dev session          | [Pipeline](/docs/contribute/pipeline), [Runtime SDK](/docs/contribute/runtime-sdk)                                                     | `packages/cli/src/`                                                    |
+| A new runtime                         | [Build a runtime](/docs/contribute/build-runtime)                                                                                      | `packages/config/src/runtime.ts`, `packages/runtime-sdk/src/`          |
+| A shared UI or service behavior       | [Cross-runtime contract](/docs/contribute/contract)                                                                                    | Engine, web runtime, test runtime and React                            |
+| Native layout, painting or JavaScript | [Engine reference](/docs/contribute/engine-reference)                                                                                  | `runtimes/engine/include/`, `runtimes/engine/src/`                     |
+| Native host integration               | [Embedding API](/docs/contribute/engine-reference#embedding-api)                                                                       | `runtimes/juce-runtime/native/backend/juce/`                           |
+| Accessibility                         | [Contract](/docs/contribute/contract), [Apple bridges](/docs/contribute/apple-accessibility)                                           | Engine `src/a11y/`, web client `ui/semantics.ts`                       |
+| React or application tests            | [React tests](/docs/contribute/react-tests), [test runtime](/docs/contribute/test-runtime)                                             | `packages/react/`, `packages/react/testing/`, `packages/test-runtime/` |
+| DevTools                              | [Protocol](/docs/contribute/devtools-protocol), [server](/docs/contribute/devtools-server), [client](/docs/contribute/devtools-client) | `packages/devtools-*/`                                                 |
+| Performance                           | [Benchmarks](/docs/contribute/benchmark)                                                                                               | `tools/benchmark/`                                                     |
+| Docs, snippets or playground          | [Conventions](/docs/contribute/conventions)                                                                                            | `apps/website/`, `examples/snippets/`                                  |
 
-```sh
-pnpm format    # oxfmt and native clang-format checks
-pnpm lint      # oxlint and native clang-tidy
-pnpm build     # TypeScript checks and package bundles
-pnpm test      # Vitest and the engine's native dev workflow
-pnpm check     # all of the above, in order
-```
+## Follow a behavior across implementations
 
-TypeScript uses oxfmt and oxlint. Native C++ uses clang-format 18 and clang-tidy
-with the root configuration. `pnpm format:fix` applies formatting;
-`pnpm lint:fix` applies supported TypeScript lint fixes.
+For a parameter change, start with config validation and generated declarations,
+then trace its host representation and subscriptions through both runtimes. For
+a React prop, start with its type and reconciler mapping, then follow the
+`soundor:ui` node into native, browser and simulated implementations.
 
-Root commands exclude application examples; root build/test also exclude tools.
-Run example and benchmark commands explicitly when changing them. Turborepo test
-tasks depend on dependency builds, so build dependencies before invoking Vitest
-directly.
-
-## Focus on one package
-
-```sh
-pnpm turbo run build --filter=@soundor/react...
-pnpm --filter @soundor/react test
-pnpm --filter soundor test
-pnpm --filter @soundor/react-tests exec vitest run src/modal.test.tsx
-```
-
-The renderer delegates its suites to a private
-[React test workspace](/docs/contribute/react-tests). This keeps testing tools out of the
-renderer dependency graph. Application tests should use the public helpers in
-the [testing guide](/docs/testing).
-
-For frontend work, the [DevTools client guide](/docs/contribute/devtools-client) describes its
-local simulator, unit/integration tests, Playwright coverage, and attachment to
-a live native backend. The [server guide](/docs/contribute/devtools-server) describes testing
-the protocol without a plugin.
-
-## Native checks
-
-The engine builds without JUCE. From `runtimes/engine/`:
-
-```sh
-cmake --workflow --preset dev        # Debug, warnings as errors, doctest suites
-cmake --workflow --preset sanitize   # ASan, UBSan, LSan
-cmake --workflow --preset tidy       # clang-tidy and build
-cmake --workflow --preset nogpu      # build and tests without ANGLE
-ctest --test-dir build/dev -R <name> --output-on-failure
-```
-
-The last command runs a focused test after the dev build. Native builds need
-the installed Node dependencies because JavaScript runtime modules and test
-fixtures are lowered during the build. GPU-dependent tests skip without a
-device unless `SOUNDOR_REQUIRE_GPU=1`, which makes its absence a failure.
-
-JUCE adapter tests require an existing JUCE checkout. From
-`runtimes/juce-runtime/native/`:
-
-```sh
-cmake --workflow --preset juce
-```
-
-From the repository root, build the source-engine JUCE test plugin with:
-
-```sh
-pnpm --filter @soundor/juce-runtime test:plugin
-```
-
-See the [engine reference](/docs/contribute/engine-reference#building-and-testing) for
-embedding checks, and [Soundor Engine](/docs/engine) for source/prebuilt modes and
-ABI compatibility.
-
-## Run the examples
-
-From the repository root, after `pnpm build`:
-
-```sh
-pnpm --filter basic exec soundor dev web
-pnpm --filter basic exec soundor dev juce
-pnpm --filter primitives exec soundor dev web
-pnpm --filter basic test
-pnpm --filter basic typecheck
-pnpm --filter basic build:web
-```
-
-The native command needs JUCE and a display to launch the Standalone. Both
-examples use source engine mode because workspace engines have no published
-manifest. The examples are real applications; native CI uses the runtime's own
-test plugin fixtures. See [Basic](/docs/examples/basic) and
-[Primitives](/docs/examples/primitives).
-
-## Change a shared behavior
-
-Trace a behavior through the contract before changing an implementation:
-
-1. Update config validation, declarations, and code generation when the public
-   contract changes.
-2. Keep native, web, and simulated runtime behavior aligned where applicable.
-3. Update React props and helpers if they expose the behavior.
-4. Add focused tests at the layer that owns the behavior.
-5. Update the relevant guide or reference in `apps/website/content/docs/`.
-
-Native code must preserve the thread, lifetime, symbol-isolation, dependency,
-and GPU invariants described in [Architecture](/docs/architecture) and the
-[engine reference](/docs/contribute/engine-reference). Keep framework-specific adapters out of
-the backend-independent engine.
-
-Dependencies use the workspace catalog in `pnpm-workspace.yaml`. Before editing
-`turbo.json`, consult the docs shipped with the installed Turbo package, resolved
-with `node -p "require.resolve('turbo/package.json')"`.
-
-## Regenerate checked-in files
-
-From the repository root:
-
-```sh
-UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
-pnpm --filter @soundor/core build
-pnpm --filter @soundor/core gen:runtime-types
-pnpm --filter @soundor/juce-runtime gen:webgl
-```
-
-These update the native API golden C++, shared runtime declarations, and WebGL
-bindings respectively. Use only the relevant generator, and include its output
-in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
-IDL inputs.
-
-## Measure performance changes
-
-Use the [benchmark guide](/docs/contribute/benchmark) to compare a saved build and the changed
-build alternately in the same session:
-
-```sh
-pnpm --filter soundor-benchmark bench --save main
-pnpm --filter soundor-benchmark bench --against main
-```
-
-Save the baseline from the base branch before measuring the changed branch.
-Timing drifts between sessions. Work counts such as layouts, native calls,
-uploads, and readbacks do not depend on timing and help explain a change.
-
-## Documentation and changesets
-
-The documentation is the website, [soundor.dev](https://soundor.dev): guides and
-references live in `apps/website/content/docs/`, one folder per tab:
-`(docs)/` (why Soundor, getting started, guides, runtimes and examples, for
-plugin authors, without a tour of the packages), `components/` (a page per
-component), `hooks/`, `api/` (a page per `soundor:*` module), `testing/`,
-`cli/` (commands, config, create-soundor-app) and `contribute/` (work on
-Soundor itself). Each folder's `meta.json` orders its sidebar, and a page's
-frontmatter gives its title and description. Write
-`.md`; use `.mdx` only for a page that needs a component, such as
-`<Example name="basic" />`, which embeds an example's web build, or
-`<Snippet name="gain" height={200} />`, which runs one file of
-`examples/snippets/src/snippets/` live, its code under it. Readers can edit
-an embedded example's UI code (`src/`, without tests) and a snippet, and see
-them run, so that code may import only `react`, `@soundor/react`,
-`soundor:*` and the example's own files (a snippet: none, but images from
-`examples/snippets/src/assets/`, which the snippet's page gets the ids of).
-
-A snippet is one small component, the file's default export, about one
-thing. Add it to `examples/snippets/src/snippets/` and its `index.ts`; the
-project's tests check that every file is listed, imports only what a docs
-page has, and renders. `pnpm --filter snippets exec soundor dev web` shows
-them all, with a picker. The build puts each snippet's code into the page
-(`plugins/remark-snippets.ts`) and its Markdown, and fails on an unknown
-name. The editor checks it with TypeScript against the example's own types
-(its `tsconfig.app.json`, collected at build time by
-`apps/website/scripts/types.ts`), so the example must typecheck, and its
-completions and documentation on hover come from the JSDoc in the
-`soundor:*` declarations and `@soundor/react`.
-
-A component's props table is generated from its type:
-`<auto-type-table path="packages/react/src/components.tsx" name="…" />`
-(fumadocs-typescript, `plugins/type-tables.ts`), with `type="Omit<…>"` and a
-name of its own for the component's own props. Its descriptions are the
-props' doc comments, so a new prop needs one: the same comment shows in the
-editor's hover and in a user's IDE.
-
-A ` ```mermaid ` code block is drawn as a diagram (Mermaid, in the
-site's theme; the page's Markdown keeps its source): prefer one to a long
-description of a flow, a pipeline or a set of dependencies.
-
-Link pages by their site path (`/docs/hooks`) and repository files by
-their GitHub URL. Write versions as placeholders such as
-`%version:<package>%`, which the build fills in from the repository (the list is
-in `apps/website/plugins/values.ts`). Package READMEs are
-short entry points linking to their page on soundor.dev, so their links also
-work on npm. Legal notices remain with the dependencies they describe;
-benchmark reports remain with their recorded data.
-
-Preview the site with `pnpm turbo run dev --filter=website`. Its build
-(`pnpm turbo run build --filter=website`) fails on a broken internal link or
-anchor. `pnpm --filter website test` runs its unit tests, and
-`pnpm --filter website test:e2e` its browser tests on the built site.
-
-Add a changeset for a published-package change with `pnpm changeset`. The
-thirteen public packages under `packages/` form a fixed version group; runtime
-packages have their own versioning. Follow the repository's
-[pull request template](https://github.com/soundor/soundor/blob/main/.github/pull_request_template.md) and describe the
-changed behavior and the checks run.
+Choose tests for the boundary being changed. A simulated React test proves
+observable interactions; native tests prove engine behavior; browser tests prove
+DOM, layout and page integration. [Workflow](/docs/contribute/workflow) lists
+checks and generated files.
