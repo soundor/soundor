@@ -49,5 +49,12 @@ describe('defineWebConfig', () => {
     expect(resolved.optimizeDeps.exclude).toContain(
       '@soundor/web-runtime/client',
     );
+    expect(resolved.optimizeDeps.include).toEqual(
+      expect.arrayContaining([
+        '@soundor/web-runtime > preact',
+        '@soundor/web-runtime > preact/hooks',
+        '@soundor/web-runtime > preact/jsx-runtime',
+      ]),
+    );
   });
 });

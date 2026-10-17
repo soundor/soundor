@@ -27,7 +27,10 @@ import { soundorUiBundle } from './ui-bundle.ts';
 /** The plugin's name; `defineWebConfig` checks that it is present. */
 export const PLUGIN_NAME = 'soundor:web';
 
-const CLIENT_ID = '@soundor/web-runtime/client';
+const PACKAGE = '@soundor/web-runtime';
+const CLIENT_ID = `${PACKAGE}/client`;
+/** What the client imports from npm: the host UI's Preact. */
+const CLIENT_DEPENDENCIES = ['preact', 'preact/hooks', 'preact/jsx-runtime'];
 
 export interface SoundorWebPluginOptions {
   /** The Web host project: `runtimes/<id>/`. */
@@ -52,8 +55,16 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
       config(config, env) {
         config.root = options.hostDir;
         config.clearScreen = false;
+        // The client imports soundor:* and is served as is. Its own
+        // dependencies are optimized up front, through this package (the
+        // project need not depend on them): found late, they would be
+        // optimized again mid-session and load twice.
         config.optimizeDeps = {
           ...config.optimizeDeps,
+          include: [
+            ...(config.optimizeDeps?.include ?? []),
+            ...CLIENT_DEPENDENCIES.map((id) => `${PACKAGE} > ${id}`),
+          ],
           exclude: [...(config.optimizeDeps?.exclude ?? []), CLIENT_ID],
         };
         // Vite serves files outside the host project only from allowed

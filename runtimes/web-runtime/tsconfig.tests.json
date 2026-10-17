@@ -1,6 +1,9 @@
 {
   "extends": "@soundor/typescript-config/node-test",
   "compilerOptions": {
+    // The host UI is Preact.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
     // The generated native.ts fixture imports the package's client entry.
@@ -10,6 +13,7 @@
   },
   "include": [
     "src/**/*.test.ts",
+    "src/**/*.test.tsx",
     "src/client/testing/*.d.ts",
     "src/client/testing/native.ts",
     "src/client/internal.d.ts",
