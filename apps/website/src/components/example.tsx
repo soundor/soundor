@@ -123,8 +123,8 @@ export function Example({ name, height = 560 }: ExampleProps) {
       </div>
       <figcaption className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2 text-sm text-fd-muted-foreground">
         <span>
-          <code>examples/{name}</code> in the web runtime. Start audio in the
-          bar under the plugin.
+          <code>examples/{name}</code> in the web runtime. Press ▶ in the bar
+          under the plugin to hear it.
         </span>
         <span className="flex gap-4">
           {Editor === null ? (

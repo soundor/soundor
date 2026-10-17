@@ -53,9 +53,7 @@ test('an example runs inside its page', async ({ page }) => {
   await page.goto('/docs/examples/basic');
   const plugin = page.frameLocator('iframe');
   await expect(plugin.getByText('Reset gain')).toBeVisible();
-  await expect(
-    plugin.getByRole('button', { name: 'Start audio' }),
-  ).toBeVisible();
+  await expect(plugin.getByRole('button', { name: 'Play' })).toBeVisible();
   expect(problems).toEqual([]);
 });
 

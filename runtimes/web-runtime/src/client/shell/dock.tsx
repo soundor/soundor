@@ -13,8 +13,9 @@ export interface DockProps {
 }
 
 /**
- * The bar floating under the plugin: audio on/off and volume, play/stop and
- * the position, and the panel's button.
+ * The bar floating under the plugin: mute and volume, play/stop and the
+ * position, and the panel's button. Audio starts with the page's first
+ * gesture (`startAudioOnGesture`), so it has no button of its own.
  */
 export function Dock({
   host,
@@ -80,7 +81,7 @@ export function Dock({
   );
 }
 
-/** Starts audio, then mutes and unmutes it. */
+/** Mutes and unmutes; where audio failed to start, retries it. */
 function AudioButton({
   audio,
   status,
@@ -88,35 +89,25 @@ function AudioButton({
   readonly audio: WebAudioHost;
   readonly status: AudioStatus;
 }) {
-  const running = status.state === 'running';
-  const [label, visible] = running
-    ? [status.muted ? 'Unmute' : 'Mute', '']
-    : status.state === 'starting'
-      ? ['Starting audio', 'Starting…']
-      : status.state === 'failed'
-        ? ['Retry audio', 'Retry']
-        : ['Start audio', 'Start audio'];
+  const failed = status.state === 'failed';
+  const label = failed ? 'Retry audio' : status.muted ? 'Unmute' : 'Mute';
   return (
     <IconButton
-      icon={running && status.muted ? 'muted' : 'speaker'}
+      icon={status.muted ? 'muted' : 'speaker'}
       label={label}
       title={
-        status.state === 'failed' && status.error !== null
+        failed && status.error !== null
           ? `Audio failed: ${status.error}`
           : label
       }
-      pressed={running ? status.muted : undefined}
+      pressed={failed ? undefined : status.muted}
       className="soundor-audio"
       data-state={status.state}
       onClick={() => {
-        if (running) audio.setMuted(!status.muted);
-        else void audio.start();
+        if (failed) void audio.start();
+        else audio.setMuted(!status.muted);
       }}
-    >
-      {visible === '' ? null : (
-        <span class="soundor-audio-label">{visible}</span>
-      )}
-    </IconButton>
+    />
   );
 }
 

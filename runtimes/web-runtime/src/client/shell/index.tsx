@@ -3,8 +3,9 @@
  * viewport fills the stage (scaled down when the stage is smaller, as in a
  * docs iframe), and the host stays out of its way:
  *
- * - a dock floating under the plugin: audio on/off and volume, play/stop and
- *   the position, and the button that opens the panel;
+ * - a dock floating under the plugin: mute and volume, play/stop and the
+ *   position, and the button that opens the panel (audio starts with the
+ *   page's first gesture, wherever it is);
  * - a side panel, closed by default: the transport's tempo, loop and time
  *   signature, the audio source and format, and the parameters.
  *
@@ -24,6 +25,7 @@ import type { WebAudioHost } from '../audio';
 import type { WebHost } from '../host';
 import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
+import { startAudioOnGesture } from './gesture';
 import { Panel } from './panel';
 import { STYLE } from './style';
 
@@ -72,6 +74,7 @@ export function createShell(
   container.append(element);
   render(<Shell {...options} />, element);
   const viewport = element.querySelector<HTMLElement>('.soundor-viewport')!;
+  const stopListening = startAudioOnGesture(document, options.audio);
 
   return {
     element,
@@ -97,6 +100,7 @@ export function createShell(
       }
     },
     remove() {
+      stopListening();
       render(null, element);
       element.remove();
       style.remove();
