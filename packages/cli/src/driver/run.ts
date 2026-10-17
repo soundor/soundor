@@ -23,7 +23,7 @@ export const DRIVER_EXIT_CODES = {
   lease: 6,
   /** The command timed out or was cancelled. */
   timeout: 7,
-  /** The target does not support the operation. */
+  /** The target does not support the operation, or cannot capture now. */
   unsupported: 8,
   /** Anything else. */
   internal: 1,
@@ -50,6 +50,7 @@ const EXIT_CODES: Record<DriverErrorCode, number> = {
   TIMEOUT: DRIVER_EXIT_CODES.timeout,
   CANCELLED: DRIVER_EXIT_CODES.timeout,
   MISSING_CAPABILITY: DRIVER_EXIT_CODES.unsupported,
+  SCREENSHOT_UNAVAILABLE: DRIVER_EXIT_CODES.unsupported,
   PROTOCOL: DRIVER_EXIT_CODES.internal,
   INTERNAL: DRIVER_EXIT_CODES.internal,
 };

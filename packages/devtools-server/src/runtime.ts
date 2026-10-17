@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  MAX_CAPTURE_BYTES,
   PROTOCOL_VERSION,
+  runtimeCaptureSchema,
   registrationSchema,
   runtimeEventSchema,
   responseSchema,
@@ -14,6 +16,7 @@ import type { Session, Target } from './session';
 import type { DevToolsServerOptions } from './types';
 
 const MAX_TARGETS = 64;
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export function registerRuntimeRoutes(
   app: FastifyInstance,
@@ -30,6 +33,7 @@ export function registerRuntimeRoutes(
     flush,
     publish,
     finish,
+    storeCapture,
   } = session;
   async function runtimeAuth(
     request: FastifyRequest,
@@ -185,6 +189,26 @@ export function registerRuntimeRoutes(
         return;
       }
       if (
+        operation.request.method === 'Capture.screenshot' &&
+        !parsed.data.error
+      ) {
+        // The PNG went first; the answer describes it.
+        const capture = runtimeCaptureSchema.safeParse(result);
+        if (
+          !capture.success ||
+          !operation.capture ||
+          operation.capture.length !== capture.data.bytes
+        )
+          finish(parsed.data.id, undefined, {
+            code: 'CAPTURE_UNAVAILABLE',
+            message: 'The runtime did not deliver the capture it described',
+          });
+        else
+          finish(parsed.data.id, {
+            id: storeCapture(operation, operation.capture),
+            ...capture.data,
+          });
+      } else if (
         resultGeneration !== undefined &&
         resultGeneration !== target.info.generation
       ) {
@@ -205,6 +229,42 @@ export function registerRuntimeRoutes(
       return;
     },
   );
+  // A capture's PNG, before the runtime answers its Capture.screenshot:
+  // binary, so captures never crowd the 1 MiB message channel.
+  app.register(async (scope) => {
+    scope.addContentTypeParser(
+      'image/png',
+      { parseAs: 'buffer', bodyLimit: MAX_CAPTURE_BYTES },
+      (_request, body, done) => done(null, body),
+    );
+    scope.post<{ Params: { id: string } }>(
+      '/runtime/captures/:id',
+      { onRequest: targetAuth, bodyLimit: MAX_CAPTURE_BYTES },
+      async (request, response) => {
+        const target = targets.get(
+          request.headers['x-soundor-target'] as string,
+        )!;
+        const operation = pending.get(request.params.id);
+        const body = request.body;
+        if (
+          !operation ||
+          operation.target !== target ||
+          operation.request.method !== 'Capture.screenshot' ||
+          operation.capture
+        ) {
+          response.code(409).send({ error: 'No capture is expected' });
+          return;
+        }
+        if (!Buffer.isBuffer(body) || !body.subarray(0, 8).equals(PNG)) {
+          response.code(400).send({ error: 'A capture is a PNG image' });
+          return;
+        }
+        operation.capture = body;
+        response.code(200).send(null);
+        return;
+      },
+    );
+  });
   app.post(
     '/runtime/disconnect',
     { onRequest: targetAuth },

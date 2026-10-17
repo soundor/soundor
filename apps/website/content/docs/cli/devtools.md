@@ -51,6 +51,11 @@ node's center; when another node covers it there, nothing is sent and the
 notice says what covers it. Targets without the `input` capability show no
 such actions.
 
+**Screenshot** (targets with the `capture` capability) captures the view as
+the engine renders it and shows it, with its size and scale and a
+**Download** link for the PNG. It needs no control. Closing the preview frees
+the server's copy; see [screenshots](/docs/driver/screenshots).
+
 Ordinary tree updates retain surviving selections. Reload, node removal, and
 process disconnection invalidate references safely. WebSocket reconnect restores
 inspection, but never reacquires control automatically. Large snapshots are

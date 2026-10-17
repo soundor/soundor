@@ -20,6 +20,8 @@ export interface DevToolsCapabilities {
   readonly performance?: boolean;
   /** Synthetic pointer and keyboard input (Soundor Driver, DevTools actions). */
   readonly input?: boolean;
+  /** PNG captures of the rendered view (Soundor Driver, DevTools). */
+  readonly capture?: boolean;
 }
 
 export interface RuntimeCapabilities {

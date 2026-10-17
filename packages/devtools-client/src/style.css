@@ -36,6 +36,7 @@ body {
   flex-direction: column;
 }
 button,
+a.button,
 input,
 select {
   font: inherit;
@@ -48,7 +49,8 @@ select {
 button {
   cursor: pointer;
 }
-button:hover {
+button:hover,
+a.button:hover {
   border-color: var(--accent);
 }
 button:disabled {
@@ -385,4 +387,48 @@ td:first-child {
   #target-meta {
     width: 100%;
   }
+}
+
+.capture {
+  position: fixed;
+  inset: 48px 24px 24px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+
+.capture-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.capture-bar span {
+  flex: 1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.capture img {
+  max-width: 100%;
+  height: auto;
+  align-self: flex-start;
+  outline: 1px solid var(--line);
+  /* Transparent where the plugin draws nothing. */
+  background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 /
+    16px 16px;
+}
+
+a.button {
+  display: inline-block;
+  text-decoration: none;
+  cursor: pointer;
 }

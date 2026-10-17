@@ -7,6 +7,17 @@ export const helloSchema = z.strictObject({
 });
 export const MAX_MESSAGE_BYTES = 1024 * 1024;
 export const MAX_NODES = 5000;
+/**
+ * Captures travel apart from messages, as binary HTTP: a runtime uploads at
+ * most this many PNG bytes per capture, and a session keeps at most
+ * MAX_CAPTURES of them, each for CAPTURE_TTL_MS.
+ */
+export const MAX_CAPTURE_BYTES = 32 * 1024 * 1024;
+export const MAX_CAPTURES = 8;
+export const CAPTURE_TTL_MS = 60_000;
+/** At most this many pixels a side, and in all, per capture. */
+export const MAX_CAPTURE_SIDE = 8192;
+export const MAX_CAPTURE_PIXELS = 16 * 1024 * 1024;
 const identifier = z.string().min(1).max(128);
 const text = z.string().max(16384);
 export const capabilitySchema = z.enum([
@@ -17,6 +28,8 @@ export const capabilitySchema = z.enum([
   // Synthetic pointer and keyboard input through the engine's own dispatch.
   // Never implied by `inspector`.
   'input',
+  // PNG captures of the rendered view (Capture.screenshot).
+  'capture',
 ]);
 export type Capability = z.infer<typeof capabilitySchema>;
 export const nodeRefSchema = z.strictObject({
@@ -141,6 +154,8 @@ export const methodParams = {
   }),
   'Input.typeText': z.strictObject({ text: z.string().min(1).max(1024) }),
   'Input.focus': z.strictObject({ node: nodeRefSchema }),
+  // The whole view, or the part a node covers.
+  'Capture.screenshot': z.strictObject({ node: nodeRefSchema.optional() }),
   'Animation.getActive': z.strictObject({ node: nodeRefSchema.optional() }),
   'Diagnostics.getMetrics': empty,
   'Diagnostics.setRecording': z.strictObject({ enabled: z.boolean() }),
@@ -198,6 +213,8 @@ export const errorSchema = z.strictObject({
     'BUSY',
     // The node cannot take this input (not focusable, not connected).
     'NOT_ACTIONABLE',
+    // The instance cannot capture its view now (nothing rendered, too big).
+    'CAPTURE_UNAVAILABLE',
     'INTERNAL',
   ]),
   message: text,
@@ -377,6 +394,7 @@ export interface MethodResults {
   'Input.dispatchKey': InputResult;
   'Input.typeText': InputResult;
   'Input.focus': null;
+  'Capture.screenshot': Screenshot;
   'Animation.getActive': DebugAnimation[];
   'Diagnostics.getMetrics': DebugMetrics;
   'Diagnostics.setRecording': null;
@@ -403,6 +421,26 @@ export const inputResultSchema = z.strictObject({
 });
 export type InputResult = z.infer<typeof inputResultSchema>;
 
+const captureSize = {
+  width: z.number().int().positive().max(MAX_CAPTURE_SIDE),
+  height: z.number().int().positive().max(MAX_CAPTURE_SIDE),
+  /** Device pixels per logical pixel. */
+  scale: z.number().finite().positive().max(16),
+  format: z.literal('png'),
+  bytes: z.number().int().positive().max(MAX_CAPTURE_BYTES),
+};
+/** What a runtime answers Capture.screenshot with, after uploading the PNG. */
+export const runtimeCaptureSchema = z.strictObject(captureSize);
+/**
+ * What a client gets: a capture the server keeps for CAPTURE_TTL_MS, read
+ * with its session cookie at `GET /browser/captures/<id>`.
+ */
+export const screenshotSchema = z.strictObject({
+  id: identifier,
+  ...captureSize,
+});
+export type Screenshot = z.infer<typeof screenshotSchema>;
+
 export const methodResults = {
   'Runtime.getTargets': z.array(targetSchema).max(64),
   'Control.acquire': z.strictObject({ controller: identifier }),
@@ -422,6 +460,7 @@ export const methodResults = {
   'Input.dispatchKey': inputResultSchema,
   'Input.typeText': inputResultSchema,
   'Input.focus': z.null(),
+  'Capture.screenshot': screenshotSchema,
   'Animation.getActive': z.array(animationSchema).max(256),
   'Diagnostics.getMetrics': metricsSchema,
   'Diagnostics.setRecording': z.null(),
@@ -431,6 +470,7 @@ export function methodCapability(method: DebugMethod): Capability | undefined {
   if (method === 'UI.getAccessibility') return 'accessibility';
   if (method.startsWith('UI.')) return 'inspector';
   if (method.startsWith('Input.')) return 'input';
+  if (method.startsWith('Capture.')) return 'capture';
   if (method.startsWith('Animation.')) return 'animations';
   if (method.startsWith('Diagnostics.')) return 'performance';
   return undefined;

@@ -33,7 +33,7 @@ namespace
         globalThis.events = 0;
         globalThis.clicks = 0;
         globalThis.cancels = 0;
-        const reset = createView({ position: 'absolute', left: 60, top: 0, width: 40, height: 30 });
+        const reset = createView({ position: 'absolute', left: 60, top: 0, width: 40, height: 30, backgroundColor: '#ff0000' });
         reset.debugId = 'reset';
         reset.accessibility = { role: 'button', label: 'Reset' };
         reset.focusable = true;

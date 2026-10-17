@@ -142,6 +142,7 @@ try {
 | `LEASE_REQUIRED`         | The command needs control of the instance.                                                         |
 | `BUSY`                   | The instance is busy with another interactive command.                                             |
 | `MISSING_CAPABILITY`     | The instance does not support the command.                                                         |
+| `SCREENSHOT_UNAVAILABLE` | The instance cannot capture its view now, or the capture was lost.                                 |
 | `ELEMENT_NOT_FOUND`      | No node matches the locator.                                                                       |
 | `AMBIGUOUS_ELEMENT`      | Several nodes match the locator.                                                                   |
 | `ELEMENT_NOT_ACTIONABLE` | The node cannot take the input: hidden, disabled, covered, outside the view, not focusable.        |

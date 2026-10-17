@@ -1,4 +1,10 @@
-export { connect, Driver, type ConnectOptions } from './driver';
+export {
+  connect,
+  Driver,
+  type ConnectOptions,
+  type Screenshot,
+  type ScreenshotOptions,
+} from './driver';
 export { DriverError, isDriverError, type DriverErrorCode } from './errors';
 export {
   Keyboard,
@@ -17,6 +23,7 @@ export {
   type DragOptions,
   type ScrollOptions,
   type Selector,
+  type WaitForOptions,
 } from './locator';
 export { BROWSER_KEY_ENV, DESCRIPTOR_ENV } from './session';
 export type { CallOptions } from './transport';

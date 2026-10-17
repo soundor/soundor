@@ -1,5 +1,7 @@
 export {
   startSimulatedRuntime,
+  encodePng,
+  SIMULATED_VIEW,
   type SimulatedRuntimeOptions,
 } from './simulated-runtime';
 export { originalNodes, node } from './fixtures';

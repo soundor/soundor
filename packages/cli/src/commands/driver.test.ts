@@ -132,12 +132,12 @@ describe('soundor driver', () => {
     expect(JSON.parse(result.stderr)).toEqual({
       error: {
         code: 'ELEMENT_NOT_FOUND',
-        message: 'getByDebugId("reset") matches no node',
+        message: 'getByDebugId("reset") matches no node; debug IDs here: gain',
       },
     });
     const human = await session('inspect', 'reset');
     expect(human.stderr).toBe(
-      'soundor driver: getByDebugId("reset") matches no node (ELEMENT_NOT_FOUND)\n',
+      'soundor driver: getByDebugId("reset") matches no node; debug IDs here: gain (ELEMENT_NOT_FOUND)\n',
     );
   });
 
@@ -385,6 +385,44 @@ describe('soundor driver input', () => {
     const result = await session('click', 'gain', '--json');
     expect(result.code).toBe(DRIVER_EXIT_CODES.unsupported);
     expect(JSON.parse(result.stderr).error.code).toBe('MISSING_CAPABILITY');
+  });
+});
+
+describe('soundor driver screenshot', () => {
+  it('saves the rendered view and prints where, never the image', async () => {
+    const plugin = await runtime();
+    const path = join(root, 'view.png');
+    const result = await session('screenshot', path, '--json');
+    expect(result).toMatchObject({ code: 0, stderr: '' });
+    const saved = JSON.parse(result.stdout) as Record<string, unknown>;
+    expect(saved).toMatchObject({
+      path,
+      width: 160,
+      height: 140,
+      scale: 1,
+      format: 'png',
+    });
+    const bytes = await readFile(path);
+    expect(saved['bytes']).toBe(bytes.length);
+    expect([...bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    expect(plugin.captures).toBe(1);
+    const human = await session('screenshot', path, '--debug-id', 'gain');
+    expect(human.stdout).toMatch(
+      /^saved .*view\.png \(96×96 pixels, \d+ bytes\)\n$/,
+    );
+  });
+
+  it('exits with the code of each failure', async () => {
+    const plugin = await runtime();
+    const missingPath = await session('screenshot', '--json');
+    expect(missingPath.code).toBe(DRIVER_EXIT_CODES.invalid);
+    plugin.failCaptures('Nothing is rendered yet');
+    const failed = await session('screenshot', join(root, 'x.png'), '--json');
+    expect(failed.code).toBe(DRIVER_EXIT_CODES.unsupported);
+    expect(JSON.parse(failed.stderr).error).toMatchObject({
+      code: 'SCREENSHOT_UNAVAILABLE',
+    });
+    expect(failed.stdout).toBe('');
   });
 });
 

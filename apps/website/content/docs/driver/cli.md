@@ -18,19 +18,20 @@ soundor driver inspect reset
 
 ## Commands
 
-| Command             | Prints                                                                        |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `targets`           | The instances connected to the session.                                       |
-| `tree`              | The target's native UI tree.                                                  |
-| `inspect <debugId>` | A node's details: bounds, properties, layout, styles, accessibility.          |
-| `click <debugId>`   | Clicks the node once it is actionable (`--button left`, `middle` or `right`). |
-| `hover <debugId>`   | Moves the pointer over the node.                                              |
-| `focus <debugId>`   | Gives a focusable node keyboard focus.                                        |
-| `drag <debugId>`    | Drags from the node by `--dx`/`--dy` pixels, in `--steps` moves (5).          |
-| `scroll <debugId>`  | Scrolls the wheel over the node by `--dx`/`--dy`; or at `--x`/`--y`.          |
-| `move --x --y`      | Moves the pointer to a point of the view, in logical pixels.                  |
-| `key <key>`         | Presses a key in the focused node: `Enter`, `Control+a`.                      |
-| `type <text>`       | Types text into the focused node.                                             |
+| Command             | Prints                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `targets`           | The instances connected to the session.                                                                |
+| `tree`              | The target's native UI tree.                                                                           |
+| `inspect <debugId>` | A node's details: bounds, properties, layout, styles, accessibility.                                   |
+| `click <debugId>`   | Clicks the node once it is actionable (`--button left`, `middle` or `right`).                          |
+| `hover <debugId>`   | Moves the pointer over the node.                                                                       |
+| `focus <debugId>`   | Gives a focusable node keyboard focus.                                                                 |
+| `drag <debugId>`    | Drags from the node by `--dx`/`--dy` pixels, in `--steps` moves (5).                                   |
+| `scroll <debugId>`  | Scrolls the wheel over the node by `--dx`/`--dy`; or at `--x`/`--y`.                                   |
+| `move --x --y`      | Moves the pointer to a point of the view, in logical pixels.                                           |
+| `key <key>`         | Presses a key in the focused node: `Enter`, `Control+a`.                                               |
+| `type <text>`       | Types text into the focused node.                                                                      |
+| `screenshot <path>` | Saves a PNG of the view as the engine renders it; of one node with `--debug-id`, `--role` or `--text`. |
 
 Commands that act on a node find it by a `debugId`, or instead by
 `--role <role>` (with `--name <name>`) or `--text <text>`, as the
@@ -70,7 +71,10 @@ Results go to stdout, and nothing else does: no banners, no colors. With
 - `inspect`: the node with its details;
 - `click`, `hover`, `drag`, `scroll`, `move`, `key`: what the input reached,
   `{ "handled": true, "node": { "generation": 1, "id": "12" } }`; `focus`:
-  `{ "focused": true }`; `type`: `{ "typed": <characters> }`.
+  `{ "focused": true }`; `type`: `{ "typed": <characters> }`;
+- `screenshot`: where it saved the PNG, and its `width`, `height`, `scale`,
+  `format` and `bytes`. The image itself goes only to the file, never to
+  stdout.
 
 Their shapes are those of [inspection](/docs/driver/inspecting).
 
@@ -99,4 +103,4 @@ with a [Driver error code](/docs/driver/connecting#errors).
 | 5    | No node, several nodes, a stale node, or one that cannot take the input.             |
 | 6    | Another client controls the instance, or it is busy.                                 |
 | 7    | The command timed out or was cancelled.                                              |
-| 8    | The instance does not support the command.                                           |
+| 8    | The instance does not support the command, or cannot capture its view now.           |

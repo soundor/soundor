@@ -5,6 +5,7 @@ import type {
   NodeRef,
 } from '@soundor/devtools-protocol';
 
+import type { Screenshot, ScreenshotOptions } from './driver';
 import { DriverError, isDriverError } from './errors';
 import type {
   InputResult,
@@ -52,6 +53,7 @@ export interface LocatorHost {
   ): Promise<Record<string, unknown>>;
   hitTest(x: number, y: number, options?: CallOptions): Promise<HitTest>;
   focus(ref: NodeRef, options?: CallOptions): Promise<void>;
+  capture(ref: NodeRef, options: ScreenshotOptions): Promise<Screenshot>;
   readonly pointer: Pointer;
   readonly keyboard: Keyboard;
   /** The Driver's command timeout: how long an action waits by default. */
@@ -82,6 +84,16 @@ export interface DragOptions extends ActionOptions {
   deltaY?: number;
   /** Pointer moves on the way (5 by default). */
   steps?: number;
+}
+
+/** What `waitFor()` waits for. */
+export interface WaitForOptions extends CallOptions {
+  /**
+   * `visible` (the default): one matching node, visible. `attached`: one
+   * matching node. `hidden`: none, or one that is not visible. `detached`:
+   * none.
+   */
+  state?: 'visible' | 'attached' | 'hidden' | 'detached';
 }
 
 export interface ScrollOptions extends ActionOptions {
@@ -313,6 +325,88 @@ export class Locator {
   }
 
   /**
+   * Waits until the node is in a state (visible by default), looking again
+   * after short pauses, until `timeout` (the Driver's command timeout).
+   */
+  async waitFor(options: WaitForOptions = {}): Promise<void> {
+    const state = options.state ?? 'visible';
+    const budget = options.timeout ?? this.#host.timeout();
+    const deadline = Date.now() + budget;
+    const call = (): CallOptions => ({
+      timeout: Math.min(
+        this.#host.timeout(),
+        Math.max(deadline - Date.now(), 1000),
+      ),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    let seen = 'was never checked';
+    for (let attempt = 0; ; ++attempt) {
+      try {
+        const found = await this.all(call());
+        if (found.length > 1 && (state === 'visible' || state === 'attached'))
+          throw new DriverError(
+            'AMBIGUOUS_ELEMENT',
+            `${this} matches ${found.length} nodes; make the query unique`,
+          );
+        const visible = found.some((node) => node.visible);
+        if (
+          (state === 'attached' && found.length === 1) ||
+          (state === 'visible' && visible) ||
+          (state === 'hidden' && !visible) ||
+          (state === 'detached' && found.length === 0)
+        )
+          return;
+        seen =
+          found.length === 0
+            ? 'matches no node'
+            : `matches ${found.length === 1 ? 'a node' : `${found.length} nodes`} that ${visible ? 'is visible' : 'is not visible'}`;
+      } catch (error) {
+        if (
+          !isDriverError(error) ||
+          !['STALE_NODE', 'GENERATION_CHANGED', 'TIMEOUT'].includes(error.code)
+        )
+          throw error;
+      }
+      const wait =
+        RETRY_DELAYS[Math.min(attempt + 1, RETRY_DELAYS.length - 1)]!;
+      if (Date.now() + wait >= deadline) break;
+      await sleep(wait, options.signal);
+    }
+    throw new DriverError(
+      'TIMEOUT',
+      `${this} was not ${state} within ${budget} ms: it ${seen}`,
+    );
+  }
+
+  /** Whether one matching node is visible now (no waiting). */
+  async isVisible(options?: CallOptions): Promise<boolean> {
+    const found = await this.all(options);
+    return found.length === 1 && found[0]!.visible;
+  }
+
+  /**
+   * Captures the part of the view the node covers, as PNG, as the engine
+   * renders it (see `Driver.screenshot()`).
+   */
+  async screenshot(options: ScreenshotOptions = {}): Promise<Screenshot> {
+    for (let attempt = 1; ; ++attempt) {
+      const ref = await this.#find(options);
+      try {
+        return await this.#host.capture(ref, options);
+      } catch (error) {
+        if (
+          attempt === ATTEMPTS ||
+          !(
+            isDriverError(error, 'STALE_NODE') ||
+            isDriverError(error, 'GENERATION_CHANGED')
+          )
+        )
+          throw error;
+      }
+    }
+  }
+
+  /**
    * Clicks the node: waits until it is actionable, then moves the pointer
    * there, presses and releases, through the engine's normal dispatch.
    * Never repeated once input was sent.
@@ -469,11 +563,20 @@ export class Locator {
     const tree = await this.#host.getTree(options);
     const found = tree.nodes.filter((node) => matches(node, this.selector));
     if (found.length === 1) return found[0]!.ref;
-    if (found.length === 0)
+    if (found.length === 0) {
+      // Say what there is to find, so a typo shows.
+      const debugIds = [
+        ...new Set(tree.nodes.flatMap((node) => node.debugId ?? [])),
+      ];
+      const hint =
+        'debugId' in this.selector && debugIds.length
+          ? `; debug IDs here: ${debugIds.slice(0, 12).join(', ')}${debugIds.length > 12 ? ', …' : ''}`
+          : '';
       throw new DriverError(
         'ELEMENT_NOT_FOUND',
-        `${this} matches no node${tree.truncated ? ` of the ${tree.nodes.length} in the (truncated) snapshot` : ''}`,
+        `${this} matches no node${tree.truncated ? ` of the ${tree.nodes.length} in the (truncated) snapshot` : ''}${hint}`,
       );
+    }
     const listed = found
       .slice(0, 5)
       .map((node) => `${node.type} ${node.ref.id}`)

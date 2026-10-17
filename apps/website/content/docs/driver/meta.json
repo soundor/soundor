@@ -2,5 +2,12 @@
   "title": "Driver",
   "description": "Inspect and control a running plugin's native UI from scripts",
   "root": true,
-  "pages": ["index", "connecting", "inspecting", "interacting", "cli"]
+  "pages": [
+    "index",
+    "connecting",
+    "inspecting",
+    "interacting",
+    "screenshots",
+    "cli"
+  ]
 }

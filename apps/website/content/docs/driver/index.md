@@ -8,7 +8,7 @@ Source: [`packages/driver/`](https://github.com/soundor/soundor/tree/main/packag
 Soundor Driver works with a Soundor plugin that is already running: it reads
 the native UI the engine really has (its node tree, bounds, styles and
 accessibility) and acts on it (clicks, drags, scrolls, keys and text, through
-the engine's own input dispatch), from Node.js or from the `soundor driver`
+the engine's own input dispatch), and captures it as PNG, from Node.js or from the `soundor driver`
 commands. Use it to
 debug a plugin, to look at a control while you work on it, to write scripts
 that reproduce a UI bug, and from coding agents that need a reliable,
@@ -59,6 +59,7 @@ pnpm exec soundor driver targets
 pnpm exec soundor driver tree --json
 pnpm exec soundor driver inspect reset
 pnpm exec soundor driver click reset
+pnpm exec soundor driver screenshot ./after-reset.png
 ```
 
 From TypeScript, with `@soundor/driver`:
@@ -77,6 +78,7 @@ try {
   const reset = driver.getByDebugId('reset');
   console.log(await reset.getBounds());
   await reset.click();
+  await driver.screenshot({ path: './after-reset.png' });
 } finally {
   await driver.disconnect();
 }
@@ -160,5 +162,7 @@ plugin connects only when `soundor dev` hands it a session.
   locators.
 - [Interacting with UI](/docs/driver/interacting): actions, actionability,
   pointer and keyboard, cleanup.
+- [Screenshots](/docs/driver/screenshots): captures of the rendered view, and
+  how they travel.
 - [CLI reference](/docs/driver/cli): `soundor driver`, its JSON output and exit
   codes.
