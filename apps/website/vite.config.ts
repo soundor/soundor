@@ -10,6 +10,7 @@ import { defineConfig } from 'vite';
 import { packageManagers } from './plugins/package-managers.ts';
 import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
 import { siteValues } from './plugins/values.ts';
+import { serveFile } from './scripts/static.ts';
 
 const values = siteValues();
 
@@ -34,6 +35,24 @@ export default defineConfig({
     __SITE_VALUES__: JSON.stringify(values),
   },
   plugins: [
+    {
+      // The folders the build scripts write into public/, served from disk
+      // under `vite dev`: Vite's list of public files goes stale when they
+      // are rewritten while it runs (an example rebuilt, say).
+      name: 'soundor:synced-public',
+      configureServer(server) {
+        const publicDir = new URL('./public', import.meta.url).pathname;
+        server.middlewares.use((request, response, next) => {
+          const url = request.url ?? '';
+          if (
+            !(url.startsWith('/examples/') || url.startsWith('/playground/')) ||
+            !serveFile(publicDir, request, response)
+          ) {
+            next();
+          }
+        });
+      },
+    },
     fumadocsMdx({
       globalOptions: {
         mdxOptions: {
