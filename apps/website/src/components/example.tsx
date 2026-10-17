@@ -12,7 +12,9 @@ export interface ExampleProps {
  * build, copied to `/examples/<name>/` by `scripts/sync-examples.ts`.
  */
 export function Example({ name, height = 560 }: ExampleProps) {
-  const src = `/examples/${name}/`;
+  // index.html by name: Vite's dev server does not serve a folder's index
+  // (TanStack's router would redirect it and 404); every server serves this.
+  const src = `/examples/${name}/index.html`;
   return (
     <figure className="not-prose my-6 overflow-hidden rounded-xl border bg-fd-card">
       <iframe
