@@ -77,6 +77,9 @@ export default defineConfig({
     }),
     react(),
   ],
+  // The editor's worker: TypeScript (CommonJS), bundled once, not on load.
+  optimizeDeps: { include: ['typescript-6'] },
+  worker: { format: 'es' },
   resolve: {
     tsconfigPaths: true,
     alias: {

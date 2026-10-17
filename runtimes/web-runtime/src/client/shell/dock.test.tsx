@@ -40,33 +40,8 @@ function setup(status: Parameters<typeof fakeAudio>[0] = {}) {
 }
 
 describe('the audio button', () => {
-  it('off: says Start audio, and starts it', () => {
+  it('mutes and unmutes, before audio starts as after', () => {
     const { fake, button } = setup();
-    const start = button('Start audio');
-    expect(start.dataset['state']).toBe('off');
-    expect(start.textContent).toBe('Start audio');
-    expect(start.hasAttribute('aria-pressed')).toBe(false);
-    fireEvent.click(start);
-    expect(fake.calls.start).toBe(1);
-  });
-
-  it('starting: says so', () => {
-    const { button } = setup({ state: 'starting' });
-    expect(button('Starting audio').textContent).toBe('Starting…');
-  });
-
-  it('failed: offers a retry and says why in its tooltip', () => {
-    const { fake, button } = setup();
-    fake.set({ state: 'failed', error: 'The browser refused audio' });
-    const retry = button('Retry audio');
-    expect(retry.textContent).toBe('Retry');
-    expect(retry.title).toBe('Audio failed: The browser refused audio');
-    fireEvent.click(retry);
-    expect(fake.calls.start).toBe(1);
-  });
-
-  it('running: mutes and unmutes, with no label', () => {
-    const { fake, button } = setup({ state: 'running' });
     const mute = button('Mute');
     expect(mute.textContent).toBe('');
     expect(mute.getAttribute('aria-pressed')).toBe('false');
@@ -74,11 +49,21 @@ describe('the audio button', () => {
     expect(fake.calls.setMuted).toEqual([true]);
     expect(fake.calls.start).toBe(0);
 
-    fake.set({ muted: true });
+    fake.set({ state: 'running', muted: true });
     const unmute = button('Unmute');
     expect(unmute.getAttribute('aria-pressed')).toBe('true');
     fireEvent.click(unmute);
     expect(fake.calls.setMuted).toEqual([true, false]);
+  });
+
+  it('failed: offers a retry and says why in its tooltip', () => {
+    const { fake, button } = setup();
+    fake.set({ state: 'failed', error: 'The browser refused audio' });
+    const retry = button('Retry audio');
+    expect(retry.dataset['state']).toBe('failed');
+    expect(retry.title).toBe('Audio failed: The browser refused audio');
+    fireEvent.click(retry);
+    expect(fake.calls.start).toBe(1);
   });
 });
 

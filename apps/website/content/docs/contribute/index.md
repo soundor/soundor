@@ -176,7 +176,11 @@ its sidebar, and a page's frontmatter gives its title and description. Write
 `<Example name="basic" />`, which embeds an example's web build. Readers can
 edit an embedded example's UI code (`src/`, without tests) and see it run, so
 that code may import only `react`, `@soundor/react`, `soundor:*` and its own
-files.
+files. The editor checks it with TypeScript against the example's own types
+(its `tsconfig.app.json`, collected at build time by
+`apps/website/scripts/types.ts`), so the example must typecheck, and its
+completions and documentation on hover come from the JSDoc in the
+`soundor:*` declarations and `@soundor/react`.
 
 Link pages by their site path (`/docs/react#hooks`) and repository files by
 their GitHub URL. Write versions as placeholders such as

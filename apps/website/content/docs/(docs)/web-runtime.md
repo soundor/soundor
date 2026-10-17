@@ -281,8 +281,8 @@ source → input bus → setupAudio's nodes → output bus → master gain → s
 ```
 
 - The host owns one AudioContext. Browsers allow audio only after a user
-  gesture, so the host creates the context on **Start audio** or the first
-  Play.
+  gesture, so the host creates the context on the page's first one, wherever
+  it is: a click or key on the plugin, Play, any host control.
 - Without an `audio.ts`, or when it throws, the input passes straight through,
   and the panel's Audio section says why.
 - `soundor:parameters` and `soundor:host` work in `audio.ts` too. The `gain`
@@ -303,14 +303,15 @@ phone, the panel open). The host stays out of its way:
 │        │                           │        │  Input, format   │
 │        └───────────────────────────┘        │ PARAMETERS       │
 │                                             │  live controls   │
-│   [🔊 Start audio ──●─ │ ▶ ■ 1.1 │ ⚙]        │ ▸ HOST STATE     │
+│        [🔊 ──●─ │ ▶ ■ 1.1 │ ⚙]               │ ▸ HOST STATE     │
 └─────────────────────────────────────────────┴──────────────────┘
                dock                               panel (closed by default)
 ```
 
-- **Dock** (floating under the plugin): **Start audio**, then mute, and the
-  output volume; play/pause, stop and the position (bar.beat); the button
-  that opens the panel.
+- **Dock** (floating under the plugin): mute (or, when audio failed to
+  start, retry) and the output volume; play/pause, stop and the position
+  (bar.beat); the button that opens the panel. Audio needs no button: it
+  starts with the first gesture.
 - **Panel:** the transport's tempo, time signature and loop (four bars); the
   input source (an oscillator, an audio file of yours, or no input; a source
   plays while the transport does), the audio format and status; and a control

@@ -57,12 +57,7 @@ body { margin: 0; background: var(--sd-bg); }
 .soundor-icon:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 1px; }
 .soundor-icon[aria-pressed="true"] { background: #3a7bfd33; color: #8fb3ff; }
 .soundor-audio { position: relative; }
-.soundor-audio[data-state="off"] { background: var(--sd-accent); color: #fff; padding: 0 12px 0 9px; }
-.soundor-audio[data-state="off"]:hover { background: #4f8bff; }
-.soundor-audio[data-state="starting"] .soundor-audio-label,
-.soundor-audio[data-state="failed"] .soundor-audio-label { color: var(--sd-muted); }
 .soundor-audio[data-state="failed"] { color: var(--sd-bad); }
-.soundor-audio-label:empty { display: none; }
 .soundor-volume { width: 84px; accent-color: var(--sd-accent); margin: 0 6px 0 2px; }
 .soundor-position {
   font-variant-numeric: tabular-nums; min-width: 40px; padding: 0 6px;

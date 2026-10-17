@@ -90,7 +90,7 @@ The website (`apps/website`) embeds the examples' web builds:
 ```sh
 pnpm turbo run build --filter=website   # packages, examples' build:web, the site → apps/website/dist/client
 pnpm turbo run dev --filter=website     # the site with live content reload
-pnpm --filter website test              # unit tests: placeholders, link check, examples sync, playground
+pnpm --filter website test              # unit tests: placeholders, link check, examples sync, playground, editor types
 pnpm --filter website test:e2e          # browser tests of the built site (Playwright), incl. editing an example
 ```
 
@@ -184,7 +184,10 @@ read the docs bundled with the installed package
   replaced at build time (`plugins/values.ts`). Its examples can be edited
   in the page: the web runtime's playground mode (`?playground=<script>`,
   same origin only) runs the code the site's playground script
-  (`playground/`, React + `@soundor/react` + Sucrase) is sent.
+  (`playground/`, React + `@soundor/react` + Sucrase) is sent. The editor
+  (`src/editor/`) runs TypeScript's language service in a worker over the
+  example's declarations (`types.json`, from `scripts/types.ts`); it uses
+  the catalog's `typescript-6`, the last TypeScript with a JavaScript API.
 
 ### The cross-runtime contract
 

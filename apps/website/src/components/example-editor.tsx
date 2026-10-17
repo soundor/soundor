@@ -1,13 +1,14 @@
 /**
  * The editor `<Example>` opens: the example's UI files in CodeMirror, run in
- * the embedded host (in playground mode) as they are edited. Loaded only when
- * a reader asks to edit.
+ * the embedded host (in playground mode) when they are applied, and checked by
+ * TypeScript against the example's own types (completions, errors, types on
+ * hover). Loaded only when a reader asks to edit.
  */
 
 import { javascript } from '@codemirror/lang-javascript';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Prec } from '@codemirror/state';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 
@@ -15,9 +16,15 @@ import {
   isPlaygroundMessage,
   type RunMessage,
 } from '../../playground/protocol.ts';
+import type { ExampleTypes } from '../editor/language-service.ts';
+import { TypeScriptClient, typescript } from '../editor/typescript.ts';
 
-/** How long typing pauses before the code runs. */
-const RUN_DELAY_MS = 400;
+/** The shortcut that applies the changes, as the Apply button shows it. */
+const APPLY_KEY = 'Mod-Enter';
+
+function applyShortcut(): string {
+  return /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘↵' : 'Ctrl+Enter';
+}
 
 interface Sources {
   readonly entry: string;
@@ -28,6 +35,8 @@ export interface ExampleEditorProps {
   readonly name: string;
   /** The host the code runs in, already in playground mode. */
   readonly frame: RefObject<HTMLIFrameElement | null>;
+  /** Full screen: the editor fills the height it is given. */
+  readonly expanded: boolean;
 }
 
 type Status =
@@ -50,7 +59,13 @@ function useDarkMode(): boolean {
   return dark;
 }
 
-export function ExampleEditor({ name, frame }: ExampleEditorProps) {
+async function load<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status}`);
+  return (await response.json()) as T;
+}
+
+export function ExampleEditor({ name, frame, expanded }: ExampleEditorProps) {
   const [original, setOriginal] = useState<Sources | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const files = useRef<Record<string, string>>({});
@@ -59,17 +74,22 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
   const [ready, setReady] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Edits wait to be applied: running on every change would take the
+  // reader's focus and the plugin's state with it while they type.
+  const [changed, setChanged] = useState(false);
   const [resets, setResets] = useState(0);
+  const [client, setClient] = useState<TypeScriptClient | null>(null);
   const dark = useDarkMode();
 
   useEffect(() => {
-    fetch(`/examples/${name}/playground.json`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`${response.status}`);
-        return response.json() as Promise<Sources>;
-      })
+    let started: TypeScriptClient | undefined;
+    load<Sources>(`/examples/${name}/playground.json`)
       .then((sources) => {
+        started = new TypeScriptClient(
+          load<ExampleTypes>(`/examples/${name}/types.json`),
+          sources.files,
+        );
+        setClient(started);
         setOriginal(sources);
         files.current = { ...sources.files };
         // The entry usually only renders the app: open the app itself.
@@ -81,6 +101,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       .catch((error: unknown) =>
         setFailure(`The example's code did not load (${String(error)}).`),
       );
+    return () => started?.dispose();
   }, [name]);
 
   const run = (): void => {
@@ -93,6 +114,11 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       entry: original.entry,
     };
     target.postMessage(message, window.location.origin);
+  };
+
+  const apply = (): void => {
+    setChanged(false);
+    run();
   };
 
   // The host's messages: ready for code, and how each run went.
@@ -127,7 +153,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
 
   // The editor for the active file, recreated when it or the theme changes.
   useEffect(() => {
-    if (host.current === null || active === null) return;
+    if (host.current === null || active === null || client === null) return;
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -135,12 +161,24 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
         extensions: [
           basicSetup,
           javascript({ jsx: true, typescript: true }),
+          typescript(client, active),
           ...(dark ? [oneDark] : []),
+          // Before the default keymap's Mod-Enter (a new line below).
+          Prec.highest(
+            keymap.of([
+              {
+                key: APPLY_KEY,
+                run: () => {
+                  apply();
+                  return true;
+                },
+              },
+            ]),
+          ),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             files.current[active] = update.state.doc.toString();
-            clearTimeout(timer.current);
-            timer.current = setTimeout(run, RUN_DELAY_MS);
+            setChanged(true);
           }),
         ],
       }),
@@ -151,9 +189,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       view.current = null;
     };
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, dark, resets]);
-
-  useEffect(() => () => clearTimeout(timer.current), []);
+  }, [active, dark, resets, client]);
 
   if (failure !== null) {
     return <p className="px-4 py-3 text-sm text-fd-error">{failure}</p>;
@@ -163,7 +199,9 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
   }
 
   return (
-    <div className="border-t">
+    <div
+      className={`flex min-h-0 flex-col border-t ${expanded ? 'h-full' : ''}`}
+    >
       <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
         {Object.keys(original.files).map((file) => (
           <button
@@ -181,16 +219,32 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
           type="button"
           onClick={() => {
             files.current = { ...original.files };
+            for (const [file, text] of Object.entries(original.files)) {
+              void client?.call('update', file, text);
+            }
+            setChanged(false);
             setResets((count) => count + 1);
           }}
           className="rounded px-2 py-1 text-xs text-fd-muted-foreground hover:bg-fd-accent hover:text-fd-foreground"
         >
           Reset
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            apply();
+            view.current?.focus();
+          }}
+          disabled={!changed}
+          title={`Run your changes (${applyShortcut()})`}
+          className="rounded bg-fd-primary px-2 py-1 text-xs font-medium text-fd-primary-foreground disabled:opacity-50"
+        >
+          Apply <span className="opacity-70">{applyShortcut()}</span>
+        </button>
       </div>
       <div
         ref={host}
-        className="max-h-[420px] overflow-auto text-sm [&_.cm-editor]:min-h-[240px] [&_.cm-editor.cm-focused]:outline-none"
+        className={`overflow-auto text-sm [&_.cm-editor.cm-focused]:outline-none ${expanded ? 'min-h-0 flex-1 [&_.cm-editor]:h-full' : 'max-h-[420px] [&_.cm-editor]:min-h-[240px]'}`}
       />
       <p
         role="status"
@@ -200,9 +254,11 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
           ? 'Starting the playground…'
           : status.kind === 'running'
             ? 'Running…'
-            : status.kind === 'ok'
-              ? 'Running your code. Edit it to see the change.'
-              : status.message}
+            : status.kind === 'error'
+              ? status.message
+              : changed
+                ? `Edited: apply (${applyShortcut()}) to run your changes.`
+                : 'Running your code. Edit it, then apply.'}
       </p>
     </div>
   );

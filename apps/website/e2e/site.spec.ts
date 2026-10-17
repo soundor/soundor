@@ -53,13 +53,11 @@ test('an example runs inside its page', async ({ page }) => {
   await page.goto('/docs/examples/basic');
   const plugin = page.frameLocator('iframe');
   await expect(plugin.getByText('Reset gain')).toBeVisible();
-  await expect(
-    plugin.getByRole('button', { name: 'Start audio' }),
-  ).toBeVisible();
+  await expect(plugin.getByRole('button', { name: 'Play' })).toBeVisible();
   expect(problems).toEqual([]);
 });
 
-test("an example's code can be edited, and runs as it changes", async ({
+test("an example's code can be edited, and runs when applied", async ({
   page,
 }) => {
   const problems = watch(page);
@@ -80,11 +78,17 @@ test("an example's code can be edited, and runs as it changes", async ({
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
   await page.keyboard.type('Edited gain');
+  await expect(status).toHaveText(/^Edited: apply/);
+  await expect(plugin.getByText('Reset gain')).toBeVisible();
+  await page.getByRole('button', { name: /^Apply/ }).click();
   await expect(plugin.getByText('Edited gain')).toBeVisible();
   await expect(status).toHaveText(/^Running your code/);
+  await expect(page.getByRole('button', { name: /^Apply/ })).toBeDisabled();
 
-  // Break it: the error is located, and the plugin says so too.
+  // Break it, still typing in the editor, and apply with the keyboard: the
+  // error is located, and the plugin says so too.
   await page.keyboard.type(' {{');
+  await page.keyboard.press('ControlOrMeta+Enter');
   await expect(status).toHaveText(/^src\/App\.tsx:\d+:\d+: /);
   await expect(plugin.getByText('Your code did not run.')).toBeVisible();
 
@@ -93,4 +97,52 @@ test("an example's code can be edited, and runs as it changes", async ({
   await expect(plugin.getByText('Reset gain')).toBeVisible();
   await expect(status).toHaveText(/^Running your code/);
   expect(problems).toEqual([]);
+});
+
+test("the editor knows the example's types", async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/examples/basic');
+  await page.getByRole('button', { name: 'Edit code' }).click();
+  await expect(page.getByRole('status')).toHaveText(/^Running your code/);
+
+  // Completions from the `soundor:parameters` the example's config declares.
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.type('\nparameters.');
+  await expect(page.getByRole('option', { name: 'gain' })).toBeVisible();
+  // The list takes Enter only once it has been open a moment (75 ms), so
+  // that an Enter typed as it opens stays a new line.
+  await page.waitForTimeout(100);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type(';');
+  await expect(page.locator('.cm-activeLine')).toHaveText('parameters.gain;');
+
+  // The errors tsc would report, in place.
+  await page.keyboard.type('\nconst label: string = 1;');
+  await expect(page.locator('.cm-lintRange-error')).toHaveCount(1);
+
+  // And the types under the pointer (in view: the editor renders no more).
+  await page
+    .locator('.cm-activeLine')
+    .getByText('label', { exact: true })
+    .hover();
+  await expect(page.locator('.cm-ts-info')).toHaveText('const label: string');
+  expect(problems).toEqual([]);
+});
+
+test('an example opens full screen, its editor beside it', async ({ page }) => {
+  await page.goto('/docs/examples/basic');
+  await page.getByRole('button', { name: 'Full screen' }).click();
+  const figure = page.locator('figure', { has: page.locator('iframe') });
+  await expect(page.locator('.cm-content')).toBeVisible();
+  const viewport = page.viewportSize();
+  await expect
+    .poll(async () => (await figure.boundingBox())?.height)
+    .toBe(viewport?.height);
+  const plugin = page.frameLocator('iframe');
+  await expect(plugin.getByText('Reset gain')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Exit full screen' }).click();
+  await expect(page.getByRole('button', { name: 'Full screen' })).toBeVisible();
+  await expect(page.locator('.cm-content')).toBeVisible();
 });

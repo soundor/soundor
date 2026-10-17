@@ -14,7 +14,10 @@ import { WebHost } from '../host';
 import { createParameterStore } from '../parameters';
 import '../testing/preact';
 
+const shells: { remove(): void }[] = [];
+
 afterEach(() => {
+  for (const shell of shells.splice(0)) shell.remove();
   document.body.replaceChildren();
   document.head.replaceChildren();
   localStorage.clear();
@@ -53,6 +56,7 @@ function setup(presentation: Presentation = 'demo') {
     parameters,
     audio,
   });
+  shells.push(shell);
   const dock = within(getByRole(shell.element, 'toolbar', { name: 'Host' }));
   // The panel is hidden until opened: queries look into it regardless.
   const panel = within(
@@ -91,25 +95,18 @@ describe('the dock', () => {
     );
   });
 
-  it('starts audio, then mutes it, and sets the volume', () => {
-    const { audio, start, dock } = setup();
-    fireEvent.click(dock.getByRole('button', { name: 'Start audio' }));
+  it('starts audio on the first gesture, even on the plugin, once', () => {
+    const { start, shell } = setup();
+    fireEvent.pointerDown(shell.viewport);
     expect(start).toHaveBeenCalledOnce();
-    expect(audio.status.muted).toBe(false);
+    fireEvent.pointerDown(shell.viewport);
+    expect(start).toHaveBeenCalledOnce();
+  });
 
-    // Running, as if the browser had allowed it.
-    const real = Object.getOwnPropertyDescriptor(
-      Object.getPrototypeOf(audio),
-      'status',
-    )!.get!;
-    vi.spyOn(audio, 'status', 'get').mockImplementation(function (
-      this: typeof audio,
-    ) {
-      return { ...real.call(this), state: 'running' };
-    });
-    act(() => audio.setVolume(0.8));
+  it('mutes and unmutes, and sets the volume', () => {
+    const { audio, start, dock } = setup();
     fireEvent.click(dock.getByRole('button', { name: 'Mute' }));
-    expect(start).toHaveBeenCalledOnce();
+    expect(start).not.toHaveBeenCalled();
     expect(audio.status.muted).toBe(true);
     expect(
       dock.getByRole('button', { name: 'Unmute' }).getAttribute('aria-pressed'),
