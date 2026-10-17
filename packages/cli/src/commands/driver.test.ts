@@ -269,6 +269,125 @@ describe('soundor driver', () => {
   });
 });
 
+describe('soundor driver input', () => {
+  it('clicks a node by debug ID through the target, then releases control', async () => {
+    const plugin = await runtime();
+    const result = await session('click', 'gain', '--json');
+    expect(result).toMatchObject({ code: 0, stderr: '' });
+    expect(JSON.parse(result.stdout)).toEqual({
+      handled: true,
+      node: { generation: 1, id: '3' },
+    });
+    expect(plugin.inputLog).toEqual([
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+    ]);
+    // One-shot: the command released the lease it took.
+    const [target] = JSON.parse(
+      (await session('targets', '--json')).stdout,
+    ) as DebugTarget[];
+    expect(target!.controller).toBeNull();
+    expect((await session('click', 'gain')).stdout).toBe(
+      'clicked: handled (node 3)\n',
+    );
+  });
+
+  it('hovers, moves, drags, scrolls, focuses, presses keys and types', async () => {
+    const plugin = await runtime();
+    for (const args of [
+      ['hover', 'gain'],
+      ['move', '--x', '20', '--y', '30'],
+      ['drag', 'gain', '--dy', '-10', '--steps', '1'],
+      ['scroll', 'gain', '--dy', '120'],
+      ['scroll', '--x', '60', '--y', '72', '--dy', '-40'],
+      ['focus', '--role', 'adjustable', '--name', 'Gain'],
+      ['key', 'Control+a'],
+      ['type', 'Hi', '--debug-id', 'gain'],
+      ['click', '--text', 'Gain', '--button', 'right'],
+    ]) {
+      const result = await session(...args, '--json');
+      expect({ args, ...result }).toMatchObject({ args, code: 0, stderr: '' });
+      JSON.parse(result.stdout);
+    }
+    expect(plugin.inputLog).toEqual([
+      'pointermove:3',
+      'pointermove:3',
+      'pointermove:3',
+      'pointerdown:3',
+      'pointermove:3',
+      'pointerup:3',
+      // Released on the node it was pressed on: a click.
+      'click:3',
+      'pointermove:3',
+      'wheel:3:120',
+      'wheel:3:-40',
+      'focus:3',
+      'keydown:Control',
+      'keydown:a',
+      'keyup:a',
+      'keyup:Control',
+      'focus:3',
+      'keydown:H',
+      'keyup:H',
+      'keydown:i',
+      'keyup:i',
+      'pointerdown:3',
+      'pointerup:3',
+    ]);
+    expect(plugin.typed).toBe('aHi');
+    expect(plugin.holdingInput).toBe(false);
+  });
+
+  it('exits with the code of each failure', async () => {
+    const plugin = await runtime();
+    const missing = await session(
+      'click',
+      'reset',
+      '--json',
+      '--timeout',
+      '200ms',
+    );
+    expect(missing.code).toBe(DRIVER_EXIT_CODES.element);
+    expect(JSON.parse(missing.stderr).error.code).toBe('ELEMENT_NOT_FOUND');
+    for (const args of [
+      ['move', '--x', 'left', '--y', '1'],
+      ['scroll', '--dy', '10'],
+      ['key'],
+      ['type'],
+      ['click', 'gain', '--button', 'back'],
+      ['drag', 'gain', '--steps', '0'],
+    ]) {
+      const result = await session(...args, '--json');
+      expect({ args, code: result.code }).toEqual({
+        args,
+        code: DRIVER_EXIT_CODES.invalid,
+      });
+    }
+    const browser = await startSimulatedBrowser(server);
+    try {
+      await browser.request('Control.acquire', plugin.id);
+      const busy = await session('click', 'gain', '--json');
+      expect(busy.code).toBe(DRIVER_EXIT_CODES.lease);
+      expect(JSON.parse(busy.stderr).error.code).toBe('LEASE_BUSY');
+    } finally {
+      await browser.close();
+    }
+    expect(plugin.inputLog).toEqual([]);
+  });
+
+  it('reports a target without input support', async () => {
+    const limited = await startSimulatedRuntime({
+      connection: server.connection,
+      input: false,
+    });
+    runtimes.push(limited);
+    const result = await session('click', 'gain', '--json');
+    expect(result.code).toBe(DRIVER_EXIT_CODES.unsupported);
+    expect(JSON.parse(result.stderr).error.code).toBe('MISSING_CAPABILITY');
+  });
+});
+
 describe('durations', () => {
   it.each([
     ['250', 250],

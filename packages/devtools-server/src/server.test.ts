@@ -368,6 +368,66 @@ it('enforces one controller, serializes interactive work and releases on disconn
   ).toMatchObject({ result: null });
 });
 
+it('gates input behind its capability and the lease, before forwarding', async () => {
+  const server = await serve();
+  const inspectOnly = await native(server, 'Inspect only');
+  const automatable = await native(server, 'Automatable', [
+    'inspector',
+    'input',
+  ]);
+  const client = await browser(server);
+  const click = { action: 'click', x: 10, y: 10 };
+  await client.request('Control.acquire', inspectOnly.id).response;
+  // `inspector` alone never grants input, even to the controller.
+  expect(
+    await client.request('Input.dispatchPointer', inspectOnly.id, click)
+      .response,
+  ).toMatchObject({ error: { code: 'MISSING_CAPABILITY' } });
+  // An observer cannot send input.
+  expect(
+    await client.request('Input.dispatchPointer', automatable.id, click)
+      .response,
+  ).toMatchObject({ error: { code: 'LEASE_REQUIRED' } });
+  // Hit testing reads, without control.
+  const hit = client.request('UI.hitTest', automatable.id, { x: 1, y: 2 });
+  const [command] = await automatable.poll();
+  expect(command).toMatchObject({
+    type: 'request',
+    method: 'UI.hitTest',
+    params: { x: 1, y: 2 },
+  });
+  if (command?.type !== 'request') throw new Error('Expected hit test');
+  await automatable.post({
+    type: 'response',
+    id: command.id,
+    result: { node: { generation: 1, id: '3' }, path: ['1', '3'] },
+  });
+  expect(await hit.response).toMatchObject({ result: { path: ['1', '3'] } });
+  await client.request('Control.acquire', automatable.id).response;
+  const dispatched = client.request(
+    'Input.dispatchPointer',
+    automatable.id,
+    click,
+  );
+  // Input is interactive: one command at a time.
+  expect(
+    await client.request('Input.dispatchKey', automatable.id, {
+      action: 'press',
+      key: 'a',
+    }).response,
+  ).toMatchObject({ error: { code: 'BUSY' } });
+  const [input] = await automatable.poll();
+  if (input?.type !== 'request') throw new Error('Expected input');
+  await automatable.post({
+    type: 'response',
+    id: input.id,
+    result: { handled: true, node: { generation: 1, id: '3' } },
+  });
+  expect(await dispatched.response).toMatchObject({
+    result: { handled: true },
+  });
+});
+
 it('releases control after heartbeat timeout', async () => {
   const server = await serve({ heartbeatTimeout: 90 });
   const target = await native(server);

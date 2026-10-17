@@ -14,6 +14,9 @@ export const capabilitySchema = z.enum([
   'accessibility',
   'animations',
   'performance',
+  // Synthetic pointer and keyboard input through the engine's own dispatch.
+  // Never implied by `inspector`.
+  'input',
 ]);
 export type Capability = z.infer<typeof capabilitySchema>;
 export const nodeRefSchema = z.strictObject({
@@ -60,7 +63,7 @@ export const targetSchema = z.strictObject({
   name: identifier,
   runtime: identifier,
   generation: z.number().int().positive(),
-  capabilities: z.array(capabilitySchema).max(4),
+  capabilities: z.array(capabilitySchema).max(8),
   controller: identifier.nullable(),
   processId: z.number().int().positive().optional(),
 });
@@ -80,6 +83,32 @@ export const eventNameSchema = z.enum([
 ]);
 export type EventName = z.infer<typeof eventNameSchema>;
 const empty = z.strictObject({});
+const coordinate = z.number().finite().min(-1e6).max(1e6);
+/** Modifier keys held for an input, besides those held with Input.dispatchKey. */
+export const modifierSchema = z.enum(['Shift', 'Control', 'Alt', 'Meta']);
+export type Modifier = z.infer<typeof modifierSchema>;
+const modifiers = z.array(modifierSchema).max(4).optional();
+/**
+ * Pointer input in the view's logical pixels. `click` is a move, a press and
+ * a release at the point, dispatched together; `cancel` ends the synthetic
+ * pointer without a click. `down`, `up` and `cancel` default to the last
+ * position.
+ */
+export const pointerInputSchema = z
+  .strictObject({
+    action: z.enum(['move', 'down', 'up', 'click', 'cancel']),
+    x: coordinate.optional(),
+    y: coordinate.optional(),
+    button: z.enum(['left', 'middle', 'right']).optional(),
+    modifiers,
+  })
+  .refine(
+    (input) =>
+      (input.x === undefined) === (input.y === undefined) &&
+      (!['move', 'click'].includes(input.action) || input.x !== undefined),
+    'move and click need x and y; give both or neither',
+  );
+export type PointerInput = z.infer<typeof pointerInputSchema>;
 export const methodParams = {
   'Runtime.getTargets': empty,
   'Control.acquire': empty,
@@ -95,6 +124,23 @@ export const methodParams = {
   'UI.highlightNode': z.strictObject({ node: nodeRefSchema }),
   'UI.clearHighlight': empty,
   'UI.setPickerEnabled': z.strictObject({ enabled: z.boolean() }),
+  'UI.hitTest': z.strictObject({ x: coordinate, y: coordinate }),
+  'Input.dispatchPointer': pointerInputSchema,
+  'Input.dispatchWheel': z.strictObject({
+    x: coordinate,
+    y: coordinate,
+    deltaX: coordinate,
+    deltaY: coordinate,
+    modifiers,
+  }),
+  // KeyboardEvent.key values: "a", "A", "Enter", "ArrowLeft", "Shift"…
+  'Input.dispatchKey': z.strictObject({
+    action: z.enum(['down', 'up', 'press']),
+    key: z.string().min(1).max(32),
+    modifiers,
+  }),
+  'Input.typeText': z.strictObject({ text: z.string().min(1).max(1024) }),
+  'Input.focus': z.strictObject({ node: nodeRefSchema }),
   'Animation.getActive': z.strictObject({ node: nodeRefSchema.optional() }),
   'Diagnostics.getMetrics': empty,
   'Diagnostics.setRecording': z.strictObject({ enabled: z.boolean() }),
@@ -150,6 +196,8 @@ export const errorSchema = z.strictObject({
     'TIMEOUT',
     'CANCELLED',
     'BUSY',
+    // The node cannot take this input (not focusable, not connected).
+    'NOT_ACTIONABLE',
     'INTERNAL',
   ]),
   message: text,
@@ -323,6 +371,12 @@ export interface MethodResults {
   'UI.highlightNode': null;
   'UI.clearHighlight': null;
   'UI.setPickerEnabled': null;
+  'UI.hitTest': HitTest;
+  'Input.dispatchPointer': InputResult;
+  'Input.dispatchWheel': InputResult;
+  'Input.dispatchKey': InputResult;
+  'Input.typeText': InputResult;
+  'Input.focus': null;
   'Animation.getActive': DebugAnimation[];
   'Diagnostics.getMetrics': DebugMetrics;
   'Diagnostics.setRecording': null;
@@ -335,6 +389,19 @@ export type Response<M extends DebugMethod> = {
   | { result: MethodResults[M]; error?: never }
   | { result?: never; error: DebugError }
 );
+
+/** The deepest node at a point, and its ancestors from a root: what input there reaches. */
+export const hitTestSchema = z.strictObject({
+  node: nodeRefSchema.nullable(),
+  path: z.array(identifier).max(512),
+});
+export type HitTest = z.infer<typeof hitTestSchema>;
+/** What the input reached: whether the UI handled it, and its target. */
+export const inputResultSchema = z.strictObject({
+  handled: z.boolean(),
+  node: nodeRefSchema.nullable(),
+});
+export type InputResult = z.infer<typeof inputResultSchema>;
 
 export const methodResults = {
   'Runtime.getTargets': z.array(targetSchema).max(64),
@@ -349,6 +416,12 @@ export const methodResults = {
   'UI.highlightNode': z.null(),
   'UI.clearHighlight': z.null(),
   'UI.setPickerEnabled': z.null(),
+  'UI.hitTest': hitTestSchema,
+  'Input.dispatchPointer': inputResultSchema,
+  'Input.dispatchWheel': inputResultSchema,
+  'Input.dispatchKey': inputResultSchema,
+  'Input.typeText': inputResultSchema,
+  'Input.focus': z.null(),
   'Animation.getActive': z.array(animationSchema).max(256),
   'Diagnostics.getMetrics': metricsSchema,
   'Diagnostics.setRecording': z.null(),
@@ -357,15 +430,19 @@ export const methodResults = {
 export function methodCapability(method: DebugMethod): Capability | undefined {
   if (method === 'UI.getAccessibility') return 'accessibility';
   if (method.startsWith('UI.')) return 'inspector';
+  if (method.startsWith('Input.')) return 'input';
   if (method.startsWith('Animation.')) return 'animations';
   if (method.startsWith('Diagnostics.')) return 'performance';
   return undefined;
 }
 export function requiresControl(method: DebugMethod): boolean {
-  return [
-    'UI.highlightNode',
-    'UI.clearHighlight',
-    'UI.setPickerEnabled',
-    'Diagnostics.setRecording',
-  ].includes(method);
+  return (
+    method.startsWith('Input.') ||
+    [
+      'UI.highlightNode',
+      'UI.clearHighlight',
+      'UI.setPickerEnabled',
+      'Diagnostics.setRecording',
+    ].includes(method)
+  );
 }

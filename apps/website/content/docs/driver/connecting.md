@@ -81,9 +81,12 @@ their node again by themselves.
 ## Control
 
 Reading (the tree, nodes, locators) needs no control of the target, and works
-while the DevTools dashboard or another client controls it. Commands that
-change the target need its exclusive control lease, as the dashboard's
-**Request control** does.
+while the DevTools dashboard or another client controls it.
+[Input](/docs/driver/interacting) needs its exclusive control lease, as the
+dashboard's **Request control** does: the first input takes it, and a lease
+another client holds is never taken (`LEASE_BUSY`). `acquireControl()`,
+`releaseControl()` and `hasControl` handle it explicitly; disconnecting
+releases it.
 
 ## Timeouts and cancellation
 
@@ -122,26 +125,27 @@ try {
 }
 ```
 
-| Code                    | Meaning                                                                |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `INVALID_OPTIONS`       | Invalid options or arguments.                                          |
-| `INVALID_DESCRIPTOR`    | The descriptor is missing (the session ended), unprotected or not one. |
-| `AUTHENTICATION_FAILED` | The server rejected the key or the connection.                         |
-| `SERVER_UNAVAILABLE`    | No DevTools server answers at the endpoint.                            |
-| `DISCONNECTED`          | The connection closed.                                                 |
-| `NO_TARGETS`            | No instance runs in the session.                                       |
-| `TARGET_NOT_FOUND`      | No instance has the selected ID or name.                               |
-| `AMBIGUOUS_TARGET`      | Several instances run (or share the name); select one.                 |
-| `TARGET_DISCONNECTED`   | The selected instance disconnected.                                    |
-| `GENERATION_CHANGED`    | The instance reloaded during the command.                              |
-| `STALE_NODE`            | The node reference is from an earlier generation, or the node went.    |
-| `LEASE_BUSY`            | Another client controls the instance.                                  |
-| `LEASE_REQUIRED`        | The command needs control of the instance.                             |
-| `BUSY`                  | The instance is busy with another interactive command.                 |
-| `MISSING_CAPABILITY`    | The instance does not support the command.                             |
-| `ELEMENT_NOT_FOUND`     | No node matches the locator.                                           |
-| `AMBIGUOUS_ELEMENT`     | Several nodes match the locator.                                       |
-| `TIMEOUT`               | The command did not finish in time.                                    |
-| `CANCELLED`             | The command was cancelled.                                             |
-| `PROTOCOL`              | Mismatched Soundor packages, or an invalid message.                    |
-| `INTERNAL`              | The instance failed while handling the command.                        |
+| Code                     | Meaning                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `INVALID_OPTIONS`        | Invalid options or arguments, or input the instance refused (releasing a button that is not down). |
+| `INVALID_DESCRIPTOR`     | The descriptor is missing (the session ended), unprotected or not one.                             |
+| `AUTHENTICATION_FAILED`  | The server rejected the key or the connection.                                                     |
+| `SERVER_UNAVAILABLE`     | No DevTools server answers at the endpoint.                                                        |
+| `DISCONNECTED`           | The connection closed.                                                                             |
+| `NO_TARGETS`             | No instance runs in the session.                                                                   |
+| `TARGET_NOT_FOUND`       | No instance has the selected ID or name.                                                           |
+| `AMBIGUOUS_TARGET`       | Several instances run (or share the name); select one.                                             |
+| `TARGET_DISCONNECTED`    | The selected instance disconnected.                                                                |
+| `GENERATION_CHANGED`     | The instance reloaded during the command.                                                          |
+| `STALE_NODE`             | The node reference is from an earlier generation, or the node went.                                |
+| `LEASE_BUSY`             | Another client controls the instance.                                                              |
+| `LEASE_REQUIRED`         | The command needs control of the instance.                                                         |
+| `BUSY`                   | The instance is busy with another interactive command.                                             |
+| `MISSING_CAPABILITY`     | The instance does not support the command.                                                         |
+| `ELEMENT_NOT_FOUND`      | No node matches the locator.                                                                       |
+| `AMBIGUOUS_ELEMENT`      | Several nodes match the locator.                                                                   |
+| `ELEMENT_NOT_ACTIONABLE` | The node cannot take the input: hidden, disabled, covered, outside the view, not focusable.        |
+| `TIMEOUT`                | The command did not finish in time.                                                                |
+| `CANCELLED`              | The command was cancelled.                                                                         |
+| `PROTOCOL`               | Mismatched Soundor packages, or an invalid message.                                                |
+| `INTERNAL`               | The instance failed while handling the command.                                                    |

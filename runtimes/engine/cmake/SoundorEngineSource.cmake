@@ -104,6 +104,7 @@ endif()
 list(TRANSFORM SOUNDOR_RUNTIME_SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/")
 if(SOUNDOR_ENABLE_DEVTOOLS)
   list(APPEND SOUNDOR_RUNTIME_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Inspector.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Commands.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Input.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/debug/Diagnostics.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/render/DebugOverlay.cpp)
 endif()
 

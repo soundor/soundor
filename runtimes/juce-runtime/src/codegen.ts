@@ -890,14 +890,12 @@ namespace ${NS}
 #if SOUNDOR_DEVTOOLS
         if (debug && debug->key(runtimeHost(), { .down = true, .key = name, .repeat = repeat })) return true;
 #endif
-        auto& surface = runtimeHost().surface();
-        bool handled = surface.key({ .down = true,
-                                     .key = name,
-                                     .repeat = repeat,
-                                     .modifiers = backend::modifiersOf(key.getModifiers()) });
-        if (! handled)
-            if (const std::string text = backend::typedText(key); ! text.empty())
-                handled = surface.text({ text });
+        // The key, then the text it types when the UI does not handle it.
+        const bool handled = runtimeHost().surface().key({ .down = true,
+                                                           .key = name,
+                                                           .repeat = repeat,
+                                                           .modifiers = backend::modifiersOf(key.getModifiers()) },
+                                                         backend::typedText(key));
         runtimeHost().runtime().runPendingJobs();
         return handled;
     }

@@ -217,6 +217,19 @@ h2 {
     monospace;
   color: var(--accent);
 }
+.node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 12px;
+}
+
+.node-actions .hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .detail-group {
   margin: 0 16px 12px;
   border: 1px solid var(--line);

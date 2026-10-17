@@ -10,6 +10,7 @@ import type {
 import { createBrowserSession } from './browser-session';
 import { createConnectionRequests } from './connection';
 import { InspectorState } from './state';
+import { label } from './tree';
 /** Async protocol orchestration and a revision subscription for the React views. */
 export function createInspector(win: Window & typeof globalThis) {
   const state = new InspectorState();
@@ -28,6 +29,9 @@ export function createInspector(win: Window & typeof globalThis) {
     diagnosticsBusy: false,
     details: undefined as DebugNode | undefined,
     detailAnimations: undefined as Record<string, unknown> | undefined,
+    interacting: false,
+    /** What the last input on the selected node did. */
+    interaction: '',
     reveal: 0,
   };
   function notify() {
@@ -44,6 +48,7 @@ export function createInspector(win: Window & typeof globalThis) {
     notify();
   }
   function setDetails(node?: DebugNode) {
+    if (node?.ref.id !== ui.details?.ref.id) ui.interaction = '';
     ui.details = node;
     ui.detailAnimations = undefined;
     notify();
@@ -574,6 +579,66 @@ export function createInspector(win: Window & typeof globalThis) {
       report('');
       run(refreshTree());
     },
+    /**
+     * Clicks, hovers or focuses the selected node with the target's
+     * synthetic input: the engine's own dispatch, as Soundor Driver does.
+     */
+    interact: (kind: 'click' | 'hover' | 'focus') =>
+      run(
+        (async () => {
+          const node = ui.details;
+          if (!node || !ownsControl() || !supports('input') || ui.interacting)
+            return;
+          const epoch = state.viewEpoch;
+          ui.interacting = true;
+          nextHighlight = undefined;
+          notify();
+          try {
+            // Interactive commands are serialized: finish a highlight first.
+            while (highlighting && epoch === state.viewEpoch)
+              await new Promise((resolve) => win.setTimeout(resolve, 15));
+            if (epoch !== state.viewEpoch) return;
+            const name = label(node);
+            if (kind === 'focus') {
+              await request('Input.focus', { node: node.ref });
+              if (epoch === state.viewEpoch) {
+                report('');
+                ui.interaction = 'Focused';
+              }
+              return;
+            }
+            // Where a pointer reaches the node: its center, unless covered.
+            const x = node.bounds.x + node.bounds.width / 2;
+            const y = node.bounds.y + node.bounds.height / 2;
+            const hit = await request('UI.hitTest', { x, y });
+            if (epoch !== state.viewEpoch) return;
+            if (!hit.path.includes(node.ref.id)) {
+              report(
+                hit.node
+                  ? `${name} is covered at (${x}, ${y}) by node ${hit.node.id}; nothing was sent`
+                  : `${name} is outside the view; nothing was sent`,
+              );
+              return;
+            }
+            const result = await request('Input.dispatchPointer', {
+              action: kind === 'click' ? 'click' : 'move',
+              x,
+              y,
+            });
+            if (epoch === state.viewEpoch) {
+              report('');
+              ui.interaction = `${kind === 'click' ? 'Clicked' : 'Hovered'}${result.handled ? '' : ': not handled'}`;
+            }
+          } catch (error) {
+            if (epoch === state.viewEpoch) fail(error);
+          } finally {
+            if (epoch === state.viewEpoch) {
+              ui.interacting = false;
+              notify();
+            }
+          }
+        })(),
+      ),
     clearLogs() {
       state.logs.length = 0;
       renderLogs();

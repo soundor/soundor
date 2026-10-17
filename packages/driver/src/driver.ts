@@ -3,12 +3,14 @@ import type {
   DebugNode,
   DebugTarget,
   DebugTree,
+  HitTest,
   MethodResults,
   NodeRef,
   Params,
 } from '@soundor/devtools-protocol';
 
 import { DriverError, isDriverError } from './errors';
+import { Keyboard, Pointer, type InputHost } from './input';
 import { Locator, type LocatorHost } from './locator';
 import {
   BROWSER_KEY_ENV,
@@ -146,13 +148,30 @@ export class Driver {
   #target: DebugTarget | undefined;
   #targetLost = false;
   readonly #locatorHost: LocatorHost;
+  // Interactive commands go one at a time, as the server serializes them.
+  #interactive: Promise<unknown> = Promise.resolve();
+  /** The target's synthetic pointer (needs control, taken on first use). */
+  readonly pointer: Pointer;
+  /** The target's synthetic keyboard (needs control, taken on first use). */
+  readonly keyboard: Keyboard;
 
   /** @internal Use {@link connect}. */
   constructor(connection: Connection, timeout: number) {
     this.#connection = connection;
     this.#timeout = timeout;
     connection.onTargets((targets) => this.#targetsChanged(targets));
+    const input: InputHost = {
+      send: (method, params, options) =>
+        this.#interact(method, params, options),
+    };
+    this.pointer = new Pointer(input);
+    this.keyboard = new Keyboard(input);
     this.#locatorHost = {
+      pointer: this.pointer,
+      keyboard: this.keyboard,
+      timeout: () => this.#timeout,
+      hitTest: (x, y, options) => this.hitTest(x, y, options),
+      focus: (ref, options) => this.#focus(ref, options),
       getTree: (options) => this.getTree(options),
       getNode: (ref, options) => this.getNode(ref, options),
       getLayout: (ref, options) => this.getLayout(ref, options),
@@ -181,8 +200,11 @@ export class Driver {
     const current = targets.find((target) => target.id === this.#target!.id);
     // Never followed to another instance, whatever its name.
     if (!current) this.#targetLost ||= announced;
-    else if (announced || current.generation >= this.#target.generation)
+    else if (announced || current.generation >= this.#target.generation) {
+      // A reload: the pointer is the new view's, with no position yet.
+      if (current.generation !== this.#target.generation) this.pointer.forget();
       this.#target = current;
+    }
   }
 
   static {
@@ -404,6 +426,91 @@ export class Driver {
     return this.#request('UI.getAccessibility', { node: ref }, options);
   }
 
+  /** Whether this Driver controls its target (needed to send input). */
+  get hasControl(): boolean {
+    return (
+      this.#target !== undefined &&
+      !this.#targetLost &&
+      this.#target.controller === this.#connection.clientId
+    );
+  }
+
+  /**
+   * Takes control of the target: its exclusive lease, as the dashboard's
+   * "Request control". Input takes it on first use; a lease another client
+   * holds is never taken from it.
+   */
+  async acquireControl(options?: CallOptions): Promise<void> {
+    const target = await this.target(options);
+    if (target.controller === this.#connection.clientId) return;
+    try {
+      await this.#connection.request(
+        'Control.acquire',
+        {},
+        target.id,
+        this.#options(options),
+      );
+    } catch (error) {
+      if (isDriverError(error, 'LEASE_BUSY'))
+        throw new DriverError(
+          'LEASE_BUSY',
+          `Another DevTools client (a dashboard tab or another Driver) controls ${label(target)}; it must release control first`,
+        );
+      throw error;
+    }
+    // The server announces it too; this client knows at once.
+    if (this.#target?.id === target.id)
+      this.#target = { ...this.#target, controller: this.#connection.clientId };
+  }
+
+  /**
+   * Gives control of the target back. The instance releases whatever
+   * synthetic input still holds (no button or key stays down).
+   */
+  async releaseControl(options?: CallOptions): Promise<void> {
+    if (!this.hasControl) return;
+    const target = this.#target!;
+    await this.#connection.request(
+      'Control.release',
+      {},
+      target.id,
+      this.#options(options),
+    );
+    if (this.#target?.id === target.id)
+      this.#target = { ...this.#target, controller: null };
+  }
+
+  /** Sends one input command with control, after the previous one. */
+  #interact<M extends DebugMethod>(
+    method: M,
+    params: Params<M>,
+    options?: CallOptions,
+  ): Promise<MethodResults[M]> {
+    const run = async () => {
+      if (options?.signal?.aborted)
+        throw new DriverError('CANCELLED', `${method} was cancelled`);
+      await this.acquireControl(options);
+      return this.#request(method, params, options);
+    };
+    const result = this.#interactive.then(run, run);
+    this.#interactive = result.catch(() => {});
+    return result;
+  }
+
+  /**
+   * What is at a point of the view (logical pixels): the deepest node input
+   * there reaches, and its ancestors from a root. Needs no control.
+   */
+  async hitTest(x: number, y: number, options?: CallOptions): Promise<HitTest> {
+    return this.#request('UI.hitTest', { x, y }, options);
+  }
+
+  async #focus(ref: NodeRef, options?: CallOptions): Promise<void> {
+    await this.target(options);
+    this.#checkRef(ref);
+    await this.#interact('Input.focus', { node: ref }, options);
+  }
+
   /** The node with this `debugId` prop. */
   getByDebugId(debugId: string): Locator {
     return new Locator(this.#locatorHost, { debugId });
@@ -427,6 +534,10 @@ export class Driver {
    * DISCONNECTED and the server releases anything this client controlled.
    */
   async disconnect(): Promise<void> {
+    // Releasing first resets the instance's synthetic input at once; the
+    // server would do it when the connection closes anyway.
+    if (this.connected && this.hasControl)
+      await this.releaseControl({ timeout: 2000 }).catch(() => {});
     await this.#connection.close();
   }
 }

@@ -39,6 +39,11 @@ export type DriverErrorCode =
   | 'ELEMENT_NOT_FOUND'
   /** Several nodes match a locator that must match one. */
   | 'AMBIGUOUS_ELEMENT'
+  /**
+   * The node cannot take the input: hidden, disabled, without size, outside
+   * the view, covered by another node, or not focusable.
+   */
+  | 'ELEMENT_NOT_ACTIONABLE'
   /** The operation did not finish in time. */
   | 'TIMEOUT'
   /** The operation was cancelled. */
@@ -69,7 +74,7 @@ export function isDriverError(
 }
 
 const PROTOCOL_CODES: Record<DebugError['code'], DriverErrorCode> = {
-  INVALID_REQUEST: 'PROTOCOL',
+  INVALID_REQUEST: 'INVALID_OPTIONS',
   UNAUTHORIZED: 'AUTHENTICATION_FAILED',
   PROTOCOL_MISMATCH: 'PROTOCOL',
   TARGET_GONE: 'TARGET_DISCONNECTED',
@@ -80,6 +85,7 @@ const PROTOCOL_CODES: Record<DebugError['code'], DriverErrorCode> = {
   TIMEOUT: 'TIMEOUT',
   CANCELLED: 'CANCELLED',
   BUSY: 'BUSY',
+  NOT_ACTIONABLE: 'ELEMENT_NOT_ACTIONABLE',
   INTERNAL: 'INTERNAL',
 };
 

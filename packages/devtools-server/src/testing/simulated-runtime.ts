@@ -26,11 +26,46 @@ export interface SimulatedRuntimeOptions {
   diagnostics?: boolean;
   /** Seed diagnostics and a deterministic startup log for interactive development. */
   sampleData?: boolean;
+  /** Accept synthetic input (`input` capability); true by default. */
+  input?: boolean;
+}
+
+/** Deepest visible node at a point, later siblings over earlier ones. */
+function hitTest(nodes: DebugNode[], x: number, y: number) {
+  const byId = new Map(nodes.map((node) => [node.ref.id, node]));
+  const depth = (node: DebugNode) => {
+    let count = 0;
+    for (
+      let at = node;
+      at.parent && byId.has(at.parent);
+      at = byId.get(at.parent)!
+    )
+      ++count;
+    return count;
+  };
+  let hit: DebugNode | undefined;
+  for (const node of nodes) {
+    const { bounds } = node;
+    if (
+      node.visible &&
+      x >= bounds.x &&
+      y >= bounds.y &&
+      x < bounds.x + bounds.width &&
+      y < bounds.y + bounds.height &&
+      (!hit || depth(node) >= depth(hit))
+    )
+      hit = node;
+  }
+  const path: string[] = [];
+  for (let at = hit; at; at = at.parent ? byId.get(at.parent) : undefined)
+    path.unshift(at.ref.id);
+  return { node: hit ?? null, path };
 }
 export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
   const { connection } = options;
   const name = options.name ?? 'Gain Plugin';
   const diagnostics = options.diagnostics ?? true;
+  const input = options.input ?? true;
   const headers = {
     Authorization: `Bearer ${connection.token}`,
     'X-Soundor-Session': connection.sessionId,
@@ -46,9 +81,12 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       generation: 1,
       name,
       runtime: 'Simulated Soundor',
-      capabilities: diagnostics
-        ? ['inspector', 'accessibility', 'animations', 'performance']
-        : ['inspector', 'accessibility'],
+      capabilities: [
+        'inspector',
+        'accessibility',
+        ...(diagnostics ? ['animations', 'performance'] : []),
+        ...(input ? ['input'] : []),
+      ],
     }),
   });
   if (!register.ok) throw new Error('Simulated runtime registration failed');
@@ -102,6 +140,19 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     },
   ];
   let pickerEnabled = false;
+  // Synthetic input, as the engine keeps it: what the application received.
+  const inputLog: string[] = [];
+  let typed = '';
+  let focused: string | null = null;
+  const pointer = { present: false, x: 0, y: 0, buttons: 0, pressed: '' };
+  const heldKeys = new Set<string>();
+  function resetInput() {
+    if (pointer.buttons) inputLog.push(`pointercancel:${pointer.pressed}`);
+    pointer.present = false;
+    pointer.buttons = 0;
+    for (const key of heldKeys) inputLog.push(`keyup:${key}`);
+    heldKeys.clear();
+  }
   let selection: NodeRef | null = null;
   let highlighted: { generation: number; id: string } | null = null;
   if (options.sampleData) {
@@ -172,6 +223,103 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     }
     let result: unknown = null;
     let error: string | undefined;
+    let code = 'STALE_NODE';
+    const refOf = (node: DebugNode | null) =>
+      node ? { generation, id: node.ref.id } : null;
+    if (command.method === 'UI.hitTest') {
+      const { x, y } = methodParams['UI.hitTest'].parse(command.params);
+      const hit = hitTest(treeNodes, x, y);
+      result = { node: refOf(hit.node), path: hit.path };
+    }
+    if (command.method === 'Input.dispatchPointer') {
+      const params = methodParams['Input.dispatchPointer'].parse(
+        command.params,
+      );
+      if (params.x !== undefined && params.y !== undefined) {
+        pointer.x = params.x;
+        pointer.y = params.y;
+      }
+      const bit = { left: 1, right: 2, middle: 4 }[params.button ?? 'left'];
+      const target = () => hitTest(treeNodes, pointer.x, pointer.y).node;
+      const at = () => target()?.ref.id ?? 'none';
+      code = 'INVALID_REQUEST';
+      if (params.action === 'cancel') resetInput();
+      else if (
+        (params.action === 'down' || params.action === 'up') &&
+        !pointer.present &&
+        params.x === undefined
+      )
+        error = 'move the pointer before pressing a button';
+      else if (params.action === 'up' && !(pointer.buttons & bit))
+        error = 'the button is not down';
+      else if (
+        (params.action === 'down' || params.action === 'click') &&
+        pointer.buttons & bit
+      )
+        error = 'the button is already down';
+      else {
+        pointer.present = true;
+        if (params.action === 'move') inputLog.push(`pointermove:${at()}`);
+        if (params.action === 'down' || params.action === 'click') {
+          pointer.buttons |= bit;
+          pointer.pressed = at();
+          inputLog.push(`pointerdown:${at()}`);
+        }
+        if (params.action === 'up' || params.action === 'click') {
+          pointer.buttons &= ~bit;
+          inputLog.push(`pointerup:${pointer.pressed}`);
+          if (bit === 1 && pointer.pressed === at())
+            inputLog.push(`click:${at()}`);
+        }
+      }
+      result = { handled: target() !== null, node: refOf(target()) };
+    }
+    if (command.method === 'Input.dispatchWheel') {
+      const { x, y, deltaY } = methodParams['Input.dispatchWheel'].parse(
+        command.params,
+      );
+      const hit = hitTest(treeNodes, x, y).node;
+      inputLog.push(`wheel:${hit?.ref.id ?? 'none'}:${deltaY}`);
+      result = { handled: hit !== null, node: refOf(hit) };
+    }
+    if (command.method === 'Input.dispatchKey') {
+      const { action, key } = methodParams['Input.dispatchKey'].parse(
+        command.params,
+      );
+      code = 'INVALID_REQUEST';
+      if (action === 'up' && !heldKeys.has(key)) error = 'the key is not down';
+      else {
+        if (action !== 'up') {
+          heldKeys.add(key);
+          inputLog.push(`keydown:${key}`);
+          if ([...key].length === 1) typed += key;
+        }
+        if (action !== 'down') {
+          heldKeys.delete(key);
+          inputLog.push(`keyup:${key}`);
+        }
+      }
+      result = { handled: focused !== null, node: null };
+    }
+    if (command.method === 'Input.typeText') {
+      const { text } = methodParams['Input.typeText'].parse(command.params);
+      for (const character of text)
+        inputLog.push(`keydown:${character}`, `keyup:${character}`);
+      typed += text;
+      result = { handled: focused !== null, node: null };
+    }
+    if (command.method === 'Input.focus') {
+      const { node } = methodParams['Input.focus'].parse(command.params);
+      const found = treeNodes.find((item) => item.ref.id === node.id);
+      if (!found) error = 'Node was removed';
+      else if (found.properties?.['focusable'] === false) {
+        code = 'NOT_ACTIONABLE';
+        error = 'The node is not focusable';
+      } else {
+        focused = node.id;
+        inputLog.push(`focus:${node.id}`);
+      }
+    }
     if (command.method === 'Diagnostics.getMetrics') result = metrics;
     if (command.method === 'Diagnostics.setRecording') {
       metrics = {
@@ -248,9 +396,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       {
         type: 'response',
         id: command.id,
-        ...(error
-          ? { error: { code: 'STALE_NODE', message: error } }
-          : { result }),
+        ...(error ? { error: { code, message: error } } : { result }),
       },
       signal,
     );
@@ -272,6 +418,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
           if (command.type === 'cancel') {
             operations.get(command.id)?.controller.abort();
           } else if (command.type === 'resetControl') {
+            resetInput();
             pickerEnabled = false;
             highlighted = null;
             metrics = {
@@ -365,6 +512,16 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     },
     methods,
     commands,
+    /** What synthetic input the application received, in order. */
+    inputLog,
+    /** Text typed so far. */
+    get typed() {
+      return typed;
+    },
+    /** Whether synthetic input holds a button or a key down. */
+    get holdingInput() {
+      return pointer.buttons !== 0 || heldKeys.size > 0;
+    },
     errors,
     get treeRequests() {
       return treeRequests;
@@ -408,6 +565,10 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     },
     async reload() {
       ++generation;
+      pointer.present = false;
+      pointer.buttons = 0;
+      heldKeys.clear();
+      focused = null;
       for (const operation of operations.values()) operation.controller.abort();
       selection = null;
       pickerEnabled = false;

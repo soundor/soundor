@@ -167,7 +167,10 @@ read the docs bundled with the installed package
 - `packages/driver` (`@soundor/driver`) — Soundor Driver: a Node.js control
   client of a running DevTools session (the dashboard's authenticated
   `/browser` transport, never a runtime): targets, tree and node inspection,
-  lazy locators (`getByDebugId`, role, text). The CLI's `soundor driver`
+  lazy locators (`getByDebugId`, role, text), and input (`pointer`,
+  `keyboard`, locator actions with actionability waits) that the engine
+  dispatches like a platform's (`src/debug/Input.cpp`, the `input`
+  capability; never by calling handlers). The CLI's `soundor driver`
   commands use it. Nodes get a `debugId` from the components' `debugId` prop.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
