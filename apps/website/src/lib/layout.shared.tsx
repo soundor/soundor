@@ -16,5 +16,10 @@ export function baseOptions(): BaseLayoutProps {
       ),
     },
     githubUrl: repository.url,
+    links: [
+      { text: 'Docs', url: '/docs', active: 'url' },
+      { text: 'Components', url: '/docs/components', active: 'nested-url' },
+      { text: 'Examples', url: '/docs/examples/orbit', active: 'nested-url' },
+    ],
   };
 }
