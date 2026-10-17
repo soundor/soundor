@@ -298,6 +298,7 @@ export const juceRuntime = defineRuntime<JuceOptions>({
       accessibility: true,
       animations: true,
       performance: true,
+      input: true,
     },
   },
   init: juceInit,

@@ -1,13 +1,15 @@
 ---
 title: 'Soundor Driver'
-description: "Inspect a running plugin's native UI from a script or the command line, through its DevTools session."
+description: "Inspect and control a running plugin's native UI from a script or the command line, through its DevTools session."
 ---
 
 Source: [`packages/driver/`](https://github.com/soundor/soundor/tree/main/packages/driver).
 
 Soundor Driver works with a Soundor plugin that is already running: it reads
 the native UI the engine really has (its node tree, bounds, styles and
-accessibility) from Node.js or from the `soundor driver` commands. Use it to
+accessibility) and acts on it (clicks, drags, scrolls, keys and text, through
+the engine's own input dispatch), from Node.js or from the `soundor driver`
+commands. Use it to
 debug a plugin, to look at a control while you work on it, to write scripts
 that reproduce a UI bug, and from coding agents that need a reliable,
 machine-readable view of the UI.
@@ -56,6 +58,7 @@ From the command line:
 pnpm exec soundor driver targets
 pnpm exec soundor driver tree --json
 pnpm exec soundor driver inspect reset
+pnpm exec soundor driver click reset
 ```
 
 From TypeScript, with `@soundor/driver`:
@@ -73,7 +76,7 @@ try {
   console.log(`${tree.nodes.length} nodes`);
   const reset = driver.getByDebugId('reset');
   console.log(await reset.getBounds());
-  console.log(await reset.getAccessibility());
+  await reset.click();
 } finally {
   await driver.disconnect();
 }
@@ -108,13 +111,14 @@ flowchart LR
 1. The Driver reads the descriptor's `browserKey`, exchanges it at
    `POST /browser/auth` for the session's cookie, and opens the `/browser`
    WebSocket with it and the session's own Origin, as the dashboard does.
-2. It sends typed, validated requests (`UI.getTree`, `UI.getNode`, …) for its
-   selected target. The server checks the target's capabilities and, for
+2. It sends typed, validated requests (`UI.getTree`, `UI.getNode`,
+   `Input.dispatchPointer`, …) for its selected target. The server checks the target's capabilities and, for
    commands that change anything, the control lease, then queues the command
    for that instance.
 3. The plugin's runtime bridge long-polls the server from worker threads and
    hands commands to the engine's Inspector on the UI thread, in its 60 Hz
-   tick. The Inspector reads the engine's `Surface` and answers; the bridge
+   tick. The Inspector reads the engine's `Surface`, or dispatches input
+   through it as a platform's input, and answers; the bridge
    posts the answer back, and the server relays it to the Driver.
 
 Nothing blocks the UI or audio thread on the network. Node references are
@@ -144,7 +148,9 @@ plugin connects only when `soundor dev` hands it a session.
   no DevTools session yet.
 - A tree snapshot holds at most 5000 nodes; a locator reports when the node
   may be beyond a truncated snapshot.
-- Inspection is read-only.
+- Input is the engine's: pointer, wheel and keyboard as the plugin's view
+  receives them. Native OS controls, the host's windows and audio are out of
+  reach.
 
 ## Pages
 
@@ -152,5 +158,7 @@ plugin connects only when `soundor dev` hands it a session.
   targets, timeouts, errors.
 - [Inspecting UI](/docs/driver/inspecting): the tree, node details and
   locators.
+- [Interacting with UI](/docs/driver/interacting): actions, actionability,
+  pointer and keyboard, cleanup.
 - [CLI reference](/docs/driver/cli): `soundor driver`, its JSON output and exit
   codes.

@@ -158,7 +158,7 @@ describe('generateJuceSources', () => {
     expect(editor).toContain(
       'runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));',
     );
-    expect(editor).toContain('handled = surface.text({ text });');
+    expect(editor).toContain('backend::typedText(key));');
     expect(editor).toContain('setWantsKeyboardFocus(true);');
     // Rendered by the runtime, only when the picture changed, and presented
     // by a compositor that outlives a reloaded runtime.

@@ -43,6 +43,14 @@ Observer tabs can select and read nodes independently; picking updates the
 controller's selection. A valid lease cannot be stolen. Release it explicitly,
 switch targets, or close the controlling tab to make it available.
 
+With control, the details of a selected node offer **Click**, **Hover** and
+**Focus** (focusable nodes): the target's synthetic input, through the
+engine's own hit testing and event dispatch, as
+[Soundor Driver](/docs/driver/interacting) sends it. A click goes to the
+node's center; when another node covers it there, nothing is sent and the
+notice says what covers it. Targets without the `input` capability show no
+such actions.
+
 Ordinary tree updates retain surviving selections. Reload, node removal, and
 process disconnection invalidate references safely. WebSocket reconnect restores
 inspection, but never reacquires control automatically. Large snapshots are
@@ -58,9 +66,9 @@ dark theme and supports keyboard tree navigation.
 
 ## From scripts
 
-[Soundor Driver](/docs/driver) reads the same session from Node.js and from
-`soundor driver`: the tree, node details and locators, for scripts and coding
-agents. It signs in like a dashboard tab and can run beside one.
+[Soundor Driver](/docs/driver) works with the same session from Node.js and
+from `soundor driver`: the tree, node details, locators and input, for
+scripts and coding agents. It signs in like a dashboard tab and can run beside one.
 
 ## Animations and performance
 

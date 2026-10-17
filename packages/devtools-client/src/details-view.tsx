@@ -29,11 +29,59 @@ function DetailGroup({
     </details>
   );
 }
-export function DetailsView({
-  inspector: { state, ui },
-}: {
-  inspector: Inspector;
-}) {
+/** Synthetic input on the selected node, for its controller. */
+function NodeActions({ inspector }: { inspector: Inspector }) {
+  const { state, ui, actions } = inspector;
+  const node = ui.details;
+  if (!node) return null;
+  if (!state.supports('input'))
+    return (
+      <div className="node-actions" id="node-actions">
+        <span className="hint">This target does not accept input.</span>
+      </div>
+    );
+  const enabled = state.connected && state.ownsControl() && !ui.interacting;
+  return (
+    <div
+      className="node-actions"
+      id="node-actions"
+      role="group"
+      aria-label="Interact with the node"
+    >
+      <button
+        id="node-click"
+        disabled={!enabled}
+        onClick={() => actions.interact('click')}
+      >
+        Click
+      </button>
+      <button
+        id="node-hover"
+        disabled={!enabled}
+        onClick={() => actions.interact('hover')}
+      >
+        Hover
+      </button>
+      <button
+        id="node-focus"
+        disabled={!enabled || node.properties?.['focusable'] !== true}
+        onClick={() => actions.interact('focus')}
+      >
+        Focus
+      </button>
+      {!state.ownsControl() ? (
+        <span className="hint">Request control to interact.</span>
+      ) : (
+        <span className="hint" id="interaction" role="status">
+          {ui.interaction}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function DetailsView({ inspector }: { inspector: Inspector }) {
+  const { state, ui } = inspector;
   const node = ui.details;
   return (
     <section id="details" aria-label="Node details">
@@ -47,6 +95,7 @@ export function DetailsView({
       ) : (
         <>
           <div className="node-heading">{label(node)}</div>
+          <NodeActions inspector={inspector} />
           <DetailGroup
             heading="Properties"
             data={{

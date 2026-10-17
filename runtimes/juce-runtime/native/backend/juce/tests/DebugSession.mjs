@@ -14,6 +14,9 @@ const serverRequire = createRequire(
 const configRequire = createRequire(
   new URL('packages/config/package.json', repository),
 );
+const driverRequire = createRequire(
+  new URL('packages/driver/package.json', repository),
+);
 const { rolldown } = await import(
   pathToFileURL(configRequire.resolve('rolldown')).href
 );
@@ -75,6 +78,36 @@ const bundle = await rolldown({
 });
 await bundle.write({ file: join(root, 'server.mjs'), format: 'esm' });
 await bundle.close();
+// Soundor Driver as published: its own dependencies, the shared protocol.
+const driverBundle = await rolldown({
+  input: fileURLToPath(new URL('packages/driver/src/index.ts', repository)),
+  platform: 'node',
+  plugins: [
+    {
+      name: 'driver-dependencies',
+      resolveId(source) {
+        if (source === 'ws' || source === 'zod')
+          return {
+            id: pathToFileURL(
+              source === 'ws'
+                ? join(dirname(driverRequire.resolve('ws')), 'wrapper.mjs')
+                : driverRequire.resolve('zod'),
+            ).href,
+            external: true,
+          };
+        if (source === '@soundor/devtools-protocol')
+          return fileURLToPath(
+            new URL('packages/devtools-protocol/src/index.ts', repository),
+          );
+      },
+    },
+  ],
+});
+await driverBundle.write({ file: join(root, 'driver.mjs'), format: 'esm' });
+await driverBundle.close();
+const { connect: connectDriver } = await import(
+  pathToFileURL(join(root, 'driver.mjs')).href
+);
 const { startDevToolsServer } = await import(
   pathToFileURL(join(root, 'server.mjs')).href
 );
@@ -177,7 +210,8 @@ try {
     const target = changed.data[0];
     assert.equal(target.name, 'Native Bridge Test');
     const tree = await request('UI.getTree', target.id);
-    assert.equal(tree.result.nodes.length, 4);
+    // The native control and canvas, and the application's reset button.
+    assert.equal(tree.result.nodes.length, 5);
     const control = tree.result.nodes.find((node) => node.ref.id === '3');
     const details = await request('UI.getNode', target.id, {
       node: control.ref,
@@ -203,7 +237,7 @@ try {
     const selected = await take(
       (message) => message.event === 'UI.nodeSelected',
     );
-    assert.deepEqual(selected.data.node, { generation: 1, id: '4' });
+    assert.deepEqual(selected.data.node, { generation: 1, id: '5' });
     await until(() => output.includes('PICKED applicationEvents=0'));
     await request('UI.setPickerEnabled', target.id, { enabled: true });
     await take(
@@ -245,9 +279,31 @@ try {
       (await request('UI.getTree', reconnect.data[0].id)).result.generation,
       2,
     );
+    // Soundor Driver, through the same session: its click reaches the
+    // application's listener through the engine's normal input dispatch.
+    phase = 'Soundor Driver';
+    const driver = await connectDriver({ descriptorPath, timeout: 5000 });
+    try {
+      const reset = driver.getByDebugId('reset');
+      assert.equal((await reset.getNode()).accessibility.name, 'Reset');
+      assert.deepEqual(
+        (await driver.target()).capabilities.includes('input'),
+        true,
+      );
+      const clicked = await reset.click();
+      assert.equal(clicked.handled, true);
+      await until(() => output.includes('CLICKED generation=2 clicks=1'));
+      // A press left held is cancelled, without a click, when the Driver goes.
+      await driver.pointer.move(70, 10);
+      await driver.pointer.down();
+    } finally {
+      await driver.disconnect();
+    }
+    await until(() => output.includes('CANCELLED generation=2 cancels=1'));
+    assert.ok(!output.includes('clicks=2'));
     await finished;
     console.log(
-      'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, clean teardown',
+      'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, Soundor Driver click and release through native dispatch, clean teardown',
     );
   }
 } finally {

@@ -18,6 +18,8 @@ export interface DevToolsCapabilities {
   readonly accessibility?: boolean;
   readonly animations?: boolean;
   readonly performance?: boolean;
+  /** Synthetic pointer and keyboard input (Soundor Driver, DevTools actions). */
+  readonly input?: boolean;
 }
 
 export interface RuntimeCapabilities {

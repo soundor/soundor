@@ -123,8 +123,13 @@ from another generation are rejected.
 | UI.highlightNode / clearHighlight / setPickerEnabled | Native debug interaction, requires control              |
 | Animation.getActive                                  | Actual animation metadata where supported               |
 | Diagnostics.getMetrics / setRecording                | Read measured counters; control demand-driven recording |
+| UI.hitTest                                           | The deepest node at a point and its ancestors           |
+| Input.dispatchPointer / dispatchWheel                | Synthetic pointer and wheel input, requires control     |
+| Input.dispatchKey / typeText / focus                 | Synthetic keys, text and focus, requires control        |
 
-Targets negotiate `inspector`, `accessibility`, `animations` and `performance`.
+Targets negotiate `inspector`, `accessibility`, `animations`, `performance`
+and `input`. `input` is never implied by `inspector`: a runtime advertises it
+only where it dispatches synthetic input through its engine.
 Unsupported operations return MISSING_CAPABILITY. Omit unsupported properties
 rather than filling them with inferred values. Layout, base/computed styles,
 presentation and accessibility are distinct JSON property groups.
@@ -196,7 +201,7 @@ must not infer it from arbitrary native nodes or stacks.
 ## Leases and bounds
 
 Observers can read without control. Acquire explicitly before native picking,
-highlighting or profiling. A valid lease cannot be stolen: LEASE_BUSY identifies
+highlighting, profiling or input. A valid lease cannot be stolen: LEASE_BUSY identifies
 another controller. Disconnect or heartbeat timeout releases it and sends reset.
 At most one interactive command is outstanding per target; competing commands
 receive BUSY and may retry after completion. Read-only operations may overlap.
@@ -212,6 +217,33 @@ invalidates pending requests, subscriptions, transports and the descriptor.
 [Soundor Driver](/docs/driver) is a client of this same protocol and browser
 transport for scripts, the CLI and coding agents. Audio processing is not part
 of v1.
+
+## Input
+
+Input is synthetic platform input, in the view's logical pixels, dispatched by
+the engine's own hit testing, capture, propagation and default actions. It
+never calls application handlers directly.
+
+- `Input.dispatchPointer {action, x?, y?, button?, modifiers?}`: `move`,
+  `down`, `up` (at the last position unless given), `click` (move, press and
+  release in one command, so no press outlives it) and `cancel` (a
+  `pointercancel`, no click). `button` is `left`, `middle` or `right`.
+- `Input.dispatchWheel {x, y, deltaX, deltaY, modifiers?}`: pixels, positive
+  down and right.
+- `Input.dispatchKey {action: down|up|press, key, modifiers?}`:
+  `KeyboardEvent.key` values. A printable key also types its text when the UI
+  leaves the press unhandled and neither Control nor Meta is held.
+- `Input.typeText {text}`: up to 1024 characters, a key press each.
+- `Input.focus {node}`: `NOT_ACTIONABLE` for a node that cannot take focus.
+
+Results are `{handled, node}`: whether the UI handled the input, and the node
+under the pointer (or focused, for keys). Keys held with `dispatchKey` add
+their modifiers to later input. Instances keep the synthetic pointer apart
+from real pointers (its own pointer ID) and release whatever it holds (a
+`pointercancel` for a pressed button, `keyup` for held keys) on
+`resetControl`, which follows control release, controller disconnect and
+reload. `UI.hitTest {x, y}` returns `{node, path}` (the deepest node and its
+ancestors' IDs from a root) and needs only `inspector`.
 
 ## License
 

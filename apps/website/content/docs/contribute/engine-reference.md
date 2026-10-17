@@ -48,6 +48,20 @@ roots, relevant normalized style/presentation data, layout, text, visibility,
 focus and the existing semantic tree. Semantic inspection preserves pending
 platform accessibility updates.
 
+Runtime bridges hand the Inspector their commands as JSON text:
+`debug::Value::parse` (RFC 8259, at most 64 levels) and `debug::Command::parse`
+decode them in the engine, so a bridge only moves bytes. `UI.hitTest` and the
+`Input.*` commands (`src/debug/Input.cpp`) dispatch synthetic input through
+`Surface::pointer`, `wheel`, `key` and `text`, the same entry points a
+platform's input uses, then run pending jobs as the JUCE editor does after
+real input. `Surface::key(input, typed)` is the shared key entry: the key
+event, then its text when the UI leaves a press unhandled. The synthetic
+pointer has its own ID (`Inspector::automationPointer`), so its hover and
+capture never mix with the real mouse's. The Inspector keeps what synthetic
+input holds (buttons, keys) and releases it on `resetControl`, transport loss
+and bridge reset (a `pointercancel`, `keyup`s); a generation change forgets
+it, as the old surface went with its host.
+
 Full snapshots are on demand and bounded to 5000 nodes and a transport budget,
 with truncation reported. Subscribed revision notifications are coalesced to
 10 Hz. Structure changes invalidate the tree; text/role/name changes include

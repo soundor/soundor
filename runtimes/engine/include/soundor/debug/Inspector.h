@@ -9,8 +9,11 @@
     #include <deque>
     #include <functional>
     #include <map>
+    #include <optional>
     #include <set>
+    #include <stdexcept>
     #include <string>
+    #include <string_view>
     #include <type_traits>
     #include <utility>
     #include <variant>
@@ -44,6 +47,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         Value(Object value) : data(std::move(value)) {}        // NOLINT(google-explicit-constructor)
         Value(Array value) : data(std::move(value)) {}         // NOLINT(google-explicit-constructor)
         [[nodiscard]] std::string json() const;
+        // Reads JSON text (at most 64 levels deep); nothing for anything else.
+        [[nodiscard]] static std::optional<Value> parse(std::string_view json);
     };
 
     struct Command
@@ -56,6 +61,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         bool enabled = false;
         bool nodeRequested = false;
         std::set<std::string> events;
+        // The request's parameters, for methods with more than a node.
+        Value::Object params;
+        // A runtime command of the protocol (`runtimeCommandSchema`), as a
+        // runtime bridge receives it; nothing when it is not one.
+        [[nodiscard]] static std::optional<Command> parse(const Value& value);
+    };
+
+    // A command the instance refuses, with the protocol's error code.
+    struct CommandError : std::runtime_error
+    {
+        CommandError(std::string errorCode, const std::string& message)
+            : std::runtime_error(message), code(std::move(errorCode))
+        {
+        }
+        std::string code;
     };
 
     // Adapter dispatches on the owning UI thread. Contains only node IDs,
@@ -81,8 +101,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         [[nodiscard]] bool picking() const noexcept { return picker; }
         [[nodiscard]] Value tree(RuntimeHost& host) const;
         [[nodiscard]] Value node(RuntimeHost& host, ui::NodeId id, bool details = true) const;
+        // The pointer synthetic input uses: its own, so its presses, hover
+        // and capture never mix with the real mouse's (pointer 1).
+        static constexpr int automationPointer = 32000;
+        // Whether synthetic input holds a button or a key down.
+        [[nodiscard]] bool holdingInput() const noexcept { return synthetic.buttons != 0 || ! synthetic.keys.empty(); }
 
     private:
+        struct SyntheticInput
+        {
+            bool present = false;
+            ui::Point position;
+            unsigned buttons = 0;
+            std::set<std::string> keys;
+        };
+        // UI.hitTest and Input.*: through the Surface's own dispatch, as a
+        // platform's input, never by calling application handlers.
+        Value input(RuntimeHost& host, const Command& command);
+        // Releases what synthetic input holds (a pointercancel, key ups), or
+        // forgets it without dispatching when its surface is gone.
+        void resetInput(ui::Surface* surface);
+        SyntheticInput synthetic;
         void event(const std::string& name, Value data, bool force = false) const;
         void resetPicker(ui::Surface& surface);
         void profileTick(RuntimeHost& host);

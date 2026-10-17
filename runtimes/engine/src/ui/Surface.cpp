@@ -1328,6 +1328,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return false;
     }
 
+    bool Surface::key(const KeyInput& input, const std::string& typed)
+    {
+        const bool handled = key(input);
+        if (handled || ! input.down || typed.empty())
+            return handled;
+        return text({ typed });
+    }
+
     bool Surface::text(const TextInput& input)
     {
         const NodeId target = focused();

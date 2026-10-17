@@ -17,7 +17,7 @@ export const DRIVER_EXIT_CODES = {
   authentication: 3,
   /** No server, no target, or the target disconnected or reloaded. */
   unavailable: 4,
-  /** No node, several nodes, or a stale node for a query. */
+  /** No node, several nodes, a stale node, or one that cannot take the input. */
   element: 5,
   /** Another client controls the target, or it is busy. */
   lease: 6,
@@ -42,6 +42,7 @@ const EXIT_CODES: Record<DriverErrorCode, number> = {
   GENERATION_CHANGED: DRIVER_EXIT_CODES.unavailable,
   ELEMENT_NOT_FOUND: DRIVER_EXIT_CODES.element,
   AMBIGUOUS_ELEMENT: DRIVER_EXIT_CODES.element,
+  ELEMENT_NOT_ACTIONABLE: DRIVER_EXIT_CODES.element,
   STALE_NODE: DRIVER_EXIT_CODES.element,
   LEASE_BUSY: DRIVER_EXIT_CODES.lease,
   LEASE_REQUIRED: DRIVER_EXIT_CODES.lease,
@@ -182,6 +183,20 @@ export async function runDriverCommand<P, T>(
   }
   process.exitCode = code;
   return code;
+}
+
+/** A number option: finite, or an INVALID_OPTIONS error naming it. */
+export function numberOption(
+  value: unknown,
+  name: string,
+  fallback?: number,
+): number {
+  if (value === undefined && fallback !== undefined) return fallback;
+  const number =
+    typeof value === 'string' && value.trim() ? Number(value) : NaN;
+  if (!Number.isFinite(number))
+    throw new DriverError('INVALID_OPTIONS', `${name} must be a number`);
+  return number;
 }
 
 /** A required argument citty leaves optional, so a missing one exits 2. */

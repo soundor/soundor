@@ -29,13 +29,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             return static_cast<unsigned>(static_cast<juce::int64>(property(value, name)));
         }
-        ui::NodeId nodeId(const juce::var& value)
-        {
-            const auto text = string(value, "id");
-            ui::NodeId id = ui::noNode;
-            const auto result = std::from_chars(text.data(), text.data() + text.size(), id);
-            return result.ec == std::errc() && result.ptr == text.data() + text.size() ? id : ui::noNode;
-        }
     } // namespace
 
     struct JuceDebugBridge::State
@@ -194,15 +187,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                     if (descriptorData)
                     {
                         const auto registration =
-                            debug::Value(debug::Value::Object {
-                                             { "version", 1 },
-                                             { "sessionId", descriptorData->session },
-                                             { "name", name },
-                                             { "runtime", "JUCE Standalone" },
-                                             { "generation", generation.load() },
-                                             { "capabilities", debug::Value::Array { "inspector", "accessibility",
-                                                                                     "animations", "performance" } },
-                                         })
+                            debug::Value(
+                                debug::Value::Object {
+                                    { "version", 1 },
+                                    { "sessionId", descriptorData->session },
+                                    { "name", name },
+                                    { "runtime", "JUCE Standalone" },
+                                    { "generation", generation.load() },
+                                    { "capabilities", debug::Value::Array { "inspector", "accessibility", "animations",
+                                                                            "performance", "input" } },
+                                })
                                 .json();
                         const auto response = request(*descriptorData, "/runtime/register", "POST", registration, 0);
                         if (! response || response->first != 200)
@@ -242,31 +236,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 {
                     for (const auto& value : *array)
                     {
-                        debug::Command command;
-                        command.id = string(value, "id");
-                        const auto type = string(value, "type");
-                        if (type == "cancel")
+                        // The engine decodes commands, for every runtime alike.
+                        const auto parsed = debug::Value::parse(juce::JSON::toString(value, true).toStdString());
+                        auto command = parsed ? debug::Command::parse(*parsed) : std::nullopt;
+                        if (! command)
+                            continue;
+                        std::lock_guard lock(mutex);
+                        if (command->method == "cancel")
                         {
-                            std::lock_guard lock(mutex);
                             std::erase_if(incoming,
-                                          [&](const Incoming& item) { return item.command.id == command.id; });
+                                          [&](const Incoming& item) { return item.command.id == command->id; });
                             continue;
                         }
-                        command.method = type == "request" ? string(value, "method") : type;
-                        command.targetGeneration = number(value, "generation");
-                        const auto params = property(value, "params");
-                        const auto node = property(params, "node");
-                        command.node = nodeId(node);
-                        command.nodeRequested = node.isObject();
-                        command.generation = number(node, "generation");
-                        command.enabled = static_cast<bool>(property(params, "enabled"));
-                        const auto events = property(value, "events");
-                        if (const auto* list = events.getArray())
-                            for (const auto& item : *list)
-                                command.events.insert(item.toString().toStdString());
-                        std::lock_guard lock(mutex);
                         if (data.epoch == credentials.epoch && incoming.size() < maxQueue)
-                            incoming.push_back({ data.epoch, std::move(command) });
+                            incoming.push_back({ data.epoch, std::move(*command) });
                     }
                 }
             }

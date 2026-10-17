@@ -359,6 +359,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     }
     void Inspector::reset(ui::Surface& surface)
     {
+        resetInput(&surface);
         resetPicker(surface);
         surface.debugRecording(false);
         const bool hadRecording = profiling || ! frames.empty();
@@ -377,6 +378,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         auto& surface = host.surface();
         if (generation != currentGeneration)
         {
+            // The input went with the replaced host's surface.
+            resetInput(nullptr);
             reset(surface);
             surface.debugMetadataSubscription(subscribed.contains("UI.treeChanged"));
             currentGeneration = generation;
@@ -482,6 +485,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 if (command.method == "UI.getAccessibility")
                     response["result"] = accessibility(host, item);
             }
+            else if (command.method == "UI.hitTest" || command.method.starts_with("Input."))
+                response["result"] = input(host, command);
             else if (command.method == "Animation.getActive")
                 response["result"] = animations(host, command.node);
             else if (command.method == "Diagnostics.getMetrics")
@@ -534,6 +539,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             else
                 response["error"] = Object { { "code", "MISSING_CAPABILITY" },
                                              { "message", "Operation is not supported by this instance" } };
+        }
+        catch (const CommandError& error)
+        {
+            response["error"] = Object { { "code", error.code }, { "message", std::string(error.what()) } };
         }
         catch (const std::invalid_argument& error)
         {

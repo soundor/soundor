@@ -402,6 +402,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         bool pointer(const PointerInput& input);
         bool wheel(const WheelInput& input);
         bool key(const KeyInput& input);
+        // A key as a platform delivers it: the key event first, then, when
+        // the UI does not handle a press, the text it types (empty: none).
+        bool key(const KeyInput& input, const std::string& typed);
         bool text(const TextInput& input);
 
         // Delivers an accessibility action to `target` (an

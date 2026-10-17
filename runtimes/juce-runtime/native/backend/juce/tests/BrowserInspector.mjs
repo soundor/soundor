@@ -38,7 +38,7 @@ export async function inspectInBrowser(server, nativeOutput) {
       .click();
     await page
       .locator('.tree-row[aria-selected=true]')
-      .filter({ hasText: 'Canvas' })
+      .filter({ hasText: '#reset' })
       .waitFor();
     await page.getByText('Properties', { exact: true }).waitFor();
     await page

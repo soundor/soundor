@@ -154,3 +154,43 @@ it('validates bounded animation lifecycle changes and requires typed diagnostics
     animationSchema.safeParse({ ...animation, elapsedMs: -1 }).success,
   ).toBe(false);
 });
+
+it('validates input commands and keeps them behind their own capability and the lease', async () => {
+  const { methodCapability, requiresControl, methodParams } =
+    await import('./index');
+  const pointer = methodParams['Input.dispatchPointer'];
+  expect(pointer.safeParse({ action: 'click', x: 1, y: 2 }).success).toBe(true);
+  expect(pointer.safeParse({ action: 'down' }).success).toBe(true);
+  expect(pointer.safeParse({ action: 'move' }).success).toBe(false);
+  expect(pointer.safeParse({ action: 'down', x: 1 }).success).toBe(false);
+  expect(
+    pointer.safeParse({ action: 'move', x: Number.NaN, y: 0 }).success,
+  ).toBe(false);
+  expect(
+    pointer.safeParse({ action: 'click', x: 0, y: 0, button: 'back' }).success,
+  ).toBe(false);
+  expect(
+    methodParams['Input.dispatchKey'].safeParse({
+      action: 'press',
+      key: 'Enter',
+      modifiers: ['Shift'],
+    }).success,
+  ).toBe(true);
+  expect(
+    methodParams['Input.typeText'].safeParse({ text: 'x'.repeat(1025) })
+      .success,
+  ).toBe(false);
+  for (const method of [
+    'Input.dispatchPointer',
+    'Input.dispatchWheel',
+    'Input.dispatchKey',
+    'Input.typeText',
+    'Input.focus',
+  ] as const) {
+    expect(methodCapability(method)).toBe('input');
+    expect(requiresControl(method)).toBe(true);
+  }
+  // Hit testing reads; it needs inspection, not control.
+  expect(methodCapability('UI.hitTest')).toBe('inspector');
+  expect(requiresControl('UI.hitTest')).toBe(false);
+});

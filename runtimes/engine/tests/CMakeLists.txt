@@ -55,7 +55,7 @@ if(SOUNDOR_JS_SOURCE)
   endif()
   soundor_configure_target(soundor_runtime_tests)
   if(SOUNDOR_ENABLE_DEVTOOLS)
-    target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp debug/DiagnosticsTests.cpp)
+    target_sources(soundor_runtime_tests PRIVATE debug/InspectorTests.cpp debug/DiagnosticsTests.cpp debug/CommandTests.cpp debug/InputTests.cpp)
   endif()
 
   # Generated code is checked by its generator's tests, not linted.
