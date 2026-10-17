@@ -59,7 +59,7 @@ Runtime generation adds its own implementation contract:
 
 The shared UI TypeScript project includes the generated declarations and uses
 `lib: ["ES2023"]` without `DOM`. Browser host files use a separate configuration
-with browser types. See [CLI bundling](/docs/cli#the-plugin-ui-bundle) and
+with browser types. See [CLI bundling](/docs/cli/ui-bundle) and
 [Configuration](/docs/cli/config).
 
 ## The UI bundle
@@ -97,7 +97,7 @@ used to map UI stack frames back to TypeScript.
 The CLI can also start a local DevTools session for a runtime that declares
 support. The native development Standalone offers tree inspection, picking,
 animation information, and measured rendering diagnostics. See
-[CLI development](/docs/cli#development).
+[CLI development](/docs/cli/dev).
 
 ## Production builds
 

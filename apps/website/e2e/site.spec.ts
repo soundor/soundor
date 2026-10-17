@@ -268,7 +268,10 @@ test('each tab has its own pages: hooks, testing, the CLI', async ({
   for (const [path, heading] of [
     ['/docs/hooks/use-parameter', 'useParameter'],
     ['/docs/testing', 'Testing'],
+    ['/docs/testing/by-role', 'ByRole'],
+    ['/docs/testing/advance-time', 'advanceTime'],
     ['/docs/cli', 'CLI'],
+    ['/docs/cli/dev', 'soundor dev'],
     ['/docs/cli/config', 'Configuration'],
   ] as const) {
     await page.goto(path);

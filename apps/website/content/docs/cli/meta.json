@@ -2,5 +2,19 @@
   "title": "CLI",
   "description": "Commands, configuration and new projects",
   "root": true,
-  "pages": ["index", "config", "create-soundor-app"]
+  "pages": [
+    "index",
+    "---Commands---",
+    "init",
+    "gen",
+    "dev",
+    "build",
+    "doctor",
+    "---Project---",
+    "config",
+    "create-soundor-app",
+    "ui-bundle",
+    "---Development---",
+    "devtools"
+  ]
 }

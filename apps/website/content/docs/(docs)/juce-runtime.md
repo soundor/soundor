@@ -129,7 +129,7 @@ frame/raster timing is inactive otherwise. Production builds exclude the bridge.
 Request control before highlighting or activating the picker. Picker selection
 updates only the controller's browser view; observers keep independent selection.
 Runtime reload clears all old node references. See the
-[CLI inspector guide](/docs/cli#native-devtools-inspector).
+[CLI inspector guide](/docs/cli/devtools#inspecting-the-native-ui).
 
 ### init vs gen: you own the host, Soundor owns the framework
 

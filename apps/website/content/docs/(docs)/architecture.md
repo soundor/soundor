@@ -132,7 +132,7 @@ DevTools connects a browser dashboard to an authenticated local server. The
 native development Standalone connects through a worker-based bridge, while
 inspection and mutations run on the owning UI thread. Node references include a
 generation so reload invalidates stale requests. Release builds exclude the
-native debug bridge. See [CLI development](/docs/cli#native-devtools-inspector).
+native debug bridge. See [CLI development](/docs/cli/devtools#inspecting-the-native-ui).
 
 Application tests run in Node against an in-memory runtime. They use the real
 React renderer and shared semantic rules, with a virtual clock for animations.
