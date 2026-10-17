@@ -1,0 +1,25 @@
+{
+  "title": "Docs",
+  "description": "Build plugins with Soundor",
+  "root": true,
+  "pages": [
+    "---Getting started---",
+    "index",
+    "getting-started",
+    "project-lifecycle",
+    "---Concepts---",
+    "architecture",
+    "parameters",
+    "---Guides---",
+    "react",
+    "testing",
+    "---Runtimes---",
+    "juce-runtime",
+    "web-runtime",
+    "engine",
+    "---Examples---",
+    "...examples",
+    "---Reference---",
+    "...reference"
+  ]
+}

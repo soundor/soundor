@@ -3,6 +3,6 @@
 Core utilities and contracts shared by the Soundor toolchain, runtime packages,
 and integrations.
 
-- [Guide and reference](https://github.com/soundor/soundor/blob/main/docs/core.md)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
-- [Architecture](https://github.com/soundor/soundor/blob/main/docs/architecture.md)
+- [Guide and reference](https://soundor.dev/docs/contribute/core)
+- [Documentation](https://soundor.dev/docs)
+- [Architecture](https://soundor.dev/docs/architecture)

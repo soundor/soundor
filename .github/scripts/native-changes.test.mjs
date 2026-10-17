@@ -62,7 +62,13 @@ const relock = (name) => (root) => {
 // @soundor/juce-runtime and soundor-benchmark, from the packages they depend on.
 const cases = [
   // None of them depends on these.
-  ['docs/guide.md', create('docs/guide.md'), false, false, false],
+  [
+    'a docs page',
+    create('apps/website/content/docs/(docs)/guide.md'),
+    false,
+    false,
+    false,
+  ],
   ['an example', append('examples/basic/src/main.tsx'), false, false, false],
   ['oxfmt.config.ts', append('oxfmt.config.ts'), false, false, false],
   ['lockfile comment', append('pnpm-lock.yaml', '#'), false, false, false],

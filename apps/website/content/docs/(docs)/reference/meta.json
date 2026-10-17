@@ -1,0 +1,11 @@
+{
+  "pages": [
+    "config",
+    "cli",
+    "create-soundor-app",
+    "vitest",
+    "vitest-environment-soundor",
+    "testing-library",
+    "runtime-sdk"
+  ]
+}

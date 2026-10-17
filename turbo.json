@@ -18,13 +18,29 @@
       "dependsOn": ["^build"],
       "outputs": ["dist"]
     },
+    "build:web": {
+      "dependsOn": ["^build"],
+      "outputs": [".soundor/dist/web/**", ".soundor/generated/**"]
+    },
+    "website#build": {
+      "dependsOn": ["^build:web"],
+      "outputs": ["dist/**", "public/examples/**"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true
     },
+    "website#dev": {
+      "dependsOn": ["^build:web"],
+      "cache": false,
+      "persistent": true
+    },
     "test": {
       "dependsOn": ["^test", "^build"]
+    },
+    "website#test": {
+      "dependsOn": []
     },
     "test:watch": {
       "dependsOn": ["^build"],

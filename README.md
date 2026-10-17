@@ -28,15 +28,15 @@ render(<Gain />);
 ```
 
 This UI expects a `gain` parameter in the project configuration. The
-[getting started guide](docs/getting-started.md) walks through the configuration
+[getting started guide](https://soundor.dev/docs/getting-started) walks through the configuration
 and a working project.
 
 ## Two runtimes, one UI
 
-| Runtime                      | UI implementation                                                                         | Audio implementation                                         |
-| ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| [JUCE](docs/juce-runtime.md) | Hermes runs the UI; Yoga lays it out; Skia draws it, with GPU composition where available | Your C++ processor; VST3, AU on macOS, and Standalone builds |
-| [Web](docs/web-runtime.md)   | The browser runs the UI on DOM-backed Soundor nodes                                       | Your TypeScript and Web Audio graph                          |
+| Runtime                                       | UI implementation                                                                         | Audio implementation                                         |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [JUCE](https://soundor.dev/docs/juce-runtime) | Hermes runs the UI; Yoga lays it out; Skia draws it, with GPU composition where available | Your C++ processor; VST3, AU on macOS, and Standalone builds |
+| [Web](https://soundor.dev/docs/web-runtime)   | The browser runs the UI on DOM-backed Soundor nodes                                       | Your TypeScript and Web Audio graph                          |
 
 The React renderer targets Soundor's `soundor:ui` interface. The native runtime
 embeds its own UI engine; the web runtime implements the same interface with
@@ -58,21 +58,22 @@ pnpm exec soundor dev juce
 The scaffolder currently creates a JUCE project. It pins every Soundor package
 to an exact version: Soundor is pre-1.0, and a minor release can change APIs.
 To add a browser runtime or try the repository's browser example, follow
-[Getting started](docs/getting-started.md).
+[Getting started](https://soundor.dev/docs/getting-started).
 
 ## Documentation
 
-All guides and references live in [`docs/`](docs/README.md). Start with:
+All guides and references are on [soundor.dev](https://soundor.dev/docs), from
+`apps/website/content/docs/` in this repository. Start with:
 
-- [The idea](docs/overview.md): what Soundor shares and what you implement.
-- [Getting started](docs/getting-started.md): create a plugin and run it.
-- [Architecture](docs/architecture.md): packages, runtime boundaries, rendering, and threading.
-- [Project lifecycle](docs/project-lifecycle.md): config, code generation, builds, and reloads.
-- [React UI](docs/react.md), [parameters](docs/parameters.md), and [testing](docs/testing.md).
-- [Contributing](docs/contributing.md): work on Soundor itself.
+- [The idea](https://soundor.dev/docs): what Soundor shares and what you implement.
+- [Getting started](https://soundor.dev/docs/getting-started): create a plugin and run it.
+- [Architecture](https://soundor.dev/docs/architecture): packages, runtime boundaries, rendering, and threading.
+- [Project lifecycle](https://soundor.dev/docs/project-lifecycle): config, code generation, builds, and reloads.
+- [React UI](https://soundor.dev/docs/react), [parameters](https://soundor.dev/docs/parameters), and [testing](https://soundor.dev/docs/testing).
+- [Contributing](https://soundor.dev/docs/contribute): work on Soundor itself.
 
-The [basic example](docs/example-basic.md) implements a gain plugin in both
-runtimes. The [primitives example](docs/example-primitives.md) demonstrates UI
+The [basic example](https://soundor.dev/docs/examples/basic) implements a gain plugin in both
+runtimes. The [primitives example](https://soundor.dev/docs/examples/primitives) demonstrates UI
 components, focus, accessibility, canvases, and animation.
 
 ## Work on Soundor
@@ -84,11 +85,11 @@ pnpm check
 ```
 
 Native checks build the engine and its dependencies on the first run. See
-[Contributing](docs/contributing.md) for requirements, focused checks, and example
+[Contributing](https://soundor.dev/docs/contribute) for requirements, focused checks, and example
 commands.
 
 ## License
 
 Soundor is [MIT licensed](LICENSE). Native dependencies carry their own notices;
-see [engine attribution](docs/engine.md#licenses-and-attribution). JUCE is a
+see [engine attribution](https://soundor.dev/docs/engine#licenses-and-attribution). JUCE is a
 separate dependency with its own license.

@@ -90,6 +90,11 @@ jobs:
             pnpm --filter basic --filter primitives build:web
           } 2>&1 | tee "$RUNNER_TEMP/step.log"
 
+      # The docs and the examples' web builds they embed; fails on a broken
+      # internal link or anchor. Deployed by website.yml.
+      - name: Website build
+        run: set -o pipefail; pnpm turbo run build --filter=website 2>&1 | tee "$RUNNER_TEMP/step.log"
+
       - name: Packed Vitest consumer smoke
         run: set -o pipefail; pnpm --filter @soundor/vitest test:consumer 2>&1 | tee "$RUNNER_TEMP/step.log"
 

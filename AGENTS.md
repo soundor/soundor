@@ -21,15 +21,16 @@ same lifecycle phases. Two runtimes exist:
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
   Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
 
-The guides in `docs/` are the authoritative spec of behavior (especially
-`docs/juce-runtime.md`, `docs/engine-reference.md`,
-`docs/web-runtime.md`, `docs/react.md`). Keep them in
-sync when behavior changes.
+The guides in `apps/website/content/docs/` are the authoritative spec of
+behavior, published at https://soundor.dev: `(docs)/` for plugin authors
+(especially `juce-runtime.md`, `web-runtime.md`, `react.md`), `contribute/`
+for internals (especially `engine-reference.md`). Keep them in sync when
+behavior changes.
 
 ## Commands
 
 pnpm 12 + Node 24 monorepo driven by Turborepo. The root scripts exclude
-`examples/*`.
+`apps/*` (the website) and `examples/*`.
 
 ```sh
 pnpm install
@@ -78,10 +79,26 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 
 Examples (`examples/basic`, `examples/primitives`) are real projects using
 the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
-`... soundor build web|juce`. They are examples only: no test or native CI job
-builds them. Tests have their own fixtures, inside the package they test:
+`... soundor build web|juce`. No native CI job builds them; CI's Fast checks
+run their tests, typecheck and web builds, and the website embeds those web
+builds. Tests have their own fixtures, inside the package they test:
 `runtimes/juce-runtime/tests/plugin` (and `plugin-prebuilt`, the same plugin
 with a prebuilt engine, which `engine-prebuilts.yml` builds).
+
+The website (`apps/website`) embeds the examples' web builds:
+
+```sh
+pnpm turbo run build --filter=website   # packages, examples' build:web, the site → apps/website/dist/client
+pnpm turbo run dev --filter=website     # the site with live content reload
+pnpm --filter website test              # unit tests: placeholders, link check, examples sync
+```
+
+It depends on the examples' `build:web` only (`website#build` in `turbo.json`),
+never their `build`, which would build the JUCE plugin and the native engine.
+Its build fails on a broken internal link or anchor, or an incomplete page
+(`scripts/links.ts`). Its unit tests need nothing built (`website#test` has no
+dependencies), so the root `test` runs them. `.github/workflows/website.yml` deploys it: called
+by the release workflow after npm publishing, or run by hand.
 
 Native CI jobs each test one package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
@@ -90,7 +107,7 @@ Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
-UI updates in the JUCE runtime, headless; see `docs/benchmark.md`). Measure an optimization against a saved
+UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved
 build run alternately in the same session, not against an old report:
 machines drift by several percent between sessions. The "work per frame"
 counts (native calls, style changes, layouts, uploads) do not depend on
@@ -151,7 +168,7 @@ read the docs bundled with the installed package
 - `packages/vitest` and `packages/vitest-environment-soundor` — the `soundor()`
   plugin and `environment: 'soundor'`, with isolated runtime state per test.
 - `packages/testing-library` — semantic queries and stateful user interactions;
-  `/react` renders through Soundor's reconciler. See `docs/testing.md`.
+  `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
 - `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
@@ -159,6 +176,11 @@ read the docs bundled with the installed package
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
   `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under `src/client/shell/`).
 - `configs/*` — private shared tsconfig and tsdown presets.
+- `apps/website` — soundor.dev (private, never published): Fumadocs on
+  TanStack Start, prerendered to static files for GitHub Pages. Content in
+  `content/docs/` (`.md`, or `.mdx` where a page uses a component such as
+  `<Example name>`); `%version:<package>%` and `%node%` in content are
+  replaced at build time (`plugins/values.ts`).
 
 ### The cross-runtime contract
 
@@ -178,7 +200,7 @@ The backends are ARIA (web), AccessKit (Windows, Linux) and Soundor's own
 Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
 types never leave `src/a11y/accesskit/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
-swizzle (see `docs/apple-accessibility.md`).
+swizzle (see `contribute/apple-accessibility.md`).
 
 ### init vs gen ownership
 
@@ -228,8 +250,8 @@ generated framework or the runtime package, not in `init` templates.
 - `juceRuntime({ engine: { mode } })`: `prebuilt` (default) links the release
   named by the published engine's `artifacts/manifest.json` (written by the
   release workflow, never committed); the workspace has none, so the
-  examples use `source`. User-facing docs: `docs/engine.md`.
-- Prebuilt engines (`docs/engine-reference.md`, "Prebuilt engines") are the
+  examples use `source`. User-facing docs: the docs' `engine.md`.
+- Prebuilt engines (`contribute/engine-reference.md`, "Prebuilt engines") are the
   same build, staged and packed per target and variant (debug, release) by
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
