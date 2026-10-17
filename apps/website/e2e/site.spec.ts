@@ -238,3 +238,17 @@ test("a component's Markdown has its props table", async ({ request }) => {
   );
   expect(markdown).not.toContain('<auto-type-table');
 });
+
+test("a snippet's image loads, from the example's build", async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/components/image');
+  const plugin = page.frameLocator('iframe[title*="image snippet"]');
+  const image = plugin.getByRole('img', { name: 'A waveform, cover' });
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBe(320);
+  expect(problems).toEqual([]);
+});

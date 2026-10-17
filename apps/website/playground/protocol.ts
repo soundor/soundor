@@ -4,7 +4,7 @@
  * origin.
  */
 
-import type { SourceFiles } from './modules.ts';
+import type { SourceAssets, SourceFiles } from './modules.ts';
 
 /** Where the playground script is served from (built by build-playground). */
 export const PLAYGROUND_SCRIPT = '/playground/kit.js';
@@ -27,6 +27,8 @@ export interface RunMessage {
   readonly type: 'soundor:playground:run';
   readonly files: SourceFiles;
   readonly entry: string;
+  /** The images the files may import (see `SourceAssets`). */
+  readonly assets?: SourceAssets;
 }
 
 /** The host to the page: how the last run went, or a later error. */

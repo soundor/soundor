@@ -180,7 +180,8 @@ frontmatter gives its title and description. Write
 `examples/snippets/src/snippets/` live, its code under it. Readers can edit
 an embedded example's UI code (`src/`, without tests) and a snippet, and see
 them run, so that code may import only `react`, `@soundor/react`,
-`soundor:*` and the example's own files (a snippet: none).
+`soundor:*` and the example's own files (a snippet: none, but images from
+`examples/snippets/src/assets/`, which the snippet's page gets the ids of).
 
 A snippet is one small component, the file's default export, about one
 thing. Add it to `examples/snippets/src/snippets/` and its `index.ts`; the

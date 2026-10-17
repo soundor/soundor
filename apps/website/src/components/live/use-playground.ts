@@ -39,6 +39,7 @@ export function usePlayground(
   const run = (files: Readonly<Record<string, string>>): void => {
     const target = frame.current?.contentWindow;
     const entry = current.current?.entry;
+    const assets = current.current?.assets;
     last.current = files;
     if (target == null || entry === undefined) return;
     setStatus({ kind: 'running' });
@@ -46,6 +47,7 @@ export function usePlayground(
       type: 'soundor:playground:run',
       files: { ...files },
       entry,
+      ...(assets === undefined ? {} : { assets }),
     };
     target.postMessage(message, window.location.origin);
   };

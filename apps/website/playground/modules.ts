@@ -11,6 +11,13 @@ import { transform } from 'sucrase';
 /** Source files by path from the project root (`src/main.tsx`). */
 export type SourceFiles = Readonly<Record<string, string>>;
 
+/**
+ * The images code may import, by path from the project root
+ * (`src/assets/cover.png`): their asset ids, which the host serves, as the
+ * CLI's bundle names them.
+ */
+export type SourceAssets = Readonly<Record<string, string>>;
+
 /** A problem in the code, located when the compiler can say where. */
 export class CodeError extends Error {
   override name = 'CodeError';
@@ -36,18 +43,23 @@ export class CodeError extends Error {
 
 const EXTENSIONS = ['', '.tsx', '.ts', '.jsx', '.js'];
 
+/** The path `specifier` names from the file `from`. */
+function resolvePath(from: string, specifier: string): string {
+  const parts = from.split('/').slice(0, -1);
+  for (const part of specifier.split('/')) {
+    if (part === '..') parts.pop();
+    else if (part !== '.' && part !== '') parts.push(part);
+  }
+  return parts.join('/');
+}
+
 /** The file `specifier` names from `from`, if the project has it. */
 function resolveFile(
   files: SourceFiles,
   from: string,
   specifier: string,
 ): string | undefined {
-  const parts = from.split('/').slice(0, -1);
-  for (const part of specifier.split('/')) {
-    if (part === '..') parts.pop();
-    else if (part !== '.' && part !== '') parts.push(part);
-  }
-  const base = parts.join('/');
+  const base = resolvePath(from, specifier);
   for (const candidate of [
     ...EXTENSIONS.map((extension) => base + extension),
     ...EXTENSIONS.slice(1).map((extension) => `${base}/index${extension}`),
@@ -78,13 +90,14 @@ export function compile(path: string, code: string): string {
 
 /**
  * Evaluates `entry` and what it imports. `libraries` are what code may
- * import besides its own files (`react`, `@soundor/react`, `soundor:*`).
- * Returns the entry's exports.
+ * import besides its own files (`react`, `@soundor/react`, `soundor:*`) and
+ * `assets`, its images. Returns the entry's exports.
  */
 export function run(
   files: SourceFiles,
   entry: string,
   libraries: Readonly<Record<string, unknown>>,
+  assets: SourceAssets = {},
 ): unknown {
   if (!Object.hasOwn(files, entry)) {
     throw new CodeError(`There is no ${entry} to run`);
@@ -99,6 +112,9 @@ export function run(
     const code = compile(path, files[path]!);
     const require = (specifier: string): unknown => {
       if (specifier.startsWith('.')) {
+        // An image is its asset id, as the CLI's bundle has it.
+        const asset = assets[resolvePath(path, specifier)];
+        if (asset !== undefined) return { __esModule: true, default: asset };
         const file = resolveFile(files, path, specifier);
         if (file === undefined) {
           throw new CodeError(`Cannot find '${specifier}'`, path);

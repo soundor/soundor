@@ -6,6 +6,7 @@ import Canvas from './canvas';
 import ContextMenu from './context-menu';
 import FocusScope from './focus-scope';
 import Gain from './gain';
+import Image from './image';
 import Modal from './modal';
 import Parameters from './parameters';
 import Pressable from './pressable';
@@ -22,6 +23,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   'context-menu': ContextMenu,
   'focus-scope': FocusScope,
   gain: Gain,
+  image: Image,
   modal: Modal,
   parameters: Parameters,
   pressable: Pressable,

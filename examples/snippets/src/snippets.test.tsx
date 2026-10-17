@@ -23,7 +23,10 @@ describe('every snippet', () => {
     const code = readFileSync(join(dir, file), 'utf-8');
     const imports = [...code.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
     for (const specifier of imports) {
-      expect(specifier).toMatch(/^(react|@soundor\/react|soundor:[a-z]+)$/);
+      // …and the images in src/assets/, which the docs page serves.
+      expect(specifier).toMatch(
+        /^(react|@soundor\/react|soundor:[a-z]+|\.\.\/assets\/[\w-]+\.(png|jpe?g|webp))$/,
+      );
     }
     expect(code).toMatch(/^export default function /m);
   });

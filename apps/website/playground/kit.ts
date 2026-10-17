@@ -74,7 +74,7 @@ function start(host: PlaygroundHost): void {
     roots.clear();
     host.clearMessages();
     try {
-      run(message.files, message.entry, libraries);
+      run(message.files, message.entry, libraries, message.assets);
       send({ type: 'soundor:playground:result', error: null });
     } catch (error) {
       fail('Your code did not run.', error);

@@ -62,6 +62,21 @@ describe('run', () => {
     expect(exports.default).toBe('App:name:3');
   });
 
+  it('gives an imported image its asset id, as the bundle does', () => {
+    const exports = run(
+      {
+        'src/snippets/image.tsx': `
+          import cover from '../assets/cover.png';
+          export default cover;
+        `,
+      },
+      'src/snippets/image.tsx',
+      {},
+      { 'src/assets/cover.png': '0123456789abcdef.png' },
+    ) as { default: string };
+    expect(exports.default).toBe('0123456789abcdef.png');
+  });
+
   it('evaluates each file once, and handles cycles as CommonJS does', () => {
     let evaluated = 0;
     const exports = run(

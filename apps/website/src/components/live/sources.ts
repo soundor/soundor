@@ -6,6 +6,8 @@ export interface Sources {
   readonly files: Readonly<Record<string, string>>;
   /** The files the editor shows; every one when absent. */
   readonly editable?: readonly string[];
+  /** The images the files import: asset ids by path (`src/assets/cover.png`). */
+  readonly assets?: Readonly<Record<string, string>>;
 }
 
 export async function loadJson<T>(url: string): Promise<T> {
