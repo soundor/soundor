@@ -1,0 +1,28 @@
+---
+title: useAnimationFrame
+description: A callback before every frame, while the component is mounted.
+---
+
+```ts
+function useAnimationFrame(callback: (time: number) => void): void;
+```
+
+`useAnimationFrame((time) => …)` calls the callback before every frame the
+view draws, while the component is mounted, with the frame's time in
+milliseconds. It always calls the latest callback, so the callback may read
+the component's props and state.
+
+<Snippet name="canvas" height={200} />
+
+- **Draw a [`Canvas`](/docs/components/canvas)** with it: get the context
+  from the canvas's ref and draw the frame. Drawing marks only the canvas as
+  changed.
+- **Not for animating styles:** an
+  [`Animated.View`](/docs/components/animated-view) animates opacity and
+  transforms in the runtime, without running JavaScript every frame.
+- **Not for state:** setting React state every frame re-renders the
+  component every frame. Read values in the callback and draw instead.
+
+It is `requestAnimationFrame()`, the global, in a hook: the callback runs
+once per frame, before the view is drawn, and stops when the component
+unmounts.

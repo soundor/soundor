@@ -1,86 +1,17 @@
 ---
-title: 'CLI'
-description: 'Commands, bundling, development sessions, DevTools inspection, and diagnostics.'
+title: 'DevTools'
+description: "Inspect a running plugin's UI from the browser: its node tree, animations and rendering."
 ---
 
-Source: [`packages/cli/`](https://github.com/soundor/soundor/tree/main/packages/cli).
+[`soundor dev`](/docs/cli/dev) starts a DevTools session for a runtime that
+supports it (the JUCE runtime): a dashboard in the browser that inspects the
+plugin's real UI, live.
 
-Command line interface for creating, developing, validating, and building
-Soundor projects.
-
-## Install
-
-```sh
-pnpm add -D soundor
-```
-
-## Usage
-
-```sh
-soundor init      # scaffold the runtimes' host projects
-soundor gen       # regenerate .soundor/generated (types, C++ framework)
-soundor dev juce  # develop with the JUCE runtime (or: soundor dev web)
-soundor build     # production build of the plugin
-soundor doctor    # check the toolchain
-```
-
-## The plugin UI bundle
-
-A plugin's UI is TypeScript or TSX in `src/main.tsx` (or `main.ts`, `main.jsx`,
-`main.js`). `soundor dev` and `soundor build` bundle it with
-[tsdown](https://tsdown.dev) into one JavaScript file that the plugin embeds
-and runs in Soundor's runtime:
-
-- Everything it imports from npm is inlined. `soundor:*` modules stay imports;
-  the runtime provides them.
-- `build` minifies and tree-shakes into `.soundor/ui/production`. `dev` keeps
-  source maps, in `.soundor/ui/development`.
-- TSX uses the automatic JSX runtime (set `"jsx": "react-jsx"` in the
-  tsconfig). `process.env.NODE_ENV` is replaced at build time, since the runtime
-  has no `process`.
-- `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`) bundles the
-  image as an asset and yields its stable, content-derived id.
-
-### Development
-
-`soundor dev` builds the plugin in debug mode once, then keeps rebuilding the UI
-whenever a project file changes. The plugin loads the UI from
-`.soundor/ui/development` instead of embedding it, and on every successful build
-replaces its JavaScript runtime with a fresh one: timers, subscriptions, open
-parameter gestures and pending work of the old UI all end. State lives in the
-plugin (parameters) or in `soundor:storage`, so it survives a reload.
-
-- A failed build is reported in the terminal; the plugin keeps running the last
-  good build.
-- The plugin's `console` output and uncaught errors appear in the terminal,
-  whichever process the plugin runs in (a DAW or the Standalone), with stack
-  frames mapped back to your TypeScript sources.
-- Changes to `soundor.config.ts` or native code need a restart of `soundor dev`.
-
-When the runtime is ready, `dev` prints a summary: the plugin, the DevTools URL
-and what the runtime adds (the JUCE runtime's build output and Standalone, the
-Web host's URL). In a terminal, the output of the native build is collapsed
-into one progress line; all of it is kept in `.soundor/dev/build.log`, and a
-failed build prints it. Type a key and enter for a shortcut:
-
-| Key | Action                                                          |
-| --- | --------------------------------------------------------------- |
-| `h` | Show the shortcuts                                              |
-| `u` | Show the summary again                                          |
-| `o` | Open DevTools in the browser, signed in                         |
-| `c` | Copy a signed-in DevTools link (it works once, within a minute) |
-| `s` | JUCE: launch the Standalone again                               |
-| `w` | Web: open the Web host in the browser                           |
-| `q` | Quit (as Ctrl+C)                                                |
-
-`c` uses the platform's clipboard command; over SSH, or without one, it asks
-the terminal to copy the link (OSC 52), which most terminals support. Outside
-a terminal (piped, or in CI) there are no shortcuts and the build output is
-printed as is.
+## The session
 
 `dev` discovers optional DevTools support from the runtime's capability
 declaration, independent of its name. For supported runtimes it resolves
-[user settings](/docs/api/config#user-settings) before running development;
+[user settings](/docs/cli/config#user-settings) before running development;
 unsupported runtimes do not load these settings. Set `devtools.enabled` to
 `false` to disable debugging. The session server serves the browser dashboard at
 the displayed URL, using port 4545 by default. Only an implicit default advances
@@ -95,7 +26,7 @@ printed in logs. Browser tabs can observe targets concurrently; native
 debug interactions require explicit control of the selected target. See the
 [protocol contract](/docs/contribute/devtools-protocol) for transports and security.
 
-### Native DevTools inspector
+## Inspecting the native UI
 
 For JUCE Standalone development, select a connected target to inspect the actual
 native UI hierarchy. Expand nodes or search by type, text, accessibility role/name,
@@ -125,7 +56,7 @@ attributed to a particular instance. Neither clearing nor filtering affects
 application logging or other tabs. The dashboard follows the browser's light or
 dark theme and supports keyboard tree navigation.
 
-### Animation and performance diagnostics
+## Animations and performance
 
 The **Animations** panel reads native active/paused animations and their target
 properties, elapsed time, duration/delay, easing or spring metadata, and current
@@ -149,31 +80,7 @@ Nodes also lack reliable component/TSX source metadata; mapped error stacks rema
 available in the Console. These limitations and the typed measurement contract
 are documented in the [debug protocol](/docs/contribute/devtools-protocol).
 
-TypeScript types for the runtime are generated into
-`.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and
-exactly the Web APIs the runtime provides. Use them with `lib: ["ES2023"]` and
-without `"DOM"`, so code that assumes a browser fails to compile:
-
-```jsonc
-{
-  "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023"],
-    "types": [],
-    "jsx": "react-jsx",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-  },
-  "include": ["src", ".soundor/generated/soundor.d.ts"],
-}
-```
-
-The bundler never ships with the plugin: the plugin contains plain JavaScript
-only.
-
-## License
-
-MIT
+## How it fits together
 
 The CLI resolves the installed `@soundor/devtools-client` production directory
 and supplies it to `@soundor/devtools-server`. The server and browser application

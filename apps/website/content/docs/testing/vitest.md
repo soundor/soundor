@@ -42,7 +42,7 @@ test('focuses an input', () => {
 });
 ```
 
-See [@soundor/testing-library](/docs/api/testing-library) for rendering, semantic
+See [@soundor/testing-library](/docs/testing) for rendering, semantic
 queries, and stateful user interactions.
 
 ## Configuration and declarations
@@ -140,42 +140,3 @@ The smoke test packs the real packages, installs them in an external project
 with isolated node_modules and strict peers, runs React interaction tests, and
 checks public TypeScript declarations. No workspace aliases or direct
 `@soundor/test-runtime` dependency are used.
-
-### Focus assertions and simulated setup
-
-The existing `soundor()` plugin automatically registers `expect(node).toHaveFocus()`
-and its negation. It reads Soundor focus, including portals and nested dialogs;
-foreign, detached, stale, and disposed-runtime nodes fail clearly, even with `.not`.
-Matcher types are included by importing `@soundor/vitest` in the TypeScript project
-(normally through `vitest.config.ts`). If your test TypeScript project excludes that
-config, add `"@soundor/vitest"` to `compilerOptions.types` or a type-only import.
-No DOM matchers or additional setup file are needed.
-
-```tsx
-await user.tab();
-expect(screen.getByRole('button', { name: 'Open dialog' })).toHaveFocus();
-```
-
-`testParameters.set(id, value)` validates declared IDs and value types at runtime,
-uses plain units, clamps numbers, rounds integers, and notifies subscriptions.
-`testHost.set(partialSnapshot)` merges the existing host snapshot and notifies
-subscribers; `transport` is a complete transport snapshot or `null`.
-`mockNative(name, implementation)` registers a declared native method with a normal
-function (including synchronous or asynchronous `vi.fn()`), preserving thrown
-errors and rejections. Unknown methods and non-function mocks fail clearly.
-All three helpers use the current test's runtime and reset with it. Use them in
-`beforeEach` or a test, rather than `beforeAll` or module initialization.
-The React entry coordinates parameter and host updates with synchronous `act`,
-both before rendering and after subscriptions mount. The root entry provides the
-same helpers without React.
-
-These setup helpers specifically configure the simulated environment; future
-native environments may require different setup. Queries, interactions, focus
-assertions and presentation assertions describe application behavior, but native
-support is not implemented or promised by these APIs today.
-Use `await advanceTime()` and `node.presentation` for application animation tests.
-Animation registry counts, ownership and cleanup belong in test-runtime unit tests.
-Renderer implementation tests may inspect submitted animation handles to verify
-reconciler behavior. `getTestRuntime()` from `@soundor/vitest` remains a deprecated
-advanced escape hatch for compatibility; runtime implementation tests should
-import context helpers and `createTestRuntime()` from `@soundor/test-runtime`.

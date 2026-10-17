@@ -16,7 +16,7 @@ const stop = parameters.gain.subscribe((gain) => draw(gain));
 parameters.gain.info; // { id, label, type, min, max, default, unit }
 ```
 
-In React, [`useParameter`](/docs/api/react#hooks) reads one and re-renders
+In React, [`useParameter`](/docs/hooks) reads one and re-renders
 on its changes. The [Parameters guide](/docs/parameters) shows how to declare
 them and connect them to audio.
 

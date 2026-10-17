@@ -33,7 +33,7 @@ const preset = await loadPreset('presets/warm.json');
   `returns` (nothing by default); `async: true` methods return a promise.
 - **Types:** primitives, binary data (`ArrayBuffer`, typed arrays), structs
   (plain objects), enums (string unions), arrays, and handles: opaque objects
-  only native code can make. The [config reference](/docs/api/config#native)
+  only native code can make. The [config reference](/docs/cli/config#native)
   has the full table and the C++ each becomes.
 - **Checked:** every argument is checked before native code runs; a
   mismatch is a `TypeError` naming the path (`centroid(): points[1].y:

@@ -12,6 +12,8 @@ import { EditorView, keymap } from '@codemirror/view';
 import { basicSetup } from 'codemirror';
 import { useEffect, useRef, useState } from 'react';
 
+import { useDarkMode } from '@/lib/use-dark-mode';
+
 import type { ExampleTypes } from '../../editor/language-service.ts';
 import { TypeScriptClient, typescript } from '../../editor/typescript.ts';
 import { loadJson, type Sources } from './sources';
@@ -32,20 +34,6 @@ export interface CodeEditorProps {
   readonly playground: Playground;
   /** Full screen: the editor fills the height it is given. */
   readonly expanded: boolean;
-}
-
-function useDarkMode(): boolean {
-  const [dark, setDark] = useState(() =>
-    document.documentElement.classList.contains('dark'),
-  );
-  useEffect(() => {
-    const observer = new MutationObserver(() =>
-      setDark(document.documentElement.classList.contains('dark')),
-    );
-    observer.observe(document.documentElement, { attributes: true });
-    return () => observer.disconnect();
-  }, []);
-  return dark;
 }
 
 export function CodeEditor({

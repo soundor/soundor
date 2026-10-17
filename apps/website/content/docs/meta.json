@@ -1,3 +1,11 @@
 {
-  "pages": ["(docs)", "components", "api", "contribute"]
+  "pages": [
+    "(docs)",
+    "components",
+    "hooks",
+    "api",
+    "testing",
+    "cli",
+    "contribute"
+  ]
 }

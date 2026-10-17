@@ -4,6 +4,7 @@
   "root": true,
   "pages": [
     "index",
+    "packages",
     "---Engine---",
     "engine-reference",
     "webgl-codegen",
@@ -12,6 +13,7 @@
     "apple-accessibility",
     "ios-accessibility",
     "---Toolchain---",
+    "runtime-sdk",
     "core",
     "devtools-protocol",
     "devtools-server",

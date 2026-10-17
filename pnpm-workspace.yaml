@@ -58,6 +58,7 @@ catalog:
   husky: ^9.1.7
   lint-staged: ^17.6.0
   lucide-react: ^1.50.0
+  mermaid: ^12.2.0
   npm-to-yarn: ^3.2.0
   oxfmt: ^0.73.0
   oxlint: ^1.88.0

@@ -28,6 +28,7 @@
     "fumadocs-typescript": "catalog:",
     "fumadocs-ui": "catalog:",
     "lucide-react": "catalog:",
+    "mermaid": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:"
   },
