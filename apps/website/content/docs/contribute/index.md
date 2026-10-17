@@ -173,10 +173,20 @@ references live in `apps/website/content/docs/`, `(docs)/` for plugin authors
 and `contribute/` for work on Soundor itself. Each folder's `meta.json` orders
 its sidebar, and a page's frontmatter gives its title and description. Write
 `.md`; use `.mdx` only for a page that needs a component, such as
-`<Example name="basic" />`, which embeds an example's web build. Readers can
-edit an embedded example's UI code (`src/`, without tests) and see it run, so
-that code may import only `react`, `@soundor/react`, `soundor:*` and its own
-files. The editor checks it with TypeScript against the example's own types
+`<Example name="basic" />`, which embeds an example's web build, or
+`<Snippet name="gain" height={200} />`, which runs one file of
+`examples/snippets/src/snippets/` live, its code under it. Readers can edit
+an embedded example's UI code (`src/`, without tests) and a snippet, and see
+them run, so that code may import only `react`, `@soundor/react`,
+`soundor:*` and the example's own files (a snippet: none).
+
+A snippet is one small component, the file's default export, about one
+thing. Add it to `examples/snippets/src/snippets/` and its `index.ts`; the
+project's tests check that every file is listed, imports only what a docs
+page has, and renders. `pnpm --filter snippets exec soundor dev web` shows
+them all, with a picker. The build puts each snippet's code into the page
+(`plugins/remark-snippets.ts`) and its Markdown, and fails on an unknown
+name. The editor checks it with TypeScript against the example's own types
 (its `tsconfig.app.json`, collected at build time by
 `apps/website/scripts/types.ts`), so the example must typecheck, and its
 completions and documentation on hover come from the JSDoc in the

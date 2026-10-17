@@ -1,10 +1,5 @@
 // @vitest-environment happy-dom
-import {
-  fireEvent,
-  getByRole,
-  queryByRole,
-  within,
-} from '@testing-library/dom';
+import { fireEvent, queryByRole, within } from '@testing-library/dom';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -57,10 +52,14 @@ function setup(presentation: Presentation = 'demo') {
     audio,
   });
   shells.push(shell);
-  const dock = within(getByRole(shell.element, 'toolbar', { name: 'Host' }));
+  // `embed` has no dock: queries in it then find nothing.
+  const dock = within(
+    queryByRole(shell.element, 'toolbar', { name: 'Host' }) ?? shell.viewport,
+  );
   // The panel is hidden until opened: queries look into it regardless.
   const panel = within(
-    shell.element.querySelector<HTMLElement>('#soundor-panel')!,
+    shell.element.querySelector<HTMLElement>('#soundor-panel') ??
+      shell.viewport,
   );
   return { host, audio, start, parameters, shell, dock, panel };
 }
@@ -336,6 +335,19 @@ describe('presentations', () => {
     expect(
       shell.element.querySelector<HTMLElement>('#soundor-panel')!.hidden,
     ).toBe(false);
+  });
+
+  it('embed: the plugin view alone, filling the page', () => {
+    const { shell, start } = setup('embed');
+    expect(shell.element.dataset['presentation']).toBe('embed');
+    expect(queryByRole(shell.element, 'toolbar')).toBeNull();
+    expect(shell.element.querySelector('#soundor-panel')).toBeNull();
+    expect(shell.viewport.closest('.soundor-fill')).not.toBeNull();
+    // No size of its own: the page's.
+    expect(shell.viewport.style.width).toBe('');
+    // Audio still starts with a gesture on the plugin.
+    fireEvent.pointerDown(shell.viewport);
+    expect(start).toHaveBeenCalledOnce();
   });
 
   it('stops listening when removed', () => {

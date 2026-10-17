@@ -8,31 +8,11 @@ Source: [`packages/react/`](https://github.com/soundor/soundor/tree/main/package
 React for Soundor plugin UIs: a renderer for the plugin view (`soundor:ui`)
 and the components a UI is made of.
 
-```tsx
-import { render, Pressable, Text, View, useParameter } from '@soundor/react';
-import { useState } from 'react';
-import { parameters } from 'soundor:parameters';
+<Snippet name="gain" height={200} />
 
-function Gain() {
-  const gain = useParameter(parameters.gain);
-  return (
-    <View style={{ padding: 16, gap: 8 }}>
-      <Text style={{ fontSize: 18 }}>Gain {gain.toFixed(2)}</Text>
-      <Pressable
-        onPress={() => parameters.gain.set(0.5)}
-        style={({ pressed }) => ({
-          padding: 8,
-          backgroundColor: pressed ? '#2a5fd0' : '#3a7bfd',
-        })}
-      >
-        <Text style={{ color: 'white' }}>Reset</Text>
-      </Pressable>
-    </View>
-  );
-}
-
-render(<Gain />);
-```
+The snippets on this page run live, in the web runtime: edit one, then
+apply. Each is a component; a plugin's `src/main.tsx` renders its own with
+`render(<App />)`.
 
 In a native plugin the UI runs inside Soundor's embedded JavaScript runtime,
 without a DOM. The web runtime implements the same Soundor nodes with DOM
@@ -52,6 +32,14 @@ elements. Components follow React Native's conventions in both runtimes.
 | `FocusScope` | A boundary for keyboard focus, with no node of its own: trap, autofocus, restore ([Focus](#focus)).                                                                                                                                                                                                                                                             |
 | `Portal`     | Children rendered elsewhere in the view: over everything, or into a `Portal.Host` ([Portals](#portals)).                                                                                                                                                                                                                                                        |
 | `Modal`      | An in-view modal layer: portal, input-blocking backdrop, trapped focus, close requests ([Modal](#modal)).                                                                                                                                                                                                                                                       |
+
+A `Pressable`'s style and children follow its state:
+
+<Snippet name="pressable" height={200} />
+
+A controlled `TextInput`; Enter submits it:
+
+<Snippet name="text-input" height={260} />
 
 Event props (`onPointerDown`, `onClick`, `onContextMenu`, `onKeyDown`,
 `onWheel`, `onFocus`, …, and `…Capture` variants) receive `soundor:ui`'s
@@ -83,34 +71,7 @@ or screen space: the view is all a plugin UI knows. (`clientX`/`clientY` and
 
 A tooltip, then, is the trigger's surface box and a portal:
 
-```tsx
-function Hint({ label }: { label: string }) {
-  const ref = useRef<UiNode>(null);
-  const [box, setBox] = useState<LayoutRect | null>(null);
-  return (
-    <View
-      ref={ref}
-      onPointerEnter={() => setBox(ref.current!.getBoundingClientRect())}
-      onPointerLeave={() => setBox(null)}
-    >
-      <Text>?</Text>
-      {box && (
-        <Portal>
-          <Text
-            style={{
-              position: 'absolute',
-              left: box.x,
-              top: box.y + box.height,
-            }}
-          >
-            {label}
-          </Text>
-        </Portal>
-      )}
-    </View>
-  );
-}
-```
+<Snippet name="tooltip" height={180} />
 
 ## Portals
 
@@ -192,21 +153,7 @@ function Track() {
 closes. It is not a window: it is drawn in the plugin's one view, so it
 works the same in any host, and in the browser.
 
-```tsx
-<Modal
-  visible={confirming}
-  onRequestClose={() => setConfirming(false)}
-  dismissOnBackdropPress
-  backdropStyle={{ backgroundColor: 'rgba(0, 0, 0, 0.4)' }}
->
-  <View style={{ margin: 'auto', padding: 16, backgroundColor: 'white' }}>
-    <Text>Discard changes?</Text>
-    <Pressable onPress={discard}>
-      <Text>Discard</Text>
-    </Pressable>
-  </View>
-</Modal>
-```
+<Snippet name="modal" height={260} />
 
 It is a `Portal` plus:
 
@@ -411,28 +358,18 @@ the scope's children render belongs to it wherever it shows.
   host, the audio side or the UI changes it.
 - `useAnimationFrame((time) => …)`: a callback on every frame while mounted.
 
+A canvas drawn every frame, as tall as the `gain` parameter (the `gain`
+snippet above moves the same parameter):
+
+<Snippet name="canvas" height={200} />
+
 ## License
 
 MIT
 
 ## Animated views
 
-```tsx
-import { Animated, Text } from '@soundor/react';
-
-<Animated.View
-  style={{
-    opacity: visible ? 1 : 0,
-    transform: [
-      { translateY: visible ? 0 : 12 },
-      { scale: visible ? 1 : 0.95 },
-    ],
-  }}
-  transition={{ duration: 250, easing: 'ease-out' }}
->
-  <Text>Content</Text>
-</Animated.View>;
-```
+<Snippet name="animated" height={220} />
 
 `Animated.View` accepts the same props and `UiNode` ref as `View`. Its first style
 is applied immediately. Subsequent opacity/transform target changes start one
@@ -450,23 +387,7 @@ native hosts provide the preference or application code sets it explicitly.
 `Animated.View` uses the same reconciler and low-level animation handle for
 spring transitions and timing paint transitions:
 
-```tsx
-<Animated.View
-  style={{ transform: [{ scale: pressed ? 0.95 : 1 }] }}
-  transition={{ type: 'spring', stiffness: 300, damping: 25, mass: 1 }}
->
-  <Text>Press me</Text>
-</Animated.View>
-
-<Animated.View
-  style={{ width: 100, height: 20 }}
-  animation={[
-    { backgroundColor: '#204080', offset: 0 },
-    { backgroundColor: '#c08040', offset: 1 },
-  ]}
-  transition={{ duration: 1000, iterations: Infinity, direction: 'alternate', fill: 'both' }}
-/>
-```
+<Snippet name="spring" height={220} />
 
 Style transitions capture current presentation before publishing the new base
 style, including paint colors (paint requires a timing transition). Explicit

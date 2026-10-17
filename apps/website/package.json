@@ -45,6 +45,7 @@
     "npm-to-yarn": "catalog:",
     "primitives": "workspace:*",
     "rolldown": "catalog:",
+    "snippets": "workspace:*",
     "sucrase": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",

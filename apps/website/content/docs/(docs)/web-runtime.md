@@ -320,8 +320,9 @@ phone, the panel open). The host stays out of its way:
   observes the transport and never controls it.
 - **Presentations:** `soundor dev` (the `dev` presentation) adds the host
   state to the panel and remembers whether the panel was open. A build shows
-  the `demo` presentation. `startSoundorWebHost({ presentation })` overrides
-  either default.
+  the `demo` presentation, or `embed` when opened with `?embed`
+  ([Embedding one view](#embedding-one-view)).
+  `startSoundorWebHost({ presentation })` overrides the default.
 
 ## Static builds and iframes
 
@@ -337,6 +338,21 @@ the parent page:
 Each page or iframe has its own host, parameters, transport, AudioContext and
 plugin view. Storage is per plugin id, as in a DAW, where every instance of a
 plugin shares its storage.
+
+### Embedding one view
+
+With `?embed`, a build shows the plugin view alone: no dock, no panel, and
+the view as big as the page (the iframe), however big that is, rather than
+the editor's size scaled down. It suits a small piece of UI in a docs page,
+which is how this site shows its snippets:
+
+```html
+<iframe src="/examples/snippets/index.html?embed" height="240"></iframe>
+```
+
+Audio still starts with the first gesture on the view. With no transport
+controls, the host's input source stays silent; the project's own audio
+(`runtimes/web/src/audio.ts`) runs as usual.
 
 ## Playground mode
 
@@ -358,6 +374,9 @@ index.html?playground=/playground/kit.js
 - **The script brings everything else**: React, `@soundor/react`, a compiler,
   and the conversation with its parent page. Everything else about the host
   (parameters, transport, audio, the dock and the panel) works as in any build.
+
+Embedded or not: `?embed&playground=<script>` runs the code in the bare
+view.
 
 soundor.dev's script (`apps/website/playground/`) compiles TypeScript and JSX
 with Sucrase and runs the files as CommonJS modules, with `react`,

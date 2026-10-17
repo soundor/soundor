@@ -142,6 +142,18 @@ describe('createLanguageService', () => {
     });
   });
 
+  it("completes a string's values after its quote", () => {
+    const editor = service();
+    const code = `${APP}const mode: 'warm' | 'bright' = '`;
+    editor.update('src/App.ts', code);
+    const list = editor.complete('src/App.ts', code.length, false);
+    expect(list?.from).toBe(code.length);
+    expect(list?.options.map((option) => option.label).sort()).toEqual([
+      'bright',
+      'warm',
+    ]);
+  });
+
   it('completes nothing after a space, unless asked', () => {
     const editor = service();
     const code = `${APP}const x = `;

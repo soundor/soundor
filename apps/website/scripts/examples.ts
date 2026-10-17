@@ -3,7 +3,10 @@
  * where `<Example name>` embeds them, each with `playground.json`: its UI
  * source files (`src/`, without tests), which the editor opens, and
  * `types.json`: the types they are checked against, which the editor's
- * language service reads (`types.ts`). The examples are the site's
+ * language service reads (`types.ts`). An example with snippets
+ * (`src/snippets/<name>.tsx`, as `examples/snippets` has) also gets
+ * `snippets/<name>.json` for each: the snippet, rendered alone in its
+ * `src/frame.tsx`. The examples are the site's
  * devDependencies that live in `examples/`, so Turborepo runs their
  * `build:web` (never their full `build`, which would build the native plugin)
  * before the site's build.
@@ -12,6 +15,7 @@
 import {
   cpSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -28,6 +32,59 @@ export interface ExampleSources {
   readonly entry: string;
   /** Its UI source files, by path from the example's root. */
   readonly files: Readonly<Record<string, string>>;
+  /** The files the editor shows; every one when absent. */
+  readonly editable?: readonly string[];
+}
+
+/** Where an example keeps its snippets, one component per file. */
+const SNIPPETS = 'src/snippets';
+/** The entry a snippet runs from: written here, never in the example. */
+const SNIPPET_ENTRY = 'src/snippet.tsx';
+
+/** The snippets in the example in `dir`, by name: their files' names. */
+export function snippetFiles(dir: string): Record<string, string> {
+  const snippets: Record<string, string> = {};
+  if (!existsSync(join(dir, SNIPPETS))) return snippets;
+  for (const file of globSync('*.tsx', { cwd: join(dir, SNIPPETS) }).sort()) {
+    snippets[file.replace(/\.tsx$/, '')] = `${SNIPPETS}/${file}`;
+  }
+  return snippets;
+}
+
+/**
+ * The code that runs the snippet `name` of the example in `dir`: the
+ * snippet's default export, alone in the example's `Frame`. Only the
+ * snippet is editable.
+ */
+export function snippetSources(dir: string, name: string): ExampleSources {
+  const file = snippetFiles(dir)[name];
+  if (file === undefined) throw new Error(`${dir} has no snippet ${name}`);
+  const frame = 'src/frame.tsx';
+  if (!existsSync(join(dir, frame))) {
+    throw new Error(`${dir} has snippets, but no ${frame} to show them in`);
+  }
+  const entry = [
+    "import { render } from '@soundor/react';",
+    '',
+    "import { Frame } from './frame';",
+    `import Snippet from './snippets/${name}';`,
+    '',
+    'render(',
+    '  <Frame>',
+    '    <Snippet />',
+    '  </Frame>,',
+    ');',
+    '',
+  ].join('\n');
+  return {
+    entry: SNIPPET_ENTRY,
+    files: {
+      [SNIPPET_ENTRY]: entry,
+      [frame]: readFileSync(join(dir, frame), 'utf-8'),
+      [file]: readFileSync(join(dir, file), 'utf-8'),
+    },
+    editable: [file],
+  };
 }
 
 const ENTRIES = ['src/main.tsx', 'src/main.ts'];
@@ -73,6 +130,14 @@ export function syncExamples(site: string): string[] {
       join(out, name, 'types.json'),
       JSON.stringify(exampleTypes(dir)),
     );
+    const snippets = Object.keys(snippetFiles(dir));
+    if (snippets.length > 0) mkdirSync(join(out, name, 'snippets'));
+    for (const snippet of snippets) {
+      writeFileSync(
+        join(out, name, 'snippets', `${snippet}.json`),
+        JSON.stringify(snippetSources(dir, snippet)),
+      );
+    }
     synced.push(name);
   }
   return synced;

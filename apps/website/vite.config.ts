@@ -1,4 +1,6 @@
+import { readFileSync, realpathSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
+import { join } from 'node:path';
 
 import tailwindcss from '@tailwindcss/vite';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
@@ -9,10 +11,24 @@ import { defineConfig } from 'vite';
 
 import { packageManagers } from './plugins/package-managers.ts';
 import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
+import { remarkSnippets } from './plugins/remark-snippets.ts';
 import { siteValues } from './plugins/values.ts';
+import { snippetFiles } from './scripts/examples.ts';
 import { serveFile } from './scripts/static.ts';
 
 const values = siteValues();
+
+// The snippets `<Snippet>` shows, read as each page compiles: an edit shows
+// on the next reload.
+const snippetsDir = realpathSync(
+  new URL('./node_modules/snippets', import.meta.url),
+);
+const readSnippet = (name: string): string | undefined => {
+  const file = snippetFiles(snippetsDir)[name];
+  return file === undefined
+    ? undefined
+    : readFileSync(join(snippetsDir, file), 'utf-8');
+};
 
 // Every page, and its Markdown twin, is prerendered: crawling links alone
 // misses pages nothing links to (the Contribute tab's).
@@ -58,6 +74,7 @@ export default defineConfig({
         mdxOptions: {
           remarkPlugins: (defaults) => [
             remarkPlaceholders(values),
+            remarkSnippets(readSnippet),
             ...defaults,
           ],
           remarkNpmOptions: { packageManagers, persist: { id: 'pm' } },

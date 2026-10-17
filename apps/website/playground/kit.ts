@@ -64,12 +64,12 @@ function start(host: PlaygroundHost): void {
       return;
     }
     const message: unknown = event.data;
-    if (
-      !isPlaygroundMessage(message) ||
-      message.type !== 'soundor:playground:run'
-    ) {
+    if (!isPlaygroundMessage(message)) return;
+    if (message.type === 'soundor:playground:ping') {
+      send({ type: 'soundor:playground:ready' });
       return;
     }
+    if (message.type !== 'soundor:playground:run') return;
     for (const root of roots) root.unmount();
     roots.clear();
     host.clearMessages();
