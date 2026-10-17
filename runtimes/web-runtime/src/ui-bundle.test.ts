@@ -71,8 +71,10 @@ describe('the UI bundle in a production build', () => {
       )
     ).join('\n');
     expect(code).toContain('FIXTURE_UI_MARKER');
-    expect(code).not.toContain('soundor:parameters');
-    expect(code).not.toContain('soundor:host');
+    // Every soundor:* import resolved. The names themselves may appear (the
+    // playground's module table), never as a module to load.
+    expect(code).not.toMatch(/(from|import\(|import)\s*["'`]soundor:/);
+    expect(code).toMatch(/from\s*["']\.\/parameters-[\w-]+\.js["']/);
     for (const file of files) {
       const text = await readFile(join(ctx.paths.dist, file), 'utf8');
       expect({ file, leaks: text.includes(root) }).toEqual({

@@ -301,6 +301,17 @@ describe('notices', () => {
     shell.showMessage('The plugin UI failed', 'Error: boom');
     expect(shell.viewport.textContent).toBe('The plugin UI failedError: boom');
   });
+
+  it("clears its messages, never the plugin's own nodes", () => {
+    const { shell } = setup();
+    const plugin = document.createElement('div');
+    plugin.textContent = 'plugin';
+    shell.viewport.append(plugin);
+    shell.showMessage('First');
+    shell.showMessage('Second', 'detail');
+    shell.clearMessages();
+    expect(shell.viewport.textContent).toBe('plugin');
+  });
 });
 
 describe('presentations', () => {

@@ -90,7 +90,8 @@ The website (`apps/website`) embeds the examples' web builds:
 ```sh
 pnpm turbo run build --filter=website   # packages, examples' build:web, the site → apps/website/dist/client
 pnpm turbo run dev --filter=website     # the site with live content reload
-pnpm --filter website test              # unit tests: placeholders, link check, examples sync
+pnpm --filter website test              # unit tests: placeholders, link check, examples sync, playground
+pnpm --filter website test:e2e          # browser tests of the built site (Playwright), incl. editing an example
 ```
 
 It depends on the examples' `build:web` only (`website#build` in `turbo.json`),
@@ -180,7 +181,10 @@ read the docs bundled with the installed package
   TanStack Start, prerendered to static files for GitHub Pages. Content in
   `content/docs/` (`.md`, or `.mdx` where a page uses a component such as
   `<Example name>`); `%version:<package>%` and `%node%` in content are
-  replaced at build time (`plugins/values.ts`).
+  replaced at build time (`plugins/values.ts`). Its examples can be edited
+  in the page: the web runtime's playground mode (`?playground=<script>`,
+  same origin only) runs the code the site's playground script
+  (`playground/`, React + `@soundor/react` + Sucrase) is sent.
 
 ### The cross-runtime contract
 

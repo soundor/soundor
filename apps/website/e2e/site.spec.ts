@@ -1,0 +1,96 @@
+import { expect, type Page, test } from '@playwright/test';
+
+/** Fails the test on a page error, a console error or a failed request. */
+function watch(page: Page): string[] {
+  const problems: string[] = [];
+  page.on('pageerror', (error) => problems.push(`page: ${error.message}`));
+  page.on('console', (message) => {
+    if (message.type() === 'error') problems.push(`console: ${message.text()}`);
+  });
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      problems.push(`${response.status()} ${response.url()}`);
+    }
+  });
+  return problems;
+}
+
+test('the home page leads into the docs', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText(
+    'Audio plugins with a React UI',
+  );
+  await page.getByRole('link', { name: 'Get started' }).click();
+  await expect(page).toHaveURL(/\/docs\/getting-started$/);
+  // A placeholder, filled in from the repository.
+  await expect(
+    page.getByText(/create soundor-app@\d+\.\d+\.\d+/).first(),
+  ).toBeVisible();
+  await page
+    .getByRole('link', { name: 'Parameters and host automation' })
+    .click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'Parameters and host automation',
+  );
+  expect(problems).toEqual([]);
+});
+
+test('search finds a page', async ({ page }) => {
+  await page.goto('/docs');
+  await page
+    .getByRole('button', { name: /search/i })
+    .first()
+    .click();
+  await page.keyboard.type('Web Audio');
+  await expect(
+    page.getByRole('dialog').getByText('Web runtime').first(),
+  ).toBeVisible();
+});
+
+test('an example runs inside its page', async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/examples/basic');
+  const plugin = page.frameLocator('iframe');
+  await expect(plugin.getByText('Reset gain')).toBeVisible();
+  await expect(
+    plugin.getByRole('button', { name: 'Start audio' }),
+  ).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test("an example's code can be edited, and runs as it changes", async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await page.goto('/docs/examples/basic');
+  await page.getByRole('button', { name: 'Edit code' }).click();
+  const status = page.getByRole('status');
+  await expect(status).toHaveText(/^Running your code/);
+  await expect(
+    page.getByRole('button', { name: 'src/App.tsx' }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  const plugin = page.frameLocator('iframe');
+
+  // Change the button's label, found with the editor's search (it renders
+  // only the lines in view), which selects it.
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.keyboard.type('Reset gain');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Escape');
+  await page.keyboard.type('Edited gain');
+  await expect(plugin.getByText('Edited gain')).toBeVisible();
+  await expect(status).toHaveText(/^Running your code/);
+
+  // Break it: the error is located, and the plugin says so too.
+  await page.keyboard.type(' {{');
+  await expect(status).toHaveText(/^src\/App\.tsx:\d+:\d+: /);
+  await expect(plugin.getByText('Your code did not run.')).toBeVisible();
+
+  // Reset brings the example's own code back.
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await expect(plugin.getByText('Reset gain')).toBeVisible();
+  await expect(status).toHaveText(/^Running your code/);
+  expect(problems).toEqual([]);
+});
