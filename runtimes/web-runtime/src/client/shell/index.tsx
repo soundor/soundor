@@ -46,6 +46,8 @@ export interface HostShell {
   readonly viewport: HTMLElement;
   /** Shows a notice over the viewport (no UI, a UI that failed). */
   showMessage(title: string, detail?: string): void;
+  /** Removes the notices showMessage() showed. */
+  clearMessages(): void;
   remove(): void;
 }
 
@@ -85,6 +87,14 @@ export function createShell(
         message,
       );
       viewport.append(message);
+    },
+    clearMessages() {
+      for (const message of viewport.querySelectorAll(
+        ':scope > .soundor-message',
+      )) {
+        render(null, message);
+        message.remove();
+      }
     },
     remove() {
       render(null, element);

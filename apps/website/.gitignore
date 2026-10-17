@@ -4,3 +4,8 @@ src/routeTree.gen.ts
 .tanstack
 # The examples' web builds, copied by scripts/sync-examples.ts
 public/examples
+# The playground script, built by scripts/build-playground.ts
+public/playground
+# Playwright
+test-results/
+playwright-report/

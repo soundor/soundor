@@ -5,15 +5,22 @@
   "description": "soundor.dev: the Soundor documentation website",
   "type": "module",
   "scripts": {
-    "build": "node scripts/sync-examples.ts && vite build && node scripts/check-links.ts && tsc --noEmit",
-    "dev": "node scripts/sync-examples.ts && vite dev",
+    "build": "node scripts/sync-examples.ts && node scripts/build-playground.ts && vite build && node scripts/check-links.ts && tsc --noEmit",
+    "dev": "node scripts/sync-examples.ts && node scripts/build-playground.ts && vite dev",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "serve": "node scripts/serve.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@codemirror/lang-javascript": "catalog:",
+    "@codemirror/state": "catalog:",
+    "@codemirror/theme-one-dark": "catalog:",
+    "@codemirror/view": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tanstack/start-static-server-functions": "catalog:",
+    "codemirror": "catalog:",
     "fumadocs-core": "catalog:",
     "fumadocs-mdx": "catalog:",
     "fumadocs-ui": "catalog:",
@@ -22,6 +29,9 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@types/mdast": "catalog:",
     "@types/mdx": "catalog:",
@@ -32,6 +42,8 @@
     "basic": "workspace:*",
     "npm-to-yarn": "catalog:",
     "primitives": "workspace:*",
+    "rolldown": "catalog:",
+    "sucrase": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vfile": "catalog:",

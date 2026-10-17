@@ -335,7 +335,34 @@ the parent page:
 
 Each page or iframe has its own host, parameters, transport, AudioContext and
 plugin view. Storage is per plugin id, as in a DAW, where every instance of a
-plugin shares its storage. There is no parent-page control protocol yet.
+plugin shares its storage.
+
+## Playground mode
+
+A static build can also run UI code it is sent instead of its own: this is how
+the examples on this site can be edited. Opened with
+`?playground=<script>`, the host loads that script instead of the plugin UI,
+and the script runs the code:
+
+```text
+index.html?playground=/playground/kit.js
+```
+
+- **The script comes from the page's own origin.** A script from another
+  origin is refused, so a link cannot run someone else's code on the page.
+- **The host gives it its `soundor:*` modules**: as
+  `globalThis.__soundorModules` before the script loads, and to
+  `soundorPlayground.start(host)`, which the script defines. `host` also shows
+  and clears notices over the plugin, for the code's errors.
+- **The script brings everything else**: React, `@soundor/react`, a compiler,
+  and the conversation with its parent page. Everything else about the host
+  (parameters, transport, audio, the dock and the panel) works as in any build.
+
+soundor.dev's script (`apps/website/playground/`) compiles TypeScript and JSX
+with Sucrase and runs the files as CommonJS modules, with `react`,
+`@soundor/react` and `soundor:*` available to them; each edit unmounts the
+previous UI and runs the files again. Its messages with the page are in
+`apps/website/playground/protocol.ts`.
 
 ## Limitations
 

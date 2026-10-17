@@ -104,6 +104,11 @@ jobs:
       - name: DevTools browser E2E
         run: set -o pipefail; pnpm --filter @soundor/devtools-client test:e2e 2>&1 | tee "$RUNNER_TEMP/step.log"
 
+      # The built site in Chromium (installed above, same Playwright): pages,
+      # search, an embedded example, and editing its code.
+      - name: Website browser tests
+        run: set -o pipefail; pnpm --filter website test:e2e 2>&1 | tee "$RUNNER_TEMP/step.log"
+
       - name: Packed DevTools consumer smoke
         run: set -o pipefail; pnpm --filter soundor test:devtools-consumer 2>&1 | tee "$RUNNER_TEMP/step.log"
 

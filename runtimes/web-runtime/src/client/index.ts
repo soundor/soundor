@@ -23,6 +23,7 @@ import { WebAudioHost, type WebAudioSetup } from './audio';
 import { hostContext, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
+import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
 import { createShell, type Presentation } from './shell';
 
@@ -107,7 +108,20 @@ export async function startSoundorWebHost(
     }
   }
 
-  if (!hasUi) {
+  let playground: URL | null = null;
+  try {
+    playground = playgroundScript(new URL(window.location.href));
+  } catch (error) {
+    failed('The playground could not start.', error);
+  }
+  if (playground !== null) {
+    // The playground runs the code it is sent, not the project's UI.
+    try {
+      await startPlayground(playground, shell);
+    } catch (error) {
+      failed('The playground could not start.', error);
+    }
+  } else if (!hasUi) {
     shell.showMessage(
       'This plugin has no UI.',
       'Add src/main.tsx to the project to give it one.',
@@ -153,4 +167,5 @@ export type {
   WebAudioSetupContext,
 } from './audio';
 export type { Presentation } from './shell';
+export type { PlaygroundHost, PlaygroundScript } from './playground';
 export type { WebManifest, WebParameterInfo } from './manifest';

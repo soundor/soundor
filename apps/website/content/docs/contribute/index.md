@@ -173,7 +173,10 @@ references live in `apps/website/content/docs/`, `(docs)/` for plugin authors
 and `contribute/` for work on Soundor itself. Each folder's `meta.json` orders
 its sidebar, and a page's frontmatter gives its title and description. Write
 `.md`; use `.mdx` only for a page that needs a component, such as
-`<Example name="basic" />`, which embeds an example's web build.
+`<Example name="basic" />`, which embeds an example's web build. Readers can
+edit an embedded example's UI code (`src/`, without tests) and see it run, so
+that code may import only `react`, `@soundor/react`, `soundor:*` and its own
+files.
 
 Link pages by their site path (`/docs/react#hooks`) and repository files by
 their GitHub URL. Write versions as placeholders such as
@@ -185,7 +188,8 @@ benchmark reports remain with their recorded data.
 
 Preview the site with `pnpm turbo run dev --filter=website`. Its build
 (`pnpm turbo run build --filter=website`) fails on a broken internal link or
-anchor.
+anchor. `pnpm --filter website test` runs its unit tests, and
+`pnpm --filter website test:e2e` its browser tests on the built site.
 
 Add a changeset for a published-package change with `pnpm changeset`. The
 thirteen public packages under `packages/` form a fixed version group; runtime

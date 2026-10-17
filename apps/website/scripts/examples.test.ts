@@ -36,6 +36,10 @@ function workspace(deps: Record<string, string>, built: string[]): string {
   for (const [name, dir] of Object.entries(deps)) {
     const target = join(root, dir);
     mkdirSync(target, { recursive: true });
+    mkdirSync(join(target, 'src/ui'), { recursive: true });
+    writeFileSync(join(target, 'src/main.tsx'), `// ${name}`);
+    writeFileSync(join(target, 'src/ui/Knob.tsx'), 'export {};');
+    writeFileSync(join(target, 'src/App.test.tsx'), 'test');
     if (built.includes(name)) {
       mkdirSync(join(target, '.soundor/dist/web/assets'), { recursive: true });
       writeFileSync(join(target, '.soundor/dist/web/index.html'), name);
@@ -64,6 +68,22 @@ describe('syncExamples', () => {
       true,
     );
     expect(existsSync(join(site, 'public/examples/tools'))).toBe(false);
+  });
+
+  it('writes the UI sources the editor opens, without tests', () => {
+    const site = workspace({ basic: 'examples/basic' }, ['basic']);
+    syncExamples(site);
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(site, 'public/examples/basic/playground.json'),
+          'utf-8',
+        ),
+      ),
+    ).toEqual({
+      entry: 'src/main.tsx',
+      files: { 'src/main.tsx': '// basic', 'src/ui/Knob.tsx': 'export {};' },
+    });
   });
 
   it('replaces what an earlier sync copied', () => {

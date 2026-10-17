@@ -23,7 +23,11 @@
       "outputs": [".soundor/dist/web/**", ".soundor/generated/**"]
     },
     "website#build": {
-      "dependsOn": ["^build:web"],
+      "dependsOn": [
+        "^build:web",
+        "@soundor/react#build",
+        "@soundor/web-runtime#build"
+      ],
       "outputs": ["dist/**", "public/examples/**"]
     },
     "dev": {
@@ -32,7 +36,11 @@
       "persistent": true
     },
     "website#dev": {
-      "dependsOn": ["^build:web"],
+      "dependsOn": [
+        "^build:web",
+        "@soundor/react#build",
+        "@soundor/web-runtime#build"
+      ],
       "cache": false,
       "persistent": true
     },
