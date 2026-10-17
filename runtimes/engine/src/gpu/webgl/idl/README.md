@@ -6,5 +6,5 @@
 their headers).
 
 - [Guide and reference](https://soundor.dev/docs/contribute/webgl-codegen)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)

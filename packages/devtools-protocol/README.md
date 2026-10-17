@@ -6,5 +6,5 @@ UI. The local server lives in the `soundor` CLI and runs only during supported,
 enabled development sessions.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/devtools-protocol)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)

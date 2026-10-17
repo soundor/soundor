@@ -7,5 +7,5 @@ On macOS, VoiceOver perceives a Soundor view through virtual
 Apple adapters and JUCE's `AccessibilityHandler` are not involved.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/apple-accessibility)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)

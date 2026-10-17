@@ -6,5 +6,5 @@ Applications normally install the Vitest integration and Testing Library rather
 than this package directly.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/test-runtime)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)

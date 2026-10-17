@@ -6,5 +6,5 @@ package graph independent of its testing tools, which themselves use the
 renderer for their integration tests.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/react-tests)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)

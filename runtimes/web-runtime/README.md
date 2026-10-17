@@ -3,5 +3,5 @@
 Runs a Soundor plugin in the browser.
 
 - [Guide and reference](https://soundor.dev/docs/web-runtime)
-- [All documentation](https://github.com/soundor/soundor/blob/main/docs/README.md)
+- [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)
