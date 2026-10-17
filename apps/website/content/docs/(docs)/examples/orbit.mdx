@@ -1,0 +1,60 @@
+---
+title: Orbit
+description: A playable stereo delay with a WebGL echo map, three draggable voices, and Hold.
+---
+
+Source: [`examples/orbit/`](https://github.com/soundor/soundor/tree/main/examples/orbit).
+
+<Example name="orbit" />
+
+Press **Play** below the plugin to hear a short pluck phrase followed by a
+gap. Listen for the echoes in that gap, then switch between **Original** and
+**Orbit** to compare the dry input with the effect.
+Drag the three colored echoes horizontally to change their timing, vertically
+to change their level. Turn the knobs to shape their feedback, tone, motion,
+stereo spread, and wet/dry mix. **Hold** captures the echoes as repeating loops;
+release it to let new sound enter again. The original audio keeps playing.
+
+The selector above the plugin switches from the demo loop to the host input.
+Choose your own audio file in the host settings. **Sync** follows the host's
+tempo; **Free** keeps delay times independent of tempo.
+
+## One interface, two audio implementations
+
+The UI uses `@soundor/react` and `soundor:parameters` in both runtimes. Its
+WebGL 2 shader shows an echo map of the current parameters, with a Canvas 2D
+fallback. It is a visual explanation of timing and level, not an audio analyser.
+React handles remain interactive in either rendering mode.
+
+The browser processes audio in an AudioWorklet. The JUCE processor implements
+the same three delay lines in C++, with no JavaScript on the audio thread.
+Soundor shares the interface and parameter contract; the example owns its DSP.
+The browser's source selector and demo loop are host features outside the
+portable plugin interface.
+
+## Controls
+
+Tab to a knob or echo to edit it with the arrow keys. Left/right change an
+echo's timing; up/down change its level. Knobs also support vertical dragging,
+scrolling, Shift for larger keyboard steps, and Home to reset.
+
+Hold loops the captured delay buffers with a short seam crossfade. Time
+changes alter their playback speed; tone, spread and mix reshape them.
+Feedback resumes when Hold is released. Bypass smoothly restores the original
+audio while the delay continues running. The wet effect uses a mono sum of
+the input and spreads its three voices in stereo; the dry path preserves stereo.
+
+## Run it
+
+From the repository root:
+
+```sh
+pnpm --filter orbit dev:web
+pnpm --filter orbit test
+pnpm --filter orbit test:native
+pnpm --filter orbit typecheck
+pnpm --filter orbit build:web
+pnpm --filter orbit exec soundor build juce
+```
+
+The JUCE build needs [the native prerequisites](/docs/contribute/setup).

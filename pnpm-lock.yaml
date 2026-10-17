@@ -500,6 +500,9 @@ importers:
       npm-to-yarn:
         specifier: 'catalog:'
         version: 3.2.0
+      orbit:
+        specifier: workspace:*
+        version: link:../../examples/orbit
       primitives:
         specifier: workspace:*
         version: link:../../examples/primitives
@@ -540,6 +543,52 @@ importers:
   configs/typescript-config: {}
 
   examples/basic:
+    dependencies:
+      '@soundor/juce-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/juce-runtime
+      '@soundor/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
+      react:
+        specifier: 'catalog:'
+        version: 19.3.0
+    devDependencies:
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@soundor/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@soundor/testing-library':
+        specifier: workspace:^
+        version: link:../../packages/testing-library
+      '@soundor/vitest':
+        specifier: workspace:^
+        version: link:../../packages/vitest
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.3.0
+      soundor:
+        specifier: workspace:*
+        version: link:../../packages/cli
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.4(@types/node@24.19.2)(happy-dom@20.14.5)(vite@8.3.4(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      vitest-environment-soundor:
+        specifier: workspace:^
+        version: link:../../packages/vitest-environment-soundor
+
+  examples/orbit:
     dependencies:
       '@soundor/juce-runtime':
         specifier: workspace:*

@@ -81,9 +81,9 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/primitives`, and `examples/snippets`:
-the docs' live snippets, web runtime only) are real projects using
-the workspace packages: `pnpm --filter <example> exec soundor dev web|juce`,
+Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
+`examples/snippets`) are real projects using the workspace packages. The docs'
+live snippets are web-only. Run `pnpm --filter <example> exec soundor dev web|juce`,
 `... soundor build web|juce`. No native CI job builds them; CI's Fast checks
 run their tests, typecheck and web builds, and the website embeds those web
 builds. Tests have their own fixtures, inside the package they test:

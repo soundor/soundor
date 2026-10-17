@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbit — a playable stereo delay</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #16191b;
+        color: #b5bcb1;
+        font:
+          12px system-ui,
+          sans-serif;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+      }
+      .source {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 0 12px;
+      }
+      select {
+        border: 1px solid #3e453e;
+        border-radius: 6px;
+        background: #242a25;
+        color: #d8e0d2;
+        font: inherit;
+        padding: 5px 8px;
+      }
+      #soundor {
+        position: relative;
+        min-height: 0;
+        flex: 1;
+      }
+      .hint {
+        color: #808b7c;
+      }
+      @media (max-width: 550px) {
+        .hint {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="source">
+      <label for="audio-source">Audio source</label>
+      <select id="audio-source">
+        <option value="demo">Pluck phrase + gaps · 120 BPM</option>
+        <option value="host">Host input / your audio file</option>
+      </select>
+      <span class="hint">Press Play below · compare Original / Orbit</span>
+    </div>
+    <div id="soundor"></div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
