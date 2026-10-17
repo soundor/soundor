@@ -233,6 +233,23 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(85, 35)));
     }
 
+    TEST_CASE("an image drawn much smaller averages its pixels rather than skipping them")
+    {
+        // stripes.png: 64×8, every fourth column white, the rest black. Drawn
+        // four times smaller, each pixel covers one white column in four: a
+        // quarter grey. Sampled without mipmaps, it would hit only black ones.
+        RenderFixture f(16, 2);
+        f.run(std::string(imports) + R"(
+            root.appendChild(createImage('stripes.png', { width: 16, height: 2, resizeMode: 'stretch' }));
+        )");
+        f.render();
+        for (int x = 1; x < 15; ++x)
+        {
+            const Pixel p = f.at(x, 1);
+            CHECK_MESSAGE((p.r > 40 && p.r < 100), "pixel " << x << " is " << p.r << ", not a quarter grey");
+        }
+    }
+
     TEST_CASE("zIndex draws siblings in stacking order, as they are hit")
     {
         RenderFixture f;

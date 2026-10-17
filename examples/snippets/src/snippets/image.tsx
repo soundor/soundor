@@ -4,7 +4,7 @@ import cover from '../assets/cover.png';
 
 const MODES = ['cover', 'contain', 'stretch', 'center'] as const;
 
-// A bundled image (320 × 200 pixels) in square boxes: resizeMode says how
+// A bundled image (480 × 300 pixels) in square boxes: resizeMode says how
 // it fills a box of another shape.
 export default function ResizeModes() {
   return (

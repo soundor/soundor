@@ -249,6 +249,6 @@ test("a snippet's image loads, from the example's build", async ({ page }) => {
     .poll(() =>
       image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
     )
-    .toBe(320);
+    .toBe(480);
   expect(problems).toEqual([]);
 });

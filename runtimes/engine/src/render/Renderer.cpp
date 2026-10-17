@@ -393,7 +393,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         canvas.save();
         canvas.clipRRect(outer, true);
         canvas.clipRect(box, true);
-        canvas.drawImageRect(image, placed, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone));
+        // Between the two nearest of its mipmaps: smooth at any size.
+        canvas.drawImageRect(image, placed, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear));
         canvas.restore();
     }
 

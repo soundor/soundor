@@ -67,7 +67,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             if (codec == nullptr)
                 return nullptr;
             auto [image, status] = codec->getImage();
-            return status == SkCodec::kSuccess || status == SkCodec::kIncompleteInput ? image : nullptr;
+            if (status != SkCodec::kSuccess && status != SkCodec::kIncompleteInput)
+                return nullptr;
+            // Its smaller versions, made once: an image drawn much smaller than
+            // its pixels averages them instead of skipping most (aliasing).
+            return image->withDefaultMipmaps();
         }
 
         ui::Renderer::AssetLoader assets;
