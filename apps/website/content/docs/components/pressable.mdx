@@ -1,0 +1,40 @@
+---
+title: Pressable
+description: A view that responds to presses, with its state for styling.
+---
+
+`Pressable` is a view that responds to presses: a click, Enter or Space while
+it has focus, or a screen reader's "activate". Its `style` and `children` may
+be functions of its state (pressed, hovered, focused), so a button is drawn
+from the same state the runtime tracks.
+
+<Snippet name="pressable" height={200} />
+
+- **Presses:** `onPress` after a press; `onPressIn` and `onPressOut` around
+  it; `onHoverIn` and `onHoverOut` as the pointer comes and goes.
+- **Long presses:** with `onLongPress`, holding it `delayLongPress` ms (500
+  by default) without moving away is a long press, and not also a press.
+- **Disabled:** `disabled` makes it neither pressable nor focusable, and tells
+  assistive technology so.
+- **Focus:** it is focusable, so Tab reaches it; Enter or Space press it.
+- **To assistive technology** it is one element, a `button` unless given
+  another role, labelled by its text. It offers `activate` (its `onPress`)
+  and, with `onLongPress`, `longpress`.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="PressableOwnProps"
+  type="Omit<PressableProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+`style` and `children` take a function of its state:
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="PressableState"
+/>
+
+`Pressable` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

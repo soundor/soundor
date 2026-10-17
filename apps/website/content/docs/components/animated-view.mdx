@@ -1,0 +1,57 @@
+---
+title: Animated.View
+description: A view whose opacity and transform changes animate, run by the runtime.
+---
+
+`Animated.View` is a [`View`](/docs/components/view) whose opacity and
+transform animate to each new value. The runtime runs the animation: React
+renders the start and the end, never the frames in between.
+
+<Snippet name="animated" height={220} />
+
+- **Transitions:** when `opacity` or `transform` changes, it animates from
+  what shows now (even mid-animation) to the new value, with `transition`:
+  300 ms linear by default, or `duration`, `delay` and `easing` of your own.
+  Other style properties change at once. Its first style applies at once too.
+- **Unchanged targets** do not restart anything, and unmounting cancels its
+  animations, its children's included.
+- **Layout stays:** a transform moves how the view is drawn and hit, not
+  where it is laid out.
+- **Reduced motion** follows `soundor:ui`'s preference: the browser's media
+  query on the web; natively, the host or your code sets it
+  (`setReducedMotion()`).
+
+## Springs and paint
+
+`transition={{ type: 'spring', stiffness, damping, mass }}` makes a change
+spring to its target. `animation` runs keyframes on their own, here a paint
+animation that loops:
+
+<Snippet name="spring" height={220} />
+
+- **Springs** animate numbers: opacity and transforms. Paint (background and
+  border colors) needs a timing transition.
+- **`animation`** takes keyframes or a composed description (sequences,
+  parallel groups, staggers, delays: see [`soundor:ui`](/docs/api/ui)), and
+  `transition` gives its playback (`iterations`, `direction`, `fill`). It
+  starts on mount, and again only when its contents or options change: a new
+  array with the same keyframes does not restart it.
+- **Explicit animations win** over the style's transitions while they run.
+- **The ref** is the view's `UiNode`, whose `animate()` composes and controls
+  animations directly.
+
+The [animation contract](/docs/contribute/engine-reference#advanced-animations)
+has the details: timing, cancellation, spring physics, and how the browser
+approximates them.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="AnimatedViewOwnProps"
+  type="Pick<AnimatedViewProps, 'transition' | 'animation'>"
+/>
+
+`Animated.View` also takes a [`View`](/docs/components/view)'s props, the
+[event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

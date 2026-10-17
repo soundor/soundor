@@ -25,6 +25,7 @@
     "codemirror": "catalog:",
     "fumadocs-core": "catalog:",
     "fumadocs-mdx": "catalog:",
+    "fumadocs-typescript": "catalog:",
     "fumadocs-ui": "catalog:",
     "lucide-react": "catalog:",
     "react": "catalog:",

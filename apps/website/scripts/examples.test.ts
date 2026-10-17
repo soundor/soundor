@@ -12,7 +12,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { snippetSources, syncExamples } from './examples.ts';
+import { assetId, snippetSources, syncExamples } from './examples.ts';
 
 let root: string;
 afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -148,6 +148,31 @@ describe('snippets', () => {
       "import Snippet from './snippets/gain';",
     );
     expect(sources.files['src/snippet.tsx']).toContain('<Frame>');
+  });
+
+  it("gives a snippet's images the ids the build serves them by", () => {
+    const site = workspace({ snippets: 'examples/snippets' }, ['snippets']);
+    const dir = join(root, 'examples/snippets');
+    mkdirSync(join(dir, 'src/snippets'));
+    mkdirSync(join(dir, 'src/assets'));
+    writeFileSync(join(dir, 'src/frame.tsx'), 'export function Frame() {}');
+    const png = new Uint8Array([137, 80, 78, 71]);
+    writeFileSync(join(dir, 'src/assets/cover.png'), png);
+    writeFileSync(
+      join(dir, 'src/snippets/image.tsx'),
+      "import cover from '../assets/cover.png';\nexport default function Image() {}",
+    );
+    const id = assetId(png, 'cover.png');
+    expect(id).toMatch(/^[0-9a-f]{16}\.png$/);
+    expect(snippetSources(dir, 'image').assets).toEqual({
+      'src/assets/cover.png': id,
+    });
+
+    // The web build must serve it.
+    expect(() => syncExamples(site)).toThrow(/has no src\/assets\/cover\.png/);
+    mkdirSync(join(dir, '.soundor/dist/web/soundor-assets'));
+    writeFileSync(join(dir, '.soundor/dist/web/soundor-assets', id), png);
+    expect(() => syncExamples(site)).not.toThrow();
   });
 
   it('needs a frame to show the snippets in', () => {

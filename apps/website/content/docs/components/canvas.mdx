@@ -1,0 +1,37 @@
+---
+title: Canvas
+description: Pixels code draws, with a 2D or a WebGL 2 context.
+---
+
+A `Canvas` is pixels your code draws, like an HTML `<canvas>`: get its
+context from its node, in an effect or on every frame.
+
+<Snippet name="canvas" height={200} />
+
+- **Contexts:** `ref.current.getContext('2d')` gives a
+  `CanvasRenderingContext2D` (drawn with Skia natively), the same object every
+  time. `getContext('webgl2')` gives a `WebGL2RenderingContext` on the GPU, or
+  null where there is no acceptable GPU; Three.js runs on it unmodified.
+- **Size:** `width` and `height` are the drawing buffer's, 300 by 150 by
+  default. Setting either clears the canvas, so draw again after. The box is
+  the buffer's size in logical pixels unless styled, and the buffer is
+  stretched over it: size the buffer by `devicePixelRatio` for crisp lines.
+- **Every frame:** `useAnimationFrame` calls your drawing code before each
+  frame, while the component is mounted ([hooks](/docs/api/react#hooks)).
+- **What 2D draws:** paths, rectangles, text, gradients, patterns, images,
+  `ImageData`, transforms and compositing. Shadows, `filter`, `Path2D` and
+  `DOMMatrix` throw rather than draw something else: see the
+  [canvas reference](/docs/contribute/engine-reference#soundorui).
+- **To assistive technology** a canvas is decorative unless it is given a
+  label, a role or `accessible`, like an image.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="CanvasOwnProps"
+  type="Omit<CanvasProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+`Canvas` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

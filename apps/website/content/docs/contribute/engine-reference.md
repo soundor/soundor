@@ -527,6 +527,8 @@ Beyond views and text there are the primitives a plugin UI is made of:
 - **`createImage(asset, style)`:** a bundled image (PNG, JPEG or WebP). It is
   sized by its pixels unless styled; `resizeMode` is `cover`, `contain`,
   `stretch` or `center`.
+  Decoding makes its mipmaps once, and it is drawn between the two nearest:
+  an image drawn much smaller than its pixels averages them, not aliasing.
 - **`createScrollView(style)`:** its children scroll by wheel or by `scrollTo()`
   and `scrollTop`/`scrollLeft`. It fires `scroll`, clips, and draws thin scroll
   indicators.

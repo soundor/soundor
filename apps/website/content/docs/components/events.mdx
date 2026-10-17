@@ -1,0 +1,61 @@
+---
+title: Events
+description: The Web-style pointer, wheel, key and focus events every component takes, and their coordinates.
+---
+
+Every component takes event props: `onPointerDown`, `onClick`, `onKeyDown`,
+`onWheel`, `onFocus` and the others below, with `…Capture` variants. They
+receive `soundor:ui`'s Web-style events, which capture and bubble through
+the view's nodes as in the DOM.
+
+```tsx
+<View
+  focusable
+  onPointerDown={(event) => startDrag(event.pageY)}
+  onWheel={(event) => nudge(-event.deltaY)}
+  onKeyDown={(event) => {
+    if (event.key === 'ArrowUp') {
+      nudge(1);
+      event.preventDefault();
+    }
+  }}
+/>
+```
+
+- **Capture and bubble:** an event goes down to its target through the
+  `…Capture` props, then back up through the others. Enter, leave, focus and
+  blur do not bubble.
+- **`preventDefault()`** stops the runtime's own response: a press focusing a
+  node, a text input's editing, a key or wheel input going on to the plugin's
+  host (a DAW's shortcuts).
+- **`stopPropagation()`** keeps other nodes from seeing the event;
+  `stopImmediatePropagation()` keeps the target's other listeners from seeing
+  it too.
+- **Pointer capture** is implicit: from a press to its release, the pressed
+  node receives the moves, wherever the pointer goes.
+- **Focus:** a press focuses the nearest `focusable` node, unless its
+  `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
+  Keys go to the focused node.
+- **`onContextMenu`** fires when the secondary button goes down, so a UI can
+  open its own menu ([Portal](/docs/components/portal#over-everything)).
+
+## Coordinates
+
+Every position is in logical pixels, in one of three spaces:
+
+| Space   | Relative to                        | Where                                                        |
+| ------- | ---------------------------------- | ------------------------------------------------------------ |
+| Local   | The event's target                 | `event.locationX`, `event.locationY`                         |
+| Parent  | The parent's box (scrolling aside) | `node.layout`                                                |
+| Surface | The plugin view's top-left corner  | `event.pageX`, `event.pageY`, `node.getBoundingClientRect()` |
+
+`getBoundingClientRect()` is where the node shows, after its ancestors have
+scrolled. Device pixels (a Retina scale, a host that zooms
+the view) are the renderer's business and never show up in these numbers.
+There is no window or screen space: the view is all a plugin UI knows.
+(`clientX`/`clientY` and `offsetX`/`offsetY` are the Web names for
+`pageX`/`pageY` and `locationX`/`locationY`.)
+
+## Props
+
+<auto-type-table path="packages/react/src/components.tsx" name="EventProps" />

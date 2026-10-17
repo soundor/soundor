@@ -12,6 +12,7 @@
  * before the site's build.
  */
 
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -22,7 +23,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { globSync } from 'node:fs';
-import { join, sep } from 'node:path';
+import { extname, join, posix, sep } from 'node:path';
 
 import { exampleTypes } from './types.ts';
 
@@ -34,6 +35,21 @@ export interface ExampleSources {
   readonly files: Readonly<Record<string, string>>;
   /** The files the editor shows; every one when absent. */
   readonly editable?: readonly string[];
+  /** The images the files import: asset ids by path (`src/assets/cover.png`). */
+  readonly assets?: Readonly<Record<string, string>>;
+}
+
+/** Image imports, as a snippet may have them: `import cover from '../assets/cover.png'`. */
+const IMAGE_IMPORT = /from '(\.{1,2}\/[^']+\.(?:png|jpe?g|webp))'/gi;
+
+/**
+ * An image's asset id, as the CLI's bundler names it (`assetId` in
+ * `packages/cli/src/ui/bundle.ts`): the web build serves the image at
+ * `soundor-assets/<id>`, which `syncExamples` checks.
+ */
+export function assetId(bytes: Uint8Array, path: string): string {
+  const hash = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+  return `${hash}${extname(path).toLowerCase()}`;
 }
 
 /** Where an example keeps its snippets, one component per file. */
@@ -76,14 +92,21 @@ export function snippetSources(dir: string, name: string): ExampleSources {
     ');',
     '',
   ].join('\n');
+  const code = readFileSync(join(dir, file), 'utf-8');
+  const assets: Record<string, string> = {};
+  for (const [, specifier] of code.matchAll(IMAGE_IMPORT)) {
+    const path = posix.join(posix.dirname(file), specifier!);
+    assets[path] = assetId(readFileSync(join(dir, path)), path);
+  }
   return {
     entry: SNIPPET_ENTRY,
     files: {
       [SNIPPET_ENTRY]: entry,
       [frame]: readFileSync(join(dir, frame), 'utf-8'),
-      [file]: readFileSync(join(dir, file), 'utf-8'),
+      [file]: code,
     },
     editable: [file],
+    ...(Object.keys(assets).length > 0 && { assets }),
   };
 }
 
@@ -133,9 +156,17 @@ export function syncExamples(site: string): string[] {
     const snippets = Object.keys(snippetFiles(dir));
     if (snippets.length > 0) mkdirSync(join(out, name, 'snippets'));
     for (const snippet of snippets) {
+      const sources = snippetSources(dir, snippet);
+      for (const [path, id] of Object.entries(sources.assets ?? {})) {
+        if (!existsSync(join(out, name, 'soundor-assets', id))) {
+          throw new Error(
+            `${name}'s web build has no ${path} (soundor-assets/${id}): import it in the example's UI, so the build serves it`,
+          );
+        }
+      }
       writeFileSync(
         join(out, name, 'snippets', `${snippet}.json`),
-        JSON.stringify(snippetSources(dir, snippet)),
+        JSON.stringify(sources),
       );
     }
     synced.push(name);

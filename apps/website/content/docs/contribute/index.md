@@ -169,16 +169,19 @@ uploads, and readbacks do not depend on timing and help explain a change.
 ## Documentation and changesets
 
 The documentation is the website, [soundor.dev](https://soundor.dev): guides and
-references live in `apps/website/content/docs/`, `(docs)/` for plugin authors
-and `contribute/` for work on Soundor itself. Each folder's `meta.json` orders
-its sidebar, and a page's frontmatter gives its title and description. Write
+references live in `apps/website/content/docs/`, one folder per tab:
+`(docs)/` (guides for plugin authors), `components/` (a page per component),
+`api/` (a page per module and tool) and `contribute/` (work on Soundor
+itself). Each folder's `meta.json` orders its sidebar, and a page's
+frontmatter gives its title and description. Write
 `.md`; use `.mdx` only for a page that needs a component, such as
 `<Example name="basic" />`, which embeds an example's web build, or
 `<Snippet name="gain" height={200} />`, which runs one file of
 `examples/snippets/src/snippets/` live, its code under it. Readers can edit
 an embedded example's UI code (`src/`, without tests) and a snippet, and see
 them run, so that code may import only `react`, `@soundor/react`,
-`soundor:*` and the example's own files (a snippet: none).
+`soundor:*` and the example's own files (a snippet: none, but images from
+`examples/snippets/src/assets/`, which the snippet's page gets the ids of).
 
 A snippet is one small component, the file's default export, about one
 thing. Add it to `examples/snippets/src/snippets/` and its `index.ts`; the
@@ -192,7 +195,14 @@ name. The editor checks it with TypeScript against the example's own types
 completions and documentation on hover come from the JSDoc in the
 `soundor:*` declarations and `@soundor/react`.
 
-Link pages by their site path (`/docs/react#hooks`) and repository files by
+A component's props table is generated from its type:
+`<auto-type-table path="packages/react/src/components.tsx" name="…" />`
+(fumadocs-typescript, `plugins/type-tables.ts`), with `type="Omit<…>"` and a
+name of its own for the component's own props. Its descriptions are the
+props' doc comments, so a new prop needs one: the same comment shows in the
+editor's hover and in a user's IDE.
+
+Link pages by their site path (`/docs/api/react#hooks`) and repository files by
 their GitHub URL. Write versions as placeholders such as
 `%version:<package>%`, which the build fills in from the repository (the list is
 in `apps/website/plugins/values.ts`). Package READMEs are

@@ -85,7 +85,9 @@ export function createPortalHost(): PortalHost {
 }
 
 export interface PortalHostProps {
+  /** The handle portals render into, from `createPortalHost()`. */
   host: PortalHost;
+  /** The host view's style: where, and how, its portals show. */
   style?: StyleProp;
 }
 

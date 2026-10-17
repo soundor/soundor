@@ -1,0 +1,29 @@
+---
+title: View
+description: A box laid out with flexbox, the building block of a plugin UI.
+---
+
+A `View` is a box: it lays its children out with flexbox, paints a
+background and a border, clips, and receives events. It is a column by
+default, as in React Native.
+
+<Snippet name="view" height={230} />
+
+- **Layout:** `flexDirection`, `justifyContent`, `alignItems`, `gap`,
+  `flex`, sizes, margins and padding: see [Style](/docs/components/style).
+- **Focus:** `focusable` makes it take keyboard focus when pressed or tabbed
+  to; then it receives key events ([Events](/docs/components/events)).
+- **To assistive technology** a view is not an element itself; what it
+  contains is, unless it is given a role or `accessible`
+  ([Accessibility](/docs/components/accessibility)).
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="ViewOwnProps"
+  type="Omit<ViewProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+A `View` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

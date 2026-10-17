@@ -160,6 +160,16 @@ test('a snippet runs in its page, with its code under it', async ({ page }) => {
   await expect(snippet.locator('pre')).toContainText(
     'export default function Gain()',
   );
+  // The code scrolls in one box, not in a box in a box.
+  const scrolling = await snippet.evaluate(
+    (figure) =>
+      [...figure.querySelectorAll('*')].filter(
+        (element) =>
+          /auto|scroll/.test(getComputedStyle(element).overflowY) &&
+          element.scrollHeight > element.clientHeight,
+      ).length,
+  );
+  expect(scrolling).toBe(1);
 
   await plugin.getByRole('button', { name: '+' }).click();
   await expect(plugin.getByText('Gain 0.60')).toBeVisible();
@@ -187,4 +197,58 @@ test("a page's Markdown has its snippets' code", async ({ request }) => {
   const markdown = await (await request.get('/docs/react.md')).text();
   expect(markdown).toContain('export default function Gain()');
   expect(markdown).not.toContain('<Snippet');
+});
+
+test("a component's page runs it, and lists its props from its types", async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await page.goto('/docs/components/pressable');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Pressable');
+  const plugin = page.frameLocator('iframe[title*="pressable snippet"]');
+  await expect(plugin.getByRole('button', { name: /Press me/ })).toBeVisible();
+  // Its own props, with their doc comments; inherited ones are elsewhere.
+  const props = page.locator('#props ~ div').first();
+  await expect(props).toContainText('delayLongPress');
+  await expect(props).not.toContainText('onPointerDown');
+  await page.getByRole('button', { name: /delayLongPress/ }).click();
+  await expect(
+    page.getByText('Milliseconds before a press is a long press'),
+  ).toBeVisible();
+  expect(problems).toEqual([]);
+});
+
+test('the tabs lead to Components and API', async ({ page }) => {
+  await page.goto('/docs');
+  await page.getByRole('button', { name: /^Docs/ }).first().click();
+  await page.getByRole('link', { name: /^API/ }).click();
+  await expect(page).toHaveURL(/\/docs\/api$/);
+  await page.getByRole('link', { name: 'soundor:fs' }).first().click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    'soundor:fs',
+  );
+});
+
+test("a component's Markdown has its props table", async ({ request }) => {
+  const markdown = await (
+    await request.get('/docs/components/pressable.md')
+  ).text();
+  expect(markdown).toMatch(
+    /\| `delayLongPress\?` +\| `number` +\| Milliseconds/,
+  );
+  expect(markdown).not.toContain('<auto-type-table');
+});
+
+test("a snippet's image loads, from the example's build", async ({ page }) => {
+  const problems = watch(page);
+  await page.goto('/docs/components/image');
+  const plugin = page.frameLocator('iframe[title*="image snippet"]');
+  const image = plugin.getByRole('img', { name: 'A waveform, cover' });
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate((element) => (element as HTMLImageElement).naturalWidth),
+    )
+    .toBe(480);
+  expect(problems).toEqual([]);
 });

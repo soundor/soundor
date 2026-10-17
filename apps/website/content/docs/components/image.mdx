@@ -1,0 +1,46 @@
+---
+title: Image
+description: A bundled image, sized by its pixels unless styled.
+---
+
+`Image` shows an image bundled with the plugin: a PNG, JPEG or WebP file
+imported from the project.
+
+<Snippet name="image" height={190} />
+
+In a plugin, import the image from the project, and give it a label:
+
+```tsx
+import { Image } from '@soundor/react';
+
+import logo from './logo.png';
+
+export function Logo() {
+  return (
+    <Image
+      source={logo}
+      accessibilityLabel="Acme Audio"
+      style={{ width: 120, height: 40, resizeMode: 'contain' }}
+    />
+  );
+}
+```
+
+- **Size:** an image is its pixels' size unless styled. Given a box,
+  `resizeMode` in its style says how it fills it: `cover`, `contain`,
+  `stretch` or `center`.
+- **Source:** `import logo from './logo.png'` gives a bundled asset; the CLI
+  embeds it in the plugin. There is no loading from URLs or files.
+- **To assistive technology** an image is decorative unless it is given a
+  label (`accessibilityLabel`), a role or `accessible`.
+
+## Props
+
+<auto-type-table
+  path="packages/react/src/components.tsx"
+  name="ImageOwnProps"
+  type="Omit<ImageProps, keyof EventProps | keyof AccessibilityProps>"
+/>
+
+`Image` also takes the [event props](/docs/components/events) and the
+[accessibility props](/docs/components/accessibility).

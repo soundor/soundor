@@ -70,7 +70,8 @@ export function Snippet({ name, height = 240, children }: SnippetProps) {
         ) : null
       }
       code={
-        <div className="max-h-[360px] overflow-auto border-t [&_figure]:my-0 [&_figure]:rounded-none [&_figure]:border-0">
+        // One scrollbar: the code block's own, made shorter.
+        <div className="border-t [&_.fd-scroll-container]:max-h-[360px] [&_figure]:my-0 [&_figure]:rounded-none [&_figure]:border-0">
           {children}
         </div>
       }

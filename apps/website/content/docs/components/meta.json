@@ -1,0 +1,25 @@
+{
+  "title": "Components",
+  "description": "Every component, live, with its props",
+  "root": true,
+  "pages": [
+    "index",
+    "---Basics---",
+    "view",
+    "text",
+    "image",
+    "pressable",
+    "text-input",
+    "scroll-view",
+    "canvas",
+    "animated-view",
+    "---Overlays and focus---",
+    "portal",
+    "modal",
+    "focus-scope",
+    "---Every component---",
+    "style",
+    "events",
+    "accessibility"
+  ]
+}

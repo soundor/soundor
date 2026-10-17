@@ -7,16 +7,19 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import react from '@vitejs/plugin-react';
 import { getSlugs } from 'fumadocs-core/source';
 import { fumadocsMdx } from 'fumadocs-mdx/vite';
+import { remarkAutoTypeTable } from 'fumadocs-typescript';
 import { defineConfig } from 'vite';
 
 import { packageManagers } from './plugins/package-managers.ts';
 import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
 import { remarkSnippets } from './plugins/remark-snippets.ts';
+import { typeTableGenerator, typeTableOptions } from './plugins/type-tables.ts';
 import { siteValues } from './plugins/values.ts';
 import { snippetFiles } from './scripts/examples.ts';
 import { serveFile } from './scripts/static.ts';
 
 const values = siteValues();
+const typeTables = await typeTableGenerator();
 
 // The snippets `<Snippet>` shows, read as each page compiles: an edit shows
 // on the next reload.
@@ -75,6 +78,14 @@ export default defineConfig({
           remarkPlugins: (defaults) => [
             remarkPlaceholders(values),
             remarkSnippets(readSnippet),
+            [
+              remarkAutoTypeTable,
+              {
+                generator: typeTables.generator,
+                options: typeTableOptions,
+                remarkStringify: true,
+              },
+            ],
             ...defaults,
           ],
           remarkNpmOptions: { packageManagers, persist: { id: 'pm' } },

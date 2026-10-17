@@ -33,15 +33,22 @@ import type { StyleProp } from './style';
 
 /** Event props every component takes; `…Capture` runs in the capture phase. */
 export interface EventProps {
+  /** A button went down over the node (mouse, pen or touch). */
   onPointerDown?: (event: PointerEvent) => void;
   onPointerDownCapture?: (event: PointerEvent) => void;
+  /** The pointer moved over the node, or anywhere while the node captures it. */
   onPointerMove?: (event: PointerEvent) => void;
   onPointerMoveCapture?: (event: PointerEvent) => void;
+  /** A button went up. */
   onPointerUp?: (event: PointerEvent) => void;
   onPointerUpCapture?: (event: PointerEvent) => void;
+  /** A press ended without a release: the platform cancelled the pointer. */
   onPointerCancel?: (event: PointerEvent) => void;
+  /** The pointer entered the node's box; does not bubble. */
   onPointerEnter?: (event: PointerEvent) => void;
+  /** The pointer left the node's box; does not bubble. */
   onPointerLeave?: (event: PointerEvent) => void;
+  /** The primary button went down and up on the node. */
   onClick?: (event: PointerEvent) => void;
   onClickCapture?: (event: PointerEvent) => void;
   /**
@@ -50,19 +57,26 @@ export interface EventProps {
    */
   onContextMenu?: (event: PointerEvent) => void;
   onContextMenuCapture?: (event: PointerEvent) => void;
+  /** A wheel or trackpad scrolled over the node. */
   onWheel?: (event: WheelEvent) => void;
   onWheelCapture?: (event: WheelEvent) => void;
+  /** A key went down while the node, or a node in it, had focus. */
   onKeyDown?: (event: KeyboardEvent) => void;
   onKeyDownCapture?: (event: KeyboardEvent) => void;
+  /** A key went up while the node, or a node in it, had focus. */
   onKeyUp?: (event: KeyboardEvent) => void;
+  /** The node took keyboard focus; does not bubble. */
   onFocus?: (event: FocusEvent) => void;
+  /** The node lost keyboard focus; does not bubble. */
   onBlur?: (event: FocusEvent) => void;
 }
 
 export interface ViewProps extends EventProps, AccessibilityProps {
+  /** Layout and paint: flexbox (a column by default), spacing, colors. */
   style?: StyleProp;
   /** Takes focus when pressed or tabbed to. */
   focusable?: boolean;
+  /** The view's `soundor:ui` node: its layout, bounds, focus, animations. */
   ref?: Ref<UiNode>;
   children?: ReactNode;
 }
@@ -81,6 +95,10 @@ export type TimingTransition = AnimationOptions & { type?: 'timing' };
 export type SpringTransition = AnimationOptions & { type: 'spring' };
 export type AnimationTransition = TimingTransition | SpringTransition;
 export interface AnimatedViewProps extends ViewProps {
+  /**
+   * How opacity and transform changes animate: timing (300 ms linear by
+   * default) or `type: 'spring'`; and the playback of `animation`.
+   */
   transition?: AnimationTransition;
   /** Keyframes or a composed description, submitted when its contents change. */
   animation?: readonly AnimationKeyframe[] | AnimationDescription;
@@ -107,9 +125,11 @@ export const Animated = Object.freeze({ View: AnimatedView });
  * outermost <Text> is read as one text.
  */
 export interface TextProps extends EventProps, AccessibilityProps {
+  /** Font, color and alignment, besides a view's layout and paint. */
   style?: StyleProp;
   /** At most this many lines. */
   numberOfLines?: number;
+  /** The text's `soundor:ui` node. */
   ref?: Ref<UiNode>;
   /** Strings, numbers and nested <Text>, shown as one run of text. */
   children?: ReactNode;
@@ -127,7 +147,9 @@ export function Text(props: TextProps) {
 export interface ImageProps extends EventProps, AccessibilityProps {
   /** A bundled image: `import logo from './logo.png'`. */
   source: SoundorAsset;
+  /** Its box; `resizeMode` says how the image fills it. */
   style?: StyleProp;
+  /** The image's `soundor:ui` node. */
   ref?: Ref<UiNode>;
 }
 
@@ -147,7 +169,9 @@ export interface CanvasProps extends EventProps, AccessibilityProps {
    * depends on them).
    */
   width?: number;
+  /** The drawing buffer's height in pixels: see `width`. */
   height?: number;
+  /** Its box, which the buffer is scaled to: the buffer's size unless set. */
   style?: StyleProp;
   /** The canvas node: draw with `ref.current.getContext('2d')`. */
   ref?: Ref<UiNode>;
@@ -161,6 +185,7 @@ export function Canvas(props: CanvasProps) {
 export interface ScrollViewProps extends ViewProps {
   /** The style of the box inside that holds the children and scrolls. */
   contentContainerStyle?: StyleProp;
+  /** It scrolled; read the node's `scrollTop`/`scrollLeft`. */
   onScroll?: (event: Event) => void;
 }
 
@@ -187,15 +212,19 @@ export interface TextInputProps extends EventProps, AccessibilityProps {
   value?: string;
   /** The initial text of an uncontrolled input. */
   defaultValue?: string;
+  /** Shown, dimmed, while the text is empty. */
   placeholder?: string;
+  /** Its box and its text's font and color. */
   style?: StyleProp;
   /** After every edit, with the new text. */
   onChangeText?: (text: string) => void;
   /** On Enter, with the text. */
   onSubmitEditing?: (text: string) => void;
+  /** After every edit: the `soundor:ui` event onChangeText comes from. */
   onInput?: (event: InputEvent) => void;
   /** The text was committed: Enter, or losing focus. */
   onChange?: (event: Event) => void;
+  /** The input's `soundor:ui` node: focus() it, read its value. */
   ref?: Ref<UiNode>;
 }
 
@@ -204,8 +233,11 @@ export function TextInput(props: TextInputProps) {
   return createElement(HostTypes.TextInput, useHostProps(props));
 }
 
+/** What a Pressable's `style` and `children` functions are given. */
 export interface PressableState {
+  /** A press is under way: down, and not yet released or moved away. */
   readonly pressed: boolean;
+  /** The pointer is over it. */
   readonly hovered: boolean;
   /** It has keyboard focus. */
   readonly focused: boolean;
@@ -232,13 +264,19 @@ export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
   onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
   /** Milliseconds before a press is a long press: 500 by default. */
   delayLongPress?: number;
+  /** A press started: the pointer went down on it. */
   onPressIn?: (event: PointerEvent) => void;
+  /** A press ended: released, or moved away. */
   onPressOut?: (event: PointerEvent) => void;
+  /** The pointer came over it. */
   onHoverIn?: (event: PointerEvent) => void;
+  /** The pointer left it. */
   onHoverOut?: (event: PointerEvent) => void;
   /** Not pressable, nor focusable; assistive technology is told it is disabled. */
   disabled?: boolean;
+  /** A style, or a function of its state: pressed, hovered, focused. */
   style?: StyleProp | ((state: PressableState) => StyleProp);
+  /** Children, or a function of its state: pressed, hovered, focused. */
   children?: ReactNode | ((state: PressableState) => ReactNode);
 }
 

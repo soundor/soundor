@@ -1,0 +1,26 @@
+{
+  "title": "API",
+  "description": "Modules, functions and tools, one page each",
+  "root": true,
+  "pages": [
+    "index",
+    "---@soundor/react---",
+    "react",
+    "---Runtime modules---",
+    "parameters",
+    "host",
+    "ui",
+    "storage",
+    "fs",
+    "native",
+    "---Tools---",
+    "config",
+    "cli",
+    "create-soundor-app",
+    "runtime-sdk",
+    "---Testing---",
+    "testing-library",
+    "vitest",
+    "vitest-environment-soundor"
+  ]
+}
