@@ -21,11 +21,12 @@ export async function startSimulatedBrowser(server: DevToolsServer) {
     body: JSON.stringify({ key }),
   });
   if (!auth.ok) throw new Error('Browser bootstrap failed');
+  const cookie = auth.headers.get('set-cookie')!.split(';')[0]!;
   const socket = new WebSocket(
     server.connection.endpoint.replace('http:', 'ws:') + '/browser',
     {
       origin: server.url,
-      headers: { Cookie: auth.headers.get('set-cookie')!.split(';')[0]! },
+      headers: { Cookie: cookie },
     },
   );
   const pending = new Map<
@@ -70,6 +71,17 @@ export async function startSimulatedBrowser(server: DevToolsServer) {
   socket.send(JSON.stringify({ type: 'hello', version: PROTOCOL_VERSION }));
   return {
     events,
+    /** An HTTP request with this browser's session cookie and Origin (overridable). */
+    fetch(path: string, init: RequestInit = {}) {
+      return fetch(server.connection.endpoint + path, {
+        ...init,
+        headers: {
+          Origin: server.url,
+          Cookie: cookie,
+          ...(init.headers as Record<string, string> | undefined),
+        },
+      });
+    },
     request(
       method: DebugMethod,
       targetId?: string,

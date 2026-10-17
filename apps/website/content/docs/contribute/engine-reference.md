@@ -62,6 +62,14 @@ input holds (buttons, keys) and releases it on `resetControl`, transport loss
 and bridge reset (a `pointercancel`, `keyup`s); a generation change forgets
 it, as the old surface went with its host.
 
+`Capture.screenshot` (`src/debug/Capture.cpp`) draws the whole view with
+`RuntimeHost::render()` (the view renderer that rasterizes the layers, GPU
+canvases read back once) at the surface's scale, crops it to a node's
+bounds when asked, and encodes PNG with Skia (`src/render/Png.cpp`). The
+result goes through `Inspector::attachments()`: the bridge's worker uploads
+the PNG before it sends the answer, so nothing blocks the UI thread on the
+network. Without an attachment channel, captures are `CAPTURE_UNAVAILABLE`.
+
 Full snapshots are on demand and bounded to 5000 nodes and a transport budget,
 with truncation reported. Subscribed revision notifications are coalesced to
 10 Hz. Structure changes invalidate the tree; text/role/name changes include

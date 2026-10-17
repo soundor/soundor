@@ -111,6 +111,14 @@ export function App({ inspector }: { inspector: Inspector }) {
           Refresh
         </button>
         <button
+          id="screenshot"
+          hidden={!state.supports('capture')}
+          disabled={!state.connected || ui.capturing}
+          onClick={actions.screenshot}
+        >
+          {ui.capturing ? 'Capturing…' : 'Screenshot'}
+        </button>
+        <button
           id="clear-selection"
           disabled={!state.selected}
           onClick={actions.clearSelection}
@@ -143,6 +151,38 @@ export function App({ inspector }: { inspector: Inspector }) {
         <DetailsView inspector={inspector} />
       </main>
       <DiagnosticsView inspector={inspector} />
+      {ui.capture && (
+        <section
+          id="capture"
+          role="dialog"
+          aria-label="Screenshot"
+          className="capture"
+        >
+          <div className="capture-bar">
+            <strong>Screenshot</strong>
+            <span id="capture-meta">
+              {`${ui.capture.width}×${ui.capture.height} px · scale ${ui.capture.scale} · ${Math.ceil(ui.capture.bytes / 1024)} KB · as the engine renders it`}
+            </span>
+            <a
+              id="capture-download"
+              className="button"
+              href={ui.capture.url}
+              download={`${ui.capture.target.replace(/[^\w.-]+/g, '-')}-${new Date(ui.capture.taken).toISOString().replace(/[:.]/g, '-')}.png`}
+            >
+              Download
+            </a>
+            <button id="capture-close" onClick={actions.closeCapture}>
+              Close
+            </button>
+          </div>
+          <img
+            id="capture-image"
+            src={ui.capture.url}
+            alt={`Screenshot of ${ui.capture.target}`}
+            width={ui.capture.width / ui.capture.scale}
+          />
+        </section>
+      )}
     </>
   );
 }

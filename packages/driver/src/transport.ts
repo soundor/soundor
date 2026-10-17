@@ -1,4 +1,5 @@
 import {
+  MAX_CAPTURE_BYTES,
   MAX_MESSAGE_BYTES,
   PROTOCOL_VERSION,
   errorSchema,
@@ -124,6 +125,10 @@ async function signIn(
  */
 export class Connection {
   readonly #socket: WebSocket;
+  // The session cookie and where it goes: for the session's HTTP resources
+  // (captures). Never exposed.
+  readonly #cookie: string;
+  readonly #endpoint: URL;
   readonly #pending = new Map<string, Pending>();
   readonly #targetListeners = new Set<(targets: DebugTarget[]) => void>();
   readonly #eventListeners = new Set<(event: RuntimeEventMessage) => void>();
@@ -141,8 +146,12 @@ export class Connection {
   private constructor(
     socket: WebSocket,
     hello: { clientId: string; project: string },
+    cookie: string,
+    endpoint: URL,
   ) {
     this.#socket = socket;
+    this.#cookie = cookie;
+    this.#endpoint = endpoint;
     this.clientId = hello.clientId;
     this.project = hello.project;
   }
@@ -176,7 +185,6 @@ export class Connection {
       perMessageDeflate: false,
       followRedirects: false,
     });
-    // The cookie lives only in this handshake.
     return new Promise<Connection>((resolve, reject) => {
       const fail = (error: DriverError) => {
         cleanup();
@@ -231,7 +239,12 @@ export class Connection {
         );
         cleanup();
         socket.removeAllListeners();
-        const connection = new Connection(socket, hello.data);
+        const connection = new Connection(
+          socket,
+          hello.data,
+          cookie,
+          credentials.endpoint,
+        );
         // Synchronously: the targets the server sends next reach it.
         connection.#listen();
         resolve(connection);
@@ -365,6 +378,60 @@ export class Connection {
       });
       this.#socket.send(message);
     });
+  }
+
+  /**
+   * Reads a capture the server keeps (`GET /browser/captures/<id>`, with the
+   * session cookie), then deletes it there.
+   */
+  async readCapture(
+    id: string,
+    { timeout = 10000, signal }: CallOptions = {},
+  ): Promise<Uint8Array> {
+    if (this.#closed) throw this.#closed;
+    const url = new URL(
+      `/browser/captures/${encodeURIComponent(id)}`,
+      this.#endpoint,
+    );
+    const headers = { Origin: this.#endpoint.origin, Cookie: this.#cookie };
+    const limit = AbortSignal.any([
+      AbortSignal.timeout(timeout),
+      ...(signal ? [signal] : []),
+    ]);
+    let response: Response;
+    let bytes: ArrayBuffer;
+    try {
+      response = await fetch(url, {
+        headers,
+        redirect: 'error',
+        signal: limit,
+      });
+      bytes = await response.arrayBuffer();
+    } catch (error) {
+      if (signal?.aborted) throw aborted(signal, 'Reading the capture');
+      if (limit.aborted)
+        throw new DriverError(
+          'TIMEOUT',
+          `Reading the capture took over ${timeout} ms`,
+        );
+      throw new DriverError(
+        'SERVER_UNAVAILABLE',
+        'The DevTools server did not deliver the capture',
+        { cause: error },
+      );
+    }
+    if (!response.ok || bytes.byteLength > MAX_CAPTURE_BYTES)
+      throw new DriverError(
+        'SCREENSHOT_UNAVAILABLE',
+        response.status === 404
+          ? 'The capture expired before it was read'
+          : `The DevTools server refused the capture (HTTP ${response.status})`,
+      );
+    // Read once: free the server's copy (it would expire anyway).
+    await fetch(url, { method: 'DELETE', headers, redirect: 'error' })
+      .then((done) => done.arrayBuffer())
+      .catch(() => {});
+    return new Uint8Array(bytes);
   }
 
   onTargets(listener: (targets: DebugTarget[]) => void): () => void {

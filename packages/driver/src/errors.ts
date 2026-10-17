@@ -44,6 +44,8 @@ export type DriverErrorCode =
    * the view, covered by another node, or not focusable.
    */
   | 'ELEMENT_NOT_ACTIONABLE'
+  /** The instance cannot capture its view, or the capture was lost. */
+  | 'SCREENSHOT_UNAVAILABLE'
   /** The operation did not finish in time. */
   | 'TIMEOUT'
   /** The operation was cancelled. */
@@ -86,6 +88,7 @@ const PROTOCOL_CODES: Record<DebugError['code'], DriverErrorCode> = {
   CANCELLED: 'CANCELLED',
   BUSY: 'BUSY',
   NOT_ACTIONABLE: 'ELEMENT_NOT_ACTIONABLE',
+  CAPTURE_UNAVAILABLE: 'SCREENSHOT_UNAVAILABLE',
   INTERNAL: 'INTERNAL',
 };
 

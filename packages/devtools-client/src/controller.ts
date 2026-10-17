@@ -6,6 +6,7 @@ import type {
   DebugMetrics,
   DebugNode,
 } from '@soundor/devtools-protocol';
+import type { Screenshot } from '@soundor/devtools-protocol';
 
 import { createBrowserSession } from './browser-session';
 import { createConnectionRequests } from './connection';
@@ -30,6 +31,11 @@ export function createInspector(win: Window & typeof globalThis) {
     details: undefined as DebugNode | undefined,
     detailAnimations: undefined as Record<string, unknown> | undefined,
     interacting: false,
+    capturing: false,
+    /** The open capture preview: a capture the server keeps for this tab. */
+    capture: undefined as
+      | (Screenshot & { url: string; target: string; taken: number })
+      | undefined,
     /** What the last input on the selected node did. */
     interaction: '',
     reveal: 0,
@@ -100,6 +106,9 @@ export function createInspector(win: Window & typeof globalThis) {
       notify();
     },
     onDisconnect() {
+      // The server dropped this tab's captures with its connection.
+      ui.capture = undefined;
+      ui.capturing = false;
       cancelRequests(undefined);
       state.targets = [];
       state.targetId = '';
@@ -107,6 +116,13 @@ export function createInspector(win: Window & typeof globalThis) {
       emptyTree('Development session disconnected. Reconnecting…');
     },
   });
+  /** Forgets the preview and frees the server's copy. */
+  function closeCapture() {
+    const capture = ui.capture;
+    if (!capture) return;
+    ui.capture = undefined;
+    void win.fetch(capture.url, { method: 'DELETE' }).catch(() => {});
+  }
   function clearInspection() {
     state.clearInspection();
     animationLoading = false;
@@ -639,6 +655,37 @@ export function createInspector(win: Window & typeof globalThis) {
           }
         })(),
       ),
+    /** Captures the target's view as its engine renders it, for a preview. */
+    screenshot: () =>
+      run(
+        (async () => {
+          if (!supports('capture') || ui.capturing || !state.connected) return;
+          const target = state.targetId;
+          ui.capturing = true;
+          notify();
+          try {
+            const capture = await request('Capture.screenshot', {});
+            if (state.targetId !== target) return;
+            closeCapture();
+            ui.capture = {
+              ...capture,
+              url: `/browser/captures/${encodeURIComponent(capture.id)}`,
+              target: currentTarget()?.name ?? 'soundor',
+              taken: Date.now(),
+            };
+            report('');
+          } catch (error) {
+            fail(error);
+          } finally {
+            ui.capturing = false;
+            notify();
+          }
+        })(),
+      ),
+    closeCapture() {
+      closeCapture();
+      notify();
+    },
     clearLogs() {
       state.logs.length = 0;
       renderLogs();
@@ -665,6 +712,7 @@ export function createInspector(win: Window & typeof globalThis) {
     state.connected = false;
     nextHighlight = undefined;
     cancelRequests(undefined);
+    closeCapture();
     session.dispose();
   }
   return {

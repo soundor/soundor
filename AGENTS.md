@@ -170,7 +170,10 @@ read the docs bundled with the installed package
   lazy locators (`getByDebugId`, role, text), and input (`pointer`,
   `keyboard`, locator actions with actionability waits) that the engine
   dispatches like a platform's (`src/debug/Input.cpp`, the `input`
-  capability; never by calling handlers). The CLI's `soundor driver`
+  capability; never by calling handlers), and screenshots (`capture`: the
+  engine renders and encodes PNG, the bridge uploads it as binary to the
+  server, clients read it back as a short-lived authenticated resource). The
+  CLI's `soundor driver`
   commands use it. Nodes get a `debugId` from the components' `debugId` prop.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and

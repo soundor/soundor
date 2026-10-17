@@ -6,6 +6,7 @@
 #if SOUNDOR_DEVTOOLS
     #include <soundor/runtime/RuntimeHost.h>
 
+    #include <cstdint>
     #include <deque>
     #include <functional>
     #include <map>
@@ -84,11 +85,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     {
     public:
         using Send = std::function<void(std::string)>;
+        // A response with a binary attachment (a capture's PNG), which the
+        // bridge uploads for request `id` before sending `response`.
+        using Attach = std::function<void(std::string id, std::vector<std::uint8_t> attachment, std::string response)>;
         using Clock = std::function<std::chrono::steady_clock::time_point()>;
         explicit Inspector(Send output, Clock time = std::chrono::steady_clock::now)
             : send(std::move(output)), clock(std::move(time))
         {
         }
+        // Lets this instance answer Capture.screenshot; without it captures
+        // are unavailable.
+        void attachments(Attach output) { attach = std::move(output); }
         void tick(RuntimeHost& host, unsigned generation);
         void execute(RuntimeHost& host, const Command& command);
         void reset(ui::Surface& surface);
@@ -115,6 +122,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             unsigned buttons = 0;
             std::set<std::string> keys;
         };
+        // Capture.screenshot: the view as the engine's renderer draws it, as
+        // PNG; fills `result` with its description.
+        std::vector<std::uint8_t> capture(RuntimeHost& host, const Command& command, Value::Object& result) const;
+        Attach attach;
         // UI.hitTest and Input.*: through the Surface's own dispatch, as a
         // platform's input, never by calling application handlers.
         Value input(RuntimeHost& host, const Command& command);

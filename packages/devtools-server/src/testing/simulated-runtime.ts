@@ -1,4 +1,5 @@
 import { setTimeout as wait } from 'node:timers/promises';
+import { crc32, deflateSync } from 'node:zlib';
 
 import {
   PROTOCOL_VERSION,
@@ -28,6 +29,67 @@ export interface SimulatedRuntimeOptions {
   sampleData?: boolean;
   /** Accept synthetic input (`input` capability); true by default. */
   input?: boolean;
+  /** Capture the view as PNG (`capture` capability); true by default. */
+  capture?: boolean;
+}
+
+/** The simulated view's size, in logical pixels: what a capture shows. */
+export const SIMULATED_VIEW = { width: 160, height: 140 } as const;
+
+/** An RGBA image as PNG: what a runtime uploads for a capture. */
+export function encodePng(
+  width: number,
+  height: number,
+  rgba: Uint8Array,
+): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 6, 0, 0, 0], 8);
+  const rows = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; ++y)
+    rows.set(
+      rgba.subarray(y * width * 4, (y + 1) * width * 4),
+      y * (width * 4 + 1) + 1,
+    );
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+/** The simulated view drawn: white, with each visible node's box in blue. */
+function draw(nodes: DebugNode[], clip?: DebugNode['bounds']) {
+  const area = clip ?? { x: 0, y: 0, ...SIMULATED_VIEW };
+  const width = Math.max(1, Math.round(area.width));
+  const height = Math.max(1, Math.round(area.height));
+  const rgba = new Uint8Array(width * height * 4).fill(255);
+  for (const node of nodes) {
+    if (!node.visible || node.parent === null) continue;
+    for (let y = 0; y < height; ++y)
+      for (let x = 0; x < width; ++x) {
+        const at = { x: area.x + x, y: area.y + y };
+        const { bounds } = node;
+        if (
+          at.x >= bounds.x &&
+          at.y >= bounds.y &&
+          at.x < bounds.x + bounds.width &&
+          at.y < bounds.y + bounds.height
+        )
+          rgba.set([40, 90, 220, 255], (y * width + x) * 4);
+      }
+  }
+  return { width, height, png: encodePng(width, height, rgba) };
 }
 
 /** Deepest visible node at a point, later siblings over earlier ones. */
@@ -66,6 +128,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
   const name = options.name ?? 'Gain Plugin';
   const diagnostics = options.diagnostics ?? true;
   const input = options.input ?? true;
+  const capture = options.capture ?? true;
   const headers = {
     Authorization: `Bearer ${connection.token}`,
     'X-Soundor-Session': connection.sessionId,
@@ -86,6 +149,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
         'accessibility',
         ...(diagnostics ? ['animations', 'performance'] : []),
         ...(input ? ['input'] : []),
+        ...(capture ? ['capture'] : []),
       ],
     }),
   });
@@ -140,6 +204,9 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     },
   ];
   let pickerEnabled = false;
+  let captures = 0;
+  let captureFailure: string | undefined;
+  let skipUpload = false;
   // Synthetic input, as the engine keeps it: what the application received.
   const inputLog: string[] = [];
   let typed = '';
@@ -307,6 +374,39 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
         inputLog.push(`keydown:${character}`, `keyup:${character}`);
       typed += text;
       result = { handled: focused !== null, node: null };
+    }
+    if (command.method === 'Capture.screenshot') {
+      const { node } = methodParams['Capture.screenshot'].parse(command.params);
+      const found = node && treeNodes.find((item) => item.ref.id === node.id);
+      if (node && !found) error = 'Node was removed';
+      else if (captureFailure) {
+        code = 'CAPTURE_UNAVAILABLE';
+        error = captureFailure;
+      } else {
+        const image = draw(treeNodes, found?.bounds);
+        // The PNG first, as binary; then the answer that describes it.
+        if (!skipUpload) {
+          const upload = await fetch(
+            `${connection.endpoint}/runtime/captures/${command.id}`,
+            {
+              method: 'POST',
+              headers: { ...targetHeaders, 'Content-Type': 'image/png' },
+              body: image.png,
+              signal: AbortSignal.any([abort.signal, signal]),
+            },
+          );
+          await upload.arrayBuffer();
+          if (!upload.ok) throw new Error('Capture rejected: ' + upload.status);
+        }
+        ++captures;
+        result = {
+          width: image.width,
+          height: image.height,
+          scale: 1,
+          format: 'png',
+          bytes: image.png.length,
+        };
+      }
     }
     if (command.method === 'Input.focus') {
       const { node } = methodParams['Input.focus'].parse(command.params);
@@ -517,6 +617,18 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     /** Text typed so far. */
     get typed() {
       return typed;
+    },
+    /** How many captures the runtime made. */
+    get captures() {
+      return captures;
+    },
+    /** Make captures fail with CAPTURE_UNAVAILABLE and this message. */
+    failCaptures(message: string | undefined) {
+      captureFailure = message;
+    },
+    /** Answer captures without uploading them (a misbehaving runtime). */
+    skipCaptureUploads(value: boolean) {
+      skipUpload = value;
     },
     /** Whether synthetic input holds a button or a key down. */
     get holdingInput() {

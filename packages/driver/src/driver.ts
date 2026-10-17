@@ -1,3 +1,6 @@
+import { writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
 import type {
   DebugMethod,
   DebugNode,
@@ -21,6 +24,25 @@ import {
   type SessionCredentials,
 } from './session';
 import { Connection, type CallOptions } from './transport';
+
+/** A PNG capture of what the engine renders. */
+export interface Screenshot {
+  /** The PNG file's bytes. */
+  data: Uint8Array;
+  /** Its size in device pixels: logical pixels times `scale`. */
+  width: number;
+  height: number;
+  /** Device pixels per logical pixel, as the view was shown. */
+  scale: number;
+  format: 'png';
+  /** Where it was saved, when `path` was given. */
+  path?: string;
+}
+
+export interface ScreenshotOptions extends CallOptions {
+  /** Saves the PNG there too (overwriting a file there). */
+  path?: string;
+}
 
 export interface ConnectOptions {
   /**
@@ -172,6 +194,7 @@ export class Driver {
       timeout: () => this.#timeout,
       hitTest: (x, y, options) => this.hitTest(x, y, options),
       focus: (ref, options) => this.#focus(ref, options),
+      capture: (ref, options) => this.#capture(ref, options),
       getTree: (options) => this.getTree(options),
       getNode: (ref, options) => this.getNode(ref, options),
       getLayout: (ref, options) => this.getLayout(ref, options),
@@ -509,6 +532,60 @@ export class Driver {
     await this.target(options);
     this.#checkRef(ref);
     await this.#interact('Input.focus', { node: ref }, options);
+  }
+
+  /**
+   * Captures the target's view as the engine renders it, as PNG: its
+   * renderer draws the current UI (not an OS screenshot), at the display's
+   * scale. Needs the `capture` capability, not control.
+   */
+  async screenshot(options: ScreenshotOptions = {}): Promise<Screenshot> {
+    return this.#capture(undefined, options);
+  }
+
+  async #capture(
+    node: NodeRef | undefined,
+    options: ScreenshotOptions,
+  ): Promise<Screenshot> {
+    const target = await this.target(options);
+    if (!target.capabilities.includes('capture'))
+      throw new DriverError(
+        'MISSING_CAPABILITY',
+        `${label(target)} cannot capture its view (no capture capability)`,
+      );
+    if (node) this.#checkRef(node);
+    const capture = await this.#request(
+      'Capture.screenshot',
+      node ? { node } : {},
+      options,
+    );
+    const data = await this.#connection.readCapture(
+      capture.id,
+      this.#options(options),
+    );
+    if (data.length !== capture.bytes)
+      throw new DriverError(
+        'SCREENSHOT_UNAVAILABLE',
+        'The capture arrived incomplete',
+      );
+    const screenshot: Screenshot = {
+      data,
+      width: capture.width,
+      height: capture.height,
+      scale: capture.scale,
+      format: capture.format,
+    };
+    if (options.path === undefined) return screenshot;
+    const path = resolve(options.path);
+    try {
+      await writeFile(path, data);
+    } catch (error) {
+      throw new DriverError(
+        'INVALID_OPTIONS',
+        `Cannot save the screenshot to ${path} (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
+      );
+    }
+    return { ...screenshot, path };
   }
 
   /** The node with this `debugId` prop. */

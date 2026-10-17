@@ -96,6 +96,28 @@ await reset.count(); // how many nodes match now
 await reset.all(); // their snapshot entries
 ```
 
-Reads expect exactly one match: none fails with `ELEMENT_NOT_FOUND`, several
-with `AMBIGUOUS_ELEMENT` (listing them). When the node goes between finding
+Reads expect exactly one match: none fails with `ELEMENT_NOT_FOUND` (listing
+the debug IDs there are, for `getByDebugId`), several with
+`AMBIGUOUS_ELEMENT` (listing them). When the node goes between finding
 and reading it, the locator finds it again, a few times at most.
+
+## Waiting
+
+`waitFor()` waits until a locator's node is in a state, looking again after
+short pauses (20 ms up to 250 ms) until `timeout` (the Driver's command
+timeout):
+
+```ts
+await driver.getByDebugId('preset-menu').waitFor(); // visible
+await driver.getByDebugId('spinner').waitFor({ state: 'detached' });
+```
+
+| `state`    | Waits until                                          |
+| ---------- | ---------------------------------------------------- |
+| `visible`  | one node matches and is visible (the default)        |
+| `attached` | one node matches                                     |
+| `hidden`   | no node matches, or the one that does is not visible |
+| `detached` | no node matches                                      |
+
+A timeout fails with `TIMEOUT`, saying what it saw last ("matches no node").
+`isVisible()` answers at once, without waiting.

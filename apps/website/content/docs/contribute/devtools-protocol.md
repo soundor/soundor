@@ -126,9 +126,10 @@ from another generation are rejected.
 | UI.hitTest                                           | The deepest node at a point and its ancestors           |
 | Input.dispatchPointer / dispatchWheel                | Synthetic pointer and wheel input, requires control     |
 | Input.dispatchKey / typeText / focus                 | Synthetic keys, text and focus, requires control        |
+| Capture.screenshot                                   | A PNG of the rendered view, as a capture resource       |
 
-Targets negotiate `inspector`, `accessibility`, `animations`, `performance`
-and `input`. `input` is never implied by `inspector`: a runtime advertises it
+Targets negotiate `inspector`, `accessibility`, `animations`, `performance`,
+`input` and `capture`. `input` is never implied by `inspector`: a runtime advertises it
 only where it dispatches synthetic input through its engine.
 Unsupported operations return MISSING_CAPABILITY. Omit unsupported properties
 rather than filling them with inferred values. Layout, base/computed styles,
@@ -197,6 +198,31 @@ only native type/props/context, without reliable component/file/line information
 Existing source maps continue to map console error stacks. Future development
 instrumentation can attach explicit source metadata during node creation; tools
 must not infer it from arbitrary native nodes or stacks.
+
+## Captures
+
+`Capture.screenshot {node?}` (capability `capture`, no control) renders the
+view with the engine's renderer and encodes it as PNG. Captures never travel
+as messages:
+
+1. The runtime uploads the PNG to `POST /runtime/captures/<transport id>`
+   (`Content-Type: image/png`, target credentials), then answers the request
+   with `{width, height, scale, format: 'png', bytes}`. The server accepts one
+   PNG upload per pending capture request of that target, of at most
+   `MAX_CAPTURE_BYTES` (32 MiB); others get 409, 400 or 401.
+2. When the answer matches the upload, the server keeps the bytes under a new
+   unguessable ID and answers the client `{id, width, height, scale, format,
+   bytes}` (`screenshotSchema`). An answer without its upload becomes
+   `CAPTURE_UNAVAILABLE`.
+3. Clients read `GET /browser/captures/<id>` with the session cookie (from a
+   trusted Origin when one is sent) and may `DELETE` it. Runtime credentials
+   cannot read captures.
+
+A session keeps `MAX_CAPTURES` (8) for `CAPTURE_TTL_MS` (60 s) at most, makes
+at most 2 at once (`BUSY` beyond), and drops a client's captures when it
+disconnects and a target's when it goes. Runtimes refuse views over
+`MAX_CAPTURE_SIDE` (8192) pixels a side or `MAX_CAPTURE_PIXELS` (16 M) with
+`CAPTURE_UNAVAILABLE`.
 
 ## Leases and bounds
 

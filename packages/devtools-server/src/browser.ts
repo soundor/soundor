@@ -6,7 +6,7 @@ import {
   helloSchema,
   requestSchema,
 } from '@soundor/devtools-protocol';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { Authentication } from './authentication';
 import type { Browser, Session } from './session';
@@ -29,6 +29,7 @@ export function registerBrowserRoutes(
   } = auth;
   const {
     browsers,
+    captures,
     pending,
     send,
     broadcastTargets,
@@ -68,6 +69,51 @@ export function registerBrowserRoutes(
     response.code(200).send({ authenticated: authenticatedBrowser(request) });
     return;
   });
+  // Captures, for this session's signed-in clients only: their IDs are
+  // unguessable, short-lived and never listed.
+  function capture(
+    request: FastifyRequest<{ Params: { id: string } }>,
+    response: FastifyReply,
+  ) {
+    if (
+      (request.headers.origin && !trustedOrigin(request)) ||
+      !authenticatedBrowser(request)
+    ) {
+      response.code(403).send({ error: 'Browser authentication required' });
+      return undefined;
+    }
+    const found = captures.get(request.params.id);
+    if (!found || found.expires <= Date.now()) {
+      captures.delete(request.params.id);
+      response
+        .code(404)
+        .send({ error: 'No such capture; it may have expired' });
+      return undefined;
+    }
+    return found;
+  }
+  app.get<{ Params: { id: string } }>(
+    '/browser/captures/:id',
+    async (request, response) => {
+      const found = capture(request, response);
+      if (!found) return;
+      response
+        .code(200)
+        .header('Content-Type', 'image/png')
+        .header('X-Content-Type-Options', 'nosniff')
+        .send(found.data);
+      return;
+    },
+  );
+  app.delete<{ Params: { id: string } }>(
+    '/browser/captures/:id',
+    async (request, response) => {
+      if (!capture(request, response)) return;
+      captures.delete(request.params.id);
+      response.code(200).send(null);
+      return;
+    },
+  );
   app.route({
     method: 'GET',
     url: '/browser',

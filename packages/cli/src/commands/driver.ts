@@ -364,6 +364,58 @@ const type = defineCommand({
   },
 });
 
+const screenshot = defineCommand({
+  meta: {
+    name: 'screenshot',
+    description:
+      'Save a PNG of the view as the engine renders it, or of one node (--debug-id, --role, --text)',
+  },
+  args: {
+    path: {
+      type: 'positional',
+      required: false,
+      description: 'Where to save the PNG',
+    },
+    'debug-id': {
+      type: 'string',
+      description: 'Capture only the node with this debugId',
+    },
+    role: queryArgs.role,
+    name: queryArgs.name,
+    text: queryArgs.text,
+    ...connectionArgs,
+  },
+  async run({ args }) {
+    await runDriverCommand(args as ConnectionArgs, {
+      parse: () => ({
+        path: required(args.path, 'the path to save the PNG to'),
+        find: optionalLocator({
+          debugId: args['debug-id'],
+          role: args.role,
+          name: args.name,
+          text: args.text,
+        }),
+      }),
+      work: async (driver, { path, find }) => {
+        const shot = await (find
+          ? find(driver).screenshot({ path })
+          : driver.screenshot({ path }));
+        // The image is in the file; this describes it.
+        return {
+          path: shot.path!,
+          width: shot.width,
+          height: shot.height,
+          scale: shot.scale,
+          format: shot.format,
+          bytes: shot.data.length,
+        };
+      },
+      print: ({ path, width, height, bytes }) =>
+        `saved ${path} (${width}×${height} pixels, ${bytes} bytes)`,
+    });
+  },
+});
+
 export const driverCommand = defineCommand({
   meta: {
     name: 'driver',
@@ -382,5 +434,6 @@ export const driverCommand = defineCommand({
     scroll,
     key,
     type,
+    screenshot,
   },
 });

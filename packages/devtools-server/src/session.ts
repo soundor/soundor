@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  CAPTURE_TTL_MS,
+  MAX_CAPTURES,
   MAX_MESSAGE_BYTES,
   methodCapability,
   requiresControl,
@@ -40,13 +42,43 @@ interface Pending {
   target: Target;
   request: DebugRequest;
   timer: ReturnType<typeof setTimeout>;
+  /** Capture.screenshot: the PNG the runtime uploaded before answering. */
+  capture?: Buffer;
 }
+/** A capture a client reads over HTTP until it expires or is deleted. */
+export interface Capture {
+  data: Buffer;
+  browser: string;
+  target: string;
+  expires: number;
+}
+// Captures being made at once: each may hold MAX_CAPTURE_BYTES.
+const MAX_PENDING_CAPTURES = 2;
 
 /** Session protocol state, shared by the browser and runtime transports. */
 export function createSession(options: DevToolsServerOptions) {
   const targets = new Map<string, Target>();
   const browsers = new Map<string, Browser>();
   const pending = new Map<string, Pending>();
+  const captures = new Map<string, Capture>();
+  function dropCaptures(match: (capture: Capture) => boolean): void {
+    for (const [id, capture] of captures)
+      if (match(capture)) captures.delete(id);
+  }
+  /** Keeps a finished capture, the oldest going first beyond the bound. */
+  function storeCapture(operation: Pending, data: Buffer): string {
+    dropCaptures((capture) => capture.expires <= Date.now());
+    while (captures.size >= MAX_CAPTURES)
+      captures.delete(captures.keys().next().value!);
+    const id = randomUUID();
+    captures.set(id, {
+      data,
+      browser: operation.browser.id,
+      target: operation.target.info.id,
+      expires: Date.now() + CAPTURE_TTL_MS,
+    });
+    return id;
+  }
   const commandTimeout = options.commandTimeout ?? 5000;
   const heartbeatTimeout = options.heartbeatTimeout ?? 30000;
   const targetTimeout = options.targetTimeout ?? 60000;
@@ -147,6 +179,7 @@ export function createSession(options: DevToolsServerOptions) {
   }
   function disconnect(target: Target): void {
     if (!targets.delete(target.info.id)) return;
+    dropCaptures((capture) => capture.target === target.info.id);
     if (target.poll) {
       clearTimeout(target.poll.timer);
       target.poll.response.code(410).send({ error: 'Target disconnected' });
@@ -163,6 +196,7 @@ export function createSession(options: DevToolsServerOptions) {
   }
   function dropBrowser(browser: Browser): void {
     if (!browsers.delete(browser.id)) return;
+    dropCaptures((capture) => capture.browser === browser.id);
     for (const [id, operation] of pending)
       if (operation.browser === browser)
         cancel(id, { code: 'CANCELLED', message: 'Browser disconnected' });
@@ -262,6 +296,18 @@ export function createSession(options: DevToolsServerOptions) {
       return;
     }
     if (
+      request.method === 'Capture.screenshot' &&
+      [...pending.values()].filter(
+        (operation) => operation.request.method === 'Capture.screenshot',
+      ).length >= MAX_PENDING_CAPTURES
+    ) {
+      reply(browser, request, undefined, {
+        code: 'BUSY',
+        message: 'Other captures are being made; retry after they finish',
+      });
+      return;
+    }
+    if (
       pending.size >= MAX_PENDING ||
       (requiresControl(request.method) && target.interactive)
     ) {
@@ -337,6 +383,8 @@ export function createSession(options: DevToolsServerOptions) {
     targets,
     browsers,
     pending,
+    captures,
+    storeCapture,
     send,
     broadcastTargets,
     flush,
@@ -349,6 +397,7 @@ export function createSession(options: DevToolsServerOptions) {
     publishLog,
     heartbeatInterval: Math.min(10000, heartbeatTimeout / 3, targetTimeout / 3),
     tick(now: number) {
+      dropCaptures((capture) => capture.expires <= now);
       for (const browser of browsers.values()) {
         if (now - browser.lastHeartbeat > heartbeatTimeout) {
           dropBrowser(browser);
@@ -359,6 +408,7 @@ export function createSession(options: DevToolsServerOptions) {
         if (now - target.lastSeen > targetTimeout) disconnect(target);
     },
     close() {
+      captures.clear();
       for (const target of [...targets.values()]) disconnect(target);
       for (const browser of browsers.values()) browser.socket.terminate();
       browsers.clear();

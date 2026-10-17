@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 const repository = new URL('../../../../../../', import.meta.url);
 const serverRequire = createRequire(
@@ -23,6 +24,43 @@ const { rolldown } = await import(
 const { WebSocket } = await import(
   pathToFileURL(join(dirname(serverRequire.resolve('ws')), 'wrapper.mjs')).href
 );
+// The RGBA pixel at (x, y) of an 8-bit RGBA PNG, as Skia writes them.
+function pixel(png, x, y) {
+  const bytes = Buffer.from(png);
+  const width = bytes.readUInt32BE(16);
+  const height = bytes.readUInt32BE(20);
+  assert.equal(bytes[24], 8);
+  assert.equal(bytes[25], 6);
+  const data = [];
+  for (let at = 8; at < bytes.length;) {
+    const length = bytes.readUInt32BE(at);
+    if (bytes.toString('latin1', at + 4, at + 8) === 'IDAT')
+      data.push(bytes.subarray(at + 8, at + 8 + length));
+    at += length + 12;
+  }
+  const raw = inflateSync(Buffer.concat(data));
+  const stride = width * 4;
+  const rows = Buffer.alloc(stride * height);
+  for (let row = 0; row < height; ++row) {
+    const filter = raw[row * (stride + 1)];
+    for (let i = 0; i < stride; ++i) {
+      const value = raw[row * (stride + 1) + 1 + i];
+      const left = i >= 4 ? rows[row * stride + i - 4] : 0;
+      const up = row > 0 ? rows[(row - 1) * stride + i] : 0;
+      const corner = row > 0 && i >= 4 ? rows[(row - 1) * stride + i - 4] : 0;
+      const p = left + up - corner;
+      const [pa, pb, pc] = [
+        Math.abs(p - left),
+        Math.abs(p - up),
+        Math.abs(p - corner),
+      ];
+      const paeth = pa <= pb && pa <= pc ? left : pb <= pc ? up : corner;
+      const predictor = [0, left, up, (left + up) >> 1, paeth][filter];
+      rows[row * stride + i] = (value + predictor) & 255;
+    }
+  }
+  return [...rows.subarray((y * width + x) * 4, (y * width + x) * 4 + 4)];
+}
 // Record paths and statuses only, never session credentials or payloads.
 const requests = [];
 channel('http.server.request.start').subscribe(({ request, response }) => {
@@ -293,6 +331,17 @@ try {
       const clicked = await reset.click();
       assert.equal(clicked.handled, true);
       await until(() => output.includes('CLICKED generation=2 clicks=1'));
+      // A frame as the engine renders it: the application's red button.
+      const shot = await driver.screenshot({ path: join(root, 'view.png') });
+      assert.deepEqual([shot.width, shot.height, shot.scale], [120, 100, 1]);
+      assert.deepEqual(pixel(shot.data, 70, 10), [255, 0, 0, 255]);
+      assert.deepEqual(
+        [...(await readFile(join(root, 'view.png')))],
+        [...shot.data],
+      );
+      const button = await reset.screenshot();
+      assert.deepEqual([button.width, button.height], [40, 30]);
+      assert.deepEqual(pixel(button.data, 5, 5), [255, 0, 0, 255]);
       // A press left held is cancelled, without a click, when the Driver goes.
       await driver.pointer.move(70, 10);
       await driver.pointer.down();
@@ -303,7 +352,7 @@ try {
     assert.ok(!output.includes('clicks=2'));
     await finished;
     console.log(
-      'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, Soundor Driver click and release through native dispatch, clean teardown',
+      'PASS: real native tree/details, highlight, picker event isolation, reload, disconnect, designated-session reconnection, Soundor Driver click, release and screenshots through the native engine, clean teardown',
     );
   }
 } finally {

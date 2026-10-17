@@ -31,7 +31,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     private:
         struct State;
         std::shared_ptr<State> state;
-        std::deque<std::pair<unsigned, std::string>> outgoing;
+        // A message for the server, and the binary it uploads first (a
+        // capture's PNG, for request `attachmentId`).
+        struct Message
+        {
+            unsigned epoch = 0;
+            std::string text;
+            std::string attachmentId;
+            std::string attachment;
+        };
+        std::deque<Message> outgoing;
         debug::Inspector inspector;
         unsigned observedEpoch = 0;
         js::LogSink log;

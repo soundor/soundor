@@ -460,6 +460,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             return;
         }
         Object response { { "type", "response" }, { "id", command.id } };
+        std::vector<std::uint8_t> attachment;
         try
         {
             if (command.targetGeneration != 0 && command.targetGeneration != currentGeneration)
@@ -484,6 +485,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                                                   { "presentation", style(item.presentedStyle(), item.frame()) } };
                 if (command.method == "UI.getAccessibility")
                     response["result"] = accessibility(host, item);
+            }
+            else if (command.method == "Capture.screenshot")
+            {
+                if (! attach)
+                    throw CommandError("CAPTURE_UNAVAILABLE", "This runtime cannot transfer captures");
+                Object result;
+                attachment = capture(host, command, result);
+                response["result"] = std::move(result);
             }
             else if (command.method == "UI.hitTest" || command.method.starts_with("Input."))
                 response["result"] = input(host, command);
@@ -551,6 +560,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         catch (const std::exception&)
         {
             response["error"] = Object { { "code", "INTERNAL" }, { "message", "Native inspection failed" } };
+        }
+        if (! attachment.empty() && ! response.contains("error"))
+        {
+            attach(command.id, std::move(attachment), Value(std::move(response)).json());
+            return;
         }
         send(Value(std::move(response)).json());
     }

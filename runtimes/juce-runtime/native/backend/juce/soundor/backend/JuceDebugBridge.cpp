@@ -43,11 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             unsigned epoch;
             debug::Command command;
         };
-        struct Outgoing
-        {
-            unsigned epoch;
-            std::string message;
-        };
+        using Outgoing = JuceDebugBridge::Message;
         std::string descriptor, name, project;
         std::mutex mutex;
         std::condition_variable wake;
@@ -70,7 +66,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 return;
             if (message.size() > maxMessage)
                 return;
-            outgoing.push_back({ epoch.load(), std::move(message) });
+            outgoing.push_back({ .epoch = epoch.load(), .text = std::move(message) });
             wake.notify_all();
         }
         std::optional<Credentials> readDescriptor()
@@ -104,15 +100,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             return data;
         }
         std::optional<std::pair<int, juce::var>> request(const Credentials& data, const char* path, const char* method,
-                                                         const std::string& body, std::size_t worker)
+                                                         const std::string& body, std::size_t worker,
+                                                         const char* contentType = "application/json")
         {
             juce::URL url(juce::String(data.endpoint + path));
             if (! body.empty())
-                url = url.withPOSTData(juce::String::fromUTF8(body.data(), static_cast<int>(body.size())));
+                url = url.withPOSTData(juce::MemoryBlock(body.data(), body.size()));
             // Registration has no target credentials yet. Omit those headers
             // until issued: WinINet rejects a request with an empty header value.
-            juce::String headers = "Content-Type: application/json\r\nAuthorization: Bearer " + juce::String(data.token)
-                                   + "\r\nX-Soundor-Session: " + juce::String(data.session) + "\r\n";
+            juce::String headers = "Content-Type: " + juce::String(contentType) + "\r\nAuthorization: Bearer "
+                                   + juce::String(data.token) + "\r\nX-Soundor-Session: " + juce::String(data.session)
+                                   + "\r\n";
             if (! data.target.empty())
                 headers += "X-Soundor-Target: " + juce::String(data.target)
                            + "\r\nX-Soundor-Target-Token: " + juce::String(data.targetToken) + "\r\n";
@@ -195,7 +193,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                                     { "runtime", "JUCE Standalone" },
                                     { "generation", generation.load() },
                                     { "capabilities", debug::Value::Array { "inspector", "accessibility", "animations",
-                                                                            "performance", "input" } },
+                                                                            "performance", "input", "capture" } },
                                 })
                                 .json();
                         const auto response = request(*descriptorData, "/runtime/register", "POST", registration, 0);
@@ -271,7 +269,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 }
                 if (item.epoch != data.epoch)
                     continue;
-                const auto response = request(data, "/runtime/messages", "POST", item.message, 1);
+                // A capture's PNG goes first, as binary; the server answers
+                // CAPTURE_UNAVAILABLE when the answer comes without it.
+                if (! item.attachmentId.empty())
+                {
+                    const auto uploaded = request(data, ("/runtime/captures/" + item.attachmentId).c_str(), "POST",
+                                                  item.attachment, 1, "image/png");
+                    if (! uploaded || uploaded->first == 401 || uploaded->first == 410)
+                    {
+                        disconnect(data.epoch);
+                        continue;
+                    }
+                }
+                const auto response = request(data, "/runtime/messages", "POST", item.text, 1);
                 if (! response || response->first == 401 || response->first == 410)
                     disconnect(data.epoch);
             }
@@ -301,10 +311,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
               [this](std::string message)
               {
                   if (outgoing.size() < maxQueue && state->connected.load())
-                      outgoing.emplace_back(observedEpoch, std::move(message));
+                      outgoing.push_back({ .epoch = observedEpoch, .text = std::move(message) });
               }),
           log(std::move(output))
     {
+        inspector.attachments(
+            [this](std::string id, std::vector<std::uint8_t> attachment, std::string response)
+            {
+                if (outgoing.size() < maxQueue && state->connected.load())
+                    outgoing.push_back({ .epoch = observedEpoch,
+                                         .text = std::move(response),
+                                         .attachmentId = std::move(id),
+                                         .attachment = std::string(attachment.begin(), attachment.end()) });
+            });
         try
         {
             state->polling = std::thread(
@@ -368,12 +387,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             inspector.execute(host, subscriptions);
             observedEpoch = epoch;
             if (state->connected.load())
-                outgoing.emplace_back(
-                    observedEpoch, debug::Value(debug::Value::Object {
-                                                    { "type", "event" },
-                                                    { "event", "Runtime.generationChanged" },
-                                                    { "data", debug::Value::Object { { "generation", generation } } } })
-                                       .json());
+                outgoing.push_back(
+                    { .epoch = observedEpoch,
+                      .text = debug::Value(debug::Value::Object {
+                                               { "type", "event" },
+                                               { "event", "Runtime.generationChanged" },
+                                               { "data", debug::Value::Object { { "generation", generation } } } })
+                                  .json() });
         }
         inspector.tick(host, generation);
         std::deque<State::Incoming> commands;
@@ -395,7 +415,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             {
                 while (! outgoing.empty() && state->outgoing.size() < maxQueue)
                 {
-                    state->outgoing.push_back({ outgoing.front().first, std::move(outgoing.front().second) });
+                    state->outgoing.push_back(std::move(outgoing.front()));
                     outgoing.pop_front();
                 }
                 state->wake.notify_all();
