@@ -1,6 +1,9 @@
 {
   "extends": "@soundor/typescript-config/node",
   "compilerOptions": {
+    // The host UI is Preact.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "noEmit": true,
     // Runs in the browser: DOM, no Node built-ins.
     "lib": ["es2023", "DOM", "DOM.Iterable"],

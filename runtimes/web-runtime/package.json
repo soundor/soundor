@@ -37,6 +37,7 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "preact": "catalog:",
     "vite": "catalog:"
   },
   "devDependencies": {
@@ -46,6 +47,7 @@
     "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
+    "@testing-library/dom": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "fake-indexeddb": "catalog:",

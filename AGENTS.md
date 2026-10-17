@@ -157,7 +157,7 @@ read the docs bundled with the installed package
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
-  `soundor:ui`, IndexedDB storage/fs, the host UI).
+  `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under `src/client/shell/`).
 - `configs/*` — private shared tsconfig and tsdown presets.
 
 ### The cross-runtime contract
