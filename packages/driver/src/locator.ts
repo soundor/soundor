@@ -236,10 +236,12 @@ export class Locator {
   async #actionable(options: ActionOptions = {}): Promise<Target> {
     const budget = options.timeout ?? this.#host.timeout();
     const deadline = Date.now() + budget;
+    // Each check may take a second even near the deadline: a slow instance
+    // must not turn a known reason into a timeout.
     const call = (): CallOptions => ({
-      timeout: Math.max(
-        1,
-        Math.min(deadline - Date.now(), this.#host.timeout()),
+      timeout: Math.min(
+        this.#host.timeout(),
+        Math.max(deadline - Date.now(), 1000),
       ),
       ...(options.signal ? { signal: options.signal } : {}),
     });
@@ -286,7 +288,9 @@ export class Locator {
           ].includes(error.code)
         )
           throw error;
-        lastError = error;
+        // A check that timed out says nothing new about the node.
+        if (error.code !== 'TIMEOUT' || lastError || reason === 'was not found')
+          lastError = error;
       }
       const wait =
         RETRY_DELAYS[Math.min(attempt + 1, RETRY_DELAYS.length - 1)]!;

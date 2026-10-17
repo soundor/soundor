@@ -186,6 +186,18 @@ describe('actionability', () => {
     expect(plugin.inputLog).toEqual([]);
   });
 
+  it('reports the reason, not a timeout, when the instance is slow', async () => {
+    plugin.setNodes(withReset({ visible: false }));
+    plugin.setCommandDelay('UI.getTree', 120);
+    plugin.setCommandDelay('UI.getNode', 120);
+    const connected = await driver();
+    const error = await caught(
+      connected.getByDebugId('reset').click({ timeout: 150 }),
+    );
+    expect(error.code).toBe('ELEMENT_NOT_ACTIONABLE');
+    expect(error.message).toContain('is not visible');
+  });
+
   it('reports a node another node covers, and clicks once it is uncovered', async () => {
     const covered = [
       node('1', null, ['2', '4', '5']),
