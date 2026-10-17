@@ -394,6 +394,12 @@ declare module 'soundor:ui' {
      * (null: its parent): content a portal shows away from where it belongs.
      */
     accessibilityParent: UiNode | null;
+    /**
+     * The name developer tools (DevTools, Soundor Driver) find the node by;
+     * empty for none, at most 128 characters. Not shown, nor read to
+     * assistive technology.
+     */
+    debugId: string;
     /** Whether the node takes focus when pressed or tabbed to. */
     focusable: boolean;
     readonly focused: boolean;

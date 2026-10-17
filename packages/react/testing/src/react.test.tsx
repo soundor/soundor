@@ -44,6 +44,27 @@ afterEach(() => {
 });
 
 describe('rendering', () => {
+  it('sets, changes and clears the debugId developer tools find a node by', async () => {
+    await show(
+      <View debugId="panel">
+        <Pressable debugId="reset" />
+        <Text debugId="label">Gain</Text>
+      </View>,
+    );
+    expect(child(0).debugId).toBe('panel');
+    expect(child(0, 0).debugId).toBe('reset');
+    expect(child(0, 1).debugId).toBe('label');
+    await show(
+      <View>
+        <Pressable debugId="restore" />
+        <Text>Gain</Text>
+      </View>,
+    );
+    expect(child(0).debugId).toBe('');
+    expect(child(0, 0).debugId).toBe('restore');
+    expect(child(0, 1).debugId).toBe('');
+  });
+
   it('builds soundor:ui nodes with merged styles', async () => {
     const styles = StyleSheet.create({
       row: { flexDirection: 'row' },

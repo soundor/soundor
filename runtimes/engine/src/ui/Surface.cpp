@@ -672,6 +672,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         ++changes;
     }
 
+    void Surface::setDebugId(NodeId id, std::string debugId)
+    {
+        Node& node = get(id);
+        if (node.debugName == debugId)
+            return;
+#if SOUNDOR_DEVTOOLS
+        debugMetadataChanged(node);
+#endif
+        node.debugName = std::move(debugId);
+        // Nothing to draw, but what developer tools find changed.
+        ++changes;
+    }
+
     void Surface::setAccessibility(NodeId id, a11y::Properties properties)
     {
         Node& node = get(id);

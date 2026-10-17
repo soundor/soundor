@@ -6,6 +6,7 @@
     "api",
     "testing",
     "cli",
+    "driver",
     "contribute"
   ]
 }

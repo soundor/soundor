@@ -102,6 +102,39 @@ TEST_SUITE("Native DevTools inspector")
         CHECK(parsed.asNumber() == 4);
     }
 
+    TEST_CASE("debug IDs appear in snapshots, details and metadata patches")
+    {
+        Fixture f;
+        const auto id = f.view();
+        const auto plain = f.view();
+        f.host.surface().setDebugId(id, "reset");
+        const auto details = f.inspector.node(f.host, id);
+        CHECK(std::get<std::string>(object(details).at("debugId").data) == "reset");
+        CHECK_FALSE(object(f.inspector.node(f.host, plain)).contains("debugId"));
+        const auto tree = f.inspector.tree(f.host);
+        CHECK(tree.json().find(R"("debugId":"reset")") != std::string::npos);
+        f.subscribe();
+        const auto revision = f.host.surface().revision();
+        f.host.surface().setDebugId(id, "restore");
+        CHECK(f.host.surface().revision() > revision);
+        f.inspector.tick(f.host, 1);
+        CHECK(std::ranges::any_of(f.messages,
+                                  [](const auto& message)
+                                  {
+                                      return message.find("UI.treeChanged") != std::string::npos
+                                             && message.find(R"("debugId":"restore")") != std::string::npos;
+                                  }));
+        // Through the module, as React sets it.
+        CHECK(f.run("import { root, createView } from 'soundor:ui';"
+                    "const node = createView(); node.debugId = 'gain'; root.appendChild(node);"
+                    "globalThis.result = node.debugId;")
+                  .asString()
+              == "gain");
+        CHECK(f.inspector.tree(f.host).json().find(R"("debugId":"gain")") != std::string::npos);
+        CHECK(f.error("import { createView } from 'soundor:ui'; createView().debugId = 'x'.repeat(129);").find("128")
+              != std::string::npos);
+    }
+
     TEST_CASE("removed and old-generation nodes cannot resolve to new nodes")
     {
         Fixture f;

@@ -1,0 +1,45 @@
+{
+  "name": "@soundor/driver",
+  "version": "0.11.0",
+  "description": "Inspect and control a running Soundor plugin's native UI through its DevTools session.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/driver"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@soundor/devtools-protocol": "workspace:^",
+    "ws": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@soundor/devtools-server": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/ws": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  }
+}

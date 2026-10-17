@@ -29,6 +29,7 @@ try {
     'packages/devtools-protocol',
     'packages/devtools-server',
     'packages/devtools-client',
+    'packages/driver',
   ]) {
     const path = resolve(repository, folder);
     const manifest = JSON.parse(
@@ -70,7 +71,9 @@ try {
     resolve(temporary, 'smoke.mjs'),
     `
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { promisify } from 'node:util';
 import { dirname, join } from 'node:path';
 import { startDevToolsServer } from '@soundor/devtools-server';
 import { startSimulatedRuntime } from '@soundor/devtools-server/testing';
@@ -87,6 +90,13 @@ try {
   const script = await fetch(server.connection.endpoint + asset);
   assert.equal(script.status, 200);
   assert.match(script.headers.get('content-type'), /javascript/);
+  // The installed CLI's Driver reads the real session through the protocol.
+  const { stdout } = await promisify(execFile)(
+    join(process.cwd(), 'node_modules/.bin/soundor'),
+    ['driver', 'tree', '--json', '--descriptor', server.descriptorPath],
+  );
+  const tree = JSON.parse(stdout);
+  assert.equal(tree.nodes.find((node) => node.debugId === 'gain').ref.id, '3');
 } finally { await runtime.close(); await server.close(); }
 `,
   );
@@ -125,7 +135,7 @@ export default defineSoundorConfig({
   });
   assert.match(output, /PACKED_DEVTOOLS_OK/);
   console.log(
-    'Packed DevTools server, testing export, client assets, and bundled CLI passed.',
+    'Packed DevTools server, testing export, client assets, Driver, and bundled CLI passed.',
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

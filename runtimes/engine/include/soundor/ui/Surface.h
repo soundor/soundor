@@ -156,6 +156,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Where assistive technology reads the node, in place of its parent
         // (noNode: its parent).
         [[nodiscard]] NodeId accessibilityParent() const noexcept { return semanticParent; }
+        // The name developer tools (DevTools, Soundor Driver) find the node
+        // by; empty when it has none. Not shown, nor read to assistive technology.
+        [[nodiscard]] const std::string& debugId() const noexcept { return debugName; }
 
     private:
         friend class Surface;
@@ -181,6 +184,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Point scroll;
         a11y::Properties semantics;
         NodeId semanticParent = noNode;
+        std::string debugName;
         bool canFocus = false;
         // The last layout of the text, by the width it was made for.
         float layoutWidth = -1;
@@ -293,6 +297,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Text and input nodes.
         void setText(NodeId id, std::string text);
         void setFocusable(NodeId id, bool focusable);
+        void setDebugId(NodeId id, std::string debugId);
         // Image nodes.
         void setSource(NodeId id, std::string source);
         // Input nodes.

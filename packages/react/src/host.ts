@@ -417,6 +417,9 @@ function applyProps(
     instance.animation = node.animate(explicit, transition);
   }
 
+  if (next['debugId'] !== previous?.['debugId'])
+    node.debugId = String(next['debugId'] ?? '');
+
   if (
     next['focusable'] !== previous?.['focusable'] &&
     next['focusable'] !== undefined

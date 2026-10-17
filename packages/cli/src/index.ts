@@ -1,9 +1,18 @@
+import { stripVTControlCharacters } from 'node:util';
+
 import { exitCodeFor } from '@soundor/core';
-import { defineCommand, renderUsage, runCommand } from 'citty';
+import {
+  defineCommand,
+  renderUsage,
+  runCommand,
+  type CommandDef,
+  type Resolvable,
+} from 'citty';
 
 import { buildCommand } from './commands/build';
 import { devCommand } from './commands/dev';
 import { doctorCommand } from './commands/doctor';
+import { driverCommand } from './commands/driver';
 import { genCommand } from './commands/gen';
 import { initCommand } from './commands/init';
 
@@ -18,6 +27,7 @@ const main = defineCommand({
     dev: devCommand,
     build: buildCommand,
     doctor: doctorCommand,
+    driver: driverCommand,
   },
 });
 
@@ -33,23 +43,37 @@ async function runCli(rawArgs: string[]): Promise<void> {
     await runCommand(main, { rawArgs });
   } catch (error) {
     console.error(formatError(error));
-    process.exitCode = exitCodeFor(error);
+    // citty's own errors are about the arguments: an unknown command, a
+    // missing argument.
+    process.exitCode =
+      error instanceof Error && error.name === 'CLIError'
+        ? 2
+        : exitCodeFor(error);
   }
 }
 
+/** Usage of the command the arguments name: `soundor driver tree --help`. */
 async function showHelp(rawArgs: string[]): Promise<void> {
-  const commandName = rawArgs.find((arg) => !arg.startsWith('-'));
-  const command =
-    commandName === undefined
-      ? undefined
-      : main.subCommands?.[
-          commandName as keyof NonNullable<typeof main.subCommands>
-        ];
-  console.log(
-    command === undefined
-      ? await renderUsage(main)
-      : await renderUsage(command, main),
-  );
+  let command: CommandDef = main;
+  let parent: CommandDef | undefined;
+  let path = 'soundor';
+  for (const name of rawArgs.filter((arg) => !arg.startsWith('-'))) {
+    const subCommands = await resolveValue(command.subCommands);
+    const next = subCommands?.[name];
+    if (next === undefined) break;
+    parent = { meta: { name: path } };
+    path += ` ${name}`;
+    command = await resolveValue(next);
+  }
+  const usage = await renderUsage(command, parent);
+  // Plain text for scripts and agents.
+  console.log(process.stdout.isTTY ? usage : stripVTControlCharacters(usage));
+}
+
+async function resolveValue<T>(value: Resolvable<T>): Promise<T> {
+  return typeof value === 'function'
+    ? await (value as () => T | Promise<T>)()
+    : await value;
 }
 
 function formatError(error: unknown): string {

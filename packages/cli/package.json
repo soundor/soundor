@@ -26,6 +26,7 @@
     "@clack/prompts": "catalog:",
     "@soundor/devtools-client": "workspace:^",
     "@soundor/devtools-server": "workspace:^",
+    "@soundor/driver": "workspace:^",
     "citty": "catalog:",
     "tsdown": "catalog:"
   },

@@ -507,6 +507,7 @@ export class UiNode extends EventTarget {
   #placeholder = '';
   #accessibility = Object.freeze({});
   #accessibilityParent = null;
+  #debugId = '';
   // Canvas nodes: the drawing buffer's size, and the context made for it.
   #canvasWidth = 300;
   #canvasHeight = 150;
@@ -851,6 +852,22 @@ export class UiNode extends EventTarget {
     const parent = value ?? null;
     native.setAccessibilityParent(this.#id, parent?.#id ?? 0);
     this.#accessibilityParent = parent;
+  }
+
+  /**
+   * The name developer tools (DevTools, Soundor Driver) find the node by;
+   * empty for none. Not shown, nor read to assistive technology.
+   */
+  get debugId() {
+    return this.#debugId;
+  }
+
+  set debugId(value) {
+    const debugId = String(value ?? '');
+    if (debugId.length > 128)
+      throw new RangeError('debugId is at most 128 characters');
+    native.setDebugId(this.#id, debugId);
+    this.#debugId = debugId;
   }
 
   /** Whether the node takes focus when pressed or tabbed to. */

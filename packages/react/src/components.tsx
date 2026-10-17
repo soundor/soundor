@@ -71,7 +71,17 @@ export interface EventProps {
   onBlur?: (event: FocusEvent) => void;
 }
 
-export interface ViewProps extends EventProps, AccessibilityProps {
+/** Props for developer tools: DevTools and Soundor Driver. */
+export interface DebugProps {
+  /**
+   * A name DevTools shows and Soundor Driver finds the node by
+   * (`getByDebugId`); at most 128 characters. Not shown, nor read to
+   * assistive technology.
+   */
+  debugId?: string;
+}
+
+export interface ViewProps extends EventProps, AccessibilityProps, DebugProps {
   /** Layout and paint: flexbox (a column by default), spacing, colors. */
   style?: StyleProp;
   /** Takes focus when pressed or tabbed to. */
@@ -124,7 +134,7 @@ export const Animated = Object.freeze({ View: AnimatedView });
  * Accessibility props of a <Text> nested in another apply to neither: the
  * outermost <Text> is read as one text.
  */
-export interface TextProps extends EventProps, AccessibilityProps {
+export interface TextProps extends EventProps, AccessibilityProps, DebugProps {
   /** Font, color and alignment, besides a view's layout and paint. */
   style?: StyleProp;
   /** At most this many lines. */
@@ -144,7 +154,7 @@ export function Text(props: TextProps) {
  * Images are decorative to assistive technology unless given a label (or
  * made accessible, or given a role).
  */
-export interface ImageProps extends EventProps, AccessibilityProps {
+export interface ImageProps extends EventProps, AccessibilityProps, DebugProps {
   /** A bundled image: `import logo from './logo.png'`. */
   source: SoundorAsset;
   /** Its box; `resizeMode` says how the image fills it. */
@@ -162,7 +172,8 @@ export function Image(props: ImageProps) {
  * Canvases are decorative to assistive technology unless given a label (or
  * made accessible, or given a role), like images.
  */
-export interface CanvasProps extends EventProps, AccessibilityProps {
+export interface CanvasProps
+  extends EventProps, AccessibilityProps, DebugProps {
   /**
    * The drawing buffer's size in pixels (300 by 150 by default). Changing
    * either clears the canvas; draw again after (e.g. in an effect that
@@ -207,7 +218,8 @@ export function ScrollView({
   );
 }
 
-export interface TextInputProps extends EventProps, AccessibilityProps {
+export interface TextInputProps
+  extends EventProps, AccessibilityProps, DebugProps {
   /** Controlled text; pair it with onChangeText. */
   value?: string;
   /** The initial text of an uncontrolled input. */
