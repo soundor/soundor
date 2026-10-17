@@ -59,7 +59,7 @@ test('an example runs inside its page', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
-test("an example's code can be edited, and runs as it changes", async ({
+test("an example's code can be edited, and runs when applied", async ({
   page,
 }) => {
   const problems = watch(page);
@@ -80,11 +80,17 @@ test("an example's code can be edited, and runs as it changes", async ({
   await page.keyboard.press('Enter');
   await page.keyboard.press('Escape');
   await page.keyboard.type('Edited gain');
+  await expect(status).toHaveText(/^Edited: apply/);
+  await expect(plugin.getByText('Reset gain')).toBeVisible();
+  await page.getByRole('button', { name: /^Apply/ }).click();
   await expect(plugin.getByText('Edited gain')).toBeVisible();
   await expect(status).toHaveText(/^Running your code/);
+  await expect(page.getByRole('button', { name: /^Apply/ })).toBeDisabled();
 
-  // Break it: the error is located, and the plugin says so too.
+  // Break it, still typing in the editor, and apply with the keyboard: the
+  // error is located, and the plugin says so too.
   await page.keyboard.type(' {{');
+  await page.keyboard.press('ControlOrMeta+Enter');
   await expect(status).toHaveText(/^src\/App\.tsx:\d+:\d+: /);
   await expect(plugin.getByText('Your code did not run.')).toBeVisible();
 

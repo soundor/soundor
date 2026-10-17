@@ -24,7 +24,7 @@ export interface ExampleProps {
 /**
  * An example from `examples/`, running in the web runtime: its static web
  * build, copied to `/examples/<name>/` by `scripts/sync-examples.ts`. "Edit
- * code" opens its UI files in an editor and runs them as they change; "Full
+ * code" opens its UI files in an editor and runs them when applied; "Full
  * screen" puts the editor and the plugin side by side, filling the screen.
  */
 export function Example({ name, height = 560 }: ExampleProps) {
