@@ -24,9 +24,9 @@ test('Orbit plays real audio and edits its delay through the portable controls',
           destination.orbitInputAnalyser ??= this.context.createAnalyser();
           destination.orbitInputAnalyser.fftSize = 2048;
           Reflect.apply(original, this, [destination.orbitInputAnalyser]);
-          if (this instanceof AudioBufferSourceNode)
-            destination.orbitDemoStart = this.context.currentTime;
         }
+        if (this instanceof AudioBufferSourceNode)
+          destination.orbitDemoStart = this.context.currentTime;
         if (args[0] === this.context.destination) {
           const analyser = this.context.createAnalyser();
           analyser.fftSize = 2048;

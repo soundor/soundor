@@ -1,13 +1,10 @@
 import { startSoundorWebHost } from '@soundor/web-runtime/client';
 
-import { setDemoEnabled } from './demo';
+import { demoInput } from './demo';
 
 await startSoundorWebHost({
   native: () => import('./native'),
   audio: () => import('./audio'),
+  audioInputs: [demoInput],
+  defaultAudioInput: demoInput.id,
 });
-
-const source = document.querySelector<HTMLSelectElement>('#audio-source')!;
-source.addEventListener('change', () =>
-  setDemoEnabled(source.value === 'demo'),
-);

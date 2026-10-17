@@ -23,7 +23,7 @@ import {
 } from 'soundor:internal/dev';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
-import { WebAudioHost, type WebAudioSetup } from './audio';
+import { WebAudioHost, type WebAudioInput, type WebAudioSetup } from './audio';
 import { hostContext, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
@@ -41,6 +41,13 @@ export interface WebHostOptions {
   readonly native?: () => Promise<unknown>;
   /** Loads the project's audio (a module exporting `setupAudio`). */
   readonly audio?: () => Promise<unknown>;
+  /** Custom sources listed in the host panel's Audio → Input selector. */
+  readonly audioInputs?: readonly WebAudioInput[];
+  /**
+   * Initially selected custom input, 'oscillator' (default), or 'none'.
+   * Microphone and file inputs require explicit selection in the panel.
+   */
+  readonly defaultAudioInput?: string;
   /**
    * 'demo': the plugin, a dock and a settings panel. 'dev': with an
    * inspector. 'embed': the plugin alone, filling the page. By default 'dev'
@@ -78,6 +85,8 @@ export async function startSoundorWebHost(
     options.container ?? document.getElementById('soundor') ?? document.body;
   const context = hostContext();
   const audio = new WebAudioHost(context.host, {
+    inputs: options.audioInputs,
+    defaultInput: options.defaultAudioInput,
     loadSetup:
       options.audio === undefined ? undefined : () => loadSetup(options.audio!),
   });
@@ -176,6 +185,9 @@ export { defineHandle } from './native';
 export type { WebNativeHandle, WebNativeHandleType } from './native';
 export type {
   WebAudioCleanup,
+  WebAudioInput,
+  WebAudioInputContext,
+  WebAudioInputInfo,
   WebAudioSetup,
   WebAudioSetupContext,
 } from './audio';

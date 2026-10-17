@@ -148,7 +148,7 @@ export function LiveFigure({
           src={src}
           title={title}
           loading="lazy"
-          allow="autoplay"
+          allow="autoplay; microphone"
           className={`block w-full border-0 ${expanded ? 'h-full lg:order-2 lg:border-l' : ''}`}
           style={expanded ? undefined : { height }}
         />

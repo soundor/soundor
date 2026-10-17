@@ -19,13 +19,15 @@ import { Panel, type PanelProps } from './panel';
 afterEach(() => document.body.replaceChildren());
 
 function setup(
-  props: Partial<Pick<PanelProps, 'open' | 'inspect' | 'parameters'>> = {},
+  props: Partial<Pick<PanelProps, 'open' | 'inspect' | 'parameters'>> & {
+    inputs?: readonly { id: string; label: string }[];
+  } = {},
 ) {
   const host = new WebHost({
     now: () => 0,
     frames: { request: () => 1, cancel: () => {} },
   });
-  const fake = fakeAudio();
+  const fake = fakeAudio({}, props.inputs);
   const onClose = vi.fn<() => void>();
   const { container } = mount(
     <Panel
@@ -149,4 +151,39 @@ describe('the audio section', () => {
     });
     expect(queryByRole(panel, 'alert')).toBeNull();
   });
+});
+
+it('lists registered inputs and selects them through the audio host', () => {
+  const { fake, panel } = setup({
+    inputs: [
+      { id: 'demo', label: 'Original demo' },
+      { id: 'microphone', label: 'Microphone' },
+    ],
+  });
+  expect(getByRole(panel, 'option', { name: 'Original demo' })).toBeDefined();
+  fireEvent.change(getByLabelText(panel, 'Input'), {
+    target: { value: 'demo' },
+  });
+  expect(fake.calls.setSource).toEqual([['demo']]);
+});
+
+it('shows microphone startup, capture and failure state, with a retry', () => {
+  const { fake, panel } = setup();
+  fake.set({ source: 'microphone', inputState: 'idle' });
+  expect(getByText(panel, 'Press Play to use the microphone')).toBeDefined();
+  fake.set({ inputState: 'starting' });
+  expect(getByRole(panel, 'status').textContent).toBe(
+    'Waiting for microphone…',
+  );
+  fake.set({ inputState: 'running' });
+  expect(getByRole(panel, 'status').textContent).toBe('Microphone active');
+  fake.set({
+    inputState: 'failed',
+    inputError: 'Microphone permission denied',
+  });
+  expect(getByRole(panel, 'alert').textContent).toBe(
+    'Microphone permission denied',
+  );
+  fireEvent.click(getByRole(panel, 'button', { name: 'Retry input' }));
+  expect(fake.calls.setSource).toEqual([['microphone']]);
 });

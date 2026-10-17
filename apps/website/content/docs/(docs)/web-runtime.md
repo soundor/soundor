@@ -288,6 +288,104 @@ source → input bus → setupAudio's nodes → output bus → master gain → s
 - `soundor:parameters` and `soundor:host` work in `audio.ts` too. The `gain`
   above is the same parameter the plugin UI moves.
 
+### Microphone input
+
+Open **Host settings → Audio → Input**, choose **Microphone**, then press
+**Play**. The browser requests permission; capture feeds the same input bus
+as an oscillator or audio file and passes through your `setupAudio` DSP.
+The panel shows when it is waiting for permission, capturing, or unable to
+start, and offers **Retry input** after a failure.
+
+Microphones require [HTTPS or localhost and browser permission](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia).
+An embedded host also needs microphone permission from its parent; use
+`allow="autoplay; microphone"` on the iframe, subject to the parent's
+Permissions Policy. The docs' live examples include that permission.
+
+Pause, Stop, another input, or disposing the host disconnects the source and
+stops every captured track. Play opens a new stream. Muting the output only
+silences playback; it does not stop capture. If a permission request resolves
+after you have moved to another input or stopped playback, its stream is
+immediately released. The browser's pending permission prompt itself may
+remain open until answered.
+
+The host requests audio without echo cancellation, noise suppression or
+automatic gain control so that effects receive the source audio; the browser
+may not support every constraint. Use headphones when monitoring a microphone.
+No audio is recorded or uploaded by the host.
+
+### Custom inputs
+
+Register project-defined inputs in `runtimes/web/src/main.ts`. They appear in
+the same **Input** selector, without adding controls around the plugin:
+
+```ts
+import {
+  startSoundorWebHost,
+  type WebAudioInput,
+} from '@soundor/web-runtime/client';
+
+const demo: WebAudioInput = {
+  id: 'demo-loop',
+  label: 'Demo loop',
+  async start({ context, destination, timeInSeconds, signal }) {
+    const beganAt = context.currentTime;
+    // Supply your own bundled audio asset next to this module.
+    const response = await fetch(new URL('./demo.wav', import.meta.url), {
+      signal,
+    });
+    if (!response.ok)
+      throw new Error(`Audio request failed: ${response.status}`);
+    const buffer = await context.decodeAudioData(await response.arrayBuffer());
+    signal.throwIfAborted();
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(destination);
+    source.start(
+      0,
+      (timeInSeconds + context.currentTime - beganAt) % buffer.duration,
+    );
+    return () => {
+      source.stop();
+      source.disconnect();
+    };
+  },
+};
+
+await startSoundorWebHost({
+  native: () => import('./native'),
+  audio: () => import('./audio'),
+  audioInputs: [demo],
+  defaultAudioInput: demo.id,
+});
+```
+
+A `WebAudioInput` has a unique, nonempty `id`, a display `label`, and a `start`
+function returning cleanup, synchronously or asynchronously. The built-in ids
+`oscillator`, `file`, `microphone` and `none` are reserved. Duplicate ids,
+unknown defaults and empty labels are rejected when the host starts.
+
+`defaultAudioInput` defaults to `oscillator`. It can name a custom input,
+`oscillator` or `none`; files and microphones require explicit selection.
+The same inputs are registered in every presentation, although `embed` hides
+the host controls.
+
+The host calls `start` on Play, after the project's DSP is ready. Use its
+`context` and connect to its `destination`; the host routes that source
+through the plugin's DSP and master volume. `timeInSeconds` is the transport
+position at startup, useful for resuming a loop.
+
+On pause, source replacement or disposal, the host aborts `signal`, disconnects
+the instance's destination, and calls its cleanup. Pass `signal` to fetch and
+other cancellable work. Cleanup must release every resource the input owns.
+Even if async work ignores cancellation and returns cleanup late, the host
+calls that cleanup and keeps its audio disconnected. Stale failures do not
+replace the new input's status; current failures appear in the Audio panel.
+
+The [Orbit example](/docs/examples/orbit) registers a synthesized pluck phrase
+this way. Its audio processor handles the host input without knowing whether
+it came from the demo, a file, or a microphone.
+
 ## The host UI
 
 The plugin is the page. Its view keeps the JUCE editor's size (800×600) and
@@ -313,7 +411,7 @@ phone, the panel open). The host stays out of its way:
   (bar.beat); the button that opens the panel. Audio needs no button: it
   starts with the first gesture.
 - **Panel:** the transport's tempo, time signature and loop (four bars); the
-  input source (an oscillator, an audio file of yours, or no input; a source
+  input source (an oscillator, an audio file, a microphone, a custom input, or no input; a source
   plays while the transport does), the audio format and status; and a control
   per parameter, moving the same values the plugin does. The transport drives
   the same `WebHost` that `soundor:host` reports to the plugin; the plugin
@@ -391,7 +489,6 @@ previous UI and runs the files again. Its messages with the page are in
   WebAssembly.
 - The host is a test bench, not a DAW: no tracks, automation lanes, MIDI or
   recording. `beginGesture()`/`endGesture()` are tracked but not recorded.
-- No microphone input yet.
 - `node.style.width = 120` changes one style property and `'120px'` lengths
   are numbers, as in the JUCE runtime (Three.js's `setSize()` writes the
   canvas's style this way).

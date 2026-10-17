@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { WebHostOptions } from './index';
+
 afterEach(() => {
   document.body.replaceChildren();
   document.head.replaceChildren();
@@ -9,10 +11,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function start(ui?: { hasUi: boolean; loadUi: () => Promise<unknown> }) {
+async function start(
+  ui?: { hasUi: boolean; loadUi: () => Promise<unknown> },
+  options: WebHostOptions = {},
+) {
   if (ui !== undefined) vi.doMock('soundor:internal/ui', () => ui);
   const { startSoundorWebHost } = await import('./index');
-  return startSoundorWebHost();
+  return startSoundorWebHost(options);
 }
 
 describe('startSoundorWebHost', () => {
@@ -61,4 +66,19 @@ describe('startSoundorWebHost', () => {
     );
     expect(reported).toHaveBeenCalledWith(error);
   });
+});
+
+it('forwards registered inputs and their default to the shared host panel', async () => {
+  const source = vi.fn<() => () => void>(() => () => {});
+  const host = await start(undefined, {
+    audioInputs: [{ id: 'demo', label: 'Demo loop', start: source }],
+    defaultAudioInput: 'demo',
+  });
+  const option = host.element.querySelector<HTMLOptionElement>(
+    'option[value="demo"]',
+  );
+  expect(option?.textContent).toBe('Demo loop');
+  expect(option?.selected).toBe(true);
+  expect(source).not.toHaveBeenCalled();
+  host.dispose();
 });

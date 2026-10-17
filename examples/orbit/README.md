@@ -18,9 +18,10 @@ pnpm --filter orbit exec soundor build juce
 Press the host's Play button to hear a short, bright pluck phrase followed by
 silence. Listen for Orbit's answer in those gaps. The **Original / Orbit**
 buttons compare the dry input with the current effect without changing its settings.
-The source selector above the plugin switches to the host's input; choose an
-audio file in the host settings. Those controls belong to the browser demo,
-not to the plugin. The JUCE version always processes the host's audio input.
+Choose a different source under **Host settings → Audio → Input**: the demo
+phrase, an audio file, a microphone, an oscillator, or no input. The demo is a
+registered custom host input; the plugin needs no extra toolbar. The JUCE
+version always processes the host's audio input.
 
 - Drag an echo horizontally for time, vertically for level. Tab to an echo
   and use left/right for time, up/down for level. Sync snaps edits to 1/32

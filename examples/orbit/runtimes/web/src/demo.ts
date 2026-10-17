@@ -1,3 +1,5 @@
+import type { WebAudioInput } from '@soundor/web-runtime/client';
+
 /** An original, deterministic four-bar loop. No samples or external assets. */
 export function demoLoop(context: BaseAudioContext): AudioBuffer {
   const rate = context.sampleRate;
@@ -36,17 +38,23 @@ export function demoLoop(context: BaseAudioContext): AudioBuffer {
   return buffer;
 }
 
-// These controls belong to the browser host, outside the portable plugin UI.
-let useDemo = true;
-const listeners = new Set<() => void>();
-export const demoEnabled = () => useDemo;
-export function setDemoEnabled(enabled: boolean) {
-  useDemo = enabled;
-  listeners.forEach((listener) => listener());
-}
-export function subscribeDemo(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
+const buffers = new WeakMap<AudioContext, AudioBuffer>();
+
+/** Registered with the shared host, not connected around the plugin's input. */
+export const demoInput: WebAudioInput = {
+  id: 'orbit-demo',
+  label: 'Pluck phrase · 120 BPM',
+  start({ context, destination, timeInSeconds }) {
+    const buffer = buffers.get(context) ?? demoLoop(context);
+    buffers.set(context, buffer);
+    const source = context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(destination);
+    source.start(0, timeInSeconds % buffer.duration);
+    return () => {
+      source.stop();
+      source.disconnect();
+    };
+  },
+};
