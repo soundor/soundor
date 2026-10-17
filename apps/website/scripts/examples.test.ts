@@ -40,6 +40,13 @@ function workspace(deps: Record<string, string>, built: string[]): string {
     writeFileSync(join(target, 'src/main.tsx'), `// ${name}`);
     writeFileSync(join(target, 'src/ui/Knob.tsx'), 'export {};');
     writeFileSync(join(target, 'src/App.test.tsx'), 'test');
+    writeFileSync(
+      join(target, 'tsconfig.app.json'),
+      JSON.stringify({
+        compilerOptions: { lib: ['ES2023'], types: [], noEmit: true },
+        include: ['src'],
+      }),
+    );
     if (built.includes(name)) {
       mkdirSync(join(target, '.soundor/dist/web/assets'), { recursive: true });
       writeFileSync(join(target, '.soundor/dist/web/index.html'), name);
@@ -84,6 +91,17 @@ describe('syncExamples', () => {
       entry: 'src/main.tsx',
       files: { 'src/main.tsx': '// basic', 'src/ui/Knob.tsx': 'export {};' },
     });
+  });
+
+  it('writes the types the editor checks the code against', () => {
+    const site = workspace({ basic: 'examples/basic' }, ['basic']);
+    syncExamples(site);
+    const types = JSON.parse(
+      readFileSync(join(site, 'public/examples/basic/types.json'), 'utf-8'),
+    ) as { files: Record<string, string> };
+    expect(Object.keys(types.files)).toContain(
+      '/node_modules/typescript/lib/lib.es2023.d.ts',
+    );
   });
 
   it('replaces what an earlier sync copied', () => {

@@ -1,7 +1,8 @@
 /**
  * The editor `<Example>` opens: the example's UI files in CodeMirror, run in
- * the embedded host (in playground mode) as they are edited. Loaded only when
- * a reader asks to edit.
+ * the embedded host (in playground mode) as they are edited, and checked by
+ * TypeScript against the example's own types (completions, errors, types on
+ * hover). Loaded only when a reader asks to edit.
  */
 
 import { javascript } from '@codemirror/lang-javascript';
@@ -15,6 +16,8 @@ import {
   isPlaygroundMessage,
   type RunMessage,
 } from '../../playground/protocol.ts';
+import type { ExampleTypes } from '../editor/language-service.ts';
+import { TypeScriptClient, typescript } from '../editor/typescript.ts';
 
 /** How long typing pauses before the code runs. */
 const RUN_DELAY_MS = 400;
@@ -28,6 +31,8 @@ export interface ExampleEditorProps {
   readonly name: string;
   /** The host the code runs in, already in playground mode. */
   readonly frame: RefObject<HTMLIFrameElement | null>;
+  /** Full screen: the editor fills the height it is given. */
+  readonly expanded: boolean;
 }
 
 type Status =
@@ -50,7 +55,13 @@ function useDarkMode(): boolean {
   return dark;
 }
 
-export function ExampleEditor({ name, frame }: ExampleEditorProps) {
+async function load<T>(url: string): Promise<T> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status}`);
+  return (await response.json()) as T;
+}
+
+export function ExampleEditor({ name, frame, expanded }: ExampleEditorProps) {
   const [original, setOriginal] = useState<Sources | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const files = useRef<Record<string, string>>({});
@@ -61,15 +72,18 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
   const view = useRef<EditorView | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [resets, setResets] = useState(0);
+  const [client, setClient] = useState<TypeScriptClient | null>(null);
   const dark = useDarkMode();
 
   useEffect(() => {
-    fetch(`/examples/${name}/playground.json`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`${response.status}`);
-        return response.json() as Promise<Sources>;
-      })
+    let started: TypeScriptClient | undefined;
+    load<Sources>(`/examples/${name}/playground.json`)
       .then((sources) => {
+        started = new TypeScriptClient(
+          load<ExampleTypes>(`/examples/${name}/types.json`),
+          sources.files,
+        );
+        setClient(started);
         setOriginal(sources);
         files.current = { ...sources.files };
         // The entry usually only renders the app: open the app itself.
@@ -81,6 +95,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       .catch((error: unknown) =>
         setFailure(`The example's code did not load (${String(error)}).`),
       );
+    return () => started?.dispose();
   }, [name]);
 
   const run = (): void => {
@@ -127,7 +142,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
 
   // The editor for the active file, recreated when it or the theme changes.
   useEffect(() => {
-    if (host.current === null || active === null) return;
+    if (host.current === null || active === null || client === null) return;
     const editor = new EditorView({
       parent: host.current,
       state: EditorState.create({
@@ -135,6 +150,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
         extensions: [
           basicSetup,
           javascript({ jsx: true, typescript: true }),
+          typescript(client, active),
           ...(dark ? [oneDark] : []),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
@@ -151,7 +167,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       view.current = null;
     };
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [active, dark, resets]);
+  }, [active, dark, resets, client]);
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -163,7 +179,9 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
   }
 
   return (
-    <div className="border-t">
+    <div
+      className={`flex min-h-0 flex-col border-t ${expanded ? 'h-full' : ''}`}
+    >
       <div className="flex flex-wrap items-center gap-1 border-b px-2 py-1">
         {Object.keys(original.files).map((file) => (
           <button
@@ -181,6 +199,9 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
           type="button"
           onClick={() => {
             files.current = { ...original.files };
+            for (const [file, text] of Object.entries(original.files)) {
+              void client?.call('update', file, text);
+            }
             setResets((count) => count + 1);
           }}
           className="rounded px-2 py-1 text-xs text-fd-muted-foreground hover:bg-fd-accent hover:text-fd-foreground"
@@ -190,7 +211,7 @@ export function ExampleEditor({ name, frame }: ExampleEditorProps) {
       </div>
       <div
         ref={host}
-        className="max-h-[420px] overflow-auto text-sm [&_.cm-editor]:min-h-[240px] [&_.cm-editor.cm-focused]:outline-none"
+        className={`overflow-auto text-sm [&_.cm-editor.cm-focused]:outline-none ${expanded ? 'min-h-0 flex-1 [&_.cm-editor]:h-full' : 'max-h-[420px] [&_.cm-editor]:min-h-[240px]'}`}
       />
       <p
         role="status"

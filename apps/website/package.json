@@ -13,7 +13,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "catalog:",
     "@codemirror/lang-javascript": "catalog:",
+    "@codemirror/lint": "catalog:",
     "@codemirror/state": "catalog:",
     "@codemirror/theme-one-dark": "catalog:",
     "@codemirror/view": "catalog:",
@@ -46,6 +48,7 @@
     "sucrase": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
+    "typescript-6": "catalog:",
     "vfile": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"

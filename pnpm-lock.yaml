@@ -206,9 +206,15 @@ catalogs:
     '@clack/prompts':
       specifier: ^1.8.1
       version: 1.8.1
+    '@codemirror/autocomplete':
+      specifier: ^6.20.3
+      version: 6.20.3
     '@codemirror/lang-javascript':
       specifier: ^6.2.5
       version: 6.2.5
+    '@codemirror/lint':
+      specifier: ^6.9.7
+      version: 6.9.7
     '@codemirror/state':
       specifier: ^6.7.6
       version: 6.7.6
@@ -347,6 +353,9 @@ catalogs:
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
+    typescript-6:
+      specifier: npm:typescript@^6.0.3
+      version: 6.0.3
     vfile:
       specifier: ^6.0.3
       version: 6.0.3
@@ -394,9 +403,15 @@ importers:
 
   apps/website:
     dependencies:
+      '@codemirror/autocomplete':
+        specifier: 'catalog:'
+        version: 6.20.3
       '@codemirror/lang-javascript':
         specifier: 'catalog:'
         version: 6.2.5
+      '@codemirror/lint':
+        specifier: 'catalog:'
+        version: 6.9.7
       '@codemirror/state':
         specifier: 'catalog:'
         version: 6.7.6
@@ -488,6 +503,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      typescript-6:
+        specifier: 'catalog:'
+        version: typescript@6.0.3
       vfile:
         specifier: 'catalog:'
         version: 6.0.3
@@ -4626,6 +4644,11 @@ packages:
     resolution: {integrity: sha512-RhXHbqfvY6o3xt/zSHCwSNwLrZlXiqHzewi4eAj9PtZ1T1CqgMJ2yIDb7SKPTG9IikTm925mfzL6hldQVdyNWw==}
     hasBin: true
 
+  typescript@6.0.3:
+    resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
   typescript@7.0.2:
     resolution: {integrity: sha512-8FYau96o3NKOhbjKi/qNvG/W5jhzxkbdm5sj9AbZ/5T5sWqn3hJgLfGx27sRKZWTvyzCP8dLRBTf5tBTSRVUNA==}
     engines: {node: '>=16.20.0'}
@@ -8333,6 +8356,8 @@ snapshots:
       '@turbo/linux-arm64': 2.11.7
       '@turbo/windows-64': 2.11.7
       '@turbo/windows-arm64': 2.11.7
+
+  typescript@6.0.3: {}
 
   typescript@7.0.2:
     optionalDependencies:

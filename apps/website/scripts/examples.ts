@@ -1,7 +1,9 @@
 /**
  * The examples' static web builds, copied into the site's `public/examples/`,
  * where `<Example name>` embeds them, each with `playground.json`: its UI
- * source files (`src/`, without tests), which the editor opens. The examples are the site's
+ * source files (`src/`, without tests), which the editor opens, and
+ * `types.json`: the types they are checked against, which the editor's
+ * language service reads (`types.ts`). The examples are the site's
  * devDependencies that live in `examples/`, so Turborepo runs their
  * `build:web` (never their full `build`, which would build the native plugin)
  * before the site's build.
@@ -17,6 +19,8 @@ import {
 } from 'node:fs';
 import { globSync } from 'node:fs';
 import { join, sep } from 'node:path';
+
+import { exampleTypes } from './types.ts';
 
 /** An example's editable code, as `playground.json` has it. */
 export interface ExampleSources {
@@ -64,6 +68,10 @@ export function syncExamples(site: string): string[] {
     writeFileSync(
       join(out, name, 'playground.json'),
       JSON.stringify(exampleSources(dir)),
+    );
+    writeFileSync(
+      join(out, name, 'types.json'),
+      JSON.stringify(exampleTypes(dir)),
     );
     synced.push(name);
   }
