@@ -18,7 +18,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         class Reader
         {
         public:
-            explicit Reader(std::string_view text) : text(text) {}
+            explicit Reader(std::string_view json) : text(json) {}
 
             std::optional<Value> document()
             {

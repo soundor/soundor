@@ -65,7 +65,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             for (const auto& item : *list)
             {
                 const auto* name = std::get_if<std::string>(&item.data);
-                const auto bit = name ? modifierOf(*name) : 0;
+                const ui::Modifiers bit = name ? modifierOf(*name) : ui::Modifiers { 0 };
                 if (bit == 0)
                     throw invalid("modifiers are Shift, Control, Alt and Meta");
                 out |= bit;
