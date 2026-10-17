@@ -16,7 +16,13 @@ import {
 } from '@clack/prompts';
 import { defineCommand, runMain } from 'citty';
 
-import { type PackageManager, PM_EXEC, detectPackageManager } from './pm';
+import {
+  type PackageManager,
+  PACKAGE_MANAGERS,
+  PM_EXEC,
+  detectPackageManager,
+  runScript,
+} from './pm';
 import { applyTokens, clearDirectory, resolveProjectTarget } from './scaffold';
 
 const RUNTIMES = ['juce'] as const;
@@ -81,13 +87,8 @@ const main = defineCommand({
     let pm = detectPackageManager();
     if (!pm) {
       const answer = await select<PackageManager>({
-        message: 'Package manager',
-        options: [
-          { value: 'pnpm', label: 'pnpm' },
-          { value: 'yarn', label: 'yarn' },
-          { value: 'npm', label: 'npm' },
-          { value: 'bun', label: 'bun' },
-        ],
+        message: 'Package manager (Soundor supports pnpm and npm)',
+        options: PACKAGE_MANAGERS.map((value) => ({ value, label: value })),
       });
       if (isCancel(answer)) {
         cancel('Cancelled');
@@ -147,8 +148,8 @@ const main = defineCommand({
 
     // --- Done ---
     const nextSteps = target.isCurrentDirectory
-      ? `${pm} dev`
-      : `cd ${projectName}\n  ${pm} dev`;
+      ? runScript(pm, 'dev')
+      : `cd ${projectName}\n  ${runScript(pm, 'dev')}`;
     outro(`Done! Next steps:\n\n  ${nextSteps}`);
   },
 });

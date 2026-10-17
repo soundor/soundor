@@ -44,8 +44,9 @@ browser APIs. Audio processing is implemented separately for each runtime.
 
 ## Start a project
 
-Use Node.js 24 and pnpm 12. For native builds, install JUCE and the platform's
-C++ toolchain; Soundor discovers an existing JUCE checkout and never downloads it.
+Use Node.js 24 and pnpm 12; npm works too, Yarn and bun are not supported. For
+native builds, install JUCE and the platform's C++ toolchain; Soundor discovers
+an existing JUCE checkout and never downloads it.
 
 ```sh
 pnpm create soundor-app my-plugin
@@ -54,8 +55,10 @@ pnpm doctor
 pnpm exec soundor dev juce
 ```
 
-The scaffolder currently creates a JUCE project. To add a browser runtime or try
-the repository's browser example, follow [Getting started](docs/getting-started.md).
+The scaffolder currently creates a JUCE project. It pins every Soundor package
+to an exact version: Soundor is pre-1.0, and a minor release can change APIs.
+To add a browser runtime or try the repository's browser example, follow
+[Getting started](docs/getting-started.md).
 
 ## Documentation
 

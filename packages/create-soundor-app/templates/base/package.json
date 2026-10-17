@@ -11,16 +11,16 @@
     "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
-    "@soundor/juce-runtime": "latest",
-    "@soundor/react": "latest",
-    "react": "^19.3.0"
+    "@soundor/juce-runtime": "workspace:*",
+    "@soundor/react": "workspace:*",
+    "react": "catalog:"
   },
   "devDependencies": {
-    "@soundor/config": "latest",
-    "@soundor/core": "latest",
-    "@types/node": "^25.0.0",
-    "@types/react": "^19.2.0",
-    "soundor": "latest",
-    "typescript": "^6.0.0"
+    "@soundor/config": "workspace:*",
+    "@soundor/core": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "soundor": "workspace:*",
+    "typescript": "catalog:"
   }
 }
