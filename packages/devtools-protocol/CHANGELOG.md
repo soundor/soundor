@@ -1,5 +1,14 @@
 # @soundor/devtools-protocol
 
+## 0.10.1
+
+### Patch Changes
+
+- [#145](https://github.com/soundor/soundor/pull/145) [`1d7eb63`](https://github.com/soundor/soundor/commit/1d7eb63cc2c4288f05e34bdfe7cfc5af82ad4ccf) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Centralize guides and package references in `docs/`, with a documentation index,
+  page navigation, and package README links that also work on npm. Add a project
+  README and guides covering the idea, architecture, getting started, project
+  lifecycle, parameters, and contributing.
+
 ## 0.10.0
 
 No changes in this release.

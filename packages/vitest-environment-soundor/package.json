@@ -1,6 +1,6 @@
 {
   "name": "vitest-environment-soundor",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Simulated Soundor environment for Vitest",
   "license": "MIT",
   "repository": {

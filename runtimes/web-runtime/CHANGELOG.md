@@ -1,5 +1,20 @@
 # @soundor/web-runtime
 
+## 0.7.0
+
+### Minor Changes
+
+- [#146](https://github.com/soundor/soundor/pull/146) [`5637c03`](https://github.com/soundor/soundor/commit/5637c0368b45c7ef2a0896b7d3fee500525c9878) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The Web host puts the plugin first: its view fills the page, with a floating dock (start audio, mute and volume, play/stop and the position) and a side panel, closed by default, for the transport, the audio source and format, editable parameters and, under `soundor dev`, the host state.
+
+### Patch Changes
+
+- [#145](https://github.com/soundor/soundor/pull/145) [`1d7eb63`](https://github.com/soundor/soundor/commit/1d7eb63cc2c4288f05e34bdfe7cfc5af82ad4ccf) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Centralize guides and package references in `docs/`, with a documentation index,
+  page navigation, and package README links that also work on npm. Add a project
+  README and guides covering the idea, architecture, getting started, project
+  lifecycle, parameters, and contributing.
+
+- [#147](https://github.com/soundor/soundor/pull/147) [`7aa583a`](https://github.com/soundor/soundor/commit/7aa583aa084e69c25ca5f75185a8d34be92db257) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The Web host's UI is written in Preact (about 5 KB gzipped), independent of the plugin's own React. The runtime's Vite plugin optimizes Preact up front, so it loads once.
+
 ## 0.6.0
 
 ### Minor Changes
