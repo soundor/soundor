@@ -160,6 +160,16 @@ test('a snippet runs in its page, with its code under it', async ({ page }) => {
   await expect(snippet.locator('pre')).toContainText(
     'export default function Gain()',
   );
+  // The code scrolls in one box, not in a box in a box.
+  const scrolling = await snippet.evaluate(
+    (figure) =>
+      [...figure.querySelectorAll('*')].filter(
+        (element) =>
+          /auto|scroll/.test(getComputedStyle(element).overflowY) &&
+          element.scrollHeight > element.clientHeight,
+      ).length,
+  );
+  expect(scrolling).toBe(1);
 
   await plugin.getByRole('button', { name: '+' }).click();
   await expect(plugin.getByText('Gain 0.60')).toBeVisible();
