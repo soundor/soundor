@@ -11,14 +11,6 @@
  * there) and to `start()`. The script then talks to its parent page.
  */
 
-import * as native from 'soundor:native';
-
-import * as fs from './modules/fs';
-import * as host from './modules/host';
-import * as parameters from './modules/parameters';
-import * as storage from './modules/storage';
-import * as ui from './modules/ui';
-
 /** The query parameter naming the playground script. */
 export const PLAYGROUND_PARAM = 'playground';
 
@@ -77,6 +69,16 @@ export async function startPlayground(
   shell: Pick<PlaygroundHost, 'showMessage' | 'clearMessages'>,
   load: (url: URL) => Promise<void> = loadScript,
 ): Promise<void> {
+  // Loaded only now: importing the host must not create its modules (the UI
+  // module makes the plugin view, which needs a document).
+  const [fs, host, native, parameters, storage, ui] = await Promise.all([
+    import('./modules/fs'),
+    import('./modules/host'),
+    import('soundor:native'),
+    import('./modules/parameters'),
+    import('./modules/storage'),
+    import('./modules/ui'),
+  ]);
   const modules = Object.freeze({
     'soundor:fs': fs,
     'soundor:host': host,
