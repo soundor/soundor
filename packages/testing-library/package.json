@@ -1,6 +1,6 @@
 {
   "name": "@soundor/testing-library",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Semantic queries and user interactions for Soundor tests",
   "license": "MIT",
   "repository": {
