@@ -29,22 +29,21 @@ it('shows native animation targets and lifecycle events, and clears them on relo
   await until(() => browser.text('target-meta').includes('generation 2'));
   expect(browser.text('animations')).not.toContain('cancelled');
 });
-it('records diagnostics only with control and shares measured samples with observers', async () => {
-  const { server, page: controller, native } = await setup(true);
-  await controller.ready();
+it('records diagnostics from any tab and shares measured samples with the others', async () => {
+  const { server, page: recorder, native } = await setup(true);
+  await recorder.ready();
   const observer = await page(server);
   await observer.ready();
   observer.click('tab-performance');
   expect(observer.get('record-performance').hasAttribute('disabled')).toBe(
-    true,
+    false,
   );
-  await controller.control();
-  controller.click('tab-performance');
-  controller.click('record-performance');
+  recorder.click('tab-performance');
+  recorder.click('record-performance');
   await until(
     () =>
-      controller.text('performance-status') === 'Recording · 10 Hz samples' &&
-      !controller.get('record-performance').hasAttribute('disabled'),
+      recorder.text('performance-status') === 'Recording · 10 Hz samples' &&
+      !recorder.get('record-performance').hasAttribute('disabled'),
   );
   const sample: DebugMetrics = {
     generation: 1,
@@ -84,20 +83,15 @@ it('records diagnostics only with control and shares measured samples with obser
     observer.text('performance-summary').includes('Skia raster'),
   );
   expect(
-    controller.get('performance-chart').querySelector('polyline'),
+    recorder.get('performance-chart').querySelector('polyline'),
   ).not.toBeNull();
-  controller.click('record-performance');
-  await until(
-    () => controller.text('record-performance') === 'Start recording',
-  );
-  expect(controller.text('performance-summary')).toContain('4.00');
-  controller.click('control');
-  await until(() => observer.text('ownership').includes('available'));
-  await until(
-    () => !observer.text('performance-summary').includes('Skia raster'),
-  );
+  recorder.click('record-performance');
+  await until(() => recorder.text('record-performance') === 'Start recording');
+  expect(recorder.text('performance-summary')).toContain('4.00');
+  // The other tab sees the recording stop.
+  await until(() => observer.text('record-performance') === 'Start recording');
 });
-it('reports unsupported diagnostics and never enables a recording for an observer', async () => {
+it('reports unsupported diagnostics and never records without them', async () => {
   const { page: browser, native } = await setup();
   await browser.ready();
   browser.click('tab-performance');

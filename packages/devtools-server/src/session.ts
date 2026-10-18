@@ -5,7 +5,6 @@ import {
   MAX_CAPTURES,
   MAX_MESSAGE_BYTES,
   methodCapability,
-  requiresControl,
   runtimeEventSchema,
   type DebugError,
   type DebugRequest,
@@ -35,7 +34,6 @@ export interface Target {
   lastSeen: number;
   queue: RuntimeCommand[];
   poll?: { response: FastifyReply; timer: ReturnType<typeof setTimeout> };
-  interactive?: string;
 }
 interface Pending {
   browser: Browser;
@@ -133,8 +131,6 @@ export function createSession(options: DevToolsServerOptions) {
     if (!operation) return;
     clearTimeout(operation.timer);
     pending.delete(id);
-    if (operation.target.interactive === id)
-      operation.target.interactive = undefined;
     operation.target.queue = operation.target.queue.filter(
       (command) => !(command.type === 'request' && command.id === id),
     );
@@ -155,27 +151,6 @@ export function createSession(options: DevToolsServerOptions) {
       (command) => command.type !== 'subscribe',
     );
     enqueue(target, { type: 'subscribe', events: [...events] });
-  }
-  function release(target: Target): void {
-    if (!target.info.controller) return;
-    const controller = target.info.controller;
-    target.info.controller = null;
-    for (const [id, operation] of pending)
-      if (
-        operation.target === target &&
-        operation.browser.id === controller &&
-        requiresControl(operation.request.method)
-      )
-        cancel(id, {
-          code: 'LEASE_REQUIRED',
-          message: 'Control lease released',
-        });
-    // Reset is a transport command, so cleanup never depends on a browser lease.
-    target.queue = target.queue.filter(
-      (command) => command.type !== 'resetControl',
-    );
-    if (!enqueue(target, { type: 'resetControl' })) disconnect(target);
-    broadcastTargets();
   }
   function disconnect(target: Target): void {
     if (!targets.delete(target.info.id)) return;
@@ -200,9 +175,12 @@ export function createSession(options: DevToolsServerOptions) {
     for (const [id, operation] of pending)
       if (operation.browser === browser)
         cancel(id, { code: 'CANCELLED', message: 'Browser disconnected' });
-    for (const target of targets.values()) {
-      if (target.info.controller === browser.id) release(target);
-      subscriptions(target);
+    // What the client held, pressed, highlighted or picked goes with it;
+    // a target that cannot take the command cannot be trusted to clean up.
+    for (const target of [...targets.values()]) {
+      if (!enqueue(target, { type: 'clientGone', client: browser.id }))
+        disconnect(target);
+      else subscriptions(target);
     }
   }
   function browserRequest(browser: Browser, request: DebugRequest): void {
@@ -234,32 +212,6 @@ export function createSession(options: DevToolsServerOptions) {
       });
       return;
     }
-    if (request.method === 'Control.acquire') {
-      if (target.info.controller && target.info.controller !== browser.id) {
-        reply(browser, request, undefined, {
-          code: 'LEASE_BUSY',
-          message:
-            'Another tab controls this target; ask it to release control',
-        });
-        return;
-      }
-      target.info.controller = browser.id;
-      reply(browser, request, { controller: browser.id });
-      broadcastTargets();
-      return;
-    }
-    if (request.method === 'Control.release') {
-      if (target.info.controller !== browser.id) {
-        reply(browser, request, undefined, {
-          code: 'LEASE_REQUIRED',
-          message: 'You do not own control',
-        });
-        return;
-      }
-      release(target);
-      reply(browser, request);
-      return;
-    }
     if (request.method === 'Events.subscribe') {
       browser.subscriptions.set(
         target.info.id,
@@ -286,16 +238,6 @@ export function createSession(options: DevToolsServerOptions) {
       return;
     }
     if (
-      requiresControl(request.method) &&
-      target.info.controller !== browser.id
-    ) {
-      reply(browser, request, undefined, {
-        code: 'LEASE_REQUIRED',
-        message: 'Acquire control before modifying native debug state',
-      });
-      return;
-    }
-    if (
       request.method === 'Capture.screenshot' &&
       [...pending.values()].filter(
         (operation) => operation.request.method === 'Capture.screenshot',
@@ -307,10 +249,7 @@ export function createSession(options: DevToolsServerOptions) {
       });
       return;
     }
-    if (
-      pending.size >= MAX_PENDING ||
-      (requiresControl(request.method) && target.interactive)
-    ) {
+    if (pending.size >= MAX_PENDING) {
       reply(browser, request, undefined, {
         code: 'BUSY',
         message: 'Target has outstanding operations; retry after completion',
@@ -328,9 +267,13 @@ export function createSession(options: DevToolsServerOptions) {
         commandTimeout,
       ),
     });
-    if (requiresControl(request.method)) target.interactive = id;
     if (
-      !enqueue(target, { ...request, id, generation: target.info.generation })
+      !enqueue(target, {
+        ...request,
+        id,
+        generation: target.info.generation,
+        client: browser.id,
+      })
     )
       finish(id, undefined, {
         code: 'BUSY',
@@ -349,16 +292,19 @@ export function createSession(options: DevToolsServerOptions) {
       for (const [id, operation] of pending)
         if (operation.target === target)
           cancel(id, { code: 'STALE_NODE', message: 'Runtime reloaded' });
-      enqueue(target, { type: 'resetControl' });
       broadcastTargets();
     } else if (
       (data.generation && data.generation !== target.info.generation) ||
       (data.node && data.node.generation !== target.info.generation)
     )
       return;
+    const { client, ...forwarded } = event;
     for (const browser of browsers.values())
-      if (browser.subscriptions.get(target.info.id)?.has(event.event))
-        send(browser, { ...event, targetId: target.info.id });
+      if (
+        (client === undefined || client === browser.id) &&
+        browser.subscriptions.get(target.info.id)?.has(event.event)
+      )
+        send(browser, { ...forwarded, targetId: target.info.id });
   }
 
   function publishLog(entry: Parameters<DevToolsServer['publishLog']>[0]) {

@@ -340,9 +340,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                     command.events.insert(*name);
             return command;
         }
-        if (*type == "resetControl")
+        if (*type == "clientGone")
         {
+            const auto* client = stringField(*object, "client");
+            if (! client || client->empty())
+                return {};
             command.method = *type;
+            command.client = *client;
             return command;
         }
         const auto* id = stringField(*object, "id");
@@ -358,6 +362,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         if (*type != "request" || ! method)
             return {};
         command.method = *method;
+        if (const auto* client = stringField(*object, "client"))
+            command.client = *client;
         command.targetGeneration = positive(numberField(*object, "generation"));
         if (command.targetGeneration == 0)
             return {};

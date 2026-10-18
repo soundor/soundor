@@ -169,7 +169,7 @@ TEST_SUITE("Native DevTools inspector")
         f.picker();
         const int before = applicationEvents;
         f.input(ui::PointerInput::Phase::Move);
-        CHECK(f.host.surface().debugHighlight() == child);
+        CHECK(f.host.surface().debugHighlights() == std::vector { child });
         f.input(ui::PointerInput::Phase::Down, 10, 10, 1);
         f.input(ui::PointerInput::Phase::Up);
         CHECK(applicationEvents == before);
@@ -218,7 +218,7 @@ TEST_SUITE("Native DevTools inspector")
         f.input(ui::PointerInput::Phase::Down, 10, 10, 1);
         CHECK(f.inspector.key(f.host.surface(), { .down = true, .key = "Escape" }));
         CHECK_FALSE(f.inspector.picking());
-        CHECK(f.host.surface().debugHighlight() == ui::noNode);
+        CHECK(f.host.surface().debugHighlights().empty());
         CHECK(f.inspector.key(f.host.surface(), { .down = false, .key = "Escape" }));
         f.input(ui::PointerInput::Phase::Up);
         CHECK(events == 0);
@@ -227,6 +227,45 @@ TEST_SUITE("Native DevTools inspector")
         f.inspector.reset(f.host.surface());
         f.input(ui::PointerInput::Phase::Up);
         CHECK(events == 0);
+    }
+
+    TEST_CASE("each client highlights and picks on its own, and its state goes with it")
+    {
+        Fixture f;
+        f.subscribe();
+        auto& surface = f.host.surface();
+        const auto first = f.view();
+        const auto second = f.view(20, 15, first);
+        f.inspector.execute(f.host,
+                            { .id = "1", .method = "UI.highlightNode", .client = "a", .generation = 1, .node = first });
+        f.inspector.execute(
+            f.host, { .id = "2", .method = "UI.highlightNode", .client = "b", .generation = 1, .node = second });
+        CHECK(surface.debugHighlights() == std::vector { first, second });
+        f.inspector.execute(f.host, { .id = "3", .method = "UI.setPickerEnabled", .client = "b", .enabled = true });
+        CHECK(std::ranges::any_of(f.messages,
+                                  [](const auto& message)
+                                  {
+                                      return message.find(R"("event":"UI.pickerChanged")") != std::string::npos
+                                             && message.find(R"("client":"b")") != std::string::npos;
+                                  }));
+        f.messages.clear();
+        f.input(ui::PointerInput::Phase::Move);
+        f.input(ui::PointerInput::Phase::Down, 10, 10, 1);
+        f.input(ui::PointerInput::Phase::Up);
+        CHECK_FALSE(f.inspector.picking());
+        // The pick is b's alone; a's highlight stayed.
+        const auto picks = std::ranges::count_if(f.messages, [](const auto& message)
+                                                 { return message.find("UI.nodeSelected") != std::string::npos; });
+        CHECK(picks == 1);
+        for (const auto& message : f.messages)
+            CHECK(message.find(R"("client":"b")") != std::string::npos);
+        CHECK(surface.debugHighlights() == std::vector { first, second });
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "b" });
+        CHECK(surface.debugHighlights() == std::vector { first });
+        CHECK(f.inspector.clients() == 1);
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "a" });
+        CHECK(surface.debugHighlights().empty());
+        CHECK(f.inspector.clients() == 0);
     }
 
     TEST_CASE("activation cancels implicit pointer capture, including after early disconnect")
@@ -261,11 +300,11 @@ TEST_SUITE("Native DevTools inspector")
         f.host.surface().setCanvasSize(canvas, 20, 20);
         f.picker();
         f.input(ui::PointerInput::Phase::Move);
-        CHECK(f.host.surface().debugHighlight() == canvas);
+        CHECK(f.host.surface().debugHighlights() == std::vector { canvas });
         f.input(ui::PointerInput::Phase::Down, 10, 10, 1);
         f.inspector.tick(f.host, 2);
         f.input(ui::PointerInput::Phase::Up);
-        CHECK(f.host.surface().debugHighlight() == ui::noNode);
+        CHECK(f.host.surface().debugHighlights().empty());
         CHECK_FALSE(f.inspector.picking());
     }
 
@@ -275,7 +314,7 @@ TEST_SUITE("Native DevTools inspector")
         const auto id = f.view();
         const auto style = f.host.surface().find(id)->style();
         CHECK(f.host.frame().layers.size() == 1);
-        f.host.surface().debugHighlight(id);
+        f.host.surface().debugHighlights({ id });
         const auto& frame = f.host.frame();
         REQUIRE(frame.layers.size() == 2);
         const auto& pixels = std::get<render::RasterContent>(frame.layers.back().content);
@@ -296,7 +335,7 @@ TEST_SUITE("Native DevTools inspector")
         f.host.surface().setScale(2);
         const auto& scaled = std::get<render::RasterContent>(f.host.frame().layers.back().content);
         CHECK((scaled.surface->pixels()[10 * 120 + 50] >> 24) > 0);
-        f.host.surface().debugHighlight(ui::noNode);
+        f.host.surface().debugHighlights({});
         CHECK(f.host.frame().layers.size() == 1);
     }
 
@@ -312,7 +351,7 @@ TEST_SUITE("Native DevTools inspector")
         surface.insertChild(surface.root().id(), scroll);
         const auto child = f.view(100, 30, scroll);
         surface.scrollTo(scroll, { 20, 0 });
-        surface.debugHighlight(child);
+        surface.debugHighlights({ child });
         const auto& frame = f.host.frame();
         const auto& pixels = std::get<render::RasterContent>(frame.layers.back().content);
         CHECK((pixels.surface->pixels()[10 * 120 + 10] >> 24) > 0);
@@ -385,7 +424,7 @@ TEST_SUITE("Native DevTools inspector")
         const ui::Point center { bounds.x + bounds.width / 2, bounds.y + bounds.height / 2 };
         f.picker();
         f.input(ui::PointerInput::Phase::Move, center.x, center.y);
-        CHECK(surface.debugHighlight() == id);
+        CHECK(surface.debugHighlights() == std::vector { id });
         CHECK(bounds.width == 40);
         const auto& pixels = std::get<render::RasterContent>(f.host.frame().layers.back().content);
         const auto x = static_cast<std::size_t>(center.x), y = static_cast<std::size_t>(center.y);
@@ -409,7 +448,7 @@ TEST_SUITE("Native DevTools inspector")
         )");
         f.host.tick();
         const auto id = f.host.surface().root().children().front()->id();
-        f.host.surface().debugHighlight(id);
+        f.host.surface().debugHighlights({ id });
         gpu::OffscreenCompositor compositor(device);
         const auto& frame = f.host.frame(compositor.capabilities());
         CHECK(frame.statistics.gpuLayers == 1);

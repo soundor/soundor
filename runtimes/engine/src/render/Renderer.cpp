@@ -209,15 +209,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     }
 
 #if SOUNDOR_DEVTOOLS
-    void Renderer::renderHighlight(Surface& surface, NodeId id, const render::Bitmap& target)
+    void Renderer::renderHighlights(Surface& surface, std::span<const NodeId> ids, const render::Bitmap& target)
     {
         auto canvas = canvasFor(target);
         if (! canvas)
             return;
         canvas->clear(SK_ColorTRANSPARENT);
-        const auto* node = surface.find(id);
-        if (! node || ! surface.isConnected(id) || node->presentedStyle().display == Display::None)
-            return;
         surface.layout();
         const float scale = surface.scale();
         const auto setTransform = [&](const render::Transform& value)
@@ -225,32 +222,45 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             canvas->setMatrix(SkMatrix::MakeAll(scale * value.a, scale * value.c, scale * value.e, scale * value.b,
                                                 scale * value.d, scale * value.f, 0, 0, 1));
         };
-        for (auto* parent = node->parent(); parent; parent = parent->parent())
+        const auto draw = [&](NodeId id)
         {
-            const auto& style = parent->presentedStyle();
-            if (style.display == Display::None)
+            const auto* node = surface.find(id);
+            if (! node || ! surface.isConnected(id) || node->presentedStyle().display == Display::None)
                 return;
-            if (style.overflow == Overflow::Visible && parent->type() != NodeType::Scroll)
-                continue;
-            setTransform(surface.visualTransform(parent->id()));
-            const auto frame = parent->frame();
-            const auto border = style.borderWidth;
-            const auto box =
-                SkRect::MakeXYWH(border.left, border.top, std::max(0.0f, frame.width - border.left - border.right),
-                                 std::max(0.0f, frame.height - border.top - border.bottom));
-            canvas->clipRRect(roundedRect(box, style.borderRadius, border), true);
+            for (auto* parent = node->parent(); parent; parent = parent->parent())
+            {
+                const auto& style = parent->presentedStyle();
+                if (style.display == Display::None)
+                    return;
+                if (style.overflow == Overflow::Visible && parent->type() != NodeType::Scroll)
+                    continue;
+                setTransform(surface.visualTransform(parent->id()));
+                const auto frame = parent->frame();
+                const auto border = style.borderWidth;
+                const auto box =
+                    SkRect::MakeXYWH(border.left, border.top, std::max(0.0f, frame.width - border.left - border.right),
+                                     std::max(0.0f, frame.height - border.top - border.bottom));
+                canvas->clipRRect(roundedRect(box, style.borderRadius, border), true);
+            }
+            setTransform(surface.visualTransform(id));
+            const auto frame = node->frame();
+            const auto box = SkRect::MakeWH(frame.width, frame.height);
+            SkPaint paint;
+            paint.setAntiAlias(true);
+            paint.setColor(SkColorSetARGB(48, 50, 145, 255));
+            canvas->drawRect(box, paint);
+            paint.setColor(SkColorSetARGB(230, 50, 145, 255));
+            paint.setStyle(SkPaint::kStroke_Style);
+            paint.setStrokeWidth(2);
+            canvas->drawRect(box, paint);
+        };
+        // Each node with its own clips.
+        for (const auto id : ids)
+        {
+            canvas->save();
+            draw(id);
+            canvas->restore();
         }
-        setTransform(surface.visualTransform(id));
-        const auto frame = node->frame();
-        const auto box = SkRect::MakeWH(frame.width, frame.height);
-        SkPaint paint;
-        paint.setAntiAlias(true);
-        paint.setColor(SkColorSetARGB(48, 50, 145, 255));
-        canvas->drawRect(box, paint);
-        paint.setColor(SkColorSetARGB(230, 50, 145, 255));
-        paint.setStyle(SkPaint::kStroke_Style);
-        paint.setStrokeWidth(2);
-        canvas->drawRect(box, paint);
     }
 #endif
 

@@ -9,7 +9,6 @@ export function App({ inspector }: { inspector: Inspector }) {
   useSyncExternalStore(inspector.subscribe, inspector.getSnapshot);
   const { state, ui, actions } = inspector;
   const target = state.currentTarget();
-  const ownsControl = state.ownsControl();
   return (
     <>
       <header>
@@ -74,20 +73,6 @@ export function App({ inspector }: { inspector: Inspector }) {
             ? `${target.runtime} · instance ${target.id.slice(0, 8)} · generation ${target.generation} · ${target.capabilities.join(', ')}${target.processId ? ` · PID ${target.processId}` : ''}`
             : ''}
         </span>
-        <span id="ownership">
-          {ownsControl
-            ? 'You control this target'
-            : target?.controller
-              ? 'Observer · another tab controls'
-              : 'Observer · control available'}
-        </span>
-        <button
-          id="control"
-          disabled={!state.connected || !target}
-          onClick={actions.control}
-        >
-          {ownsControl ? 'Release control' : 'Request control'}
-        </button>
       </div>
       <div className="toolbar">
         <button
@@ -95,7 +80,6 @@ export function App({ inspector }: { inspector: Inspector }) {
           aria-pressed={state.picker}
           disabled={
             !state.connected ||
-            !ownsControl ||
             !state.supports('inspector') ||
             ui.diagnosticsBusy
           }

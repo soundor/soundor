@@ -321,54 +321,62 @@ it('isolates concurrent projects, targets, responses and reconnects', async () =
   expect(reconnected.id).not.toBe(first.id);
 });
 
-it('enforces one controller, serializes interactive work and releases on disconnect', async () => {
+it('lets every client change debug state, names it to the runtime, and cleans up after it', async () => {
   const server = await serve();
   const target = await native(server);
   const first = await browser(server);
   const second = await browser(server);
-  expect(
-    await first.request('UI.clearHighlight', target.id).response,
-  ).toMatchObject({ error: { code: 'LEASE_REQUIRED' } });
-  expect(
-    await first.request('Control.acquire', target.id).response,
-  ).toMatchObject({ result: { controller: first.id } });
-  expect(
-    await second.request('Control.acquire', target.id).response,
-  ).toMatchObject({ error: { code: 'LEASE_BUSY' } });
-  expect(
-    await second.request('UI.setPickerEnabled', target.id, { enabled: true })
-      .response,
-  ).toMatchObject({ error: { code: 'LEASE_REQUIRED' } });
-  const highlight = first.request('UI.highlightNode', target.id, {
-    node: { generation: 1, id: 'node' },
-  });
-  expect(
-    await first.request('UI.clearHighlight', target.id).response,
-  ).toMatchObject({ error: { code: 'BUSY' } });
-  const commands = await target.poll();
-  const request = commands.find((command) => command.type === 'request');
-  if (request?.type !== 'request') throw new Error('Expected highlight');
-  await target.post({ type: 'response', id: request.id, result: null });
-  expect(await highlight.response).toMatchObject({ result: null });
-  second.messages.length = 0;
-  first.socket.terminate();
-  await second.take(
-    (message) =>
-      message.event === 'Runtime.targetsChanged' &&
-      (message.data as Array<{ id: string; controller: string | null }>).some(
-        (info) => info.id === target.id && info.controller === null,
-      ),
+  // No lease: both clients highlight at once, each request naming its client.
+  const highlights = [first, second].map(
+    (client) =>
+      client.request('UI.highlightNode', target.id, {
+        node: { generation: 1, id: 'node' },
+      }).response,
   );
+  const requests: RuntimeCommand[] = [];
+  while (requests.length < 2)
+    requests.push(
+      ...(await target.poll()).filter((command) => command.type === 'request'),
+    );
   expect(
-    await second.request('Control.acquire', target.id).response,
-  ).toMatchObject({ result: { controller: second.id } });
-  expect(await target.poll()).toContainEqual({ type: 'resetControl' });
+    requests
+      .map((command) => command.type === 'request' && command.client)
+      .sort(),
+  ).toEqual([first.id, second.id].sort());
+  for (const command of requests)
+    if (command.type === 'request')
+      await target.post({ type: 'response', id: command.id, result: null });
+  for (const response of await Promise.all(highlights))
+    expect(response).toMatchObject({ result: null });
+  // An event about one client's own state reaches that client alone.
+  for (const client of [first, second])
+    await client.request('Events.subscribe', target.id, {
+      events: ['UI.pickerChanged'],
+    }).response;
+  await target.post({
+    type: 'event',
+    event: 'UI.pickerChanged',
+    data: { enabled: true },
+    client: second.id,
+  });
+  const picked = await second.take(
+    (message) => message.event === 'UI.pickerChanged',
+  );
+  expect(picked).not.toHaveProperty('client');
+  await new Promise((resolve) => setTimeout(resolve, 50));
   expect(
-    await second.request('Control.release', target.id).response,
-  ).toMatchObject({ result: null });
+    first.messages.some((message) => message.event === 'UI.pickerChanged'),
+  ).toBe(false);
+  // A client's state goes with it, whoever else is connected.
+  first.socket.terminate();
+  const gone: RuntimeCommand[] = [];
+  while (!gone.some((command) => command.type === 'clientGone'))
+    gone.push(...(await target.poll()));
+  expect(gone).toContainEqual({ type: 'clientGone', client: first.id });
+  expect(gone).not.toContainEqual({ type: 'clientGone', client: second.id });
 });
 
-it('gates input behind its capability and the lease, before forwarding', async () => {
+it('gates input behind its capability, before forwarding', async () => {
   const server = await serve();
   const inspectOnly = await native(server, 'Inspect only');
   const automatable = await native(server, 'Automatable', [
@@ -376,68 +384,51 @@ it('gates input behind its capability and the lease, before forwarding', async (
     'input',
   ]);
   const client = await browser(server);
+  const other = await browser(server);
   const click = { action: 'click', x: 10, y: 10 };
-  await client.request('Control.acquire', inspectOnly.id).response;
-  // `inspector` alone never grants input, even to the controller.
+  // `inspector` alone never grants input.
   expect(
     await client.request('Input.dispatchPointer', inspectOnly.id, click)
       .response,
   ).toMatchObject({ error: { code: 'MISSING_CAPABILITY' } });
-  // An observer cannot send input.
-  expect(
-    await client.request('Input.dispatchPointer', automatable.id, click)
-      .response,
-  ).toMatchObject({ error: { code: 'LEASE_REQUIRED' } });
-  // Hit testing reads, without control.
-  const hit = client.request('UI.hitTest', automatable.id, { x: 1, y: 2 });
-  const [command] = await automatable.poll();
-  expect(command).toMatchObject({
-    type: 'request',
-    method: 'UI.hitTest',
-    params: { x: 1, y: 2 },
-  });
-  if (command?.type !== 'request') throw new Error('Expected hit test');
-  await automatable.post({
-    type: 'response',
-    id: command.id,
-    result: { node: { generation: 1, id: '3' }, path: ['1', '3'] },
-  });
-  expect(await hit.response).toMatchObject({ result: { path: ['1', '3'] } });
-  await client.request('Control.acquire', automatable.id).response;
+  // Clients send input side by side, as two mice: neither waits for the other.
   const dispatched = client.request(
     'Input.dispatchPointer',
     automatable.id,
     click,
   );
-  // Input is interactive: one command at a time.
-  expect(
-    await client.request('Input.dispatchKey', automatable.id, {
-      action: 'press',
-      key: 'a',
-    }).response,
-  ).toMatchObject({ error: { code: 'BUSY' } });
-  const [input] = await automatable.poll();
-  if (input?.type !== 'request') throw new Error('Expected input');
-  await automatable.post({
-    type: 'response',
-    id: input.id,
-    result: { handled: true, node: { generation: 1, id: '3' } },
+  const typed = other.request('Input.dispatchKey', automatable.id, {
+    action: 'press',
+    key: 'a',
   });
+  const commands: RuntimeCommand[] = [];
+  while (commands.length < 2) commands.push(...(await automatable.poll()));
+  expect(commands).toMatchObject([
+    { method: 'Input.dispatchPointer', params: click, client: client.id },
+    { method: 'Input.dispatchKey', client: other.id },
+  ]);
+  for (const command of commands)
+    if (command.type === 'request')
+      await automatable.post({
+        type: 'response',
+        id: command.id,
+        result: { handled: true, node: { generation: 1, id: '3' } },
+      });
   expect(await dispatched.response).toMatchObject({
     result: { handled: true },
   });
+  expect(await typed.response).toMatchObject({ result: { handled: true } });
 });
 
-it('releases control after heartbeat timeout', async () => {
+it('forgets a client after heartbeat timeout', async () => {
   const server = await serve({ heartbeatTimeout: 90 });
   const target = await native(server);
   const stalled = await browser(server, false);
-  await stalled.request('Control.acquire', target.id).response;
   await new Promise((resolve) => setTimeout(resolve, 140));
-  const observer = await browser(server);
-  expect(
-    await observer.request('Control.acquire', target.id).response,
-  ).toMatchObject({ result: { controller: observer.id } });
+  expect(await target.poll()).toContainEqual({
+    type: 'clientGone',
+    client: stalled.id,
+  });
 });
 
 it('supports bounded subscriptions, cancels commands and invalidates generations', async () => {

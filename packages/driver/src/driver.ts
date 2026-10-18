@@ -162,7 +162,8 @@ export async function connect(options: ConnectOptions = {}): Promise<Driver> {
 
 /**
  * A connection to one DevTools session, working with one of its instances
- * (the target). Read-only inspection needs no control of the target.
+ * (the target). Other clients (dashboard tabs, other Drivers) work beside
+ * it: each has its own synthetic pointer and keys, as two mice would.
  */
 export class Driver {
   readonly #connection: Connection;
@@ -170,11 +171,11 @@ export class Driver {
   #target: DebugTarget | undefined;
   #targetLost = false;
   readonly #locatorHost: LocatorHost;
-  // Interactive commands go one at a time, as the server serializes them.
+  // This client's input goes one command at a time, in order.
   #interactive: Promise<unknown> = Promise.resolve();
-  /** The target's synthetic pointer (needs control, taken on first use). */
+  /** This client's synthetic pointer on the target. */
   readonly pointer: Pointer;
-  /** The target's synthetic keyboard (needs control, taken on first use). */
+  /** This client's synthetic keyboard on the target (focus is the view's). */
   readonly keyboard: Keyboard;
 
   /** @internal Use {@link connect}. */
@@ -449,61 +450,7 @@ export class Driver {
     return this.#request('UI.getAccessibility', { node: ref }, options);
   }
 
-  /** Whether this Driver controls its target (needed to send input). */
-  get hasControl(): boolean {
-    return (
-      this.#target !== undefined &&
-      !this.#targetLost &&
-      this.#target.controller === this.#connection.clientId
-    );
-  }
-
-  /**
-   * Takes control of the target: its exclusive lease, as the dashboard's
-   * "Request control". Input takes it on first use; a lease another client
-   * holds is never taken from it.
-   */
-  async acquireControl(options?: CallOptions): Promise<void> {
-    const target = await this.target(options);
-    if (target.controller === this.#connection.clientId) return;
-    try {
-      await this.#connection.request(
-        'Control.acquire',
-        {},
-        target.id,
-        this.#options(options),
-      );
-    } catch (error) {
-      if (isDriverError(error, 'LEASE_BUSY'))
-        throw new DriverError(
-          'LEASE_BUSY',
-          `Another DevTools client (a dashboard tab or another Driver) controls ${label(target)}; it must release control first`,
-        );
-      throw error;
-    }
-    // The server announces it too; this client knows at once.
-    if (this.#target?.id === target.id)
-      this.#target = { ...this.#target, controller: this.#connection.clientId };
-  }
-
-  /**
-   * Gives control of the target back. The instance releases whatever
-   * synthetic input still holds (no button or key stays down).
-   */
-  async releaseControl(options?: CallOptions): Promise<void> {
-    if (!this.hasControl) return;
-    const target = this.#target!;
-    await this.#connection.request(
-      'Control.release',
-      {},
-      target.id,
-      this.#options(options),
-    );
-    if (this.#target?.id === target.id)
-      this.#target = { ...this.#target, controller: null };
-  }
-
-  /** Sends one input command with control, after the previous one. */
+  /** Sends one input command, after the previous one. */
   #interact<M extends DebugMethod>(
     method: M,
     params: Params<M>,
@@ -512,7 +459,6 @@ export class Driver {
     const run = async () => {
       if (options?.signal?.aborted)
         throw new DriverError('CANCELLED', `${method} was cancelled`);
-      await this.acquireControl(options);
       return this.#request(method, params, options);
     };
     const result = this.#interactive.then(run, run);
@@ -522,7 +468,7 @@ export class Driver {
 
   /**
    * What is at a point of the view (logical pixels): the deepest node input
-   * there reaches, and its ancestors from a root. Needs no control.
+   * there reaches, and its ancestors from a root. Sends no input.
    */
   async hitTest(x: number, y: number, options?: CallOptions): Promise<HitTest> {
     return this.#request('UI.hitTest', { x, y }, options);
@@ -537,7 +483,7 @@ export class Driver {
   /**
    * Captures the target's view as the engine renders it, as PNG: its
    * renderer draws the current UI (not an OS screenshot), at the display's
-   * scale. Needs the `capture` capability, not control.
+   * scale. Needs the `capture` capability.
    */
   async screenshot(options: ScreenshotOptions = {}): Promise<Screenshot> {
     return this.#capture(undefined, options);
@@ -608,13 +554,10 @@ export class Driver {
 
   /**
    * Closes the connection. Idempotent; pending calls fail with
-   * DISCONNECTED and the server releases anything this client controlled.
+   * DISCONNECTED, and the instance releases this client's synthetic input
+   * (no button or key stays down) and removes its highlight.
    */
   async disconnect(): Promise<void> {
-    // Releasing first resets the instance's synthetic input at once; the
-    // server would do it when the connection closes anyway.
-    if (this.connected && this.hasControl)
-      await this.releaseControl({ timeout: 2000 }).catch(() => {});
     await this.#connection.close();
   }
 }

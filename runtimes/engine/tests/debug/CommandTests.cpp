@@ -91,7 +91,8 @@ TEST_SUITE("Native DevTools commands")
         CHECK(subscribe.events.size() == 2);
 
         CHECK(command(R"({"type":"cancel","id":"t1"})").method == "cancel");
-        CHECK(command(R"({"type":"resetControl"})").method == "resetControl");
+        CHECK(command(R"({"type":"clientGone","client":"c1"})").client == "c1");
+        CHECK(refused(R"({"type":"clientGone"})"));
     }
 
     TEST_CASE("malformed commands and node references are refused or unresolved")

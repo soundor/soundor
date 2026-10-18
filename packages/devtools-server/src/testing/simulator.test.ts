@@ -18,7 +18,7 @@ async function setup() {
   cleanup.push(() => browser.close());
   return { server, browser };
 }
-it('registers, polls typed commands, maintains controls and generation, and disconnects cleanly', async () => {
+it('registers, polls typed commands, keeps debug state and generation, and disconnects cleanly', async () => {
   const { server, browser } = await setup();
   const runtime = await startSimulatedRuntime({
     connection: server.connection,
@@ -38,9 +38,6 @@ it('registers, polls typed commands, maintains controls and generation, and disc
   expect(browser.events).toContainEqual(
     expect.objectContaining({ event: 'Console.message' }),
   );
-  expect(
-    (await browser.request('Control.acquire', runtime.id)).error,
-  ).toBeUndefined();
   await browser.request('UI.setPickerEnabled', runtime.id, { enabled: true });
   expect(runtime.pickerEnabled).toBe(true);
   await browser.request('UI.highlightNode', runtime.id, {
@@ -103,11 +100,9 @@ it.each(scenarioNames)(
     expect(targets.map((target) => target.generation)).toEqual(
       targets.map(() => (name === 'reload' ? 2 : 1)),
     );
-    const lease = target
-      ? await browser.request('Control.acquire', target.id)
-      : undefined;
-    expect(lease?.error?.code).toBe(
-      name === 'lease-conflict' ? 'LEASE_BUSY' : undefined,
+    // Another client's highlight, beside this one's.
+    expect(scenario.runtimes[0]?.highlights ?? []).toHaveLength(
+      name === 'second-client' ? 1 : 0,
     );
   },
 );
@@ -144,7 +139,6 @@ it('cancels delayed operations without applying state changes and joins pending 
     connection: server.connection,
   });
   cleanup.push(() => runtime.close());
-  await browser.request('Control.acquire', runtime.id);
   runtime.setCommandDelay('UI.setPickerEnabled', 10000);
   const abort = new AbortController();
   const result = browser.request(
@@ -175,7 +169,6 @@ it('does not apply picker, highlight or recording changes when a simulated comma
     connection: server.connection,
   });
   cleanup.push(() => runtime.close());
-  await browser.request('Control.acquire', runtime.id);
   runtime.errors.set('UI.setPickerEnabled', 'Picker failure');
   runtime.errors.set('UI.highlightNode', 'Highlight failure');
   runtime.errors.set('Diagnostics.setRecording', 'Recording failure');
@@ -206,4 +199,42 @@ it('does not apply picker, highlight or recording changes when a simulated comma
     (await browser.request('Diagnostics.getMetrics', runtime.id)).result,
   ).toMatchObject({ recording: false });
   expect(runtime.failure).toBeUndefined();
+});
+
+it('keeps each client’s state apart, and drops it when the client goes', async () => {
+  const { server, browser } = await setup();
+  const other = await startSimulatedBrowser(server);
+  const runtime = await startSimulatedRuntime({
+    connection: server.connection,
+  });
+  cleanup.push(() => runtime.close());
+  await browser.request('UI.highlightNode', runtime.id, {
+    node: { generation: 1, id: '3' },
+  });
+  await other.request('UI.highlightNode', runtime.id, {
+    node: { generation: 1, id: '2' },
+  });
+  expect(runtime.highlights.map((node) => node.id)).toEqual(['3', '2']);
+  await other.request('Input.dispatchKey', runtime.id, {
+    action: 'down',
+    key: 'Shift',
+  });
+  for (const client of [browser, other])
+    await client.request('Diagnostics.setRecording', runtime.id, {
+      enabled: true,
+    });
+  expect(runtime.holdingInput).toBe(true);
+  await other.close();
+  await until(() => runtime.clients === 1);
+  // Its key comes up and its highlight goes; the recording another client
+  // asked for keeps running.
+  expect(runtime.holdingInput).toBe(false);
+  expect(runtime.inputLog).toContain('keyup:Shift');
+  expect(runtime.highlights.map((node) => node.id)).toEqual(['3']);
+  expect(
+    (await browser.request('Diagnostics.getMetrics', runtime.id)).result,
+  ).toMatchObject({ recording: true });
+  await browser.close();
+  await until(() => runtime.clients === 0);
+  expect(runtime.highlights).toEqual([]);
 });

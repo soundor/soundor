@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const helloSchema = z.strictObject({
   type: z.literal('hello'),
   version: z.literal(PROTOCOL_VERSION),
@@ -77,12 +77,11 @@ export const targetSchema = z.strictObject({
   runtime: identifier,
   generation: z.number().int().positive(),
   capabilities: z.array(capabilitySchema).max(8),
-  controller: identifier.nullable(),
   processId: z.number().int().positive().optional(),
 });
 export type DebugTarget = z.infer<typeof targetSchema>;
 export const registrationSchema = targetSchema
-  .omit({ id: true, controller: true })
+  .omit({ id: true })
   .extend({ version: z.literal(PROTOCOL_VERSION), sessionId: identifier });
 
 export const eventNameSchema = z.enum([
@@ -124,8 +123,6 @@ export const pointerInputSchema = z
 export type PointerInput = z.infer<typeof pointerInputSchema>;
 export const methodParams = {
   'Runtime.getTargets': empty,
-  'Control.acquire': empty,
-  'Control.release': empty,
   'Events.subscribe': z.strictObject({
     events: z.array(eventNameSchema).max(7),
   }),
@@ -206,8 +203,6 @@ export const errorSchema = z.strictObject({
     'TARGET_GONE',
     'STALE_NODE',
     'MISSING_CAPABILITY',
-    'LEASE_BUSY',
-    'LEASE_REQUIRED',
     'TIMEOUT',
     'CANCELLED',
     'BUSY',
@@ -343,6 +338,9 @@ export const runtimeEventSchema = z
     type: z.literal('event'),
     event: eventNameSchema,
     data: z.unknown(),
+    // An event about one client's own state (its picker): the server sends
+    // it to that client alone, without this field.
+    client: identifier.optional(),
   })
   .superRefine((event, ctx) => {
     if (!eventPayloads[event.event].safeParse(event.data).success)
@@ -360,25 +358,31 @@ export type ServerMessage =
     }
   | { type: 'error'; error: DebugError }
   | { type: 'event'; event: 'Runtime.targetsChanged'; data: DebugTarget[] }
-  | (RuntimeEvent & { targetId?: string; scope?: 'session' });
+  | (Omit<RuntimeEvent, 'client'> & { targetId?: string; scope?: 'session' });
+/**
+ * What the server sends a runtime. Requests name the client that made them:
+ * a runtime keeps each client's debug state apart (its synthetic pointer and
+ * keys, highlight and picker) and drops it on `clientGone`.
+ */
 export type RuntimeCommand =
-  | (DebugRequest & { generation: number })
+  | (DebugRequest & { generation: number; client: string })
   | { type: 'cancel'; id: string }
   | { type: 'subscribe'; events: EventName[] }
-  | { type: 'resetControl' };
+  | { type: 'clientGone'; client: string };
 export const runtimeCommandSchema = z.union([
-  requestSchema.safeExtend({ generation: z.number().int().positive() }),
+  requestSchema.safeExtend({
+    generation: z.number().int().positive(),
+    client: identifier,
+  }),
   cancelSchema,
   z.strictObject({
     type: z.literal('subscribe'),
     events: z.array(eventNameSchema).max(7),
   }),
-  z.strictObject({ type: z.literal('resetControl') }),
+  z.strictObject({ type: z.literal('clientGone'), client: identifier }),
 ]);
 export interface MethodResults {
   'Runtime.getTargets': DebugTarget[];
-  'Control.acquire': { controller: string };
-  'Control.release': null;
   'Events.subscribe': null;
   'UI.getTree': DebugTree;
   'UI.getNode': DebugNode;
@@ -443,8 +447,6 @@ export type Screenshot = z.infer<typeof screenshotSchema>;
 
 export const methodResults = {
   'Runtime.getTargets': z.array(targetSchema).max(64),
-  'Control.acquire': z.strictObject({ controller: identifier }),
-  'Control.release': z.null(),
   'Events.subscribe': z.null(),
   'UI.getTree': treeSchema,
   'UI.getNode': nodeSchema,
@@ -474,15 +476,4 @@ export function methodCapability(method: DebugMethod): Capability | undefined {
   if (method.startsWith('Animation.')) return 'animations';
   if (method.startsWith('Diagnostics.')) return 'performance';
   return undefined;
-}
-export function requiresControl(method: DebugMethod): boolean {
-  return (
-    method.startsWith('Input.') ||
-    [
-      'UI.highlightNode',
-      'UI.clearHighlight',
-      'UI.setPickerEnabled',
-      'Diagnostics.setRecording',
-    ].includes(method)
-  );
 }

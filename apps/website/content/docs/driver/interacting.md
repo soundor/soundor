@@ -95,30 +95,34 @@ node there and its ancestors.
 
 ## The synthetic pointer
 
-Driver input uses a pointer of its own (`pointerId` 32000, a mouse), next to
-the real mouse: its hover, presses and capture never mix with a person's
-using the plugin at the same time. Keys are global, as a keyboard's are.
+## Other clients
 
-## Control and cleanup
+Driver input uses a pointer of its own (a mouse, `pointerId` 32000 or the
+next one free), next to the real mouse: its hover, presses and capture never
+mix with a person's using the plugin at the same time.
 
-Input needs control of the target. The first input takes it (`LEASE_BUSY`
-when another client, such as a DevTools tab, has it); `acquireControl()` and
-`releaseControl()` take and give it explicitly, and `hasControl` tells.
-Read-only inspection never needs it.
+Other clients (DevTools tabs, other Drivers) send input at the same time,
+without asking first: each client has its own pointer and its own held keys,
+so another client's held Shift or pressed button is never this one's. What
+they share is the view's focus: keys go to the focused node, as two
+keyboards on one computer would, and two clients typing at once interleave.
+Each Driver sends its own input one command at a time, in order.
+
+## Cleanup
 
 Nothing stays pressed:
 
 - a `drag()` or `press()` interrupted by an error or a cancelled signal ends
   its press (a `pointercancel`) or releases its modifiers;
-- releasing control, disconnecting, or the connection dropping makes the
-  engine end whatever the Driver held: a pressed button gets a
-  `pointercancel` (no click), held keys a `keyup`;
+- disconnecting, or the connection dropping, makes the engine end whatever
+  this Driver held, and nothing another client holds: a pressed button gets
+  a `pointercancel` (no click), held keys a `keyup`;
 - a reload starts the new UI with nothing held.
 
 ## Security
 
 The engine compiles input automation with DevTools only: Debug builds with
 DevTools enabled, which `soundor build` never makes, so a released plugin has
-none. In development it takes the session's browser key and control of the
-target, from the loopback only. Targets advertise it as the `input`
+none. In development it takes the session's browser key, from the loopback
+only: any client signed in to the session can send input. Targets advertise it as the `input`
 capability, separate from inspection.

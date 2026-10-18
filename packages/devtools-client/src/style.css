@@ -116,10 +116,6 @@ h1 {
   color: var(--muted);
   font-size: 12px;
 }
-#ownership {
-  margin-left: auto;
-  color: var(--muted);
-}
 #search {
   flex: 1;
   min-width: 160px;
@@ -380,9 +376,6 @@ td:first-child {
   header,
   .toolbar {
     padding: 9px;
-  }
-  #ownership {
-    margin-left: 0;
   }
   #target-meta {
     width: 100%;

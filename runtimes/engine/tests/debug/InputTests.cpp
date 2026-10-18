@@ -48,12 +48,12 @@ namespace
             host.surface().setSize({ 120, 100 });
             run(plugin);
         }
-        // Sends a request as a runtime bridge receives it; its response.
-        std::string send(const std::string& method, const std::string& params)
+        // Sends a client's request as a runtime bridge receives it; its response.
+        std::string send(const std::string& method, const std::string& params, const std::string& client = "c1")
         {
-            const auto value =
-                debug::Value::parse(R"({"type":"request","id":"r)" + std::to_string(++sequence) + R"(","method":")"
-                                    + method + R"(","generation":1,"params":)" + params + "}");
+            const auto value = debug::Value::parse(R"({"type":"request","id":"r)" + std::to_string(++sequence)
+                                                   + R"(","method":")" + method + R"(","client":")" + client
+                                                   + R"(","generation":1,"params":)" + params + "}");
             const auto command = value ? debug::Command::parse(*value) : std::nullopt;
             if (! command)
             {
@@ -164,7 +164,7 @@ TEST_SUITE("Native DevTools input")
         CHECK(f.log().empty());
     }
 
-    TEST_CASE("reset ends held input without a click, and leaves the real mouse alone")
+    TEST_CASE("a client that goes ends its held input without a click, and leaves the real mouse alone")
     {
         Fixture f;
         // The real mouse hovers the input.
@@ -172,7 +172,7 @@ TEST_SUITE("Native DevTools input")
         f.send("Input.dispatchPointer", R"({"action":"down","x":5,"y":5})");
         f.send("Input.dispatchKey", R"({"action":"down","key":"Shift"})");
         f.log();
-        f.inspector.execute(f.host, { .method = "resetControl" });
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "c1" });
         CHECK_FALSE(f.inspector.holdingInput());
         CHECK(f.log() == "reset:pointercancel reset:pointerleave");
         // The next press starts over; nothing is still held.
@@ -180,6 +180,26 @@ TEST_SUITE("Native DevTools input")
         CHECK(f.log() == "reset:pointerenter reset:pointerdown reset:pointerup reset:click");
         // The real pointer still hovers the input: its state was not touched.
         CHECK(f.host.surface().pointer({ .phase = ui::PointerInput::Phase::Move, .position = { 6, 45 } }));
+    }
+
+    TEST_CASE("clients have their own pointers and keys, as two mice and keyboards")
+    {
+        Fixture f;
+        f.send("Input.dispatchPointer", R"({"action":"down","x":5,"y":5})", "a");
+        f.send("Input.dispatchKey", R"({"action":"down","key":"Shift"})", "a");
+        f.log();
+        // b's press is its own: a's held button and Shift are not b's. Its
+        // pointer is another one, which enters the button too.
+        f.send("Input.dispatchPointer", R"({"action":"click","x":20,"y":10})", "b");
+        CHECK(f.log() == "reset:pointerenter reset:pointerdown reset:pointerup reset:click");
+        CHECK(f.send("Input.dispatchPointer", R"({"action":"up"})", "b").find("INVALID_REQUEST") != std::string::npos);
+        CHECK(f.inspector.clients() == 2);
+        // b going takes its pointer away, and releases nothing of a's.
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "b" });
+        CHECK(f.inspector.holdingInput());
+        CHECK(f.log() == "reset:pointerleave");
+        f.send("Input.dispatchPointer", R"({"action":"up"})", "a");
+        CHECK(f.log() == "reset:pointerup+shift reset:click+shift");
     }
 
     TEST_CASE("a reload forgets synthetic input without dispatching to the new host")

@@ -203,7 +203,6 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       targetsTruncated: false,
     },
   ];
-  let pickerEnabled = false;
   let captures = 0;
   let captureFailure: string | undefined;
   let skipUpload = false;
@@ -211,17 +210,49 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
   const inputLog: string[] = [];
   let typed = '';
   let focused: string | null = null;
-  const pointer = { present: false, x: 0, y: 0, buttons: 0, pressed: '' };
-  const heldKeys = new Set<string>();
-  function resetInput() {
-    if (pointer.buttons) inputLog.push(`pointercancel:${pointer.pressed}`);
-    pointer.present = false;
-    pointer.buttons = 0;
-    for (const key of heldKeys) inputLog.push(`keyup:${key}`);
-    heldKeys.clear();
+  // Each client's own debug state, as the engine keeps it: its synthetic
+  // pointer and keys, highlight and picker. Focus is the view's, shared.
+  interface Client {
+    pointer: { present: boolean; x: number; y: number; buttons: number };
+    pressed: string;
+    keys: Set<string>;
+    highlighted: NodeRef | null;
+    picker: boolean;
+  }
+  const clients = new Map<string, Client>();
+  function client(id: string): Client {
+    let found = clients.get(id);
+    if (!found) {
+      found = {
+        pointer: { present: false, x: 0, y: 0, buttons: 0 },
+        pressed: '',
+        keys: new Set(),
+        highlighted: null,
+        picker: false,
+      };
+      clients.set(id, found);
+    }
+    return found;
+  }
+  /** Ends what a client's synthetic input holds: a pointercancel, key ups. */
+  function resetInput(state: Client) {
+    if (state.pointer.buttons) inputLog.push(`pointercancel:${state.pressed}`);
+    state.pointer.present = false;
+    state.pointer.buttons = 0;
+    for (const key of state.keys) inputLog.push(`keyup:${key}`);
+    state.keys.clear();
+  }
+  // Clients that asked for the recording that runs.
+  const recorders = new Set<string>();
+  async function record(enabled: boolean) {
+    if (!enabled) recorders.clear();
+    if (metrics.recording === enabled) return;
+    metrics = enabled
+      ? { ...metrics, recording: true }
+      : { ...metrics, recording: false };
+    await post({ type: 'event', event: 'Diagnostics.metrics', data: metrics });
   }
   let selection: NodeRef | null = null;
-  let highlighted: { generation: number; id: string } | null = null;
   if (options.sampleData) {
     metrics = {
       ...metrics,
@@ -291,6 +322,8 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     let result: unknown = null;
     let error: string | undefined;
     let code = 'STALE_NODE';
+    const state = client(command.client);
+    const { pointer } = state;
     const refOf = (node: DebugNode | null) =>
       node ? { generation, id: node.ref.id } : null;
     if (command.method === 'UI.hitTest') {
@@ -310,7 +343,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       const target = () => hitTest(treeNodes, pointer.x, pointer.y).node;
       const at = () => target()?.ref.id ?? 'none';
       code = 'INVALID_REQUEST';
-      if (params.action === 'cancel') resetInput();
+      if (params.action === 'cancel') resetInput(state);
       else if (
         (params.action === 'down' || params.action === 'up') &&
         !pointer.present &&
@@ -329,13 +362,13 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
         if (params.action === 'move') inputLog.push(`pointermove:${at()}`);
         if (params.action === 'down' || params.action === 'click') {
           pointer.buttons |= bit;
-          pointer.pressed = at();
+          state.pressed = at();
           inputLog.push(`pointerdown:${at()}`);
         }
         if (params.action === 'up' || params.action === 'click') {
           pointer.buttons &= ~bit;
-          inputLog.push(`pointerup:${pointer.pressed}`);
-          if (bit === 1 && pointer.pressed === at())
+          inputLog.push(`pointerup:${state.pressed}`);
+          if (bit === 1 && state.pressed === at())
             inputLog.push(`click:${at()}`);
         }
       }
@@ -354,15 +387,16 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
         command.params,
       );
       code = 'INVALID_REQUEST';
-      if (action === 'up' && !heldKeys.has(key)) error = 'the key is not down';
+      if (action === 'up' && !state.keys.has(key))
+        error = 'the key is not down';
       else {
         if (action !== 'up') {
-          heldKeys.add(key);
+          state.keys.add(key);
           inputLog.push(`keydown:${key}`);
           if ([...key].length === 1) typed += key;
         }
         if (action !== 'down') {
-          heldKeys.delete(key);
+          state.keys.delete(key);
           inputLog.push(`keyup:${key}`);
         }
       }
@@ -422,17 +456,11 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     }
     if (command.method === 'Diagnostics.getMetrics') result = metrics;
     if (command.method === 'Diagnostics.setRecording') {
-      metrics = {
-        ...metrics,
-        recording: methodParams['Diagnostics.setRecording'].parse(
-          command.params,
-        ).enabled,
-      };
-      await post({
-        type: 'event',
-        event: 'Diagnostics.metrics',
-        data: metrics,
-      });
+      const { enabled } = methodParams['Diagnostics.setRecording'].parse(
+        command.params,
+      );
+      if (enabled) recorders.add(command.client);
+      await record(enabled);
     }
     if (command.method === 'Animation.getActive') {
       const filter = methodParams['Animation.getActive'].parse(
@@ -465,9 +493,9 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       const { node } = methodParams['UI.highlightNode'].parse(command.params);
       if (!treeNodes.some((item) => item.ref.id === node.id))
         error = 'Node was removed';
-      else highlighted = node;
+      else state.highlighted = node;
     }
-    if (command.method === 'UI.clearHighlight') highlighted = null;
+    if (command.method === 'UI.clearHighlight') state.highlighted = null;
     for (const [method, field] of [
       ['UI.getLayout', 'layout'],
       ['UI.getStyles', 'styles'],
@@ -481,13 +509,14 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       }
     }
     if (command.method === 'UI.setPickerEnabled') {
-      pickerEnabled = methodParams['UI.setPickerEnabled'].parse(
+      state.picker = methodParams['UI.setPickerEnabled'].parse(
         command.params,
       ).enabled;
       await post({
         type: 'event',
         event: 'UI.pickerChanged',
         data: command.params,
+        client: command.client,
       });
     }
 
@@ -517,24 +546,13 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
           commands.push(command);
           if (command.type === 'cancel') {
             operations.get(command.id)?.controller.abort();
-          } else if (command.type === 'resetControl') {
-            resetInput();
-            pickerEnabled = false;
-            highlighted = null;
-            metrics = {
-              ...metrics,
-              generation,
-              recording: false,
-              frameCount: 0,
-              frames: [],
-              phases: {},
-            };
-            if (diagnostics)
-              await post({
-                type: 'event',
-                event: 'Diagnostics.metrics',
-                data: metrics,
-              });
+          } else if (command.type === 'clientGone') {
+            const state = clients.get(command.client);
+            if (state) resetInput(state);
+            clients.delete(command.client);
+            // A recording stops when nobody who asked for it is left.
+            if (recorders.delete(command.client) && recorders.size === 0)
+              await record(false);
           } else if (command.type === 'subscribe') {
             if (
               options.sampleData &&
@@ -598,11 +616,26 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     get selection() {
       return selection;
     },
+    /** Whether some client's picker is on. */
     get pickerEnabled() {
-      return pickerEnabled;
+      return [...clients.values()].some((state) => state.picker);
     },
+    /** The node a client highlights (the first one that does). */
     get highlighted() {
-      return highlighted;
+      return (
+        [...clients.values()].find((state) => state.highlighted)?.highlighted ??
+        null
+      );
+    },
+    /** Every node clients highlight, each drawn over the view. */
+    get highlights() {
+      return [...clients.values()].flatMap((state) =>
+        state.highlighted ? [state.highlighted] : [],
+      );
+    },
+    /** How many clients have debug state here. */
+    get clients() {
+      return clients.size;
     },
     get generation() {
       return generation;
@@ -632,7 +665,9 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     },
     /** Whether synthetic input holds a button or a key down. */
     get holdingInput() {
-      return pointer.buttons !== 0 || heldKeys.size > 0;
+      return [...clients.values()].some(
+        (state) => state.pointer.buttons !== 0 || state.keys.size > 0,
+      );
     },
     errors,
     get treeRequests() {
@@ -667,24 +702,42 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
     async event(event: EventName, data: unknown) {
       // Validate before mutating state, just as the server validates transport.
       eventPayloads[event].parse(data);
+      // A pick, or the picker ending, goes to the clients that were picking,
+      // as the engine sends it; to everyone when nobody was.
+      const picking = [...clients].filter(([, state]) => state.picker);
       if (event === 'UI.nodeSelected') {
         selection = eventPayloads['UI.nodeSelected'].parse(data).node;
-        pickerEnabled = false;
+        for (const [id, state] of picking) {
+          state.picker = false;
+          state.highlighted = selection;
+          await post({ type: 'event', event, data, client: id });
+          await post({
+            type: 'event',
+            event: 'UI.pickerChanged',
+            data: { enabled: false },
+            client: id,
+          });
+        }
+        if (picking.length > 0) return;
       }
-      if (event === 'UI.pickerChanged')
-        pickerEnabled = eventPayloads['UI.pickerChanged'].parse(data).enabled;
+      if (event === 'UI.pickerChanged') {
+        const { enabled } = eventPayloads['UI.pickerChanged'].parse(data);
+        for (const [id, state] of clients) {
+          state.picker = enabled;
+          await post({ type: 'event', event, data, client: id });
+        }
+        if (clients.size > 0) return;
+      }
       await post({ type: 'event', event, data });
     },
     async reload() {
       ++generation;
-      pointer.present = false;
-      pointer.buttons = 0;
-      heldKeys.clear();
+      // The reloaded view forgets every client's state without events.
+      clients.clear();
+      recorders.clear();
       focused = null;
       for (const operation of operations.values()) operation.controller.abort();
       selection = null;
-      pickerEnabled = false;
-      highlighted = null;
       metrics = {
         ...metrics,
         generation,

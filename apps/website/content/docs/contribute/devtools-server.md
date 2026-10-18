@@ -35,7 +35,7 @@ Explicit port collisions throw `DevToolsPortError`; `portFallback: true` tries
 subsequent ports. The CLI enables fallback only for its default port.
 
 Headless mode retains all runtime and browser protocol routes, authentication,
-leases, and session lifecycle. Frontend routes return 404. UI mode serves
+clients, and session lifecycle. Frontend routes return 404. UI mode serves
 regular files beneath `staticDir`, including nested binary assets. Extensionless
 navigation falls back to `index.html`; missing assets, API namespaces, hidden
 files, private keys, traversal paths, and escaping symlinks return 404.
@@ -55,7 +55,7 @@ frontend proxy; it does not relax Host validation or allow remote origins.
 
 The implementation separates lifecycle (`server.ts`), credentials and trusted
 origins (`authentication.ts`), browser routes/WebSockets (`browser.ts`), runtime
-registration and long polling (`runtime.ts`), leases/queues/subscriptions
+registration and long polling (`runtime.ts`), clients/queues/subscriptions
 (`session.ts`), and static delivery/SPA fallback (`static.ts`). Public server
 interfaces live in `types.ts` and remain exported from the package entry.
 
@@ -79,7 +79,7 @@ await runtime.event('Console.message', {
 });
 await runtime.close();
 
-// Alternative: a group of runtimes and optional competing controller.
+// Alternative: a group of runtimes, or a runtime with another client.
 const scenario = await startScenario({
   connection: server.connection,
   server,
@@ -91,7 +91,9 @@ await scenario.close();
 The simulator was extracted from the dashboard integration tests. It registers,
 polls and responds through the production HTTP endpoints, validating commands
 and outgoing messages with shared protocol schemas. It maintains nodes,
-generation, picker/highlight state, animations, recording and metrics.
+generation, each client's picker, highlight and synthetic input (as the
+engine keeps them apart, dropped on `clientGone`), animations, recording and
+metrics (`highlights`, `clients`, `holdingInput` observe them).
 Controls include `setNodes`, `setAnimations`, `setMetrics`, `event`, `reload`,
 `disconnect`, `delayNode`, `setCommandDelay(method, milliseconds)`, and an
 `errors` map. Delays occur before a command changes state; production cancel
@@ -102,8 +104,8 @@ derived from the nodes supplied to `setNodes`, including empty trees and multipl
 aborts polling and pending commands and joins their tasks; call it before closing the server.
 
 Scenarios: `gain-plugin`, `empty`, `multiple-targets`, `limited-capabilities`,
-`disconnected`, `reload`, `lease-conflict`. The last requires `server` and owns
-a lease through a real authenticated simulated browser. `startSimulatedBrowser`
+`disconnected`, `reload`, `second-client`. The last requires `server`: a real
+authenticated simulated browser highlights a node beside the tab. `startSimulatedBrowser`
 is also available for tests. Scenarios seed deterministic diagnostic samples and
 startup logs; individual runtimes opt in with `sampleData: true`.
 Fixtures `node` and `originalNodes` are exported for custom scenarios.

@@ -80,8 +80,6 @@ describe('screenshots', () => {
     // What the runtime drew: the gain node's box, over the background.
     expect(pixel(shot.data, 50, 50)).toEqual([40, 90, 220, 255]);
     expect(pixel(shot.data, 5, 5)).toEqual([255, 255, 255, 255]);
-    // Captures read the view: no control was taken.
-    expect(connected.hasControl).toBe(false);
   });
 
   it('captures the part of the view a node covers', async () => {

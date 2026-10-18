@@ -349,18 +349,114 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         if (force || subscribed.contains(name))
             send(Value(Object { { "type", "event" }, { "event", name }, { "data", std::move(data) } }).json());
     }
-    void Inspector::resetPicker(ui::Surface& surface)
+    void Inspector::eventFor(const std::string& id, const std::string& name, Value data) const
     {
-        surface.debugHighlight(ui::noNode);
-        const bool wasPicking = std::exchange(picker, false);
+        if (! subscribed.contains(name))
+            return;
+        Object message { { "type", "event" }, { "event", name }, { "data", std::move(data) } };
+        if (! id.empty())
+            message["client"] = id;
+        send(Value(std::move(message)).json());
+    }
+    bool Inspector::picking() const noexcept
+    {
+        return std::ranges::any_of(clientStates, [](const auto& entry) { return entry.second.picker; });
+    }
+    bool Inspector::holdingInput() const noexcept
+    {
+        return std::ranges::any_of(clientStates, [](const auto& entry)
+                                   { return entry.second.input.buttons != 0 || ! entry.second.input.keys.empty(); });
+    }
+    Inspector::Client& Inspector::client(const std::string& id)
+    {
+        if (const auto found = clientStates.find(id); found != clientStates.end())
+            return found->second;
+        if (clientStates.size() >= maxClients)
+            throw CommandError("BUSY", "Too many clients have debug state in this instance");
+        // The lowest pointer no other client uses.
+        std::set<int> used;
+        for (const auto& [name, state] : clientStates)
+            used.insert(state.input.pointerId);
+        int pointerId = automationPointer;
+        while (used.contains(pointerId))
+            ++pointerId;
+        auto& made = clientStates[id];
+        made.input.pointerId = pointerId;
+        return made;
+    }
+    void Inspector::showHighlights(ui::Surface& surface)
+    {
+        std::vector<ui::NodeId> ids;
+        for (auto& [id, state] : clientStates)
+        {
+            if (state.highlight != ui::noNode && ! surface.isConnected(state.highlight))
+                state.highlight = ui::noNode;
+            if (state.highlight != ui::noNode)
+                ids.push_back(state.highlight);
+        }
+        if (picking() && hovered != ui::noNode && surface.isConnected(hovered))
+            ids.push_back(hovered);
+        surface.debugHighlights(std::move(ids));
+    }
+    void Inspector::stopPicking(ui::Surface& surface)
+    {
+        for (auto& [id, state] : clientStates)
+            if (std::exchange(state.picker, false))
+                eventFor(id, "UI.pickerChanged", Object { { "enabled", false } });
         pressed = ui::noNode;
-        if (wasPicking)
-            event("UI.pickerChanged", Object { { "enabled", false } });
+        hovered = ui::noNode;
+        showHighlights(surface);
+    }
+    void Inspector::record(RuntimeHost& host, bool enabled)
+    {
+        if (enabled && ! profiling)
+        {
+            frames.clear();
+            phases = Object {};
+            frameCount = 0;
+            delayedTicks = 0;
+            tickIntervalMs = 0;
+            elapsedMs = 0;
+            recordingStarted = clock();
+            previousTick = recordingStarted;
+            previousSample = recordingStarted;
+            previousStatistics = host.statistics();
+        }
+        if (! enabled)
+        {
+            recorders.clear();
+            if (profiling)
+                elapsedMs = std::chrono::duration<double, std::milli>(clock() - recordingStarted).count();
+        }
+        profiling = enabled;
+        host.surface().debugRecording(profiling);
+        event("Diagnostics.metrics", metrics(false));
+    }
+    void Inspector::forget(RuntimeHost& host, const std::string& id)
+    {
+        const auto found = clientStates.find(id);
+        if (found != clientStates.end())
+        {
+            resetInput(&host.surface(), found->second.input);
+            clientStates.erase(found);
+            if (! picking())
+            {
+                pressed = ui::noNode;
+                hovered = ui::noNode;
+            }
+            showHighlights(host.surface());
+        }
+        if (recorders.erase(id) != 0 && recorders.empty() && profiling)
+            record(host, false);
     }
     void Inspector::reset(ui::Surface& surface)
     {
-        resetInput(&surface);
-        resetPicker(surface);
+        for (auto& [id, state] : clientStates)
+            resetInput(&surface, state.input);
+        stopPicking(surface);
+        clientStates.clear();
+        recorders.clear();
+        surface.debugHighlights({});
         surface.debugRecording(false);
         const bool hadRecording = profiling || ! frames.empty();
         profiling = false;
@@ -379,7 +475,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         if (generation != currentGeneration)
         {
             // The input went with the replaced host's surface.
-            resetInput(nullptr);
+            for (auto& [id, state] : clientStates)
+                resetInput(nullptr, state.input);
             reset(surface);
             surface.debugMetadataSubscription(subscribed.contains("UI.treeChanged"));
             currentGeneration = generation;
@@ -387,8 +484,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             revision = 0;
             structureRevision = 0;
         }
-        if (surface.debugHighlight() != ui::noNode && ! surface.isConnected(surface.debugHighlight()))
-            surface.debugHighlight(ui::noNode);
+        showHighlights(surface);
         const auto now = clock();
         surface.animations().debugObserve(subscribed.contains("Animation.changed"));
         if (subscribed.contains("Animation.changed") && now >= nextAnimationNotification)
@@ -451,12 +547,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             subscribed = command.events;
             surface.debugMetadataSubscription(subscribed.contains("UI.treeChanged"));
             surface.animations().debugObserve(subscribed.contains("Animation.changed"));
-            event("UI.pickerChanged", Object { { "enabled", picker } });
             return;
         }
-        if (command.method == "resetControl")
+        if (command.method == "clientGone")
         {
-            reset(surface);
+            forget(host, command.client);
             return;
         }
         Object response { { "type", "response" }, { "id", command.id } };
@@ -502,47 +597,42 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 response["result"] = metrics();
             else if (command.method == "Diagnostics.setRecording")
             {
-                if (command.enabled && ! profiling)
-                {
-                    frames.clear();
-                    phases = Object {};
-                    frameCount = 0;
-                    delayedTicks = 0;
-                    tickIntervalMs = 0;
-                    elapsedMs = 0;
-                    recordingStarted = clock();
-                    previousTick = recordingStarted;
-                    previousSample = recordingStarted;
-                    previousStatistics = host.statistics();
-                }
-                if (! command.enabled && profiling)
-                    elapsedMs = std::chrono::duration<double, std::milli>(clock() - recordingStarted).count();
-                profiling = command.enabled;
-                surface.debugRecording(profiling);
-                event("Diagnostics.metrics", metrics(false));
+                // One recording, shared: any client starts or stops it; it
+                // stops by itself when every client that asked for it went.
+                if (command.enabled)
+                    recorders.insert(command.client);
+                record(host, command.enabled);
                 response["result"] = nullptr;
             }
             else if (command.method == "UI.highlightNode")
             {
                 (void)node(host, command.node, false);
-                surface.debugHighlight(command.node);
+                client(command.client).highlight = command.node;
+                showHighlights(surface);
                 response["result"] = nullptr;
             }
             else if (command.method == "UI.clearHighlight")
             {
-                surface.debugHighlight(ui::noNode);
+                client(command.client).highlight = ui::noNode;
+                showHighlights(surface);
                 response["result"] = nullptr;
             }
             else if (command.method == "UI.setPickerEnabled")
             {
-                resetPicker(surface);
-                if (command.enabled)
+                auto& state = client(command.client);
+                if (command.enabled && ! picking())
                 {
                     const auto captured = surface.cancelPointers();
                     suppressedPointers.insert(captured.begin(), captured.end());
-                    picker = true;
                 }
-                event("UI.pickerChanged", Object { { "enabled", picker } });
+                state.picker = command.enabled;
+                if (! picking())
+                {
+                    pressed = ui::noNode;
+                    hovered = ui::noNode;
+                }
+                showHighlights(surface);
+                eventFor(command.client, "UI.pickerChanged", Object { { "enabled", state.picker } });
                 response["result"] = nullptr;
             }
             else
@@ -570,6 +660,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     }
     bool Inspector::pointer(ui::Surface& surface, const ui::PointerInput& input)
     {
+        const bool picker = picking();
         if (! picker && ! suppressedPointers.contains(input.pointerId))
             return false;
         if (input.phase == ui::PointerInput::Phase::Down)
@@ -578,21 +669,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             if (input.button == 0 && picker)
                 pressed = surface.hitTest(input.position);
         }
-        if (picker && input.phase != ui::PointerInput::Phase::Leave)
-            surface.debugHighlight(surface.hitTest(input.position));
-        if (input.phase == ui::PointerInput::Phase::Leave && picker)
-            surface.debugHighlight(ui::noNode);
+        if (picker)
+            hovered = input.phase == ui::PointerInput::Phase::Leave ? ui::noNode : surface.hitTest(input.position);
         if (input.phase == ui::PointerInput::Phase::Up && input.buttons == 0)
         {
             suppressedPointers.erase(input.pointerId);
             if (picker && pressed != ui::noNode && surface.isConnected(pressed))
             {
-                const auto selected = pressed;
-                picker = false;
-                pressed = ui::noNode;
-                surface.debugHighlight(selected);
-                event("UI.nodeSelected", Object { { "node", ref(currentGeneration, selected) } });
-                event("UI.pickerChanged", Object { { "enabled", false } });
+                // The pick goes to every client that was picking.
+                const auto selected = std::exchange(pressed, ui::noNode);
+                hovered = ui::noNode;
+                for (auto& [id, state] : clientStates)
+                    if (std::exchange(state.picker, false))
+                    {
+                        state.highlight = selected;
+                        eventFor(id, "UI.nodeSelected", Object { { "node", ref(currentGeneration, selected) } });
+                        eventFor(id, "UI.pickerChanged", Object { { "enabled", false } });
+                    }
             }
         }
         if (input.phase == ui::PointerInput::Phase::Cancel)
@@ -600,14 +693,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             suppressedPointers.erase(input.pointerId);
             pressed = ui::noNode;
         }
+        showHighlights(surface);
         return true;
     }
     bool Inspector::key(ui::Surface& surface, const ui::KeyInput& input)
     {
-        if (input.key != "Escape" || (! picker && ! escapeHeld))
+        if (input.key != "Escape" || (! picking() && ! escapeHeld))
             return false;
         escapeHeld = input.down;
-        resetPicker(surface);
+        stopPicking(surface);
         return true;
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug

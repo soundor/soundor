@@ -94,7 +94,6 @@ describe('connecting', () => {
         id: plugin.id,
         name: 'Gain Plugin',
         generation: 1,
-        controller: null,
       }),
     ]);
   });
@@ -279,12 +278,13 @@ describe('targets', () => {
 });
 
 describe('inspection', () => {
-  it('reads the tree, node details and property groups without control', async () => {
+  it('reads the tree, node details and property groups beside another client', async () => {
     const plugin = await runtime();
-    // A real competing controller: reading needs no lease.
     const browser = await startSimulatedBrowser(server);
     try {
-      await browser.request('Control.acquire', plugin.id);
+      await browser.request('UI.highlightNode', plugin.id, {
+        node: { generation: 1, id: '3' },
+      });
       const connected = await driver();
       const tree = await connected.getTree();
       expect(tree.roots).toEqual(['1']);
@@ -296,7 +296,6 @@ describe('inspection', () => {
       expect(await connected.getAccessibility(gain.ref)).toMatchObject({
         role: 'adjustable',
       });
-      expect((await connected.target()).controller).not.toBeNull();
     } finally {
       await browser.close();
     }

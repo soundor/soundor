@@ -12,7 +12,6 @@ const target: DebugTarget = {
   name: 'Gain',
   runtime: 'Simulated',
   generation: 1,
-  controller: null,
   capabilities: ['inspector', 'accessibility', 'animations', 'performance'],
 };
 function setup() {
@@ -126,7 +125,7 @@ it('applies sparse patches and diagnostics only for the active target and genera
   ).toEqual({ type: 'metrics' });
   expect(state.performance).toEqual(metrics);
 });
-it('allows picker selections only for the controlling browser and current generation', () => {
+it('takes picks of the current generation', () => {
   const state = setup();
   const picked = {
     type: 'event',
@@ -134,8 +133,6 @@ it('allows picker selections only for the controlling browser and current genera
     targetId: 'gain',
     data: { node: { generation: 1, id: '1' } },
   } as const;
-  expect(state.applyEvent(picked)).toEqual({ type: 'ignored' });
-  state.currentTarget()!.controller = 'browser';
   state.picker = true;
   expect(state.applyEvent(picked)).toEqual({
     type: 'selection',

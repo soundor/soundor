@@ -41,7 +41,7 @@ Driver reads only its endpoint and `browserKey`. The endpoint must be
 `http://127.0.0.1:<port>` (or `localhost`): DevTools never listens anywhere
 else. Sessions are never discovered by scanning ports.
 
-The Driver signs in as a control client, like a DevTools browser tab: it
+The Driver signs in as a client, like a DevTools browser tab: it
 exchanges the key for the session's cookie and opens the dashboard's
 WebSocket with the session's Origin. It never registers as a runtime.
 
@@ -78,15 +78,13 @@ A reload (`soundor dev` reloading the UI) keeps the target and starts a new
 `GENERATION_CHANGED`. [Locators](/docs/driver/inspecting#locators) find
 their node again by themselves.
 
-## Control
+## Other clients
 
-Reading (the tree, nodes, locators) needs no control of the target, and works
-while the DevTools dashboard or another client controls it.
-[Input](/docs/driver/interacting) needs its exclusive control lease, as the
-dashboard's **Request control** does: the first input takes it, and a lease
-another client holds is never taken (`LEASE_BUSY`). `acquireControl()`,
-`releaseControl()` and `hasControl` handle it explicitly; disconnecting
-releases it.
+A target has no owner. DevTools tabs and other Drivers read, highlight and
+send [input](/docs/driver/interacting#other-clients) at the same time as
+this one, as several mice would: each client has its own synthetic pointer
+and held keys, and nobody waits for anybody. When a client disconnects, the
+instance releases only that client's input.
 
 ## Timeouts and cancellation
 
@@ -107,7 +105,8 @@ server tells the instance to drop the command. `connectTimeout` and `signal`
 on `connect()` limit signing in.
 
 `disconnect()` closes the connection; it is idempotent. Pending calls fail
-with `DISCONNECTED`, and the server releases whatever the client controlled.
+with `DISCONNECTED`, and the instance releases whatever this client held
+(a pressed button, keys).
 
 ## Errors
 
@@ -138,9 +137,7 @@ try {
 | `TARGET_DISCONNECTED`    | The selected instance disconnected.                                                                |
 | `GENERATION_CHANGED`     | The instance reloaded during the command.                                                          |
 | `STALE_NODE`             | The node reference is from an earlier generation, or the node went.                                |
-| `LEASE_BUSY`             | Another client controls the instance.                                                              |
-| `LEASE_REQUIRED`         | The command needs control of the instance.                                                         |
-| `BUSY`                   | The instance is busy with another interactive command.                                             |
+| `BUSY`                   | The instance has too much outstanding work, or too many clients; retry.                            |
 | `MISSING_CAPABILITY`     | The instance does not support the command.                                                         |
 | `SCREENSHOT_UNAVAILABLE` | The instance cannot capture its view now, or the capture was lost.                                 |
 | `ELEMENT_NOT_FOUND`      | No node matches the locator.                                                                       |

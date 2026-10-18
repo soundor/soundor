@@ -40,8 +40,8 @@ WebGL canvas is read back from the GPU once for the capture). Where the
 plugin draws nothing, the PNG is transparent: the host window's background
 is not part of the view. DevTools' highlight is not drawn.
 
-Capturing reads the view: it needs the target's `capture` capability, not its
-control, and works while another client controls the target. It renders on
+Capturing reads the view: it needs the target's `capture` capability, and
+works while other clients use the target. It renders on
 the plugin's UI thread, so capture occasionally rather than in a tight loop.
 
 ## Errors

@@ -239,17 +239,19 @@ describe('soundor driver', () => {
     }
   });
 
-  it('inspects while another client controls the target', async () => {
+  it('inspects and clicks beside another client', async () => {
     const plugin = await runtime();
     const browser = await startSimulatedBrowser(server);
     try {
-      await browser.request('Control.acquire', plugin.id);
+      // The other client holds a key down: its own, not the command's.
+      await browser.request('Input.dispatchKey', plugin.id, {
+        action: 'down',
+        key: 'Shift',
+      });
       expect((await session('inspect', 'gain')).code).toBe(0);
-      // Reading took no control: the other client still has it.
-      const [target] = JSON.parse(
-        (await session('targets', '--json')).stdout,
-      ) as DebugTarget[];
-      expect(target!.controller).not.toBeNull();
+      expect((await session('click', 'gain')).code).toBe(0);
+      expect(plugin.inputLog.slice(-1)).toEqual(['click:3']);
+      expect(plugin.holdingInput).toBe(true);
     } finally {
       await browser.close();
     }
@@ -270,7 +272,7 @@ describe('soundor driver', () => {
 });
 
 describe('soundor driver input', () => {
-  it('clicks a node by debug ID through the target, then releases control', async () => {
+  it('clicks a node by debug ID through the target', async () => {
     const plugin = await runtime();
     const result = await session('click', 'gain', '--json');
     expect(result).toMatchObject({ code: 0, stderr: '' });
@@ -283,11 +285,6 @@ describe('soundor driver input', () => {
       'pointerup:3',
       'click:3',
     ]);
-    // One-shot: the command released the lease it took.
-    const [target] = JSON.parse(
-      (await session('targets', '--json')).stdout,
-    ) as DebugTarget[];
-    expect(target!.controller).toBeNull();
     expect((await session('click', 'gain')).stdout).toBe(
       'clicked: handled (node 3)\n',
     );
@@ -363,15 +360,6 @@ describe('soundor driver input', () => {
         args,
         code: DRIVER_EXIT_CODES.invalid,
       });
-    }
-    const browser = await startSimulatedBrowser(server);
-    try {
-      await browser.request('Control.acquire', plugin.id);
-      const busy = await session('click', 'gain', '--json');
-      expect(busy.code).toBe(DRIVER_EXIT_CODES.lease);
-      expect(JSON.parse(busy.stderr).error.code).toBe('LEASE_BUSY');
-    } finally {
-      await browser.close();
     }
     expect(plugin.inputLog).toEqual([]);
   });

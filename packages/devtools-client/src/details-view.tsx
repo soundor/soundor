@@ -29,7 +29,7 @@ function DetailGroup({
     </details>
   );
 }
-/** Synthetic input on the selected node, for its controller. */
+/** This tab's synthetic input on the selected node. */
 function NodeActions({ inspector }: { inspector: Inspector }) {
   const { state, ui, actions } = inspector;
   const node = ui.details;
@@ -40,7 +40,7 @@ function NodeActions({ inspector }: { inspector: Inspector }) {
         <span className="hint">This target does not accept input.</span>
       </div>
     );
-  const enabled = state.connected && state.ownsControl() && !ui.interacting;
+  const enabled = state.connected && !ui.interacting;
   return (
     <div
       className="node-actions"
@@ -69,13 +69,9 @@ function NodeActions({ inspector }: { inspector: Inspector }) {
       >
         Focus
       </button>
-      {!state.ownsControl() ? (
-        <span className="hint">Request control to interact.</span>
-      ) : (
-        <span className="hint" id="interaction" role="status">
-          {ui.interaction}
-        </span>
-      )}
+      <span className="hint" id="interaction" role="status">
+        {ui.interaction}
+      </span>
     </div>
   );
 }

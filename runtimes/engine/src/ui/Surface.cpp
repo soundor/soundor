@@ -1149,11 +1149,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         overflow = std::exchange(metadataOverflow, false);
         return ids;
     }
-    void Surface::debugHighlight(NodeId id) noexcept
+    void Surface::debugHighlights(std::vector<NodeId> ids)
     {
-        if (highlighted != id)
+        if (highlighted != ids)
         {
-            highlighted = id;
+            highlighted = std::move(ids);
             highlightChanged = true;
         }
     }

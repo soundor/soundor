@@ -230,7 +230,7 @@ TEST_SUITE("Native DevTools diagnostics")
         }
         CHECK(number(object(f.inspector.metrics()).at("frameCount")) == 400);
         CHECK(array(object(f.inspector.metrics()).at("frames")).size() == 300);
-        f.inspector.execute(f.host, { .method = "resetControl" });
+        f.inspector.reset(f.host.surface());
         CHECK_FALSE(f.inspector.recording());
         CHECK(array(object(f.inspector.metrics()).at("frames")).empty());
         f.record();
@@ -259,4 +259,23 @@ TEST_SUITE("Native DevTools diagnostics")
         CHECK(number(frame.at("compositorReadbacks")) == 0);
     }
 #endif
+
+    TEST_CASE("one shared recording, which stops when every client that asked for it went")
+    {
+        Fixture f;
+        const auto record = [&](const std::string& client, bool enabled) {
+            f.inspector.execute(f.host, { .method = "Diagnostics.setRecording", .client = client, .enabled = enabled });
+        };
+        record("a", true);
+        record("b", true);
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "a" });
+        CHECK(f.inspector.recording());
+        f.inspector.execute(f.host, { .method = "clientGone", .client = "b" });
+        CHECK_FALSE(f.inspector.recording());
+        // Any client stops it for everyone.
+        record("a", true);
+        record("b", true);
+        record("a", false);
+        CHECK_FALSE(f.inspector.recording());
+    }
 }

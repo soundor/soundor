@@ -34,13 +34,13 @@ function setup() {
 }
 it('correlates responses and ignores stale replies after selection cancellation', async () => {
   const { transport, messages, timers } = setup();
-  const response = transport.request('Control.acquire', {});
+  const response = transport.request('UI.clearHighlight', {});
   transport.settle({
     type: 'response',
     id: messages[0]!.id,
-    result: { controller: 'browser' },
+    result: null,
   });
-  await expect(response).resolves.toEqual({ controller: 'browser' });
+  await expect(response).resolves.toBeNull();
   expect(timers.size).toBe(0);
   const stale = transport.request('UI.getTree', {});
   const rejected = expect(stale).rejects.toThrow('Inspection changed');

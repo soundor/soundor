@@ -34,8 +34,8 @@ SOUNDOR_DEVTOOLS_SCENARIO=multiple-targets pnpm --filter @soundor/devtools-clien
 ```
 
 Available: `gain-plugin` (default), `empty`, `multiple-targets`,
-`limited-capabilities`, `disconnected`, `reload`, `lease-conflict`.
-The conflict scenario already has a competing controller. The disconnected
+`limited-capabilities`, `disconnected`, `reload`, `second-client`.
+In the second-client scenario another client already highlights a node. The disconnected
 scenario starts without a live target; the reload scenario starts at generation 2.
 Tests can trigger transitions using the simulator's controls.
 

@@ -1,11 +1,11 @@
 ---
 title: 'DevTools protocol'
-description: 'Transports, identity, control leases, methods, events, and diagnostic limits.'
+description: 'Transports, identity, clients, methods, events, and diagnostic limits.'
 ---
 
 Source: [`packages/devtools-protocol/`](https://github.com/soundor/soundor/tree/main/packages/devtools-protocol).
 
-Soundor Debug Protocol v1: browser-safe types and Zod validation schemas for
+Soundor Debug Protocol v2: browser-safe types and Zod validation schemas for
 native UI developer tools. It depends on no runtime, engine, renderer or browser
 UI. The local server lives in the `soundor` CLI and runs only during supported,
 enabled development sessions.
@@ -47,9 +47,10 @@ engine's owning thread. Never issue blocking IPC on UI or audio threads.
    expire after 60 seconds. Reconnect by registration; old target IDs remain
    invalid. After a server restart obtain the new designated session descriptor.
 
-Commands include `request`, `cancel`, `subscribe` (the union of browser event
-subscriptions), and `resetControl`. Reset must clear highlights, picker mode,
-profiling and any temporary overrides. Also reset independently when transport
+Commands include `request` (with the sending `client`), `cancel`, `subscribe`
+(the union of browser event subscriptions), and `clientGone`, which drops that
+client's state (see [clients](#clients-and-bounds)). Reset every client's
+state (input, highlights, pickers, profiling) independently when transport
 is lost, without waiting for another poll. Drop cancelled and expired work
 before it reaches the owning thread. Responses to cancelled requests are stale.
 Runtime request envelopes additionally carry the server-stamped `generation`;
@@ -102,31 +103,31 @@ rewrites request IDs to unpredictable transport IDs before routing to a target;
 the native response repeats that transport ID. Send either `result` or
 `error:{code,message}`, never both. Schemas validate both requests and results.
 Errors distinguish authentication, protocol mismatch, missing capabilities,
-lost leases, stale nodes, disconnects, cancellation, timeouts and overload.
+stale nodes, disconnects, cancellation, timeouts and overload.
 
 Node refs pair an opaque string ID with a positive generation, scoped by the
 request's target ID. Never expose a pointer. Node IDs must never be reused
 within a generation; removed IDs return STALE_NODE. On host replacement, send
 `Runtime.generationChanged` with a strictly increasing generation. The server
-invalidates pending work and requests control reset. Snapshots and node results
+invalidates pending work; the runtime drops every client's debug state with
+the old host. Snapshots and node results
 from another generation are rejected.
 
 ## Methods and events
 
-| Methods                                              | Behavior                                                |
-| ---------------------------------------------------- | ------------------------------------------------------- |
-| Runtime.getTargets                                   | Current registered instance metadata and controller IDs |
-| Control.acquire / release                            | Explicit per-target exclusive control                   |
-| Events.subscribe                                     | Replace this browser's event subscription for a target  |
-| UI.getTree / getNode                                 | Bounded actual engine snapshots, not a DOM tree         |
-| UI.getLayout / getStyles / getAccessibility          | Available engine properties                             |
-| UI.highlightNode / clearHighlight / setPickerEnabled | Native debug interaction, requires control              |
-| Animation.getActive                                  | Actual animation metadata where supported               |
-| Diagnostics.getMetrics / setRecording                | Read measured counters; control demand-driven recording |
-| UI.hitTest                                           | The deepest node at a point and its ancestors           |
-| Input.dispatchPointer / dispatchWheel                | Synthetic pointer and wheel input, requires control     |
-| Input.dispatchKey / typeText / focus                 | Synthetic keys, text and focus, requires control        |
-| Capture.screenshot                                   | A PNG of the rendered view, as a capture resource       |
+| Methods                                              | Behavior                                               |
+| ---------------------------------------------------- | ------------------------------------------------------ |
+| Runtime.getTargets                                   | Current registered instance metadata                   |
+| Events.subscribe                                     | Replace this browser's event subscription for a target |
+| UI.getTree / getNode                                 | Bounded actual engine snapshots, not a DOM tree        |
+| UI.getLayout / getStyles / getAccessibility          | Available engine properties                            |
+| UI.highlightNode / clearHighlight / setPickerEnabled | This client's highlight and picker                     |
+| Animation.getActive                                  | Actual animation metadata where supported              |
+| Diagnostics.getMetrics / setRecording                | Read measured counters; start or stop the recording    |
+| UI.hitTest                                           | The deepest node at a point and its ancestors          |
+| Input.dispatchPointer / dispatchWheel                | This client's synthetic pointer and wheel input        |
+| Input.dispatchKey / typeText / focus                 | This client's synthetic keys, text, and focus          |
+| Capture.screenshot                                   | A PNG of the rendered view, as a capture resource      |
 
 Targets negotiate `inspector`, `accessibility`, `animations`, `performance`,
 `input` and `capture`. `input` is never implied by `inspector`: a runtime advertises it
@@ -141,7 +142,9 @@ may request a new snapshot), `UI.nodeSelected`, `UI.pickerChanged`,
 `Diagnostics.metrics`. Notifications are sent only to subscribers. Native
 producers must coalesce geometry and revision notifications and enable expensive
 instrumentation only when requested. `Runtime.targetsChanged` is a server event
-delivered to every tab, including controller ownership changes.
+delivered to every tab. A runtime event with a `client` field (a pick, a
+picker turning on or off) is about that client's own state: the server sends
+it to that client alone, without the field.
 `UI.treeChanged.kind` distinguishes hierarchy invalidation from property changes;
 optional `nodes` metadata patches avoid repeated whole-tree serialization for
 text/name/role changes. `metadataIncomplete` signals that a patch exceeded its
@@ -169,11 +172,13 @@ subscribed, including replacement, pause/resume, completion and cancellation.
 Running animations also invalidate presentation inspection at up to 10 Hz.
 Lifecycle queues retain at most 128 changes; the browser retains 100 entries.
 
-`Diagnostics.setRecording({enabled})` requires control. `Diagnostics.getMetrics`
+`Diagnostics.setRecording({enabled})` starts or stops the instance's one
+recording, for every client. `Diagnostics.getMetrics`
 returns `DebugMetrics`; `Diagnostics.metrics` sends the same typed shape with
 only the newest frame sample, coalesced to 10 Hz. Full retrieval includes up to
 300 samples. Capture starts/stops explicitly, preserves the stopped recording,
-and resets on control loss, disconnection or runtime replacement. Idle recording
+stops once every client that started it disconnected, and resets on runtime
+replacement or transport loss. Idle recording
 reports tick work without fabricating frames when the application does not render.
 
 Frame fields are optional when a runtime cannot measure them; clients omit
@@ -192,7 +197,7 @@ and frame timing clocks run only during recording, on the owning UI thread.
 Property inspection is currently read-only. The reconciler writes complete base
 styles while native animations own presentation groups; there is no separate,
 reconciliation-aware temporary override layer. Direct mutation would risk replacing
-application-owned state, so v1 exposes no property-edit command. Node source
+application-owned state, so the protocol has no property-edit command. Node source
 navigation also requires new renderer metadata: `createInstance` currently stores
 only native type/props/context, without reliable component/file/line information.
 Existing source maps continue to map console error stacks. Future development
@@ -201,7 +206,7 @@ must not infer it from arbitrary native nodes or stacks.
 
 ## Captures
 
-`Capture.screenshot {node?}` (capability `capture`, no control) renders the
+`Capture.screenshot {node?}` (capability `capture`) renders the
 view with the engine's renderer and encodes it as PNG. Captures never travel
 as messages:
 
@@ -224,14 +229,23 @@ disconnects and a target's when it goes. Runtimes refuse views over
 `MAX_CAPTURE_SIDE` (8192) pixels a side or `MAX_CAPTURE_PIXELS` (16 M) with
 `CAPTURE_UNAVAILABLE`.
 
-## Leases and bounds
+## Clients and bounds
 
-Observers can read without control. Acquire explicitly before native picking,
-highlighting, profiling or input. A valid lease cannot be stolen: LEASE_BUSY identifies
-another controller. Disconnect or heartbeat timeout releases it and sends reset.
-At most one interactive command is outstanding per target; competing commands
-receive BUSY and may retry after completion. Read-only operations may overlap.
-The server validates ownership before forwarding every interactive command.
+A target has no owner. Every signed-in client can read, highlight, pick,
+record and send input, as several mice and keyboards share one computer.
+The server adds the sending client's ID (`client`) to every request it
+queues for a runtime, and the runtime keeps each client's state apart: its
+synthetic pointer (an ID of its own, from 32000) and held keys, its
+highlight (the view draws every client's), and its picker (a pick goes to
+every client that was picking). Focus is the view's, shared. A runtime keeps
+state for at most 64 clients (`BUSY` beyond). The one performance recording
+is shared: any client starts or stops it.
+
+When a client disconnects or misses its heartbeat, the server sends each
+runtime `{type:'clientGone',client}`: the runtime ends what that client's
+input held (a `pointercancel`, `keyup`s), removes its highlight and picker,
+and stops the recording once no client that started it remains. Commands
+run in the order they arrive; read-only operations may overlap.
 
 Messages are limited to 1 MiB; trees to 5000 nodes (with `truncated` reported),
 sessions to 64 targets and 32 browser connections, pending requests to 64 and
@@ -242,7 +256,7 @@ invalidates pending requests, subscriptions, transports and the descriptor.
 
 [Soundor Driver](/docs/driver) is a client of this same protocol and browser
 transport for scripts, the CLI and coding agents. Audio processing is not part
-of v1.
+of the protocol.
 
 ## Input
 
@@ -264,10 +278,10 @@ never calls application handlers directly.
 
 Results are `{handled, node}`: whether the UI handled the input, and the node
 under the pointer (or focused, for keys). Keys held with `dispatchKey` add
-their modifiers to later input. Instances keep the synthetic pointer apart
-from real pointers (its own pointer ID) and release whatever it holds (a
-`pointercancel` for a pressed button, `keyup` for held keys) on
-`resetControl`, which follows control release, controller disconnect and
+their modifiers to that client's later input. Each client's synthetic
+pointer has its own pointer ID, apart from real pointers and other clients';
+an instance releases whatever a client holds (a `pointercancel` for a
+pressed button, `keyup` for held keys) on `clientGone`, and forgets it on
 reload. `UI.hitTest {x, y}` returns `{node, path}` (the deepest node and its
 ancestors' IDs from a root) and needs only `inspector`.
 

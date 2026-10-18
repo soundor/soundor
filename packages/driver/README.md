@@ -1,8 +1,9 @@
 # @soundor/driver
 
 Soundor Driver: inspect and control a running Soundor plugin's native UI from
-Node.js. It connects to the DevTools session of `soundor dev` as a control
-client, through the same authenticated transport as the DevTools dashboard,
+Node.js. It connects to the DevTools session of `soundor dev` as a client,
+beside DevTools tabs and other scripts, through the same authenticated
+transport as the DevTools dashboard,
 and works with the real engine: its node tree, bounds, styles and
 accessibility; clicks, drags, keys and text through the engine's own input
 dispatch; and PNG captures of what it renders. It does not depend on a test

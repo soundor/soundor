@@ -27,10 +27,6 @@ export type DriverErrorCode =
   | 'GENERATION_CHANGED'
   /** A node reference is from an earlier generation, or the node was removed. */
   | 'STALE_NODE'
-  /** Another client controls the instance. */
-  | 'LEASE_BUSY'
-  /** The operation needs control of the instance, which this client lacks. */
-  | 'LEASE_REQUIRED'
   /** The instance is busy with another interactive command. */
   | 'BUSY'
   /** The instance does not support the operation. */
@@ -82,8 +78,6 @@ const PROTOCOL_CODES: Record<DebugError['code'], DriverErrorCode> = {
   TARGET_GONE: 'TARGET_DISCONNECTED',
   STALE_NODE: 'STALE_NODE',
   MISSING_CAPABILITY: 'MISSING_CAPABILITY',
-  LEASE_BUSY: 'LEASE_BUSY',
-  LEASE_REQUIRED: 'LEASE_REQUIRED',
   TIMEOUT: 'TIMEOUT',
   CANCELLED: 'CANCELLED',
   BUSY: 'BUSY',

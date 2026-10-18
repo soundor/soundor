@@ -2,43 +2,37 @@ import { expect, it } from 'vitest';
 
 import { setup, page, target, until } from './helpers';
 
-it('allows only the lease owner to highlight and pick across two tabs', async () => {
-  const { server, page: controller, native } = await setup();
-  await controller.ready();
-  const observer = await page(server);
-  await observer.ready();
-  await controller.control();
-  await observer.select('1');
-  observer.click('control');
-  await until(() => observer.text('notice').includes('LEASE_BUSY'));
-  expect(observer.get('picker').hasAttribute('disabled')).toBe(true);
-  await controller.select();
-  await until(() => native.methods.includes('UI.highlightNode'));
-  controller.click('picker');
+it('lets two tabs highlight and pick side by side, each its own', async () => {
+  const { server, page: first, native } = await setup();
+  await first.ready();
+  const second = await page(server);
+  await second.ready();
+  await first.select();
+  await second.select('1');
+  // Each tab's highlight is drawn: neither replaces the other's.
+  await until(() => native.highlights.length === 2);
+  first.click('picker');
   await until(
-    () => controller.get('picker').getAttribute('aria-pressed') === 'true',
+    () => first.get('picker').getAttribute('aria-pressed') === 'true',
   );
-  controller.search('does not match');
+  expect(second.get('picker').getAttribute('aria-pressed')).toBe('false');
+  first.search('does not match');
   await native.event('UI.nodeSelected', { node: { id: '3', generation: 1 } });
   await until(
     () =>
-      controller.win.document
+      first.win.document
         .querySelector('[data-node-id="3"]')
         ?.getAttribute('aria-selected') === 'true',
   );
-  expect((controller.get('search') as unknown as HTMLInputElement).value).toBe(
-    '',
-  );
-  expect(controller.get('picker').getAttribute('aria-pressed')).toBe('false');
-  expect(controller.text('details')).toContain('Gain');
+  expect((first.get('search') as unknown as HTMLInputElement).value).toBe('');
+  expect(first.get('picker').getAttribute('aria-pressed')).toBe('false');
+  expect(first.text('details')).toContain('Gain');
+  // The pick was the first tab's alone.
   expect(
-    observer.win.document
+    second.win.document
       .querySelector('[data-node-id="1"]')
       ?.getAttribute('aria-selected'),
   ).toBe('true');
-  controller.click('control');
-  await until(() => observer.text('ownership').includes('available'));
-  await observer.control();
 });
 it('invalidates node selection on reload and ignores late old-generation details', async () => {
   const { page: browser, native } = await setup();
@@ -59,12 +53,12 @@ it('invalidates node selection on reload and ignores late old-generation details
     browser.win.document.querySelector('[aria-selected="true"]'),
   ).toBeNull();
 });
-it('cleans subscriptions and releases control when switching targets', async () => {
+it('cleans subscriptions and its highlight when switching targets', async () => {
   const { server, page: browser, native } = await setup();
   const second = await target(server, 'Other Plugin');
   await browser.ready();
-  await browser.control();
   await browser.select();
+  await until(() => native.highlights.length === 1);
   await until(() =>
     browser.get('targets').textContent.includes('Other Plugin'),
   );
@@ -73,15 +67,12 @@ it('cleans subscriptions and releases control when switching targets', async () 
     .get('targets')
     .dispatchEvent(new browser.win.Event('change', { bubbles: true }));
   await until(() => browser.text('details').includes('Select a node'));
-  await until(() =>
-    native.commands.some((command) => command.type === 'resetControl'),
-  );
+  await until(() => native.highlights.length === 0);
   await until(() =>
     native.commands.some(
       (command) => command.type === 'subscribe' && command.events.length === 0,
     ),
   );
-  expect(browser.text('ownership')).toContain('available');
 });
 it('clears misleading data when a target disconnects', async () => {
   const { page: browser, native } = await setup();
@@ -92,10 +83,11 @@ it('clears misleading data when a target disconnects', async () => {
   expect(browser.text('details')).toContain('Select a node');
   expect(browser.get('picker').hasAttribute('disabled')).toBe(true);
 });
-it('reconnects the socket without silently reacquiring control', async () => {
-  const { page: browser } = await setup();
+it('reconnects the socket as a new client, its old state dropped', async () => {
+  const { page: browser, native } = await setup();
   await browser.ready();
-  await browser.control();
+  await browser.select();
+  await until(() => native.highlights.length === 1);
   browser.sockets[0]!.terminate();
   await until(() => browser.text('status').includes('Disconnected'));
   await until(
@@ -104,8 +96,8 @@ it('reconnects the socket without silently reacquiring control', async () => {
       browser.text('status').includes('Connected'),
   );
   await browser.ready();
-  expect(browser.text('ownership')).toContain('available');
-  expect(browser.get('picker').hasAttribute('disabled')).toBe(true);
+  await until(() => native.highlights.length === 0);
+  expect(browser.get('picker').hasAttribute('disabled')).toBe(false);
 });
 it('displays mapped session logs safely, filters severity/text, and clears only this view', async () => {
   const { server, native, page: browser } = await setup();

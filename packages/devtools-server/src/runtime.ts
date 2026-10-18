@@ -86,7 +86,7 @@ export function registerRuntimeRoutes(
       }
       const { version: _version, sessionId: _sessionId, ...info } = parsed.data;
       const target: Target = {
-        info: { ...info, id: randomUUID(), controller: null },
+        info: { ...info, id: randomUUID() },
         token: secret(),
         lastSeen: Date.now(),
         queue: [],

@@ -15,10 +15,6 @@ export async function inspectInBrowser(server, nativeOutput) {
     await page.goto(server.browserLaunchUrl());
     await page.locator('.tree-row').first().waitFor();
     await page
-      .getByRole('button', { name: 'Request control', exact: true })
-      .click();
-    await page.getByText('You control this target', { exact: true }).waitFor();
-    await page
       .getByRole('button', { name: 'Performance', exact: true })
       .click();
     await page
@@ -56,15 +52,13 @@ export async function inspectInBrowser(server, nativeOutput) {
     const observer = await context.newPage();
     observer.on('pageerror', (error) => errors.push(error.message));
     await observer.goto(server.url);
+    // A second tab works beside the first, with its own picker.
+    await observer.locator('.tree-row').first().waitFor();
     await observer
-      .getByText('Observer · another tab controls', { exact: true })
-      .waitFor();
-    await observer
-      .getByRole('button', { name: 'Request control', exact: true })
+      .getByRole('button', { name: 'Select element', exact: true })
       .click();
     await observer
-      .locator('#notice')
-      .filter({ hasText: 'LEASE_BUSY' })
+      .getByRole('button', { name: 'Cancel picker (Escape)', exact: true })
       .waitFor();
     await page
       .locator('#target-meta')
@@ -87,7 +81,7 @@ export async function inspectInBrowser(server, nativeOutput) {
       .waitFor();
     assert.deepEqual(errors, []);
     console.log(
-      'PASS: Chromium + real native tree, picker synchronization, zero application events, two-tab lease, reload, mapped logs, no page errors',
+      'PASS: Chromium + real native tree, picker synchronization, zero application events, two tabs side by side, reload, mapped logs, no page errors',
     );
   } finally {
     await browser.close();

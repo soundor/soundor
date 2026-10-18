@@ -9,22 +9,22 @@ export const scenarioNames = [
   'limited-capabilities',
   'disconnected',
   'reload',
-  'lease-conflict',
+  'second-client',
 ] as const;
 export type ScenarioName = (typeof scenarioNames)[number];
 
-/** Leases belong to the real server: open two tabs in lease-conflict. */
+/** Clients are the real server's: second-client adds one beside the tab. */
 export async function startScenario(options: {
   connection: DevToolsConnection;
   scenario?: ScenarioName;
-  /** Required by lease-conflict to create a real competing controller. */
+  /** Required by second-client, whose client connects to the real server. */
   server?: DevToolsServer;
 }) {
   const name = options.scenario ?? 'gain-plugin';
   if (!scenarioNames.includes(name))
     throw new Error('Unknown DevTools scenario');
   const runtimes: Awaited<ReturnType<typeof startSimulatedRuntime>>[] = [];
-  let controller: Awaited<ReturnType<typeof startSimulatedBrowser>> | undefined;
+  let other: Awaited<ReturnType<typeof startSimulatedBrowser>> | undefined;
   try {
     if (name !== 'empty') {
       runtimes.push(
@@ -41,23 +41,26 @@ export async function startScenario(options: {
             name: 'Second Gain Plugin',
           }),
         );
-      if (name === 'lease-conflict') {
-        if (!options.server) throw new Error('lease-conflict requires server');
-        controller = await startSimulatedBrowser(options.server);
-        await controller.request('Control.acquire', runtimes[0]!.id);
+      if (name === 'second-client') {
+        if (!options.server) throw new Error('second-client requires server');
+        // Another client highlighting a node, as a script or a second tab.
+        other = await startSimulatedBrowser(options.server);
+        await other.request('UI.highlightNode', runtimes[0]!.id, {
+          node: { generation: 1, id: '3' },
+        });
       }
       if (name === 'reload') await runtimes[0]!.reload();
       if (name === 'disconnected') await runtimes[0]!.disconnect();
     }
   } catch (error) {
-    await controller?.close();
+    await other?.close();
     await Promise.all(runtimes.map((runtime) => runtime.close()));
     throw error;
   }
   return {
     runtimes,
     async close() {
-      await controller?.close();
+      await other?.close();
       await Promise.all(runtimes.map((runtime) => runtime.close()));
     },
   };
