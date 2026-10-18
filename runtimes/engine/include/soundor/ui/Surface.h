@@ -419,12 +419,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
 #if SOUNDOR_DEVTOOLS
         // Debug state is separate from layout, styles and event targets.
-        void debugHighlight(NodeId id) noexcept;
+        // The nodes DevTools highlights over the view, each drawn: every
+        // client's, and the picker's.
+        void debugHighlights(std::vector<NodeId> ids);
         void debugRecording(bool enabled) noexcept { recordingDebug = enabled; }
         [[nodiscard]] bool debugRecording() const noexcept { return recordingDebug; }
         void debugRasterTime(std::uint64_t nanoseconds) noexcept { rasterDebugNanoseconds += nanoseconds; }
         [[nodiscard]] std::uint64_t debugRasterTime() const noexcept { return rasterDebugNanoseconds; }
-        [[nodiscard]] NodeId debugHighlight() const noexcept { return highlighted; }
+        [[nodiscard]] const std::vector<NodeId>& debugHighlights() const noexcept { return highlighted; }
         [[nodiscard]] bool takeDebugChanges() noexcept;
         [[nodiscard]] std::uint64_t debugStructureRevision() const noexcept { return structureChanges; }
         [[nodiscard]] std::vector<int> cancelPointers();
@@ -436,7 +438,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 #if SOUNDOR_DEVTOOLS
         std::uint64_t rasterDebugNanoseconds = 0;
         std::uint64_t structureChanges = 0;
-        NodeId highlighted = noNode;
+        std::vector<NodeId> highlighted;
         bool recordingDebug = false;
         bool highlightChanged = false;
         bool metadataSubscribed = false;

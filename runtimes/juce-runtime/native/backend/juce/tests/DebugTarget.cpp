@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace soundor;
 
@@ -93,7 +94,7 @@ int main()
         [](js::LogLevel, std::string_view message) { std::cerr << message << std::endl; });
     std::cout << "READY native target" << std::endl;
     unsigned generation = 1;
-    ui::NodeId lastHighlight = ui::noNode;
+    std::vector<ui::NodeId> lastHighlights;
     bool picked = false;
     double clicks = 0;
     double cancels = 0;
@@ -130,12 +131,16 @@ int main()
             cancels = now;
             std::cout << "CANCELLED generation=" << generation << " cancels=" << cancels << std::endl;
         }
-        const auto highlight = host->surface().debugHighlight();
-        if (highlight != lastHighlight)
+        // Every highlighted node, comma-separated; 0 for none.
+        const auto& highlights = host->surface().debugHighlights();
+        if (highlights != lastHighlights)
         {
-            std::cout << "STATE generation=" << generation << " highlight=" << highlight
-                      << " picking=" << bridge->picking() << std::endl;
-            lastHighlight = highlight;
+            std::string shown = highlights.empty() ? "0" : "";
+            for (const auto id : highlights)
+                shown += (shown.empty() ? "" : ",") + std::to_string(id);
+            std::cout << "STATE generation=" << generation << " highlight=" << shown << " picking=" << bridge->picking()
+                      << std::endl;
+            lastHighlights = highlights;
         }
         if (host->needsRender())
         {

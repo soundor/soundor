@@ -9,7 +9,6 @@ import {
 import {
   node,
   originalNodes,
-  startSimulatedBrowser,
   startSimulatedRuntime,
 } from '@soundor/devtools-server/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -78,9 +77,8 @@ const withReset = (extra: Parameters<typeof node>[3] = {}) => [
 ];
 
 describe('locator actions', () => {
-  it('clicks through the target, taking control on first use', async () => {
+  it('clicks through the target', async () => {
     const connected = await driver();
-    expect(connected.hasControl).toBe(false);
     const result = await connected.getByDebugId('gain').click();
     expect(result).toEqual({
       handled: true,
@@ -91,7 +89,6 @@ describe('locator actions', () => {
       'pointerup:3',
       'click:3',
     ]);
-    expect(connected.hasControl).toBe(true);
     // Clicked at the center of its bounds.
     expect(connected.pointer.position).toEqual({ x: 60, y: 72 });
     // One command for the whole click: the press cannot outlive it.
@@ -256,24 +253,33 @@ describe('actionability', () => {
   });
 });
 
-describe('control', () => {
-  it('never takes control from another client', async () => {
-    const browser = await startSimulatedBrowser(server);
-    try {
-      await browser.request('Control.acquire', plugin.id);
-      const connected = await driver();
-      const error = await caught(connected.getByDebugId('gain').click());
-      expect(error).toMatchObject({ code: 'LEASE_BUSY' });
-      expect(error.message).toContain('must release control');
-      expect(plugin.inputLog).toEqual([]);
-      // Reading still works beside the controller.
-      expect((await connected.getTree()).nodes).toHaveLength(3);
-    } finally {
-      await browser.close();
-    }
+describe('clients', () => {
+  it('sends input beside other clients, each with its own pointer and keys', async () => {
+    const first = await driver();
+    const second = await driver();
+    await first.pointer.move(60, 72);
+    await first.pointer.down();
+    await first.keyboard.down('Shift');
+    // The second's click is its own; the first's press stays held.
+    await second.getByDebugId('gain').click();
+    expect(plugin.inputLog.slice(-3)).toEqual([
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+    ]);
+    await expect(second.pointer.up()).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    });
+    expect(plugin.holdingInput).toBe(true);
+    await second.disconnect();
+    await until(() => plugin.clients === 1);
+    expect(plugin.holdingInput).toBe(true);
+    await first.pointer.up();
+    await first.keyboard.up('Shift');
+    expect(plugin.holdingInput).toBe(false);
   });
 
-  it('releases control and held input on disconnect', async () => {
+  it('releases held input on disconnect', async () => {
     const connected = await driver();
     await connected.pointer.move(60, 72);
     await connected.pointer.down();
@@ -285,8 +291,6 @@ describe('control', () => {
       'pointercancel:3',
       'keyup:Shift',
     ]);
-    const observer = await driver();
-    expect((await observer.target()).controller).toBeNull();
   });
 
   it('reports a target without input support', async () => {

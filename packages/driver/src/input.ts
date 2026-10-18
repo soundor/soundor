@@ -6,7 +6,7 @@ import type { CallOptions } from './transport';
 export type { InputResult, Modifier };
 export type MouseButton = 'left' | 'middle' | 'right';
 
-/** Synthetic input commands, sent with control of the target, one at a time. */
+/** Synthetic input commands of this client, sent one at a time. */
 export interface InputHost {
   send<
     M extends

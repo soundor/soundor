@@ -62,11 +62,6 @@ export class InspectorState {
   currentTarget() {
     return this.targets.find((target) => target.id === this.targetId);
   }
-  ownsControl() {
-    return (
-      !!this.clientId && this.currentTarget()?.controller === this.clientId
-    );
-  }
   supports(capability: string) {
     return (
       this.currentTarget()?.capabilities.some(
@@ -158,10 +153,8 @@ export class InspectorState {
         return { type: 'controls' };
       case 'UI.nodeSelected': {
         const { node } = message.data as Payload<'UI.nodeSelected'>;
-        if (
-          !this.ownsControl() ||
-          node.generation !== this.currentTarget()?.generation
-        )
+        // This tab's own pick: the instance sends picks to their picker.
+        if (node.generation !== this.currentTarget()?.generation)
           return { type: 'ignored' };
         this.picker = false;
         return { type: 'selection', node };

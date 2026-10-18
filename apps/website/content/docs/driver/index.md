@@ -114,9 +114,9 @@ flowchart LR
    `POST /browser/auth` for the session's cookie, and opens the `/browser`
    WebSocket with it and the session's own Origin, as the dashboard does.
 2. It sends typed, validated requests (`UI.getTree`, `UI.getNode`,
-   `Input.dispatchPointer`, …) for its selected target. The server checks the target's capabilities and, for
-   commands that change anything, the control lease, then queues the command
-   for that instance.
+   `Input.dispatchPointer`, …) for its selected target. The server checks the target's capabilities, then
+   queues the command for that instance, naming the client that sent it: the
+   engine keeps each client's input, highlight and picker apart.
 3. The plugin's runtime bridge long-polls the server from worker threads and
    hands commands to the engine's Inspector on the UI thread, in its 60 Hz
    tick. The Inspector reads the engine's `Surface`, or dispatches input

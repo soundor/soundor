@@ -25,7 +25,6 @@ it('renders actual tree, searchable roles, and base/presentation/accessibility d
 it('cancels native picking with browser Escape', async () => {
   const { page: browser, native } = await setup();
   await browser.ready();
-  await browser.control();
   browser.click('picker');
   await until(
     () => browser.get('picker').getAttribute('aria-pressed') === 'true',

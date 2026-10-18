@@ -5,7 +5,7 @@ description: 'soundor driver: inspect and control a running plugin from the comm
 
 `soundor driver` runs Soundor Driver from the
 [CLI](/docs/cli): each command connects to the session, does one thing,
-prints its result and disconnects, releasing anything it controlled. There is
+prints its result and disconnects, releasing anything it held. There is
 no background process.
 
 ```sh
@@ -39,9 +39,9 @@ Commands that act on a node find it by a `debugId`, or instead by
 [actionable](/docs/driver/interacting#actionability) for up to `--timeout`.
 `key` and `type` take `--debug-id <id>` to focus a node first.
 
-Input commands take control of the target, act, and give control back before
-they exit, as the [Driver](/docs/driver/interacting#control-and-cleanup)
-does; they fail with exit code 6 while another client controls it.
+Input commands work beside DevTools tabs and other clients, with a pointer
+and keys of their own, and release what they held before they exit, as the
+[Driver](/docs/driver/interacting#other-clients) does.
 
 ## Options
 
@@ -65,7 +65,7 @@ Results go to stdout, and nothing else does: no banners, no colors. With
 `--json`, stdout is exactly one JSON document:
 
 - `targets`: an array of targets (`id`, `name`, `runtime`, `generation`,
-  `capabilities`, `controller`);
+  `capabilities`);
 - `tree`: the tree snapshot (`generation`, `revision`, `roots`, `nodes`,
   `truncated`);
 - `inspect`: the node with its details;
@@ -101,6 +101,6 @@ with a [Driver error code](/docs/driver/connecting#errors).
 | 3    | Authentication failed, or the session descriptor is missing or unusable.             |
 | 4    | No server, no instance, or the instance disconnected or reloaded during the command. |
 | 5    | No node, several nodes, a stale node, or one that cannot take the input.             |
-| 6    | Another client controls the instance, or it is busy.                                 |
+| 6    | The instance is busy (too much outstanding work); retry.                             |
 | 7    | The command timed out or was cancelled.                                              |
 | 8    | The instance does not support the command, or cannot capture its view now.           |

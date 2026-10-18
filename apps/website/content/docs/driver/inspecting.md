@@ -4,7 +4,7 @@ description: "Read a running plugin's native node tree, a node's bounds, layout,
 ---
 
 Inspection reads the engine's own nodes: the tree the plugin really renders,
-not a reconstruction of its components. It needs no control of the target.
+not a reconstruction of its components. Reading changes nothing in the target.
 
 ## The tree
 

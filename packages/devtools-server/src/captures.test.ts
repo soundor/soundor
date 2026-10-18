@@ -140,7 +140,7 @@ it('refuses uploads nobody asked for, and bytes that are not PNG', async () => {
       method: 'POST',
       headers: { ...runtimeHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        version: 1,
+        version: 2,
         sessionId: server.connection.sessionId,
         name: 'Uploader',
         runtime: 'Fake',

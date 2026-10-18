@@ -10,7 +10,7 @@ import { WebSocket } from 'ws';
 
 import type { DevToolsServer } from '../server';
 
-/** Real authenticated observer/controller for development scenarios and tests. */
+/** A real authenticated client, for development scenarios and tests. */
 export async function startSimulatedBrowser(server: DevToolsServer) {
   const key = new URLSearchParams(
     new URL(server.browserLaunchUrl()).hash.slice(1),

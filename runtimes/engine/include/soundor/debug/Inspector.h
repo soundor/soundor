@@ -56,6 +56,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
     {
         std::string id;
         std::string method;
+        // The client that sent a request, or that went (`clientGone`): each
+        // client's debug state is its own.
+        std::string client;
         unsigned generation = 0;
         unsigned targetGeneration = 0;
         ui::NodeId node = ui::noNode;
@@ -105,18 +108,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         [[nodiscard]] Value metrics(bool history = true) const;
         bool pointer(ui::Surface& surface, const ui::PointerInput& input);
         bool key(ui::Surface& surface, const ui::KeyInput& input);
-        [[nodiscard]] bool picking() const noexcept { return picker; }
+        // Whether a client's picker takes the view's pointer.
+        [[nodiscard]] bool picking() const noexcept;
         [[nodiscard]] Value tree(RuntimeHost& host) const;
         [[nodiscard]] Value node(RuntimeHost& host, ui::NodeId id, bool details = true) const;
-        // The pointer synthetic input uses: its own, so its presses, hover
-        // and capture never mix with the real mouse's (pointer 1).
+        // The first pointer synthetic input uses. Each client has its own
+        // (automationPointer + n), so its presses, hover and capture never mix
+        // with the real mouse's (pointer 1) or another client's.
         static constexpr int automationPointer = 32000;
-        // Whether synthetic input holds a button or a key down.
-        [[nodiscard]] bool holdingInput() const noexcept { return synthetic.buttons != 0 || ! synthetic.keys.empty(); }
+        // At most this many clients have debug state at once.
+        static constexpr std::size_t maxClients = 64;
+        // Whether a client's synthetic input holds a button or a key down.
+        [[nodiscard]] bool holdingInput() const noexcept;
+        // The clients with debug state here.
+        [[nodiscard]] std::size_t clients() const noexcept { return clientStates.size(); }
 
     private:
         struct SyntheticInput
         {
+            int pointerId = automationPointer;
             bool present = false;
             ui::Point position;
             unsigned buttons = 0;
@@ -131,19 +141,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         Value input(RuntimeHost& host, const Command& command);
         // Releases what synthetic input holds (a pointercancel, key ups), or
         // forgets it without dispatching when its surface is gone.
-        void resetInput(ui::Surface* surface);
-        SyntheticInput synthetic;
+        static void resetInput(ui::Surface* surface, SyntheticInput& synthetic);
+        struct Client
+        {
+            SyntheticInput input;
+            ui::NodeId highlight = ui::noNode;
+            bool picker = false;
+        };
+        // A client's state, made on its first use; BUSY beyond maxClients.
+        Client& client(const std::string& id);
+        // Drops a client's state (`clientGone`): releases its input, removes
+        // its highlight, and stops a recording nobody else asked for.
+        void forget(RuntimeHost& host, const std::string& id);
+        std::map<std::string, Client> clientStates;
+        // Clients that asked for the recording that runs.
+        std::set<std::string> recorders;
+        void record(RuntimeHost& host, bool enabled);
         void event(const std::string& name, Value data, bool force = false) const;
-        void resetPicker(ui::Surface& surface);
+        // An event about one client's own state, for it alone.
+        void eventFor(const std::string& id, const std::string& name, Value data) const;
+        // Shows every client's highlight, and the node the picker is over.
+        void showHighlights(ui::Surface& surface);
+        // Ends the pickers of every client (for Escape, a reload).
+        void stopPicking(ui::Surface& surface);
         void profileTick(RuntimeHost& host);
         Send send;
         Clock clock;
         unsigned currentGeneration = 1;
         std::set<std::string> subscribed;
         std::set<int> suppressedPointers;
-        bool picker = false;
         bool escapeHeld = false;
         ui::NodeId pressed = ui::noNode;
+        ui::NodeId hovered = ui::noNode;
         std::uint64_t revision = 0;
         std::uint64_t structureRevision = 0;
         ui::NodeId lastFocus = ui::noNode;

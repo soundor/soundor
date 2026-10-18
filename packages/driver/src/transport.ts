@@ -69,7 +69,7 @@ function aborted(signal: AbortSignal | undefined, what: string): DriverError {
     : new DriverError('CANCELLED', `${what} was cancelled`);
 }
 
-/** Exchanges the browser key for this session's control-client cookie. */
+/** Exchanges the browser key for this session's client cookie. */
 async function signIn(
   { endpoint, browserKey }: SessionCredentials,
   signal: AbortSignal,
@@ -136,7 +136,7 @@ export class Connection {
   #sequence = 0;
   #closed: DriverError | undefined;
   #closing: Promise<void> | undefined;
-  /** This client's ID: the `controller` of targets it controls. */
+  /** This client's ID in the session. */
   readonly clientId: string;
   /** The project directory of the session. */
   readonly project: string;
@@ -464,7 +464,7 @@ export class Connection {
     if (this.#socket.readyState !== WebSocket.CLOSED) this.#socket.terminate();
   }
 
-  /** Closes the connection; the server releases whatever it controlled. */
+  /** Closes the connection; instances drop this client's debug state. */
   close(): Promise<void> {
     this.#closing ??= new Promise<void>((resolve) => {
       if (this.#socket.readyState === WebSocket.CLOSED) resolve();

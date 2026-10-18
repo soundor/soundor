@@ -24,7 +24,7 @@ export function formatTargets(targets: DebugTarget[]): string {
   return targets
     .map(
       (target) =>
-        `${target.id}  ${JSON.stringify(target.name)}  ${target.runtime}  generation ${target.generation}  ${target.capabilities.join(',')}${target.controller ? '  controlled' : ''}`,
+        `${target.id}  ${JSON.stringify(target.name)}  ${target.runtime}  generation ${target.generation}  ${target.capabilities.join(',')}`,
     )
     .join('\n');
 }

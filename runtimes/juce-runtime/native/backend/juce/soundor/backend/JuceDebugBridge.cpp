@@ -15,6 +15,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 {
     namespace
     {
+        // The DevTools protocol version (`@soundor/devtools-protocol`).
+        constexpr int protocolVersion = 2;
         constexpr std::size_t maxMessage = 1024 * 1024;
         constexpr std::size_t maxQueue = 128;
         juce::var property(const juce::var& value, const char* name)
@@ -187,7 +189,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         const auto registration =
                             debug::Value(
                                 debug::Value::Object {
-                                    { "version", 1 },
+                                    { "version", protocolVersion },
                                     { "sessionId", descriptorData->session },
                                     { "name", name },
                                     { "runtime", "JUCE Standalone" },
@@ -199,7 +201,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         const auto response = request(*descriptorData, "/runtime/register", "POST", registration, 0);
                         if (! response || response->first != 200)
                             error.store(response ? response->first : 503);
-                        if (response && response->first == 200 && number(response->second, "version") == 1)
+                        if (response && response->first == 200
+                            && number(response->second, "version") == protocolVersion)
                         {
                             data = *descriptorData;
                             data.target = string(response->second, "targetId");

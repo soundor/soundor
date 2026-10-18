@@ -35,7 +35,7 @@ async function failure(promise: Promise<unknown>) {
 describe('session descriptors', () => {
   it('reads the endpoint and browser key, ignoring the runtime token', async () => {
     const path = await descriptor({
-      version: 1,
+      version: 2,
       project: '/project',
       endpoint: 'http://127.0.0.1:4545',
       sessionId: 'session',
@@ -59,7 +59,7 @@ describe('session descriptors', () => {
     'refuses a descriptor other users can read',
     async () => {
       const path = await descriptor(
-        { version: 1, endpoint: 'http://127.0.0.1:1', browserKey: key },
+        { version: 2, endpoint: 'http://127.0.0.1:1', browserKey: key },
         0o644,
       );
       const error = await failure(readDescriptor(path));
@@ -71,7 +71,7 @@ describe('session descriptors', () => {
   it('rejects malformed descriptors without echoing their contents', async () => {
     const secret = 'c'.repeat(63);
     const path = await descriptor({
-      version: 1,
+      version: 2,
       endpoint: 'http://127.0.0.1:1',
       browserKey: secret,
     });
@@ -86,7 +86,7 @@ describe('session descriptors', () => {
 
   it('refuses a descriptor whose endpoint is not the loopback', async () => {
     const path = await descriptor({
-      version: 1,
+      version: 2,
       endpoint: 'http://example.com:4545',
       browserKey: key,
     });

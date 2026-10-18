@@ -13,7 +13,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     private:
         std::unique_ptr<RasterSurface> pixels;
         LayerId layer = 0;
-        ui::NodeId node = ui::noNode;
+        std::vector<ui::NodeId> nodes;
         struct Placement
         {
             ui::Rect frame;

@@ -29,8 +29,6 @@ test('production assets, bootstrap, inspector controls, reload and reconnect', a
     await page.locator('[data-node-id="3"]').click();
     await expect(page.locator('#details')).toContainText('adjustable');
     await page.screenshot({ path: test.info().outputPath('inspector.png') });
-    await page.getByRole('button', { name: 'Request control' }).click();
-    await expect(page.locator('#ownership')).toContainText('You control');
     await page.getByRole('button', { name: 'Select element' }).click();
     await expect(page.locator('#picker')).toHaveAttribute(
       'aria-pressed',
@@ -84,8 +82,9 @@ test.describe('Vite development', () => {
       await expect(page.locator('#targets')).toContainText('Gain Plugin');
       await expect(page).toHaveURL(origin + '/');
       await expect(page.getByRole('tree')).toContainText('View');
-      await page.getByRole('button', { name: 'Request control' }).click();
-      await expect(page.locator('#ownership')).toContainText('You control');
+      await expect(
+        page.getByRole('button', { name: 'Select element' }),
+      ).toBeEnabled();
     } finally {
       await page.close();
       await vite.close();
@@ -136,8 +135,9 @@ test.describe('Vite development', () => {
       await expect(page).toHaveURL(origin + '/');
       await expect(page.locator('#targets')).toContainText('External Gain');
       await expect(page.locator('#targets option')).toHaveCount(1);
-      await page.getByRole('button', { name: 'Request control' }).click();
-      await expect(page.locator('#ownership')).toContainText('You control');
+      await expect(
+        page.getByRole('button', { name: 'Select element' }),
+      ).toBeEnabled();
       await page.close();
       await vite.close();
       expect(

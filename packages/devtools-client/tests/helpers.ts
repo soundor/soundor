@@ -136,9 +136,5 @@ export async function page(server: DevToolsServer, ticket = false) {
       ).click();
       await until(() => text('details').includes(` / ${id}`));
     },
-    async control() {
-      click('control');
-      await until(() => text('ownership').includes('You control'));
-    },
   };
 }

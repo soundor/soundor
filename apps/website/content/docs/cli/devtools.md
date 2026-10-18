@@ -22,8 +22,8 @@ Set `devtools.open:true` to open and authorize the first browser tab automatical
 with a one-use ticket. Otherwise press `o` (open) or `c` (copy a link) for a
 signed-in tab, or enter the `browserKey` from your protected session descriptor
 whose path is printed in the terminal into the dashboard. Keys are never
-printed in logs. Browser tabs can observe targets concurrently; native
-debug interactions require explicit control of the selected target. See the
+printed in logs. Several tabs (and [Driver](/docs/driver) scripts) work with
+a target at once: each has its own highlight, picker and synthetic input. See the
 [protocol contract](/docs/contribute/devtools-protocol) for transports and security.
 
 ## Inspecting the native UI
@@ -34,31 +34,33 @@ or node/debug ID. Selecting a node shows its real properties, layout and bounds,
 normalized base styles, current presentation values, and accessibility metadata.
 Unsupported fields are omitted. The application remains in its native window.
 
-Click **Request control** to enable native highlighting and the element picker.
-Hovering or selecting tree nodes highlights them in the native window. Click
+Hovering or selecting tree nodes highlights them in the native window. Each
+tab has its own highlight, and the window draws every tab's. Click
 **Select element**, then click a native control: DevTools expands its ancestors,
 scrolls to the selected node, and shows its details. The selection click does not
 activate the application control. Escape cancels picking in either window.
-Observer tabs can select and read nodes independently; picking updates the
-controller's selection. A valid lease cannot be stolen. Release it explicitly,
-switch targets, or close the controlling tab to make it available.
+When several tabs pick at once, the click selects the node in each of them;
+other tabs keep their own selection. Switching targets or closing a tab
+removes its highlight and picker.
 
-With control, the details of a selected node offer **Click**, **Hover** and
+The details of a selected node offer **Click**, **Hover** and
 **Focus** (focusable nodes): the target's synthetic input, through the
 engine's own hit testing and event dispatch, as
 [Soundor Driver](/docs/driver/interacting) sends it. A click goes to the
 node's center; when another node covers it there, nothing is sent and the
-notice says what covers it. Targets without the `input` capability show no
+notice says what covers it. Each tab's pointer is its own, beside the real
+mouse and other tabs'. Targets without the `input` capability show no
 such actions.
 
 **Screenshot** (targets with the `capture` capability) captures the view as
 the engine renders it and shows it, with its size and scale and a
-**Download** link for the PNG. It needs no control. Closing the preview frees
+**Download** link for the PNG. Closing the preview frees
 the server's copy; see [screenshots](/docs/driver/screenshots).
 
 Ordinary tree updates retain surviving selections. Reload, node removal, and
 process disconnection invalidate references safely. WebSocket reconnect restores
-inspection, but never reacquires control automatically. Large snapshots are
+inspection as a new client: the old connection's highlight and held input
+are gone. Large snapshots are
 bounded; the picker can fetch omitted nodes and their ancestors on demand.
 
 The Console preserves existing mapped source locations and multiline error
@@ -83,11 +85,13 @@ presentation values. Node selection filters active results; **Clear selection**
 returns to all nodes. Recent engine lifecycle events show pause/resume,
 replacement cancellation, completion and cancellation. Reload clears this history.
 
-In **Performance**, request control and click **Start recording**. The panel shows
+In **Performance**, click **Start recording**. The panel shows
 measured CPU frame/layout/node raster/composition work, actual CPU/GPU compositor
-mode, layer/work counters, and a bounded frame-duration chart. Observers can read
-the same recording. **Stop recording** preserves samples for inspection; starting
-again begins a new recording. Control release, disconnect and reload discard it.
+mode, layer/work counters, and a bounded frame-duration chart. An instance has
+one recording, which every tab shows and any tab starts or stops.
+**Stop recording** preserves samples for inspection; starting
+again begins a new recording. It stops by itself when every tab that started
+it is gone; reload discards it.
 Capture is sampled at up to 10 Hz, with at most 300 frame samples. An unchanged UI
 may render no frames: tick phases still report their real work. Delayed UI ticks
 are reported separately from GPU presentation. GPU execution and total Hermes

@@ -1,21 +1,24 @@
 #include "render/DebugOverlay.h"
 
+#include <algorithm>
+
 #if SOUNDOR_DEVTOOLS
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
     const Frame& DebugOverlay::append(const Frame& content, ui::Surface& surface, ui::Renderer& painter)
     {
-        auto selected = surface.debugHighlight();
-        if (! surface.isConnected(selected))
-            selected = ui::noNode;
-        if (selected == ui::noNode && ! pixels)
+        std::vector<ui::NodeId> selected;
+        for (const auto id : surface.debugHighlights())
+            if (surface.isConnected(id) && std::ranges::find(selected, id) == selected.end())
+                selected.push_back(id);
+        if (selected.empty() && ! pixels)
             return content;
         frame = content;
-        if (selected == ui::noNode)
+        if (selected.empty())
         {
             pixels.reset();
-            node = ui::noNode;
+            nodes.clear();
             frame.damage.add(frame.bounds());
             return frame;
         }
@@ -27,26 +30,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         }
         const bool resized = pixels->resize(frame.width, frame.height);
         std::vector<Placement> placements;
-        for (const ui::Node* item = surface.find(selected); item; item = item->parent())
-        {
-            const auto& style = item->presentedStyle();
-            if (item->id() != selected && style.overflow == ui::Overflow::Visible
-                && item->type() != ui::NodeType::Scroll && style.display != ui::Display::None)
-                continue;
-            const auto box = item->frame();
-            const auto border = style.borderWidth;
-            const auto radius = style.borderRadius;
-            placements.push_back({ { 0, 0, box.width, box.height },
-                                   surface.visualTransform(item->id()),
-                                   { border.top, border.right, border.bottom, border.left, radius.topLeft,
-                                     radius.topRight, radius.bottomRight, radius.bottomLeft },
-                                   style.display == ui::Display::None });
-        }
-        const bool changed = created || resized || selected != node || placements != geometry || scale != frame.scale;
+        for (const auto id : selected)
+            for (const ui::Node* item = surface.find(id); item; item = item->parent())
+            {
+                const auto& style = item->presentedStyle();
+                if (item->id() != id && style.overflow == ui::Overflow::Visible && item->type() != ui::NodeType::Scroll
+                    && style.display != ui::Display::None)
+                    continue;
+                const auto box = item->frame();
+                const auto border = style.borderWidth;
+                const auto radius = style.borderRadius;
+                placements.push_back({ { 0, 0, box.width, box.height },
+                                       surface.visualTransform(item->id()),
+                                       { border.top, border.right, border.bottom, border.left, radius.topLeft,
+                                         radius.topRight, radius.bottomRight, radius.bottomLeft },
+                                       style.display == ui::Display::None });
+            }
+        const bool changed = created || resized || selected != nodes || placements != geometry || scale != frame.scale;
         Region damage;
         if (changed)
         {
-            painter.renderHighlight(surface, selected, pixels->bitmap());
+            painter.renderHighlights(surface, selected, pixels->bitmap());
             damage.add(frame.bounds());
             frame.damage.add(frame.bounds());
             ++frame.statistics.layersRasterized;
@@ -56,7 +60,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             { .id = layer, .bounds = frame.bounds(), .content = RasterContent { pixels.get(), damage } });
         frame.statistics.cachedRasterBytes +=
             static_cast<std::uint64_t>(frame.width) * static_cast<std::uint64_t>(frame.height) * 4;
-        node = selected;
+        nodes = std::move(selected);
         geometry = std::move(placements);
         scale = frame.scale;
         return frame;

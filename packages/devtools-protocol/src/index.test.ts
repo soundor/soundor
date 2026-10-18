@@ -15,6 +15,7 @@ it('validates dispatcher-stamped generations separately from browser requests', 
     targetId: 'target',
     method: 'UI.clearHighlight',
     generation: 2,
+    client: 'client',
     params: {},
   };
   expect(runtimeCommandSchema.safeParse(command).success).toBe(true);
@@ -26,7 +27,7 @@ it('validates dispatcher-stamped generations separately from browser requests', 
 
 it('validates version negotiation and instance capabilities', () => {
   const target = {
-    version: 1,
+    version: 2,
     sessionId: 'session',
     name: 'Plugin',
     runtime: 'third-party',
@@ -34,7 +35,7 @@ it('validates version negotiation and instance capabilities', () => {
     capabilities: ['inspector'],
   };
   expect(registrationSchema.safeParse(target).success).toBe(true);
-  expect(registrationSchema.safeParse({ ...target, version: 2 }).success).toBe(
+  expect(registrationSchema.safeParse({ ...target, version: 1 }).success).toBe(
     false,
   );
   expect(
@@ -155,9 +156,8 @@ it('validates bounded animation lifecycle changes and requires typed diagnostics
   ).toBe(false);
 });
 
-it('validates input commands and keeps them behind their own capability and the lease', async () => {
-  const { methodCapability, requiresControl, methodParams } =
-    await import('./index');
+it('validates input commands and keeps them behind their own capability', async () => {
+  const { methodCapability, methodParams } = await import('./index');
   const pointer = methodParams['Input.dispatchPointer'];
   expect(pointer.safeParse({ action: 'click', x: 1, y: 2 }).success).toBe(true);
   expect(pointer.safeParse({ action: 'down' }).success).toBe(true);
@@ -188,9 +188,35 @@ it('validates input commands and keeps them behind their own capability and the 
     'Input.focus',
   ] as const) {
     expect(methodCapability(method)).toBe('input');
-    expect(requiresControl(method)).toBe(true);
   }
-  // Hit testing reads; it needs inspection, not control.
+  // Hit testing reads: it needs inspection, not input.
   expect(methodCapability('UI.hitTest')).toBe('inspector');
-  expect(requiresControl('UI.hitTest')).toBe(false);
+});
+
+it('names the client of every runtime request, and the one that went', async () => {
+  const { runtimeCommandSchema, runtimeEventSchema } = await import('./index');
+  const request = {
+    type: 'request',
+    id: 'r1',
+    targetId: 't1',
+    method: 'UI.clearHighlight',
+    params: {},
+    generation: 1,
+  };
+  expect(runtimeCommandSchema.safeParse(request).success).toBe(false);
+  expect(
+    runtimeCommandSchema.safeParse({ ...request, client: 'c1' }).success,
+  ).toBe(true);
+  expect(
+    runtimeCommandSchema.safeParse({ type: 'clientGone', client: 'c1' })
+      .success,
+  ).toBe(true);
+  expect(
+    runtimeEventSchema.safeParse({
+      type: 'event',
+      event: 'UI.pickerChanged',
+      data: { enabled: false },
+      client: 'c1',
+    }).success,
+  ).toBe(true);
 });

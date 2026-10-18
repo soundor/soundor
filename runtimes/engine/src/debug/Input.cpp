@@ -137,9 +137,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         auto& surface = host.surface();
         const auto& params = command.params;
         const auto settle = [&] { host.runtime().runPendingJobs(); };
-        ui::Modifiers held = 0;
-        for (const auto& key : synthetic.keys)
-            held |= modifierOf(key);
         if (command.method == "UI.hitTest")
         {
             const auto x = coordinate(params, "x");
@@ -154,6 +151,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             std::ranges::reverse(path);
             return Object { { "node", ref(currentGeneration, hit) }, { "path", std::move(path) } };
         }
+        // This client's pointer and keys; the view's focus is everyone's.
+        auto& synthetic = client(command.client).input;
+        ui::Modifiers held = 0;
+        for (const auto& key : synthetic.keys)
+            held |= modifierOf(key);
         if (command.method == "Input.dispatchPointer")
         {
             const auto action = text(params, "action");
@@ -170,7 +172,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             {
                 const bool handled = surface.pointer({ .phase = phase,
                                                        .position = synthetic.position,
-                                                       .pointerId = automationPointer,
+                                                       .pointerId = synthetic.pointerId,
                                                        .type = ui::PointerType::Mouse,
                                                        .button = index,
                                                        .buttons = synthetic.buttons,
@@ -298,14 +300,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         throw CommandError("MISSING_CAPABILITY", "Operation is not supported by this instance");
     }
 
-    void Inspector::resetInput(ui::Surface* surface)
+    void Inspector::resetInput(ui::Surface* surface, SyntheticInput& synthetic)
     {
-        auto held = std::exchange(synthetic, {});
+        auto held = std::exchange(synthetic, { .pointerId = synthetic.pointerId });
         if (! surface)
             return;
         // Nothing stays pressed: the press ends without a click.
         if (held.present)
-            surface->pointer({ .phase = ui::PointerInput::Phase::Cancel, .pointerId = automationPointer });
+            surface->pointer({ .phase = ui::PointerInput::Phase::Cancel, .pointerId = held.pointerId });
         for (const auto& key : held.keys)
             surface->key(ui::KeyInput { .down = false, .key = key });
     }

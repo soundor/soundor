@@ -55,12 +55,17 @@ decode them in the engine, so a bridge only moves bytes. `UI.hitTest` and the
 `Surface::pointer`, `wheel`, `key` and `text`, the same entry points a
 platform's input uses, then run pending jobs as the JUCE editor does after
 real input. `Surface::key(input, typed)` is the shared key entry: the key
-event, then its text when the UI leaves a press unhandled. The synthetic
-pointer has its own ID (`Inspector::automationPointer`), so its hover and
-capture never mix with the real mouse's. The Inspector keeps what synthetic
-input holds (buttons, keys) and releases it on `resetControl`, transport loss
-and bridge reset (a `pointercancel`, `keyup`s); a generation change forgets
-it, as the old surface went with its host.
+event, then its text when the UI leaves a press unhandled. The Inspector
+keeps each client's state apart, by the `client` of its commands (at most
+`Inspector::maxClients`): its synthetic pointer, with an ID of its own from
+`Inspector::automationPointer`, so its hover and capture never mix with the
+real mouse's or another client's; the buttons and keys it holds; its
+highlight; and its picker. `Surface::debugHighlights` holds every client's
+highlight and the picker's hovered node, which `DebugOverlay` draws in one
+cached layer. A `clientGone` command releases that client's held input (a
+`pointercancel`, `keyup`s) and removes its highlight; transport loss and
+bridge reset release every client's; a generation change forgets them, as
+the old surface went with its host.
 
 `Capture.screenshot` (`src/debug/Capture.cpp`) draws the whole view with
 `RuntimeHost::render()` (the view renderer that rasterizes the layers, GPU
@@ -84,9 +89,10 @@ frame and compositor counters. Animation capture is subscription-driven, with
 bounded lifecycle queues and on-demand active snapshots. `Inspector::renderFrame`
 wraps the normal frame/composition path only during explicit recording. Node paint
 clocks are enabled only then; no new instrumentation touches audio callbacks.
-Recordings sample at up to 10 Hz and retain 300 samples. Reset clears recording
-state on lease loss, disconnect and reload; picker cancellation alone preserves
-an active recording. Stopping explicitly preserves the current samples.
+Recordings sample at up to 10 Hz and retain 300 samples. An instance has one
+recording, shared by its clients: any client starts or stops it, and it stops
+once every client that started it is gone. Reset clears recording state on
+transport loss and reload. Stopping preserves the current samples.
 
 Frame timing measures CPU production/submission work, not GPU execution. Existing
 UI tick phases expose dispatch work, not total Hermes execution time. Delayed UI
@@ -97,8 +103,8 @@ for fields, limits, read-only property inspection and source metadata limitation
 Picker interception precedes normal event routing: active capture is cancelled,
 selection press/release and Escape are consumed, and suppressed releases remain
 suppressed after a disconnect or reload. Hit testing uses the engine's real
-stacking, portals, scrolling and transforms. Highlighting stores only a scoped
-node ID on the surface, not a UI node or a style override. `render::DebugOverlay`
+stacking, portals, scrolling and transforms. Highlighting stores only scoped
+node IDs on the surface, not UI nodes or style overrides. `render::DebugOverlay`
 appends a Skia raster layer after normal content for CPU or GPU composition,
 with ancestor clipping and world transforms. Static highlights keep their
 rasterization even when unrelated UI styles change; no WebGL readback is added.

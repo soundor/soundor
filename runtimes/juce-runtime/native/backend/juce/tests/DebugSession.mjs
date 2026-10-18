@@ -222,8 +222,9 @@ async function connect() {
     socket.once('open', resolve);
     socket.once('error', reject);
   });
-  await take((message) => message.type === 'hello');
-  socket.send(JSON.stringify({ type: 'hello', version: 1 }));
+  // Speaks the server's protocol version, as the dashboard does.
+  const { version } = await take((message) => message.type === 'hello');
+  socket.send(JSON.stringify({ type: 'hello', version }));
 }
 async function request(method, targetId, params = {}) {
   phase = method;
@@ -260,7 +261,6 @@ try {
     const animations = await request('Animation.getActive', target.id);
     assert.equal(animations.result[0].kind, 'timing');
     assert.equal(animations.result[0].targets[0].node.id, '3');
-    await request('Control.acquire', target.id);
     await request('Diagnostics.setRecording', target.id, { enabled: true });
     await request('UI.highlightNode', target.id, { node: control.ref });
     await until(() => output.includes('generation=1 highlight=3'));

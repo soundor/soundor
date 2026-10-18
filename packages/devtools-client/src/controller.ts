@@ -6,6 +6,7 @@ import type {
   DebugMetrics,
   DebugNode,
 } from '@soundor/devtools-protocol';
+import { PROTOCOL_VERSION } from '@soundor/devtools-protocol';
 import type { Screenshot } from '@soundor/devtools-protocol';
 
 import { createBrowserSession } from './browser-session';
@@ -73,9 +74,6 @@ export function createInspector(win: Window & typeof globalThis) {
   function currentTarget() {
     return state.currentTarget();
   }
-  function ownsControl() {
-    return state.ownsControl();
-  }
   function supports(capability: string) {
     return state.supports(capability);
   }
@@ -138,8 +136,9 @@ export function createInspector(win: Window & typeof globalThis) {
   async function switchTarget(id: string) {
     const previous = state.targetId;
     if (previous === id) return;
-    // Release only our own lease; observers never clear somebody else's overlay.
-    const wasController = ownsControl();
+    // This tab's highlight and picker go with the target it leaves; other
+    // clients' stay.
+    const wasPicking = state.picker;
     clearInspection();
     if (state.connected && previous) {
       cancelRequests(previous);
@@ -150,8 +149,16 @@ export function createInspector(win: Window & typeof globalThis) {
         },
         previous,
       ).catch(() => {});
-      if (wasController)
-        void request('Control.release', {}, previous).catch(() => {});
+      if (wasPicking)
+        void request('UI.setPickerEnabled', { enabled: false }, previous).catch(
+          () => {},
+        );
+      if (
+        state.targets
+          .find((target) => target.id === previous)
+          ?.capabilities.includes('inspector')
+      )
+        void request('UI.clearHighlight', {}, previous).catch(() => {});
     }
     state.targetId = id;
     state.inspectedGeneration = currentTarget()?.generation ?? 0;
@@ -206,10 +213,6 @@ export function createInspector(win: Window & typeof globalThis) {
       run(switchTarget(state.targets[0]?.id ?? ''));
     else if (after && before?.generation !== after.generation)
       generationChanged(after.generation);
-    if (!ownsControl()) {
-      state.picker = false;
-      nextHighlight = undefined;
-    }
     notify();
   }
   function generationChanged(generation: number) {
@@ -331,13 +334,7 @@ export function createInspector(win: Window & typeof globalThis) {
     }
   }
   function queueHighlight(ref: NodeRef | null) {
-    if (
-      !ownsControl() ||
-      state.picker ||
-      ui.diagnosticsBusy ||
-      !supports('inspector')
-    )
-      return;
+    if (state.picker || ui.diagnosticsBusy || !supports('inspector')) return;
     nextHighlight = ref;
     if (!highlightTimer)
       highlightTimer = win.setTimeout(() => {
@@ -346,13 +343,7 @@ export function createInspector(win: Window & typeof globalThis) {
       }, 70);
   }
   async function flushHighlight() {
-    if (
-      highlighting ||
-      nextHighlight === undefined ||
-      !ownsControl() ||
-      state.picker
-    )
-      return;
+    if (highlighting || nextHighlight === undefined || state.picker) return;
     const ref = nextHighlight;
     nextHighlight = undefined;
     highlighting = true;
@@ -364,7 +355,7 @@ export function createInspector(win: Window & typeof globalThis) {
         });
       else await request('UI.clearHighlight', {});
     } catch (error) {
-      if (epoch === state.viewEpoch && ownsControl()) fail(error);
+      if (epoch === state.viewEpoch) fail(error);
     } finally {
       highlighting = false;
       if (epoch === state.viewEpoch && nextHighlight !== undefined)
@@ -426,7 +417,7 @@ export function createInspector(win: Window & typeof globalThis) {
   }
   function receive(message: ServerMessage) {
     if (message.type === 'hello') {
-      if (message.version !== 1) {
+      if (message.version !== PROTOCOL_VERSION) {
         report('Unsupported debug protocol version');
         session.socket?.close();
         return;
@@ -437,7 +428,7 @@ export function createInspector(win: Window & typeof globalThis) {
       session.socket?.send(
         JSON.stringify({
           type: 'hello',
-          version: 1,
+          version: PROTOCOL_VERSION,
         }),
       );
       ui.authRequired = false;
@@ -516,30 +507,11 @@ export function createInspector(win: Window & typeof globalThis) {
       else state.expanded.delete(id);
       updateTree();
     },
-    control: () =>
-      run(
-        (async () => {
-          const epoch = state.viewEpoch;
-          try {
-            const method = ownsControl()
-              ? 'Control.release'
-              : 'Control.acquire';
-            await request(method, {});
-            if (epoch !== state.viewEpoch) return;
-            report('');
-            if (method === 'Control.release') state.picker = false;
-            notify();
-          } catch (error) {
-            if (epoch === state.viewEpoch) fail(error);
-          }
-        })(),
-      ),
     picker: () =>
       run(
         (async () => {
-          if (!ownsControl()) return;
           const epoch = state.viewEpoch;
-          // Native interactive commands are serialized: finish a highlight first.
+          // This tab's commands go in order: finish a highlight first.
           nextHighlight = undefined;
           while (highlighting && epoch === state.viewEpoch)
             await new Promise((resolve) => win.setTimeout(resolve, 15));
@@ -566,7 +538,7 @@ export function createInspector(win: Window & typeof globalThis) {
     record: () =>
       run(
         (async () => {
-          if (!ownsControl() || ui.diagnosticsBusy) return;
+          if (ui.diagnosticsBusy) return;
           const epoch = state.viewEpoch;
           ui.diagnosticsBusy = true;
           nextHighlight = undefined;
@@ -603,8 +575,7 @@ export function createInspector(win: Window & typeof globalThis) {
       run(
         (async () => {
           const node = ui.details;
-          if (!node || !ownsControl() || !supports('input') || ui.interacting)
-            return;
+          if (!node || !supports('input') || ui.interacting) return;
           const epoch = state.viewEpoch;
           ui.interacting = true;
           nextHighlight = undefined;
@@ -692,13 +663,14 @@ export function createInspector(win: Window & typeof globalThis) {
     },
   };
   function escapePicker(event: KeyboardEvent) {
-    if (event.key === 'Escape' && state.picker && ownsControl()) {
+    if (event.key === 'Escape' && state.picker) {
       actions.picker();
       event.preventDefault();
     }
   }
 
-  // Used by tests and page lifecycle; server heartbeat/disconnect releases control.
+  // Used by tests and page lifecycle; instances drop this tab's state when it
+  // disconnects.
   function dispose() {
     if (disposed) return;
     disposed = true;

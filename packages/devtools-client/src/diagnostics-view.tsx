@@ -142,7 +142,6 @@ function Performance({
           id="record-performance"
           disabled={
             !state.connected ||
-            !state.ownsControl() ||
             !state.supports('performance') ||
             ui.diagnosticsBusy
           }

@@ -19,8 +19,8 @@ export const DRIVER_EXIT_CODES = {
   unavailable: 4,
   /** No node, several nodes, a stale node, or one that cannot take the input. */
   element: 5,
-  /** Another client controls the target, or it is busy. */
-  lease: 6,
+  /** The target is busy (too much outstanding work); retry. */
+  busy: 6,
   /** The command timed out or was cancelled. */
   timeout: 7,
   /** The target does not support the operation, or cannot capture now. */
@@ -44,9 +44,7 @@ const EXIT_CODES: Record<DriverErrorCode, number> = {
   AMBIGUOUS_ELEMENT: DRIVER_EXIT_CODES.element,
   ELEMENT_NOT_ACTIONABLE: DRIVER_EXIT_CODES.element,
   STALE_NODE: DRIVER_EXIT_CODES.element,
-  LEASE_BUSY: DRIVER_EXIT_CODES.lease,
-  LEASE_REQUIRED: DRIVER_EXIT_CODES.lease,
-  BUSY: DRIVER_EXIT_CODES.lease,
+  BUSY: DRIVER_EXIT_CODES.busy,
   TIMEOUT: DRIVER_EXIT_CODES.timeout,
   CANCELLED: DRIVER_EXIT_CODES.timeout,
   MISSING_CAPABILITY: DRIVER_EXIT_CODES.unsupported,
@@ -127,8 +125,8 @@ export interface DriverCommand<P, T> {
 }
 
 /**
- * Runs one command: connect, work, print, and always disconnect (releasing
- * any control). Returns the exit code, which it also sets on the process.
+ * Runs one command: connect, work, print, and always disconnect (the
+ * instance releasing this client's input). Returns the exit code, which it also sets on the process.
  */
 export async function runDriverCommand<P, T>(
   args: ConnectionArgs,
