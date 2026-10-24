@@ -436,7 +436,7 @@ jobs:
       - name: JUCE platform dependencies
         if: needs.changes.outputs.juce == 'true' && runner.os == 'Linux'
         run: |
-          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev xvfb
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
       - name: Use Ninja
         if: needs.changes.outputs.juce == 'true' && runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"

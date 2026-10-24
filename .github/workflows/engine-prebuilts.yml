@@ -270,7 +270,7 @@ jobs:
           path: .soundor/ci-juce9
       - name: JUCE platform dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev xvfb
+        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
 
       # The JUCE adapters and the DevTools bridge, linked to the debug engine.
       - name: JUCE adapters against the debug engine
