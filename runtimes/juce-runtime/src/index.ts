@@ -131,7 +131,7 @@ export async function juceDev(
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
   const live = ctx.ui?.live;
-  await prepareBuildDir(buildDir, platform, ctx.logger);
+  await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
   const configureArgs = [
     '-S',
@@ -223,7 +223,7 @@ export async function juceBuild(
   requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-release');
-  await prepareBuildDir(buildDir, platform, ctx.logger);
+  await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
   const configureArgs = [
     '-S',
@@ -364,33 +364,51 @@ function signingArgs(
 }
 
 /**
- * Creates `buildDir`, first deleting it on macOS and Linux when it was
- * configured with a generator other than Ninja (as builds before Soundor chose
- * one were): CMake cannot switch the generator of an existing build tree.
+ * Creates `buildDir`, first deleting a tree CMake cannot reconfigure: one
+ * configured with another JUCE checkout (JUCE's juceaide sub-build refuses a
+ * new source directory), or, on macOS and Linux, with a generator other than
+ * Ninja (as builds before Soundor chose one were).
  */
 async function prepareBuildDir(
   buildDir: string,
   platform: NodeJS.Platform,
+  jucePath: string,
   logger: Logger,
 ): Promise<void> {
-  if (platform !== 'win32') {
-    let cache: string | undefined;
-    try {
-      cache = await readFile(join(buildDir, 'CMakeCache.txt'), 'utf8');
-    } catch {
-      cache = undefined;
-    }
-    const generator = cache
-      ?.match(/^CMAKE_GENERATOR:INTERNAL=(.*)$/m)?.[1]
-      ?.trim();
-    if (generator !== undefined && generator !== 'Ninja') {
-      logger.info(
-        `Recreating ${buildDir}: it was configured for ${generator}, and Soundor builds with Ninja`,
-      );
-      await rm(buildDir, { recursive: true, force: true });
-    }
+  let cache: string | undefined;
+  try {
+    cache = await readFile(join(buildDir, 'CMakeCache.txt'), 'utf8');
+  } catch {
+    cache = undefined;
+  }
+  const cached = (name: string): string | undefined =>
+    cache?.match(new RegExp(`^${name}:[A-Z]+=(.*)$`, 'm'))?.[1]?.trim();
+  const generator = cached('CMAKE_GENERATOR');
+  const juce = cached('JUCE_DIR');
+  let reason: string | undefined;
+  if (juce !== undefined && !samePath(juce, jucePath, platform)) {
+    reason = `it was configured with JUCE at ${juce}, and JUCE is now at ${jucePath}`;
+  } else if (
+    platform !== 'win32' &&
+    generator !== undefined &&
+    generator !== 'Ninja'
+  ) {
+    reason = `it was configured for ${generator}, and Soundor builds with Ninja`;
+  }
+  if (reason !== undefined) {
+    logger.info(`Recreating ${buildDir}: ${reason}`);
+    await rm(buildDir, { recursive: true, force: true });
   }
   await mkdir(buildDir, { recursive: true });
+}
+
+/** Whether two absolute paths name the same directory, as CMake caches them. */
+function samePath(a: string, b: string, platform: NodeJS.Platform): boolean {
+  const normalize = (path: string): string => {
+    const forward = path.replaceAll('\\', '/').replace(/\/+$/, '');
+    return platform === 'win32' ? forward.toLowerCase() : forward;
+  };
+  return normalize(a) === normalize(b);
 }
 
 /** Copies every JUCE `*_artefacts` folder from the build tree into `distDir`. */
