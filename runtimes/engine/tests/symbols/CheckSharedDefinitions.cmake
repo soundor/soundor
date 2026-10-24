@@ -31,8 +31,10 @@ foreach(archive IN LISTS ARCHIVES)
   set(symbols "")
   foreach(line IN LISTS lines)
     string(REGEX REPLACE "^[0-9a-fA-F]+ . " "" symbol "${line}")
-    if(APPLE)
-      string(REGEX REPLACE "^_" "" symbol "${symbol}")
+    # Mach-O names carry one extra leading underscore (C++ ones start "__Z").
+    # One only: REGEX REPLACE would strip "^_" again after each match.
+    if(APPLE AND symbol MATCHES "^_(.*)$")
+      set(symbol "${CMAKE_MATCH_1}")
     endif()
     if(symbol MATCHES "^_Z")
       continue()
