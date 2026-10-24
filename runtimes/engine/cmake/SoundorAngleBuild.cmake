@@ -3,12 +3,15 @@
 #
 #   cmake -DOUT=<dir> -DREVISION=<sha> -DREPOSITORY=<url> -DDEPENDENCIES=<a;b=sparse,dirs>
 #         -DTARGET_OS=<linux|mac|win> -DCPUS=<x64;arm64> -DFLAVORS=<release|md;mdd>
-#         -DGN_URL=<url> -DGN_SHA256=<sha> [-DCC=<c compiler> -DCXX=<c++ compiler>]
+#         -DGN_URL=<url> -DGN_SHA256=<sha> -DZLIB=<dir> [-DCC=<c compiler> -DCXX=<c++ compiler>]
 #         [-DGENERATOR=<the project's CMake generator>] -P SoundorAngleBuild.cmake
 #
 # ANGLE is fetched at REVISION and its third-party code only for DEPENDENCIES,
 # each at the commit ANGLE's own DEPS file pins; SoundorAnglePatch.cmake makes
-# Soundor's changes to it. gn (pinned, SHA-256 verified)
+# Soundor's changes to it. ANGLE's zlib is not compiled: ANGLE uses the one in
+# Skia, as in Chromium, where both share one. Its code compiles against ZLIB
+# (Skia's zlib headers, see SoundorSkiaBuild.cmake), which replace its own, and
+# the plugin links Skia's definitions. gn (pinned, SHA-256 verified)
 # works out what to compile for the platform; Soundor compiles it with the
 # given compilers into one static library (cmake/angle). The backends are the
 # platform's own: Metal on macOS, Direct3D 11 on Windows, Vulkan and OpenGL
@@ -24,7 +27,7 @@
 
 cmake_minimum_required(VERSION 3.22)
 
-foreach(required OUT REVISION REPOSITORY DEPENDENCIES TARGET_OS CPUS FLAVORS GN_URL GN_SHA256)
+foreach(required OUT REVISION REPOSITORY DEPENDENCIES TARGET_OS CPUS FLAVORS GN_URL GN_SHA256 ZLIB)
   if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
     message(FATAL_ERROR "SoundorAngleBuild.cmake: ${required} is required")
   endif()
@@ -55,6 +58,11 @@ run(${GIT_EXECUTABLE} fetch --quiet --depth 1 "${REPOSITORY}" "${REVISION}")
 run(${GIT_EXECUTABLE} -c advice.detachedHead=false checkout --quiet FETCH_HEAD)
 run(${Python3_EXECUTABLE} "${scripts}/deps.py" "${source}" ${DEPENDENCIES})
 run(${CMAKE_COMMAND} "-DSOURCE=${source}" -P "${CMAKE_CURRENT_LIST_DIR}/SoundorAnglePatch.cmake")
+# Every zlib include in ANGLE's code finds Skia's headers; targets.py leaves
+# zlib's own sources out.
+foreach(header zlib.h zconf.h chromeconf.h)
+  file(COPY_FILE "${ZLIB}/${header}" "${source}/third_party/zlib/${header}")
+endforeach()
 
 # gn, at the version ANGLE's DEPS pins (a CIPD package).
 message(STATUS "ANGLE: fetching gn")
@@ -151,7 +159,7 @@ foreach(cpu IN LISTS CPUS)
   set(cwd "${source}")
   run("${gn}" gen "out/${cpu}" --ide=json)
   run(${Python3_EXECUTABLE} "${scripts}/targets.py" "${gn_out}/project.json" "${source}" "${work}/targets-${cpu}.cmake"
-      ${roots})
+      ${roots} --skip=//third_party/zlib --keep=//third_party/zlib/google)
   # Headers ANGLE generates (version, tables): gn's own actions, run by ninja.
   include("${work}/targets-${cpu}.cmake")
   if(ANGLE_GENERATED)

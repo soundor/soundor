@@ -513,11 +513,12 @@ it('bounds malformed and oversized messages and cleans up an active native poll'
   expect(
     (await client.take((message) => message.type === 'error')).error,
   ).toMatchObject({ code: 'INVALID_REQUEST' });
-  const polling = target.poll();
+  // Shutdown finishes or closes the poll; it does not keep the server alive.
+  // Handled from the start: the connection can reset before close() returns.
+  const polling = target.poll().catch(() => undefined);
   await new Promise((resolve) => setTimeout(resolve, 10));
   await server.close();
-  // Shutdown finishes or closes the poll; it does not keep the server alive.
-  await polling.catch(() => undefined);
+  await polling;
 });
 
 it('rejects oversized browser messages and stale runtime snapshots', async () => {
