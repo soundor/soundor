@@ -473,6 +473,42 @@ describe('build tree', () => {
     expect(await exists(join(stale, 'CMakeCache.txt'))).toBe(true);
   });
 
+  it('recreates a build tree configured with another JUCE', async () => {
+    const root = await tempProjectWithJuce();
+    const juce = join(root, 'JUCE');
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: juce },
+      mode: 'production',
+    });
+    const stale = join(ctx.paths.cache, 'build-release');
+    await mkdir(stale, { recursive: true });
+    await writeFile(
+      join(stale, 'CMakeCache.txt'),
+      'CMAKE_GENERATOR:INTERNAL=Ninja\nJUCE_DIR:UNINITIALIZED=/opt/JUCE\n',
+    );
+    await writeFile(join(stale, 'build.ninja'), '');
+    const info = vi.spyOn(ctx.logger, 'info');
+
+    const run = async () => {};
+    const deps = { run, probe: okProbe, platform: 'linux' as const };
+    await juceBuild(config, ctx, deps);
+    expect(await exists(join(stale, 'build.ninja'))).toBe(false);
+    expect(await exists(stale)).toBe(true);
+    expect(info).toHaveBeenCalledWith(
+      `Recreating ${stale}: it was configured with JUCE at /opt/JUCE, and JUCE is now at ${juce}`,
+    );
+
+    // A tree configured with the same JUCE is kept.
+    await writeFile(
+      join(stale, 'CMakeCache.txt'),
+      `CMAKE_GENERATOR:INTERNAL=Ninja\nJUCE_DIR:UNINITIALIZED=${juce}\n`,
+    );
+    await juceBuild(config, ctx, deps);
+    expect(await exists(join(stale, 'CMakeCache.txt'))).toBe(true);
+  });
+
   it("keeps Visual Studio, CMake's default, on Windows", async () => {
     expect((await configureArgs('build', 'win32')).includes('-G')).toBe(false);
   });
