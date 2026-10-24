@@ -100,19 +100,19 @@ export async function registerStaticRoutes(
       dotfiles: 'ignore',
       cacheControl: false,
       setHeaders(reply, path) {
-        reply.setHeader(
+        reply.header(
           'Cache-Control',
           extname(path) !== '.html' &&
             /[-.][a-zA-Z0-9_-]{8,}\.[^.]+$/.test(path)
             ? 'public, max-age=31536000, immutable'
             : 'no-cache',
         );
-        reply.setHeader(
+        reply.header(
           'Content-Security-Policy',
           "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'; base-uri 'none'",
         );
-        reply.setHeader('X-Content-Type-Options', 'nosniff');
-        reply.setHeader('Referrer-Policy', 'no-referrer');
+        reply.header('X-Content-Type-Options', 'nosniff');
+        reply.header('Referrer-Policy', 'no-referrer');
       },
     });
   }

@@ -477,7 +477,9 @@ describe('Canvas', () => {
     const sizes: number[] = [];
     Object.defineProperty(canvas, 'width', {
       get: () => 64,
-      set: (value: number) => void sizes.push(value),
+      set: (value: number) => {
+        sizes.push(value);
+      },
       configurable: true,
     });
     await show(<Canvas width={64} height={32} style={{ opacity: 0.5 }} />);
