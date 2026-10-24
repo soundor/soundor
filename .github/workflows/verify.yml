@@ -353,6 +353,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # JUCE 8 (8.0.14) and JUCE 9 (9.0.4), which compiles its image
+        # libraries with plain C names, as Skia's (renamed) copies.
         include:
           - {
               name: linux,
@@ -360,9 +362,48 @@ jobs:
               cc: clang,
               cxx: clang++,
               cache: verify,
+              juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64,
             }
-          - { name: macos, os: macos-15, cc: clang, cxx: clang++, cache: macos }
-          - { name: windows, os: windows-2025, cc: cl, cxx: cl, cache: windows }
+          - {
+              name: macos,
+              os: macos-15,
+              cc: clang,
+              cxx: clang++,
+              cache: macos,
+              juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64,
+            }
+          - {
+              name: windows,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              cache: windows,
+              juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64,
+            }
+          - {
+              name: linux-juce9,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              cache: verify,
+              juce: 3fb5cbc0340758596dac39f7c8de47d562b4896e,
+            }
+          - {
+              name: macos-juce9,
+              os: macos-15,
+              cc: clang,
+              cxx: clang++,
+              cache: macos,
+              juce: 3fb5cbc0340758596dac39f7c8de47d562b4896e,
+            }
+          - {
+              name: windows-juce9,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              cache: windows,
+              juce: 3fb5cbc0340758596dac39f7c8de47d562b4896e,
+            }
     defaults:
       run:
         shell: bash
@@ -372,7 +413,7 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       # Match the Clang 18 bitcode emitted by JUCE's Release LTO flags.
-      LDFLAGS: ${{ matrix.name == 'linux' && '-fuse-ld=lld-18' || '' }}
+      LDFLAGS: ${{ startsWith(matrix.name, 'linux') && '-fuse-ld=lld-18' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
@@ -390,7 +431,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: juce-framework/JUCE
-          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
+          ref: ${{ matrix.juce }}
           path: .soundor/ci-juce
       - name: JUCE platform dependencies
         if: needs.changes.outputs.juce == 'true' && runner.os == 'Linux'
