@@ -22,64 +22,64 @@ catalog:
   '@changesets/changelog-github': ^1.0.1
   '@changesets/cli': ^3.0.3
   '@clack/prompts': ^1.8.1
-  '@codemirror/autocomplete': ^6.20.3
+  '@codemirror/autocomplete': ^6.20.4
   '@codemirror/lang-javascript': ^6.2.5
   '@codemirror/lint': ^6.9.7
   '@codemirror/state': ^6.7.6
   '@codemirror/theme-one-dark': ^6.1.3
-  '@codemirror/view': ^6.43.14
+  '@codemirror/view': ^6.43.15
   '@fastify/cookie': ^11.1.3
-  '@fastify/static': ^8.3.0
+  '@fastify/static': ^10.1.7
   '@fastify/websocket': ^11.3.4
-  '@playwright/test': 1.64.0
+  '@playwright/test': 1.64.1
   '@tailwindcss/vite': ^4.3.3
-  '@tanstack/react-router': 1.170.41
-  '@tanstack/react-start': 1.168.60
-  '@tanstack/start-static-server-functions': 1.167.39
+  '@tanstack/react-router': 1.170.45
+  '@tanstack/react-start': 1.169.3
+  '@tanstack/start-static-server-functions': 1.167.43
   '@testing-library/dom': ^10.4.2
   '@types/mdx': ^2.0.14
   '@types/mdast': ^4.0.4
   '@types/node': ^24.19.2
-  '@types/react': ^19.2.17
+  '@types/react': ^19.3.0
   '@types/react-dom': ^19.3.0
-  '@types/react-reconciler': ^0.34.0
+  '@types/react-reconciler': ^0.34.1
   '@types/three': 0.186.0
-  '@types/ws': ^8.18.1
-  '@vitejs/plugin-react': ^6.1.1
+  '@types/ws': ^8.18.2
+  '@vitejs/plugin-react': ^6.1.2
   citty: ^0.2.2
   codemirror: ^6.0.2
   fastify: ^5.12.7
-  fake-indexeddb: ^6.2.5
-  fumadocs-core: ^16.17.3
-  fumadocs-mdx: ^15.4.7
+  fake-indexeddb: ^6.2.6
+  fumadocs-core: ^16.17.7
+  fumadocs-mdx: ^15.4.9
   fumadocs-typescript: ^5.5.2
-  fumadocs-ui: npm:@fumadocs/base-ui@^16.17.3
-  happy-dom: ^20.14.5
+  fumadocs-ui: npm:@fumadocs/base-ui@^16.17.7
+  happy-dom: ^21.0.4
   husky: ^9.1.7
   lint-staged: ^17.6.0
-  lucide-react: ^1.50.0
+  lucide-react: ^1.61.0
   mermaid: ^12.2.0
   npm-to-yarn: ^3.2.0
-  oxfmt: ^0.73.0
-  oxlint: ^1.88.0
+  oxfmt: ^0.74.0
+  oxlint: ^1.89.0
   preact: ^11.0.1
-  react: ^19.3.0
-  react-dom: ^19.3.0
+  react: ^19.3.1
+  react-dom: ^19.3.1
   react-reconciler: ^0.34.0
-  rolldown: ^1.2.13
+  rolldown: ^1.2.15
   sucrase: ^3.35.1
   tailwindcss: ^4.3.3
   # Exact: the native tests pin the same release (SoundorDependencies.cmake).
   three: 0.186.1
   tsdown: ^0.23.1
-  turbo: ^2.11.6
+  turbo: ^2.11.10
   typescript: ^7.0.2
   # The last TypeScript with a JavaScript API: the website's editor runs its
   # language service in the browser (TypeScript 7 is a native binary).
   typescript-6: npm:typescript@^6.0.3
   vfile: ^6.0.3
-  vite: ^8.3.4
-  vitest: ^5.0.4
+  vite: ^8.3.5
+  vitest: ^5.0.5
   zod: ^4.6.7
   ws: ^8.22.0
   yaml: ^2.9.1
