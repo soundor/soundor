@@ -1098,6 +1098,9 @@ pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
 - **Hiding symbols:** Skia's own symbols are hidden. libwebp exports its API
   unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
   catches it otherwise.
+- **zlib for ANGLE too:** the install has the headers of the zlib inside the
+  library (`zlib/`, Chromium's zlib with its `Cr_z_` names). ANGLE compiles
+  against them and links Skia's zlib instead of its own (see ANGLE).
 
 ### ANGLE
 
@@ -1121,6 +1124,17 @@ compositor and WebGL (see "The GPU").
   pins, downloaded from CIPD and checked against a SHA-256 per host platform.
   `cmake/SoundorAngleBuild.cmake` does all this during the first configure on
   a machine and caches the result in the user cache directory like Skia.
+- **One zlib, Skia's:** ANGLE and Skia both bundle Chromium's zlib, at
+  different commits. In one plugin the linker would keep one copy of each
+  function and both libraries would call it, whichever zlib they were built
+  with. So, as in Chromium, where both use one zlib, ANGLE's is not compiled:
+  `targets.py` leaves out the gn targets under `third_party/zlib` (keeping
+  `third_party/zlib/google`, ANGLE's helpers over it), the build puts Skia's
+  zlib headers in place of ANGLE's, and `soundor_angle` links `soundor_skia`.
+  ANGLE's cache key follows those headers, so a Skia update that changes
+  them rebuilds ANGLE. A function ANGLE needs and Skia's zlib lacks fails the
+  link. The `soundor_dependencies_share_no_symbols` test fails when two
+  dependency archives define the same C symbol.
 - **Patched:** `cmake/SoundorAnglePatch.cmake` changes one thing after the
   checkout. `Display::terminate` joins ANGLE's worker threads before the
   backend terminates instead of after: on Vulkan, terminating destroys the

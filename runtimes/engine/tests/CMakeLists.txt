@@ -217,6 +217,47 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
   endif()
 endif()
 
+# Third-party code bundled twice: no two of the engine's dependency archives
+# may define the same C symbol (Skia and ANGLE each bundle Chromium's zlib;
+# ANGLE is built to use Skia's). Source builds only: a prebuilt engine stages
+# these same archives.
+if(NOT WIN32)
+  find_program(SOUNDOR_NM_EXE NAMES nm llvm-nm REQUIRED)
+  set(soundor_dependency_archives "")
+  foreach(dependency soundor_skia soundor_angle soundor_accesskit)
+    if(TARGET ${dependency})
+      get_target_property(imported ${dependency} IMPORTED)
+      get_target_property(type ${dependency} TYPE)
+      if(imported AND type STREQUAL "STATIC_LIBRARY")
+        list(APPEND soundor_dependency_archives $<TARGET_FILE:${dependency}>)
+      endif()
+    endif()
+  endforeach()
+  list(LENGTH soundor_dependency_archives count)
+  if(count GREATER 1)
+    add_test(
+      NAME soundor_dependencies_share_no_symbols
+      COMMAND ${CMAKE_COMMAND}
+        "-DARCHIVES=${soundor_dependency_archives}"
+        -DNM=${SOUNDOR_NM_EXE}
+        -DAPPLE=${APPLE}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckSharedDefinitions.cmake)
+  endif()
+
+  # Negative control: proves the check really fails on a symbol defined twice.
+  add_library(soundor_duplicate_probe_a STATIC symbols/DuplicateProbe.cpp)
+  add_library(soundor_duplicate_probe_b STATIC symbols/DuplicateProbe.cpp)
+  add_test(
+    NAME soundor_dependencies_share_no_symbols_detects_duplicates
+    COMMAND ${CMAKE_COMMAND}
+      "-DARCHIVES=$<TARGET_FILE:soundor_duplicate_probe_a>;$<TARGET_FILE:soundor_duplicate_probe_b>"
+      -DNM=${SOUNDOR_NM_EXE}
+      -DAPPLE=${APPLE}
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckSharedDefinitions.cmake)
+  set_tests_properties(soundor_dependencies_share_no_symbols_detects_duplicates PROPERTIES
+    PASS_REGULAR_EXPRESSION "defined in more than one archive(.|\n)*soundor_duplicate_probe ")
+endif()
+
 # Coexistence: two plugin-shaped libraries link the same engine archive and
 # package ABI namespace, loaded into one process by a host program. Each
 # embeds its own UI bundle, as a plugin does: a box in its color that logs

@@ -12,11 +12,14 @@
 #
 # Everything of ANGLE is compiled hidden and linked PRIVATE: no EGL, GLES or
 # ANGLE symbol is exported from a plugin, and two plugins each carry their own.
+# ANGLE has no zlib of its own: it uses Skia's (SoundorAngleBuild.cmake), so
+# its cache key follows Skia's zlib headers and it links soundor_skia.
 
 include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorSkia.cmake)
 
 option(SOUNDOR_ENABLE_GPU "Build the GPU renderer (ANGLE); OFF renders on the CPU only" ON)
 set(SOUNDOR_ANGLE_DIR "" CACHE PATH "An ANGLE install made by SoundorAngleBuild.cmake; empty: build one into the Soundor cache")
@@ -110,9 +113,18 @@ if(NOT SOUNDOR_ANGLE_DIR)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/CMakeLists.txt" project_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/targets.py" targets_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/angle/deps.py" deps_hash)
+  set(zlib_hashes "")
+  foreach(header zlib.h zconf.h chromeconf.h)
+    if(NOT EXISTS "${SOUNDOR_SKIA_DIR}/zlib/${header}")
+      message(FATAL_ERROR "SOUNDOR_SKIA_DIR (${SOUNDOR_SKIA_DIR}) has no zlib/${header}, which ANGLE compiles against: "
+                          "rebuild it with this SoundorSkiaBuild.cmake")
+    endif()
+    file(SHA256 "${SOUNDOR_SKIA_DIR}/zlib/${header}" header_hash)
+    list(APPEND zlib_hashes "${header_hash}")
+  endforeach()
   get_filename_component(angle_cxx_name "${angle_cxx}" NAME)
   string(SHA256 key
-    "${SOUNDOR_ANGLE_REVISION};${dependencies};${build_hash};${patch_hash};${project_hash};${targets_hash};${deps_hash};${angle_cxx_name}")
+    "${SOUNDOR_ANGLE_REVISION};${dependencies};${build_hash};${patch_hash};${project_hash};${targets_hash};${deps_hash};${zlib_hashes};${angle_cxx_name}")
   string(SUBSTRING "${key}" 0 12 key)
   string(SUBSTRING "${SOUNDOR_ANGLE_REVISION}" 0 10 short_revision)
   list(JOIN soundor_angle_cpus "-" cpu_names)
@@ -135,6 +147,7 @@ if(NOT SOUNDOR_ANGLE_DIR)
           "-DFLAVORS=${soundor_angle_flavors}"
           "-DGN_URL=${gn_url}"
           "-DGN_SHA256=${gn_sha256}"
+          "-DZLIB=${SOUNDOR_SKIA_DIR}/zlib"
           "-DCC=${angle_cc}"
           "-DCXX=${angle_cxx}"
           "-DGENERATOR=${CMAKE_GENERATOR}"
@@ -173,4 +186,5 @@ foreach(framework IN LISTS soundor_angle_frameworks)
   string(REGEX REPLACE "\\.framework$" "" framework "${framework}")
   list(APPEND soundor_angle_libs "-framework ${framework}")
 endforeach()
-target_link_libraries(soundor_angle INTERFACE ${soundor_angle_libs})
+# Skia after ANGLE, for linkers that resolve archives in order: it defines zlib.
+target_link_libraries(soundor_angle INTERFACE ${soundor_angle_libs} soundor_skia)

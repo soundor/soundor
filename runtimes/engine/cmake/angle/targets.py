@@ -1,13 +1,17 @@
 """Turns gn's view of an ANGLE build (`gn gen --ide=json`) into a CMake file
 that cmake/angle/CMakeLists.txt compiles with Soundor's own toolchain.
 
-  targets.py <project.json> <source root> <out.cmake> <target>...
+  targets.py <project.json> <source root> <out.cmake> <target>... [--skip=<dir>]... [--keep=<dir>]...
 
 gn decides what ANGLE is made of for a platform and configuration (sources,
 defines, include paths, link libraries); Chromium's toolchain, which would
 compile it with a Clang of its own, is never used. Only flags that change what
 the code means are kept (instruction sets, aliasing, exceptions, RTTI, ARC);
 warnings, sanitizers and code generation are Soundor's choice.
+
+--skip leaves out the gn targets in a directory (and below it), and what only
+they depend on, unless --keep names a directory they are in; the code that
+still uses them links what Soundor gives it instead.
 
 The output calls angle_target() once per gn target that compiles something,
 and sets ANGLE_GENERATED (files gn actions make, relative to the gn build
@@ -35,7 +39,10 @@ SKIPPED_DEPS = ('//buildtools/third_party/libc++', '//buildtools/third_party/lib
 
 
 def main():
-    project, root, out, roots = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:]
+    project, root, out = sys.argv[1], sys.argv[2], sys.argv[3]
+    roots = [a for a in sys.argv[4:] if not a.startswith('--')]
+    skip = [a[len('--skip='):] for a in sys.argv[4:] if a.startswith('--skip=')]
+    keep = [a[len('--keep='):] for a in sys.argv[4:] if a.startswith('--keep=')]
     targets = json.load(open(project, encoding='utf-8'))['targets']
     root = root.replace('\\', '/').rstrip('/')
 
@@ -44,6 +51,10 @@ def main():
             return label.replace('\\', '/')
         return (root + '/' + label[2:]).rstrip('/')
 
+    def within(name, directories):
+        label = name.split('(')[0].split(':')[0]
+        return any(label == d or label.startswith(d + '/') for d in directories)
+
     # Every target the roots depend on, dependencies first.
     order, seen = [], set()
 
@@ -51,6 +62,8 @@ def main():
         if name in seen:
             return
         seen.add(name)
+        if within(name, skip) and not within(name, keep):
+            return
         for dep in targets[name].get('deps', []):
             if not dep.startswith(SKIPPED_DEPS):
                 walk(dep)
