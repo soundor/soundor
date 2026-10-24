@@ -345,8 +345,10 @@ if(SOUNDOR_HAS_GPU)
   add_library(soundor_angle INTERFACE)
   target_include_directories(soundor_angle SYSTEM INTERFACE "${soundor_prebuilt_${soundor_prebuilt_first}_dir}/angle/include")
   target_compile_definitions(soundor_angle INTERFACE ${SOUNDOR_ANGLE_DEFINITIONS})
-  target_link_libraries(soundor_angle INTERFACE ${soundor_prebuilt_angle_paths} ${soundor_prebuilt_system}
-                                                ${soundor_prebuilt_frameworks})
+  # Skia after ANGLE, for linkers that resolve archives in order: it defines
+  # the zlib ANGLE uses (SoundorAngle.cmake).
+  target_link_libraries(soundor_angle INTERFACE ${soundor_prebuilt_angle_paths} ${soundor_prebuilt_skia_paths}
+                                                ${soundor_prebuilt_system} ${soundor_prebuilt_frameworks})
 endif()
 if(SOUNDOR_HAS_ACCESSKIT)
   add_library(soundor_accesskit INTERFACE)

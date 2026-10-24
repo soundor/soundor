@@ -11,6 +11,8 @@
 #   include/            Skia's public headers (and modules/skcms/, which they use)
 #   lib/<flavor>/       the static library, one per FLAVORS entry (Windows
 #                       needs one per C runtime: "md" and "mdd")
+#   zlib/               the headers of the zlib inside the library, which ANGLE
+#                       compiles against and links instead of its own copy
 #   defines.txt         the defines Skia's public headers expect
 #
 # OUT appears only once the build succeeded (built aside, then renamed).
@@ -173,6 +175,10 @@ file(WRITE "${work}/install/defines.txt" "${public_defines}")
 file(COPY "${source}/include" DESTINATION "${work}/install")
 # Public headers include skcms's.
 file(COPY "${source}/modules/skcms" DESTINATION "${work}/install/modules" FILES_MATCHING PATTERN "*.h")
+# Chromium's zlib API (Cr_z_ names) as the library defines it.
+foreach(header zlib.h zconf.h chromeconf.h)
+  file(COPY "${source}/third_party/externals/zlib/${header}" DESTINATION "${work}/install/zlib")
+endforeach()
 file(COPY "${source}/LICENSE" DESTINATION "${work}/install")
 
 file(REMOVE_RECURSE "${OUT}")
