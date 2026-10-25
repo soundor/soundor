@@ -46,15 +46,59 @@ export function projectIdSegment(name: string): string {
   return segment.length > 0 ? segment : 'plugin';
 }
 
+export const RUNTIMES = ['juce', 'web'] as const;
+export type Runtime = (typeof RUNTIMES)[number];
+
+/** What each runtime adds to the project: its package and its config entry. */
+export const RUNTIME_INFO: Readonly<
+  Record<
+    Runtime,
+    {
+      label: string;
+      hint: string;
+      package: string;
+      factory: string;
+      call: string;
+    }
+  >
+> = {
+  juce: {
+    label: 'JUCE',
+    hint: 'VST3, AU and Standalone plugins',
+    package: '@soundor/juce-runtime',
+    factory: 'juceRuntime',
+    call: "juceRuntime({ formats: ['vst3', 'standalone'] })",
+  },
+  web: {
+    label: 'Web',
+    hint: 'the plugin in a browser',
+    package: '@soundor/web-runtime',
+    factory: 'webRuntime',
+    call: 'webRuntime()',
+  },
+};
+
 export function tokenReplace(
   content: string,
   name: string,
-  runtime: string,
+  runtimes: readonly Runtime[],
 ): string {
   return content
     .replaceAll('__PROJECT_NAME__', name)
     .replaceAll('__PROJECT_ID__', projectIdSegment(name))
-    .replaceAll('__RUNTIME__', runtime);
+    .replaceAll(
+      '__RUNTIME_IMPORTS__;',
+      runtimes
+        .map(
+          (runtime) =>
+            `import { ${RUNTIME_INFO[runtime].factory} } from '${RUNTIME_INFO[runtime].package}';`,
+        )
+        .join('\n'),
+    )
+    .replaceAll(
+      '__RUNTIMES__',
+      `[${runtimes.map((runtime) => RUNTIME_INFO[runtime].call).join(', ')}]`,
+    );
 }
 
 type Dependencies = Record<string, string>;
@@ -82,27 +126,107 @@ export function resolveDependencies(
   );
 }
 
+/**
+ * The scripts that run each runtime's `soundor dev`: `dev` for the first
+ * runtime chosen, `dev:<runtime>` for the others.
+ */
+export function devScripts(
+  runtimes: readonly Runtime[],
+): Record<string, string> {
+  return Object.fromEntries(
+    runtimes.map((runtime, index) => [
+      index === 0 ? 'dev' : `dev:${runtime}`,
+      `soundor dev ${runtime}`,
+    ]),
+  );
+}
+
+type Manifest = Record<string, unknown> & {
+  dependencies?: Dependencies;
+  devDependencies?: Dependencies;
+  scripts?: Record<string, string>;
+};
+
+/**
+ * The scripts that build: `build` all runtimes and, with several,
+ * `build:<runtime>` each of them.
+ */
+export function buildScripts(
+  runtimes: readonly Runtime[],
+): Record<string, string> {
+  return {
+    build: 'soundor build',
+    ...(runtimes.length > 1
+      ? Object.fromEntries(
+          runtimes.map((runtime) => [
+            `build:${runtime}`,
+            `soundor build ${runtime}`,
+          ]),
+        )
+      : {}),
+  };
+}
+
+/**
+ * The template's package.json for a project: its name, the chosen runtimes'
+ * packages only, their dev and build scripts, and real dependency versions.
+ */
+export function projectManifest(
+  template: Manifest,
+  name: string,
+  runtimes: readonly Runtime[],
+  versions?: Readonly<Record<string, string>>,
+): Manifest {
+  const unused = new Set(
+    RUNTIMES.filter((runtime) => !runtimes.includes(runtime)).map(
+      (runtime) => RUNTIME_INFO[runtime].package,
+    ),
+  );
+  const pkg: Manifest = { ...template, name };
+  for (const field of ['dependencies', 'devDependencies'] as const) {
+    const dependencies = template[field];
+    if (dependencies !== undefined) {
+      pkg[field] = resolveDependencies(
+        Object.fromEntries(
+          Object.entries(dependencies).filter(([dep]) => !unused.has(dep)),
+        ),
+        versions,
+      );
+    }
+  }
+  // The dev and build scripts take the place of the template's.
+  const scripts: Record<string, string> = {};
+  for (const [script, command] of Object.entries(template.scripts ?? {})) {
+    if (script === 'build') {
+      Object.assign(scripts, buildScripts(runtimes));
+    } else if (script === 'dev') {
+      Object.assign(scripts, devScripts(runtimes));
+    } else if (script === 'typecheck' && runtimes.includes('web')) {
+      // The Web host's code has its own tsconfig (DOM types).
+      scripts[script] = `${command} && tsc -p runtimes/web`;
+    } else {
+      scripts[script] = command;
+    }
+  }
+  pkg.scripts = scripts;
+  return pkg;
+}
+
 export async function applyTokens(
   dir: string,
   name: string,
-  runtime: string,
+  runtimes: readonly Runtime[],
 ): Promise<void> {
   const pkgPath = join(dir, 'package.json');
-  const pkg = JSON.parse(await readFile(pkgPath, 'utf-8')) as Record<
-    string,
-    unknown
-  > & { dependencies?: Dependencies; devDependencies?: Dependencies };
-  pkg['name'] = name;
-  for (const field of ['dependencies', 'devDependencies'] as const) {
-    const dependencies = pkg[field];
-    if (dependencies !== undefined) {
-      pkg[field] = resolveDependencies(dependencies);
-    }
-  }
+  const template = JSON.parse(await readFile(pkgPath, 'utf-8')) as Manifest;
+  const pkg = projectManifest(template, name, runtimes);
   await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   for (const rel of ['soundor.config.ts']) {
     const p = join(dir, rel);
-    await writeFile(p, tokenReplace(await readFile(p, 'utf-8'), name, runtime));
+    await writeFile(
+      p,
+      tokenReplace(await readFile(p, 'utf-8'), name, runtimes),
+    );
   }
 }

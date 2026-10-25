@@ -1,5 +1,5 @@
 import { defineSoundorConfig } from '@soundor/config';
-import { juceRuntime } from '@soundor/juce-runtime';
+__RUNTIME_IMPORTS__;
 
 export default defineSoundorConfig({
   plugin: {
@@ -8,7 +8,7 @@ export default defineSoundorConfig({
     id: 'com.example.__PROJECT_ID__',
     name: '__PROJECT_NAME__',
   },
-  runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],
+  runtimes: __RUNTIMES__,
   parameters: [
     {
       type: 'float',

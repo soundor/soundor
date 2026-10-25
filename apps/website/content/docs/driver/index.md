@@ -34,7 +34,7 @@ Soundor Driver is not:
 Start the plugin with DevTools, as usual:
 
 ```sh
-pnpm exec soundor dev juce
+pnpm dev
 ```
 
 `dev` prints the path of the session's protected descriptor, as "DevTools

@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
+    "build:juce": "soundor build juce",
     "build:web": "soundor build web",
-    "dev": "soundor dev",
+    "dev": "soundor dev juce",
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",

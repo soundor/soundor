@@ -33,6 +33,7 @@
     "@soundor/react": "workspace:*",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
+    "@soundor/web-runtime": "workspace:*",
     "@types/node": "catalog:",
     "soundor": "workspace:*",
     "tsdown": "catalog:",

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "soundor build",
-    "dev": "soundor dev",
+    "dev": "soundor dev juce",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "typecheck": "soundor gen && tsc -b"
@@ -13,6 +13,7 @@
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
     "@soundor/react": "workspace:*",
+    "@soundor/web-runtime": "workspace:*",
     "react": "catalog:"
   },
   "devDependencies": {

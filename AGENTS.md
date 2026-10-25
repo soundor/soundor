@@ -83,8 +83,8 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
 `examples/snippets`) are real projects using the workspace packages. The docs'
-live snippets are web-only. Run `pnpm --filter <example> exec soundor dev web|juce`,
-`... soundor build web|juce`. No native CI job builds them; CI's Fast checks
+live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
+`build:juce` or `build:web`. No native CI job builds them; CI's Fast checks
 run their tests, typecheck and web builds, and the website embeds those web
 builds. Tests have their own fixtures, inside the package they test:
 `runtimes/juce-runtime/tests/plugin` (and `plugin-prebuilt`, the same plugin

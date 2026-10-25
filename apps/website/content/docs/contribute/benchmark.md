@@ -50,7 +50,7 @@ uniform. Compare `particles` with `gpu-particles`.
 
 ```sh
 pnpm dev:web     # in the browser, at http://localhost:5173
-pnpm exec soundor dev juce  # in the JUCE plugin (Standalone)
+pnpm dev         # in the JUCE plugin (Standalone)
 ```
 
 "Run all" runs each scenario for 120 frames after 30 frames of warm-up, then

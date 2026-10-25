@@ -15,10 +15,18 @@ pnpm create soundor-app my-plugin
 npm create soundor-app my-plugin
 ```
 
-The generated project includes a Soundor config (plugin identity, parameters,
-the JUCE runtime) and its dependencies. The scaffolder installs them with the
-package manager it was started with, pnpm or npm, the two Soundor supports.
-Started any other way, it asks which of them to use.
+The scaffolder asks which runtimes the plugin targets: the JUCE runtime (the
+default), the web runtime, or both. The generated project includes a Soundor
+config (plugin identity, parameters, the chosen runtimes) and its
+dependencies, and `soundor init` writes each runtime's host files under
+`runtimes/`. The scaffolder installs the dependencies with the package
+manager it was started with, pnpm or npm, the two Soundor supports. Started
+any other way, it asks which of them to use.
+
+The project's `dev` script runs [`soundor dev`](/docs/cli/dev) with the first
+runtime chosen (JUCE if both are); with both, `dev:web` runs the web runtime.
+`build` builds every runtime; with both, `build:juce` and `build:web` build
+one.
 
 The project pins each Soundor package exactly, to the version this scaffolder
 was released with: before 1.0 a minor release can break APIs, so a project
