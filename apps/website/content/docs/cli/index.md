@@ -14,8 +14,8 @@ pnpm add -D soundor
 
 A new project has it already, with package scripts for each command
 ([`create-soundor-app`](/docs/cli/create-soundor-app)). Run it through your
-package manager: `pnpm exec soundor dev web`, or `pnpm dev:web` with the
-scripts.
+package manager: `pnpm exec soundor dev web`, or with the scripts, `pnpm dev`
+(the project's first runtime).
 
 ## Commands
 
