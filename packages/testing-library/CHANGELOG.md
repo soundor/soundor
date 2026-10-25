@@ -1,5 +1,14 @@
 # @soundor/testing-library
 
+## 0.13.0
+
+### Patch Changes
+
+- [#172](https://github.com/soundor/soundor/pull/172) [`57cfc9f`](https://github.com/soundor/soundor/commit/57cfc9f06bc074ae820def8797a4f44963711f79) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Update dependencies: `@fastify/static` 10, React 19.3.1, Vite 8.3.5, Vitest 5.0.5 and rolldown 1.2.15.
+- Updated dependencies [[`57cfc9f`](https://github.com/soundor/soundor/commit/57cfc9f06bc074ae820def8797a4f44963711f79)]:
+  - @soundor/react@0.13.0
+  - @soundor/test-runtime@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes
