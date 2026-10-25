@@ -85,7 +85,8 @@ function Page() {
   );
 
   return (
-    <DocsLayout {...baseOptions()} tree={pageTree}>
+    // The header's links would open the sidebar, repeating its tab switcher.
+    <DocsLayout {...baseOptions()} links={[]} tree={pageTree}>
       <Suspense>
         <Content path={path} markdownUrl={markdownUrl} />
       </Suspense>
