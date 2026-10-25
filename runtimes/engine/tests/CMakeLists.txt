@@ -256,6 +256,40 @@ if(NOT WIN32)
       -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckSharedDefinitions.cmake)
   set_tests_properties(soundor_dependencies_share_no_symbols_detects_duplicates PROPERTIES
     PASS_REGULAR_EXPRESSION "defined in more than one archive(.|\n)*soundor_duplicate_probe ")
+
+  # Skia's copies of libjpeg-turbo, libpng and libwebp define only soundor_*
+  # names (cmake/skia/SoundorSkiaPrefix.h), so a plugin can contain JUCE's
+  # copies too.
+  set(soundor_skia_library_members "^lib(jpeg|jpeg12|jpeg16|png|webp)(_[a-z0-9]+)?\\.")
+  if(TARGET soundor_skia)
+    get_target_property(imported soundor_skia IMPORTED)
+    get_target_property(type soundor_skia TYPE)
+    if(imported AND type STREQUAL "STATIC_LIBRARY")
+      add_test(
+        NAME soundor_skia_prefixes_bundled_libraries
+        COMMAND ${CMAKE_COMMAND}
+          -DARCHIVE=$<TARGET_FILE:soundor_skia>
+          "-DMEMBERS=${soundor_skia_library_members}"
+          -DPREFIX=soundor_
+          -DNM=${SOUNDOR_NM_EXE}
+          -DAPPLE=${APPLE}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckPrefixed.cmake)
+    endif()
+  endif()
+
+  # Negative control: an object named like libpng's defines an unprefixed name.
+  add_library(soundor_prefix_probe STATIC symbols/libpng.PrefixProbe.cpp)
+  add_test(
+    NAME soundor_skia_prefixes_bundled_libraries_detects_unprefixed
+    COMMAND ${CMAKE_COMMAND}
+      -DARCHIVE=$<TARGET_FILE:soundor_prefix_probe>
+      "-DMEMBERS=${soundor_skia_library_members}"
+      -DPREFIX=soundor_
+      -DNM=${SOUNDOR_NM_EXE}
+      -DAPPLE=${APPLE}
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckPrefixed.cmake)
+  set_tests_properties(soundor_skia_prefixes_bundled_libraries_detects_unprefixed PROPERTIES
+    PASS_REGULAR_EXPRESSION "lack the soundor_ prefix(.|\n)*png_prefix_probe ")
 endif()
 
 # Coexistence: two plugin-shaped libraries link the same engine archive and

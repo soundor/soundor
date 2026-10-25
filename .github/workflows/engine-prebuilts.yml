@@ -260,9 +260,17 @@ jobs:
           repository: juce-framework/JUCE
           ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
           path: .soundor/ci-juce
+      # JUCE 9 compiles its image libraries with plain C names, as Skia's
+      # (renamed) copies.
+      - name: Checkout JUCE 9 integration fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: 3fb5cbc0340758596dac39f7c8de47d562b4896e
+          path: .soundor/ci-juce9
       - name: JUCE platform dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libgl1-mesa-dev xvfb
+        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
 
       # The JUCE adapters and the DevTools bridge, linked to the debug engine.
       - name: JUCE adapters against the debug engine
@@ -299,6 +307,10 @@ jobs:
             exit 1
           fi
           grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/step.log"
+          # The same plugin with JUCE 9, whose image libraries have plain C
+          # names, as Skia's (renamed) copies.
+          JUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce9" pnpm --filter @soundor/juce-runtime test:plugin-prebuilt 2>&1 |
+            tee "$RUNNER_TEMP/step.log"
           rm runtimes/engine/artifacts/manifest.json
 
       - name: Keep the archives

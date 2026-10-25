@@ -6,7 +6,11 @@
 #
 # Skia is fetched at REVISION and its third-party code only for DEPENDENCIES,
 # each at the commit Skia's own DEPS file pins. The build is CPU-only: no GPU
-# backends, no PDF/SVG, no ICU or HarfBuzz. OUT gets:
+# backends, no PDF/SVG, no ICU or HarfBuzz. Every file is compiled with
+# skia/SoundorSkiaPrefix.h forced in, which renames libjpeg-turbo's, libpng's
+# and libwebp's symbols to soundor_*: a plugin can also contain JUCE's copies
+# of those libraries (or any other), and the names would otherwise clash. OUT
+# gets:
 #
 #   include/            Skia's public headers (and modules/skcms/, which they use)
 #   lib/<flavor>/       the static library, one per FLAVORS entry (Windows
@@ -29,6 +33,7 @@ find_package(Git REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_program(NINJA_EXE NAMES ninja REQUIRED)
 
+set(prefix_header "${CMAKE_CURRENT_LIST_DIR}/skia/SoundorSkiaPrefix.h")
 set(work "${OUT}.partial")
 set(source "${work}/skia")
 file(REMOVE_RECURSE "${work}")
@@ -63,6 +68,22 @@ foreach(dependency IN LISTS DEPENDENCIES)
   message(STATUS "Skia: fetching ${dependency} ${CMAKE_MATCH_2}")
   checkout("${source}/third_party/externals/${dependency}" "${CMAKE_MATCH_1}" "${CMAKE_MATCH_2}")
 endforeach()
+
+# libwebp defines VP8GetValue and VP8GetSignedValue as function-like macros of
+# the same names (they drop the bit-trace label), which replace the prefix
+# header's renames: they expand to the prefixed names instead. Fails when
+# libwebp's code no longer matches, so a Skia update revisits it.
+set(bit_reader "${source}/third_party/externals/libwebp/src/utils/bit_reader_utils.h")
+file(READ "${bit_reader}" content)
+foreach(name VP8GetValue VP8GetSignedValue)
+  set(macro "#define ${name}(BR, N, L) ${name}(BR, N)")
+  string(FIND "${content}" "${macro}" found)
+  if(found EQUAL -1)
+    message(FATAL_ERROR "Building Skia failed: libwebp's ${bit_reader} no longer has '${macro}'")
+  endif()
+  string(REPLACE "${macro}" "#define ${name}(BR, N, L) soundor_${name}(BR, N)" content "${content}")
+endforeach()
+file(WRITE "${bit_reader}" "${content}")
 
 set(cwd "${source}")
 run(${Python3_EXECUTABLE} bin/fetch-gn)
@@ -125,16 +146,16 @@ foreach(flavor IN LISTS FLAVORS)
     if(TARGET_OS STREQUAL "win")
       # The C runtime has to match the plugin's: /MD, or /MDd in Debug.
       if(flavor STREQUAL "mdd")
-        string(APPEND args "extra_cflags = [ \"/MDd\" ]\n")
+        string(APPEND args "extra_cflags = [ \"/MDd\", \"/FI${prefix_header}\" ]\n")
       else()
-        string(APPEND args "extra_cflags = [ \"/MD\" ]\n")
+        string(APPEND args "extra_cflags = [ \"/MD\", \"/FI${prefix_header}\" ]\n")
       endif()
       # RTTI like the rest of the plugin (and UBSan's vptr checks) expect.
       string(APPEND args "extra_cflags_cc = [ \"/GR\" ]\n")
     else()
       # libwebp exports its API (visibility "default") unless told otherwise;
       # a plugin exports nothing of Skia's.
-      string(APPEND args "extra_cflags = [ \"-DWEBP_EXTERN=extern\" ]\n")
+      string(APPEND args "extra_cflags = [ \"-DWEBP_EXTERN=extern\", \"-include\", \"${prefix_header}\" ]\n")
       string(APPEND args "extra_cflags_cc = [ \"-frtti\" ]\n")
       if(DEFINED CC AND NOT CC STREQUAL "")
         string(APPEND args "cc = \"${CC}\"\ncxx = \"${CXX}\"\n")

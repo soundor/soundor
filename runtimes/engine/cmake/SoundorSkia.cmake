@@ -75,8 +75,9 @@ if(NOT SOUNDOR_SKIA_DIR)
 
   # The cache key: anything that changes the build changes the directory.
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/SoundorSkiaBuild.cmake" script_hash)
+  file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/skia/SoundorSkiaPrefix.h" prefix_hash)
   get_filename_component(skia_cxx_name "${skia_cxx}" NAME)
-  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${skia_cxx_name}")
+  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name}")
   string(SUBSTRING "${key}" 0 12 key)
   string(SUBSTRING "${SOUNDOR_SKIA_REVISION}" 0 10 short_revision)
   list(JOIN soundor_skia_cpus "-" cpu_names)
