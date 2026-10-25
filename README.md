@@ -52,12 +52,13 @@ an existing JUCE checkout and never downloads it.
 pnpm create soundor-app my-plugin
 cd my-plugin
 pnpm doctor
-pnpm exec soundor dev juce
+pnpm dev
 ```
 
-The scaffolder currently creates a JUCE project. It pins every Soundor package
-to an exact version: Soundor is pre-1.0, and a minor release can change APIs.
-To add a browser runtime or try the repository's browser example, follow
+The scaffolder asks for the runtimes, JUCE (the default), web or both, and
+`pnpm dev` runs the first of them. It pins every Soundor package to an exact
+version: Soundor is pre-1.0, and a minor release can change APIs. To add a
+runtime later or try the repository's browser example, follow
 [Getting started](https://soundor.dev/docs/getting-started).
 
 ## Documentation

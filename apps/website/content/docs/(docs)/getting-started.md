@@ -32,11 +32,11 @@ after a user gesture in the browser host.
 pnpm create soundor-app@%version:create-soundor-app% my-plugin
 cd my-plugin
 pnpm doctor
-pnpm exec soundor dev juce
+pnpm dev
 ```
 
 With npm, run `npm create soundor-app@%version:create-soundor-app% my-plugin`,
-then `npm run doctor` and `npx soundor dev juce`. The version is the current
+then `npm run doctor` and `npm run dev`. The version is the current
 release; naming it keeps the scaffolder, and so the new project, on the version
 these docs describe.
 
@@ -93,7 +93,7 @@ Choose a stable, globally unique `plugin.id` before release. Hosts and saved
 sessions use its derived identities. `plugin.name` is the display name.
 
 Run `pnpm gen` after editing the contract to refresh editor types. Restart
-`pnpm exec soundor dev juce` after config or native code changes. Ordinary UI edits rebuild
+`pnpm dev` after config or native code changes. Ordinary UI edits rebuild
 automatically during development.
 
 Published JUCE runtimes use a matching prebuilt engine by default. A checkout of
@@ -141,19 +141,33 @@ events, canvases, focus, accessibility, and animations.
 
 ## Add the browser runtime
 
-In the generated project, install the web runtime:
+Choose the web runtime along with JUCE when you create the project, and it is
+set up already: run it with `pnpm dev:web`.
+
+To add it to an existing project, install the web runtime:
 
 ```sh
 pnpm add @soundor/web-runtime
 ```
 
 Import `webRuntime` from `@soundor/web-runtime` in `soundor.config.ts` and append
-`webRuntime()` to the existing `runtimes` array. Then initialize and run it:
+`webRuntime()` to the existing `runtimes` array. Then initialize it, once:
 
 ```sh
 pnpm exec soundor init web
-pnpm exec soundor dev web
 ```
+
+and give `package.json` the scripts a new project with both runtimes has (the
+Web host's code has its own tsconfig, so `typecheck` checks it separately):
+
+```json
+"build:juce": "soundor build juce",
+"build:web": "soundor build web",
+"dev:web": "soundor dev web",
+"typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+```
+
+Then run it with `pnpm dev:web`.
 
 Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
 browser host. `runtimes/web/src/audio.ts` is where you connect a Web Audio graph;
@@ -194,14 +208,13 @@ simulated runtime without opening a plugin or a browser.
 
 ```sh
 pnpm typecheck
-pnpm exec soundor build juce
-pnpm exec soundor build web
+pnpm build
 ```
 
-Run the web build after adding and initializing the web runtime. Native output
-lives under `.soundor/dist/juce/`; the browser build is a static site under
-`.soundor/dist/web/`. `soundor build` without a runtime builds all configured
-runtimes. Platform-specific details are in the
+`pnpm build` builds every configured runtime; with several, `pnpm build:juce`
+and `pnpm build:web` build one. Native output lives under
+`.soundor/dist/juce/`; the browser build is a static site under
+`.soundor/dist/web/`. Platform-specific details are in the
 [JUCE guide](/docs/juce-runtime) and [web guide](/docs/web-runtime).
 
 ## Try the repository example
@@ -212,7 +225,7 @@ example in the browser:
 ```sh
 pnpm install
 pnpm build
-pnpm --filter basic exec soundor dev web
+pnpm --filter basic dev:web
 ```
 
 This path needs no JUCE or native engine build. The example already includes

@@ -12,7 +12,7 @@ pnpm --filter orbit typecheck
 pnpm --filter orbit test
 pnpm --filter orbit test:native
 pnpm --filter orbit build:web
-pnpm --filter orbit exec soundor build juce
+pnpm --filter orbit build:juce
 ```
 
 Press the host's Play button to hear a short, bright pluck phrase followed by

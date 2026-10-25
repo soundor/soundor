@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildScripts,
   clearDirectory,
   devScripts,
   projectIdSegment,
@@ -115,6 +116,17 @@ describe('devScripts', () => {
   });
 });
 
+describe('buildScripts', () => {
+  it('builds every runtime, and each one alone when there are several', () => {
+    expect(buildScripts(['juce'])).toEqual({ build: 'soundor build' });
+    expect(buildScripts(['juce', 'web'])).toEqual({
+      build: 'soundor build',
+      'build:juce': 'soundor build juce',
+      'build:web': 'soundor build web',
+    });
+  });
+});
+
 describe('projectManifest', () => {
   const template = {
     name: '__PROJECT_NAME__',
@@ -150,6 +162,8 @@ describe('projectManifest', () => {
     expect(pkg.name).toBe('my-app');
     expect(pkg.scripts).toEqual({
       build: 'soundor build',
+      'build:juce': 'soundor build juce',
+      'build:web': 'soundor build web',
       dev: 'soundor dev juce',
       'dev:web': 'soundor dev web',
       gen: 'soundor gen',

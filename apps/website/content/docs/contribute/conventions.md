@@ -68,7 +68,7 @@ them run, so that code may import only `react`, `@soundor/react`,
 A snippet is one small component, the file's default export, about one
 thing. Add it to `examples/snippets/src/snippets/` and its `index.ts`; the
 project's tests check that every file is listed, imports only what a docs
-page has, and renders. `pnpm --filter snippets exec soundor dev web` shows
+page has, and renders. `pnpm --filter snippets dev` shows
 them all, with a picker. The build puts each snippet's code into the page
 (`plugins/remark-snippets.ts`) and its Markdown, and fails on an unknown
 name. The editor checks it with TypeScript against the example's own types

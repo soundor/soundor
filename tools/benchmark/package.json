@@ -6,6 +6,7 @@
   "scripts": {
     "bench": "node scripts/bench.ts",
     "build": "soundor build",
+    "build:juce": "soundor build juce",
     "build:web": "soundor build web",
     "dev": "soundor dev juce",
     "dev:web": "soundor dev web",

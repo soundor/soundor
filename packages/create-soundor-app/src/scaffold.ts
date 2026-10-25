@@ -148,8 +148,28 @@ type Manifest = Record<string, unknown> & {
 };
 
 /**
+ * The scripts that build: `build` all runtimes and, with several,
+ * `build:<runtime>` each of them.
+ */
+export function buildScripts(
+  runtimes: readonly Runtime[],
+): Record<string, string> {
+  return {
+    build: 'soundor build',
+    ...(runtimes.length > 1
+      ? Object.fromEntries(
+          runtimes.map((runtime) => [
+            `build:${runtime}`,
+            `soundor build ${runtime}`,
+          ]),
+        )
+      : {}),
+  };
+}
+
+/**
  * The template's package.json for a project: its name, the chosen runtimes'
- * packages only, their dev scripts, and real dependency versions.
+ * packages only, their dev and build scripts, and real dependency versions.
  */
 export function projectManifest(
   template: Manifest,
@@ -174,10 +194,12 @@ export function projectManifest(
       );
     }
   }
-  // The dev scripts take the place of the template's `dev`.
+  // The dev and build scripts take the place of the template's.
   const scripts: Record<string, string> = {};
   for (const [script, command] of Object.entries(template.scripts ?? {})) {
-    if (script === 'dev') {
+    if (script === 'build') {
+      Object.assign(scripts, buildScripts(runtimes));
+    } else if (script === 'dev') {
       Object.assign(scripts, devScripts(runtimes));
     } else if (script === 'typecheck' && runtimes.includes('web')) {
       // The Web host's code has its own tsconfig (DOM types).

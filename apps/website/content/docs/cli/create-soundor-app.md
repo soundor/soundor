@@ -25,7 +25,8 @@ any other way, it asks which of them to use.
 
 The project's `dev` script runs [`soundor dev`](/docs/cli/dev) with the first
 runtime chosen (JUCE if both are); with both, `dev:web` runs the web runtime.
-`build` builds every runtime.
+`build` builds every runtime; with both, `build:juce` and `build:web` build
+one.
 
 The project pins each Soundor package exactly, to the version this scaffolder
 was released with: before 1.0 a minor release can break APIs, so a project

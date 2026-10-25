@@ -61,9 +61,9 @@ ABI compatibility.
 From the repository root, after `pnpm build`:
 
 ```sh
-pnpm --filter basic exec soundor dev web
-pnpm --filter basic exec soundor dev juce
-pnpm --filter primitives exec soundor dev web
+pnpm --filter basic dev:web
+pnpm --filter basic dev        # JUCE
+pnpm --filter primitives dev:web
 pnpm --filter basic test
 pnpm --filter basic typecheck
 pnpm --filter basic build:web
