@@ -858,6 +858,9 @@ importers:
       '@soundor/typescript-config':
         specifier: workspace:^
         version: link:../../configs/typescript-config
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

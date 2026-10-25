@@ -9,6 +9,7 @@ import {
   confirm,
   intro,
   isCancel,
+  multiselect,
   outro,
   select,
   spinner,
@@ -23,9 +24,15 @@ import {
   detectPackageManager,
   runScript,
 } from './pm';
-import { applyTokens, clearDirectory, resolveProjectTarget } from './scaffold';
-
-const RUNTIMES = ['juce'] as const;
+import {
+  type Runtime,
+  RUNTIME_INFO,
+  RUNTIMES,
+  applyTokens,
+  clearDirectory,
+  devScripts,
+  resolveProjectTarget,
+} from './scaffold';
 
 const main = defineCommand({
   meta: {
@@ -73,15 +80,23 @@ const main = defineCommand({
       process.exit(1);
     }
 
-    // --- Runtime ---
-    const runtime = await select({
-      message: 'Runtime',
-      options: RUNTIMES.map((r) => ({ value: r, label: r })),
+    // --- Runtimes ---
+    const selected = await multiselect<Runtime>({
+      message: 'Runtimes',
+      options: RUNTIMES.map((value) => ({
+        value,
+        label: RUNTIME_INFO[value].label,
+        hint: RUNTIME_INFO[value].hint,
+      })),
+      initialValues: ['juce'],
+      required: true,
     });
-    if (isCancel(runtime)) {
+    if (isCancel(selected)) {
       cancel('Cancelled');
       process.exit(1);
     }
+    // In the prompt's order, whatever order they were picked in.
+    const runtimes = RUNTIMES.filter((r) => selected.includes(r));
 
     // --- Package manager ---
     let pm = detectPackageManager();
@@ -116,7 +131,7 @@ const main = defineCommand({
       join(target.targetDir, '_gitignore'),
       join(target.targetDir, '.gitignore'),
     );
-    await applyTokens(target.targetDir, target.packageName, runtime);
+    await applyTokens(target.targetDir, target.packageName, runtimes);
     s.stop('Project scaffolded');
 
     // --- Install ---
@@ -147,10 +162,14 @@ const main = defineCommand({
     s.stop('Runtime initialized');
 
     // --- Done ---
-    const nextSteps = target.isCurrentDirectory
-      ? runScript(pm, 'dev')
-      : `cd ${projectName}\n  ${runScript(pm, 'dev')}`;
-    outro(`Done! Next steps:\n\n  ${nextSteps}`);
+    // devScripts has a script per runtime, in the same order.
+    const steps = Object.keys(devScripts(runtimes)).map((script, index) =>
+      runtimes.length === 1
+        ? runScript(pm, script)
+        : `${runScript(pm, script)}  # ${RUNTIME_INFO[runtimes[index]!].label}`,
+    );
+    if (!target.isCurrentDirectory) steps.unshift(`cd ${projectName}`);
+    outro(`Done! Next steps:\n\n  ${steps.join('\n  ')}`);
   },
 });
 
