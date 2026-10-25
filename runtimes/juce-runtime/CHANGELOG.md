@@ -1,5 +1,19 @@
 # @soundor/juce-runtime
 
+## 0.12.0
+
+### Minor Changes
+
+- [#164](https://github.com/soundor/soundor/pull/164) [`f75bc0c`](https://github.com/soundor/soundor/commit/f75bc0ca9a76077bdb9b3e7df28cfa5d3b3dbab2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - DevTools targets have no owner any more: every signed-in client (dashboard tabs, Soundor Driver, `soundor driver`) reads, highlights, picks, records and sends input at the same time, as several mice and keyboards share one computer. The engine keeps each client's synthetic pointer, held keys, highlight and picker apart, draws every client's highlight, and releases only a client's own input when it disconnects. The performance recording is shared and stops once every client that started it is gone.
+
+  Breaking: the protocol is version 2. `Control.acquire`/`Control.release`, `LEASE_BUSY`/`LEASE_REQUIRED` and targets' `controller` are removed; runtime requests carry the sending `client`, and `resetControl` is replaced by `clientGone`. The Driver drops `acquireControl()`, `releaseControl()` and `hasControl`; the dashboard drops **Request control**; `soundor driver` exit code 6 now means the target is busy.
+
+### Patch Changes
+
+- [#171](https://github.com/soundor/soundor/pull/171) [`b070f8e`](https://github.com/soundor/soundor/commit/b070f8e31933663f7a42137e9751122198ad7ab1) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Recreate the plugin build directory when it was configured with another JUCE checkout, instead of failing in JUCE's juceaide sub-build.
+- Updated dependencies [[`f75bc0c`](https://github.com/soundor/soundor/commit/f75bc0ca9a76077bdb9b3e7df28cfa5d3b3dbab2), [`cc32cc8`](https://github.com/soundor/soundor/commit/cc32cc87207b9600fe88dc5037b302fd75fbc34b), [`639ac93`](https://github.com/soundor/soundor/commit/639ac93e6d0ef80d6aa5d34dc01e3fcd2bfd190e)]:
+  - @soundor/engine@0.4.0
+
 ## 0.11.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @soundor/core
 
+## 0.13.0
+
+### Patch Changes
+
+- Updated dependencies [[`f75bc0c`](https://github.com/soundor/soundor/commit/f75bc0ca9a76077bdb9b3e7df28cfa5d3b3dbab2), [`cc32cc8`](https://github.com/soundor/soundor/commit/cc32cc87207b9600fe88dc5037b302fd75fbc34b), [`639ac93`](https://github.com/soundor/soundor/commit/639ac93e6d0ef80d6aa5d34dc01e3fcd2bfd190e)]:
+  - @soundor/engine@0.4.0
+
 ## 0.12.0
 
 ### Minor Changes

@@ -1,5 +1,16 @@
 # create-soundor-app
 
+## 0.13.0
+
+### Minor Changes
+
+- [#176](https://github.com/soundor/soundor/pull/176) [`2c7b38d`](https://github.com/soundor/soundor/commit/2c7b38db703b9a3b22d8e547fb2549be7b20b5e8) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Choose the runtimes of a new project: JUCE (the default), web, or both. The
+  project gets only the chosen runtimes' packages and config entries, a typecheck
+  of the Web host when it has the web runtime, and scripts that name a runtime:
+  `dev` runs the first one (`soundor dev` needs one; the template's `dev` had
+  none), `dev:web` the web runtime alongside JUCE, and with both, `build:juce`
+  and `build:web` build one.
+
 ## 0.12.0
 
 No changes in this release.
