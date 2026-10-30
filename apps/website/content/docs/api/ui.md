@@ -77,6 +77,7 @@ has the details.
 | `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                        |
 | `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                             |
 | `viewSize()`                                                                                          | The view's `{ width, height }` in logical pixels, and its `scale` (device pixels per logical pixel). |
+| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                 |
 | `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                           |
 
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,

@@ -2,7 +2,7 @@
 
 // ── Assets ──────────────────────────────────────────────────────────────────
 
-/** A bundled image: its stable id, resolved by Soundor's renderer. */
+/** A bundled image or font: its stable id, resolved by Soundor's runtime. */
 type SoundorAsset = string & { readonly __soundorAsset: true };
 
 declare module '*.png' {
@@ -18,6 +18,14 @@ declare module '*.jpeg' {
   export default asset;
 }
 declare module '*.webp' {
+  const asset: SoundorAsset;
+  export default asset;
+}
+declare module '*.ttf' {
+  const asset: SoundorAsset;
+  export default asset;
+}
+declare module '*.otf' {
   const asset: SoundorAsset;
   export default asset;
 }

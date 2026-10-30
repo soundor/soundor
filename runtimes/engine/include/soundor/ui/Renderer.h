@@ -20,7 +20,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     class Renderer
     {
     public:
-        // The encoded bytes of an image by asset id (PNG, JPEG or WebP).
+        // The bytes of a bundled asset by id: an image (PNG, JPEG or WebP)
+        // or a font (TrueType or OpenType).
         using AssetLoader = std::function<std::optional<std::span<const std::uint8_t>>(std::string_view id)>;
 
         explicit Renderer(AssetLoader assets);
@@ -30,7 +31,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Renderer& operator=(const Renderer&) = delete;
 
         // Text set with the platform's fonts (CoreText, DirectWrite,
-        // fontconfig), measured as drawn.
+        // fontconfig) and the bundled ones the UI registers, measured as
+        // drawn.
         [[nodiscard]] std::shared_ptr<TextEngine> textEngine() const;
         [[nodiscard]] std::shared_ptr<ImageSource> images() const;
 

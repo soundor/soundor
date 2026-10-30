@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createTestRuntime, TestEvent, print, VirtualClock } from './index';
+import {
+  createTestRuntime,
+  createUiModule,
+  TestEvent,
+  print,
+  VirtualClock,
+} from './index';
 
 describe('isolated lifecycle and trees', () => {
   it('owns ids, roots, focus, pointers, clock and cleanup independently', () => {
@@ -237,6 +243,25 @@ describe('services and semantics', () => {
     r.dispose();
   });
 });
+describe('fonts', () => {
+  it("registers fonts with the runtimes' argument checks", async () => {
+    const runtime = createTestRuntime();
+    const ui = createUiModule(runtime);
+    await expect(
+      ui.registerFont('Brand', 'a.ttf', { weight: 'bold' }),
+    ).resolves.toBeUndefined();
+    expect(() => ui.registerFont('', 'a.ttf')).toThrow(
+      new TypeError(
+        "registerFont(): family must be a non-empty string, got ''",
+      ),
+    );
+    expect(() => ui.registerFont('Brand', 'a.ttf', { weight: 1001 })).toThrow(
+      "registerFont(): weight must be a weight from 1 to 1000, 'normal' or 'bold', got 1001",
+    );
+    runtime.dispose();
+  });
+});
+
 describe('deterministic animations', () => {
   it('samples presentation without rewriting base style; delay, pause, completion and cancellation', async () => {
     const r = createTestRuntime(),

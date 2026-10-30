@@ -904,6 +904,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        // ui.js checked the arguments; a file that is not a font is an error
+        // message, for the promise registerFont() returns.
+        jsi::Value registerFont(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "registerFont", count, 4,
+                        [&](Surface& surface)
+                        {
+                            const std::optional<std::string> error = surface.addFont(
+                                readString(context, args[0], "family"), readString(context, args[1], "source"),
+                                bind::toInt32(context, args[2]),
+                                bind::toBoolean(context, args[3]) ? FontStyle::Italic : FontStyle::Normal);
+                            return error ? bind::write(context, *error) : jsi::Value::undefined();
+                        });
+        }
+
         jsi::Value setFrameListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             if (count < 1 || ! bind::isFunction(context, args[0]))
@@ -1307,6 +1322,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "size", viewSize, 0 },
             { "readClipboard", readClipboard, 0 },
             { "writeClipboard", writeClipboard, 1 },
+            { "registerFont", registerFont, 4 },
             { "setListener", setListener, 1 },
             { "setFrameListener", setFrameListener, 1 },
             { "animate", animate, 3 },

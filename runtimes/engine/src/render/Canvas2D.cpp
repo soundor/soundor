@@ -417,6 +417,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         // In canvas pixels: each point is transformed when it is added.
         SkPathBuilder path;
         bool hasCurrentPoint = false;
+        std::shared_ptr<Fonts> fonts;
         std::unique_ptr<SkiaTextEngine> shaper;
 
         State& state() { return states.back(); }
@@ -616,7 +617,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         SkiaTextEngine& textEngine()
         {
             if (shaper == nullptr)
-                shaper = std::make_unique<SkiaTextEngine>();
+                shaper = std::make_unique<SkiaTextEngine>(fonts);
             return *shaper;
         }
 
@@ -654,11 +655,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         std::uint32_t scratchPixel = 0;
     };
 
-    Canvas2D::Canvas2D(std::shared_ptr<ui::CanvasBuffer> canvasBuffer, std::shared_ptr<ui::ImageSource> images)
+    Canvas2D::Canvas2D(std::shared_ptr<ui::CanvasBuffer> canvasBuffer, std::shared_ptr<ui::ImageSource> images,
+                       std::shared_ptr<Fonts> fonts)
         : target(std::move(canvasBuffer)), impl(std::make_unique<Impl>())
     {
         impl->buffer = target;
         impl->images = std::move(images);
+        impl->fonts = std::move(fonts);
         impl->surface();
     }
 

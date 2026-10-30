@@ -419,10 +419,30 @@ export function cssFor(style: Style, type: NodeType): Css {
   return css;
 }
 
+/** CSS's generic families, which the platform resolves (natively too). */
+const GENERIC_FAMILIES = new Set([
+  'serif',
+  'sans-serif',
+  'monospace',
+  'cursive',
+  'fantasy',
+  'system-ui',
+]);
+
+/**
+ * A family name as CSS: one name, as natively, quoted unless it is generic
+ * (so a name with digits or punctuation, 'Inter 18pt', still works).
+ */
+function family(name: string): string {
+  if (GENERIC_FAMILIES.has(name.toLowerCase())) return name;
+  return `"${name.replace(/["\\]/g, '\\$&')}"`;
+}
+
 /** Text properties; only text and input nodes are set in text. */
 function text(css: Css, style: Style, type: NodeType): void {
-  if (style.fontFamily !== undefined)
-    css['font-family'] = `${style.fontFamily}, system-ui, sans-serif`;
+  // '' is the platform's UI font, as natively: the default.
+  if (style.fontFamily !== undefined && style.fontFamily !== '')
+    css['font-family'] = `${family(style.fontFamily)}, system-ui, sans-serif`;
   // A size that is not positive is ignored, as in the JUCE runtime.
   const fontSize =
     style.fontSize !== undefined && style.fontSize > 0 ? style.fontSize : 14;

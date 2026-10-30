@@ -177,9 +177,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             if (found == canvases.contexts.end())
             {
                 Surface& surface = surfaceOf(ctx);
+                // The fonts the view's text is set in, registered ones included.
                 found =
                     canvases.contexts
-                        .emplace(node, std::make_unique<render::Canvas2D>(surface.canvasBuffer(node), surface.images()))
+                        .emplace(node, std::make_unique<render::Canvas2D>(surface.canvasBuffer(node), surface.images(),
+                                                                          render::fontsOf(surface.textEngine())))
                         .first;
             }
             return *found->second;

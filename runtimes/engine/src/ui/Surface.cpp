@@ -662,6 +662,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
     }
 
+    std::optional<std::string> Surface::addFont(std::string_view family, std::string_view source, int weight,
+                                                FontStyle style)
+    {
+        std::optional<std::string> error = options.textEngine->addFont(family, source, weight, style);
+        if (error)
+            return error;
+        for (auto& [id, node] : nodes)
+            if (node->nodeType == NodeType::Text || node->nodeType == NodeType::Input)
+            {
+                node->layoutWidth = -1;
+                YGNodeMarkDirty(node->yoga);
+                markChanged(*node);
+            }
+        return std::nullopt;
+    }
+
     void Surface::setFocusable(NodeId id, bool focusable)
     {
         Node& node = get(id);

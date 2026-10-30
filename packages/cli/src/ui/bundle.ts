@@ -12,7 +12,7 @@
  *   syntax Hermes lacks lowered. The plugin build compiles it to bytecode.
  * - `bundle.mjs.map`, `bundle.js.map` — their source maps, in development
  *   (`bundle.js.map` maps to the original sources too).
- * - `assets/<id>` — every imported image, named by content hash.
+ * - `assets/<id>` — every imported image and font, named by content hash.
  * - `manifest.json` — the bundle's assets, for tooling.
  * - `build-id` — a hash of the build, written last: when it changes, a complete
  *   new build is on disk (`soundor dev` reloads the plugin UI on it).
@@ -69,12 +69,17 @@ const ENTRY_CANDIDATES = [
   'src/main.js',
 ];
 
-/** Image formats a plugin can bundle (decoded natively at render time). */
+/**
+ * Files a plugin can bundle: images (decoded natively at render time) and
+ * fonts (`registerFont()` in `soundor:ui`).
+ */
 export const ASSET_TYPES: Readonly<Record<string, string>> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.ttf': 'font/ttf',
+  '.otf': 'font/otf',
 };
 
 /** The UI entry module of a project, or undefined if it has no UI. */
@@ -95,7 +100,7 @@ export function assetId(bytes: Uint8Array, path: string): string {
   return `${hash}${extname(path).toLowerCase()}`;
 }
 
-/** Turns image imports into asset ids and collects their bytes. */
+/** Turns image and font imports into asset ids and collects their bytes. */
 function assetPlugin(
   root: string,
   assets: Map<string, { asset: UiAsset; bytes: Uint8Array }>,

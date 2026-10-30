@@ -34,6 +34,8 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   webp: 'image/webp',
+  ttf: 'font/ttf',
+  otf: 'font/otf',
 };
 
 interface UiManifest {

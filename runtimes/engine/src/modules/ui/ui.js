@@ -1083,6 +1083,62 @@ export const clipboard = Object.freeze({
   writeText: async (text) => native.writeClipboard(String(text)),
 });
 
+/** A value in an error message: strings quoted, numbers as they are. */
+function shown(value) {
+  if (typeof value === 'string') return `'${value}'`;
+  return typeof value === 'number' ? String(value) : describe(value);
+}
+
+/**
+ * Makes a bundled font file (`import inter from './Inter.ttf'`) a face of
+ * `family`, at `descriptors.weight` (400) and `descriptors.style` ('normal'),
+ * as CSS's @font-face does: text in that family is set in its registered
+ * faces only, the closest one to its weight and style. Text already laid out
+ * is laid out again. Resolves once the font is ready; rejects if the file is
+ * not a font.
+ */
+export function registerFont(family, source, descriptors = {}) {
+  if (typeof family !== 'string' || family === '')
+    throw new TypeError(
+      `registerFont(): family must be a non-empty string, got ${shown(family)}`,
+    );
+  if (typeof source !== 'string' || source === '')
+    throw new TypeError(
+      `registerFont(): source must be a bundled font (import font from './font.ttf'), got ${shown(source)}`,
+    );
+  if (descriptors === null || typeof descriptors !== 'object')
+    throw new TypeError(
+      `registerFont(): descriptors must be an object, got ${shown(descriptors)}`,
+    );
+  const raw = descriptors.weight ?? 400;
+  const weight =
+    raw === 'normal'
+      ? 400
+      : raw === 'bold'
+        ? 700
+        : typeof raw === 'number' || typeof raw === 'string'
+          ? Number(raw)
+          : Number.NaN;
+  if (!(weight >= 1 && weight <= 1000))
+    throw new TypeError(
+      `registerFont(): weight must be a weight from 1 to 1000, 'normal' or 'bold', got ${shown(raw)}`,
+    );
+  const style = descriptors.style ?? 'normal';
+  if (style !== 'normal' && style !== 'italic')
+    throw new TypeError(
+      `registerFont(): style must be 'normal' or 'italic', got ${shown(style)}`,
+    );
+  const error = native.registerFont(
+    family,
+    source,
+    Math.trunc(weight),
+    style === 'italic',
+  );
+  return error === undefined
+    ? Promise.resolve()
+    : Promise.reject(new Error(`registerFont(): ${error}`));
+}
+
 /** How long a press lasts before it is a long press, by default (ms). */
 const LONG_PRESS_DELAY = 500;
 /** How far a press may move (logical pixels) and still be a long press. */

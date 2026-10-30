@@ -16,7 +16,9 @@ and runs in Soundor's runtime:
   tsconfig). `process.env.NODE_ENV` is replaced at build time, since the runtime
   has no `process`.
 - `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`) bundles the
-  image as an asset and yields its stable, content-derived id.
+  image as an asset and yields its stable, content-derived id; so does
+  `import inter from './Inter.ttf'` (also `.otf`) for a font, which
+  [`registerFont`](/docs/components/text#fonts) takes.
 
 Each build is two files: `bundle.mjs`, an ES module the web runtime loads, and
 `bundle.js`, the module form the native runtime runs (production native

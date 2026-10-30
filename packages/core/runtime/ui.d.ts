@@ -187,7 +187,11 @@ declare module 'soundor:ui' {
      */
     zIndex?: number;
 
-    /** The font family's name. */
+    /**
+     * One font family, by name: one registered with registerFont(), else
+     * one installed on the system (or 'serif', 'monospace'…). The
+     * platform's UI font by default.
+     */
     fontFamily?: string;
     /** In logical pixels. */
     fontSize?: number;
@@ -554,6 +558,23 @@ declare module 'soundor:ui' {
   export function focusedNode(): UiNode | null;
   /** The view's size in logical pixels, and device pixels per logical pixel. */
   export function viewSize(): { width: number; height: number; scale: number };
+
+  export interface FontDescriptors {
+    /** The weight the file is, 1 to 1000, 'normal' (400, the default) or 'bold' (700). */
+    weight?: number | 'normal' | 'bold';
+    /** Whether the file is italic: 'normal' by default. */
+    style?: 'normal' | 'italic';
+  }
+  /**
+   * Makes a bundled font file (`import inter from './Inter.ttf'`, TrueType
+   * or OpenType) a face of `family`, as CSS's @font-face does: text whose
+   * fontFamily is `family` is set in its registered faces only, the closest
+   * to its weight and style (bold and italic are synthesized when no face
+   * is). Text already shown is laid out again. Resolves once the font is
+   * ready; rejects if the file is not a font. Throws a TypeError for invalid
+   * arguments.
+   */
+  export function registerFont(family: string, source: SoundorAsset, descriptors?: FontDescriptors): Promise<void>;
 
   interface ModifierEventInit extends EventInit {
     shiftKey?: boolean;
