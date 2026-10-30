@@ -18,7 +18,9 @@ runtime runs:
 - `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`) bundles the
   image as an asset and yields its stable, content-derived id; so does
   `import inter from './Inter.ttf'` (also `.otf`) for a font, which
-  [`registerFont`](/docs/components/text#fonts) takes.
+  [`registerFont`](/docs/components/text#fonts) takes. Only the files the
+  bundle still uses after tree shaking are shipped: a library's font helper
+  that the plugin never calls adds none.
 
 Each build is `bundle.mjs` (and `bundle.mjs.map` in development). The web
 runtime loads it as it is. The JUCE runtime lowers it into the module form its

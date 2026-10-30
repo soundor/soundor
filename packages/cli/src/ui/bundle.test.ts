@@ -207,6 +207,39 @@ describe('bundleUi', () => {
     );
   });
 
+  it("ships only the assets tree shaking keeps, a library's included", async () => {
+    const FONT = Uint8Array.from([0, 1, 0, 0, 9]);
+    await write(
+      'node_modules/fonts-lib/package.json',
+      JSON.stringify({
+        name: 'fonts-lib',
+        type: 'module',
+        exports: { '.': './index.js', './ttf/*': './ttf/*' },
+      }),
+    );
+    await write('node_modules/fonts-lib/ttf/Brand.ttf', FONT);
+    await write(
+      'node_modules/fonts-lib/index.js',
+      `import brand from 'fonts-lib/ttf/Brand.ttf';
+       export function registerBrandFonts() { return brand; }
+       export const knob = 'knob';`,
+    );
+
+    await write(
+      'src/main.ts',
+      `import { knob } from 'fonts-lib'; globalThis.knob = knob;`,
+    );
+    expect((await bundle()).result.assets).toEqual([]);
+
+    await write(
+      'src/main.ts',
+      `import { registerBrandFonts } from 'fonts-lib'; globalThis.f = registerBrandFonts();`,
+    );
+    expect((await bundle()).result.assets.map(({ id }) => id)).toEqual([
+      assetId(FONT, 'Brand.ttf'),
+    ]);
+  });
+
   it('is deterministic', async () => {
     await write('src/logo.png', PNG);
     await write(

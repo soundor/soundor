@@ -9,7 +9,7 @@
  *   (the runtime provides them), everything else is inlined. Minified in
  *   production.
  * - `bundle.mjs.map` — its source map, in development.
- * - `assets/<id>` — every imported image and font, named by content hash.
+ * - `assets/<id>` — every image and font the bundle uses, named by content hash.
  * - `manifest.json` — the bundle's assets, for tooling.
  * - `build-id` — a hash of the build, written last: when it changes, a complete
  *   new build is on disk (`soundor dev` reloads the plugin UI on it).
@@ -169,9 +169,12 @@ export async function bundleUi(
     plugins: [assetPlugin(options.root, assets)],
   });
 
-  const sorted = [...assets.values()].sort((a, b) =>
-    a.asset.id.localeCompare(b.asset.id),
-  );
+  // Only what the bundle still references: an import that tree shaking
+  // removed (a library's unused font helper) ships no file.
+  const code = await readFile(join(outDir, 'bundle.mjs'), 'utf8');
+  const sorted = [...assets.values()]
+    .filter(({ asset }) => code.includes(asset.id))
+    .sort((a, b) => a.asset.id.localeCompare(b.asset.id));
   if (sorted.length > 0) {
     await mkdir(join(outDir, 'assets'), { recursive: true });
     for (const { asset, bytes } of sorted) {
@@ -188,7 +191,7 @@ export async function bundleUi(
 
   // Last, and atomically: whoever sees a new id sees the complete build.
   const buildId = createHash('sha256')
-    .update(await readFile(join(outDir, 'bundle.mjs')))
+    .update(code)
     .update(manifestText)
     .digest('hex')
     .slice(0, 16);
