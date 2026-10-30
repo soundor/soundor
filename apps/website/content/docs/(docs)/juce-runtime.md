@@ -158,7 +158,8 @@ code. `soundor dev` runs the bundle from source, with the compiler linked, but
 JavaScript compiles none in either: `eval()` and `new Function()` throw, so a
 dependency that generates code at run time (a schema validator compiling its
 checks, a template engine) needs its build-time form, and this shows up in
-development rather than in the built plugin. The bundle the CLI makes for this runtime (`bundle.js`) is a CommonJS module
+development rather than in the built plugin. This runtime turns the CLI's bundle into the form its engine runs (`bundle.js`, in
+its cache directory), with the engine's own lowering: a CommonJS module
 function with the syntax Hermes lacks lowered; see
 [the module reference](/docs/contribute/engine-reference#modules) for what that changes, and
 [the engine](/docs/contribute/engine-reference#the-javascript-engine) for the language.
@@ -285,9 +286,12 @@ cache; the first time takes a while). Every Soundor symbol is mangled into the
 ABI namespace of the exact `@soundor/engine` version. The plugin binary exports
 only its format entry points.
 
-The UI bundle the CLI built is compiled into the plugin (`soundor_embed_directory`),
-so a plugin needs no files beside itself. The generated editor loads its
-`bundle.js` into the view's runtime.
+The UI bundle the CLI built is lowered for the engine (into
+`.soundor/cache/juce/ui-release`) and compiled into the plugin
+(`soundor_embed_ui`), so a plugin needs no files beside itself. The generated
+editor loads its `bundle.js` into the view's runtime. In `soundor dev` the
+lowered UI goes to `.soundor/cache/juce/ui-debug` after every build, and the
+plugin reloads it from there.
 
 `dev` and `build` configure CMake with **Ninja** on macOS and Linux, and with
 CMake's default, **Visual Studio**, on Windows. A build tree configured with

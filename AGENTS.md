@@ -150,13 +150,14 @@ read the docs bundled with the installed package
   (`juceRuntime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (the `.d.ts` for `soundor:*`, parameters, native API, Web globals), paths,
-  logger, errors, command running, and the `toNativeModule()` re-export (implemented by Engine: an ES module
-  into the native runtime's module form).
+  logger, errors, command running. It has no dependencies, so a library can
+  take it for the runtime types alone.
 - `packages/cli` (`soundor`) — `init`, `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
-  `soundor:*` left as imports) into `bundle.mjs` (an ES module, for the Web)
-  and `bundle.js` (the native runtime's module form, lowered for Hermes), then
-  calls each runtime's phase. `dev` tails
+  `soundor:*` left as imports) into one ES module, `bundle.mjs`, then calls
+  each runtime's phase. A runtime that runs another form makes it: the JUCE
+  runtime lowers the bundle for Hermes (`src/native-ui.ts`) with the
+  `toNativeModule()` of the engine it links (`@soundor/engine/native-module`). `dev` tails
   the plugin's log file and maps stack frames back through source maps.
 - `packages/devtools-server` — standalone authenticated HTTP/WebSocket backend,
   optional static UI directory, and a separate `/testing` runtime simulator.
@@ -250,8 +251,9 @@ generated framework or the runtime package, not in `init` templates.
   engine: bindings run their bodies through `bind::invoke`, which turns any
   other C++ exception into one; engine errors come back as `Result<T>`.
 - JavaScript the runtime runs is in its module form (a CommonJS module
-  function, lowered for Hermes by `@soundor/core`'s `toNativeModule()`): the
-  CLI's `bundle.js`, and the runtime's own modules, lowered from
+  function, lowered for Hermes by the engine's `toNativeModule()`,
+  `scripts/native-module.ts`): the plugin's `bundle.js` (the JUCE runtime
+  lowers the CLI's `bundle.mjs`), and the runtime's own modules, lowered from
   `runtimes/engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.

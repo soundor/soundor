@@ -1,5 +1,5 @@
 /**
- * Writes runtime/globals.d.ts and runtime/ui.d.ts: the declarations of what
+ * Writes runtime/assets.d.ts, runtime/globals.d.ts and runtime/ui.d.ts: the declarations of what
  * Soundor's runtime provides that are the same for every project, for
  * packages written against it (@soundor/react). Projects get the same
  * declarations generated into .soundor/generated.

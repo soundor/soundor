@@ -30,12 +30,19 @@ flowchart TD
 
 ### UI bundle
 
-`ctx.ui.dir` contains the bundle and its assets. `ctx.ui.entry` identifies
-`bundle.js`, a CommonJS module function lowered for Hermes. `ctx.ui.module`
-identifies `bundle.mjs`, the same UI as an ES2023 module. Use the form your
-execution engine supports; do not treat the native module function as an ES
-module. `soundor:*` imports are left for runtime resolution. Other npm
-dependencies have been inlined.
+`ctx.ui.dir` contains the bundle and its assets. `ctx.ui.module` identifies
+`bundle.mjs`, the UI as one ES2023 module, with `bundle.mjs.map` next to it in
+development. `soundor:*` imports are left for runtime resolution. Other npm
+dependencies have been inlined. A runtime whose engine runs another form makes
+it from this one, in a directory of its own: the JUCE runtime lowers it with
+`toNativeModule()` from `@soundor/engine/native-module`, the engine it links.
+
+In `soundor dev`, `ctx.ui.live` connects such a runtime to the session.
+`live.onBuild(listener)` calls it after every later build, once `build-id` is
+written, so the runtime can make its form again. `live.sourceMap(file, map)`
+has the CLI map `<file>:line:column` locations in the plugin's log, such as
+`/bundle.js:12:5`, through that source map; call it again after rewriting the
+map. The CLI maps `bundle.mjs` frames itself.
 
 Production engine builds compile native module sources with the engine's
 matching `hermesc` and run bytecode with the compiler excluded. Development
@@ -49,6 +56,7 @@ Core emits these files under `.soundor/generated/`:
 | File              | Contents                                                     |
 | ----------------- | ------------------------------------------------------------ |
 | `soundor.d.ts`    | Entry referencing the portable declarations                  |
+| `assets.d.ts`     | Image and font imports, as their ids (strings)               |
 | `parameters.d.ts` | Exactly the configured parameters and their types            |
 | `native.d.ts`     | Configured native methods, structs, enums and opaque handles |
 | `globals.d.ts`    | Supported Web globals, excluding the full DOM                |

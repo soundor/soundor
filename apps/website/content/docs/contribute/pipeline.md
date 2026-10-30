@@ -27,10 +27,8 @@ flowchart TD
     config["Load and validate soundor.config.ts"] --> gen["Generate portable contract"]
     gen --> runtimegen["Selected runtimes: gen"]
     runtimegen --> bundle["Bundle src/main.tsx once"]
-    bundle --> native["bundle.js: native module function"]
     bundle --> esm["bundle.mjs: ES module"]
-    native --> phases["Selected runtimes: dev or build"]
-    esm --> phases
+    esm --> phases["Selected runtimes: dev or build"]
 ```
 
 Config imports live runtime factories, such as `juceRuntime()`; their
@@ -47,15 +45,17 @@ calls the selected runtimes in production mode. It records per-runtime results
 and reports an aggregate error after attempting the runtime builds.
 
 The bundler inlines npm dependencies and leaves `soundor:*` imports for the
-runtime. `bundle.mjs` is an ES2023 module. `bundle.js` is a CommonJS module
-function lowered for Hermes by the engine's module-lowering tool, re-exported
-as `toNativeModule()` from core. Assets travel with the bundle. A project with
+runtime. `bundle.mjs` is an ES2023 module. A runtime that runs another form
+makes it: the JUCE runtime lowers it into a CommonJS module function for
+Hermes with the engine's `toNativeModule()` (`@soundor/engine/native-module`),
+so the lowering matches the engine it links. Assets travel with the bundle. A project with
 no `src/main.ts[x]` has no `ctx.ui`; runtimes must handle that case.
 
 During development the CLI watches the UI, rebuilds its directory in place,
 and writes `build-id` last after a successful build. The runtime reloads from
 that directory. The CLI tails the runtime's JSON-lines UI log and maps stack
-frames through source maps. Runtime-specific native builds or browser serving
+frames through source maps: `bundle.mjs`'s, and any a runtime registers with
+`ctx.ui.live.sourceMap()` for the form it made. Runtime-specific native builds or browser serving
 remain the runtime's job.
 
 ## Invariants and tests

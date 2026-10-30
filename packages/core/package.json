@@ -22,6 +22,7 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./runtime/assets.d.ts": "./runtime/assets.d.ts",
     "./runtime/globals.d.ts": "./runtime/globals.d.ts",
     "./runtime/ui.d.ts": "./runtime/ui.d.ts",
     "./spring": {
@@ -35,9 +36,6 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "gen:runtime-types": "node scripts/runtime-types.mjs"
-  },
-  "dependencies": {
-    "@soundor/engine": "workspace:*"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:^",

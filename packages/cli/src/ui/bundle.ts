@@ -1,17 +1,14 @@
 /**
  * Builds a plugin's UI — TypeScript/TSX and the packages it imports — into a
- * single JavaScript bundle, with tsdown, in two forms: one for Soundor's
- * native runtime, one ES module for runtimes that load ES modules (the Web).
+ * single JavaScript bundle, one ES module, with tsdown. A runtime that runs
+ * another form makes it from this one (the JUCE runtime lowers it for its
+ * engine).
  *
  * Output (in `outDir`):
  * - `bundle.mjs` — one ES module (ES2023); `soundor:*` imports stay imports
  *   (the runtime provides them), everything else is inlined. Minified in
  *   production.
- * - `bundle.js` — the same bundle in the native runtime's module form
- *   (@soundor/core's toNativeModule()): a CommonJS module function, with the
- *   syntax Hermes lacks lowered. The plugin build compiles it to bytecode.
- * - `bundle.mjs.map`, `bundle.js.map` — their source maps, in development
- *   (`bundle.js.map` maps to the original sources too).
+ * - `bundle.mjs.map` — its source map, in development.
  * - `assets/<id>` — every imported image and font, named by content hash.
  * - `manifest.json` — the bundle's assets, for tooling.
  * - `build-id` — a hash of the build, written last: when it changes, a complete
@@ -26,7 +23,6 @@ import { existsSync, watch as watchFiles } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
 
-import { toNativeModule, type NativeModuleOptions } from '@soundor/core';
 import { build, type TsdownPlugin } from 'tsdown';
 
 export type UiBundleMode = 'development' | 'production';
@@ -53,8 +49,6 @@ export interface UiAsset {
 
 export interface UiBundle {
   readonly dir: string;
-  /** The bundle in the native runtime's module form, inside `dir`. */
-  readonly entry: 'bundle.js';
   /** The bundle as one ES module, inside `dir`. */
   readonly module: 'bundle.mjs';
   readonly assets: readonly UiAsset[];
@@ -175,37 +169,6 @@ export async function bundleUi(
     plugins: [assetPlugin(options.root, assets)],
   });
 
-  // The native runtime's form, from the ES module (and its map, so that
-  // development's map still leads to the original sources).
-  const esm = (await readFile(join(outDir, 'bundle.mjs'), 'utf8')).replace(
-    /\n\/\/# sourceMappingURL=.*\s*$/,
-    '\n',
-  );
-  const native = await toNativeModule(esm, {
-    filename: 'bundle.mjs',
-    compact: production,
-    sourceMap: !production,
-    ...(production
-      ? {}
-      : {
-          inputSourceMap: JSON.parse(
-            await readFile(join(outDir, 'bundle.mjs.map'), 'utf8'),
-          ) as NonNullable<NativeModuleOptions['inputSourceMap']>,
-        }),
-  });
-  await writeFile(
-    join(outDir, 'bundle.js'),
-    production
-      ? native.code
-      : `${native.code}\n//# sourceMappingURL=bundle.js.map\n`,
-  );
-  if (native.map !== undefined) {
-    await writeFile(
-      join(outDir, 'bundle.js.map'),
-      JSON.stringify({ ...native.map, file: 'bundle.js' }),
-    );
-  }
-
   const sorted = [...assets.values()].sort((a, b) =>
     a.asset.id.localeCompare(b.asset.id),
   );
@@ -216,7 +179,6 @@ export async function bundleUi(
     }
   }
   const manifest = {
-    entry: 'bundle.js',
     module: 'bundle.mjs',
     mode: options.mode,
     assets: sorted.map(({ asset }) => asset),
@@ -226,7 +188,6 @@ export async function bundleUi(
 
   // Last, and atomically: whoever sees a new id sees the complete build.
   const buildId = createHash('sha256')
-    .update(await readFile(join(outDir, 'bundle.js')))
     .update(await readFile(join(outDir, 'bundle.mjs')))
     .update(manifestText)
     .digest('hex')
@@ -235,7 +196,6 @@ export async function bundleUi(
   await rename(join(outDir, 'build-id.tmp'), join(outDir, 'build-id'));
   return {
     dir: outDir,
-    entry: 'bundle.js',
     module: 'bundle.mjs',
     assets: manifest.assets,
     buildId,

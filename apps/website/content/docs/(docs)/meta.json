@@ -12,6 +12,7 @@
     "parameters",
     "---Guides---",
     "react",
+    "ui-library",
     "---Runtimes---",
     "juce-runtime",
     "web-runtime",

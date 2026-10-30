@@ -147,7 +147,14 @@ describe('the UI bundle in soundor dev', () => {
     const ctx = makeCtx(root, {
       options: { port: 0 },
       signal: controller.signal,
-      ui: { ...ui, live: { logFile } },
+      ui: {
+        ...ui,
+        live: {
+          logFile,
+          onBuild: () => () => {},
+          sourceMap: () => Promise.resolve(),
+        },
+      },
     });
     let server: ViteDevServer | undefined;
     const running = webDev(testConfig, ctx, {

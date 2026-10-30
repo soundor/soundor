@@ -61,7 +61,7 @@ endfunction()
 find_program(SOUNDOR_NODE_EXE NAMES node)
 
 # Lowers the ES module <input> to <output>, in the runtime's module form
-# (SoundorLowerJs.mjs, with @soundor/core's toNativeModule()). <name> is the
+# (SoundorLowerJs.mjs, with toNativeModule() from scripts/native-module.ts). <name> is the
 # file name problems are reported under.
 function(soundor_lower_js_command input output name)
   if(NOT SOUNDOR_NODE_EXE)

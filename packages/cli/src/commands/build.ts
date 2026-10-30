@@ -106,7 +106,6 @@ export async function runBuild(
         mode: 'production',
         ui: bundle && {
           dir: bundle.dir,
-          entry: bundle.entry,
           module: bundle.module,
         },
       });

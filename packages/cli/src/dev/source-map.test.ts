@@ -50,7 +50,7 @@ describe('SourceMap', () => {
     expect(map.originalPosition(3, 1)).toBeUndefined();
   });
 
-  it('maps QuickJS stack frames of a real development bundle to the TypeScript', async () => {
+  it('maps stack frames in a real development bundle to the TypeScript', async () => {
     await mkdir(join(root, 'src'), { recursive: true });
     await writeFile(
       join(root, 'src/explode.ts'),
@@ -72,16 +72,16 @@ describe('SourceMap', () => {
       mode: 'development',
       outDir: join(root, 'out'),
     });
-    const code = await readFile(join(bundle!.dir, 'bundle.js'), 'utf8');
+    const code = await readFile(join(bundle!.dir, 'bundle.mjs'), 'utf8');
     const lines = code.split('\n');
     const line = lines.findIndex((text) => text.includes('throw new Error'));
     const column = lines[line]!.indexOf('throw');
-    const map = await SourceMap.load(join(bundle!.dir, 'bundle.js.map'), root);
+    const map = await SourceMap.load(join(bundle!.dir, 'bundle.mjs.map'), root);
 
-    // QuickJS frames are 1-based: "    at explode (/bundle.js:L:C)".
-    const stack = `Error: boom\n    at explode (/bundle.js:${line + 1}:${column + 1})\n    at <anonymous> (native)`;
-    expect(rewriteLocations(stack, map)).toBe(
-      'Error: boom\n    at explode (src/explode.ts:4:3)\n    at <anonymous> (native)',
+    // Frames are 1-based: "    at explode (<url>/bundle.mjs:L:C)".
+    const stack = `Error: boom\n    at explode (http://localhost:5173/bundle.mjs:${line + 1}:${column + 1})\n    at <anonymous> (native)`;
+    expect(rewriteLocations(stack, map, 'bundle.mjs')).toBe(
+      'Error: boom\n    at explode (http://localhost:5173/src/explode.ts:4:3)\n    at <anonymous> (native)',
     );
   });
 
@@ -92,7 +92,11 @@ describe('SourceMap', () => {
       '/p',
     );
     expect(
-      rewriteLocations('at f (/bundle.js:9:1) and /other.js:1:1', map),
+      rewriteLocations(
+        'at f (/bundle.js:9:1) and /other.js:1:1',
+        map,
+        '/bundle.js',
+      ),
     ).toBe('at f (/bundle.js:9:1) and /other.js:1:1');
   });
 });

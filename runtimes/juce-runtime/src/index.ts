@@ -29,6 +29,7 @@ import {
 
 import { generateJuceSources } from './codegen';
 import { buildDoctorReport, findCMake, findCppCompiler } from './doctor';
+import { nativeUiDir, watchNativeUi, writeNativeUi } from './native-ui';
 import {
   resolveJuceOptions,
   type JuceFormat,
@@ -130,84 +131,105 @@ export async function juceDev(
   requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
-  const live = ctx.ui?.live;
-  await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
-
-  const configureArgs = [
-    '-S',
-    projectDir,
-    '-B',
-    buildDir,
-    ...generatorArgs(platform),
-    '-DCMAKE_BUILD_TYPE=Debug',
-    `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
-    `-DSOUNDOR_ENABLE_DEVTOOLS=${ctx.devtools === undefined ? 'OFF' : 'ON'}`,
-    `-DJUCE_DIR=${jucePath}`,
-    // The Node running the CLI lowers the runtime's own modules.
-    `-DSOUNDOR_NODE_EXE=${process.execPath}`,
-    // Always set, so a UI removed since the last configure is not kept cached.
-    // A live UI (soundor dev) is loaded from disk and reloaded, not embedded.
-    `-DSOUNDOR_UI_DIR=${live === undefined ? (ctx.ui?.dir ?? '') : ''}`,
-    `-DSOUNDOR_UI_DEV_DIR=${live === undefined ? '' : ctx.ui!.dir}`,
-    `-DSOUNDOR_UI_DEV_LOG=${live?.logFile ?? ''}`,
-    // Debug builds are signed ad-hoc: no timestamp server, and a debugger can
-    // attach without the hardened runtime in the way.
-    ...signingArgs(platform, { identity: '-', source: 'default' }),
-  ];
-
-  ctx.logger.info('Configuring debug build');
-  await run({
-    cmd: 'cmake',
-    args: configureArgs,
-    cwd: projectDir,
-    logger: ctx.logger,
-    signal: ctx.signal,
-  });
-  await run({
-    cmd: 'cmake',
-    args: ['--build', buildDir, '--config', 'Debug', '--parallel'],
-    cwd: projectDir,
-    logger: ctx.logger,
-    signal: ctx.signal,
-  });
-
-  const rows: DevSummaryRow[] = [
-    {
-      label: 'Formats',
-      value: options.formats.map((format) => FORMAT_NAMES[format]).join(', '),
-    },
-  ];
-  const artefacts = await findArtefactsDir(buildDir);
-  if (artefacts !== undefined)
-    rows.push({ label: 'Plugins', value: artefacts });
-  if (options.formats.includes('standalone')) {
-    const relaunch = (): Promise<string | undefined> =>
-      launchStandaloneBuild(
-        buildDir,
-        ctx,
-        deps.launchStandalone ?? launchStandalone,
-        deps.platform ?? process.platform,
-      );
-    const target = await relaunch();
-    if (target !== undefined) {
-      rows.push({ label: 'Standalone', value: target });
-      ctx.session?.shortcut({
-        key: 's',
-        description: 'launch the Standalone again',
-        action: async () => {
-          await relaunch();
-        },
-      });
-    }
-  }
-
-  ctx.logger.info(
+  const ui = ctx.ui;
+  const live = ui?.live;
+  // The UI in the engine's form: reloaded from disk on every build when live
+  // (soundor dev), embedded otherwise.
+  const uiDir = nativeUiDir(ctx.paths.cache, 'debug');
+  const watcher =
     live === undefined
-      ? 'Debug build ready.'
-      : 'Debug build ready. The plugin UI reloads on every change; its console appears here.',
-  );
-  ctx.session?.ready(rows);
-  await waitForAbort(ctx.signal);
+      ? undefined
+      : watchNativeUi({ ...ui!, live }, uiDir, (error) =>
+          ctx.logger.error(
+            `The UI could not be prepared for the plugin; it keeps the last good one.\n${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          ),
+        );
+  if (live === undefined && ui !== undefined)
+    await writeNativeUi(ui, uiDir, 'development');
+  try {
+    await watcher?.ready;
+    await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
+
+    const configureArgs = [
+      '-S',
+      projectDir,
+      '-B',
+      buildDir,
+      ...generatorArgs(platform),
+      '-DCMAKE_BUILD_TYPE=Debug',
+      `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
+      `-DSOUNDOR_ENABLE_DEVTOOLS=${ctx.devtools === undefined ? 'OFF' : 'ON'}`,
+      `-DJUCE_DIR=${jucePath}`,
+      // The Node running the CLI lowers the runtime's own modules.
+      `-DSOUNDOR_NODE_EXE=${process.execPath}`,
+      // Always set, so a UI removed since the last configure is not kept cached.
+      // A live UI (soundor dev) is loaded from disk and reloaded, not embedded.
+      `-DSOUNDOR_UI_DIR=${live === undefined && ui !== undefined ? uiDir : ''}`,
+      `-DSOUNDOR_UI_DEV_DIR=${live === undefined ? '' : uiDir}`,
+      `-DSOUNDOR_UI_DEV_LOG=${live?.logFile ?? ''}`,
+      // Debug builds are signed ad-hoc: no timestamp server, and a debugger can
+      // attach without the hardened runtime in the way.
+      ...signingArgs(platform, { identity: '-', source: 'default' }),
+    ];
+
+    ctx.logger.info('Configuring debug build');
+    await run({
+      cmd: 'cmake',
+      args: configureArgs,
+      cwd: projectDir,
+      logger: ctx.logger,
+      signal: ctx.signal,
+    });
+    await run({
+      cmd: 'cmake',
+      args: ['--build', buildDir, '--config', 'Debug', '--parallel'],
+      cwd: projectDir,
+      logger: ctx.logger,
+      signal: ctx.signal,
+    });
+
+    const rows: DevSummaryRow[] = [
+      {
+        label: 'Formats',
+        value: options.formats.map((format) => FORMAT_NAMES[format]).join(', '),
+      },
+    ];
+    const artefacts = await findArtefactsDir(buildDir);
+    if (artefacts !== undefined)
+      rows.push({ label: 'Plugins', value: artefacts });
+    if (options.formats.includes('standalone')) {
+      const relaunch = (): Promise<string | undefined> =>
+        launchStandaloneBuild(
+          buildDir,
+          ctx,
+          deps.launchStandalone ?? launchStandalone,
+          deps.platform ?? process.platform,
+        );
+      const target = await relaunch();
+      if (target !== undefined) {
+        rows.push({ label: 'Standalone', value: target });
+        ctx.session?.shortcut({
+          key: 's',
+          description: 'launch the Standalone again',
+          action: async () => {
+            await relaunch();
+          },
+        });
+      }
+    }
+
+    ctx.logger.info(
+      live === undefined
+        ? 'Debug build ready.'
+        : 'Debug build ready. The plugin UI reloads on every change; its console appears here.',
+    );
+    ctx.session?.ready(rows);
+    await waitForAbort(ctx.signal);
+  } finally {
+    watcher?.close();
+  }
 }
 
 /** `build` — production package: produce VST3/AU under `ctx.paths.dist`. */
@@ -223,6 +245,8 @@ export async function juceBuild(
   requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-release');
+  const uiDir = nativeUiDir(ctx.paths.cache, 'release');
+  if (ctx.ui !== undefined) await writeNativeUi(ctx.ui, uiDir, 'production');
   await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
   const configureArgs = [
@@ -238,7 +262,7 @@ export async function juceBuild(
     '-DSOUNDOR_UI_DEV_LOG=',
     `-DJUCE_DIR=${jucePath}`,
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
-    `-DSOUNDOR_UI_DIR=${ctx.ui?.dir ?? ''}`,
+    `-DSOUNDOR_UI_DIR=${ctx.ui === undefined ? '' : uiDir}`,
     ...signingArgs(platform, ctx.signing.macos),
   ];
   if (ctx.ui === undefined) {
