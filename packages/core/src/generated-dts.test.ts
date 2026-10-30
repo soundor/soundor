@@ -13,6 +13,7 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { generateSoundorFiles, type CoreSoundorConfig } from './generate';
+import { runtimeTypeFiles } from './runtime-types';
 
 const run = promisify(execFile);
 // TypeScript 7 has no compiler API in its main entry point; run the tsc CLI.
@@ -74,8 +75,6 @@ import { clipboard, createCanvas, createImage, createScrollView, createText, cre
 
 import logo from './logo.png';
 const asset: string = logo;
-// @ts-expect-error assets are opaque ids, not arbitrary strings
-const forgedAsset: typeof logo = 'x.png';
 
 const gain: number = parameters.gain.get();
 parameters.gain.set(gain - 1);
@@ -163,8 +162,6 @@ if (context) {
 }
 // @ts-expect-error not a resize mode
 createImage(logo, { resizeMode: 'fill' });
-// @ts-expect-error images show bundled assets, not arbitrary strings
-createImage('logo.png');
 // @ts-expect-error not a flex direction
 createView({ flexDirection: 'diagonal' });
 // @ts-expect-error unknown style property
@@ -188,7 +185,7 @@ void document;
 // @ts-expect-error there is no localStorage
 void localStorage;
 
-export { asset, forgedAsset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+export { asset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;
@@ -228,4 +225,54 @@ describe('generated declarations', () => {
       run(process.execPath, [tsc, '-p', dir, '--pretty', 'false']),
     ).resolves.toMatchObject({ stdout: '' });
   }, 30_000);
+
+  it.each([
+    ["Soundor's whole environment", ['es2022'], ['index.d.ts']],
+    ["the DOM's types", ['es2022', 'dom'], ['ui.d.ts', 'assets.d.ts']],
+  ])(
+    'give a library soundor:ui with %s',
+    async (_, lib, declarations) => {
+      const library = await mkdtemp(join(tmpdir(), 'soundor-dts-library-'));
+      try {
+        for (const file of runtimeTypeFiles())
+          await writeFile(join(library, file.path), file.contents);
+        await writeFile(
+          join(library, 'library.ts'),
+          `import { createCanvas, createImage, registerFont, root, type Asset } from 'soundor:ui';
+import logo from './logo.png';
+
+// An asset is a string, so another bundler's image imports fit as well.
+export function show(source: Asset | string) {
+  root.appendChild(createImage(source, { width: 16 }));
+}
+show(logo);
+void registerFont('Brand', 'brand.ttf', { weight: 'bold' });
+const context = createCanvas().getContext('2d');
+context?.fillRect(0, 0, 1, 1);
+`,
+        );
+        await writeFile(
+          join(library, 'tsconfig.json'),
+          JSON.stringify({
+            compilerOptions: {
+              strict: true,
+              noEmit: true,
+              target: 'es2022',
+              module: 'esnext',
+              moduleResolution: 'bundler',
+              lib,
+              types: [],
+            },
+            files: ['library.ts', ...declarations],
+          }),
+        );
+        await expect(
+          run(process.execPath, [tsc, '-p', library, '--pretty', 'false']),
+        ).resolves.toMatchObject({ stdout: '' });
+      } finally {
+        await rm(library, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
 });

@@ -68,9 +68,10 @@ The CLI finds the project's `src/main.tsx` entry, with `.ts`, `.jsx`, and `.js`
 alternatives, and bundles its npm imports with tsdown. `soundor:*` imports stay
 external for the runtime to supply.
 
-Each build produces `bundle.mjs`, an ES module for the web, and `bundle.js`, the
-native module form lowered for Hermes. Images are bundled as content-addressed
-assets. Development output includes source maps; production output is minified
+Each build produces `bundle.mjs`, one ES module, which every runtime starts
+from: the web runtime loads it as it is, and the JUCE runtime lowers it into
+the module form its engine runs. Images and fonts are bundled as
+content-addressed assets. Development output includes source maps; production output is minified
 and tree-shaken. `process.env.NODE_ENV` is replaced during bundling.
 
 Native builds compile production JavaScript to Hermes bytecode and embed it in

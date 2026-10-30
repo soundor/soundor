@@ -132,6 +132,9 @@ scenario in `globalThis.soundorRunUiPhase`):
 
 ```sh
 pnpm build:web   # also bundles the UI into .soundor/ui/production
+# Lowers it into the engine's module form, as the JUCE runtime does.
+node ../../runtimes/engine/cmake/SoundorLowerJs.mjs \
+  .soundor/ui/production/bundle.mjs .soundor/ui/production/bundle.js
 ../../runtimes/engine/build/bench/tests/soundor_run_ui \
   .soundor/ui/production --size 700x520 --eval 'soundorBenchmark.run()' \
   --time-native-calls --json report.json

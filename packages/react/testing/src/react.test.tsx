@@ -147,7 +147,7 @@ describe('rendering', () => {
   it('shows images and scroll views with a content container', async () => {
     await show(
       <ScrollView style={{ height: 50 }} contentContainerStyle={{ padding: 4 }}>
-        <Image source={'logo.png' as SoundorAsset} style={{ width: 8 }} />
+        <Image source="logo.png" style={{ width: 8 }} />
       </ScrollView>,
     );
     expect(print()).toBe(

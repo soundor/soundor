@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
+    "@soundor/core": "workspace:*",
     "@soundor/devtools-client": "workspace:^",
     "@soundor/devtools-server": "workspace:^",
     "@soundor/driver": "workspace:^",
@@ -32,7 +33,6 @@
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
-    "@soundor/core": "workspace:^",
     "@soundor/devtools-protocol": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
@@ -43,8 +43,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0",
-    "@soundor/core": "workspace:>=0.0.0 <1.0.0"
+    "@soundor/config": "workspace:>=0.0.0 <1.0.0"
   },
   "engines": {
     "node": "^22.18.0 || >=24.11.0"

@@ -1,6 +1,6 @@
 // Turns an ES module into the form the native runtime runs: a CommonJS module
-// function with the syntax Hermes lacks lowered (@soundor/core's
-// toNativeModule()). The build runs it on the runtime's own modules (src/,
+// function with the syntax Hermes lacks lowered (toNativeModule(), in
+// scripts/native-module.ts). The build runs it on the runtime's own modules (src/,
 // soundor_embed_module()) before compiling them to bytecode, and the tests on
 // Three.js. Each statement stays on its line, so that stack traces point at
 // the module as written.

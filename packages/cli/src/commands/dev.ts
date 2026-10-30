@@ -94,10 +94,13 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   });
   const { logger } = terminal;
 
-  // The native runtime's frames name /bundle.js, the Web's bundle.mjs.
-  let sourceMap: SourceMap | undefined;
+  // Stack frames in the plugin's log are mapped back to the sources: the
+  // Web's name the ES module, bundle.mjs; a runtime that runs another form of
+  // it maps its own (live.sourceMap()).
   let moduleMap: SourceMap | undefined;
-  let sourceMapLoaded = Promise.resolve();
+  let moduleMapLoaded = Promise.resolve();
+  const runtimeMaps = new Map<string, SourceMap>();
+  const buildListeners = new Set<() => void>();
   let built = false;
   const watcher = watchUi({
     root,
@@ -110,18 +113,24 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
           : `Bundled the UI -> ${bundle.dir}`,
       );
       built = true;
-      const load = (file: string): Promise<SourceMap | undefined> =>
-        SourceMap.load(resolve(bundle.dir, file), root).then(
-          (map) => map,
-          () => undefined,
-        );
-      sourceMapLoaded = Promise.all([
-        load('bundle.js.map'),
-        load('bundle.mjs.map'),
-      ]).then(([native, module]) => {
-        sourceMap = native;
-        moduleMap = module;
-      });
+      moduleMapLoaded = SourceMap.load(
+        resolve(bundle.dir, `${bundle.module}.map`),
+        root,
+      ).then(
+        (map) => {
+          moduleMap = map;
+        },
+        () => {
+          moduleMap = undefined;
+        },
+      );
+      for (const listener of buildListeners) {
+        try {
+          listener();
+        } catch (error) {
+          logger.error(error instanceof Error ? error.message : String(error));
+        }
+      }
     },
     onError(error) {
       logger.error(
@@ -132,7 +141,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
     },
   });
   await watcher?.ready;
-  await sourceMapLoaded;
+  await moduleMapLoaded;
 
   const controller = new AbortController();
   let debug: DevToolsServer | undefined;
@@ -250,7 +259,8 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   const uiLogger = logger.child('ui');
   const tail = await tailLog(logFile, (entry) => {
     let message = entry.message;
-    if (sourceMap !== undefined) message = rewriteLocations(message, sourceMap);
+    for (const [file, map] of runtimeMaps)
+      message = rewriteLocations(message, map, file);
     if (moduleMap !== undefined)
       message = rewriteLocations(message, moduleMap, 'bundle.mjs');
     uiLogger[entry.level](`${entry.source}: ${message}`);
@@ -283,9 +293,19 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
       session,
       ui: watcher && {
         dir: uiDir,
-        entry: 'bundle.js',
         module: 'bundle.mjs',
-        live: { logFile },
+        live: {
+          logFile,
+          onBuild(listener) {
+            buildListeners.add(listener);
+            return () => {
+              buildListeners.delete(listener);
+            };
+          },
+          async sourceMap(file, mapFile) {
+            runtimeMaps.set(file, await SourceMap.load(mapFile, root));
+          },
+        },
       },
     });
   } catch (error) {

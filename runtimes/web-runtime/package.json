@@ -37,12 +37,13 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "@soundor/core": "workspace:^",
     "preact": "catalog:",
     "vite": "catalog:"
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
-    "@soundor/core": "workspace:^",
+    "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
@@ -58,7 +59,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0",
-    "@soundor/core": "workspace:>=0.0.0 <1.0.0"
+    "@soundor/config": "workspace:>=0.0.0 <1.0.0"
   }
 }

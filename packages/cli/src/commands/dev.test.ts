@@ -194,7 +194,7 @@ describe('runDev with a UI', () => {
     expect(globalThis.__soundorDevEvents).toEqual([
       'gen:debug',
       'dev:debug',
-      'ui:bundle.js:live',
+      'ui:bundle.mjs:live',
     ]);
     expect(error).toHaveBeenCalledWith(
       '[soundor:ui] Test: Error: boom\n    at <eval> (src/main.ts:2:1)',
@@ -245,14 +245,16 @@ const runtime = {
       globalThis.__soundorDevEvents.push('browser-origin:' + response.status);
     }
     if (${String(options.logFromPlugin)}) {
-      // Plays the plugin: logs an error thrown at the bundle's \`throw\`.
+      // Plays a runtime that runs the bundle under another name, /native.js,
+      // and the plugin, which logs an error thrown at the bundle's \`throw\`.
       const fs = await import('node:fs');
       globalThis.__soundorDevEvents.push(
-        'ui:' + ctx.ui.entry + ':' + (ctx.ui.live ? 'live' : 'embedded'),
+        'ui:' + ctx.ui.module + ':' + (ctx.ui.live ? 'live' : 'embedded'),
       );
-      const lines = fs.readFileSync(ctx.ui.dir + '/' + ctx.ui.entry, 'utf8').split('\\n');
+      await ctx.ui.live.sourceMap('/native.js', ctx.ui.dir + '/' + ctx.ui.module + '.map');
+      const lines = fs.readFileSync(ctx.ui.dir + '/' + ctx.ui.module, 'utf8').split('\\n');
       const line = lines.findIndex((text) => text.includes('throw'));
-      const frame = '/bundle.js:' + (line + 1) + ':' + (lines[line].indexOf('throw') + 1);
+      const frame = '/native.js:' + (line + 1) + ':' + (lines[line].indexOf('throw') + 1);
       fs.appendFileSync(
         ctx.ui.live.logFile,
         JSON.stringify({ level: 'error', source: 'Test', message: 'Error: boom\\n    at <eval> (' + frame + ')' }) + '\\n',

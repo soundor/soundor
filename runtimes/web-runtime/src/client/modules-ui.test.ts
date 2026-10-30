@@ -40,7 +40,7 @@ describe('soundor:ui', () => {
     const box = createView({ padding: 4 });
     const text = createText('Hi', { color: 'red' });
     const input = createTextInput({ value: 'v', placeholder: 'p' });
-    const image = createImage('0123456789abcdef.png' as SoundorAsset);
+    const image = createImage('0123456789abcdef.png');
     const scroll = createScrollView({ flex: 1 });
     expect([box, text, input, image, scroll].map((node) => node.type)).toEqual([
       'view',

@@ -9,8 +9,7 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "runtime"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -22,8 +21,6 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
-    "./runtime/globals.d.ts": "./runtime/globals.d.ts",
-    "./runtime/ui.d.ts": "./runtime/ui.d.ts",
     "./spring": {
       "types": "./dist/spring.d.mts",
       "import": "./dist/spring.mjs"
@@ -35,9 +32,6 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "gen:runtime-types": "node scripts/runtime-types.mjs"
-  },
-  "dependencies": {
-    "@soundor/engine": "workspace:*"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:^",

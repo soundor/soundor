@@ -165,7 +165,7 @@ describe('ARIA', () => {
   });
 
   it('images are decorative unless labelled', () => {
-    const asset = '0123456789abcdef.png' as SoundorAsset;
+    const asset = '0123456789abcdef.png';
     render(
       h(
         View,

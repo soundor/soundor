@@ -75,7 +75,7 @@ describe('accessibility props', () => {
   });
 
   it('apply to every primitive', async () => {
-    const asset = 'abc.png' as SoundorAsset;
+    const asset = 'abc.png';
     await show(
       <View>
         <Text accessibilityRole="header">Title</Text>

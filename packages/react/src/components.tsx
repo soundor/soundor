@@ -18,6 +18,7 @@ import {
   type AnimationKeyframe,
   type AnimationDescription,
   type WheelEvent,
+  type Asset,
 } from 'soundor:ui';
 
 import {
@@ -156,7 +157,7 @@ export function Text(props: TextProps) {
  */
 export interface ImageProps extends EventProps, AccessibilityProps, DebugProps {
   /** A bundled image: `import logo from './logo.png'`. */
-  source: SoundorAsset;
+  source: Asset;
   /** Its box; `resizeMode` says how the image fills it. */
   style?: StyleProp;
   /** The image's `soundor:ui` node. */

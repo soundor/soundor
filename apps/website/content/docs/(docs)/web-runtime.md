@@ -105,7 +105,7 @@ bundler.
 src/main.tsx ──(soundor CLI bundler)──▶ bundle.mjs ──(Vite)──▶ browser
 ```
 
-The Soundor CLI bundles the plugin UI as it does for every runtime (`bundle.js`
+The Soundor CLI bundles the plugin UI as it does for every runtime (`bundle.mjs`
 plus content-addressed assets) and hands it to the runtime as `ctx.ui`. Vite
 loads that bundle as it is and never reads `src/main.tsx`. Vite resolves the
 bundle's `soundor:*` imports to this package's browser modules.

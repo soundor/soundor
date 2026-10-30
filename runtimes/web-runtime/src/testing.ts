@@ -118,14 +118,13 @@ export async function writeUiBundle(
   dir: string,
   code: string,
   buildId = 'build-1',
-): Promise<{ dir: string; entry: string; module: string }> {
+): Promise<{ dir: string; module: string }> {
   await mkdir(join(dir, 'assets'), { recursive: true });
   await writeFile(join(dir, 'bundle.mjs'), code);
   await writeFile(join(dir, 'assets', PNG_ID), PNG);
   await writeFile(
     join(dir, 'manifest.json'),
     JSON.stringify({
-      entry: 'bundle.js',
       module: 'bundle.mjs',
       mode: 'production',
       assets: [
@@ -134,5 +133,5 @@ export async function writeUiBundle(
     }),
   );
   await writeFile(join(dir, 'build-id'), buildId);
-  return { dir, entry: 'bundle.js', module: 'bundle.mjs' };
+  return { dir, module: 'bundle.mjs' };
 }

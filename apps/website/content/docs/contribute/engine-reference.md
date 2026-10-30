@@ -298,8 +298,8 @@ module function: `(function (exports, require, module) { ... })`, or an
 runs, so a cycle sees the exports made so far, as CommonJS does; `require()`
 is synchronous, so only an entry module may await at top level.
 
-`@soundor/core`'s `toNativeModule()` makes this form from an ES module with
-Babel, lowering the syntax Hermes compiles only experimentally or not at
+`toNativeModule()` (`@soundor/engine/native-module`,
+`scripts/native-module.ts`) makes this form from an ES module with Babel, lowering the syntax Hermes compiles only experimentally or not at
 all: classes (their fields, private members and static blocks), `let`/`const`
 block scoping, async functions and generators (into generators) and
 `for await`. Private members become properties keyed by symbols of their own,
@@ -308,8 +308,8 @@ visible to `Object.getOwnPropertySymbols()`, and reading one on an object
 without it gives `undefined` instead of throwing a TypeError. `let` and
 `const` become `var` without their temporal dead zone: a variable read before
 its declaration is `undefined`, where an engine running the ES module (the
-Web runtime) throws a ReferenceError. The CLI makes a plugin's bundle
-so (`bundle.js`); the runtime's own modules (`src/**/*.js`) are lowered
+Web runtime) throws a ReferenceError. The JUCE runtime makes a plugin's bundle
+so (`bundle.js`, from the CLI's `bundle.mjs`); the runtime's own modules (`src/**/*.js`) are lowered
 while building, into the build directory (`soundor_embed_module()`, with
 `cmake/SoundorLowerJs.mjs`), each statement on the line it has in `src/`, so
 that their stack traces point at the module as written. So a native build

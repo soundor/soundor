@@ -15,7 +15,7 @@ flowchart TD
     Toolchain --> Contract["Types, manifests, and native bindings"]
     Source["src/main.tsx and npm dependencies"] --> Bundle["CLI: bundle UI"]
     Bundle --> ESM["bundle.mjs: ES module"]
-    Bundle --> Native["bundle.js: lowered native module"]
+    ESM --> Native["JUCE runtime: lowered for its engine"]
     Contract --> JUCE["JUCE plugin: your C++ host and DSP"]
     Contract --> Web["Browser host: your TypeScript and Web Audio"]
     Native --> JUCE
@@ -25,8 +25,9 @@ flowchart TD
 ```
 
 The CLI bundles npm dependencies into the UI and leaves `soundor:*` imports for
-the runtime. It emits an ES module for the web and a module function lowered
-for Hermes. Production native builds compile that module to bytecode with the
+the runtime, in one ES module. The web runtime loads it as it is. The JUCE
+runtime lowers it into a module function for Hermes, with the lowering of the
+engine it links, and production builds compile that to bytecode with the
 matching `hermesc`.
 
 ## Packages

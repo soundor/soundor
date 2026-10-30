@@ -105,7 +105,7 @@ export class SourceMap {
 export function rewriteLocations(
   text: string,
   map: SourceMap,
-  bundle = '/bundle.js',
+  bundle: string,
 ): string {
   const pattern = new RegExp(
     `${bundle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:(\\d+):(\\d+)`,

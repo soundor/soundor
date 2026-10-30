@@ -5,8 +5,8 @@ description: 'How dev and build bundle src/main.tsx: what is inlined, assets, mo
 
 A plugin's UI is TypeScript or TSX in `src/main.tsx` (or `main.ts`, `main.jsx`,
 `main.js`). [`soundor dev`](/docs/cli/dev) and [`soundor build`](/docs/cli/build) bundle it with
-[tsdown](https://tsdown.dev) into one JavaScript file that the plugin embeds
-and runs in Soundor's runtime:
+[tsdown](https://tsdown.dev) into one JavaScript file, an ES module, that each
+runtime runs:
 
 - Everything it imports from npm is inlined. `soundor:*` modules stay imports;
   the runtime provides them.
@@ -20,15 +20,17 @@ and runs in Soundor's runtime:
   `import inter from './Inter.ttf'` (also `.otf`) for a font, which
   [`registerFont`](/docs/components/text#fonts) takes.
 
-Each build is two files: `bundle.mjs`, an ES module the web runtime loads, and
-`bundle.js`, the module form the native runtime runs (production native
-builds compile it to Hermes bytecode).
+Each build is `bundle.mjs` (and `bundle.mjs.map` in development). The web
+runtime loads it as it is. The JUCE runtime lowers it into the module form its
+engine runs, with that engine's own lowering, and its release builds compile
+the result to Hermes bytecode.
 
 ## TypeScript
 
 TypeScript types for the runtime are generated into
-`.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image imports, and
-exactly the Web APIs the runtime provides. Use them with `lib: ["ES2023"]` and
+`.soundor/generated/soundor.d.ts`: the `soundor:*` modules, image and font
+imports (their ids, plain strings), and exactly the Web APIs the runtime
+provides. Use them with `lib: ["ES2023"]` and
 without `"DOM"`, so code that assumes a browser fails to compile:
 
 ```jsonc

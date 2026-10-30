@@ -32,21 +32,18 @@ export interface DevToolsConnection {
 
 /**
  * The plugin UI bundle the CLI built before dispatching `dev` or `build`: a
- * directory holding `entry` (the JavaScript bundle) and its assets. The CLI
- * owns the bundler; runtimes ship or serve the files.
+ * directory holding `module` (the JavaScript bundle, one ES module) and its
+ * assets. The CLI owns the bundler; runtimes ship or serve the files, or
+ * turn them into the form they run (as the JUCE runtime does for its
+ * engine).
  */
 export interface UiBundleContext {
   /** Absolute path to the bundle directory. */
   readonly dir: string;
   /**
-   * The bundle file inside `dir`, `bundle.js`, in Soundor's native runtime's
-   * module form: a CommonJS module function, lowered for Hermes (see
-   * `toNativeModule()` in @soundor/core).
-   */
-  readonly entry: string;
-  /**
-   * The same bundle as one ES module (ES2023) inside `dir`, `bundle.mjs`: for
-   * runtimes that load ES modules, such as the Web.
+   * The bundle as one ES module (ES2023) inside `dir`, `bundle.mjs`, with
+   * `soundor:*` imports left as imports. In development, `<module>.map` next
+   * to it maps it to the original sources.
    */
   readonly module: string;
   /**
@@ -64,6 +61,18 @@ export interface LiveUiContext {
    * (`{"level","source","message"}`); the CLI shows it in the terminal.
    */
   readonly logFile: string;
+  /**
+   * Calls `listener` after every later successful build, once `build-id` is
+   * written (the first build is done before the phase starts). Returns a
+   * function that stops calling it.
+   */
+  onBuild(listener: () => void): () => void;
+  /**
+   * Has the CLI map `<file>:line:column` locations in the plugin's log
+   * (stack frames, such as `/bundle.js:12:5`) through the source map at
+   * `mapFile`. The map is read now: call again after rewriting it.
+   */
+  sourceMap(file: string, mapFile: string): Promise<void>;
 }
 
 /**

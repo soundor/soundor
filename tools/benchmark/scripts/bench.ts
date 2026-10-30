@@ -665,6 +665,16 @@ if (!options['no-build']) {
   run('cmake', ['--workflow', '--preset', 'bench'], native);
 }
 const ui = path.join(benchmark, '.soundor/ui/production');
+// The bundle in the engine's module form, as the JUCE runtime makes it.
+run(
+  process.execPath,
+  [
+    path.join(native, 'cmake/SoundorLowerJs.mjs'),
+    path.join(ui, 'bundle.mjs'),
+    path.join(ui, 'bundle.js'),
+  ],
+  benchmark,
+);
 const compiled = path.join(ui, 'bundle.js.hbc');
 rmSync(compiled, { force: true });
 if (!options.source) {

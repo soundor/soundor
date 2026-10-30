@@ -1,5 +1,6 @@
 import { resolve as resolvePath, sep } from 'node:path';
 
+import { renderAssetsDts } from './assets-dts';
 import type { CodegenFile } from './codegen';
 import { SoundorError } from './errors';
 import type { FileSystemHost } from './filesystem';
@@ -105,6 +106,7 @@ export class GeneratedFilesOutOfDateError extends SoundorError {
 
 export function generateSoundorFiles(config: CoreSoundorConfig): CodegenFile[] {
   return [
+    { path: 'assets.d.ts', contents: renderAssetsDts() },
     { path: 'globals.d.ts', contents: renderGlobalsDts() },
     { path: 'native.d.ts', contents: renderNativeDts(nativeApiModel(config)) },
     {
@@ -175,7 +177,7 @@ function nativeApiModel(config: CoreSoundorConfig) {
  * the config.
  */
 function renderSoundorDts(): string {
-  return `${HEADER}/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
+  return `${HEADER}/// <reference path="./assets.d.ts" />\n/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
 }
 
 function sortFiles(files: readonly CodegenFile[]): CodegenFile[] {

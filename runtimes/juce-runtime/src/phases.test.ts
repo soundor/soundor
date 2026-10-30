@@ -50,6 +50,19 @@ async function tempProjectWithJuce(): Promise<string> {
   return root;
 }
 
+/** A UI bundle as the CLI leaves it: the ES module, then its build id. */
+async function writeBundle(
+  dir: string,
+): Promise<{ dir: string; module: string }> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(
+    join(dir, 'bundle.mjs'),
+    "import { plugin } from 'soundor:host';\nconsole.info(plugin.name);\n",
+  );
+  await writeFile(join(dir, 'build-id'), 'build-1');
+  return { dir, module: 'bundle.mjs' };
+}
+
 afterEach(() => vi.restoreAllMocks());
 
 describe('juceInit', () => {
@@ -155,10 +168,12 @@ describe('juceDev', () => {
         signal: controller.signal,
       }),
       ui: {
-        dir: join(root, 'ui'),
-        entry: 'bundle.js',
-        module: 'bundle.mjs',
-        live: { logFile: join(root, 'ui.log') },
+        ...(await writeBundle(join(root, 'ui'))),
+        live: {
+          logFile: join(root, 'ui.log'),
+          onBuild: () => () => {},
+          sourceMap: vi.fn(() => Promise.resolve()),
+        },
       },
     };
     const calls: string[][] = [];
@@ -170,9 +185,15 @@ describe('juceDev', () => {
     await juceDev(config, ctx, { run, probe: okProbe });
 
     const configure = calls[0]!;
+    const uiDir = join(ctx.paths.cache, 'ui-debug');
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');
-    expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=' + join(root, 'ui'));
+    expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=' + uiDir);
     expect(configure).toContain('-DSOUNDOR_UI_DEV_LOG=' + join(root, 'ui.log'));
+    // The engine's form of the bundle, made before the plugin is built.
+    expect(await readFile(join(uiDir, 'bundle.js'), 'utf8')).toMatch(
+      /^\(function \(exports, require, module\) \{/,
+    );
+    expect(await readFile(join(uiDir, 'build-id'), 'utf8')).toBe('build-1');
   });
 
   it.each(['', 'Debug'])(
@@ -320,6 +341,33 @@ describe('juceBuild', () => {
     );
     expect(await exists(copied)).toBe(true);
     expect(await readFile(copied, 'utf8')).toBe('binary');
+  });
+
+  it("embeds the UI in the engine's form, compact", async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = {
+      ...makeCtx({
+        root,
+        fs: createNodeFileSystem(root),
+        options: { jucePath: join(root, 'JUCE') },
+        mode: 'production',
+      }),
+      ui: await writeBundle(join(root, 'ui')),
+    };
+    const calls: string[][] = [];
+    const run = (o: RunCommandOptions) => {
+      calls.push([o.cmd, ...o.args]);
+      return Promise.resolve();
+    };
+
+    await juceBuild(config, ctx, { run, probe: okProbe });
+
+    const uiDir = join(ctx.paths.cache, 'ui-release');
+    expect(calls[0]).toContain('-DSOUNDOR_UI_DIR=' + uiDir);
+    const native = await readFile(join(uiDir, 'bundle.js'), 'utf8');
+    expect(native).toMatch(/require\(["']soundor:host["']\)/);
+    expect(native.trim().split('\n')).toHaveLength(1);
+    expect(await exists(join(uiDir, 'bundle.js.map'))).toBe(false);
   });
 
   it('throws an ENV error when JUCE cannot be located', async () => {

@@ -8,7 +8,7 @@
     "test:watch": "vitest watch"
   },
   "devDependencies": {
-    "@soundor/core": "workspace:^",
+    "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/test-runtime": "workspace:^",
     "@soundor/testing-library": "workspace:^",

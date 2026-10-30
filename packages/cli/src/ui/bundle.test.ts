@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runInThisContext } from 'node:vm';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -37,10 +36,8 @@ async function write(
 async function bundle(mode: 'development' | 'production' = 'production') {
   const result = await bundleUi({ root, mode, outDir: join(root, 'out') });
   if (result === undefined) throw new Error('expected a bundle');
-  // The ES module; `native` is the native runtime's form.
   const code = await readFile(join(result.dir, 'bundle.mjs'), 'utf8');
-  const native = await readFile(join(result.dir, 'bundle.js'), 'utf8');
-  return { result, code, native };
+  return { result, code };
 }
 
 beforeEach(async () => {
@@ -84,10 +81,8 @@ describe('bundleUi', () => {
       'src/label.ts',
       `export const label = (name: string, gain: number): string => \`\${name}: \${gain}\`;`,
     );
-    const { result, code, native } = await bundle();
-    expect(result.entry).toBe('bundle.js');
+    const { result, code } = await bundle();
     expect(result.module).toBe('bundle.mjs');
-    expect(native).toMatch(/require\(["']soundor:parameters["']\)/);
     expect(code).toMatch(/from\s*["']soundor:parameters["']/);
     expect(code).toMatch(/from\s*["']soundor:host["']/);
     expect(code).not.toContain('./label');
@@ -145,17 +140,14 @@ describe('bundleUi', () => {
     const production = await bundle('production');
     expect(production.code).not.toContain('a comment');
     expect(production.code.trim().split('\n').length).toBeLessThanOrEqual(2);
-    expect(production.native).not.toContain('a comment');
-    expect(production.native.trim().split('\n').length).toBeLessThanOrEqual(2);
     await expect(
-      readFile(join(production.result.dir, 'bundle.js.map')),
+      readFile(join(production.result.dir, 'bundle.mjs.map')),
     ).rejects.toThrow();
 
     const development = await bundle('development');
     expect(development.code).toContain('//# sourceMappingURL=bundle.mjs.map');
-    expect(development.native).toContain('//# sourceMappingURL=bundle.js.map');
     const map = JSON.parse(
-      await readFile(join(development.result.dir, 'bundle.js.map'), 'utf8'),
+      await readFile(join(development.result.dir, 'bundle.mjs.map'), 'utf8'),
     );
     expect(
       map.sources.some((source: string) => source.endsWith('src/main.ts')),
@@ -188,7 +180,7 @@ describe('bundleUi', () => {
     const manifest = JSON.parse(
       await readFile(join(result.dir, 'manifest.json'), 'utf8'),
     );
-    expect(manifest.entry).toBe('bundle.js');
+    expect(manifest.module).toBe('bundle.mjs');
     expect(
       manifest.assets.find((asset: { id: string }) => asset.id === logoId),
     ).toMatchObject({
@@ -238,34 +230,9 @@ describe('bundleUi', () => {
       'src/main.ts',
       `const values = [3, 1, 2].toSorted(); export const result = values.join(',');`,
     );
-    const { result, native } = await bundle();
+    const { result } = await bundle();
     const module = await import(join(result.dir, 'bundle.mjs'));
     expect(module.result).toBe('1,2,3');
-    // The native form: a script whose value is the module function.
-    const run = runInThisContext(native) as (
-      exports: Record<string, unknown>,
-      require: (specifier: string) => unknown,
-      module: object,
-    ) => void;
-    const exports: Record<string, unknown> = {};
-    run(exports, () => ({}), { exports });
-    expect(exports['result']).toBe('1,2,3');
-  });
-
-  it('lowers for Hermes what it cannot compile, in the native form only', async () => {
-    await write(
-      'src/main.ts',
-      `export class Counter { #count = 0; static zero = 0; increment() { return ++this.#count; } }
-       export const later = async () => { for (let i = 0; i < 2; i++) await i; return new Counter().increment(); };`,
-    );
-    const { code, native } = await bundle('development');
-    expect(code).toMatch(/\bclass\b/);
-    expect(native).not.toMatch(
-      /(^|[=(,]\s*)class\b|#count|\blet\s|\bconst\s|async\s*\(/m,
-    );
-    expect(native.startsWith('(function (exports, require, module) {')).toBe(
-      true,
-    );
   });
 
   it('writes a build id that changes exactly when the build does', async () => {
@@ -341,7 +308,7 @@ describe('watchUi', () => {
       await write('src/main.ts', `import './missing';`);
       await event;
       expect(await buildId()).toBe(first!.buildId);
-      expect(await readFile(join(outDir, 'bundle.js'), 'utf8')).toContain(
+      expect(await readFile(join(outDir, 'bundle.mjs'), 'utf8')).toContain(
         'version = 1',
       );
 
@@ -350,7 +317,7 @@ describe('watchUi', () => {
       await event;
       expect(await buildId()).toBe(builds[1]!.buildId);
       expect(builds[1]!.buildId).not.toBe(first!.buildId);
-      expect(await readFile(join(outDir, 'bundle.js'), 'utf8')).toContain(
+      expect(await readFile(join(outDir, 'bundle.mjs'), 'utf8')).toContain(
         'version = 2',
       );
     } finally {

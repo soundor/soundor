@@ -18,7 +18,6 @@
   },
   "devDependencies": {
     "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "soundor": "workspace:*",
