@@ -379,6 +379,23 @@ export class UiView implements ViewLink {
       this.#resizes = new Observer(() => this.#hoverChanged());
       this.#resizes.observe(element);
     }
+    // A press the view did not capture (a text input's) can move and end
+    // outside it; inside, the view's own listeners have it.
+    const window = element.ownerDocument.defaultView;
+    const outside =
+      (handle: (event: globalThis.PointerEvent) => void) =>
+      (event: globalThis.PointerEvent) => {
+        if (element.contains(event.target as Node | null)) return;
+        if (this.#pointers.get(event.pointerId)?.captured == null) return;
+        handle(event);
+      };
+    for (const [type, handle] of [
+      ['pointermove', (e: globalThis.PointerEvent) => this.#pointerMove(e)],
+      ['pointerup', (e: globalThis.PointerEvent) => this.#pointerUp(e)],
+      ['pointercancel', (e: globalThis.PointerEvent) => this.#pointerCancel(e)],
+    ] as const) {
+      window?.addEventListener(type, outside(pointer(handle)), options);
+    }
     // Scroll views scroll natively, moving their content under the pointer.
     element.addEventListener('scroll', () => this.#hoverChanged(), {
       ...options,
@@ -517,17 +534,13 @@ export class UiView implements ViewLink {
     const target = state.captured ?? hit;
     this.#nativeDown = false;
     if (target === null) return;
-    try {
-      this.rootElement.setPointerCapture(event.pointerId);
-    } catch {
-      // Synthetic or already released pointers cannot be captured.
-    }
     const allowed = target.dispatchEvent(
       this.#pointerEvent('pointerdown', target, event, true, true),
     );
     if (state.captured === null && target.isConnected) state.captured = target;
     if (!allowed) {
       event.preventDefault();
+      this.#capture(event.pointerId);
       return;
     }
     // Focus goes to the nearest focusable node, or nowhere.
@@ -541,7 +554,21 @@ export class UiView implements ViewLink {
     // A text input keeps the browser's press, which places the caret.
     this.#nativeDown =
       focusTarget !== null && focusTarget === target && target.type === 'input';
+    // The browser's own press (selecting text) needs the moves itself:
+    // Firefox sends them to the element holding the pointer. Soundor still
+    // routes them to the pressed node, and a release outside the view
+    // arrives through the window.
+    if (!this.#nativeDown) this.#capture(event.pointerId);
     this.focus(focusTarget?.isConnected ? focusTarget : null);
+  }
+
+  /** Keeps the pointer's input on the view until it is released. */
+  #capture(pointerId: number): void {
+    try {
+      this.rootElement.setPointerCapture(pointerId);
+    } catch {
+      // Synthetic or already released pointers cannot be captured.
+    }
   }
 
   #pointerMove(event: globalThis.PointerEvent): void {

@@ -141,6 +141,45 @@ describe('cursor', () => {
   });
 });
 
+describe('text input presses', () => {
+  it("leave the pointer to the browser's text selection, other presses capture it", () => {
+    const { root } = setup();
+    const capture = vi.spyOn(view.rootElement, 'setPointerCapture');
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    const input = view.createNode('input');
+    root.appendChild(input);
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+    const seen: string[] = [];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup'])
+      input.addEventListener(type, () => seen.push(type));
+    pointer('pointerdown', 60, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(view.focusedNode()).toBe(input);
+
+    // Moved and released outside the view: the window delivers both.
+    const outside = (type: string, buttons: number) =>
+      document.body.dispatchEvent(
+        new window.PointerEvent(type, {
+          bubbles: true,
+          clientX: 500,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: type === 'pointerup' ? 0 : -1,
+          buttons,
+        }),
+      );
+    outside('pointermove', 1);
+    outside('pointerup', 0);
+    expect(seen).toEqual(['pointerdown', 'pointermove', 'pointerup']);
+    // Released: nothing goes to the input any more.
+    outside('pointermove', 0);
+    expect(seen).toHaveLength(3);
+  });
+});
+
 describe('hover refresh', () => {
   const frame = (): Promise<void> =>
     new Promise((done) => window.requestAnimationFrame(() => done()));

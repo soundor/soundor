@@ -172,7 +172,9 @@ UiNodes.
   changes under a pointer that did not move (the tree, a style, a scroll, a
   resize) in the next frame, as in the JUCE runtime.
 - **Text inputs** edit natively (IME, selection, copy and paste) and report
-  `beforeinput`, `input` and `change`.
+  `beforeinput`, `input` and `change`. A press in one is left to the browser
+  rather than captured by the view, so selecting with the mouse works in
+  every browser; it still goes to the input until it is released.
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
   stacking context inside the viewport, the overlay above; every node
   stacks its own children, so `zIndex` orders siblings as in the JUCE
