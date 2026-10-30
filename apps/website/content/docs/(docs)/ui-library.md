@@ -55,11 +55,39 @@ takes one.
 
 ## Images and fonts
 
-Keep the files in the package and import them, as a plugin does. Your build
-must leave those imports as they are, so that the plugin's bundler finds the
-files and bundles them as assets: mark them external (with tsdown,
-`external: [/\.(png|jpe?g|webp|ttf|otf)$/]`) and publish the files.
+An image or font is imported, as a plugin does, and the plugin's bundler
+bundles the file as an asset. Your build must leave that import as it is, so
+that the plugin's bundler finds the file. Fonts need TrueType (`.ttf`) or
+OpenType (`.otf`) files: the native runtime does not read WOFF or WOFF2, the
+formats of web font packages such as Fontsource.
 
+### Fonts in a package of their own
+
+A set of fonts is best published as a package of its own, with the files in
+its `exports`:
+
+```json
+{
+  "name": "@acme/fonts",
+  "exports": {
+    "./ttf/*": "./ttf/*"
+  },
+  "files": ["ttf", "LICENSE"]
+}
+```
+
+A library or a plugin imports a file by the package's name, with the package
+in its `dependencies`. Your bundler leaves a dependency's imports external
+already, and the path does not depend on where your build writes its output:
+
+```ts
+import brandRegular from '@acme/fonts/ttf/Brand-Regular.ttf';
+```
+
+### Files in your library
+
+A library can also keep the files in its own package. Mark them external
+(with tsdown, `external: [/\.(png|jpe?g|webp|ttf|otf)$/]`) and publish them.
 The import's path is resolved from the built file, not the source: keep the
 same relative path between them. With `src/index.ts` built to
 `dist/index.mjs`, put the files in a directory beside both, such as `assets/`,
@@ -73,15 +101,32 @@ my-knobs/
   package.json      "files": ["dist", "assets"]
 ```
 
-A font is registered by the code that uses it, once:
+### Registering fonts
+
+Export a function that registers your fonts, rather than registering them when
+your module is imported:
 
 ```ts
+import brandBold from '@acme/fonts/ttf/Brand-Bold.ttf';
+import brandRegular from '@acme/fonts/ttf/Brand-Regular.ttf';
 import { registerFont } from 'soundor:ui';
 
-import brand from '../assets/Brand.ttf';
-
-export const fontsReady = registerFont('Brand', brand);
+export function registerBrandFonts(): Promise<void[]> {
+  return Promise.all([
+    registerFont('Brand', brandRegular, { weight: 400 }),
+    registerFont('Brand', brandBold, { weight: 700 }),
+  ]);
+}
 ```
+
+A plugin ships only the images and fonts its bundle still uses after tree
+shaking. One that calls `registerBrandFonts()` gets the files; one that uses
+your components with fonts of its own, registered with `registerFont()`, ships
+none of yours. Registering at the top level of a module is a side effect, which
+keeps the fonts in every plugin that imports the module.
+
+The bundler needs to see each file's path, so import every file by name. A
+list of file names read at run time, such as a manifest, cannot be bundled.
 
 Leave `soundor:*` and `@soundor/react` external too (a peer dependency for
 `@soundor/react`), so the plugin's own copy is the only one.
