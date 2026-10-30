@@ -217,9 +217,10 @@ TEST_SUITE("ui::Renderer")
         CHECK(f.eval("result").asNumber() == 40);
         CHECK(f.tickUntil("globalThis.loaded === true"));
         f.render();
-        // Two boxes standing on the baseline, apart by a tenth of an em.
+        // Two boxes standing on the baseline, apart by a tenth of an em
+        // (which CoreText's smoothing of their edges partly covers).
         CHECK(isDark(f.at(10, 10)));
-        CHECK(isClear(f.at(20, 10)));
+        CHECK_FALSE(isDark(f.at(20, 10)));
         CHECK(isDark(f.at(30, 10)));
         CHECK(isClear(f.at(50, 10)));
     }
