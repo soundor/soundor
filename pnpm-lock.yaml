@@ -1363,6 +1363,9 @@ importers:
       '@soundor/config':
         specifier: workspace:^
         version: link:../../packages/config
+      '@soundor/environment':
+        specifier: workspace:^
+        version: link:../../packages/environment
       '@soundor/react':
         specifier: workspace:^
         version: link:../../packages/react

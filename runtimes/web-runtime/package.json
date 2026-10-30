@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@soundor/config": "workspace:^",
+    "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
