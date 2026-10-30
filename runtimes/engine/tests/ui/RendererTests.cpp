@@ -200,6 +200,117 @@ TEST_SUITE("ui::Renderer")
         CHECK(f.countWhere(120, 10, 200, 39, isDark) == 0);
     }
 
+    // The fixture fonts (fixtures/images/make-fonts.mjs): every character a
+    // box, 1 em wide in box-regular.ttf (400) and 1.5 em in box-bold.ttf (700).
+    constexpr const char* fontImports = "import { root, createText, createCanvas, registerFont } from 'soundor:ui';\n";
+
+    TEST_CASE("text is set in the fonts the UI registers, by family")
+    {
+        RenderFixture f(100, 40);
+        f.run(std::string(fontImports) + R"(
+            registerFont('Brand', 'box-regular.ttf').then(() => { globalThis.loaded = true; });
+            const label = createText('AB', { fontFamily: 'brand', fontSize: 20, color: '#000' });
+            root.style = { alignItems: 'flex-start' };
+            root.appendChild(label);
+            globalThis.result = label.layout.width;
+        )");
+        CHECK(f.eval("result").asNumber() == 40);
+        CHECK(f.tickUntil("globalThis.loaded === true"));
+        f.render();
+        // Two boxes standing on the baseline, apart by a tenth of an em.
+        CHECK(isDark(f.at(10, 10)));
+        CHECK(isClear(f.at(20, 10)));
+        CHECK(isDark(f.at(30, 10)));
+        CHECK(isClear(f.at(50, 10)));
+    }
+
+    TEST_CASE("a registered family picks the face closest to the weight, as CSS does")
+    {
+        RenderFixture f;
+        f.run(std::string(fontImports) + R"(
+            registerFont('Brand', 'box-regular.ttf');
+            registerFont('Brand', 'box-bold.ttf', { weight: 'bold' });
+            root.style = { alignItems: 'flex-start' };
+            const widths = [];
+            for (const fontWeight of [100, 400, 500, 600, 700, 900]) {
+              const text = createText('AB', { fontFamily: 'Brand', fontSize: 10, fontWeight });
+              root.appendChild(text);
+              widths.push(text.layout.width);
+            }
+            globalThis.result = JSON.stringify(widths);
+        )");
+        CHECK(f.eval("result").asString() == "[20,20,20,30,30,30]");
+    }
+
+    TEST_CASE("italic and bold are synthesized when no registered face is")
+    {
+        RenderFixture f(100, 40);
+        f.run(std::string(fontImports) + R"(
+            registerFont('Brand', 'box-regular.ttf');
+            const style = { position: 'absolute', left: 0, fontFamily: 'Brand', fontSize: 20, color: '#000' };
+            root.appendChild(createText('A', { ...style, top: 0 }));
+            root.appendChild(createText('A', { ...style, top: 20, fontStyle: 'italic', fontWeight: 'bold' }));
+        )");
+        f.render();
+        // Upright, the box spans x 1 to 19 and 14 px up from the baseline
+        // (18, in a 24 px line); slanted a quarter, its top leans right.
+        CHECK(isDark(f.at(2, 5)));
+        CHECK(isClear(f.at(21, 5)));
+        CHECK(isClear(f.at(2, 25)));
+        CHECK(isDark(f.at(21, 25)));
+    }
+
+    TEST_CASE("text laid out before a font is registered is laid out again in it")
+    {
+        RenderFixture f;
+        f.run(std::string(fontImports) + R"(
+            const label = createText('ABCD', { fontFamily: 'Brand', fontSize: 10 });
+            root.style = { alignItems: 'flex-start' };
+            root.appendChild(label);
+            globalThis.before = label.layout.width;
+            registerFont('Brand', 'box-bold.ttf', { weight: 700 });
+            globalThis.result = label.layout.width;
+        )");
+        CHECK(f.eval("before").asNumber() != 40);
+        CHECK(f.eval("result").asNumber() == 60); // the only face, however heavy
+    }
+
+    TEST_CASE("canvases set text in the registered fonts too")
+    {
+        RenderFixture f;
+        f.run(std::string(fontImports) + R"(
+            registerFont('Brand', 'box-regular.ttf');
+            const canvas = createCanvas();
+            root.appendChild(canvas);
+            const ctx = canvas.getContext('2d');
+            ctx.font = '10px "Brand", sans-serif';
+            globalThis.result = ctx.measureText('ABC').width;
+        )");
+        CHECK(f.eval("result").asNumber() == doctest::Approx(30));
+    }
+
+    TEST_CASE("registerFont() rejects what is not a bundled font, and throws for invalid arguments")
+    {
+        RenderFixture f;
+        f.run(std::string(fontImports) + R"(
+            globalThis.errors = [];
+            const record = (error) => globalThis.errors.push(error.message);
+            registerFont('Brand', 'halves.png').catch(record);
+            registerFont('Brand', 'nope.ttf').catch(record);
+            for (const args of [[''], ['Brand', 3], ['Brand', 'box-bold.ttf', { weight: 0 }],
+                                ['Brand', 'box-bold.ttf', { style: 'oblique' }]])
+              try { registerFont(...args); } catch (error) { record(error); }
+        )");
+        CHECK(f.tickUntil("globalThis.errors.length === 6"));
+        CHECK(f.eval("JSON.stringify(errors)").asString()
+              == R"x(["registerFont(): family must be a non-empty string, got ''",)x"
+                 R"x("registerFont(): source must be a bundled font (import font from './font.ttf'), got 3",)x"
+                 R"x("registerFont(): weight must be a weight from 1 to 1000, 'normal' or 'bold', got 0",)x"
+                 R"x("registerFont(): style must be 'normal' or 'italic', got 'oblique'",)x"
+                 R"x("registerFont(): 'halves.png' is not a bundled font (TrueType or OpenType)",)x"
+                 R"x("registerFont(): 'nope.ttf' is not a bundled font (TrueType or OpenType)"])x");
+    }
+
     TEST_CASE("draws bundled images, sized by their pixels unless styled")
     {
         RenderFixture f;

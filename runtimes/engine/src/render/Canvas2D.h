@@ -24,12 +24,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     // A gradient (createLinearGradient() and friends) or a pattern
     // (createPattern()): a paint a fill or stroke style can be.
     class Paint;
+    // The fonts text is set in (SkiaText.h).
+    class Fonts;
+
+    // The fonts `text` sets text in, if it is the renderer's engine.
+    [[nodiscard]] std::shared_ptr<Fonts> fontsOf(const ui::TextEngine& text);
 
     class Canvas2D
     {
     public:
-        // `images` decodes the bundled images drawImage() draws (may be null).
-        Canvas2D(std::shared_ptr<ui::CanvasBuffer> buffer, std::shared_ptr<ui::ImageSource> images);
+        // `images` decodes the bundled images drawImage() draws, `fonts` has
+        // the fonts the UI registered (either may be null).
+        Canvas2D(std::shared_ptr<ui::CanvasBuffer> buffer, std::shared_ptr<ui::ImageSource> images,
+                 std::shared_ptr<Fonts> fonts = nullptr);
         ~Canvas2D();
         Canvas2D(const Canvas2D&) = delete;
         Canvas2D& operator=(const Canvas2D&) = delete;

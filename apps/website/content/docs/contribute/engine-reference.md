@@ -680,7 +680,12 @@ still draws the whole view in one go, for tests and tools.
 - **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
   invalid one is a `TypeError` naming the property.
 - **Text:** the platform's fonts (CoreText, DirectWrite, fontconfig/FreeType),
-  with per-character fallback, so accents, symbols and CJK render. Shaping is
+  with per-character fallback, so accents, symbols and CJK render, and the
+  bundled ones `registerFont()` adds (`render::Fonts`, shared by the view's
+  text engine and its canvases): a registered family shadows the platform's,
+  its face chosen by CSS's weight and style matching, with Skia's fake bold
+  and a quarter skew where none matches. `ui::Surface::addFont()` registers
+  one with the surface's text engine and lays its text out again. Shaping is
   simple: one glyph per code point, no ligatures or kerning, no complex scripts
   or bidi; those need HarfBuzz and ICU. The same text engine lays text out, so
   layout matches what is drawn. Tests that need machine-independent sizes use
@@ -978,7 +983,7 @@ forwards mouse, wheel and keyboard input to it, then runs pending jobs.
 bundle compiled in with `soundor_embed_ui()`, as bytecode where the build can
 compile it, or a directory in development) and an entry such as `/bundle.js`, it evaluates the entry after
 installing the modules. A failing entry is logged and leaves the host usable.
-`RuntimeHost::asset(id)` returns the bytes of a bundled image.
+`RuntimeHost::asset(id)` returns the bytes of a bundled image or font.
 `RuntimeHost::frame()` renders the view for a compositor (see "Rendering").
 `Options::gpuDevice` is the device canvases' WebGL contexts use (see "WebGL"),
 and `tick()` shows what they drew.

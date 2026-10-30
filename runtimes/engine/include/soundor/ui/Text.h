@@ -6,6 +6,8 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -57,6 +59,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             float descent = 0; // below the baseline
         };
         virtual Metrics metrics(const TextStyle& style) = 0;
+
+        // Makes the font file `source` (a bundled asset id) the face of
+        // `family` at `weight` and `style`; text in that family is set in
+        // the registered faces only. An error message if it is not a font.
+        // Engines that do not draw (the approximation) take any font.
+        virtual std::optional<std::string> addFont(std::string_view family, std::string_view source, int weight,
+                                                   FontStyle style);
     };
 
     [[nodiscard]] std::shared_ptr<TextEngine> approximateTextEngine();

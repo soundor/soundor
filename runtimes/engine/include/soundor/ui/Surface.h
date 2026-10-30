@@ -315,6 +315,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] Size contentSize(NodeId id);
         // Images became available or changed: lays image nodes out again.
         void imagesChanged();
+        // Registers a font file with the text engine (TextEngine::addFont)
+        // and lays text out again in it; an error message if it is not one.
+        std::optional<std::string> addFont(std::string_view family, std::string_view source, int weight,
+                                           FontStyle style);
         // Canvas nodes: sizes the drawing buffer, which clears it (also at the
         // same size, as on the Web). Its size in logical pixels is the node's
         // natural size. Throws std::invalid_argument past 16384 on a side or

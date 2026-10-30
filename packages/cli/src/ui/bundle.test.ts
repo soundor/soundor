@@ -197,6 +197,24 @@ describe('bundleUi', () => {
     });
   });
 
+  it('bundles imported fonts as assets too', async () => {
+    const FONT = Uint8Array.from([0, 1, 0, 0, 7]);
+    await write('src/Brand.ttf', FONT);
+    await write('src/Brand-Bold.OTF', FONT.slice(1));
+    await write(
+      'src/main.ts',
+      `import brand from './Brand.ttf'; import bold from './Brand-Bold.OTF';
+       globalThis.fonts = [brand, bold];`,
+    );
+    const { result } = await bundle();
+    expect(result.assets.map(({ id, type }) => [id, type]).sort()).toEqual(
+      [
+        [assetId(FONT, 'Brand.ttf'), 'font/ttf'],
+        [assetId(FONT.slice(1), 'x.otf'), 'font/otf'],
+      ].sort(),
+    );
+  });
+
   it('is deterministic', async () => {
     await write('src/logo.png', PNG);
     await write(

@@ -8,6 +8,7 @@ import type {
   KeyboardEvent,
   PointerEvent,
 } from '../ui/events';
+import { registerFont as register, type FontDescriptors } from '../ui/fonts';
 import { UiNode } from '../ui/node';
 import type {
   Style,
@@ -104,6 +105,18 @@ export function createTextInput(
 /** The view's size in logical pixels, and device pixels per logical pixel. */
 export function viewSize(): { width: number; height: number; scale: number } {
   return view.size();
+}
+
+/**
+ * Makes a bundled font file a face of `family`, as CSS's @font-face does.
+ * Resolves once the font is ready; rejects if the file is not a font.
+ */
+export function registerFont(
+  family: string,
+  source: string,
+  descriptors?: FontDescriptors,
+): Promise<void> {
+  return register(family, source, descriptors);
 }
 
 /** The node that has keyboard focus, if any. */

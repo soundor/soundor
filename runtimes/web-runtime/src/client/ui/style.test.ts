@@ -99,6 +99,15 @@ describe('cssFor', () => {
     });
   });
 
+  it('sets a family by its name alone, as the JUCE runtime does', () => {
+    const family = (fontFamily: string) =>
+      cssFor({ fontFamily }, 'text')['font-family'];
+    expect(family('Inter 18pt')).toBe('"Inter 18pt", system-ui, sans-serif');
+    expect(family('A "B" \\')).toBe('"A \\"B\\" \\\\", system-ui, sans-serif');
+    expect(family('monospace')).toBe('monospace, system-ui, sans-serif');
+    expect(family('')).toBeUndefined();
+  });
+
   it('cuts text at numberOfLines', () => {
     expect(cssFor({ numberOfLines: 2, lineHeight: 10 }, 'text')).toMatchObject({
       'max-height': '20px',

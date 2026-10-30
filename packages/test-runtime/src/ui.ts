@@ -68,6 +68,55 @@ export function repeat(
 ): AnimationComposition {
   return sequence([child], { iterations, direction });
 }
+export interface FontDescriptors {
+  weight?: number | 'normal' | 'bold';
+  style?: 'normal' | 'italic';
+}
+
+function shown(value: unknown): string {
+  if (typeof value === 'string') return `'${value}'`;
+  if (typeof value === 'number') return String(value);
+  if (value === null) return 'null';
+  if (typeof value === 'object')
+    return (value as object).constructor?.name ?? 'object';
+  return typeof value;
+}
+
+/** registerFont()'s argument checks, worded as in the runtimes. */
+function checkFont(family: unknown, source: unknown, descriptors: unknown) {
+  if (typeof family !== 'string' || family === '')
+    throw new TypeError(
+      `registerFont(): family must be a non-empty string, got ${shown(family)}`,
+    );
+  if (typeof source !== 'string' || source === '')
+    throw new TypeError(
+      `registerFont(): source must be a bundled font (import font from './font.ttf'), got ${shown(source)}`,
+    );
+  if (descriptors === null || typeof descriptors !== 'object')
+    throw new TypeError(
+      `registerFont(): descriptors must be an object, got ${shown(descriptors)}`,
+    );
+  const given = descriptors as { weight?: unknown; style?: unknown };
+  const raw = given.weight ?? 400;
+  const weight =
+    raw === 'normal'
+      ? 400
+      : raw === 'bold'
+        ? 700
+        : typeof raw === 'number' || typeof raw === 'string'
+          ? Number(raw)
+          : Number.NaN;
+  if (!(weight >= 1 && weight <= 1000))
+    throw new TypeError(
+      `registerFont(): weight must be a weight from 1 to 1000, 'normal' or 'bold', got ${shown(raw)}`,
+    );
+  const style = given.style ?? 'normal';
+  if (style !== 'normal' && style !== 'italic')
+    throw new TypeError(
+      `registerFont(): style must be 'normal' or 'italic', got ${shown(style)}`,
+    );
+}
+
 /** Instance-bound soundor:ui module; no renderer or test-runner dependencies. */
 export function createUiModule(runtime: TestRuntime) {
   return {
@@ -107,6 +156,15 @@ export function createUiModule(runtime: TestRuntime) {
     clipboard: runtime.clipboard,
     viewSize: () => {
       throw new Error('Layout is unavailable in the simulated Soundor runtime');
+    },
+    /** Checks its arguments as the runtimes do; there is no text to set in it. */
+    registerFont: (
+      family: string,
+      source: string,
+      descriptors: FontDescriptors = {},
+    ): Promise<void> => {
+      checkFont(family, source, descriptors);
+      return Promise.resolve();
     },
     effect,
     sequence,

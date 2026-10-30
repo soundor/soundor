@@ -17,6 +17,48 @@ run of text, each part with its own style; `numberOfLines` cuts it short.
 - **To assistive technology** a `Text` is read as its text, nested ones
   included, once. Accessibility props of a nested `<Text>` have no effect.
 
+## Fonts
+
+`fontFamily` names one family. Bring your own by bundling the font files
+(TrueType `.ttf` or OpenType `.otf`) and registering each as a face of a
+family with `registerFont` from `soundor:ui`, before rendering:
+
+```tsx
+import { registerFont } from 'soundor:ui';
+import { Text } from '@soundor/react';
+
+import interRegular from './fonts/Inter-Regular.ttf';
+import interBold from './fonts/Inter-Bold.ttf';
+import interItalic from './fonts/Inter-Italic.ttf';
+
+registerFont('Inter', interRegular);
+registerFont('Inter', interBold, { weight: 'bold' });
+registerFont('Inter', interItalic, { style: 'italic' });
+
+export const Title = () => (
+  <Text style={{ fontFamily: 'Inter', fontWeight: 'bold' }}>Gain</Text>
+);
+```
+
+- **As CSS's `@font-face`:** text in a registered family is set in its
+  registered faces only, the one closest to its `fontWeight` and
+  `fontStyle`; bold and italic are synthesized when no face is. Family names
+  match regardless of case. Characters the faces lack come from the
+  system's fonts.
+- **The descriptors** say what the file is: `weight` (1 to 1000, `'normal'`
+  or `'bold'`; 400 by default) and `style` (`'normal'` or `'italic'`).
+- **When:** registering in the module that renders, before `render()`, lays
+  text out in the font from the first frame. Text shown before is laid out
+  again; a canvas draws in it from its next `fillText()`.
+- **The promise** `registerFont` returns resolves once the font is ready (at
+  once in the JUCE runtime, after the browser loaded it in the web runtime)
+  and rejects if the file is not a font. Invalid arguments throw a
+  `TypeError`.
+- **Unregistered**, `fontFamily` is a font installed on the system, which
+  differs from one machine to the next; register the fonts a design depends
+  on. Font files are part of the plugin binary, so check that their licence
+  allows embedding them.
+
 ## Props
 
 <auto-type-table

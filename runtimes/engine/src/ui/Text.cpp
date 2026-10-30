@@ -88,6 +88,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return out;
     }
 
+    std::optional<std::string> TextEngine::addFont(std::string_view, std::string_view, int, FontStyle)
+    {
+        return std::nullopt;
+    }
+
     std::shared_ptr<TextEngine> approximateTextEngine()
     {
         return std::make_shared<ApproximateTextEngine>();

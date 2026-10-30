@@ -84,7 +84,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     struct Renderer::Impl
     {
-        std::shared_ptr<render::SkiaTextEngine> text = std::make_shared<render::SkiaTextEngine>();
+        std::shared_ptr<render::SkiaTextEngine> text;
         std::shared_ptr<render::SkiaImages> images;
         Surface* surface = nullptr;
         double seconds = 0;
@@ -113,6 +113,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     Renderer::Renderer(AssetLoader assets) : impl(std::make_unique<Impl>())
     {
+        impl->text = std::make_shared<render::SkiaTextEngine>(std::make_shared<render::Fonts>(assets));
         impl->images = std::make_shared<render::SkiaImages>(std::move(assets));
     }
 
