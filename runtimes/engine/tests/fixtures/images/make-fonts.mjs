@@ -208,7 +208,7 @@ function font({ family, style, weight, advance, space }) {
   name.raw(strings.bytes);
 
   const os2 = new Writer().u16(4).i16(advance).u16(weight).u16(5).u16(0);
-  for (let i = 0; i < 10; i++) os2.i16(UNITS / 2); // sub- and superscript sizes and offsets
+  for (let i = 0; i < 8; i++) os2.i16(UNITS / 2); // sub- and superscript sizes and offsets
   os2
     .i16(50)
     .i16(300)
