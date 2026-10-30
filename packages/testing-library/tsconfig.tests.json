@@ -9,6 +9,6 @@
     "src/**/*.test.ts",
     "src/test-contract.d.ts",
     "src/**/*.test.tsx",
-    "node_modules/@soundor/core/runtime/index.d.ts"
+    "node_modules/@soundor/environment/index.d.ts"
   ]
 }

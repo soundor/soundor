@@ -1,7 +1,7 @@
 import type { TestNode as UiNode } from './node';
 
 /**
- * The shapes `soundor:ui` declares (packages/core/runtime/ui.d.ts), for the
+ * The shapes `soundor:ui` declares (packages/environment/ui.d.ts), for the
  * browser code. That declaration cannot be included here: it comes with
  * Soundor's own Web globals, which clash with the DOM's. A type test keeps
  * the two in step.

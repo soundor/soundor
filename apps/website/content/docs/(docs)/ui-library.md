@@ -10,23 +10,23 @@ like. The plugin's own bundler inlines it like any other dependency.
 
 ## The runtime types
 
-`@soundor/core` publishes the declarations of what the runtime provides that
-are the same for every plugin: `soundor:ui`, image and font imports, and
+`@soundor/environment` declares what the runtime provides that is the same for
+every plugin: `soundor:ui`, image and font imports, and
 exactly the Web globals the runtime has, in place of the DOM. A plugin gets the
 same, generated with its own parameters and native API, in
 `.soundor/generated`. `soundor:parameters` and `soundor:native` are specific
 to each plugin, so a library takes values from them as arguments rather than
 importing them.
 
-Add `@soundor/core` as a development dependency (it has no dependencies of its
-own) and name its runtime types in your tsconfig:
+Add `@soundor/environment`, which holds these declarations and nothing else, as
+a development dependency, and name it in your tsconfig:
 
 ```jsonc
 {
   "compilerOptions": {
     // Soundor's runtime: ES2023 and the Web subset it declares, no DOM.
     "lib": ["ES2023"],
-    "types": ["@soundor/core/runtime"],
+    "types": ["@soundor/environment"],
   },
 }
 ```
@@ -34,8 +34,8 @@ own) and name its runtime types in your tsconfig:
 Without `"DOM"`, code that touches `window` or `document`, which the runtime
 does not have, fails to compile instead of failing in a plugin.
 
-`@soundor/core/runtime` is three files, which a library can also include
-apart, from `node_modules/@soundor/core/runtime/`:
+`@soundor/environment` is three files, which a library can also include
+apart, from `node_modules/@soundor/environment/`:
 
 | File           | Declares                                                              |
 | -------------- | --------------------------------------------------------------------- |

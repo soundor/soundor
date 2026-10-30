@@ -1,8 +1,9 @@
 /**
- * The project-independent declarations of Soundor's runtime, committed under
- * runtime/ (see scripts/runtime-types.ts) for packages that build against it:
- * index.d.ts, all of it in one (`"types": ["@soundor/core/runtime"]`), and
- * its parts, for a library whose bundler declares image imports itself.
+ * The project-independent declarations of Soundor's runtime, committed as the
+ * @soundor/environment package (see scripts/runtime-types.mjs) for libraries
+ * that build against it: index.d.ts, all of it in one
+ * (`"types": ["@soundor/environment"]`), and its parts, for a library whose
+ * toolchain declares image imports itself.
  */
 
 import { renderAssetsDts } from './assets-dts';

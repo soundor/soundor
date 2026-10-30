@@ -5,7 +5,7 @@
     "jsx": "react-jsx",
     // Soundor's runtime: ES2023 and the Web subset it declares, no DOM, no Node.
     "lib": ["es2023"],
-    "types": ["@soundor/core/runtime"],
+    "types": ["@soundor/environment"],
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
   },
   "include": ["src"],

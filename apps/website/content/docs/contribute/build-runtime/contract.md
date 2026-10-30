@@ -12,8 +12,8 @@ observable behavior on its platform.
 ## Where the code is
 
 `packages/core/src/generate.ts` assembles the portable declarations from the
-`*-dts.ts` generators. `packages/core/runtime/` contains their checked-in shared
-forms. The [API pages](/docs/api) specify the modules; engine, web and simulated
+`*-dts.ts` generators. `packages/environment/` (`@soundor/environment`)
+contains their checked-in shared forms, for libraries. The [API pages](/docs/api) specify the modules; engine, web and simulated
 implementations and their tests provide the detailed behavior and errors.
 
 ## How it works

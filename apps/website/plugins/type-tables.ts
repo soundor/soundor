@@ -20,7 +20,7 @@ import {
 export const REPOSITORY = join(import.meta.dirname, '../../..');
 
 const RUNTIME_TYPES = ['assets.d.ts', 'globals.d.ts', 'ui.d.ts'].map((file) =>
-  join(REPOSITORY, 'packages/core/runtime', file),
+  join(REPOSITORY, 'packages/environment', file),
 );
 
 /** Types this short show in full, not as their kind ('union', 'object'). */

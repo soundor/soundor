@@ -32,7 +32,7 @@
     "react-reconciler": "catalog:"
   },
   "devDependencies": {
-    "@soundor/core": "workspace:^",
+    "@soundor/environment": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",

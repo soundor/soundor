@@ -8,7 +8,7 @@ export default defineConfig({
   sortPackageJson: true,
   // Generated, and compared byte for byte with their generator's output.
   ignorePatterns: [
-    'packages/core/runtime/**',
+    'packages/environment/*.d.ts',
     'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
     'runtimes/engine/src/gpu/webgl/generated/**',
     // C++ (included into Hermes's hermes.cpp), not JavaScript.

@@ -72,7 +72,8 @@ pnpm --filter @soundor/core gen:runtime-types
 pnpm --filter @soundor/juce-runtime gen:webgl
 ```
 
-These update the native API golden C++, shared runtime declarations, and WebGL
+These update the native API golden C++, the shared runtime declarations
+(`@soundor/environment`), and WebGL
 bindings respectively. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.
@@ -99,7 +100,7 @@ changes, and the checks run. Follow the
 Keep related implementation, generated files, tests and documentation together.
 
 Add a changeset for a published-package change with `pnpm changeset`. The
-fourteen public packages under `packages/` form a fixed version group; the
+fifteen public packages under `packages/` form a fixed version group; the
 engine and runtime packages have their own versions. The source of truth is
 [Changesets config](https://github.com/soundor/soundor/blob/main/.changeset/config.json).
 Before 1.0, breaking changes use a `minor` changeset. Website-only documentation

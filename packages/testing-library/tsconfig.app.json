@@ -6,6 +6,6 @@
     "lib": ["es2023"],
     "jsx": "react-jsx"
   },
-  "include": ["src", "node_modules/@soundor/core/runtime/index.d.ts"],
+  "include": ["src", "node_modules/@soundor/environment/index.d.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test-contract.d.ts"]
 }

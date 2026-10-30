@@ -14,7 +14,7 @@ lifetime are observable too.
 
 | Layer                            | Source                                                           |
 | -------------------------------- | ---------------------------------------------------------------- |
-| Contract declarations            | `packages/core/src/*-dts.ts`, `packages/core/runtime/`           |
+| Contract declarations            | `packages/core/src/*-dts.ts`, `packages/environment/`            |
 | React mapping                    | `packages/react/src/`                                            |
 | Native implementation            | `runtimes/engine/src/`, JUCE host adapters                       |
 | Browser implementation           | `runtimes/web-runtime/src/client/`                               |

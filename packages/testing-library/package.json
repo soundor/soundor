@@ -37,7 +37,7 @@
     "@soundor/test-runtime": "workspace:^"
   },
   "devDependencies": {
-    "@soundor/core": "workspace:^",
+    "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",

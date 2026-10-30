@@ -9,8 +9,7 @@
   },
   "files": [
     "README.md",
-    "dist",
-    "runtime"
+    "dist"
   ],
   "type": "module",
   "sideEffects": false,
@@ -22,12 +21,6 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
-    "./runtime": {
-      "types": "./runtime/index.d.ts"
-    },
-    "./runtime/assets.d.ts": "./runtime/assets.d.ts",
-    "./runtime/globals.d.ts": "./runtime/globals.d.ts",
-    "./runtime/ui.d.ts": "./runtime/ui.d.ts",
     "./spring": {
       "types": "./dist/spring.d.mts",
       "import": "./dist/spring.mjs"
