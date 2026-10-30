@@ -38,11 +38,20 @@ test('the home page leads into the docs', async ({ page }) => {
 
 test('search finds a page', async ({ page }) => {
   await page.goto('/docs');
-  await page
-    .getByRole('button', { name: /search/i })
-    .first()
-    .click();
-  await page.keyboard.type('Web Audio');
+  // Fumadocs' search button does nothing until the page has hydrated (the
+  // site's own buttons are disabled until then, which Playwright waits for):
+  // pressed again until the dialog opens.
+  const dialog = page.getByRole('dialog');
+  await expect(async () => {
+    await page
+      .getByRole('button', { name: /search/i })
+      .first()
+      .click();
+    await expect(dialog).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  // Typed into its input, not at the page: keys typed before the input has
+  // focus are lost.
+  await dialog.getByRole('combobox', { name: 'Search' }).fill('Web Audio');
   await expect(
     page.getByRole('dialog').getByText('Web runtime').first(),
   ).toBeVisible();

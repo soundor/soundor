@@ -83,14 +83,16 @@ function font({ family, style, weight, advance, space }) {
     .u16(3) // the contour's last point
     .u16(0) // no instructions
     .raw([1, 1, 1, 1]) // on-curve points, coordinates as 16-bit deltas
+    // Clockwise, as TrueType wants an outer contour: Windows' rasterizer
+    // leaves a counter-clockwise one empty. Up, right, then down.
     .i16(margin)
-    .i16(advance - 2 * margin)
     .i16(0)
-    .i16(-(advance - 2 * margin))
+    .i16(advance - 2 * margin)
     .i16(0)
     .i16(0)
     .i16(top)
     .i16(0)
+    .i16(-top)
     .pad().bytes;
   const glyf = new Writer();
   const loca = new Writer();
