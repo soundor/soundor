@@ -73,6 +73,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                | (keys.isMiddleButtonDown() ? 4u : 0u);
     }
 
+    juce::MouseCursor mouseCursor(ui::Cursor cursor)
+    {
+        using Type = juce::MouseCursor::StandardCursorType;
+        switch (cursor)
+        {
+            case ui::Cursor::Auto:
+            case ui::Cursor::Default:
+                return Type::NormalCursor;
+            case ui::Cursor::None:
+                return Type::NoCursor;
+            case ui::Cursor::Pointer:
+                return Type::PointingHandCursor;
+            case ui::Cursor::Text:
+                return Type::IBeamCursor;
+            case ui::Cursor::Crosshair:
+                return Type::CrosshairCursor;
+            case ui::Cursor::Move:
+                return Type::UpDownLeftRightResizeCursor;
+            case ui::Cursor::EwResize:
+                return Type::LeftRightResizeCursor;
+            case ui::Cursor::NsResize:
+                return Type::UpDownResizeCursor;
+            case ui::Cursor::NeswResize:
+                return Type::TopRightCornerResizeCursor;
+            case ui::Cursor::NwseResize:
+                return Type::TopLeftCornerResizeCursor;
+        }
+        return Type::NormalCursor;
+    }
+
     ui::PointerInput pointerInput(const juce::MouseEvent& event, ui::PointerInput::Phase phase)
     {
         ui::PointerInput input;

@@ -221,6 +221,25 @@ declare module 'soundor:ui' {
     /** 'box-none': not the node, but its children; 'box-only': the reverse. */
     pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
     /**
+     * The pointer's shape over the node and its children, unless one of them
+     * sets its own: 'auto' (the default) takes the parent's, and is the
+     * arrow ('default') at the root and the I-beam ('text') in a text input.
+     * While a pointer is pressed, the pressed node's shows wherever it is
+     * dragged. 'none' hides the pointer.
+     */
+    cursor?:
+      | 'auto'
+      | 'default'
+      | 'none'
+      | 'pointer'
+      | 'text'
+      | 'crosshair'
+      | 'move'
+      | 'ew-resize'
+      | 'ns-resize'
+      | 'nesw-resize'
+      | 'nwse-resize';
+    /**
      * An integer that stacks the node among its siblings: higher ones are
      * drawn over, and hit before, lower ones; equal ones keep tree order (the
      * later sibling on top). Not layout: flex order stays the tree's. 0 by

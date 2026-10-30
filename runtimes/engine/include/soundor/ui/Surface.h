@@ -410,6 +410,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // the UI does not handle a press, the text it types (empty: none).
         bool key(const KeyInput& input, const std::string& typed);
         bool text(const TextInput& input);
+        // The cursor `pointerId` shows: the style's of the node holding it
+        // (pressed), or else of the deepest it hovers, or of their nearest
+        // ancestor with one; a text input's Text, the arrow (Default) where
+        // none has one. Never Auto. Read again after input and changes.
+        [[nodiscard]] Cursor cursor(int pointerId = 1);
+        // Hover follows what changed under pointers that did not move, as in
+        // browsers: when the tree, a layout or a scroll changed since the last
+        // call, each mouse or pen in the view and not pressed is hit-tested
+        // again where it is, and pointerleave/pointerenter fire as for a move
+        // (no pointermove). The runtime calls it every tick.
+        void refreshHover();
 
         // Delivers an accessibility action to `target` (an
         // `accessibilityaction` event); whether something acted on it.
@@ -457,6 +468,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             NodeId captured = noNode;    // the pointerdown target, while pressed
             std::vector<NodeId> hovered; // root ... deepest hovered node
+            PointerInput last;           // where hover is refreshed from
+            bool inside = false;         // in the view, as of the last input
         };
 
         [[nodiscard]] Node& get(NodeId id);
@@ -499,5 +512,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         EventSink sink;
         std::map<int, PointerState> pointers;
         NodeId focusedNode = noNode;
+        // revision() when hover was last refreshed.
+        std::uint64_t hoverRevision = 0;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

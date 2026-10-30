@@ -113,6 +113,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 { "inset", edges(value.inset) },
                 { "overflow", name(value.overflow, { "visible", "hidden", "scroll" }) },
                 { "pointerEvents", name(value.pointerEvents, { "auto", "none", "box-none", "box-only" }) },
+                { "cursor", name(value.cursor, { "auto", "default", "none", "pointer", "text", "crosshair", "move",
+                                                 "ew-resize", "ns-resize", "nesw-resize", "nwse-resize" }) },
                 { "zIndex", value.zIndex },
                 { "opacity", value.opacity },
                 { "backgroundColor", color(value.backgroundColor) },

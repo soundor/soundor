@@ -4,6 +4,7 @@ import type { ComponentType } from 'react';
 import Animated from './animated';
 import Canvas from './canvas';
 import ContextMenu from './context-menu';
+import Cursor from './cursor';
 import FocusScope from './focus-scope';
 import Gain from './gain';
 import Image from './image';
@@ -21,6 +22,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   animated: Animated,
   canvas: Canvas,
   'context-menu': ContextMenu,
+  cursor: Cursor,
   'focus-scope': FocusScope,
   gain: Gain,
   image: Image,

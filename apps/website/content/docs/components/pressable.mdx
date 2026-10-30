@@ -11,7 +11,9 @@ from the same state the runtime tracks.
 <Snippet name="pressable" height={200} />
 
 - **Presses:** `onPress` after a press; `onPressIn` and `onPressOut` around
-  it; `onHoverIn` and `onHoverOut` as the pointer comes and goes.
+  it; `onHoverIn` and `onHoverOut` as the pointer comes and goes, also when
+  the pressable moves under a pointer that stays still, or away from it (a
+  scroll, a layout change), as in browsers.
 - **Long presses:** with `onLongPress`, holding it `delayLongPress` ms (500
   by default) without moving away is a long press, and not also a press.
 - **Disabled:** `disabled` makes it neither pressable nor focusable, and tells

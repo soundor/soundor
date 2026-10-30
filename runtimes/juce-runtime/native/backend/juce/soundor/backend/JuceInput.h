@@ -20,6 +20,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     // one reported; for Up, JUCE's modifiers still hold the released button.
     [[nodiscard]] ui::PointerInput pointerInput(const juce::MouseEvent& event, ui::PointerInput::Phase phase);
 
+    // The platform's cursor for a resolved Soundor cursor (never Auto).
+    [[nodiscard]] juce::MouseCursor mouseCursor(ui::Cursor cursor);
+
     // Smooth (trackpad) scrolling in pixels; a stepped wheel in lines, three
     // per notch, as browsers report them.
     [[nodiscard]] ui::WheelInput wheelInput(juce::Point<float> position, const juce::ModifierKeys& modifiers,

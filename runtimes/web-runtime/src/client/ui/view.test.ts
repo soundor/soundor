@@ -87,6 +87,176 @@ function pointer(type: string, x: number, init: PointerEventInit = {}) {
   );
 }
 
+describe('cursor', () => {
+  const shown = (): string => view.rootElement.style.cursor || 'default';
+
+  it("is the hovered or pressed node's, else its nearest ancestor's", async () => {
+    const { panel, button, other } = setup();
+    pointer('pointermove', 10);
+    expect(view.cursor()).toBe('default');
+
+    // A style shows once its microtask runs, without the pointer moving.
+    panel.style = { cursor: 'ew-resize' };
+    await Promise.resolve();
+    expect(shown()).toBe('ew-resize');
+    button.style = { cursor: 'crosshair' };
+    await Promise.resolve();
+    expect(shown()).toBe('crosshair');
+
+    // A press keeps the pressed node's while dragging elsewhere.
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointermove', 30, { buttons: 1 });
+    expect(shown()).toBe('crosshair');
+    pointer('pointerup', 30, { button: 0, buttons: 0 });
+    expect(shown()).toBe('default'); // the label, under the root
+
+    pointer('pointermove', 20);
+    expect(shown()).toBe('ew-resize'); // other's parent's
+    other.remove();
+    await Promise.resolve();
+    expect(shown()).toBe('ew-resize'); // the panel, still hovered
+    view.rootElement.dispatchEvent(
+      new window.PointerEvent('pointerleave', { pointerId: 1 }),
+    );
+    expect(shown()).toBe('default');
+  });
+
+  it('is an I-beam over a text input, unless its style says otherwise', () => {
+    const { root } = setup();
+    const input = view.createNode('input');
+    root.appendChild(input);
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+    pointer('pointermove', 60);
+    expect(shown()).toBe('text');
+    input.style = { cursor: 'default' };
+    pointer('pointermove', 61);
+    expect(shown()).toBe('default');
+  });
+
+  it('rejects a cursor it does not know', () => {
+    const { button } = setup();
+    expect(() => {
+      button.style = { cursor: 'hand' as never };
+    }).toThrow(/style\.cursor: expected one of 'auto'/);
+  });
+});
+
+describe('text input presses', () => {
+  it("leave the pointer to the browser's text selection, other presses capture it", () => {
+    const { root } = setup();
+    const capture = vi.spyOn(view.rootElement, 'setPointerCapture');
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    const input = view.createNode('input');
+    root.appendChild(input);
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+    const seen: string[] = [];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup'])
+      input.addEventListener(type, () => seen.push(type));
+    pointer('pointerdown', 60, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(view.focusedNode()).toBe(input);
+
+    // Moved and released outside the view: the window delivers both.
+    const outside = (type: string, buttons: number) =>
+      document.body.dispatchEvent(
+        new window.PointerEvent(type, {
+          bubbles: true,
+          clientX: 500,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: type === 'pointerup' ? 0 : -1,
+          buttons,
+        }),
+      );
+    outside('pointermove', 1);
+    outside('pointerup', 0);
+    expect(seen).toEqual(['pointerdown', 'pointermove', 'pointerup']);
+    // Released: nothing goes to the input any more.
+    outside('pointermove', 0);
+    expect(seen).toHaveLength(3);
+  });
+});
+
+describe('hover refresh', () => {
+  const frame = (): Promise<void> =>
+    new Promise((done) => window.requestAnimationFrame(() => done()));
+  const under = (node: UiNode) =>
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(node));
+
+  it('follows what changes under a pointer that does not move', () => {
+    const { panel, other, events } = setup();
+    pointer('pointermove', 10);
+    events.length = 0;
+    view.refreshHover();
+    expect(events).toEqual([]); // nothing changed under it
+
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual(['pointerleave@button', 'pointerenter@other']);
+    view.refreshHover();
+    expect(events).toHaveLength(2); // once
+
+    // The node goes: hover is back on its parent, which it never left.
+    events.length = 0;
+    other.remove();
+    under(panel);
+    view.refreshHover();
+    expect(events).toEqual([]);
+  });
+
+  it('leaves a pressed pointer, one that left the view, and touches alone', () => {
+    const { other, label, events } = setup();
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    events.length = 0;
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual([]);
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    view.rootElement.dispatchEvent(
+      new window.PointerEvent('pointerleave', { pointerId: 1 }),
+    );
+    events.length = 0;
+    under(label);
+    view.refreshHover();
+    expect(events).toEqual([]);
+
+    pointer('pointermove', 30, { pointerId: 2, pointerType: 'touch' });
+    events.length = 0;
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual([]);
+  });
+
+  it('runs in the next frame after the tree changes or something scrolls', async () => {
+    const { root, panel, other, events } = setup();
+    pointer('pointermove', 10);
+    events.length = 0;
+    const cover = view.createNode('view');
+    cover.style = { cursor: 'pointer' };
+    cover.addEventListener('pointerenter', () => events.push('enter@cover'));
+    under(cover);
+    root.appendChild(cover);
+    await Promise.resolve(); // changes are gathered in a microtask
+    await frame();
+    expect(events).toEqual([
+      'pointerleave@button',
+      'pointerleave@panel',
+      'enter@cover',
+    ]);
+    expect(view.rootElement.style.cursor).toBe('pointer');
+
+    events.length = 0;
+    under(other);
+    el(panel).dispatchEvent(new window.Event('scroll'));
+    await frame();
+    expect(events).toEqual(['pointerenter@panel', 'pointerenter@other']);
+  });
+});
+
 describe('pointer routing', () => {
   it('enters along the tree, presses, captures and clicks', () => {
     const { events } = setup();

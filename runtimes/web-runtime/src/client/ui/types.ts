@@ -159,6 +159,7 @@ export interface Style {
   overflow?: 'visible' | 'hidden' | 'scroll';
   /** 'box-none': not the node, but its children; 'box-only': the reverse. */
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+  cursor?: Cursor;
   /** Stacks the node among its siblings (an integer, 0 by default). */
   zIndex?: number;
 
@@ -190,6 +191,19 @@ export interface Style {
 
 /** A CSS color string. */
 export type Color = string;
+/** The pointer's shape over a node: 'auto' takes the parent's. */
+export type Cursor =
+  | 'auto'
+  | 'default'
+  | 'none'
+  | 'pointer'
+  | 'text'
+  | 'crosshair'
+  | 'move'
+  | 'ew-resize'
+  | 'ns-resize'
+  | 'nesw-resize'
+  | 'nwse-resize';
 
 export interface LayoutRect {
   readonly x: number;

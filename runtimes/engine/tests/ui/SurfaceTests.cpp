@@ -145,6 +145,14 @@ TEST_SUITE("ui::Surface layout")
         f.surface.layout();
         CHECK(f.surface.statistics().layoutPasses == before.layoutPasses);
 
+        // The cursor is neither drawn nor laid out.
+        const SurfaceStatistics drawn = f.surface.statistics();
+        faded.cursor = Cursor::Pointer;
+        f.surface.setStyle(f.a, faded);
+        CHECK(f.surface.find(f.a)->style().cursor == Cursor::Pointer);
+        CHECK_FALSE(f.surface.takeChanges());
+        CHECK(f.surface.statistics().invalidations == drawn.invalidations);
+
         f.surface.setStyle(f.a, sized(120, 100));
         f.surface.layout();
         CHECK(f.surface.statistics().layoutPasses == before.layoutPasses + 1);
@@ -666,6 +674,133 @@ TEST_SUITE("ui::Surface input")
         CHECK(f.surface.focused() == floating);
         CHECK(f.surface.key(key("Tab")));
         CHECK(f.surface.focused() == f.a);
+    }
+
+    TEST_CASE("the cursor is the hovered or pressed node's, else its nearest ancestor's")
+    {
+        Row f;
+        CHECK(f.surface.cursor() == Cursor::Default); // no pointer yet
+        f.surface.pointer(move(110, 10));
+        CHECK(f.surface.cursor() == Cursor::Default); // auto all the way up: the arrow
+
+        Style resize = sized(100, 100);
+        resize.cursor = Cursor::EwResize;
+        f.surface.setStyle(f.b, resize);
+        CHECK(f.surface.cursor() == Cursor::EwResize); // inner's parent's
+        Style crosshair = sized(50, 50);
+        crosshair.cursor = Cursor::Crosshair;
+        f.surface.setStyle(f.inner, crosshair);
+        CHECK(f.surface.cursor() == Cursor::Crosshair);
+        CHECK(f.surface.cursor(2) == Cursor::Default); // another pointer's own
+
+        // A press keeps the pressed node's cursor while dragging elsewhere.
+        f.surface.pointer(down(110, 10));
+        f.surface.pointer(move(10, 10, 1));
+        CHECK(f.surface.cursor() == Cursor::Crosshair);
+        f.surface.pointer(up(10, 10));
+        CHECK(f.surface.cursor() == Cursor::Default); // over a
+
+        // A text input's own is the I-beam, which its style replaces.
+        const NodeId input = f.surface.createNode(NodeType::Input);
+        f.surface.setStyle(input, sized(100, 100));
+        f.surface.removeChild(f.root, f.a);
+        f.surface.insertChild(f.root, input, f.b);
+        f.surface.pointer(move(10, 10));
+        CHECK(f.surface.cursor() == Cursor::Text);
+        Style disabled = sized(100, 100);
+        disabled.cursor = Cursor::Default;
+        f.surface.setStyle(input, disabled);
+        CHECK(f.surface.cursor() == Cursor::Default);
+
+        // A node the pointer was over that left the tree no longer counts.
+        f.surface.pointer(move(110, 10));
+        f.surface.removeChild(f.b, f.inner);
+        CHECK(f.surface.cursor() == Cursor::EwResize);
+        f.surface.pointer(pointer(PointerInput::Phase::Leave, 0, 0));
+        CHECK(f.surface.cursor() == Cursor::Default);
+    }
+
+    TEST_CASE("hover follows what changes under a pointer that does not move")
+    {
+        Row f;
+        Recorder r(f.surface);
+        f.surface.pointer(move(10, 10));
+        r.take();
+        f.surface.refreshHover();
+        CHECK(r.take().empty()); // nothing changed under it
+
+        // A node appears under the pointer: entered, without a move.
+        const NodeId cover = f.surface.createNode(NodeType::View);
+        Style covering = sized(50, 50);
+        covering.cursor = Cursor::Pointer;
+        f.surface.setStyle(cover, covering);
+        f.surface.insertChild(f.a, cover);
+        f.surface.refreshHover();
+        CHECK(r.take() == std::vector { at(cover, "enter") });
+        CHECK(r.last.related == noNode);
+        CHECK(r.last.offset.x == 10);
+        CHECK(f.surface.cursor() == Cursor::Pointer);
+        f.surface.refreshHover();
+        CHECK(r.take().empty()); // once
+
+        // It goes: hover is back on its parent, which it never left.
+        f.surface.removeChild(f.a, cover);
+        f.surface.refreshHover();
+        CHECK(r.take().empty());
+        CHECK(f.surface.cursor() == Cursor::Default);
+
+        // The layout moves another node under it.
+        f.surface.setStyle(f.a, sized(0, 100));
+        f.surface.refreshHover();
+        CHECK(r.take() == std::vector { at(f.a, "leave"), at(f.b, "enter"), at(f.inner, "enter") });
+
+        // Not while pressed: the pressed node keeps the pointer.
+        f.surface.pointer(down(10, 10));
+        r.take();
+        f.surface.setStyle(f.a, sized(100, 100));
+        f.surface.refreshHover();
+        CHECK(r.take().empty());
+        f.surface.pointer(up(10, 10));
+        CHECK(r.take()
+              == std::vector { at(f.inner, "up"), at(f.root, "click"), at(f.inner, "leave"), at(f.b, "leave"),
+                               at(f.a, "enter") });
+
+        // Nor once the pointer left the view, nor for a lifted touch.
+        f.surface.pointer(pointer(PointerInput::Phase::Leave, 10, 10));
+        r.take();
+        f.surface.setStyle(f.a, sized(0, 100));
+        f.surface.refreshHover();
+        CHECK(r.take().empty());
+        PointerInput touch = move(10, 10);
+        touch.type = PointerType::Touch;
+        touch.pointerId = 2;
+        f.surface.pointer(touch);
+        r.take();
+        f.surface.setStyle(f.a, sized(100, 100));
+        f.surface.refreshHover();
+        CHECK(r.take().empty());
+    }
+
+    TEST_CASE("hover follows content scrolled under a pointer that does not move")
+    {
+        Surface surface;
+        surface.setSize({ 100, 100 });
+        const NodeId scroll = surface.createNode(NodeType::Scroll);
+        surface.setStyle(scroll, sized(100, 100));
+        surface.insertChild(surface.root().id(), scroll);
+        const NodeId first = surface.createNode(NodeType::View);
+        const NodeId second = surface.createNode(NodeType::View);
+        surface.setStyle(first, sized(100, 100));
+        surface.setStyle(second, sized(100, 100));
+        surface.insertChild(scroll, first);
+        surface.insertChild(scroll, second);
+        Recorder r(surface);
+        surface.pointer(move(50, 50));
+        r.take();
+        surface.scrollTo(scroll, { 0, 100 });
+        r.take(); // the scroll event, if any
+        surface.refreshHover();
+        CHECK(r.take() == std::vector { at(first, "leave"), at(second, "enter") });
     }
 
     TEST_CASE("cancel ends the capture without a click")

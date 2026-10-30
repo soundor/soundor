@@ -159,6 +159,8 @@ describe('generateJuceSources', () => {
       'runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));',
     );
     expect(editor).toContain('backend::typedText(key));');
+    // The UI's cursor, applied when it changes.
+    expect(editor).toContain('setMouseCursor(backend::mouseCursor(cursor));');
     expect(editor).toContain('setWantsKeyboardFocus(true);');
     // Rendered by the runtime, only when the picture changed, and presented
     // by a compositor that outlives a reloaded runtime.

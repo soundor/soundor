@@ -36,7 +36,8 @@ on the Web:
 - **Stacking:** `zIndex` (an integer) stacks a node among its siblings, for
   drawing and hit testing alike; layout keeps the tree's order.
 - **Clipping and input:** `overflow: 'hidden'` clips the children;
-  `pointerEvents` lets the pointer through a node, its children, or both.
+  `pointerEvents` lets the pointer through a node, its children, or both;
+  `cursor` sets its shape ([Cursor](#cursor)).
 
 ## Text
 
@@ -54,6 +55,27 @@ list of `translateX`, `translateY`, `scale`, `scaleX`, `scaleY` and `rotate`
 (radians as a number, or `'90deg'`), about the node's centre. A transform
 moves how the node is drawn and hit, not its layout;
 [`Animated.View`](/docs/components/animated-view) animates it.
+
+## Cursor
+
+<Snippet name="cursor" height={200} />
+
+`cursor` sets the pointer's shape over a node and everything in it, until a
+child sets its own. It is `'auto'` by default, which takes the parent's: the
+arrow (`'default'`) at the root, whatever is drawn there, and the I-beam
+(`'text'`) in a [`TextInput`](/docs/components/text-input). No component sets
+one for you, buttons included, as in desktop apps and plugins; add
+`cursor: 'pointer'` where you want the hand.
+
+```tsx
+<View style={{ cursor: 'ns-resize' }} onPointerDown={startDrag} />
+```
+
+While a pointer is pressed, the pressed node's cursor shows wherever it is
+dragged, so a knob's stays on until release. `'none'` hides the pointer. The
+shapes are those every platform has: `'default'`, `'none'`, `'pointer'`,
+`'text'`, `'crosshair'`, `'move'`, `'ew-resize'`, `'ns-resize'`,
+`'nesw-resize'` and `'nwse-resize'`.
 
 ## Combining styles
 

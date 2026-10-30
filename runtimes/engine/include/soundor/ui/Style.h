@@ -145,6 +145,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         BoxOnly,
     };
 
+    // The pointer's shape over a node (CSS `cursor`, the shapes every
+    // platform has). Auto takes the parent's: a text input's is Text, and
+    // the view's the arrow (Default).
+    enum class Cursor : std::uint8_t
+    {
+        Auto,
+        Default,
+        None,
+        Pointer,
+        Text,
+        Crosshair,
+        Move,
+        EwResize,
+        NsResize,
+        NeswResize,
+        NwseResize,
+    };
+
     enum class FontStyle : std::uint8_t
     {
         Normal,
@@ -219,6 +237,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Overflow overflow = Overflow::Visible;
         PointerEvents pointerEvents = PointerEvents::Auto;
+        Cursor cursor = Cursor::Auto;
         // Stacks the node among its siblings: higher is drawn over and hit
         // before lower; equal keeps tree order. Layout ignores it.
         int zIndex = 0;

@@ -68,6 +68,17 @@ TEST_SUITE("JUCE input")
         CHECK(backend::buttonsOf(juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier)) == 2u);
     }
 
+    TEST_CASE("cursors are the platform's own shapes")
+    {
+        CHECK(backend::mouseCursor(ui::Cursor::Default) == juce::MouseCursor::NormalCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::None) == juce::MouseCursor::NoCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::Pointer) == juce::MouseCursor::PointingHandCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::Text) == juce::MouseCursor::IBeamCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::Move) == juce::MouseCursor::UpDownLeftRightResizeCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::EwResize) == juce::MouseCursor::LeftRightResizeCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::NwseResize) == juce::MouseCursor::TopLeftCornerResizeCursor);
+    }
+
     TEST_CASE("wheel deltas point the Web's way: pixels when smooth, three lines a notch otherwise")
     {
         const auto smooth = backend::wheelInput({ 3, 4 }, {}, wheel(0, 0.5f / 256.0f * 10.0f, true));
