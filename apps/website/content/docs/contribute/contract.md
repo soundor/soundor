@@ -14,7 +14,7 @@ lifetime are observable too.
 
 | Layer                            | Source                                                           |
 | -------------------------------- | ---------------------------------------------------------------- |
-| Contract declarations            | `packages/core/src/*-dts.ts`, `packages/environment/`            |
+| Contract declarations            | `packages/environment/`, `packages/core/src/*-dts.ts`            |
 | React mapping                    | `packages/react/src/`                                            |
 | Native implementation            | `runtimes/engine/src/`, JUCE host adapters                       |
 | Browser implementation           | `runtimes/web-runtime/src/client/`                               |
@@ -37,7 +37,9 @@ flowchart TD
 
 The six modules are `soundor:parameters`, `soundor:native`, `soundor:host`,
 `soundor:ui`, `soundor:storage` and `soundor:fs`. Config generates parameter and
-native API types; the other declarations describe the shared platform. The
+native API types (`packages/core/src/*-dts.ts`); the other declarations
+describe the shared platform, the same for every plugin, and are written by
+hand in `packages/environment/`. The
 [runtime contract guide](/docs/contribute/build-runtime/contract) maps each
 module to its specification and implementations.
 

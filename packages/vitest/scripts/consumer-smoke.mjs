@@ -23,6 +23,7 @@ try {
   const packages = [
     'runtimes/engine',
     'packages/core',
+    'packages/environment',
     'packages/config',
     'packages/test-runtime',
     'packages/react',

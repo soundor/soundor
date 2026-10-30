@@ -1,8 +1,9 @@
 # @soundor/environment
 
 The types of Soundor's JavaScript environment, for libraries that run in
-Soundor plugins: `soundor:ui`, image and font imports, and exactly the Web
-globals the runtime provides, in place of the DOM. Types only; install it as a
+Soundor plugins: `soundor:ui`, `soundor:host`, `soundor:storage`,
+`soundor:fs`, image and font imports, and exactly the Web globals the runtime
+provides, in place of the DOM. Types only; install it as a
 development dependency.
 
 ```jsonc
