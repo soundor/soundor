@@ -108,6 +108,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         ui::notifyAnimations(*jsContext);
         ui::frame(*jsContext);
         lap(ticked.animationFrames);
+        // What changed under a pointer that did not move: hover, and the
+        // cursor, follow it, as in browsers.
+        uiSurface->refreshHover();
         jsRuntime->runPendingJobs();
         lap(ticked.jobs);
         // What WebGL drew this tick shows in its canvases.

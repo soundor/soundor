@@ -527,14 +527,26 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
 - **Restyling costs what changed:** assigning what a style already is does
   not reach native code. A change that only looks different (colors, border
   radius, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
-  not laid out; text is measured again only when its font changes.
+  not laid out; text is measured again only when its font changes. A
+  `cursor` change is neither: the backend reads it.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
   Positions are in logical pixels, and buttons and keys use their Web names.
   The surface routes the input:
   - **Hit testing:** later siblings sit on top; `overflow` clips;
     `pointerEvents` applies.
   - **Pointer capture:** implicit from press to release.
-  - **Hover:** `pointerenter`/`pointerleave`.
+  - **Hover:** `pointerenter`/`pointerleave`. It also follows what changes
+    under a pointer that did not move, as in browsers: when the revision
+    changed (the tree, a layout, a scroll, an animation),
+    `Surface::refreshHover()`, which `RuntimeHost::tick()` calls after the
+    animation frame callbacks, hit-tests each mouse or pen in the view and
+    not pressed again, and fires enter and leave as for a move, with no
+    `pointermove`.
+  - **Cursor:** `Surface::cursor()` is the style's `cursor` of the pressed
+    node, or else of the deepest hovered one, or of their nearest ancestor
+    with one (a text input's I-beam, the arrow where none has one). The JUCE
+    editor reads it after input and every tick and sets it with
+    `setMouseCursor` when it changed.
   - **Clicks:** a `click` goes to the deepest node common to press and release.
   - **Focus:** a press focuses the nearest `focusable` node unless
     `pointerdown` is prevented. Tab and Shift+Tab cycle through focusable

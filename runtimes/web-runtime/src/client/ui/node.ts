@@ -38,7 +38,10 @@ export interface ViewLink {
   scale(): number;
   focusedNode(): UiNode | null;
   focus(node: UiNode | null): void;
-  /** Something assistive technology perceives may have changed. */
+  /**
+   * Something assistive technology perceives, or the cursor (a style, the
+   * tree), may have changed.
+   */
   semanticsChanged(): void;
 }
 

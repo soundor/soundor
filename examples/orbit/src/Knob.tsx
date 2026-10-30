@@ -156,6 +156,8 @@ export function Knob({
           borderRadius: 42,
           borderWidth: focused ? 1 : 0,
           borderColor: '#9473ca',
+          // Dragged up and down.
+          cursor: 'ns-resize',
         }}
       >
         <Canvas

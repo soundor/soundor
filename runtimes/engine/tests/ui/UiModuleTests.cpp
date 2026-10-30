@@ -341,6 +341,33 @@ TEST_SUITE("soundor:ui")
               == -3);
     }
 
+    TEST_CASE("the cursor style reaches the surface")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + "a.style = { width: 100, height: 100, cursor: 'ns-resize' };");
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Move, 10, 10, 0, -1));
+        CHECK(f.host.surface().cursor() == ui::Cursor::NsResize);
+        CHECK(f.error(std::string(imports) + "a.style = { cursor: 'hand' };")
+              == "TypeError: style.cursor: expected one of 'auto', 'default', 'none', 'pointer', 'text', "
+                 "'crosshair', 'move', 'ew-resize', 'ns-resize', 'nesw-resize', 'nwse-resize', got 'hand'");
+    }
+
+    TEST_CASE("a node appearing under a still pointer is entered at the next tick")
+    {
+        UiFixture f;
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Move, 10, 10, 0, -1));
+        f.run(std::string(imports) + R"(
+            globalThis.result = [];
+            const cover = createView({ width: 50, height: 50 });
+            cover.addEventListener('pointerenter', (event) => result.push(event.type, event.offsetX));
+            cover.addEventListener('pointermove', (event) => result.push(event.type));
+            a.appendChild(cover);
+        )");
+        CHECK(f.eval("JSON.stringify(result)").asString() == "[]");
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(result)").asString() == R"(["pointerenter",10])");
+    }
+
     TEST_CASE("stopPropagation and preventDefault reach the surface")
     {
         UiFixture f;

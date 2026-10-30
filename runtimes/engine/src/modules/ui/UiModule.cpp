@@ -315,6 +315,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 static constexpr std::array<std::string_view, 2> boxSizings { "border-box", "content-box" };
                 static constexpr std::array<std::string_view, 4> pointerEvents { "auto", "none", "box-none",
                                                                                  "box-only" };
+                static constexpr std::array<std::string_view, 11> cursors { "auto",        "default",    "none",
+                                                                            "pointer",     "text",       "crosshair",
+                                                                            "move",        "ew-resize",  "ns-resize",
+                                                                            "nesw-resize", "nwse-resize" };
 
                 assign(out.display, choice<Display>("display", displays));
                 assign(out.position, choice<Position>("position", positions));
@@ -327,6 +331,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.overflow, choice<Overflow>("overflow", overflows));
                 assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
                 assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
+                assign(out.cursor, choice<Cursor>("cursor", cursors));
                 if (const Property zIndex(*this, "zIndex"); zIndex.present())
                 {
                     const double value = zIndex.value->isNumber() ? zIndex.value->getNumber() : 0.5;

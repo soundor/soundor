@@ -24,7 +24,7 @@ import {
 import { createNode, nodeOf, UiNode, type ViewLink } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
-import type { NodeType } from './types';
+import type { Cursor, NodeType } from './types';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -34,6 +34,10 @@ const STYLE_ID = 'soundor-ui-style';
 interface PointerState {
   captured: UiNode | null;
   hovered: UiNode[];
+  /** The last input, where hover is refreshed from. */
+  last: globalThis.PointerEvent | null;
+  /** In the view, as of the last input. */
+  inside: boolean;
 }
 
 const elementOf = (node: UiNode): HTMLElement => UiNode.elementOf(node);
@@ -57,6 +61,12 @@ export class UiView implements ViewLink {
   #clipboard = '';
   /** Whether the ARIA is to be brought up to date. */
   #semanticsPending = false;
+  /** The pointer whose cursor shows (the mouse), and the cursor shown. */
+  #cursorPointer = 1;
+  #cursor: Cursor = 'default';
+  /** The frame hover is to be refreshed in, if any. */
+  #hoverFrame: number | null = null;
+  #resizes: ResizeObserver | null = null;
 
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
@@ -89,6 +99,11 @@ export class UiView implements ViewLink {
   /** Detaches the view and its input listeners. */
   dispose(): void {
     this.animations.dispose();
+    this.#resizes?.disconnect();
+    if (this.#hoverFrame !== null)
+      this.rootElement.ownerDocument.defaultView?.cancelAnimationFrame(
+        this.#hoverFrame,
+      );
     this.#controller.abort();
     this.rootElement.remove();
   }
@@ -198,6 +213,71 @@ export class UiView implements ViewLink {
   updateSemantics(): void {
     this.#semanticsPending = false;
     updateSemantics([this.root, this.overlay]);
+    // The tree or a style changed, so the cursor may have too, and what is
+    // under a pointer once the browser lays it out.
+    this.#updateCursor();
+    this.#hoverChanged();
+  }
+
+  /** Refreshes hover in the next frame, once. */
+  #hoverChanged(): void {
+    const window = this.rootElement.ownerDocument.defaultView;
+    if (this.#hoverFrame !== null || window === null) return;
+    this.#hoverFrame = window.requestAnimationFrame(() => {
+      this.#hoverFrame = null;
+      this.refreshHover();
+    });
+  }
+
+  /**
+   * Hover follows what changed under pointers that did not move, as in
+   * browsers and the JUCE runtime: each mouse or pen in the view and not
+   * pressed is hit-tested again where it is, and pointerleave/pointerenter
+   * fire as for a move (no pointermove).
+   */
+  refreshHover(): void {
+    for (const state of [...this.#pointers.values()]) {
+      const last = state.last;
+      if (last === null || !state.inside || state.captured !== null) continue;
+      if (last.pointerType === 'touch') continue;
+      const hit = this.#hitTest(last);
+      const path = this.#pathTo(hit);
+      const hovered = state.hovered.filter((node) => node.isConnected);
+      if (
+        path.length === hovered.length &&
+        path.every((node, i) => node === hovered[i])
+      )
+        continue;
+      this.#updateHover(state, last, hit);
+    }
+    this.#updateCursor();
+  }
+
+  /**
+   * The cursor the mouse shows, as in the JUCE runtime: the style's of the
+   * node holding the pointer, or else of the deepest it hovers, or of their
+   * nearest ancestor with one; a text input's 'text', and the arrow where
+   * none has one.
+   */
+  cursor(): Exclude<Cursor, 'auto'> {
+    const state = this.#pointers.get(this.#cursorPointer);
+    let node: UiNode | null = null;
+    if (state?.captured?.isConnected) node = state.captured;
+    else node = state?.hovered.findLast((at) => at.isConnected) ?? null;
+    for (; node !== null; node = node.parent) {
+      const cursor = node.style.cursor ?? 'auto';
+      if (cursor !== 'auto') return cursor;
+      if (node.type === 'input') return 'text';
+    }
+    return 'default';
+  }
+
+  /** Shows cursor() over the view: every node's element inherits it. */
+  #updateCursor(): void {
+    const cursor = this.cursor();
+    if (cursor === this.#cursor) return;
+    this.#cursor = cursor;
+    this.rootElement.style.cursor = cursor;
   }
 
   /**
@@ -254,27 +334,56 @@ export class UiView implements ViewLink {
   #listen(): void {
     const element = this.rootElement;
     const options = { signal: this.#controller.signal };
+    // After the UI handles a mouse's (or pen's) input, its cursor.
+    const pointer =
+      (handle: (event: globalThis.PointerEvent) => void) =>
+      (event: globalThis.PointerEvent) => {
+        handle(event);
+        const state = this.#pointers.get(event.pointerId);
+        if (state !== undefined) {
+          state.last = event;
+          state.inside = event.type !== 'pointerleave';
+        }
+        if (event.pointerType !== 'touch')
+          this.#cursorPointer = event.pointerId;
+        this.#updateCursor();
+      };
     element.addEventListener(
       'pointerdown',
-      (e) => this.#pointerDown(e),
+      pointer((e) => this.#pointerDown(e)),
       options,
     );
     element.addEventListener(
       'pointermove',
-      (e) => this.#pointerMove(e),
+      pointer((e) => this.#pointerMove(e)),
       options,
     );
-    element.addEventListener('pointerup', (e) => this.#pointerUp(e), options);
+    element.addEventListener(
+      'pointerup',
+      pointer((e) => this.#pointerUp(e)),
+      options,
+    );
     element.addEventListener(
       'pointercancel',
-      (e) => this.#pointerCancel(e),
+      pointer((e) => this.#pointerCancel(e)),
       options,
     );
     element.addEventListener(
       'pointerleave',
-      (e) => this.#pointerLeave(e),
+      pointer((e) => this.#pointerLeave(e)),
       options,
     );
+    // A resized view lays out again under the pointer.
+    const Observer = element.ownerDocument.defaultView?.ResizeObserver;
+    if (Observer !== undefined) {
+      this.#resizes = new Observer(() => this.#hoverChanged());
+      this.#resizes.observe(element);
+    }
+    // Scroll views scroll natively, moving their content under the pointer.
+    element.addEventListener('scroll', () => this.#hoverChanged(), {
+      ...options,
+      capture: true,
+    });
     // The browser's own press handling (focus, text selection) is the
     // view's, except placing the caret in a text input.
     element.addEventListener(
@@ -359,7 +468,7 @@ export class UiView implements ViewLink {
   #state(pointerId: number): PointerState {
     let state = this.#pointers.get(pointerId);
     if (state === undefined) {
-      state = { captured: null, hovered: [] };
+      state = { captured: null, hovered: [], last: null, inside: false };
       this.#pointers.set(pointerId, state);
     }
     if (state.captured !== null && !state.captured.isConnected)

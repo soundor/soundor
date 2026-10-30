@@ -495,6 +495,9 @@ namespace ${NS}
         void updateCompositor();
         void renderFrame();
         void deliver(const ui::PointerInput& input);
+        // Shows the cursor the UI asks for over the view (the style's
+        // \`cursor\`), when it changed.
+        void updateCursor();
         // Presents the UI to the platform's assistive technology, in the
         // native view JUCE shows it in. The semantics are Soundor's: JUCE only
         // says where the view is (and, on macOS, lists Soundor's elements as
@@ -516,6 +519,8 @@ namespace ${NS}
         render::GpuCompositor* gpu = nullptr;
         void* compositorView = nullptr;
         bool gpuLost = false;
+        // The cursor shown over the view.
+        ui::Cursor cursor = ui::Cursor::Default;
         // Where the runtime's log goes: diagnostics go there too.
         js::LogSink log;
 #if SOUNDOR_DEVTOOLS
@@ -757,6 +762,8 @@ namespace ${NS}
         host->tick();
 #endif
         updateAccessibility();
+        // Styles also change outside input (timers, animations).
+        updateCursor();
 #if SOUNDOR_DEVTOOLS
         if (debug) {
     #if SOUNDOR_UI_DEV
@@ -838,6 +845,16 @@ namespace ${NS}
 #endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
+        updateCursor();
+    }
+
+    void AudioProcessorEditor::updateCursor()
+    {
+        const ui::Cursor wanted = runtimeHost().surface().cursor();
+        if (wanted == cursor)
+            return;
+        cursor = wanted;
+        setMouseCursor(backend::mouseCursor(cursor));
     }
 
     void AudioProcessorEditor::mouseMove(const juce::MouseEvent& event)

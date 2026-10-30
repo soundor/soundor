@@ -69,6 +69,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             style.transform = {};
             style.resizeMode = {};
             style.pointerEvents = {};
+            style.cursor = {};
             style.zIndex = 0; // restacks siblings, see setStyle()
             style.text.color = {};
             return style;
@@ -477,7 +478,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             YGNodeMarkDirty(node.yoga);
             node.layoutWidth = -1;
         }
-        markChanged(node);
+        // The cursor is neither drawn nor laid out: the backend reads it.
+        Style drawn = before;
+        drawn.cursor = style.cursor;
+        if (drawn != style)
+            markChanged(node);
     }
 
     void Surface::setText(NodeId id, std::string text)
@@ -1193,12 +1198,62 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     }
 #endif
 
+    Cursor Surface::cursor(int pointerId)
+    {
+        const auto state = pointers.find(pointerId);
+        if (state == pointers.end())
+            return Cursor::Default;
+        NodeId at = isConnected(state->second.captured) ? state->second.captured : noNode;
+        for (auto hovered = state->second.hovered.rbegin(); at == noNode && hovered != state->second.hovered.rend();
+             ++hovered)
+            if (isConnected(*hovered))
+                at = *hovered;
+        for (const Node* node = find(at); node != nullptr; node = node->parentNode)
+        {
+            if (node->nodeStyle.cursor != Cursor::Auto)
+                return node->nodeStyle.cursor;
+            if (node->nodeType == NodeType::Input)
+                return Cursor::Text;
+        }
+        return Cursor::Default;
+    }
+
+    void Surface::refreshHover()
+    {
+        if (hoverRevision == changes)
+            return;
+        // What the listeners change is seen the next time.
+        hoverRevision = changes;
+        std::vector<int> ids;
+        for (const auto& [id, state] : pointers)
+            if (state.inside && state.captured == noNode && state.last.type != PointerType::Touch)
+                ids.push_back(id);
+        for (const int id : ids)
+        {
+            const auto found = pointers.find(id);
+            if (found == pointers.end())
+                continue;
+            PointerState& state = found->second;
+            const NodeId hit = hitTest(state.last.position);
+            std::vector<NodeId> hovered = state.hovered;
+            std::erase_if(hovered, [this](NodeId node) { return ! isConnected(node); });
+            if (hovered == pathTo(hit))
+                continue;
+            PointerInput input = state.last;
+            input.phase = PointerInput::Phase::Move;
+            input.button = -1;
+            updateHover(state, input, hit);
+        }
+    }
+
     bool Surface::pointer(const PointerInput& input)
     {
         layout();
         PointerState& state = pointers[input.pointerId];
         if (state.captured != noNode && ! isConnected(state.captured))
             state.captured = noNode;
+        state.last = input;
+        state.inside = input.phase != PointerInput::Phase::Leave && input.phase != PointerInput::Phase::Cancel;
         const NodeId hit = input.phase == PointerInput::Phase::Leave ? noNode : hitTest(input.position);
 
         switch (input.phase)

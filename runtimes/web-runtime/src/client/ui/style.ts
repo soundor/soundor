@@ -23,6 +23,8 @@ export const STYLESHEET = `
   flex-shrink: 0; align-items: stretch; align-content: flex-start;
   position: relative; min-width: 0; min-height: 0; margin: 0; padding: 0;
   border: 0 solid #000; outline: none; pointer-events: auto;
+  /* The view shows its own cursor (UiView.cursor()), on the surface. */
+  cursor: inherit;
   -webkit-tap-highlight-color: transparent;
   /* Every node stacks its own children, as in the JUCE runtime: zIndex
      orders siblings and never reaches past their parent. */
@@ -40,7 +42,7 @@ export const STYLESHEET = `
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
 .sd-surface {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%;
-  isolation: isolate; outline: none;
+  isolation: isolate; outline: none; cursor: default;
 }
 /* The two roots: the content, and over all of it the overlay layer, which
    lets the pointer through where nothing in it takes it. */
@@ -118,6 +120,19 @@ const CHOICES: Readonly<Record<string, readonly string[]>> = {
   overflow: ['visible', 'hidden', 'scroll'],
   boxSizing: ['border-box', 'content-box'],
   pointerEvents: ['auto', 'none', 'box-none', 'box-only'],
+  cursor: [
+    'auto',
+    'default',
+    'none',
+    'pointer',
+    'text',
+    'crosshair',
+    'move',
+    'ew-resize',
+    'ns-resize',
+    'nesw-resize',
+    'nwse-resize',
+  ],
   resizeMode: ['cover', 'contain', 'stretch', 'center'],
   fontStyle: ['normal', 'italic'],
   textAlign: ['auto', 'left', 'center', 'right'],

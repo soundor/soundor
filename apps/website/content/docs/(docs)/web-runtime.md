@@ -166,7 +166,11 @@ UiNodes.
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
   release, focus on press, Tab cycling, and the wheel scrolling the nearest
-  scroll view. All four `pointerEvents` modes work.
+  scroll view. All four `pointerEvents` modes work, and the cursor is the
+  JUCE runtime's: the view resolves `cursor` along the Soundor tree and
+  shows it on its element, which every node inherits. Hover follows what
+  changes under a pointer that did not move (the tree, a style, a scroll, a
+  resize) in the next frame, as in the JUCE runtime.
 - **Text inputs** edit natively (IME, selection, copy and paste) and report
   `beforeinput`, `input` and `change`.
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
