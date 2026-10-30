@@ -226,14 +226,19 @@ describe('generated declarations', () => {
     ).resolves.toMatchObject({ stdout: '' });
   }, 30_000);
 
-  it("give a library soundor:ui without Soundor's globals, with the DOM's", async () => {
-    const library = await mkdtemp(join(tmpdir(), 'soundor-dts-library-'));
-    try {
-      for (const file of runtimeTypeFiles())
-        await writeFile(join(library, file.path), file.contents);
-      await writeFile(
-        join(library, 'library.ts'),
-        `import { createCanvas, createImage, registerFont, root, type Asset } from 'soundor:ui';
+  it.each([
+    ["Soundor's globals", ['es2022'], ['globals.d.ts']],
+    ["the DOM's types", ['es2022', 'dom'], []],
+  ])(
+    'give a library soundor:ui with %s',
+    async (_, lib, globals) => {
+      const library = await mkdtemp(join(tmpdir(), 'soundor-dts-library-'));
+      try {
+        for (const file of runtimeTypeFiles())
+          await writeFile(join(library, file.path), file.contents);
+        await writeFile(
+          join(library, 'library.ts'),
+          `import { createCanvas, createImage, registerFont, root, type Asset } from 'soundor:ui';
 import logo from './logo.png';
 
 // An asset is a string, so another bundler's image imports fit as well.
@@ -245,27 +250,29 @@ void registerFont('Brand', 'brand.ttf', { weight: 'bold' });
 const context = createCanvas().getContext('2d');
 context?.fillRect(0, 0, 1, 1);
 `,
-      );
-      await writeFile(
-        join(library, 'tsconfig.json'),
-        JSON.stringify({
-          compilerOptions: {
-            strict: true,
-            noEmit: true,
-            target: 'es2022',
-            module: 'esnext',
-            moduleResolution: 'bundler',
-            lib: ['es2022', 'dom'],
-            types: [],
-          },
-          files: ['library.ts', 'ui.d.ts', 'assets.d.ts'],
-        }),
-      );
-      await expect(
-        run(process.execPath, [tsc, '-p', library, '--pretty', 'false']),
-      ).resolves.toMatchObject({ stdout: '' });
-    } finally {
-      await rm(library, { recursive: true, force: true });
-    }
-  }, 30_000);
+        );
+        await writeFile(
+          join(library, 'tsconfig.json'),
+          JSON.stringify({
+            compilerOptions: {
+              strict: true,
+              noEmit: true,
+              target: 'es2022',
+              module: 'esnext',
+              moduleResolution: 'bundler',
+              lib,
+              types: [],
+            },
+            files: ['library.ts', ...globals, 'ui.d.ts', 'assets.d.ts'],
+          }),
+        );
+        await expect(
+          run(process.execPath, [tsc, '-p', library, '--pretty', 'false']),
+        ).resolves.toMatchObject({ stdout: '' });
+      } finally {
+        await rm(library, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
 });

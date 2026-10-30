@@ -30,23 +30,28 @@ own) and include the files you need:
 ```jsonc
 {
   "compilerOptions": {
-    "lib": ["ES2023", "DOM"],
+    // Soundor's runtime: ES2023 and the Web subset it declares, no DOM.
+    "lib": ["ES2023"],
     "types": [],
   },
   "include": [
     "src",
+    "node_modules/@soundor/core/runtime/globals.d.ts",
     "node_modules/@soundor/core/runtime/ui.d.ts",
     "node_modules/@soundor/core/runtime/assets.d.ts",
   ],
 }
 ```
 
-`ui.d.ts` needs only standard Web types (`EventTarget`, canvas contexts), so it
-compiles with the DOM's. If your bundler already declares image and font
-imports (Vite's `vite/client` does, as strings), leave out `assets.d.ts`.
-To be told when the library uses a Web API the runtime lacks, use
-`globals.d.ts` instead of `"DOM"` (`lib: ["ES2023"]`): it clashes with the
-DOM's declarations, so use one or the other.
+Without `"DOM"`, code that touches `window` or `document`, which the runtime
+does not have, fails to compile instead of failing in a plugin. If your
+bundler already declares image and font imports (Vite's `vite/client` does,
+as strings), leave out `assets.d.ts`.
+
+Only code that also runs outside Soundor, in a plain web page, needs the DOM's
+types. `ui.d.ts` compiles with them too, since it needs only standard Web
+types (`EventTarget`, canvas contexts): use `"DOM"` in place of
+`globals.d.ts`, never both, as their declarations clash.
 
 An asset is its id, a plain `string` (`Asset` in `soundor:ui`), so an image
 import typed by another bundler fits wherever `soundor:ui` or `@soundor/react`
