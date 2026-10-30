@@ -573,9 +573,12 @@ declare module 'soundor:ui' {
   /**
    * Makes a bundled font file (`import inter from './Inter.ttf'`, TrueType
    * or OpenType) a face of `family`, as CSS's @font-face does: text whose
-   * fontFamily is `family` is set in its registered faces only, the closest
-   * to its weight and style (bold and italic are synthesized when no face
-   * is). Text already shown is laid out again. Resolves once the font is
+   * fontFamily is `family` is set in its registered faces, never in an
+   * installed font of that name: the face closest to its weight and style
+   * (bold and italic are synthesized when no face is). A character the faces
+   * lack is drawn in a system font that has it, so a font with Latin
+   * glyphs only shows Cyrillic text in another font. Text already shown is
+   * laid out again. Resolves once the font is
    * ready; rejects if the file is not a font. Throws a TypeError for invalid
    * arguments.
    */

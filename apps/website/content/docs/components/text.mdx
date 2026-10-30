@@ -41,10 +41,13 @@ export const Title = () => (
 ```
 
 - **As CSS's `@font-face`:** text in a registered family is set in its
-  registered faces only, the one closest to its `fontWeight` and
-  `fontStyle`; bold and italic are synthesized when no face is. Family names
-  match regardless of case. Characters the faces lack come from the
-  system's fonts.
+  registered faces, never in an installed font of the same name: the one
+  closest to its `fontWeight` and `fontStyle`; bold and italic are
+  synthesized when no face is. Family names match regardless of case.
+- **Missing characters:** a character the faces lack is drawn in a system
+  font that has it, one character at a time. A font with Latin glyphs only
+  shows Cyrillic or Greek text in that other font, which differs between
+  platforms: register files that cover the scripts your UI shows.
 - **The descriptors** say what the file is: `weight` (1 to 1000, `'normal'`
   or `'bold'`; 400 by default) and `style` (`'normal'` or `'italic'`).
 - **When:** registering in the module that renders, before `render()`, lays

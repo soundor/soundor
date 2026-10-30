@@ -59,7 +59,10 @@ An image or font is imported, as a plugin does, and the plugin's bundler
 bundles the file as an asset. Your build must leave that import as it is, so
 that the plugin's bundler finds the file. Fonts need TrueType (`.ttf`) or
 OpenType (`.otf`) files: the native runtime does not read WOFF or WOFF2, the
-formats of web font packages such as Fontsource.
+formats of web font packages such as Fontsource. Include every script your
+users may write in, such as Cyrillic: a character a font lacks is drawn in a
+system font. The web splits a font by script (`unicode-range`); a plugin needs
+no such split, so one file per face can hold them all.
 
 ### Fonts in a package of their own
 
