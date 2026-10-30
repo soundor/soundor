@@ -6,8 +6,12 @@
     "jsxImportSource": "preact",
     "lib": ["es2023", "DOM", "DOM.Iterable"],
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo",
-    // soundor:ui alone: its globals would clash with the DOM's.
-    "types": ["node", "@soundor/environment/ui.d.ts"],
+    // The soundor:* modules alone: its globals would clash with the DOM's.
+    "types": [
+      "node",
+      "@soundor/environment/ui.d.ts",
+      "@soundor/environment/platform.d.ts"
+    ],
     // The generated native.ts fixture imports the package's client entry.
     "paths": {
       "@soundor/web-runtime/client": ["./src/client/index.ts"]

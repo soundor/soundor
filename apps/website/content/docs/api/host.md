@@ -18,7 +18,7 @@ const stop = subscribe(({ transport }) => drawPlayhead(transport?.ppqPosition));
 
 | Export                | What it is                                                                                                                              |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `plugin`              | `{ id, name }`, from `soundor.config.ts`, typed as their literal values.                                                                |
+| `plugin`              | `{ id, name }`, the strings in `soundor.config.ts`.                                                                                     |
 | `snapshot()`          | The host's state now: a `HostSnapshot`.                                                                                                 |
 | `subscribe(listener)` | Calls `listener` with each new snapshot when the host's state changes: every frame while playing. Returns a function that unsubscribes. |
 

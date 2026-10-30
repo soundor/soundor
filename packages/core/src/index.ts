@@ -80,5 +80,3 @@ export {
   enumeratorName,
 } from './native-api';
 export { renderNativeDts } from './native-dts';
-
-export { runtimeTypeFiles } from './runtime-types';

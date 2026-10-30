@@ -67,14 +67,12 @@ From the repository root:
 
 ```sh
 UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
-pnpm --filter @soundor/core build
-pnpm --filter @soundor/core gen:runtime-types
 pnpm --filter @soundor/juce-runtime gen:webgl
 ```
 
-These update the native API golden C++, the shared runtime declarations
-(`@soundor/environment`), and WebGL
-bindings respectively. Use only the relevant generator, and include its output
+These update the native API golden C++, and the WebGL bindings with their
+declarations (`packages/environment/webgl.d.ts`) respectively. The other
+declarations in `packages/environment` are written by hand. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.
 

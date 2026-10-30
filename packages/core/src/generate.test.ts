@@ -82,7 +82,7 @@ declare module 'soundor:native' {
       {
         path: 'platform.d.ts',
         contents: expect.stringContaining(
-          'export const plugin: { readonly id: "com.example.plugin"; readonly name: "Example" };',
+          'export const plugin: { readonly id: string; readonly name: string };',
         ),
       },
       {
@@ -100,6 +100,10 @@ declare module 'soundor:native' {
       {
         path: 'ui.d.ts',
         contents: expect.stringContaining("declare module 'soundor:ui' {"),
+      },
+      {
+        path: 'webgl.d.ts',
+        contents: expect.stringContaining('interface WebGL2RenderingContext'),
       },
     ]);
   });
@@ -152,6 +156,7 @@ describe('generated file writer', () => {
       { path: 'platform.d.ts', status: 'up-to-date' },
       { path: 'soundor.d.ts', status: 'up-to-date' },
       { path: 'ui.d.ts', status: 'up-to-date' },
+      { path: 'webgl.d.ts', status: 'up-to-date' },
     ]);
   });
 

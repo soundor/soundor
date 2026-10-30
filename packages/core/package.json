@@ -30,8 +30,10 @@
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "test:watch": "vitest watch",
-    "gen:runtime-types": "node scripts/runtime-types.mjs"
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@soundor/environment": "workspace:*"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:^",

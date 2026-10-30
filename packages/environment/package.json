@@ -1,7 +1,7 @@
 {
   "name": "@soundor/environment",
   "version": "0.13.0",
-  "description": "The types of Soundor's JavaScript environment, for libraries: soundor:ui, image and font imports, and the Web globals the runtime provides.",
+  "description": "The types of Soundor's JavaScript environment, for libraries: soundor:ui, soundor:host, soundor:storage, soundor:fs, image and font imports, and the Web globals the runtime provides.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,6 +22,8 @@
     "./assets.d.ts": "./assets.d.ts",
     "./globals.d.ts": "./globals.d.ts",
     "./package.json": "./package.json",
-    "./ui.d.ts": "./ui.d.ts"
+    "./platform.d.ts": "./platform.d.ts",
+    "./ui.d.ts": "./ui.d.ts",
+    "./webgl.d.ts": "./webgl.d.ts"
   }
 }

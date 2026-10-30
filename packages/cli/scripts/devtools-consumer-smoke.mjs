@@ -24,6 +24,7 @@ try {
   for (const folder of [
     'runtimes/engine',
     'packages/core',
+    'packages/environment',
     'packages/config',
     'packages/cli',
     'packages/devtools-protocol',

@@ -23,7 +23,6 @@ function expected(): Record<string, string> {
     // Not native.d.ts: next to native.ts, TypeScript would ignore it.
     'soundor-native.d.ts': core['native.d.ts']!,
     'parameters.d.ts': core['parameters.d.ts']!,
-    'platform.d.ts': core['platform.d.ts']!,
   };
 }
 

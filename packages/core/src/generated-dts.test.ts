@@ -4,7 +4,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -13,9 +13,11 @@ import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { generateSoundorFiles, type CoreSoundorConfig } from './generate';
-import { runtimeTypeFiles } from './runtime-types';
 
 const run = promisify(execFile);
+const environment = dirname(
+  createRequire(import.meta.url).resolve('@soundor/environment/package.json'),
+);
 // TypeScript 7 has no compiler API in its main entry point; run the tsc CLI.
 const tsc = join(
   dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
@@ -95,7 +97,7 @@ const level: Level = measure(new Float32Array(128));
 const rms: number = level.rms;
 const preset: Promise<Preset> = loadPreset('/presets/a.json');
 
-const id: 'com.example.dts' = plugin.id;
+const id: string = plugin.id;
 const bpm: number | undefined = snapshot().transport?.bpm;
 const stopHost: () => void = subscribe((s) => void s.sampleRate);
 const volume: Promise<number | undefined> = storage.get<number>('volume');
@@ -228,18 +230,31 @@ describe('generated declarations', () => {
 
   it.each([
     ["Soundor's whole environment", ['es2022'], ['index.d.ts']],
-    ["the DOM's types", ['es2022', 'dom'], ['ui.d.ts', 'assets.d.ts']],
+    [
+      "the DOM's types",
+      ['es2022', 'dom'],
+      ['ui.d.ts', 'platform.d.ts', 'assets.d.ts'],
+    ],
   ])(
-    'give a library soundor:ui with %s',
+    'give a library the soundor:* modules with %s',
     async (_, lib, declarations) => {
       const library = await mkdtemp(join(tmpdir(), 'soundor-dts-library-'));
       try {
-        for (const file of runtimeTypeFiles())
-          await writeFile(join(library, file.path), file.contents);
+        await cp(environment, library, {
+          recursive: true,
+          filter: (path) => path === environment || path.endsWith('.d.ts'),
+        });
         await writeFile(
           join(library, 'library.ts'),
-          `import { createCanvas, createImage, registerFont, root, type Asset } from 'soundor:ui';
+          `import { readText } from 'soundor:fs';
+import { plugin } from 'soundor:host';
+import { storage } from 'soundor:storage';
+import { createCanvas, createImage, registerFont, root, type Asset } from 'soundor:ui';
 import logo from './logo.png';
+
+// The platform's modules are the same for every plugin.
+export const presets: Promise<string> = readText(\`\${plugin.id}/presets.json\`);
+void storage.set('volume', 1);
 
 // An asset is a string, so another bundler's image imports fit as well.
 export function show(source: Asset | string) {
