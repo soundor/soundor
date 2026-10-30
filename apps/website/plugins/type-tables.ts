@@ -19,7 +19,7 @@ import {
 /** The repository's root: `path` in `<auto-type-table>` starts there. */
 export const REPOSITORY = join(import.meta.dirname, '../../..');
 
-const RUNTIME_TYPES = ['globals.d.ts', 'ui.d.ts'].map((file) =>
+const RUNTIME_TYPES = ['assets.d.ts', 'globals.d.ts', 'ui.d.ts'].map((file) =>
   join(REPOSITORY, 'packages/core/runtime', file),
 );
 

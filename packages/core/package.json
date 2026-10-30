@@ -22,6 +22,9 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./runtime": {
+      "types": "./runtime/index.d.ts"
+    },
     "./runtime/assets.d.ts": "./runtime/assets.d.ts",
     "./runtime/globals.d.ts": "./runtime/globals.d.ts",
     "./runtime/ui.d.ts": "./runtime/ui.d.ts",

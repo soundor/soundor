@@ -227,11 +227,11 @@ describe('generated declarations', () => {
   }, 30_000);
 
   it.each([
-    ["Soundor's globals", ['es2022'], ['globals.d.ts']],
-    ["the DOM's types", ['es2022', 'dom'], []],
+    ["Soundor's whole environment", ['es2022'], ['index.d.ts']],
+    ["the DOM's types", ['es2022', 'dom'], ['ui.d.ts', 'assets.d.ts']],
   ])(
     'give a library soundor:ui with %s',
-    async (_, lib, globals) => {
+    async (_, lib, declarations) => {
       const library = await mkdtemp(join(tmpdir(), 'soundor-dts-library-'));
       try {
         for (const file of runtimeTypeFiles())
@@ -263,7 +263,7 @@ context?.fillRect(0, 0, 1, 1);
               lib,
               types: [],
             },
-            files: ['library.ts', ...globals, 'ui.d.ts', 'assets.d.ts'],
+            files: ['library.ts', ...declarations],
           }),
         );
         await expect(

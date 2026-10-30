@@ -11,7 +11,31 @@ like. The plugin's own bundler inlines it like any other dependency.
 ## The runtime types
 
 `@soundor/core` publishes the declarations of what the runtime provides that
-are the same for every plugin, under `@soundor/core/runtime/`:
+are the same for every plugin: `soundor:ui`, image and font imports, and
+exactly the Web globals the runtime has, in place of the DOM. A plugin gets the
+same, generated with its own parameters and native API, in
+`.soundor/generated`. `soundor:parameters` and `soundor:native` are specific
+to each plugin, so a library takes values from them as arguments rather than
+importing them.
+
+Add `@soundor/core` as a development dependency (it has no dependencies of its
+own) and name its runtime types in your tsconfig:
+
+```jsonc
+{
+  "compilerOptions": {
+    // Soundor's runtime: ES2023 and the Web subset it declares, no DOM.
+    "lib": ["ES2023"],
+    "types": ["@soundor/core/runtime"],
+  },
+}
+```
+
+Without `"DOM"`, code that touches `window` or `document`, which the runtime
+does not have, fails to compile instead of failing in a plugin.
+
+`@soundor/core/runtime` is three files, which a library can also include
+apart, from `node_modules/@soundor/core/runtime/`:
 
 | File           | Declares                                                              |
 | -------------- | --------------------------------------------------------------------- |
@@ -19,39 +43,11 @@ are the same for every plugin, under `@soundor/core/runtime/`:
 | `assets.d.ts`  | Image and font imports (`import logo from './logo.png'`) as strings   |
 | `globals.d.ts` | Exactly the Web globals the runtime provides, instead of the full DOM |
 
-A plugin gets the same files, generated with its own parameters and native
-API, in `.soundor/generated`. `soundor:parameters` and `soundor:native` are
-specific to each plugin, so a library takes values from them as arguments
-rather than importing them.
-
-Add `@soundor/core` as a development dependency (it has no dependencies of its
-own) and include the files you need:
-
-```jsonc
-{
-  "compilerOptions": {
-    // Soundor's runtime: ES2023 and the Web subset it declares, no DOM.
-    "lib": ["ES2023"],
-    "types": [],
-  },
-  "include": [
-    "src",
-    "node_modules/@soundor/core/runtime/globals.d.ts",
-    "node_modules/@soundor/core/runtime/ui.d.ts",
-    "node_modules/@soundor/core/runtime/assets.d.ts",
-  ],
-}
-```
-
-Without `"DOM"`, code that touches `window` or `document`, which the runtime
-does not have, fails to compile instead of failing in a plugin. If your
-bundler already declares image and font imports (Vite's `vite/client` does,
-as strings), leave out `assets.d.ts`.
-
-Only code that also runs outside Soundor, in a plain web page, needs the DOM's
-types. `ui.d.ts` compiles with them too, since it needs only standard Web
-types (`EventTarget`, canvas contexts): use `"DOM"` in place of
-`globals.d.ts`, never both, as their declarations clash.
+Leave out `assets.d.ts` when your toolchain declares image imports itself, as
+Vite's `vite/client` does: the two clash. Code that also runs in a plain web
+page uses `"DOM"` in place of `globals.d.ts` (never both, as they clash too);
+`ui.d.ts` needs only standard Web types (`EventTarget`, canvas contexts), which
+the DOM's declare as well.
 
 An asset is its id, a plain `string` (`Asset` in `soundor:ui`), so an image
 import typed by another bundler fits wherever `soundor:ui` or `@soundor/react`
