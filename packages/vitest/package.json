@@ -34,7 +34,7 @@
   },
   "dependencies": {
     "@soundor/config": "workspace:^",
-    "@soundor/core": "workspace:^",
+    "@soundor/core": "workspace:*",
     "@soundor/test-runtime": "workspace:^"
   },
   "devDependencies": {

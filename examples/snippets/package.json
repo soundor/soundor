@@ -21,7 +21,6 @@
   },
   "devDependencies": {
     "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*",
     "@soundor/testing-library": "workspace:^",
     "@soundor/vitest": "workspace:^",
     "@types/node": "catalog:",
