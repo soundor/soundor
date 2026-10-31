@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
 
-// The basic example's editor is resizable (800×600, within 480×320 and
+// The basic example's editor is resizable (800×600, within 480×400 and
 // 1600×1200): its web host has a handle that resizes the plugin view, which
 // lays the UI out again; it is not scaled. Embedded, the view is its
 // iframe's size, whatever that becomes.
@@ -69,7 +69,7 @@ test('the view opens at the editor size and resizes, laying the UI out again', a
 
 test('the view keeps to the editor limits and the page', async ({ page }) => {
   await drag(page, -1000, -1000);
-  expect(await viewSize(page)).toEqual([480, 320]);
+  expect(await viewSize(page)).toEqual([480, 400]);
   // Dragged out of the window: it stops where the page has no more room
   // (the stage's padding: 16 around, 76 under it for the dock).
   await drag(page, 2000, 2000);
