@@ -1,6 +1,6 @@
 {
   "name": "@soundor/driver",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Inspect and control a running Soundor plugin's native UI through its DevTools session.",
   "license": "MIT",
   "repository": {
