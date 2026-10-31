@@ -152,7 +152,9 @@ limits (JUCE's `setResizeLimits` and `setResizable(true, false)`), so the
 host or the Standalone's window offers the resize, and the UI is laid out
 again at every new size. JUCE's own corner resizer is not used: it would
 cover the UI's bottom-right corner, and under the GPU compositor it would
-not even show. A host that never resizes plugin windows leaves the editor at
+not even show. The Standalone resizes by its window's border, as every JUCE
+Standalone does: drag any edge or corner (the border is thin; the pointer
+shows a resize cursor over it). A host that never resizes plugin windows leaves the editor at
 its opening size; the size is not remembered between sessions.
 
 Resizing changes the view's size in logical pixels; the display's pixel
