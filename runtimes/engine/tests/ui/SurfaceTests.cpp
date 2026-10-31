@@ -803,6 +803,93 @@ TEST_SUITE("ui::Surface input")
         CHECK(r.take() == std::vector { at(first, "leave"), at(second, "enter") });
     }
 
+    TEST_CASE("pointer events say how far the pointer moved since its previous input")
+    {
+        Row f;
+        Recorder r(f.surface);
+        f.surface.pointer(move(10, 10));
+        CHECK(r.last.movement.x == 0); // its first input
+        f.surface.pointer(move(15, 12));
+        CHECK(r.last.movement.x == 5);
+        CHECK(r.last.movement.y == 2);
+        f.surface.pointer(down(15, 12));
+        CHECK(r.last.movement.x == 0);
+        f.surface.pointer(move(12, 20, 1));
+        CHECK(r.last.movement.x == -3);
+        CHECK(r.last.movement.y == 8);
+        f.surface.refreshHover();
+        f.surface.pointer(up(12, 20));
+        CHECK(r.last.type == Event::Type::Click);
+        CHECK(r.last.movement.x == 0);
+    }
+
+    TEST_CASE("a pointer lock holds a press at where it began, and reports only movement")
+    {
+        Row f;
+        Recorder r(f.surface);
+        CHECK_FALSE(f.surface.requestPointerLock(f.b)); // no press
+        f.surface.pointer(move(110, 10));
+        f.surface.pointer(down(110, 10));
+        CHECK_FALSE(f.surface.requestPointerLock(f.a)); // not pressing a
+        CHECK(f.surface.requestPointerLock(f.b));       // pressing inner, in b
+        const auto lock = f.surface.pointerLock().value_or(Surface::PointerLock {});
+        CHECK(lock.node == f.b);
+        CHECK(lock.pointerId == 1);
+        r.take();
+
+        // Far off the view: the event stays where the lock began, at b.
+        f.surface.pointer(move(400, -300, 1));
+        CHECK(r.take() == std::vector { at(f.b, "move") });
+        CHECK(r.last.position.x == 110);
+        CHECK(r.last.position.y == 10);
+        CHECK(r.last.offset.x == 10);
+        CHECK(r.last.movement.x == 290);
+        CHECK(r.last.movement.y == -310);
+
+        // Released anywhere: up and click at b, and the lock is over.
+        f.surface.pointer(up(900, 900));
+        CHECK(r.take() == std::vector { at(f.b, "up"), at(f.b, "click") });
+        CHECK_FALSE(f.surface.pointerLock());
+        // The pointer shows again where the lock began: movement counts from there.
+        f.surface.pointer(move(112, 10));
+        CHECK(r.last.movement.x == 2);
+        CHECK(r.last.movement.y == 0);
+    }
+
+    TEST_CASE("a pointer lock ends early when asked, on cancel, or when its node goes")
+    {
+        Row f;
+        Recorder r(f.surface);
+        f.surface.pointer(down(110, 10));
+        CHECK(f.surface.requestPointerLock(f.inner));
+        f.surface.exitPointerLock();
+        CHECK_FALSE(f.surface.pointerLock());
+        // Still pressed: the events go on to the node, at real positions.
+        r.take();
+        f.surface.pointer(move(30, 40, 1));
+        CHECK(r.take() == std::vector { at(f.inner, "move") });
+        CHECK(r.last.position.x == 30);
+        CHECK(r.last.movement.x == -80); // from where the lock began
+        f.surface.pointer(up(30, 40));
+
+        f.surface.pointer(down(110, 10));
+        CHECK(f.surface.requestPointerLock(f.b));
+        f.surface.pointer(pointer(PointerInput::Phase::Cancel, 110, 10));
+        CHECK_FALSE(f.surface.pointerLock());
+
+        f.surface.pointer(down(110, 10));
+        CHECK(f.surface.requestPointerLock(f.b));
+        f.surface.removeChild(f.root, f.b);
+        CHECK_FALSE(f.surface.pointerLock());
+
+        // Touches are not locked.
+        PointerInput touch = down(10, 10);
+        touch.type = PointerType::Touch;
+        touch.pointerId = 3;
+        f.surface.pointer(touch);
+        CHECK_FALSE(f.surface.requestPointerLock(f.a));
+    }
+
     TEST_CASE("cancel ends the capture without a click")
     {
         Row f;

@@ -892,6 +892,23 @@ export class UiNode extends EventTarget {
     if (this.focused) native.focus(0);
   }
 
+  /**
+   * Locks the pointer pressing this node (or a node in it) to it for the
+   * press: hidden, not stopped by the screen's edges, its events at the
+   * position the lock began, with movementX/Y saying how far it moved. Ends
+   * with the release or exitPointerLock(); the pointer shows again where it
+   * began. Rejects when no mouse or pen is pressing the node.
+   */
+  requestPointerLock() {
+    if (native.requestPointerLock(this.#id)) return Promise.resolve();
+    return Promise.reject(
+      new DOMException(
+        'requestPointerLock(): no press of this node to lock',
+        'NotAllowedError',
+      ),
+    );
+  }
+
   appendChild(child) {
     return this.insertBefore(child, null);
   }
@@ -1070,6 +1087,16 @@ export const overlayRoot = new UiNode(CONSTRUCTING, 'view', native.overlayId);
 /** The view's size in logical pixels, and device pixels per logical pixel. */
 export function viewSize() {
   return native.size();
+}
+
+/** Ends the pointer lock, if any: the pointer shows again where it began. */
+export function exitPointerLock() {
+  native.exitPointerLock();
+}
+
+/** The node holding the pointer lock, if any. */
+export function pointerLockNode() {
+  return nodeById(native.pointerLock());
 }
 
 /** The node that has keyboard focus, if any. */
@@ -1319,6 +1346,8 @@ export class PointerEvent extends ModifierEvent {
       clientY: init.clientY ?? 0,
       offsetX: init.offsetX ?? 0,
       offsetY: init.offsetY ?? 0,
+      movementX: init.movementX ?? 0,
+      movementY: init.movementY ?? 0,
       button: init.button ?? 0,
       buttons: init.buttons ?? 0,
       pointerId: init.pointerId ?? 0,
@@ -1362,6 +1391,16 @@ export class PointerEvent extends ModifierEvent {
   }
   get offsetY() {
     return this.#init.offsetY;
+  }
+  /**
+   * How far the pointer moved since its previous event, in logical pixels;
+   * also while locked, when clientX/Y stay where the lock began.
+   */
+  get movementX() {
+    return this.#init.movementX;
+  }
+  get movementY() {
+    return this.#init.movementY;
   }
   get button() {
     return this.#init.button;
@@ -1749,6 +1788,8 @@ native.setListener((type, targetId, data) => {
     clientY: data.y,
     offsetX: data.offsetX,
     offsetY: data.offsetY,
+    movementX: data.movementX,
+    movementY: data.movementY,
     button: data.button,
     buttons: data.buttons,
     pointerId: data.pointerId,

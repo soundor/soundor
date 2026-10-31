@@ -38,6 +38,7 @@ export interface ViewLink {
   scale(): number;
   focusedNode(): UiNode | null;
   focus(node: UiNode | null): void;
+  requestPointerLock(node: UiNode): Promise<void>;
   /**
    * Something assistive technology perceives, or the cursor (a style, the
    * tree), may have changed.
@@ -572,6 +573,17 @@ export class UiNode extends TreeEventTarget {
 
   focus(): void {
     this.#view.focus(this);
+  }
+
+  /**
+   * Locks the pointer pressing this node (or a node in it) to it for the
+   * press: hidden, not stopped by the screen's edges, its events at the
+   * position the lock began, with movementX/Y saying how far it moved. Ends
+   * with the release or exitPointerLock(); the pointer shows again where it
+   * began. Rejects when no mouse or pen is pressing the node.
+   */
+  requestPointerLock(): Promise<void> {
+    return this.#view.requestPointerLock(this);
   }
 
   blur(): void {

@@ -534,7 +534,21 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   The surface routes the input:
   - **Hit testing:** later siblings sit on top; `overflow` clips;
     `pointerEvents` applies.
-  - **Pointer capture:** implicit from press to release.
+  - **Pointer capture:** implicit from press to release, set before the
+    `pointerdown` listeners run.
+  - **Movement:** each pointer event's `movement` is how far the pointer moved
+    since its previous input (`movementX`/`movementY`).
+  - **Pointer lock:** `Surface::requestPointerLock()` moves a mouse or pen
+    press to the node asking (it or a node in it must be pressed). Until the
+    release, a cancel, `exitPointerLock()` or the node leaving the tree, its
+    events carry the position the lock began with, only `movement` changing.
+    The backend reads `Surface::pointerLock()` after input and every tick: the
+    JUCE adapter's `PointerLock` keeps the locked pointer in the view, where
+    the editor shows no cursor: when it strays from where the lock began it is
+    moved back, and drags carry on past the view's edges as if nothing stopped
+    them (a cursor is a window's on Linux, so a pointer that left the view
+    would show). However the press ends (a missed release, a reload, the
+    editor closing), the pointer is put back where the lock began.
   - **Hover:** `pointerenter`/`pointerleave`. It also follows what changes
     under a pointer that did not move, as in browsers: when the revision
     changed (the tree, a layout, a scroll, an animation),

@@ -75,6 +75,8 @@ export class TestEvent {
       buttons: 0,
       pointerId: 0,
       pointerType: '',
+      movementX: 0,
+      movementY: 0,
       isPrimary: false,
       pressure: 0,
       key: '',
@@ -170,6 +172,11 @@ export class TestNode {
 
   focus() {
     this.runtime.moveFocus(this);
+  }
+
+  /** Locks the press of this node (or a node in it) to it; see soundor:ui. */
+  requestPointerLock(): Promise<void> {
+    return this.runtime.requestPointerLock(this);
   }
 
   blur() {

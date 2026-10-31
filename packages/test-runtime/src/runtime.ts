@@ -46,6 +46,9 @@ export class TestRuntime {
     target: null as TestNode | null,
     down: null as TestNode | null,
     buttons: 0,
+    type: 'mouse' as string,
+    /** The node holding the pointer lock: the press goes to it until released. */
+    locked: null as TestNode | null,
   };
   readonly keys = new Set<string>();
   constructor(options: RuntimeOptions = {}) {
@@ -209,6 +212,8 @@ export class TestRuntime {
       throw new RangeError(
         'Supported mouse buttons are primary, middle, and secondary',
       );
+    if (this.pointer.down === null)
+      this.pointer.type = String(init['pointerType'] ?? 'mouse');
     this.pointer.down ??= node;
     this.pointer.target = node;
     this.pointer.buttons |= [1, 4, 2][button]!;
@@ -246,7 +251,10 @@ export class TestRuntime {
     try {
       event = this.fire(down ?? node, 'pointerup', init);
     } finally {
-      if (this.pointer.buttons === 0) this.pointer.down = null;
+      if (this.pointer.buttons === 0) {
+        this.pointer.down = null;
+        this.pointer.locked = null;
+      }
     }
     if (this.pointer.buttons === 0 && button === 0 && down) {
       // Native Surface sends click to the deepest shared physical ancestor.
@@ -262,8 +270,42 @@ export class TestRuntime {
     if (this.pointer.down) this.assertNode(this.pointer.down);
     const down = this.pointer.down;
     this.pointer.down = null;
+    this.pointer.locked = null;
     this.pointer.buttons = 0;
     if (down) this.fire(down, 'pointercancel');
+  }
+
+  /** As the runtimes: locks a mouse or pen pressing `node` or a node in it. */
+  requestPointerLock(node: TestNode): Promise<void> {
+    const down = this.pointer.down;
+    if (
+      down === null ||
+      this.pointer.type === 'touch' ||
+      !node.isConnected ||
+      !node.contains(down)
+    ) {
+      return Promise.reject(
+        new DOMException(
+          'requestPointerLock(): no press of this node to lock',
+          'NotAllowedError',
+        ),
+      );
+    }
+    this.pointer.down = node;
+    this.pointer.locked = node;
+    return Promise.resolve();
+  }
+  exitPointerLock() {
+    this.pointer.locked = null;
+  }
+  pointerLockNode(): TestNode | null {
+    const locked = this.pointer.locked;
+    if (
+      locked !== null &&
+      (!locked.isConnected || this.pointer.down !== locked)
+    )
+      this.pointer.locked = null;
+    return this.pointer.locked;
   }
   defaultAction(node: TestNode, event: TestEvent) {
     if (event.type === 'accessibilityaction') {

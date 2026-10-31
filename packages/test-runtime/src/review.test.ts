@@ -42,7 +42,13 @@ describe('pointer ownership preconditions', () => {
       throw new Error('listener failed');
     });
     expect(() => r.pointerDown(node)).toThrow('listener failed');
-    expect(r.pointer).toEqual({ target: node, down: node, buttons: 1 });
+    expect(r.pointer).toEqual({
+      target: node,
+      down: node,
+      buttons: 1,
+      type: 'mouse',
+      locked: null,
+    });
     r.dispose();
   });
 });

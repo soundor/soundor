@@ -15,9 +15,11 @@ target_sources(soundor_juce_platform_tests
   PRIVATE
     JuceInputTests.cpp
     JucePlatformTests.cpp
+    JucePointerLockTests.cpp
     JucePresentationTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceHttpClient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceInput.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePointerLock.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JucePresentation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceTransport.cpp)
 target_include_directories(soundor_juce_platform_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

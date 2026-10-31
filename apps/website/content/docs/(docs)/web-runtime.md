@@ -175,6 +175,11 @@ UiNodes.
   `beforeinput`, `input` and `change`. A press in one is left to the browser
   rather than captured by the view, so selecting with the mouse works in
   every browser; it still goes to the input until it is released.
+- **Pointer lock** is the page's: `requestPointerLock()` locks the view's
+  element, and the view routes the moves to the node that asked. The browser
+  allows it during a press, ends it on Escape, may refuse it (the promise
+  rejects, the press goes on), and Firefox shows a banner while it lasts.
+  `movementX`/`movementY` are the browser's, in the view's logical pixels.
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
   stacking context inside the viewport, the overlay above; every node
   stacks its own children, so `zIndex` orders siblings as in the JUCE

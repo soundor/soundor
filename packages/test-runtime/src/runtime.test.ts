@@ -619,6 +619,47 @@ it('retains mouse capture until the final button release and clicks the shared a
   runtime.dispose();
 });
 
+it('locks a press to the node asking from its pointerdown, until the release', async () => {
+  const runtime = createTestRuntime(),
+    ui = createUiModule(runtime),
+    knob = runtime.create('view'),
+    face = runtime.create('view'),
+    other = runtime.create('view');
+  runtime.root.appendChild(knob);
+  knob.appendChild(face);
+  runtime.root.appendChild(other);
+  await expect(knob.requestPointerLock()).rejects.toMatchObject({
+    name: 'NotAllowedError',
+  });
+  let locking: Promise<void> | undefined;
+  knob.addEventListener('pointerdown', () => {
+    locking = knob.requestPointerLock();
+    locking.catch(() => {}); // a touch is refused below
+  });
+  const moves: unknown[] = [];
+  knob.addEventListener('pointermove', (event) =>
+    moves.push([event.target, event['movementY']]),
+  );
+  runtime.pointerDown(face);
+  await expect(locking).resolves.toBeUndefined();
+  expect(ui.pointerLockNode()).toBe(knob);
+  await expect(other.requestPointerLock()).rejects.toThrow();
+  runtime.pointerMove(other, { movementY: -14 });
+  expect(moves).toEqual([[knob, -14]]);
+  runtime.pointerUp(other);
+  expect(ui.pointerLockNode()).toBeNull();
+
+  runtime.pointerDown(knob);
+  await knob.requestPointerLock();
+  ui.exitPointerLock();
+  expect(ui.pointerLockNode()).toBeNull();
+  runtime.pointerUp(knob);
+  runtime.pointerDown(knob, { pointerType: 'touch' });
+  await expect(knob.requestPointerLock()).rejects.toThrow();
+  runtime.pointerUp(knob);
+  runtime.dispose();
+});
+
 it('rejects unsupported button operations before modifying capture or button state', () => {
   const runtime = createTestRuntime(),
     a = runtime.create('view'),
@@ -630,7 +671,13 @@ it('rejects unsupported button operations before modifying capture or button sta
   expect(() => runtime.pointerUp(b, { button: 4 })).toThrow(
     'Supported mouse buttons',
   );
-  expect(runtime.pointer).toEqual({ down: a, target: a, buttons: 1 });
+  expect(runtime.pointer).toEqual({
+    down: a,
+    target: a,
+    buttons: 1,
+    type: 'mouse',
+    locked: null,
+  });
   runtime.dispose();
 });
 

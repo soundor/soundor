@@ -153,6 +153,8 @@ export function createUiModule(runtime: TestRuntime) {
     pressable: (...args: Parameters<typeof runtime.pressable>) =>
       runtime.pressable(...args),
     focusedNode: () => runtime.focusedNode(),
+    exitPointerLock: () => runtime.exitPointerLock(),
+    pointerLockNode: () => runtime.pointerLockNode(),
     clipboard: runtime.clipboard,
     viewSize: () => {
       throw new Error('Layout is unavailable in the simulated Soundor runtime');

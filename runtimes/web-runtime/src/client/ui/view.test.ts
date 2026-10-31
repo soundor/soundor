@@ -180,6 +180,103 @@ describe('text input presses', () => {
   });
 });
 
+describe('pointer lock', () => {
+  /** The browser's lock on the view's element, as a page sees it. */
+  function browserLock(grant = true) {
+    let locked: Element | null = null;
+    Object.defineProperty(document, 'pointerLockElement', {
+      configurable: true,
+      get: () => locked,
+    });
+    const change = (element: Element | null) => {
+      locked = element;
+      document.dispatchEvent(new window.Event('pointerlockchange'));
+    };
+    const request = vi
+      .spyOn(view.rootElement, 'requestPointerLock')
+      .mockImplementation(() => {
+        if (!grant) {
+          document.dispatchEvent(new window.Event('pointerlockerror'));
+          return Promise.reject(new Error('refused'));
+        }
+        change(view.rootElement);
+        return Promise.resolve();
+      });
+    const exit = vi.fn<() => void>(() => change(null));
+    document.exitPointerLock = exit;
+    return { request, exit, escape: () => change(null) };
+  }
+  afterEach(() => {
+    delete (document as { pointerLockElement?: unknown }).pointerLockElement;
+    delete (document as { exitPointerLock?: unknown }).exitPointerLock;
+  });
+
+  it('locks the press from its pointerdown, with movement, until the release', async () => {
+    const { panel, events } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    const { request, exit } = browserLock();
+    const moves: number[][] = [];
+    let locking: Promise<void> | undefined;
+    panel.addEventListener('pointerdown', () => {
+      locking = panel.requestPointerLock();
+    });
+    panel.addEventListener('pointermove', (event) => {
+      const e = event as unknown as PointerEvent;
+      moves.push([e.clientX, e.movementX, e.movementY]);
+    });
+    pointer('pointerdown', 10, { button: 0, buttons: 1 }); // on the button, in the panel
+    await expect(locking).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(view.pointerLockNode()).toBe(panel);
+
+    // Locked, the browser keeps clientX where it was; the panel gets it all.
+    events.length = 0;
+    pointer('pointermove', 10, { buttons: 1, movementX: 30, movementY: -12 });
+    expect(events).toEqual(['pointermove@panel']);
+    expect(moves.at(-1)).toEqual([10, 30, -12]);
+
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('pointerup@panel');
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(view.pointerLockNode()).toBeNull();
+  });
+
+  it('ends early on Escape or when asked, and refuses without a press', async () => {
+    const { panel, button } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    const { escape, exit } = browserLock();
+    await expect(panel.requestPointerLock()).rejects.toMatchObject({
+      name: 'NotAllowedError',
+    });
+
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await button.requestPointerLock();
+    escape(); // the browser ended it
+    expect(view.pointerLockNode()).toBeNull();
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await button.requestPointerLock();
+    view.exitPointerLock();
+    expect(exit).toHaveBeenCalled();
+    expect(view.pointerLockNode()).toBeNull();
+  });
+
+  it('rejects, and routes as before, when the browser refuses', async () => {
+    const { panel, events } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    browserLock(false);
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await expect(panel.requestPointerLock()).rejects.toMatchObject({
+      name: 'NotAllowedError',
+    });
+    expect(view.pointerLockNode()).toBeNull();
+    events.length = 0;
+    pointer('pointermove', 20, { buttons: 1 });
+    expect(events).toEqual(['pointermove@panel']); // still the panel's press
+  });
+});
+
 describe('hover refresh', () => {
   const frame = (): Promise<void> =>
     new Promise((done) => window.requestAnimationFrame(() => done()));

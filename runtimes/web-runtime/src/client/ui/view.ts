@@ -64,6 +64,8 @@ export class UiView implements ViewLink {
   /** The pointer whose cursor shows (the mouse), and the cursor shown. */
   #cursorPointer = 1;
   #cursor: Cursor = 'default';
+  /** The node holding the pointer lock, and the pointer it holds. */
+  #lock: { node: UiNode; pointerId: number } | null = null;
   /** The frame hover is to be refreshed in, if any. */
   #hoverFrame: number | null = null;
   #resizes: ResizeObserver | null = null;
@@ -219,6 +221,93 @@ export class UiView implements ViewLink {
     this.#hoverChanged();
   }
 
+  // ── Pointer lock ─────────────────────────────────────────────────────────
+
+  /**
+   * Locks the mouse or pen pressing `node` (or a node in it) to `node`, as
+   * the JUCE runtime does: the browser locks the view's element, which gets
+   * every move, and the view routes them to `node`.
+   */
+  requestPointerLock(node: UiNode): Promise<void> {
+    const element = this.rootElement;
+    const document = element.ownerDocument;
+    const pressing = [...this.#pointers].find(
+      ([, state]) =>
+        state.captured !== null &&
+        state.last?.pointerType !== 'touch' &&
+        node.contains(state.captured),
+    );
+    if (pressing === undefined || !node.isConnected) {
+      return Promise.reject(
+        new DOMException(
+          'requestPointerLock(): no press of this node to lock',
+          'NotAllowedError',
+        ),
+      );
+    }
+    const [pointerId, state] = pressing;
+    state.captured = node;
+    this.#lock = { node, pointerId };
+    if (document.pointerLockElement === element) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const settle = (locked: boolean) => {
+        document.removeEventListener('pointerlockchange', changed);
+        document.removeEventListener('pointerlockerror', refused);
+        if (locked) return resolve();
+        if (this.#lock?.node === node) this.#lock = null;
+        reject(
+          new DOMException(
+            'requestPointerLock(): the browser refused the lock',
+            'NotAllowedError',
+          ),
+        );
+      };
+      const changed = () => settle(document.pointerLockElement === element);
+      const refused = () => settle(false);
+      document.addEventListener('pointerlockchange', changed);
+      document.addEventListener('pointerlockerror', refused);
+      try {
+        // A promise in current browsers, nothing in older ones (the events
+        // say how it went then).
+        const result = element.requestPointerLock() as unknown;
+        if (result instanceof Promise) result.catch(refused);
+      } catch {
+        refused();
+      }
+    });
+  }
+
+  /** Ends the pointer lock, if any: the pointer shows again where it began. */
+  exitPointerLock(): void {
+    this.#endLock();
+  }
+
+  /** The node holding the pointer lock, if any. */
+  pointerLockNode(): UiNode | null {
+    const lock = this.#lock;
+    if (lock === null) return null;
+    if (
+      !lock.node.isConnected ||
+      this.#pointers.get(lock.pointerId)?.captured !== lock.node
+    ) {
+      this.#endLock();
+      return null;
+    }
+    return lock.node;
+  }
+
+  /** Ends the lock (of `pointerId` only, when given). */
+  #endLock(pointerId?: number): void {
+    if (pointerId !== undefined && this.#lock?.pointerId !== pointerId) {
+      // A lock its node let go of (removed) still ends with the press.
+      if (this.#lock !== null) return;
+    }
+    this.#lock = null;
+    const document = this.rootElement.ownerDocument;
+    if (document.pointerLockElement === this.rootElement)
+      document.exitPointerLock();
+  }
+
   /** Refreshes hover in the next frame, once. */
   #hoverChanged(): void {
     const window = this.rootElement.ownerDocument.defaultView;
@@ -338,12 +427,11 @@ export class UiView implements ViewLink {
     const pointer =
       (handle: (event: globalThis.PointerEvent) => void) =>
       (event: globalThis.PointerEvent) => {
+        // Known while the UI handles it (requestPointerLock() reads its type).
+        const state = this.#state(event.pointerId);
+        state.last = event;
+        state.inside = event.type !== 'pointerleave';
         handle(event);
-        const state = this.#pointers.get(event.pointerId);
-        if (state !== undefined) {
-          state.last = event;
-          state.inside = event.type !== 'pointerleave';
-        }
         if (event.pointerType !== 'touch')
           this.#cursorPointer = event.pointerId;
         this.#updateCursor();
@@ -396,6 +484,15 @@ export class UiView implements ViewLink {
     ] as const) {
       window?.addEventListener(type, outside(pointer(handle)), options);
     }
+    // Escape, or the page losing focus, ends the browser's lock.
+    element.ownerDocument.addEventListener(
+      'pointerlockchange',
+      () => {
+        if (element.ownerDocument.pointerLockElement !== element)
+          this.#lock = null;
+      },
+      options,
+    );
     // Scroll views scroll natively, moving their content under the pointer.
     element.addEventListener('scroll', () => this.#hoverChanged(), {
       ...options,
@@ -472,6 +569,9 @@ export class UiView implements ViewLink {
       clientY: y,
       offsetX: local.x,
       offsetY: local.y,
+      // The browser's, in CSS pixels; synthetic events may have none.
+      movementX: (event.movementX ?? 0) / scale,
+      movementY: (event.movementY ?? 0) / scale,
       button: event.button,
       buttons: event.buttons,
       pointerId: pointer.pointerId ?? 1,
@@ -534,10 +634,13 @@ export class UiView implements ViewLink {
     const target = state.captured ?? hit;
     this.#nativeDown = false;
     if (target === null) return;
+    // Implicit capture until the last button is up, from before the
+    // listeners run, so they can lock it (a node they remove lets go).
+    if (state.captured === null) state.captured = target;
     const allowed = target.dispatchEvent(
       this.#pointerEvent('pointerdown', target, event, true, true),
     );
-    if (state.captured === null && target.isConnected) state.captured = target;
+    if (state.captured?.isConnected !== true) state.captured = null;
     if (!allowed) {
       event.preventDefault();
       this.#capture(event.pointerId);
@@ -595,6 +698,7 @@ export class UiView implements ViewLink {
     }
     if (event.buttons !== 0) return;
     state.captured = null;
+    this.#endLock(event.pointerId);
     try {
       this.rootElement.releasePointerCapture(event.pointerId);
     } catch {
@@ -643,6 +747,7 @@ export class UiView implements ViewLink {
     const state = this.#state(event.pointerId);
     const target = state.captured;
     state.captured = null;
+    this.#endLock(event.pointerId);
     if (target !== null) {
       target.dispatchEvent(
         this.#pointerEvent('pointercancel', target, event, true, false),

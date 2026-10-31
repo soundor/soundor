@@ -12,6 +12,9 @@ export interface PointerOptions extends Modifiers {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+  /** How far the pointer moved since its previous event (a locked pointer's only change). */
+  movementX?: number;
+  movementY?: number;
   button?: number;
   buttons?: number;
   pointerId?: number;

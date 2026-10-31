@@ -280,6 +280,8 @@ export interface PointerEventInit extends ModifierEventInit {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+  movementX?: number;
+  movementY?: number;
   button?: number;
   buttons?: number;
   pointerId?: number;
@@ -301,6 +303,8 @@ export class PointerEvent extends ModifierEvent {
       clientY: init.clientY ?? 0,
       offsetX: init.offsetX ?? 0,
       offsetY: init.offsetY ?? 0,
+      movementX: init.movementX ?? 0,
+      movementY: init.movementY ?? 0,
       button: init.button ?? 0,
       buttons: init.buttons ?? 0,
       pointerId: init.pointerId ?? 0,
@@ -344,6 +348,16 @@ export class PointerEvent extends ModifierEvent {
   }
   get offsetY(): number {
     return this.#init.offsetY;
+  }
+  /**
+   * How far the pointer moved since its previous event, in logical pixels;
+   * also while locked, when clientX/Y stay where the lock began.
+   */
+  get movementX(): number {
+    return this.#init.movementX;
+  }
+  get movementY(): number {
+    return this.#init.movementY;
   }
   get button(): number {
     return this.#init.button;
