@@ -22,7 +22,14 @@ import {
   type Matrix,
 } from './coordinates';
 import { eventParent, TreeEventTarget } from './events';
-import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
+import {
+  cssFor,
+  cssText,
+  layoutClass,
+  NODE_CLASS,
+  pointerClass,
+  readStyle,
+} from './style';
 import type { Accessibility, LayoutRect, NodeType, Style } from './types';
 import type {
   AnimationKeyframe,
@@ -177,7 +184,7 @@ export class UiNode extends TreeEventTarget {
     const { tag, className } = ELEMENTS[type];
     this.#element =
       element ?? view.rootElement.ownerDocument.createElement(tag);
-    this.#element.className = [className, this.#rootClass]
+    this.#element.className = [className, this.#rootClass, layoutClass({})]
       .filter(Boolean)
       .join(' ');
     if (type === 'image') {
@@ -279,7 +286,12 @@ export class UiNode extends TreeEventTarget {
     const style = readStyle(cssPixels(value));
     this.#element.style.cssText = cssText(cssFor(style, this.#type));
     const { className } = ELEMENTS[this.#type];
-    this.#element.className = [className, this.#rootClass, pointerClass(style)]
+    this.#element.className = [
+      className,
+      this.#rootClass,
+      pointerClass(style),
+      layoutClass(style),
+    ]
       .filter(Boolean)
       .join(' ');
     this.#style = Object.freeze({ ...style });
@@ -649,7 +661,7 @@ export class UiNode extends TreeEventTarget {
 
   /** The laid-out box relative to the parent's (unscrolled) box. */
   get layout(): LayoutRect {
-    if (!this.isConnected) return ZERO;
+    if (!this.isConnected || this.#hiddenRoot() !== null) return ZERO;
     if (this.#transformed())
       return logicalLayout(
         this.#element,
@@ -694,6 +706,13 @@ export class UiNode extends TreeEventTarget {
 
   getBoundingClientRect(): LayoutRect {
     if (!this.isConnected) return ZERO;
+    // As in Yoga, which zeroes a hidden node's layout and its children's:
+    // nothing wide, where the nearest shown ancestor starts.
+    const hidden = this.#hiddenRoot();
+    if (hidden !== null) {
+      const { x, y } = hidden.#parent?.getBoundingClientRect() ?? ZERO;
+      return { x, y, width: 0, height: 0 };
+    }
     const box = this.#rect();
     const root = this.#view.rootElement.getBoundingClientRect();
     const scale = this.#view.scale();
@@ -703,6 +722,14 @@ export class UiNode extends TreeEventTarget {
       width: box.width / scale,
       height: box.height / scale,
     };
+  }
+
+  /** The outermost node with display none from this one up, or null. */
+  #hiddenRoot(): UiNode | null {
+    let hidden: UiNode | null = null;
+    for (let node: UiNode | null = this; node; node = node.#parent)
+      if (node.#style.display === 'none') hidden = node;
+    return hidden;
   }
 
   #transformed(): boolean {

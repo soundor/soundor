@@ -1118,10 +1118,22 @@ ANGLE). Cross-compiling needs a Hermes for the target with a host `hermesc`,
 which the build does not make yet (`SOUNDOR_HERMES_DIR`).
 
 Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
-Upstream marks its C API `visibility("default")`, so `SoundorYogaPatch.cmake`
-rewrites `YG_EXPORT` after download (and after the hash check). That keeps
-every `YG*` symbol inside the plugin; the symbol-isolation test fails without
-the patch.
+`SoundorYogaPatch.cmake` changes it after download (and after the hash
+check), failing the build where Yoga's code no longer matches:
+
+- Upstream marks its C API `visibility("default")`, so the patch rewrites
+  `YG_EXPORT`. That keeps every `YG*` symbol inside the plugin; the
+  symbol-isolation test fails without it.
+- Yoga sizes a box that fits its content into no room (zero or less) to its
+  padding and border, without measuring the content, a shortcut that makes
+  a squeezed button lose its label where browsers keep it. The patch removes
+  it (`measureNodeWithFixedSize` keeps only the case of a size fixed in both
+  axes); Yoga's own 767 tests pass with it.
+
+The engine also clamps a fixed `width`/`height` to its minimum and maximum
+before Yoga sees them (`Surface.cpp`), since a parent sized by its content
+counted the unclamped size. What still differs from the web runtime is in
+[Where layout differs](/docs/web-runtime#where-layout-differs).
 
 ### Skia
 

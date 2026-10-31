@@ -55,6 +55,11 @@ export const STYLESHEET = `
 .sd-pe-none, .sd-pe-none * { pointer-events: none !important; }
 .sd-pe-box-none { pointer-events: none !important; }
 .sd-pe-box-only * { pointer-events: none !important; }
+/* Where CSS sizes a box differently from Yoga (see layoutClass). */
+.sd-stretch > .sd-ratio { align-self: flex-start; }
+.sd-row > .sd-ratio-both { height: auto !important; }
+:not(.sd-row) > .sd-ratio-both { width: auto !important; }
+.sd-row > .sd-basis { contain: inline-size; }
 `;
 
 const POINTER_CLASSES = {
@@ -67,6 +72,72 @@ const POINTER_CLASSES = {
 /** The pointer-events class for a style, or ''. */
 export function pointerClass(style: Style): string {
   return POINTER_CLASSES[style.pointerEvents ?? 'auto'] ?? '';
+}
+
+/** The flex basis a style resolves to, `flex` included. */
+function flexBasis(style: Style): Style['flexBasis'] {
+  return (
+    style.flexBasis ??
+    (style.flex !== undefined && style.flex > 0 ? 0 : undefined)
+  );
+}
+
+const given = (value: Style['width']): boolean =>
+  value !== undefined && value !== 'auto';
+
+/**
+ * Whether a box with an aspect ratio takes its cross size from it rather
+ * than being stretched: in Yoga a stretched box with an aspect ratio follows
+ * its main size, where CSS stretches it. Only where the main size does not
+ * come from the stretch itself (a size given, or a fixed flex basis), which
+ * CSS then reaches by not stretching the box.
+ */
+function ratioOverStretch(style: Style): boolean {
+  return (
+    style.aspectRatio !== undefined &&
+    (given(style.width) ||
+      given(style.height) ||
+      typeof flexBasis(style) === 'number')
+  );
+}
+
+/**
+ * The classes that lay a node out as Yoga does where its own CSS cannot,
+ * since the difference depends on its parent: the parent's direction and
+ * alignment (`sd-row`, `sd-stretch`), and what the child needs of them.
+ *
+ * - `sd-basis`: a box with a fixed flex basis adds only that basis to a row
+ *   sized by its content, as in Yoga (CSS counts its content), so `flex: 1`
+ *   in such a row is as narrow as its padding and border.
+ * - `sd-ratio`: a box with an aspect ratio is not stretched across
+ *   (see ratioOverStretch).
+ * - `sd-ratio-both`: a box with an aspect ratio and both sizes keeps the
+ *   one along its parent's direction, and the ratio gives the other, as in
+ *   Yoga (CSS ignores the ratio).
+ */
+export function layoutClass(style: Style): string {
+  const classes: string[] = [];
+  if (style.flexDirection === 'row' || style.flexDirection === 'row-reverse')
+    classes.push('sd-row');
+  if (
+    style.alignItems === undefined ||
+    style.alignItems === 'stretch' ||
+    style.alignItems === 'auto'
+  )
+    classes.push('sd-stretch');
+  if (typeof flexBasis(style) === 'number') classes.push('sd-basis');
+  if (
+    ratioOverStretch(style) &&
+    (style.alignSelf === undefined || style.alignSelf === 'auto')
+  )
+    classes.push('sd-ratio');
+  if (
+    style.aspectRatio !== undefined &&
+    given(style.width) &&
+    given(style.height)
+  )
+    classes.push('sd-ratio-both');
+  return classes.join(' ');
 }
 
 type Css = Record<string, string>;
@@ -309,7 +380,12 @@ export function cssFor(style: Style, type: NodeType): Css {
     'align-items',
     style.alignItems === 'auto' ? 'stretch' : style.alignItems,
   );
-  set('align-self', style.alignSelf);
+  set(
+    'align-self',
+    style.alignSelf === 'stretch' && ratioOverStretch(style)
+      ? 'flex-start'
+      : style.alignSelf,
+  );
   set('align-content', style.alignContent);
 
   // `flex` as in React Native: n > 0 grows by n, shrinks, from zero; a
