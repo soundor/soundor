@@ -150,9 +150,11 @@ The generated editor opens at the config's
 `editor.resizable`, it tells the host that it can be resized within its
 limits (JUCE's `setResizeLimits` and `setResizable(true, false)`), so the
 host or the Standalone's window offers the resize, and the UI is laid out
-again at every new size. JUCE's own corner resizer is not used: it would
-cover the UI's bottom-right corner, and under the GPU compositor it would
-not even show. A host that never resizes plugin windows leaves the editor at
+again at every new size. In a plugin, JUCE's own corner resizer is not used:
+it would cover the UI's bottom-right corner, and under the GPU compositor it
+would not even show. The Standalone, whose window has only a thin border to
+drag, shows it while the editor composites on the CPU (on Linux, or when
+there is no GPU); under the GPU compositor its window's border resizes it. A host that never resizes plugin windows leaves the editor at
 its opening size; the size is not remembered between sessions.
 
 Resizing changes the view's size in logical pixels; the display's pixel

@@ -567,9 +567,10 @@ namespace ${NS}
 
 /**
  * The editor's size from the config's `editor`. A resizable one is resized by
- * the host (or the Standalone's window): JUCE's corner resizer is not used,
- * since it would sit under a GPU compositor's layer and take the pointer from
- * the UI's own bottom-right corner.
+ * the host: JUCE's corner resizer is not used in plugins, since it would sit
+ * under a GPU compositor's layer and take the pointer from the UI's own
+ * bottom-right corner. The Standalone shows it while compositing on the CPU
+ * (see updateCompositor()), its window having no other affordance.
  */
 function renderEditorSize(editor: ResolvedEditorConfig): string {
   const size = `setSize(${cppInt(editor.width)}, ${cppInt(editor.height)});`;
@@ -578,6 +579,21 @@ function renderEditorSize(editor: ResolvedEditorConfig): string {
         setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
         setResizable(true, false);
         ${size}`;
+}
+
+/**
+ * The Standalone's window offers no resize affordance but a thin border, so a
+ * resizable editor shows JUCE's corner resizer there, only while compositing
+ * on the CPU: the GPU compositor's layer would hide it, and it would still
+ * take the pointer from the UI's corner.
+ */
+function renderStandaloneResizer(editor: ResolvedEditorConfig): string {
+  if (!editor.resizable) return '';
+  return `            // The Standalone's window has only a thin border to resize it by:
+            // JUCE's corner resizer, where it shows (not under the GPU's layer).
+            if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+                setResizable(true, gpu == nullptr);
+`;
 }
 
 function renderEditorSource(
@@ -752,7 +768,7 @@ ${renderEditorSize(editor)}
             }
             if (compositor == nullptr)
                 compositor = std::make_unique<render::RasterCompositor>(image);
-            compositorCapabilities = compositor->capabilities();
+${renderStandaloneResizer(editor)}            compositorCapabilities = compositor->capabilities();
             const render::Capabilities& capabilities = compositorCapabilities;
             log(js::LogLevel::Info, capabilities.gpu ? "renderer: GPU compositor, " + capabilities.backend
                                                      : "renderer: CPU, " + capabilities.backend + " (" + why + ")");
