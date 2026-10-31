@@ -1132,7 +1132,7 @@ check), failing the build where Yoga's code no longer matches:
 
 The engine also clamps a fixed `width`/`height` to its minimum and maximum
 before Yoga sees them (`Surface.cpp`), since a parent sized by its content
-counted the unclamped size. The web runtime's side of matching Yoga is in
+counted the unclamped size. What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
 ### Skia

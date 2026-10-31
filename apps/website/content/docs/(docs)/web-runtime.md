@@ -223,27 +223,9 @@ UiNodes.
 ### Where layout differs
 
 The JUCE runtime lays out with Yoga and this one with the browser's CSS
-flexbox, and the two size some boxes differently. Soundor makes them agree
-where it can, so these lay out the same in both:
-
-- **A box with no room** (in a container squeezed to zero) keeps its
-  content's size. Yoga used to shrink it to its padding, which cut a
-  button's label off natively while the browser showed it whole; the engine
-  patches that out of Yoga.
-- **Minimum and maximum sizes** count in a parent sized by its content:
-  `height: 90, maxHeight: 40` adds 40 to it in both, where Yoga added 90.
-- **`flex: n` (or a fixed `flexBasis`) in a row sized by its content** adds
-  only its basis: `flex: 1` is as narrow as its padding there, as in Yoga.
-  The browser counts the box's content otherwise, so this runtime gives such
-  a box `contain: inline-size`.
-- **`aspectRatio` wins over the stretch**, as in Yoga: a box with an aspect
-  ratio and a size or a fixed flex basis takes its other size from the ratio
-  rather than being stretched across its parent, and with both sizes given
-  it keeps the one along its parent's direction. This runtime keeps such a
-  box from stretching (or lets the ratio decide the other size).
-
-These still differ. Each is easy to avoid, and worth checking in both
-runtimes when a layout depends on it:
+flexbox. They agree on almost every style, but size a box differently in
+these cases. Each is easy to avoid, and worth checking in both runtimes when
+a layout depends on it:
 
 - **Percentages inside a parent sized by its content**, for `width`,
   `height` and `flexBasis`: Yoga takes them of the room the
