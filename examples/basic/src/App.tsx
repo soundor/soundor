@@ -18,8 +18,11 @@ import type { PointerEvent, KeyboardEvent, WheelEvent } from 'soundor:ui';
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
-/** A vertical fader for the gain: drag, wheel, or arrow keys when focused. */
-function GainFader() {
+/**
+ * A vertical fader for the gain: drag, wheel, or arrow keys when focused.
+ * Shorter when the controls are stacked, so they fit the editor's height.
+ */
+function GainFader({ short }: { readonly short: boolean }) {
   const gain = useParameter(parameters.gain);
   const drag = useRef<{ y: number; value: number } | null>(null);
 
@@ -53,7 +56,7 @@ function GainFader() {
     <View style={styles.faderColumn}>
       <View
         focusable
-        style={styles.fader}
+        style={[styles.fader, short && styles.faderShort]}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -122,8 +125,10 @@ export function App() {
         accessibilityLabel={compact ? 'Controls, stacked' : 'Controls'}
         style={[styles.row, compact && styles.stacked]}
       >
-        <GainFader />
-        <View style={styles.panel}>
+        <GainFader short={compact} />
+        {/* Stacked, the panel is as tall as its controls: flex: 1 would
+            give it only the height left in a column. */}
+        <View style={[styles.panel, compact && styles.panelStacked]}>
           <PresetName />
           <Pressable
             onPress={() => parameters.gain.set(parameters.gain.info.default)}
@@ -158,9 +163,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
+  faderShort: { height: 120 },
   faderFill: { backgroundColor: '#4c8dff' },
   value: { color: '#f2f3f5', fontSize: 14 },
   panel: { flex: 1, gap: 12 },
+  panelStacked: { flex: 0 },
   input: {
     color: '#f2f3f5',
     fontSize: 14,
