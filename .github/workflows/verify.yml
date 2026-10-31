@@ -461,6 +461,17 @@ jobs:
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
         run: set -o pipefail; pnpm --filter @soundor/juce-runtime test:plugin 2>&1 | tee "$RUNNER_TEMP/step.log"
+      # The test plugin's editor, hosted and resized as a DAW does (EditorResize.cpp).
+      - name: Resize the test plugin's editor
+        if: needs.changes.outputs.juce == 'true' && runner.os == 'Linux'
+        run: |
+          set -eo pipefail
+          {
+            cmake --build .soundor/juce-tests --target soundor_juce_editor_resize --config Debug --parallel 3
+            plugin="$(find "$GITHUB_WORKSPACE/runtimes/juce-runtime/tests/plugin/.soundor/dist/juce" -name '*.vst3' -type d | head -1)"
+            cd "$RUNNER_TEMP"
+            xvfb-run -a -s "-screen 0 1920x1200x24" "$GITHUB_WORKSPACE/.soundor/juce-tests/backend/juce/tests/soundor_juce_editor_resize_artefacts/Debug/soundor_juce_editor_resize" "$plugin"
+          } 2>&1 | tee "$RUNNER_TEMP/step.log"
       - name: Report JUCE integration failure
         if: failure()
         run: |

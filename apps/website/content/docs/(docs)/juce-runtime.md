@@ -143,6 +143,25 @@ subclasses of those bases, and a `CMakeLists.txt` whose **only** Soundor-injecte
 line is `include(...setup.cmake)`. Edit any of it freely — re-running `init`
 never overwrites existing files.
 
+### The editor's size
+
+The generated editor opens at the config's
+[`editor`](/docs/cli/config#editor) size, 800×600 by default. With
+`editor.resizable`, it tells the host that it can be resized within its
+limits (JUCE's `setResizeLimits` and `setResizable(true, false)`), so the
+host or the Standalone's window offers the resize, and the UI is laid out
+again at every new size. JUCE's own corner resizer is not used: it would
+cover the UI's bottom-right corner, and under the GPU compositor it would
+not even show. A host that never resizes plugin windows leaves the editor at
+its opening size; the size is not remembered between sessions.
+
+Resizing changes the view's size in logical pixels; the display's pixel
+density is separate, so a resized editor stays sharp, and one moved to a
+display of another density keeps its layout. To check the resize in a host:
+build the plugin, open its editor (VST3 in a DAW, AU in Logic or
+GarageBand, or the Standalone), drag the window's edge or corner, and check
+that the UI lays out at the new size and stops at the limits.
+
 ## The plugin's JavaScript runtime
 
 The generated `soundor::AudioProcessorEditor` owns a `soundor::RuntimeHost` for

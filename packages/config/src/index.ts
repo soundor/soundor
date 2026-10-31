@@ -1,6 +1,7 @@
 export type {
   BaseParameter,
   BoolParameter,
+  EditorConfig,
   EnumParameter,
   FloatParameter,
   IntParameter,
@@ -12,11 +13,17 @@ export type {
   Parameter,
   ParameterType,
   PluginIdentity,
+  ResolvedEditorConfig,
   RuntimeConfig,
   SigningConfig,
   SoundorConfig,
 } from './types';
 export { defineSoundorConfig } from './define';
+export {
+  DEFAULT_EDITOR_LIMITS,
+  DEFAULT_EDITOR_SIZE,
+  resolveEditor,
+} from './editor';
 export { parseConfig } from './parse';
 export type { ParseConfigOptions } from './parse';
 

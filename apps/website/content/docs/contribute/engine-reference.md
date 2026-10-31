@@ -1346,6 +1346,22 @@ cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
 cmake --build build/juce && (cd build/juce && xvfb-run -a ctest -R coexistence)
 ```
 
+`soundor_juce_editor_resize` hosts the JUCE runtime's test plugin
+(`tests/plugin`, whose editor is resizable) the same way and resizes its
+editor as a host does: it must open at its configured size, keep to its
+limits, lay its UI out again at every size (the UI stays centred and keeps
+its size), open again after being closed, and draw at a display scale of 2.
+CI's Linux JUCE jobs run it after building the test plugin; locally, give it
+the built plugin:
+
+```sh
+pnpm --filter @soundor/juce-runtime test:plugin
+cmake -S . -B build/juce -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR=/path/to/JUCE \
+  -DSOUNDOR_RESIZE_PLUGIN="$PWD/../tests/plugin/.soundor/dist/juce/SoundorTestPlugin_artefacts/Release/VST3/Soundor Test Plugin.vst3"
+cmake --build build/juce --target soundor_juce_editor_resize
+(cd build/juce && xvfb-run -a -s "-screen 0 1920x1200x24" ctest -R editor_resize)
+```
+
 Requires CMake ≥ 3.25 for the presets (the library itself needs 3.22) and a
 C++20 compiler. CI builds with Clang 18 and GCC on Linux, Apple Clang on macOS,
 and MSVC on Windows, and runs the sanitizer preset on Linux.

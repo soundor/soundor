@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { resolveEditor } from '../editor';
 import { ConfigError } from '../errors';
 import { parseConfig } from '../parse';
 import type { Runtime } from '../runtime';
@@ -180,6 +181,15 @@ describe('validateConfig — validation rules', () => {
       validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
     ).toEqual({
       plugin,
+      editor: {
+        width: 800,
+        height: 600,
+        minWidth: 800,
+        minHeight: 600,
+        maxWidth: 800,
+        maxHeight: 600,
+        resizable: false,
+      },
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
       native: {},
@@ -353,6 +363,148 @@ describe('validateConfig — validation rules', () => {
     expect(error.issues).toContainEqual(
       expect.objectContaining({ path: 'parameters[1].id' }),
     );
+  });
+});
+
+describe('validateConfig — editor', () => {
+  const base = {
+    plugin: { id: 'com.example.test', name: 'Test' },
+    runtimes: [],
+    parameters: [],
+  };
+
+  it('opens a fixed editor at its size, its limits being that size', () => {
+    expect(
+      validateConfig({ ...base, editor: { width: 640, height: 400 } }).editor,
+    ).toEqual({
+      width: 640,
+      height: 400,
+      minWidth: 640,
+      minHeight: 400,
+      maxWidth: 640,
+      maxHeight: 400,
+      resizable: false,
+    });
+  });
+
+  it('gives a resizable editor default limits around its size', () => {
+    expect(
+      validateConfig({ ...base, editor: { resizable: true } }).editor,
+    ).toEqual({
+      width: 800,
+      height: 600,
+      minWidth: 480,
+      minHeight: 320,
+      maxWidth: 1600,
+      maxHeight: 1200,
+      resizable: true,
+    });
+    // Default limits never exclude the size it opens at.
+    expect(
+      validateConfig({
+        ...base,
+        editor: { width: 300, height: 2000, resizable: true },
+      }).editor,
+    ).toMatchObject({
+      minWidth: 300,
+      maxWidth: 1600,
+      minHeight: 320,
+      maxHeight: 2000,
+    });
+  });
+
+  it('keeps explicit limits, and resolving again changes nothing', () => {
+    const editor = {
+      width: 900,
+      height: 500,
+      minWidth: 600,
+      minHeight: 400,
+      maxWidth: 1800,
+      maxHeight: 1000,
+      resizable: true,
+    };
+    const resolved = validateConfig({ ...base, editor }).editor;
+    expect(resolved).toEqual(editor);
+    expect(validateConfig({ ...base, editor: resolved }).editor).toEqual(
+      resolved,
+    );
+    expect(resolveEditor(resolved)).toEqual(resolved);
+  });
+
+  it('ignores the limits of a fixed editor', () => {
+    expect(
+      validateConfig({
+        ...base,
+        editor: { width: 700, minWidth: 900, maxWidth: 1000 },
+      }).editor,
+    ).toMatchObject({ width: 700, minWidth: 700, maxWidth: 700 });
+  });
+
+  it.each([
+    ['width', 0, 'positive'],
+    ['height', -10, 'positive'],
+    ['minWidth', 480.5, 'whole number'],
+    ['maxHeight', Number.POSITIVE_INFINITY, ''],
+    ['width', Number.NaN, ''],
+  ])('rejects %s = %s', (key, value, message) => {
+    const error = expectValidation({
+      ...base,
+      editor: { resizable: true, [key]: value },
+    });
+    expect(error.issues).toContainEqual(
+      expect.objectContaining({
+        path: `editor.${key}`,
+        message: expect.stringContaining(message),
+      }),
+    );
+  });
+
+  it('rejects a non-boolean resizable', () => {
+    expect(
+      expectValidation({ ...base, editor: { resizable: 'yes' } }).issues,
+    ).toContainEqual(expect.objectContaining({ path: 'editor.resizable' }));
+  });
+
+  it('rejects a minimum over its maximum', () => {
+    const error = expectValidation({
+      ...base,
+      editor: { minWidth: 900, maxWidth: 600, minHeight: 700, maxHeight: 500 },
+    });
+    expect(error.issues).toEqual([
+      {
+        path: 'editor.minWidth',
+        message: 'minWidth (900) must be <= maxWidth (600)',
+      },
+      {
+        path: 'editor.minHeight',
+        message: 'minHeight (700) must be <= maxHeight (500)',
+      },
+    ]);
+  });
+
+  it('rejects a resizable editor opening outside its limits', () => {
+    const error = expectValidation({
+      ...base,
+      editor: {
+        width: 400,
+        minWidth: 480,
+        height: 1300,
+        maxHeight: 1200,
+        resizable: true,
+      },
+    });
+    expect(error.issues).toEqual([
+      {
+        path: 'editor.width',
+        message:
+          'width (400) is outside the resize limits; set it within [480, 1600]',
+      },
+      {
+        path: 'editor.height',
+        message:
+          'height (1300) is outside the resize limits; set it within [320, 1200]',
+      },
+    ]);
   });
 });
 

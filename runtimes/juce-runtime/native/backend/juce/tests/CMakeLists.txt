@@ -70,6 +70,24 @@ if(SOUNDOR_COEXISTENCE_PLUGINS)
   add_test(NAME soundor_juce_coexistence COMMAND soundor_juce_coexistence ${SOUNDOR_COEXISTENCE_PLUGINS})
 endif()
 
+# A real Soundor plugin's editor resized as a host resizes it (see
+# EditorResize.cpp). Runs when SOUNDOR_RESIZE_PLUGIN names the test plugin's
+# built .vst3 bundle (tests/plugin, `pnpm --filter @soundor/juce-runtime test:plugin`).
+juce_add_console_app(soundor_juce_editor_resize)
+target_sources(soundor_juce_editor_resize PRIVATE EditorResize.cpp)
+target_compile_definitions(soundor_juce_editor_resize
+  PRIVATE JUCE_PLUGINHOST_VST3=1 JUCE_MODAL_LOOPS_PERMITTED=1 JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(soundor_juce_editor_resize
+  PRIVATE
+    juce::juce_audio_processors
+    juce::juce_recommended_config_flags)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_libraries(soundor_juce_editor_resize PRIVATE X11::X11)
+endif()
+if(SOUNDOR_RESIZE_PLUGIN)
+  add_test(NAME soundor_juce_editor_resize COMMAND soundor_juce_editor_resize ${SOUNDOR_RESIZE_PLUGIN})
+endif()
+
 foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_target)
   if(TARGET ${consumer})
     target_include_directories(${consumer} PRIVATE "${engine_dir}/tests")
