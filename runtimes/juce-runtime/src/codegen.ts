@@ -440,6 +440,7 @@ function renderEditorHeader(): string {
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/a11y/Platform.h>
+#include <soundor/backend/JuceEditorConstrainer.h>
 #include <soundor/backend/JucePresentation.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/render/GpuCompositor.h>
@@ -500,6 +501,12 @@ namespace ${NS}
         AudioProcessor& processorRef;
 
     private:
+        // The size limits and aspect ratio of an editor that scales (editor
+        // resize: 'scale'): offered to a plugin's host, enforced in the
+        // Standalone (see JuceEditorConstrainer).
+        backend::JuceEditorConstrainer sizeConstrainer {
+            processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone
+        };
         void timerCallback() override;
         // Gives the UI the view's size and pixel density.
         void sizeSurface();
@@ -585,9 +592,11 @@ function renderEditorSize(editor: ResolvedEditorConfig): string {
   const limits = `setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});`;
   if (editor.resize === 'scale')
     return `        // soundor.config: editor (resizable, resize: 'scale'). Resizing draws
-        // the same layout larger or smaller, so the window keeps its shape.
-        ${limits}
-        getConstrainer()->setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+        // the same layout larger or smaller: the window keeps its shape where
+        // the host lets it, and the UI is letterboxed where it does not.
+        sizeConstrainer.setSizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
+        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+        setConstrainer(&sizeConstrainer);
         setResizable(true, false);
         ${size}`;
   return `        // soundor.config: editor (resizable). Resizing lays the UI out again.

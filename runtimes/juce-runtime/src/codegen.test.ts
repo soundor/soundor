@@ -359,11 +359,17 @@ describe('generateJuceSources', () => {
       });
       expect(source).toContain(
         [
-          '        setResizeLimits(500, 300, 2000, 1200);',
-          '        getConstrainer()->setFixedAspectRatio(1.6666666666666667);',
+          '        sizeConstrainer.setSizeLimits(500, 300, 2000, 1200);',
+          '        sizeConstrainer.setFixedAspectRatio(1.6666666666666667);',
+          '        setConstrainer(&sizeConstrainer);',
           '        setResizable(true, false);',
           '        setSize(1000, 600);',
         ].join('\n'),
+      );
+      // The ratio is enforced only in the Standalone: a host that sets
+      // another shape gets it, letterboxed, rather than a resize fight.
+      expect(fileMap(config).get('soundor/SoundorEditor.h')).toContain(
+        'processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone',
       );
       // The layout stays 1000×600: the view's size over it is the zoom.
       expect(source).toContain(
@@ -392,7 +398,7 @@ describe('generateJuceSources', () => {
         expect(source).toMatch(
           /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
         );
-        expect(source).not.toContain('setFixedAspectRatio');
+        expect(source).not.toContain('setConstrainer(&sizeConstrainer)');
       }
     });
 
