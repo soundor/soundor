@@ -172,6 +172,24 @@ describe('webInit', () => {
 });
 
 describe('webGen', () => {
+  it("resolves the config's editor into the manifest as the JUCE runtime does", async () => {
+    const config = {
+      ...testConfig,
+      editor: { width: 1000, height: 640, resizable: true },
+    } as unknown as SoundorConfig;
+    const ctx = makeCtx(await tempProject());
+    await webGen(config, ctx);
+    expect(JSON.parse(ctx.codegen.files()[0]!.contents).editor).toEqual({
+      width: 1000,
+      height: 640,
+      minWidth: 480,
+      minHeight: 320,
+      maxWidth: 1600,
+      maxHeight: 1200,
+      resizable: true,
+    });
+  });
+
   it('emits the manifest: plugin identity and parameters, in order', async () => {
     const config = {
       ...testConfig,
@@ -213,6 +231,16 @@ describe('webGen', () => {
     ]);
     expect(JSON.parse(files[0]!.contents)).toEqual({
       plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
+      // No editor in the config: the fixed 800×600 view every runtime opens.
+      editor: {
+        width: 800,
+        height: 600,
+        minWidth: 800,
+        minHeight: 600,
+        maxWidth: 800,
+        maxHeight: 600,
+        resizable: false,
+      },
       parameters: [
         {
           id: 'gain',

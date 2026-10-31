@@ -34,7 +34,11 @@ import { soundorWebPlugin } from './plugin';
 import { webScaffoldFiles } from './scaffold';
 
 export type { WebOptions, ResolvedWebOptions } from './options';
-export type { WebManifest, WebParameterInfo } from './client/manifest';
+export type {
+  WebEditor,
+  WebManifest,
+  WebParameterInfo,
+} from './client/manifest';
 export { generateWebSources, webManifest } from './codegen';
 export { buildWebDoctorReport } from './doctor';
 

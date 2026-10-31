@@ -15,7 +15,8 @@ runs your version.
 One Soundor plugin, a gain, built for two runtimes from one config and one UI.
 
 ```text
-soundor.config.ts   identity, the `gain` parameter, both runtimes
+soundor.config.ts   identity, a resizable editor, the `gain` parameter,
+                    both runtimes
 src/main.tsx        mounts src/App.tsx
 src/App.tsx         the plugin UI (@soundor/react): a fader, the host's
                     transport, a preset name kept in soundor:storage
@@ -52,6 +53,9 @@ pnpm build:web   # soundor build web: a static site in .soundor/dist/web
 
 Press ▶ to play the host's input (an oscillator, or an audio file of yours)
 and move the fader: the plugin UI sets `gain`, and the GainNode follows it.
+Its editor is resizable (`editor: { resizable: true }`): drag the handle at
+the view's corner and the UI is laid out again at the new size, as in the
+JUCE editor.
 
 The build works from any path and inside an iframe, so a docs page can show
 the code above next to the running plugin:

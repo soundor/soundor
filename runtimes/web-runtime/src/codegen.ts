@@ -6,13 +6,18 @@
 
 import {
   describeNativeApi,
+  resolveEditor,
   SoundorError,
   type CodegenFile,
   type NativeApiModel,
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
 
-import type { WebManifest, WebParameterInfo } from './client/manifest.ts';
+import type {
+  WebEditor,
+  WebManifest,
+  WebParameterInfo,
+} from './client/manifest.ts';
 import { renderWebNative } from './native-codegen.ts';
 
 /** The manifest's file name in `.soundor/generated/runtimes/web/`. */
@@ -43,6 +48,20 @@ export function nativeModel(config: SoundorConfig): NativeApiModel {
   return result.model;
 }
 
+/** The config's editor, resolved as every runtime resolves it. */
+function webEditor(config: SoundorConfig): WebEditor {
+  const editor = resolveEditor(config.editor);
+  return {
+    width: editor.width,
+    height: editor.height,
+    minWidth: editor.minWidth,
+    minHeight: editor.minHeight,
+    maxWidth: editor.maxWidth,
+    maxHeight: editor.maxHeight,
+    resizable: editor.resizable,
+  };
+}
+
 /**
  * The manifest of a config. Keys are written in a fixed order, so the same
  * config always produces the same bytes.
@@ -50,6 +69,7 @@ export function nativeModel(config: SoundorConfig): NativeApiModel {
 export function webManifest(config: SoundorConfig): WebManifest {
   return {
     plugin: { id: config.plugin.id, name: config.plugin.name },
+    editor: webEditor(config),
     parameters: config.parameters.map((parameter): WebParameterInfo => {
       switch (parameter.type) {
         case 'float':

@@ -22,6 +22,16 @@ body { margin: 0; background: var(--sd-bg); }
   background-size: 20px 20px;
 }
 .soundor-frame { position: relative; flex: none; }
+/* A resizable view's handle: just outside its bottom-right corner. */
+.soundor-resize {
+  position: absolute; right: -14px; bottom: -14px; width: 14px; height: 14px;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  border: 0; border-radius: 3px; background: none; color: var(--sd-muted);
+  cursor: nwse-resize; touch-action: none;
+}
+.soundor-host .soundor-resize svg { width: 10px; height: 10px; }
+.soundor-resize:hover, .soundor-resize:active { color: var(--sd-text); }
+.soundor-resize:focus-visible { outline: 2px solid var(--sd-accent); outline-offset: 1px; }
 /* Embedded: the plugin view is the page. */
 .soundor-fill { padding: 0; background: none; }
 .soundor-fill .soundor-viewport { inset: 0; border-radius: 0; box-shadow: none; }

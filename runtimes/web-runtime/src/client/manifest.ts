@@ -33,10 +33,26 @@ export type WebParameterInfo =
 export interface WebManifest {
   /** The plugin's identity, from soundor.config. */
   readonly plugin: { readonly id: string; readonly name: string };
+  /** The plugin view's size, from soundor.config's `editor`, every field decided. */
+  readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */
   readonly parameters: readonly WebParameterInfo[];
   /** The native API's methods (soundor:native), by name. */
   readonly native: { readonly methods: readonly WebNativeMethod[] };
+}
+
+/**
+ * The plugin view's size in logical pixels, as the JUCE editor opens it, and
+ * the limits the user can resize it within (a fixed view's are its size).
+ */
+export interface WebEditor {
+  readonly width: number;
+  readonly height: number;
+  readonly minWidth: number;
+  readonly minHeight: number;
+  readonly maxWidth: number;
+  readonly maxHeight: number;
+  readonly resizable: boolean;
 }
 
 /** A method of the native API. */

@@ -93,6 +93,7 @@ export async function startSoundorWebHost(
   const shell = createShell(container, {
     pluginName: context.plugin.name,
     presentation: options.presentation ?? pagePresentation(),
+    editor: context.manifest.editor,
     host: context.host,
     parameters: context.parameters,
     audio,
@@ -193,4 +194,4 @@ export type {
 } from './audio';
 export type { Presentation } from './shell';
 export type { PlaygroundHost, PlaygroundScript } from './playground';
-export type { WebManifest, WebParameterInfo } from './manifest';
+export type { WebEditor, WebManifest, WebParameterInfo } from './manifest';
