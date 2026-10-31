@@ -9,6 +9,17 @@ soundor_fetch_source(
 add_library(soundor_doctest INTERFACE)
 target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SOURCE_DIR})
 
+# The document foundation also runs in Release (without Hermes's compiler).
+# Skia is private; prebuilt consumer tests exercise it through Image instead.
+if(NOT SOUNDOR_ENGINE_PREBUILT)
+  add_executable(soundor_svg_tests main.cpp render/SvgDocumentTests.cpp)
+  target_include_directories(soundor_svg_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
+  target_link_libraries(soundor_svg_tests PRIVATE Soundor::Engine soundor_skia soundor_doctest)
+  soundor_configure_target(soundor_svg_tests)
+  add_test(NAME soundor_svg_tests COMMAND soundor_svg_tests)
+  set_tests_properties(soundor_svg_tests PROPERTIES TIMEOUT 30)
+endif()
+
 # Everything below up to the coexistence test evaluates JavaScript source:
 # not for an engine without Hermes's compiler (a release prebuilt), which the
 # coexistence and ABI tests check.
@@ -260,7 +271,7 @@ if(NOT WIN32)
   # Skia's copies of libjpeg-turbo, libpng and libwebp define only soundor_*
   # names (cmake/skia/SoundorSkiaPrefix.h), so a plugin can contain JUCE's
   # copies too.
-  set(soundor_skia_library_members "^lib(jpeg|jpeg12|jpeg16|png|webp)(_[a-z0-9]+)?\\.")
+  set(soundor_skia_library_members "^lib(jpeg|jpeg12|jpeg16|png|webp|expat)(_[a-z0-9]+)?\\.")
   if(TARGET soundor_skia)
     get_target_property(imported soundor_skia IMPORTED)
     get_target_property(type soundor_skia TYPE)
@@ -461,4 +472,16 @@ endif()
 if(APPLE AND NOT IOS AND SOUNDOR_JS_SOURCE)
   target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_EXPECTED_ABI="${SOUNDOR_ABI_NAMESPACE}")
   target_compile_definitions(soundor_apple_host PRIVATE SOUNDOR_EXPECTED_ABI="${SOUNDOR_ABI_NAMESPACE}")
+endif()
+
+# Before Image consumes SVG, force the parser and renderer into the real
+# shared-library probes. Prebuilt consumers have no private Skia headers.
+if(NOT SOUNDOR_ENGINE_PREBUILT)
+  foreach(probe soundor_symbol_probe soundor_coexist_a soundor_coexist_b)
+    if(TARGET ${probe})
+      target_sources(${probe} PRIVATE render/SvgProbe.cpp)
+      target_link_libraries(${probe} PRIVATE soundor_skia)
+      target_compile_definitions(${probe} PRIVATE SOUNDOR_TEST_SVG=1)
+    endif()
+  endforeach()
 endif()

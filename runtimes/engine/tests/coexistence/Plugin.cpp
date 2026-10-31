@@ -34,6 +34,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
     std::span<const platform::EmbeddedFile> coexistUi();
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 
+#if defined(SOUNDOR_TEST_SVG)
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+{
+    bool svgDocumentProbe();
+}
+#endif
+
 namespace
 {
     constexpr int size = 64;
@@ -44,6 +51,9 @@ namespace
         {
             host.surface().setSize({ size, size });
             ok = host.entryResult().ok();
+#if defined(SOUNDOR_TEST_SVG)
+            ok = ok && soundor::render::svgDocumentProbe();
+#endif
         }
 
         // The bundle logs "count=<n>" on every click.

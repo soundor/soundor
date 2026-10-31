@@ -47,7 +47,7 @@ set(SOUNDOR_YOGA_SHA256 "4742f41722a16f181e3da37abf943390db1e928f00f26402cb15466
 set(SOUNDOR_SKIA_VERSION "m144")
 set(SOUNDOR_SKIA_REVISION "ed427fd003ba3bc6eb4a8ae0337f9cdafc39e5fb")
 set(SOUNDOR_SKIA_REPOSITORY "https://skia.googlesource.com/skia")
-set(SOUNDOR_SKIA_DEPENDENCIES "libjpeg-turbo;libpng;libwebp;zlib")
+set(SOUNDOR_SKIA_DEPENDENCIES "libjpeg-turbo;libpng;libwebp;zlib;expat")
 
 # The official release archive (prebuilt static libraries and accesskit.h) of
 # tag 0.23.1, commit-pinned by its hash.

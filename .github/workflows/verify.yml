@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # Each layer of the SVG stack must be verified against its own base.
+    branches: [main, feat/svg-skia, feat/svg-image, feat/svg-scene]
 
 concurrency:
   group: verify-${{ github.event.pull_request.number || github.ref }}

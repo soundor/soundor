@@ -52,6 +52,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/render/RasterCompositor.cpp
   src/render/Renderer.cpp
   src/render/SkiaText.cpp
+  src/render/SvgDocument.cpp
   src/render/AnimationRenderer.cpp
   src/render/ViewRenderer.cpp
   src/ui/Color.cpp

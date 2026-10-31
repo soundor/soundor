@@ -6,7 +6,7 @@
 #
 # Skia is fetched at REVISION and its third-party code only for DEPENDENCIES,
 # each at the commit Skia's own DEPS file pins. The build is CPU-only: no GPU
-# backends, no PDF/SVG, no ICU or HarfBuzz. Every file is compiled with
+# backends, no PDF, no ICU or HarfBuzz. SVG uses Expat and primitive shaping. Every file is compiled with
 # skia/SoundorSkiaPrefix.h forced in, which renames libjpeg-turbo's, libpng's
 # and libwebp's symbols to soundor_*: a plugin can also contain JUCE's copies
 # of those libraries (or any other), and the names would otherwise clash. OUT
@@ -85,6 +85,28 @@ foreach(name VP8GetValue VP8GetSignedValue)
 endforeach()
 file(WRITE "${bit_reader}" "${content}")
 
+# Skia components default to complete archives, which form collection
+# boundaries: a parent complete_static_lib would contain no objects. Collect
+# the full dependency closure at our single root instead.
+set(gn_config "${source}/gn/BUILDCONFIG.gn")
+file(READ "${gn_config}" content)
+set(complete "    complete_static_lib = true")
+string(FIND "${content}" "${complete}" found)
+if(found EQUAL -1)
+  message(FATAL_ERROR "Skia's component archive configuration changed")
+endif()
+string(REPLACE "${complete}" "    complete_static_lib = false" content "${content}")
+file(WRITE "${gn_config}" "${content}")
+
+# One complete archive preserves the source/prebuilt link contract. GN selects
+# SVG's actual dependencies; skunicode stays empty without a Unicode backend.
+file(APPEND "${source}/BUILD.gn" [=[
+static_library("soundor_skia") {
+  complete_static_lib = true
+  deps = [ ":skia", "modules/svg" ]
+}
+]=])
+
 set(cwd "${source}")
 run(${Python3_EXECUTABLE} bin/fetch-gn)
 if(TARGET_OS STREQUAL "win")
@@ -104,14 +126,15 @@ skia_use_metal = false
 skia_use_dawn = false
 skia_use_direct3d = false
 skia_enable_pdf = false
-skia_enable_svg = false
+skia_enable_svg = true
 skia_enable_skottie = false
-skia_enable_skshaper = false
+skia_enable_skshaper = true
 skia_enable_skparagraph = false
 skia_enable_skunicode = false
 skia_use_icu = false
 skia_use_harfbuzz = false
-skia_use_expat = false
+skia_use_expat = true
+skia_use_system_expat = false
 skia_use_wuffs = false
 skia_use_xps = false
 skia_use_dng_sdk = false
@@ -164,11 +187,11 @@ foreach(flavor IN LISTS FLAVORS)
     file(WRITE "${source}/out/${name}/args.gn" "${args}")
     message(STATUS "Skia: building ${name}")
     run("${gn}" gen "out/${name}")
-    run(${NINJA_EXE} -C "out/${name}" skia)
+    run(${NINJA_EXE} -C "out/${name}" soundor_skia)
     if(TARGET_OS STREQUAL "win")
-      list(APPEND per_cpu "${source}/out/${name}/skia.lib")
+      list(APPEND per_cpu "${source}/out/${name}/soundor_skia.lib")
     else()
-      list(APPEND per_cpu "${source}/out/${name}/libskia.a")
+      list(APPEND per_cpu "${source}/out/${name}/libsoundor_skia.a")
     endif()
   endforeach()
 
@@ -176,9 +199,15 @@ foreach(flavor IN LISTS FLAVORS)
   list(LENGTH per_cpu cpu_count)
   if(cpu_count GREATER 1)
     # macOS universal: one archive for every architecture.
-    run(lipo -create ${per_cpu} -output "${work}/install/lib/${flavor}/libskia.a")
+    run(lipo -create ${per_cpu} -output "${work}/install/lib/${flavor}/libsoundor_skia.a")
   else()
     file(COPY ${per_cpu} DESTINATION "${work}/install/lib/${flavor}")
+  endif()
+  # Keep the installed archive's established name.
+  if(TARGET_OS STREQUAL "win")
+    file(RENAME "${work}/install/lib/${flavor}/soundor_skia.lib" "${work}/install/lib/${flavor}/skia.lib")
+  else()
+    file(RENAME "${work}/install/lib/${flavor}/libsoundor_skia.a" "${work}/install/lib/${flavor}/libskia.a")
   endif()
 endforeach()
 
@@ -194,8 +223,15 @@ if(NOT status EQUAL 0)
 endif()
 file(WRITE "${work}/install/defines.txt" "${public_defines}")
 file(COPY "${source}/include" DESTINATION "${work}/install")
-# Public headers include skcms's.
-file(COPY "${source}/modules/skcms" DESTINATION "${work}/install/modules" FILES_MATCHING PATTERN "*.h")
+# SVG's public headers include module and internal template headers. These
+# remain private to the engine (the prebuilt archive stages no Skia headers).
+foreach(module skcms svg skresources skshaper skunicode)
+  file(COPY "${source}/modules/${module}" DESTINATION "${work}/install/modules" FILES_MATCHING PATTERN "*.h")
+endforeach()
+file(COPY "${source}/src" DESTINATION "${work}/install" FILES_MATCHING PATTERN "*.h")
+foreach(header expat.h expat_external.h)
+  file(COPY "${source}/third_party/externals/expat/expat/lib/${header}" DESTINATION "${work}/install/expat")
+endforeach()
 # Chromium's zlib API (Cr_z_ names) as the library defines it.
 foreach(header zlib.h zconf.h chromeconf.h)
   file(COPY "${source}/third_party/externals/zlib/${header}" DESTINATION "${work}/install/zlib")

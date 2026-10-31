@@ -1710,3 +1710,32 @@ Composition colors use straight sRGB; direct browser paint interpolation follows
 browser CSS color semantics, which can differ for transparency or wide-gamut
 colors. No browser animation executes a JavaScript frame loop or invokes JS for
 an internal phase transition. Browser completion promises remain asynchronous.
+
+## SVG document rendering
+
+The engine privately builds the pinned Skia SVG module, `skresources`, primitive
+`skshaper`, and Expat into the same hidden static Skia archive used in source and
+prebuilt modes. It does not enable ICU, HarfBuzz, or a Unicode backend. Expat's C
+symbols are prefixed alongside the image codecs, including in coexistence tests;
+its pinned license notice is included in prebuilt staging.
+
+`render::parseSvgDocument` is an internal document-loading boundary. It uses
+Expat for a bounded validation pass and SkSVGDOM for document construction and
+rendering; it does not implement SVG geometry or XML syntax. The document keeps
+Skia's null resource provider: network, filesystem, data-URL images and external
+fonts are unavailable. Scripts are not executed. DOCTYPE declarations are
+rejected before expansion. Skia also rejects entity declarations independently.
+
+Documents are limited to 1 MiB, 4,096 elements, 64 levels of nesting (including
+local reference chains), 64 attributes/references per element, and 65,536 numeric
+geometry values with magnitude at most 1,000,000. Local references are checked
+for cycles and a 262,144-unit expanded element/geometry budget before Skia constructs its DOM.
+IDs containing whitespace and duplicate IDs are rejected. Filter elements are
+rejected because intermediate filter surfaces need their own allocation budget.
+Unsupported or invalid documents return no image. These limits bound accepted
+input; they are not a claim of complete SVG specification compliance.
+
+Paths, groups, transforms, gradients, and clipping use Skia's implementation.
+Browser support is broader, especially for CSS, text shaping, filters, and
+resources. Rendering remains on the existing SkCanvas and compositor; the
+foundation adds no UI node or public React API.
