@@ -329,8 +329,18 @@ describe('generateJuceSources', () => {
           '        setSize(900, 500);',
         ].join('\n'),
       );
-      // The host resizes it: no corner component over the UI.
+      // The host resizes it: no corner component over the UI in a plugin.
       expect(source).not.toContain('setResizable(true, true)');
+    });
+
+    it('gives the Standalone a corner resizer only while it composites on the CPU', () => {
+      const source = editorSource({ resizable: true });
+      expect(source).toContain(
+        [
+          '            if (processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone)',
+          '                setResizable(true, gpu == nullptr);',
+        ].join('\n'),
+      );
     });
 
     it('gives a resizable editor the default limits', () => {
