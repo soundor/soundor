@@ -175,7 +175,10 @@ declare module 'soundor:ui' {
     minHeight?: Percentage;
     maxWidth?: Percentage;
     maxHeight?: Percentage;
-    /** Width divided by height: one given, the other follows. */
+    /**
+     * Width divided by height: one given, the other follows, over a stretch.
+     * With both given, the one along the parent's direction stays.
+     */
     aspectRatio?: number;
     /** Whether width and height include the padding and border. */
     boxSizing?: 'border-box' | 'content-box';

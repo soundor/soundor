@@ -39,6 +39,11 @@ on the Web:
   `pointerEvents` lets the pointer through a node, its children, or both;
   `cursor` sets its shape ([Cursor](#cursor)).
 
+Both runtimes lay a style out the same, Yoga's way, except in a few cases
+the browser cannot follow (percentages in a parent sized by its content,
+some minimum and maximum sizes, rounding, text measurement): see
+[Where layout differs](/docs/web-runtime#where-layout-differs).
+
 ## Text
 
 `fontFamily`, `fontSize`, `fontWeight`, `fontStyle`, `lineHeight`,

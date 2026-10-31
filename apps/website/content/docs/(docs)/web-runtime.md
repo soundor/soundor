@@ -162,7 +162,8 @@ UiNodes.
 - **Layout.** A stylesheet gives the DOM Yoga's defaults: flex columns that do
   not shrink, border-box sizes, no automatic minimum sizes, and text that
   inherits nothing. `flex` is read as React Native reads it, and invalid
-  styles fail with the JUCE runtime's messages.
+  styles fail with the JUCE runtime's messages. Where CSS still sizes a box
+  differently, see [Where layout differs](#where-layout-differs).
 - **Events.** Events capture and bubble along the Soundor tree, and input
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
@@ -218,6 +219,52 @@ UiNodes.
     is never delivered twice. Other actions have no DOM path: screen
     readers adjust sliders with the arrow keys, which a control handles
     itself.
+
+### Where layout differs
+
+The JUCE runtime lays out with Yoga and this one with the browser's CSS
+flexbox, and the two size some boxes differently. Soundor makes them agree
+where it can, so these lay out the same in both:
+
+- **A box with no room** (in a container squeezed to zero) keeps its
+  content's size. Yoga used to shrink it to its padding, which cut a
+  button's label off natively while the browser showed it whole; the engine
+  patches that out of Yoga.
+- **Minimum and maximum sizes** count in a parent sized by its content:
+  `height: 90, maxHeight: 40` adds 40 to it in both, where Yoga added 90.
+- **`flex: n` (or a fixed `flexBasis`) in a row sized by its content** adds
+  only its basis: `flex: 1` is as narrow as its padding there, as in Yoga.
+  The browser counts the box's content otherwise, so this runtime gives such
+  a box `contain: inline-size`.
+- **`aspectRatio` wins over the stretch**, as in Yoga: a box with an aspect
+  ratio and a size or a fixed flex basis takes its other size from the ratio
+  rather than being stretched across its parent, and with both sizes given
+  it keeps the one along its parent's direction. This runtime keeps such a
+  box from stretching (or lets the ratio decide the other size).
+
+These still differ. Each is easy to avoid, and worth checking in both
+runtimes when a layout depends on it:
+
+- **Percentages inside a parent sized by its content**, for `width`,
+  `height` and `flexBasis`: Yoga takes them of the room the
+  parent was offered; CSS reads a size as `auto` and a basis as 0. Give the
+  parent a size, or use `flex`.
+- **Growing boxes where one reaches its `minWidth` or `maxWidth`** (or the
+  heights): CSS gives the room it leaves to the others (50, 200 and 50 in
+  300 for three `flex: 1` boxes with `maxWidth: 50`, `minWidth: 200` and
+  neither), Yoga not always (33, 234 and 33).
+- **`aspectRatio` with a minimum or maximum size**, or on a box sized by its
+  content: Yoga takes the other size from the unclamped one (a stretched
+  `aspectRatio: 1, maxWidth: 100` box is 100×400 in a 400-wide column), CSS
+  from the clamped one.
+- **`flexWrap` in a column sized by its content** wraps at the height its
+  parent offers in Yoga, and never in CSS.
+- **Rounding.** Yoga puts every edge on a device pixel, the browser keeps
+  fractions: three `flex: 1` boxes in 100 are 33, 34 and 33 natively and
+  33.33 each here, so edges can be a fraction of a pixel apart.
+- **Text** is measured by Skia natively and by the browser here, with the
+  platform's fonts in each, so a text's width, and where it wraps, can
+  differ by a few pixels.
 
 ## Native API in TypeScript
 
