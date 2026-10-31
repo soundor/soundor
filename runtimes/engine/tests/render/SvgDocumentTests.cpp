@@ -100,6 +100,10 @@ TEST_SUITE("SVG document")
         CHECK(parse("<svg width='NaN'/>") == nullptr);
         CHECK(parse("<svg width='Infinity'/>") == nullptr);
         CHECK(parse("<svg width='0x1p999'/>") == nullptr);
+        CHECK(parse("<svg style='width:NaN'/>") == nullptr);
+        CHECK(parse("<svg><g style='opacity:Infinity'/></svg>") == nullptr);
+        CHECK(parse("<svg style='style:style:width:NaN'/>") == nullptr);
+        CHECK(parse("<svg style='fill:#11223344;stroke-width:2'/>") != nullptr);
         CHECK(parse("<svg><path d='M0 0LNaN 0'/></svg>") == nullptr);
         CHECK(parse("<svg><path d='M0 0L1e999 0'/></svg>") == nullptr);
         CHECK(parse("<svg><filter id='blur'/></svg>") == nullptr);
@@ -107,6 +111,9 @@ TEST_SUITE("SVG document")
         for (int i = 0; i < 33000; ++i)
             path += "L1 1";
         CHECK(parse(path + "'/></svg>") == nullptr);
+        CHECK(parse("<svg><path style='d:" + path.substr(std::string("<svg><path d='").size()) + "'/></svg>")
+              == nullptr);
+        CHECK(parse("<svg><pattern patternTransform='matrix(NaN 0 0 1 0 0)'/></svg>") == nullptr);
     }
 
     TEST_CASE("external resources are inert and cannot replace the caller's resource provider")

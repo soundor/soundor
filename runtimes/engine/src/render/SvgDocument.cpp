@@ -89,6 +89,96 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 return true;
             }
 
+            static bool numericProperty(std::string_view name)
+            {
+                constexpr std::string_view names[] = { "d",
+                                                       "points",
+                                                       "transform",
+                                                       "viewBox",
+                                                       "x",
+                                                       "y",
+                                                       "width",
+                                                       "height",
+                                                       "cx",
+                                                       "cy",
+                                                       "r",
+                                                       "rx",
+                                                       "ry",
+                                                       "x1",
+                                                       "x2",
+                                                       "y1",
+                                                       "y2",
+                                                       "fx",
+                                                       "fy",
+                                                       "fr",
+                                                       "dx",
+                                                       "dy",
+                                                       "rotate",
+                                                       "textLength",
+                                                       "stroke-width",
+                                                       "stroke-dasharray",
+                                                       "stroke-dashoffset",
+                                                       "stroke-miterlimit",
+                                                       "opacity",
+                                                       "fill-opacity",
+                                                       "stroke-opacity",
+                                                       "stop-opacity",
+                                                       "flood-opacity",
+                                                       "font-size",
+                                                       "font-weight",
+                                                       "letter-spacing",
+                                                       "word-spacing",
+                                                       "offset",
+                                                       "gradientTransform",
+                                                       "patternTransform" };
+                return std::find(std::begin(names), std::end(names), name) != std::end(names);
+            }
+
+            static std::string_view trim(std::string_view value)
+            {
+                while (! value.empty() && value.front() <= ' ')
+                    value.remove_prefix(1);
+                while (! value.empty() && value.back() <= ' ')
+                    value.remove_suffix(1);
+                return value;
+            }
+
+            bool property(std::string_view name, std::string_view value)
+            {
+                if (numericProperty(name))
+                    return geometry(value); // the Expat attribute's terminator is preserved
+                if (name != "style")
+                    return true;
+                // Skia's pinned inline-style iterator splits on semicolons
+                // and the first colon. Validate those numeric declarations too;
+                // otherwise style could bypass the geometry budget. A nested
+                // `style:` property is invalid CSS but recursively invokes that
+                // iterator in Skia, so reject it before DOM construction.
+                while (! value.empty())
+                {
+                    const auto end = value.find(';');
+                    const auto declaration = value.substr(0, end);
+                    const auto colon = declaration.find(':');
+                    if (colon != std::string_view::npos)
+                    {
+                        const auto key = trim(declaration.substr(0, colon));
+                        if (key == "style")
+                            return false;
+                        if (numericProperty(key))
+                        {
+                            // This substring ends at a semicolon, not NUL.
+                            const std::string number(declaration.substr(colon + 1));
+                            if (! geometry(number))
+                                return false;
+                        }
+                    }
+                    if (end == std::string_view::npos)
+                        break;
+                    value.remove_prefix(end + 1);
+                }
+                return true;
+            }
+
             static void XMLCALL start(void* data, const char* tag, const char** attributes)
             {
                 auto& self = *static_cast<Validator*>(data);
@@ -167,29 +257,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                         self.fail();
                         return;
                     }
-                    constexpr std::string_view geometryNames[] = { "d",
-                                                                   "points",
-                                                                   "transform",
-                                                                   "viewBox",
-                                                                   "x",
-                                                                   "y",
-                                                                   "width",
-                                                                   "height",
-                                                                   "cx",
-                                                                   "cy",
-                                                                   "r",
-                                                                   "rx",
-                                                                   "ry",
-                                                                   "x1",
-                                                                   "x2",
-                                                                   "y1",
-                                                                   "y2",
-                                                                   "stroke-width",
-                                                                   "stroke-dasharray",
-                                                                   "stroke-dashoffset",
-                                                                   "gradientTransform" };
-                    if (std::find(std::begin(geometryNames), std::end(geometryNames), name) != std::end(geometryNames)
-                        && ! self.geometry(value))
+                    if (! self.property(name, value))
                     {
                         self.fail();
                         return;
