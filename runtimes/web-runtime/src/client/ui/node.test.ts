@@ -347,6 +347,37 @@ describe('UiNode layout', () => {
     expect(view.size()).toEqual({ width: 800, height: 600, scale: 0.5 });
   });
 
+  it('is zero while hidden, at the nearest shown ancestor, as in Yoga', () => {
+    const { root } = setup();
+    const parent = view.createNode('view');
+    const hidden = view.createNode('view');
+    const inside = view.createNode('view');
+    root.appendChild(parent);
+    parent.appendChild(hidden);
+    hidden.appendChild(inside);
+    hidden.style = { display: 'none' };
+    // The browser's boxes for hidden elements are all zero, at the page's
+    // corner, whatever the view's position.
+    boxes(
+      new Map([
+        [view.rootElement, new DOMRect(100, 50, 800, 600)],
+        [el(root), new DOMRect(100, 50, 800, 600)],
+        [el(parent), new DOMRect(130, 90, 300, 200)],
+      ]),
+    );
+    Object.defineProperty(view.rootElement, 'offsetWidth', { value: 800 });
+
+    for (const node of [hidden, inside]) {
+      expect(node.layout).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+      expect(node.getBoundingClientRect()).toEqual({
+        x: 30,
+        y: 40,
+        width: 0,
+        height: 0,
+      });
+    }
+  });
+
   it('is zero while not in the tree', () => {
     setup();
     const node = view.createNode('view');
