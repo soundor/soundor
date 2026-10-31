@@ -157,6 +157,15 @@ describe('the view size', () => {
     expect(sizes).toHaveLength(1);
   });
 
+  it('tells subscribers of a size someone read before the observer saw it', () => {
+    const sizes = subscribe();
+    layOut(640, 480);
+    // Plugin code reads the new size first (a render, an event handler).
+    expect(view.size()).toEqual({ width: 640, height: 480, scale: 1 });
+    resized!();
+    expect(sizes).toEqual([{ width: 640, height: 480, scale: 1 }]);
+  });
+
   it('stops telling a subscriber that unsubscribed', () => {
     const kept = subscribe();
     const gone: ViewSize[] = [];

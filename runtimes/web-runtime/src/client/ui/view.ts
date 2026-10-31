@@ -72,6 +72,8 @@ export class UiView implements ViewLink {
   #resizes: ResizeObserver | null = null;
   /** The latest size(); replaced (never changed) when the size changes. */
   #size: ViewSize = Object.freeze({ width: 0, height: 0, scale: 1 });
+  /** The size subscribers were last told of (size() may be newer). */
+  #notifiedSize = this.#size;
   readonly #sizeListeners = new Listeners<ViewSize>();
 
   constructor(document: Document = globalThis.document) {
@@ -160,9 +162,10 @@ export class UiView implements ViewLink {
    * scales the view, which no observer sees.
    */
   measure(): void {
-    const previous = this.#size;
     const size = this.size();
-    if (size !== previous) this.#sizeListeners.notify(size);
+    if (size === this.#notifiedSize) return;
+    this.#notifiedSize = size;
+    this.#sizeListeners.notify(size);
   }
 
   // ── Focus ──────────────────────────────────────────────────────────────────

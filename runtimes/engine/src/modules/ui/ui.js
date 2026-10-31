@@ -1121,10 +1121,13 @@ export function subscribeViewSize(listener) {
   };
 }
 
+/** The size subscribers were last told of (viewSize() may be newer). */
+let notifiedSize = currentSize;
+
 native.setViewSizeListener(() => {
-  const previous = currentSize;
   const size = viewSize();
-  if (size === previous) return;
+  if (size === notifiedSize) return;
+  notifiedSize = size;
   for (const { listener } of [...sizeListeners]) {
     try {
       listener(size);

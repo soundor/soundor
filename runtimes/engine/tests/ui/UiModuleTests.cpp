@@ -570,6 +570,22 @@ TEST_SUITE("soundor:ui")
         CHECK(f.eval("JSON.stringify(log)").asString() == R"(["a 400x270@2"])");
     }
 
+    TEST_CASE("subscribers are told of a size plugin code read before the tick")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeViewSize, viewSize } from 'soundor:ui';
+            globalThis.read = viewSize;
+            globalThis.told = [];
+            subscribeViewSize((size) => told.push(size.width));
+        )");
+        f.host.surface().setSize({ 480, 100 });
+        // A render or an event handler reads the new size first.
+        CHECK(f.eval("read().width").asNumber() == 480);
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(told)").asString() == "[480]");
+    }
+
     TEST_CASE("a subscriber that throws is reported, and the others are still told")
     {
         UiFixture f;
