@@ -90,16 +90,19 @@ export async function startSoundorWebHost(
     loadSetup:
       options.audio === undefined ? undefined : () => loadSetup(options.audio!),
   });
+  // The plugin view, measured again when the shell scales it.
+  const view = uiView();
   const shell = createShell(container, {
     pluginName: context.plugin.name,
     presentation: options.presentation ?? pagePresentation(),
+    editor: context.manifest.editor,
+    onScale: () => view.measure(),
     host: context.host,
     parameters: context.parameters,
     audio,
   });
 
   // The plugin view fills the viewport; soundor:ui renders into it.
-  const view = uiView();
   view.mount(shell.viewport);
 
   const failed = (title: string, error: unknown): void => {
@@ -193,4 +196,4 @@ export type {
 } from './audio';
 export type { Presentation } from './shell';
 export type { PlaygroundHost, PlaygroundScript } from './playground';
-export type { WebManifest, WebParameterInfo } from './manifest';
+export type { WebEditor, WebManifest, WebParameterInfo } from './manifest';

@@ -1,6 +1,6 @@
 ---
 title: 'Configuration'
-description: 'Plugin identity, parameters, typed native API declarations, signing settings, and user settings.'
+description: 'Plugin identity, editor size, parameters, typed native API declarations, signing settings, and user settings.'
 ---
 
 Source: [`packages/config/`](https://github.com/soundor/soundor/tree/main/packages/config).
@@ -34,6 +34,46 @@ how. `parseConfig` validates it and reports every problem with its path.
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `id`   | Stable, globally unique reverse-DNS id (`com.acme.reverb`). Runtimes derive format identities from it, and Soundor isolates the plugin's native code by it. Never change it after release. |
 | `name` | The display name hosts show.                                                                                                                                                               |
+
+### `editor`
+
+The plugin editor's size in logical pixels, and whether it can be resized.
+It is the same in every runtime: the JUCE editor and the Web host's plugin
+view open at this size and resize within these limits.
+
+```ts
+export default defineSoundorConfig({
+  plugin: { id: 'com.acme.reverb', name: 'Acme Reverb' },
+  editor: {
+    width: 900,
+    height: 560,
+    minWidth: 640,
+    minHeight: 400,
+    maxWidth: 1600,
+    maxHeight: 1000,
+    resizable: true,
+  },
+  runtimes: [juceRuntime(), webRuntime()],
+  parameters: [],
+});
+```
+
+| Field                   | Meaning                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `width`, `height`       | The size the editor opens at. Default 800×600.                                                           |
+| `resizable`             | Whether the user can resize the editor. Default `false`: a fixed-size editor.                            |
+| `minWidth`, `minHeight` | The smallest a resizable editor can be made. Default 480×320, or the opening size where that is smaller. |
+| `maxWidth`, `maxHeight` | The largest a resizable editor can be made. Default 1600×1200, or the opening size where that is larger. |
+
+Without `editor`, a plugin keeps a fixed 800×600 editor. Every size is a
+positive whole number; a minimum may not exceed its maximum, and a
+resizable editor must open within its limits. The limits of a fixed editor
+are ignored.
+
+Resizing changes the size the UI is laid out at, not its zoom: a view with
+`flex: 1` grows with the editor, and text keeps its size. Whether a user
+can actually resize the window is up to the host: most DAWs let a plugin
+window that says it is resizable be dragged by its edges, some never do.
 
 ### `native`
 

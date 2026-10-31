@@ -12,8 +12,8 @@
  *   builds the `AudioProcessorValueTreeState` from the config's parameters,
  *   exposes named raw-parameter pointers, and persists state.
  * - `soundor/SoundorEditor.{h,cpp}` — the `soundor::AudioProcessorEditor` base,
- *   which will host the Soundor UI. Until the native UI lands it is an empty,
- *   fixed-size view.
+ *   which hosts the Soundor UI at the config's `editor` size (resizable within
+ *   its limits when `editor.resizable`).
  * - `soundor/native/SoundorNative.{h,cpp}` — the `soundor:native` interface and
  *   bindings generated from the config's `native` API (see native-codegen.ts).
  *
@@ -25,7 +25,12 @@ import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
 import { describeNativeApi } from '@soundor/core';
-import type { CodegenFile, SoundorConfig } from '@soundor/runtime-sdk';
+import {
+  resolveEditor,
+  type CodegenFile,
+  type ResolvedEditorConfig,
+  type SoundorConfig,
+} from '@soundor/runtime-sdk';
 
 import { generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
@@ -84,7 +89,10 @@ export function generateJuceSources(
     { path: 'soundor/SoundorEditor.h', contents: renderEditorHeader() },
     {
       path: 'soundor/SoundorEditor.cpp',
-      contents: renderEditorSource(params.options),
+      contents: renderEditorSource(
+        params.options,
+        resolveEditor(config.editor),
+      ),
     },
     ...generateNativeModuleSources(nativeApi.model),
   ];
@@ -465,6 +473,8 @@ namespace ${NS}
         ~AudioProcessorEditor() override;
 
         void paint(juce::Graphics&) override;
+        // A resized view lays the UI out again at its new size.
+        void resized() override;
 
         // The view's input goes to the UI (soundor:ui); what it leaves
         // unhandled (keys, wheel) goes on to the host.
@@ -555,7 +565,25 @@ namespace ${NS}
 `;
 }
 
-function renderEditorSource(options: ResolvedJuceOptions): string {
+/**
+ * The editor's size from the config's `editor`. A resizable one is resized by
+ * the host (or the Standalone's window): JUCE's corner resizer is not used,
+ * since it would sit under a GPU compositor's layer and take the pointer from
+ * the UI's own bottom-right corner.
+ */
+function renderEditorSize(editor: ResolvedEditorConfig): string {
+  const size = `setSize(${cppInt(editor.width)}, ${cppInt(editor.height)});`;
+  if (!editor.resizable) return `        ${size}`;
+  return `        // soundor.config: editor (resizable). Resizing lays the UI out again.
+        setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
+        setResizable(true, false);
+        ${size}`;
+}
+
+function renderEditorSource(
+  options: ResolvedJuceOptions,
+  editor: ResolvedEditorConfig,
+): string {
   return `${HEADER}#include "SoundorEditor.h"
 
 #include <soundor/backend/JuceHttpClient.h>
@@ -655,7 +683,7 @@ namespace ${NS}
 
         setWantsKeyboardFocus(true);
         setOpaque(true);
-        setSize(800, 600);
+${renderEditorSize(editor)}
 #if SOUNDOR_DEVTOOLS
         if (owner.wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
             const auto descriptor = juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {});
@@ -757,6 +785,21 @@ namespace ${NS}
         }
 #endif
         compositor->composite(runtimeHost().frame(compositorCapabilities));
+    }
+
+    void AudioProcessorEditor::resized()
+    {
+        // On the CPU, paint() (which the resize asks for) renders at the new
+        // size. The GPU compositor presents over the view instead: present at
+        // the new size now, not on the next tick, so a window being dragged
+        // larger does not show the last frame stretched. Not before there is
+        // one: the constructor sizes the view before it is shown.
+        if (gpu == nullptr || ! isShowing())
+            return;
+        sizeSurface();
+        updateCompositor();
+        if (gpu != nullptr && runtimeHost().needsRender())
+            renderFrame();
     }
 
     void AudioProcessorEditor::timerCallback()

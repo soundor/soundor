@@ -652,8 +652,34 @@ declare module 'soundor:ui' {
   export function pointerLockNode(): UiNode | null;
   /** The node that has keyboard focus, if any. */
   export function focusedNode(): UiNode | null;
-  /** The view's size in logical pixels, and device pixels per logical pixel. */
-  export function viewSize(): { width: number; height: number; scale: number };
+  /** The plugin view's size: what it is laid out at, and its pixel density. */
+  export interface ViewSize {
+    /** Width in logical pixels (the units of styles and pointer positions). */
+    readonly width: number;
+    /** Height in logical pixels. */
+    readonly height: number;
+    /**
+     * Device pixels per logical pixel: the display's density, times any
+     * scaling the host applies (a web host scales a view down to fit a page).
+     */
+    readonly scale: number;
+  }
+  /**
+   * The view's size in logical pixels, and device pixels per logical pixel.
+   * The same frozen object until one of them changes, so it works as a store
+   * snapshot (`useSyncExternalStore(subscribeViewSize, viewSize)`). Before
+   * the host has given the view a size, width and height may be 0.
+   */
+  export function viewSize(): ViewSize;
+  /**
+   * Calls `listener` with the new {@link viewSize} once whenever the view's
+   * size or scale changes: when the user resizes the editor (or its iframe),
+   * or it moves to a display of another density. Never for an unchanged
+   * size, and not every frame. Returns a function that unsubscribes.
+   */
+  export function subscribeViewSize(
+    listener: (size: ViewSize) => void,
+  ): () => void;
 
   export interface FontDescriptors {
     /** The weight the file is, 1 to 1000, 'normal' (400, the default) or 'bold' (700). */

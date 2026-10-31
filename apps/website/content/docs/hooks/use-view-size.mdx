@@ -1,0 +1,76 @@
+---
+title: useViewSize
+description: The plugin view's size and pixel density, re-rendering the component when the user resizes the editor.
+---
+
+```ts
+function useViewSize(): ViewSize;
+
+interface ViewSize {
+  readonly width: number; // logical pixels
+  readonly height: number; // logical pixels
+  readonly scale: number; // device pixels per logical pixel
+}
+```
+
+`useViewSize()` returns the size of the plugin view and re-renders the
+component when it changes: when the user resizes a
+[resizable editor](/docs/cli/config#editor), when a web host's embedding
+iframe changes size, or when the view moves to a display of another density.
+It does not re-render for an unchanged size, and it does not poll: the
+runtime tells it of a change, once.
+
+<Snippet name="view-size" height={200} />
+
+```tsx
+import { Text, useViewSize, View } from '@soundor/react';
+
+function Controls() {
+  const { width, height } = useViewSize();
+  const compact = width < 640;
+  return (
+    <View style={{ flex: 1, flexDirection: compact ? 'column' : 'row' }}>
+      <Text>{`${width} × ${height}`}</Text>
+      <Fader />
+      <Knob />
+    </View>
+  );
+}
+```
+
+The same component runs in the JUCE runtime and in the browser, with no
+check for which one it is in.
+
+## Logical and device pixels
+
+`width` and `height` are **logical pixels**: the units of styles, layout and
+pointer positions, the same at any display density. `scale` is how many
+device pixels there are per logical pixel: 2 on a typical high-density
+display. It also counts any scaling a host applies: a web host showing a
+fixed-size view at half its size in a small page reports half the
+display's density. Draw a canvas at `width * scale` pixels for a sharp
+picture; lay out with `width` and `height`.
+
+## Flexbox first
+
+Most layouts need no size at all: a view with `flex: 1` fills the editor and
+follows it as it is resized, `flexWrap: 'wrap'` reflows a row, and
+percentages scale with their parent. Use `useViewSize()` for what flexbox
+cannot say: a different arrangement past a breakpoint, a control shown only
+when there is room, or a canvas's drawing buffer.
+
+## In each runtime
+
+- **JUCE:** the size of the editor, from the moment the host gives it one
+  (before that, briefly, 0×0). A resize reaches the hook on the next tick of
+  the editor's 60 Hz timer, before the frame laid out at the new size is
+  drawn. After a reload in `soundor dev`, the new runtime's hooks start at
+  the editor's current size.
+- **Web:** the size of the plugin view: the editor's size in the `demo` and
+  `dev` presentations (resizable with its handle), and the iframe's in
+  `?embed`, following the iframe as the parent page resizes it.
+- **Tests:** the editor's size from the project's config (800×600 without
+  one); [`testView.resize()`](/docs/testing/test-view) changes it.
+
+It reads [`soundor:ui`](/docs/api/ui#the-views-size)'s `viewSize()` and
+`subscribeViewSize()`, which code outside React can use directly.

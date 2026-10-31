@@ -139,6 +139,34 @@ TEST_SUITE("WebGL 2")
         CHECK(f.error("new WebGLBuffer()").find("Illegal constructor") != std::string::npos);
     }
 
+    TEST_CASE("resizing the view keeps a WebGL canvas's drawing buffer and its context's state")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        WebGLFixture f(device, "{ preserveDrawingBuffer: true }");
+        f.run(R"(
+            gl.clearColor(0, 1, 0, 1);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.clearColor(0, 0, 1, 1);
+            globalThis.texture = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, texture);
+        )");
+        f.host.tick();
+        f.host.surface().setSize({ 300, 200 });
+        f.host.surface().setScale(2);
+        f.host.tick();
+        CHECK(f.boolean("!gl.isContextLost()"));
+        CHECK(f.number("gl.drawingBufferWidth") == 64);
+        CHECK(f.number("gl.drawingBufferHeight") == 64);
+        CHECK(f.boolean("gl.getParameter(gl.TEXTURE_BINDING_2D) === texture"));
+        CHECK(f.string("Array.from(gl.getParameter(gl.COLOR_CLEAR_VALUE)).join(',')") == "0,0,1,1");
+        CHECK(f.string("(() => { const p = new Uint8Array(4); gl.readPixels(1, 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, p); "
+                       "return p.join(','); })()")
+              == "0,255,0,255");
+        CHECK(f.number("gl.getError()") == 0);
+    }
+
     TEST_CASE("a raw triangle: drawn, read back, and shown in the canvas the right way up")
     {
         const auto device = test::testDevice();

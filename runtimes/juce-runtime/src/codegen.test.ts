@@ -293,6 +293,69 @@ describe('generateJuceSources', () => {
     );
   });
 
+  describe('editor size', () => {
+    const editorSource = (editor?: SoundorConfig['editor']) =>
+      fileMap({ ...config, editor } as SoundorConfig).get(
+        'soundor/SoundorEditor.cpp',
+      )!;
+
+    it('opens a fixed 800×600 editor without an editor config', () => {
+      const source = editorSource();
+      expect(source).toContain('        setSize(800, 600);\n');
+      expect(source).not.toContain('setResizable(');
+      expect(source).not.toContain('setResizeLimits(');
+    });
+
+    it('opens a fixed editor at its configured size', () => {
+      const source = editorSource({ width: 1024, height: 640 });
+      expect(source).toContain('setSize(1024, 640);');
+      expect(source).not.toMatch(/setResizable|setResizeLimits/);
+    });
+
+    it('lets the host resize a resizable editor within its limits', () => {
+      const source = editorSource({
+        width: 900,
+        height: 500,
+        minWidth: 600,
+        minHeight: 400,
+        maxWidth: 1800,
+        maxHeight: 1000,
+        resizable: true,
+      });
+      expect(source).toContain(
+        [
+          '        setResizeLimits(600, 400, 1800, 1000);',
+          '        setResizable(true, false);',
+          '        setSize(900, 500);',
+        ].join('\n'),
+      );
+      // The host resizes it: no corner component over the UI.
+      expect(source).not.toContain('setResizable(true, true)');
+    });
+
+    it('gives a resizable editor the default limits', () => {
+      expect(editorSource({ resizable: true })).toContain(
+        'setResizeLimits(480, 320, 1600, 1200);',
+      );
+    });
+
+    it('lays the UI out again when the view is resized', () => {
+      const header = fileMap(config).get('soundor/SoundorEditor.h')!;
+      expect(header).toContain('void resized() override;');
+      const source = editorSource({ resizable: true });
+      expect(source).toContain('void AudioProcessorEditor::resized()');
+      // Nothing before the GPU compositor exists, and the size first.
+      expect(source).toMatch(
+        /if \(gpu == nullptr \|\| ! isShowing\(\)\)\s+return;\s+sizeSurface\(\);\s+updateCompositor\(\);/,
+      );
+    });
+
+    it('generates the same source for the same editor', () => {
+      const editor = { width: 700, height: 500, resizable: true };
+      expect(editorSource(editor)).toBe(editorSource({ ...editor }));
+    });
+  });
+
   it('embeds the UI bundle and loads it in the editor', () => {
     const setup = fileMap(config).get('setup.cmake')!;
     expect(setup).toContain('if(SOUNDOR_UI_DIR)');

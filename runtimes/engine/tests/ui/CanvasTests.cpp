@@ -372,4 +372,30 @@ TEST_SUITE("soundor:ui canvas")
         // Nothing drawn since: nothing to render.
         CHECK_FALSE(f.host.needsRender());
     }
+
+    TEST_CASE("resizing the view keeps a canvas's drawing buffer and its context's state")
+    {
+        CanvasFixture f;
+        f.run(R"(
+            ctx.fillStyle = 'red';
+            ctx.fillRect(0, 0, 10, 10);
+            ctx.fillStyle = '#0000ff';
+            ctx.translate(5, 5);
+        )");
+        const std::uint64_t resets = f.host.surface().root().children()[0]->canvas()->resets;
+        (void)f.host.frame();
+        // The user resizes the editor, on a display of another density.
+        f.host.surface().setSize({ 500, 300 });
+        f.host.surface().setScale(2);
+        f.host.tick();
+        (void)f.host.frame();
+        CHECK(f.host.surface().root().children()[0]->canvas()->resets == resets);
+        CHECK(f.string("[c.width, c.height].join(',')") == "100,50");
+        CHECK(f.pixel(5, 5) == "255,0,0,255");
+        CHECK(f.string("ctx.fillStyle") == "#0000ff");
+        CHECK(f.number("ctx.getTransform().e") == 5);
+        // Setting the size, as an application does for a sharper buffer, still resets it.
+        f.run("c.width = 200; globalThis.result = px(5, 5);");
+        CHECK(f.string("result") == "0,0,0,0");
+    }
 }

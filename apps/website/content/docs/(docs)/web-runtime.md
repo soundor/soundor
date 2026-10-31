@@ -153,8 +153,9 @@ The Web globals Soundor declares (`fetch`, timers, `URL`, `TextEncoder`,
 
 ### `soundor:ui` on the DOM
 
-Each `UiNode` draws with one DOM element inside the plugin viewport (800×600,
-the JUCE editor's size, scaled down when the page is smaller). The renderer is
+Each `UiNode` draws with one DOM element inside the plugin viewport (the
+editor's size, scaled down when the page is smaller; see
+[The host UI](#the-host-ui)). The renderer is
 `@soundor/react`'s own; there is no ReactDOM. Plugin code only ever sees
 UiNodes.
 
@@ -399,9 +400,10 @@ it came from the demo, a file, or a microphone.
 
 ## The host UI
 
-The plugin is the page. Its view keeps the JUCE editor's size (800×600) and
-is scaled down, never up, when the page is smaller (an iframe in docs, a
-phone, the panel open). The host stays out of its way:
+The plugin is the page. Its view opens at the editor's size, the config's
+[`editor`](/docs/cli/config#editor) (800×600 by default), as the JUCE editor
+does, and is scaled down, never up, when the page is smaller (an iframe in
+docs, a phone, the panel open). The host stays out of its way:
 
 ```text
 ┌─────────────────────────────────────────────┬──────────────────┐
@@ -427,11 +429,48 @@ phone, the panel open). The host stays out of its way:
   per parameter, moving the same values the plugin does. The transport drives
   the same `WebHost` that `soundor:host` reports to the plugin; the plugin
   observes the transport and never controls it.
+- **Resizing:** with `editor.resizable`, a handle just outside the view's
+  bottom-right corner resizes it (drag it, or focus it and use the arrow
+  keys, Shift for larger steps), within the editor's limits and the room
+  the page has; a drag the browser cancels puts the size back.
+  [Resizing and scaling](#resizing-and-scaling) explains the difference.
 - **Presentations:** `soundor dev` (the `dev` presentation) adds the host
   state to the panel and remembers whether the panel was open. A build shows
   the `demo` presentation, or `embed` when opened with `?embed`
   ([Embedding one view](#embedding-one-view)).
   `startSoundorWebHost({ presentation })` overrides the default.
+
+### Resizing and scaling
+
+Two different things change how big the plugin looks:
+
+- **Resizing** changes the view's size in logical pixels: the size its UI is
+  laid out at. A view with `flex: 1` grows with it and text keeps its size,
+  as in a resized JUCE editor. Only a resizable editor is resized, by its
+  handle (`demo` and `dev`) or by its iframe (`embed`).
+- **Scaling** draws the same layout smaller, with a CSS transform, when the
+  page has less room than the view's size. Its logical size, and so its
+  layout, stay as they were; `viewSize()` reports the scale in `scale`.
+
+A fixed-size editor (the default) is only ever scaled, as before. Resizable,
+the view opens at its configured size (scaled down if the page is smaller)
+and is resized within its limits; dragged past the page's edge, it stops
+there rather than being scaled.
+
+Plugin code learns of both through
+[`useViewSize()`](/docs/hooks/use-view-size) (or `soundor:ui`'s
+`viewSize()` and `subscribeViewSize()`): `width` and `height` are the
+logical size, and `scale` the device pixels per logical pixel, which counts
+the host's scaling. The view measures itself with the `ResizeObserver` that
+also keeps hover up to date, watches the page's pixel density, and is told
+when the host changes its scaling, which no observer sees.
+
+```ts
+export default defineSoundorConfig({
+  // …
+  editor: { width: 800, height: 600, resizable: true },
+});
+```
 
 ## Static builds and iframes
 
@@ -452,7 +491,11 @@ plugin shares its storage.
 
 With `?embed`, a build shows the plugin view alone: no dock, no panel, and
 the view as big as the page (the iframe), however big that is, rather than
-the editor's size scaled down. It suits a small piece of UI in a docs page,
+the editor's size scaled down. Its logical size is the iframe's, and it
+follows the iframe when the parent page resizes it, whether or not the
+editor is resizable: `editor` sets the size the standalone host opens at
+and whether it shows a handle, never an embedding page's layout, and the
+view never resizes its iframe. It suits a small piece of UI in a docs page,
 which is how this site shows its snippets:
 
 ```html

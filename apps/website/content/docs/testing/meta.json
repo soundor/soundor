@@ -32,6 +32,7 @@
     "---Test services---",
     "test-parameters",
     "test-host",
+    "test-view",
     "mock-native",
     "---Assertions---",
     "to-have-focus"

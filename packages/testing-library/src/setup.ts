@@ -1,4 +1,8 @@
-import { getTestRuntime, type HostSnapshot } from '@soundor/test-runtime';
+import {
+  getTestRuntime,
+  type HostSnapshot,
+  type ViewSize,
+} from '@soundor/test-runtime';
 
 /** Set simulated parameters in plain units using their declared type and range. */
 export const testParameters = {
@@ -14,6 +18,16 @@ export const testParameters = {
 export const testHost = {
   set(state: Partial<HostSnapshot>): void {
     getTestRuntime().setHost(state);
+  },
+};
+
+/**
+ * Resize the simulated view, as a user resizing the editor does, and notify
+ * viewSize() subscribers (useViewSize()) when it changed.
+ */
+export const testView = {
+  resize(size: Partial<ViewSize>): void {
+    getTestRuntime().setViewSize(size);
   },
 };
 

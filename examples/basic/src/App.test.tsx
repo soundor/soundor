@@ -4,6 +4,7 @@ import {
   userEvent,
   testHost,
   testParameters,
+  testView,
   waitFor,
 } from '@soundor/testing-library/react';
 import { parameters } from 'soundor:parameters';
@@ -57,4 +58,19 @@ test('loads a stored preset into the controlled input', async () => {
   await waitFor(() =>
     expect(screen.getByRole('textinput').value).toBe('Bright'),
   );
+});
+test('stacks its controls when the editor is resized narrower than 640', async () => {
+  await render(<App />);
+  expect(screen.getByLabelText('Controls')).toBeDefined();
+  expect(screen.getByText('800 × 600')).toBeDefined();
+  await testView.resize({ width: 520, height: 400 });
+  expect(screen.getByLabelText('Controls, stacked')).toBeDefined();
+  expect(screen.getByText('520 × 400')).toBeDefined();
+  // The controls are the same ones, still working.
+  await userEvent
+    .setup()
+    .click(screen.getByRole('button', { name: 'Reset gain' }));
+  expect(parameters.gain.get()).toBe(0.5);
+  await testView.resize({ width: 1000 });
+  expect(screen.getByLabelText('Controls')).toBeDefined();
 });

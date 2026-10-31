@@ -502,4 +502,144 @@ TEST_SUITE("soundor:ui")
         CHECK(f.run(std::string(imports) + "globalThis.result = JSON.stringify(viewSize());").asString()
               == R"({"width":200,"height":100,"scale":2})");
     }
+
+    TEST_CASE("viewSize is the same frozen object until the size or scale changes")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            globalThis.first = viewSize();
+            globalThis.result = first === viewSize() && Object.isFrozen(first);
+        )");
+        CHECK(f.eval("result").asBoolean());
+        f.host.surface().setSize({ 300, 100 });
+        f.run(std::string(imports) + R"(
+            const second = viewSize();
+            globalThis.result = second !== first && second === viewSize() && second.width === 300;
+        )");
+        CHECK(f.eval("result").asBoolean());
+    }
+
+    TEST_CASE("subscribeViewSize tells each subscriber once per change, before the frame")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeViewSize, viewSize, root, createView } from 'soundor:ui';
+            globalThis.log = [];
+            globalThis.unsubscribeB = undefined;
+            subscribeViewSize((size) => {
+                log.push(`a ${size.width}x${size.height}@${size.scale}`);
+                // A layout that depends on the size, decided before the frame.
+                if (size !== viewSize()) log.push('a: not the snapshot');
+            });
+            unsubscribeB = subscribeViewSize((size) => log.push(`b ${size.width}x${size.height}`));
+            requestAnimationFrame(() => log.push('frame'));
+        )");
+        // The size it started with is no change.
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log)").asString() == R"(["frame"])");
+
+        f.eval("log.length = 0; requestAnimationFrame(() => log.push('frame'))");
+        f.host.surface().setSize({ 300, 100 });
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log)").asString() == R"(["a 300x100@1","b 300x100","frame"])");
+
+        // Nothing for a tick without a change, nor for the same size again.
+        f.eval("log.length = 0");
+        f.host.tick();
+        f.host.surface().setSize({ 300, 100 });
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+
+        // Height, then scale; many changes between ticks are one.
+        f.host.surface().setSize({ 300, 250 });
+        f.host.surface().setSize({ 320, 260 });
+        f.host.surface().setSize({ 340, 270 });
+        f.host.tick();
+        f.host.surface().setScale(2);
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log)").asString() == R"(["a 340x270@1","b 340x270","a 340x270@2","b 340x270"])");
+
+        // A size that changes and changes back before a tick is no change.
+        f.eval("log.length = 0; unsubscribeB()");
+        f.host.surface().setSize({ 500, 500 });
+        f.host.surface().setSize({ 340, 270 });
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+        f.host.surface().setSize({ 400, 270 });
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log)").asString() == R"(["a 400x270@2"])");
+    }
+
+    TEST_CASE("subscribers are told of a size plugin code read before the tick")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeViewSize, viewSize } from 'soundor:ui';
+            globalThis.read = viewSize;
+            globalThis.told = [];
+            subscribeViewSize((size) => told.push(size.width));
+        )");
+        f.host.surface().setSize({ 480, 100 });
+        // A render or an event handler reads the new size first.
+        CHECK(f.eval("read().width").asNumber() == 480);
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(told)").asString() == "[480]");
+    }
+
+    TEST_CASE("a subscriber that throws is reported, and the others are still told")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeViewSize } from 'soundor:ui';
+            globalThis.told = 0;
+            subscribeViewSize(() => { throw new Error('listener failed'); });
+            subscribeViewSize(() => { told += 1; });
+        )");
+        f.host.surface().setSize({ 250, 100 });
+        f.host.tick();
+        CHECK(f.eval("told").asNumber() == 1);
+        bool reported = false;
+        for (const auto& [level, message] : f.logs)
+            reported = reported || message.find("listener failed") != std::string::npos;
+        CHECK(reported);
+        CHECK(f.error(std::string(imports) + "import { subscribeViewSize } from 'soundor:ui'; subscribeViewSize(1);")
+                  .find("subscribeViewSize() expects a function")
+              != std::string::npos);
+    }
+
+    TEST_CASE("each runtime's subscribers hear of its own view only, and a new runtime starts afresh")
+    {
+        const auto subscribe = [](RuntimeHost& host)
+        {
+            REQUIRE(host.context()
+                        .evaluateModule(soundor::test::module(R"(
+                            import { subscribeViewSize } from 'soundor:ui';
+                            globalThis.sizes = [];
+                            subscribeViewSize((size) => sizes.push(size.width));
+                        )"),
+                                        "/size.js")
+                        .ok());
+        };
+        const auto sizes = [](RuntimeHost& host)
+        { return host.context().evaluateScript("JSON.stringify(sizes)").value().asString(); };
+        RuntimeHost::Options options;
+        auto first = std::make_unique<RuntimeHost>(options);
+        RuntimeHost other(options);
+        subscribe(*first);
+        subscribe(other);
+        first->surface().setSize({ 640, 480 });
+        first->tick();
+        other.tick();
+        CHECK(sizes(*first) == "[640]");
+        CHECK(sizes(other) == "[]");
+
+        // A reload (soundor dev): the old runtime and its subscribers go; the
+        // new one's are told the size its backend gives it.
+        first.reset();
+        RuntimeHost reloaded(options);
+        subscribe(reloaded);
+        reloaded.surface().setSize({ 640, 480 });
+        reloaded.tick();
+        CHECK(sizes(reloaded) == "[640]");
+    }
 }

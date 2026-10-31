@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createShell, type Presentation } from '.';
 import { WebAudioHost } from '../audio';
 import { WebHost } from '../host';
+import type { WebEditor } from '../manifest';
 import { createParameterStore } from '../parameters';
 import '../testing/preact';
 
@@ -18,7 +19,28 @@ afterEach(() => {
   localStorage.clear();
 });
 
-function setup(presentation: Presentation = 'demo') {
+/** The default editor: a fixed 800×600 view. */
+const FIXED: WebEditor = {
+  width: 800,
+  height: 600,
+  minWidth: 800,
+  minHeight: 600,
+  maxWidth: 800,
+  maxHeight: 600,
+  resizable: false,
+};
+
+const RESIZABLE: WebEditor = {
+  width: 800,
+  height: 600,
+  minWidth: 480,
+  minHeight: 320,
+  maxWidth: 1200,
+  maxHeight: 900,
+  resizable: true,
+};
+
+function setup(presentation: Presentation = 'demo', editor = FIXED) {
   const host = new WebHost({
     now: () => 0,
     frames: { request: () => 1, cancel: () => {} },
@@ -47,6 +69,7 @@ function setup(presentation: Presentation = 'demo') {
   const shell = createShell(document.body, {
     pluginName: 'Fixture',
     presentation,
+    editor,
     host,
     parameters,
     audio,
@@ -121,6 +144,20 @@ describe('the dock', () => {
     const { shell } = setup();
     expect(shell.viewport.style.width).toBe('800px');
     expect(shell.viewport.style.height).toBe('600px');
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
+  });
+
+  it("opens the viewport at the config's editor size", () => {
+    const { shell } = setup('demo', {
+      ...FIXED,
+      width: 640,
+      height: 400,
+    });
+    expect([shell.viewport.style.width, shell.viewport.style.height]).toEqual([
+      '640px',
+      '400px',
+    ]);
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
   });
 
   it('leaves what the plugin renders in the viewport alone', () => {
@@ -288,6 +325,198 @@ describe('the stage', () => {
     expect(shell.viewport.style.transform).toBe('');
     expect(frame.style.width).toBe('800px');
     vi.unstubAllGlobals();
+  });
+});
+
+/** Stubs ResizeObserver; `resize` then gives the stage a size. */
+function observeStage() {
+  let resized: (() => void) | undefined;
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(callback: () => void) {
+        resized = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  return (shell: { element: HTMLElement }, width: number, height: number) => {
+    const stage = shell.element.querySelector<HTMLElement>('.soundor-stage')!;
+    Object.defineProperty(stage, 'clientWidth', {
+      value: width,
+      configurable: true,
+    });
+    Object.defineProperty(stage, 'clientHeight', {
+      value: height,
+      configurable: true,
+    });
+    act(() => resized!());
+  };
+}
+
+describe('a resizable view', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function resizable(editor = RESIZABLE, presentation: Presentation = 'demo') {
+    const context = setup(presentation, editor);
+    const handle =
+      context.shell.element.querySelector<HTMLElement>('.soundor-resize')!;
+    const frame =
+      context.shell.element.querySelector<HTMLElement>('.soundor-frame')!;
+    const size = () => [
+      context.shell.viewport.style.width,
+      context.shell.viewport.style.height,
+    ];
+    const drag = (
+      dx: number,
+      dy: number,
+      { end = 'up', pointerId = 1 }: { end?: string; pointerId?: number } = {},
+    ) => {
+      act(() => {
+        fireEvent.pointerDown(handle, {
+          pointerId,
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+        });
+        fireEvent.pointerMove(handle, {
+          pointerId,
+          clientX: 100 + dx / 2,
+          clientY: 100 + dy / 2,
+        });
+        fireEvent.pointerMove(handle, {
+          pointerId,
+          clientX: 100 + dx,
+          clientY: 100 + dy,
+        });
+        if (end === 'up') fireEvent.pointerUp(handle, { pointerId });
+        if (end === 'cancel') fireEvent.pointerCancel(handle, { pointerId });
+      });
+    };
+    return { ...context, handle, frame, size, drag };
+  }
+
+  it('opens at the editor size, with a handle outside the view', () => {
+    const { handle, size, shell } = resizable({
+      ...RESIZABLE,
+      width: 900,
+      height: 500,
+    });
+    expect(size()).toEqual(['900px', '500px']);
+    expect(handle.getAttribute('aria-label')).toBe('Resize the plugin view');
+    // In the frame, beside the viewport: never over the plugin's own controls.
+    expect(shell.viewport.contains(handle)).toBe(false);
+  });
+
+  it('changes the logical size, not the scale, as the corner is dragged', () => {
+    const { size, drag, frame, shell } = resizable();
+    // The view stays centred: its size changes by twice the pointer's move.
+    drag(50, 25);
+    expect(size()).toEqual(['900px', '650px']);
+    expect(shell.viewport.style.transform).toBe('');
+    expect(frame.style.width).toBe('900px');
+    drag(-100, -150);
+    expect(size()).toEqual(['700px', '350px']);
+  });
+
+  it('keeps to the editor limits', () => {
+    const { size, drag } = resizable();
+    drag(-1000, -1000);
+    expect(size()).toEqual(['480px', '320px']);
+    drag(5000, 5000);
+    expect(size()).toEqual(['1200px', '900px']);
+  });
+
+  it('stops at the edge of the stage rather than scaling down', () => {
+    const resize = observeStage();
+    const { size, drag, shell } = resizable();
+    // Room for 1000×700 (the stage's padding: 16 around, 76 under it).
+    resize(shell, 1032, 792);
+    drag(1000, 1000);
+    expect(size()).toEqual(['1000px', '700px']);
+    expect(shell.viewport.style.transform).toBe('');
+  });
+
+  it('moves the size in logical pixels when the stage scales it down', () => {
+    const resize = observeStage();
+    const { size, drag, shell } = resizable();
+    // Half the room it needs: shown at half its size.
+    resize(shell, 432, 392);
+    expect(shell.viewport.style.transform).toBe('scale(0.5)');
+    drag(-25, -25);
+    expect(size()).toEqual(['700px', '500px']);
+  });
+
+  it('puts the size back when the browser cancels the drag', () => {
+    const { size, drag } = resizable();
+    drag(50, 50, { end: 'cancel' });
+    expect(size()).toEqual(['800px', '600px']);
+    drag(50, 50, { end: 'none' });
+    expect(size()).toEqual(['900px', '700px']);
+  });
+
+  it('follows only the pointer that pressed it', () => {
+    const { size, drag, handle } = resizable();
+    drag(50, 50, { end: 'none' });
+    act(() => {
+      fireEvent.pointerMove(handle, { pointerId: 2, clientX: 0, clientY: 0 });
+    });
+    expect(size()).toEqual(['900px', '700px']);
+    act(() => {
+      fireEvent.pointerUp(handle, { pointerId: 1 });
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 0, clientY: 0 });
+    });
+    expect(size()).toEqual(['900px', '700px']);
+  });
+
+  it('resizes with the arrow keys', () => {
+    const { size, handle } = resizable();
+    act(() => {
+      fireEvent.keyDown(handle, { key: 'ArrowRight' });
+    });
+    act(() => {
+      fireEvent.keyDown(handle, { key: 'ArrowUp', shiftKey: true });
+    });
+    expect(size()).toEqual(['810px', '550px']);
+  });
+
+  it('is not resizable embedded, where it fills the page', () => {
+    const { shell } = setup('embed', RESIZABLE);
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
+    expect(shell.viewport.style.width).toBe('');
+    expect(shell.element.querySelector('.soundor-fill')).not.toBeNull();
+  });
+
+  it('has the view measured again when it scales it', () => {
+    const resize = observeStage();
+    const onScale = vi.fn<() => void>();
+    const context = setup('demo', RESIZABLE);
+    context.shell.remove();
+    const shell = createShell(document.body, {
+      pluginName: 'Fixture',
+      presentation: 'demo',
+      editor: RESIZABLE,
+      onScale,
+      host: context.host,
+      parameters: context.parameters,
+      audio: context.audio,
+    });
+    shells.push(shell);
+    onScale.mockClear();
+    resize(shell, 432, 392);
+    expect(onScale).toHaveBeenCalledOnce();
+    resize(shell, 433, 392);
+    expect(onScale).toHaveBeenCalledOnce();
+    resize(shell, 3000, 2000);
+    expect(onScale).toHaveBeenCalledTimes(2);
+  });
+
+  it('is resizable in dev as in demo', () => {
+    const { handle, drag, size } = resizable(RESIZABLE, 'dev');
+    expect(handle).not.toBeNull();
+    drag(20, 20);
+    expect(size()).toEqual(['840px', '640px']);
   });
 });
 

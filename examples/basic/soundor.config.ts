@@ -7,6 +7,9 @@ export default defineSoundorConfig({
     id: 'dev.soundor.basic',
     name: 'Soundor Basic',
   },
+  // Opens at 800×600; the user can resize it (between 480×320 and
+  // 1600×1200), and the UI is laid out again at the new size.
+  editor: { width: 800, height: 600, resizable: true },
   // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
   // and in the browser.
   runtimes: [

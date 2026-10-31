@@ -66,6 +66,7 @@ test gets a fresh runtime ([the environment](/docs/testing/vitest-environment-so
 | Wait for something               | [`waitFor`](/docs/testing/wait-for) and the `findBy` queries                                                                                                                           |
 | Move animations forward          | [`advanceTime`](/docs/testing/advance-time)                                                                                                                                            |
 | Set parameters, the host, native | [`testParameters`](/docs/testing/test-parameters), [`testHost`](/docs/testing/test-host), [`mockNative`](/docs/testing/mock-native)                                                    |
+| Resize the view                  | [`testView`](/docs/testing/test-view)                                                                                                                                                  |
 | Check focus                      | [`toHaveFocus`](/docs/testing/to-have-focus)                                                                                                                                           |
 
 [Best practices](/docs/testing/best-practices) says how to put them together.
@@ -76,7 +77,8 @@ Simulated: the node tree, input and its default actions, focus,
 accessibility, parameters, the host, the native API (mocked), the
 clipboard, JSON storage, and animations on a virtual clock.
 
-Not simulated: layout and pixels (no positions, nothing drawn), canvas
+Not simulated: layout and pixels (no positions, nothing drawn; the view's
+size is only what [`testView`](/docs/testing/test-view) sets), canvas
 drawing, audio, a DAW, Hermes and the native engine, and `soundor:fs` (mock
 it with `vi.mock('soundor:fs')`). A test checks behavior; what it looks like,
 and how it sounds, needs the plugin itself.

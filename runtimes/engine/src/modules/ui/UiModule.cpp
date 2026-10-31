@@ -29,6 +29,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const char listenerKey = 0;
         const char frameListenerKey = 0;
         const char animationListenerKey = 0;
+        const char viewSizeListenerKey = 0;
 
         // JavaScript indexes strings in UTF-16 code units, the surface in
         // UTF-8 bytes.
@@ -69,6 +70,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Binding& operator=(const Binding&) = delete;
 
             std::shared_ptr<Surface> surface;
+            // The view's size and scale JavaScript was last told of.
+            Size notifiedSize;
+            float notifiedScale = 0;
         };
 
         NodeId readId(const jsi::Value& value)
@@ -959,6 +963,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return jsi::Value::undefined();
         }
 
+        jsi::Value setViewSizeListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                       std::size_t count)
+        {
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setViewSizeListener() expects a function");
+            bind::retainValue(context, &viewSizeListenerKey, jsi::Value(context.rt, args[0]));
+            // The module read the size as it loaded: that is what it knows.
+            if (auto* binding = bind::contextData<Binding>(context, &bindingKey))
+            {
+                binding->notifiedSize = binding->surface->size();
+                binding->notifiedScale = binding->surface->scale();
+            }
+            return jsi::Value::undefined();
+        }
+
         AnimationDescription readAnimationDescription(ContextState& context, Surface& surface, std::uint32_t node,
                                                       const jsi::Value& inputFrames, const jsi::Value& inputOptions,
                                                       unsigned depth, std::size_t& phaseCount)
@@ -1362,6 +1381,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "registerFont", registerFont, 4 },
             { "setListener", setListener, 1 },
             { "setFrameListener", setFrameListener, 1 },
+            { "setViewSizeListener", setViewSizeListener, 1 },
             { "animate", animate, 3 },
             { "animationControl", animationControl, 2 },
             { "setAnimationListener", setAnimationListener, 1 },
@@ -1453,6 +1473,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         else
             timeline.clearCompletions();
+    }
+
+    void notifyViewSize(js::Context& context)
+    {
+        auto& state = js::stateOf(context);
+        auto* binding = js::bind::contextData<Binding>(state, &bindingKey);
+        if (binding == nullptr)
+            return;
+        const Size size = binding->surface->size();
+        const float scale = binding->surface->scale();
+        if (size.width == binding->notifiedSize.width && size.height == binding->notifiedSize.height
+            && scale == binding->notifiedScale)
+            return;
+        const jsi::Value* retained = bind::retainedValue(state, &viewSizeListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
+            return;
+        // Before calling: a listener that throws is not called again for the same size.
+        binding->notifiedSize = size;
+        binding->notifiedScale = scale;
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        bind::call(state, listener, jsi::Value::undefined(), {}, "view size listener failed");
     }
 
     void frame(js::Context& context)

@@ -1,6 +1,7 @@
 import { describeNativeApi } from '@soundor/core';
 import { z } from 'zod';
 
+import { checkEditor, editorSchema, resolveEditor } from './editor';
 import { type ConfigIssue, ConfigError } from './errors';
 import type { Runtime } from './runtime';
 import { checkSigningIdentity } from './signing';
@@ -103,6 +104,7 @@ const signingSchema = z.object({
 
 const soundorConfigSchema = z.object({
   plugin: pluginSchema,
+  editor: editorSchema.optional(),
   runtimes: z.array(runtimeSchema),
   parameters: z.array(parameterSchema),
   native: nativeSchema.optional(),
@@ -148,6 +150,7 @@ export function validateConfig(raw: unknown): SoundorConfig {
   data.parameters.forEach((parameter, i) => {
     checkParameter(parameter, `parameters[${i}]`, issues);
   });
+  if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
   const native = describeNativeApi(data.native as SoundorConfig['native']);
   if (!native.ok) issues.push(...native.issues);
 
@@ -224,6 +227,7 @@ function checkParameter(
 function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
   return {
     plugin: { id: data.plugin.id, name: data.plugin.name.trim() },
+    editor: { ...resolveEditor(data.editor) },
     runtimes: data.runtimes.map((runtime) => ({
       id: runtime.id,
       options: runtime.options ?? {},

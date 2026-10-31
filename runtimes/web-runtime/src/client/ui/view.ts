@@ -12,6 +12,7 @@
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
+import { Listeners } from '../listeners';
 import { AnimationController } from './animation';
 import {
   AccessibilityActionEvent,
@@ -24,7 +25,7 @@ import {
 import { createNode, nodeOf, UiNode, type ViewLink } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
-import type { Cursor, NodeType } from './types';
+import type { Cursor, NodeType, ViewSize } from './types';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -69,6 +70,11 @@ export class UiView implements ViewLink {
   /** The frame hover is to be refreshed in, if any. */
   #hoverFrame: number | null = null;
   #resizes: ResizeObserver | null = null;
+  /** The latest size(); replaced (never changed) when the size changes. */
+  #size: ViewSize = Object.freeze({ width: 0, height: 0, scale: 1 });
+  /** The size subscribers were last told of (size() may be newer). */
+  #notifiedSize = this.#size;
+  readonly #sizeListeners = new Listeners<ViewSize>();
 
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
@@ -102,6 +108,7 @@ export class UiView implements ViewLink {
   dispose(): void {
     this.animations.dispose();
     this.#resizes?.disconnect();
+    this.#sizeListeners.clear();
     if (this.#hoverFrame !== null)
       this.rootElement.ownerDocument.defaultView?.cancelAnimationFrame(
         this.#hoverFrame,
@@ -121,14 +128,44 @@ export class UiView implements ViewLink {
     return this.rootElement.getBoundingClientRect().width / width || 1;
   }
 
-  /** The view's size in logical pixels, and device pixels per logical pixel. */
-  size(): { width: number; height: number; scale: number } {
+  /**
+   * The view's size in logical pixels, and device pixels per logical pixel:
+   * measured, but the same frozen object until one of them changes.
+   */
+  size(): ViewSize {
     const window = this.rootElement.ownerDocument.defaultView;
-    return {
-      width: this.rootElement.offsetWidth,
-      height: this.rootElement.offsetHeight,
-      scale: (window?.devicePixelRatio ?? 1) * this.scale(),
-    };
+    const width = this.rootElement.offsetWidth;
+    const height = this.rootElement.offsetHeight;
+    const scale = (window?.devicePixelRatio ?? 1) * this.scale();
+    const size = this.#size;
+    if (
+      width !== size.width ||
+      height !== size.height ||
+      scale !== size.scale
+    ) {
+      this.#size = Object.freeze({ width, height, scale });
+    }
+    return this.#size;
+  }
+
+  /**
+   * Calls `listener` with the new size() whenever the view's size or scale
+   * changes. Returns a function that unsubscribes.
+   */
+  subscribeSize(listener: (size: ViewSize) => void): () => void {
+    return this.#sizeListeners.add(listener, 'subscribeViewSize()');
+  }
+
+  /**
+   * Measures the view again and tells subscribers if it changed: the view
+   * does on a resize or a new pixel density; the host calls it when it
+   * scales the view, which no observer sees.
+   */
+  measure(): void {
+    const size = this.size();
+    if (size === this.#notifiedSize) return;
+    this.#notifiedSize = size;
+    this.#sizeListeners.notify(size);
   }
 
   // ── Focus ──────────────────────────────────────────────────────────────────
@@ -309,6 +346,27 @@ export class UiView implements ViewLink {
   }
 
   /** Refreshes hover in the next frame, once. */
+  /**
+   * Measures the view again when the page's pixel density changes (browser
+   * zoom, a display of another density), which resizes nothing an observer
+   * sees. A media query matches one density: a new one is made each time.
+   */
+  #watchDensity(): void {
+    const window = this.rootElement.ownerDocument.defaultView;
+    if (typeof window?.matchMedia !== 'function') return;
+    const query = window.matchMedia(
+      `(resolution: ${window.devicePixelRatio}dppx)`,
+    );
+    query.addEventListener(
+      'change',
+      () => {
+        this.measure();
+        this.#watchDensity();
+      },
+      { once: true, signal: this.#controller.signal },
+    );
+  }
+
   #hoverChanged(): void {
     const window = this.rootElement.ownerDocument.defaultView;
     if (this.#hoverFrame !== null || window === null) return;
@@ -461,12 +519,17 @@ export class UiView implements ViewLink {
       pointer((e) => this.#pointerLeave(e)),
       options,
     );
-    // A resized view lays out again under the pointer.
+    // A resized view lays out again under the pointer, and tells its size
+    // subscribers (measured after layout, before the frame is painted).
     const Observer = element.ownerDocument.defaultView?.ResizeObserver;
     if (Observer !== undefined) {
-      this.#resizes = new Observer(() => this.#hoverChanged());
+      this.#resizes = new Observer(() => {
+        this.#hoverChanged();
+        this.measure();
+      });
       this.#resizes.observe(element);
     }
+    this.#watchDensity();
     // A press the view did not capture (a text input's) can move and end
     // outside it; inside, the view's own listeners have it.
     const window = element.ownerDocument.defaultView;

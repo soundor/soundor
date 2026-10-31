@@ -156,9 +156,11 @@ export function createUiModule(runtime: TestRuntime) {
     exitPointerLock: () => runtime.exitPointerLock(),
     pointerLockNode: () => runtime.pointerLockNode(),
     clipboard: runtime.clipboard,
-    viewSize: () => {
-      throw new Error('Layout is unavailable in the simulated Soundor runtime');
-    },
+    /** The simulated size (nothing is laid out at it): the same object until set. */
+    viewSize: () => runtime.viewSize(),
+    subscribeViewSize: (
+      listener: Parameters<TestRuntime['subscribeViewSize']>[0],
+    ) => runtime.subscribeViewSize(listener),
     /** Checks its arguments as the runtimes do; there is no text to set in it. */
     registerFont: (
       family: string,

@@ -18,6 +18,7 @@ import Text from './text';
 import TextInput from './text-input';
 import Tooltip from './tooltip';
 import View from './view';
+import ViewSize from './view-size';
 
 export const snippets: Readonly<Record<string, ComponentType>> = {
   animated: Animated,
@@ -37,4 +38,5 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   'text-input': TextInput,
   tooltip: Tooltip,
   view: View,
+  'view-size': ViewSize,
 };
