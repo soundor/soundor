@@ -56,6 +56,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
         }
 
+        // `size` within `min` and `max` where they share its unit. Yoga clamps
+        // a box with a fixed size itself, but a container sized by its
+        // content and stretched across its parent counted the size before the
+        // clamp (height 90, maxHeight 40: a 90-tall parent around a 40-tall
+        // child), where CSS counts the box as it is laid out.
+        Length clamped(Length size, const Length& min, const Length& max)
+        {
+            if (size.unit != Length::Unit::Point && size.unit != Length::Unit::Percent)
+                return size;
+            if (max.unit == size.unit)
+                size.value = std::min(size.value, max.value);
+            if (min.unit == size.unit)
+                size.value = std::max(size.value, min.value);
+            return size;
+        }
+
         // `style` without what only changes how a node looks or stacks: the
         // rest decides its layout (and its text's measurements). Anything not
         // named here counts as layout, so a new property is laid out until
@@ -107,11 +123,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 [&](float v) { YGNodeStyleSetFlexBasisPercent(node, v); }, [&] { YGNodeStyleSetFlexBasisAuto(node); });
 
             setLength(
-                style.width, [&](float v) { YGNodeStyleSetWidth(node, v); },
+                clamped(style.width, style.minWidth, style.maxWidth), [&](float v) { YGNodeStyleSetWidth(node, v); },
                 [&](float v) { YGNodeStyleSetWidthPercent(node, v); }, [&] { YGNodeStyleSetWidthAuto(node); });
             setLength(
-                style.height, [&](float v) { YGNodeStyleSetHeight(node, v); },
-                [&](float v) { YGNodeStyleSetHeightPercent(node, v); }, [&] { YGNodeStyleSetHeightAuto(node); });
+                clamped(style.height, style.minHeight, style.maxHeight),
+                [&](float v) { YGNodeStyleSetHeight(node, v); }, [&](float v) { YGNodeStyleSetHeightPercent(node, v); },
+                [&] { YGNodeStyleSetHeightAuto(node); });
             setLength(
                 style.minWidth, [&](float v) { YGNodeStyleSetMinWidth(node, v); }, [&](float v)
                 { YGNodeStyleSetMinWidthPercent(node, v); }, [&] { YGNodeStyleSetMinWidth(node, YGUndefined); });

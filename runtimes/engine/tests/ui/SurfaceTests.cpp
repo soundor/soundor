@@ -240,6 +240,60 @@ TEST_SUITE("ui::Surface layout")
         CHECK(f.surface.bounds(f.b).x == 0);
     }
 
+    // These two lay out as a browser does (the web runtime's results).
+    TEST_CASE("a parent sized by its content counts a child's size after minimum and maximum")
+    {
+        Surface surface;
+        surface.setSize({ 200, 200 });
+        const NodeId parent = surface.createNode(NodeType::View);
+        const NodeId capped = surface.createNode(NodeType::View);
+        Style cappedStyle = sized(90, 90);
+        cappedStyle.maxHeight = Length::points(40);
+        surface.setStyle(capped, cappedStyle);
+        const NodeId raised = surface.createNode(NodeType::View);
+        Style raisedStyle = sized(10, 10);
+        raisedStyle.minHeight = Length::points(25);
+        surface.setStyle(raised, raisedStyle);
+        surface.insertChild(surface.root().id(), parent);
+        surface.insertChild(parent, capped);
+        surface.insertChild(parent, raised);
+
+        CHECK(surface.bounds(capped).height == 40);
+        CHECK(surface.bounds(raised).height == 25);
+        // Not 90 + 10: Yoga counted the sizes before the clamp in a parent
+        // stretched across.
+        CHECK(surface.bounds(parent).height == 65);
+    }
+
+    TEST_CASE("a box with no room still measures its content")
+    {
+        // A button (padding 8 around a 17-tall label) in a container
+        // squeezed to 0: its content still counts, as with a pixel of room.
+        Surface surface;
+        surface.setSize({ 200, 200 });
+        for (const float room : { 0.0F, 1.0F })
+        {
+            const NodeId container = surface.createNode(NodeType::View);
+            Style containerStyle;
+            containerStyle.height = Length::points(room);
+            surface.setStyle(container, containerStyle);
+            const NodeId button = surface.createNode(NodeType::View);
+            Style buttonStyle;
+            buttonStyle.padding = { Length::points(8), Length::points(8), Length::points(8), Length::points(8) };
+            surface.setStyle(button, buttonStyle);
+            const NodeId label = surface.createNode(NodeType::View);
+            surface.setStyle(label, sized(80, 17));
+            surface.insertChild(surface.root().id(), container);
+            surface.insertChild(container, button);
+            surface.insertChild(button, label);
+
+            CAPTURE(room);
+            CHECK(surface.bounds(button).height == 33);
+            CHECK(surface.bounds(label).y - surface.bounds(button).y == 8);
+            surface.removeChild(surface.root().id(), container);
+        }
+    }
+
     TEST_CASE("text nodes are measured, wrap, and remeasure when their text changes")
     {
         Surface surface;

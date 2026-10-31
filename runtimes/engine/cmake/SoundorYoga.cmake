@@ -1,7 +1,8 @@
 # Yoga (flexbox layout) as a private, static, hidden-visibility target.
 #
 # Only the layout engine (yoga/) is compiled. Its C API is patched to hidden
-# visibility (see SoundorYogaPatch.cmake) so no YG* symbol leaves a plugin.
+# visibility so no YG* symbol leaves a plugin, and its layout in one case
+# (see SoundorYogaPatch.cmake).
 
 include_guard(GLOBAL)
 
@@ -12,7 +13,7 @@ FetchContent_Declare(
   URL "https://github.com/facebook/yoga/archive/${SOUNDOR_YOGA_REVISION}.tar.gz"
   URL_HASH "SHA256=${SOUNDOR_YOGA_SHA256}"
   DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-  PATCH_COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/yoga/YGMacros.h -P
+  PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE=<SOURCE_DIR> -P
                 ${CMAKE_CURRENT_LIST_DIR}/SoundorYogaPatch.cmake
   SOURCE_SUBDIR "soundor-populate-only")
 FetchContent_MakeAvailable(SOUNDOR_YOGA)
