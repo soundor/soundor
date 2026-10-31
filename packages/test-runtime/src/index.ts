@@ -8,7 +8,12 @@ export {
   type SemanticNode,
   type SemanticRole,
 } from './semantics';
-export type { RuntimeOptions, ParameterInfo, HostSnapshot } from './services';
+export type {
+  RuntimeOptions,
+  ParameterInfo,
+  HostSnapshot,
+  ViewSize,
+} from './services';
 export type * from './types';
 export {
   createUiModule,

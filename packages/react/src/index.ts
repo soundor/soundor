@@ -42,7 +42,12 @@ export {
 } from './components';
 export { FocusScope, type FocusScopeProps } from './focus';
 export { Modal, type ModalProps } from './modal';
-export { useAnimationFrame, useParameter, type ParameterLike } from './hooks';
+export {
+  useAnimationFrame,
+  useParameter,
+  useViewSize,
+  type ParameterLike,
+} from './hooks';
 export {
   createPortalHost,
   Portal,

@@ -711,3 +711,39 @@ it('uses native cancellation flags for focus, input, change and hover notificati
   expect(node.value).toBe('');
   runtime.dispose();
 });
+
+describe('the view size', () => {
+  it('starts at the configured size and tells subscribers once per change', () => {
+    const runtime = createTestRuntime({ view: { width: 640, height: 480 } });
+    const ui = createUiModule(runtime);
+    const size = ui.viewSize();
+    expect(size).toEqual({ width: 640, height: 480, scale: 1 });
+    expect(ui.viewSize()).toBe(size);
+    const a = vi.fn<(size: unknown) => void>();
+    const b = vi.fn<(size: unknown) => void>();
+    ui.subscribeViewSize(a);
+    const unsubscribe = ui.subscribeViewSize(b);
+    runtime.setViewSize({ width: 900 });
+    runtime.setViewSize({ width: 900, height: 480 });
+    expect(a).toHaveBeenCalledOnce();
+    expect(a).toHaveBeenLastCalledWith({ width: 900, height: 480, scale: 1 });
+    expect(ui.viewSize()).toBe(a.mock.calls[0]![0]);
+    unsubscribe();
+    runtime.setViewSize({ scale: 2 });
+    expect(a).toHaveBeenCalledTimes(2);
+    expect(b).toHaveBeenCalledOnce();
+    expect(() => runtime.setViewSize({ height: Number.NaN })).toThrow(
+      RangeError,
+    );
+    runtime.dispose();
+    expect(() => ui.viewSize()).toThrow('disposed');
+  });
+
+  it('is 800×600 by default', () => {
+    expect(createUiModule(createTestRuntime()).viewSize()).toEqual({
+      width: 800,
+      height: 600,
+      scale: 1,
+    });
+  });
+});

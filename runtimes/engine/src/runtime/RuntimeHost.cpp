@@ -103,6 +103,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             parameters::dispatchChanges(*jsContext);
             lap(ticked.parameters);
         }
+        // The size the backend gave the surface since the last tick, before
+        // the frame laid out at it.
+        ui::notifyViewSize(*jsContext);
         jsRuntime->runPendingJobs();
         lap(ticked.jobs);
         ui::notifyAnimations(*jsContext);

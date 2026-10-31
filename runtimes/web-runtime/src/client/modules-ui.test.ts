@@ -15,6 +15,7 @@ import {
   PointerEvent,
   pressable,
   root,
+  subscribeViewSize,
   UiNode,
   viewSize,
 } from 'soundor:ui';
@@ -22,7 +23,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { uiView } from './context';
 import type { PressableState } from './modules/ui';
-import type { Accessibility, LayoutRect, Style } from './ui/types';
+import type { Accessibility, LayoutRect, Style, ViewSize } from './ui/types';
 
 describe('soundor:ui', () => {
   it('declares the same shapes as the contract', () => {
@@ -30,6 +31,30 @@ describe('soundor:ui', () => {
     expectTypeOf<LayoutRect>().toEqualTypeOf<Contract.LayoutRect>();
     expectTypeOf<PressableState>().toEqualTypeOf<Contract.PressableState>();
     expectTypeOf<Accessibility>().toEqualTypeOf<Contract.Accessibility>();
+    expectTypeOf<ViewSize>().toEqualTypeOf<Contract.ViewSize>();
+  });
+
+  it("reports the page view's size and tells subscribers of a change", () => {
+    const size = viewSize();
+    expect(viewSize()).toBe(size);
+    const sizes: Contract.ViewSize[] = [];
+    const unsubscribe = subscribeViewSize((next) => sizes.push(next));
+    uiView().measure();
+    expect(sizes).toEqual([]);
+    Object.defineProperty(uiView().rootElement, 'offsetWidth', {
+      value: 320,
+      configurable: true,
+    });
+    uiView().measure();
+    expect(sizes).toEqual([{ ...size, width: 320 }]);
+    expect(sizes[0]).toBe(viewSize());
+    unsubscribe();
+    Object.defineProperty(uiView().rootElement, 'offsetWidth', {
+      value: 0,
+      configurable: true,
+    });
+    uiView().measure();
+    expect(sizes).toHaveLength(1);
   });
 
   it('is the page view: its root and its nodes', () => {

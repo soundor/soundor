@@ -8,6 +8,7 @@ import {
   MemoryStorage,
   type RuntimeOptions,
   type HostSnapshot,
+  type ViewSize,
 } from './services';
 import type {
   AnimationDescription,
@@ -39,6 +40,8 @@ export class TestRuntime {
   private reducedMotion = false;
   private hostState: HostSnapshot;
   private hostListeners = new Listeners<HostSnapshot>();
+  private size: ViewSize;
+  private sizeListeners = new Listeners<ViewSize>();
   private clipboardText = '';
   private cleanups = new Set<() => void>();
   private committed = new WeakMap<TestNode, string>();
@@ -67,6 +70,12 @@ export class TestRuntime {
       hostName: 'Soundor Test',
       transport: null,
       ...options.host,
+    });
+    this.size = Object.freeze({
+      width: 800,
+      height: 600,
+      scale: 1,
+      ...options.view,
     });
   }
   get isDisposed() {
@@ -621,6 +630,33 @@ export class TestRuntime {
     this.hostState = Object.freeze({ ...this.hostState, ...state });
     this.hostListeners.notify(this.hostState);
   }
+  viewSize() {
+    this.assertActive();
+    return this.size;
+  }
+  subscribeViewSize(listener: (size: ViewSize) => void) {
+    this.assertActive();
+    return this.sizeListeners.add(listener, 'subscribeViewSize()');
+  }
+  /** Resizes the view, as a user resizing the editor would; tells subscribers once per change. */
+  setViewSize(size: Partial<ViewSize>) {
+    this.assertActive();
+    const next = { ...this.size, ...size };
+    for (const key of ['width', 'height', 'scale'] as const) {
+      if (!(Number.isFinite(next[key]) && next[key] >= 0))
+        throw new RangeError(
+          `The view's ${key} must be a finite, non-negative number`,
+        );
+    }
+    if (
+      next.width === this.size.width &&
+      next.height === this.size.height &&
+      next.scale === this.size.scale
+    )
+      return;
+    this.size = Object.freeze(next);
+    this.sizeListeners.notify(this.size);
+  }
   mockNative(name: string, implementation: (...args: never[]) => unknown) {
     this.assertActive();
     if (this.nativeMethods && !this.nativeMethods.has(name))
@@ -656,6 +692,7 @@ export class TestRuntime {
     this.clock.clear();
     this.parameters.list.forEach((parameter) => parameter.dispose());
     this.hostListeners.clear();
+    this.sizeListeners.clear();
     this.storage.dispose();
     for (const node of this.nodes.values()) {
       node.listeners.clear();

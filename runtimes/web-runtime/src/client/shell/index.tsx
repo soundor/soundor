@@ -47,6 +47,11 @@ export interface ShellOptions {
    * the JUCE editor opens. Ignored by `embed`, which fills the page.
    */
   readonly editor: WebEditor;
+  /**
+   * Called when the shell scales the plugin viewport (to fit the stage),
+   * which no ResizeObserver sees: the view measures itself again.
+   */
+  readonly onScale?: () => void;
   readonly host: WebHost;
   readonly parameters: ParameterStore;
   readonly audio: WebAudioHost;
@@ -131,7 +136,7 @@ function Shell(options: ShellOptions) {
   }, [remember, panelOpen]);
   return (
     <>
-      <Stage editor={options.editor}>
+      <Stage editor={options.editor} onScale={options.onScale}>
         <Dock
           host={options.host}
           audio={options.audio}
@@ -168,10 +173,12 @@ function Shell(options: ShellOptions) {
 function Stage({
   editor,
   fill = false,
+  onScale,
   children,
 }: {
   readonly editor: WebEditor;
   readonly fill?: boolean;
+  readonly onScale?: (() => void) | undefined;
   readonly children?: ComponentChildren;
 }) {
   const stage = useRef<HTMLElement>(null);
@@ -204,6 +211,12 @@ function Stage({
     return () => observer.disconnect();
   }, [fill]);
 
+  const scale =
+    fill || room === null
+      ? 1
+      : Math.min(1, room.width / size.width, room.height / size.height);
+  useLayoutEffect(() => onScale?.(), [onScale, scale]);
+
   if (fill) {
     return (
       <main ref={stage} class="soundor-stage soundor-fill">
@@ -211,10 +224,6 @@ function Stage({
       </main>
     );
   }
-  const scale =
-    room === null
-      ? 1
-      : Math.min(1, room.width / size.width, room.height / size.height);
   return (
     <main ref={stage} class="soundor-stage">
       <div

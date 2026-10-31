@@ -41,10 +41,22 @@ export interface HostSnapshot {
     readonly timeInSamples: number;
   } | null;
 }
+/** The simulated view's size: logical pixels, and device pixels per one. */
+export interface ViewSize {
+  readonly width: number;
+  readonly height: number;
+  readonly scale: number;
+}
 export interface RuntimeOptions {
   plugin?: { id: string; name: string };
   parameters?: readonly ParameterInfo[];
   host?: Partial<HostSnapshot>;
+  /**
+   * The view's size; by default the project's editor size (800×600 without
+   * one) at a scale of 1. Nothing is laid out at it: it is what viewSize()
+   * reports.
+   */
+  view?: Partial<ViewSize>;
   /** Declared methods in the simulated project; omitted for direct runtime unit tests. */
   nativeMethods?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;

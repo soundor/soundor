@@ -20,6 +20,7 @@ import {
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
 import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
+import { reportError } from 'soundor:internal/web/console';
 import {
   Event,
   EventTarget,
@@ -1084,10 +1085,54 @@ export const root = new UiNode(CONSTRUCTING, 'view', native.rootId);
  */
 export const overlayRoot = new UiNode(CONSTRUCTING, 'view', native.overlayId);
 
-/** The view's size in logical pixels, and device pixels per logical pixel. */
+/** The latest viewSize(); replaced (never changed) when the size changes. */
+let currentSize = Object.freeze(native.size());
+
+/**
+ * The view's size in logical pixels, and device pixels per logical pixel.
+ * The same frozen object until one of them changes, so it works as a store
+ * snapshot (e.g. React's useSyncExternalStore(subscribeViewSize, viewSize)).
+ */
 export function viewSize() {
-  return native.size();
+  const size = native.size();
+  if (
+    size.width !== currentSize.width ||
+    size.height !== currentSize.height ||
+    size.scale !== currentSize.scale
+  )
+    currentSize = Object.freeze(size);
+  return currentSize;
 }
+
+const sizeListeners = new Set();
+
+/**
+ * Calls `listener` with the new viewSize() once whenever the view's size or
+ * scale changes (not every frame), before the view is drawn at it. Returns
+ * an unsubscribe function.
+ */
+export function subscribeViewSize(listener) {
+  if (typeof listener !== 'function')
+    throw new TypeError('subscribeViewSize() expects a function');
+  const entry = { listener };
+  sizeListeners.add(entry);
+  return () => {
+    sizeListeners.delete(entry);
+  };
+}
+
+native.setViewSizeListener(() => {
+  const previous = currentSize;
+  const size = viewSize();
+  if (size === previous) return;
+  for (const { listener } of [...sizeListeners]) {
+    try {
+      listener(size);
+    } catch (error) {
+      reportError(error);
+    }
+  }
+});
 
 /** Ends the pointer lock, if any: the pointer shows again where it began. */
 export function exitPointerLock() {

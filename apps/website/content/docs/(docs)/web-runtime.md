@@ -457,6 +457,14 @@ the view opens at its configured size (scaled down if the page is smaller)
 and is resized within its limits; dragged past the page's edge, it stops
 there rather than being scaled.
 
+Plugin code learns of both through
+[`useViewSize()`](/docs/hooks/use-view-size) (or `soundor:ui`'s
+`viewSize()` and `subscribeViewSize()`): `width` and `height` are the
+logical size, and `scale` the device pixels per logical pixel, which counts
+the host's scaling. The view measures itself with the `ResizeObserver` that
+also keeps hover up to date, watches the page's pixel density, and is told
+when the host changes its scaling, which no observer sees.
+
 ```ts
 export default defineSoundorConfig({
   // …

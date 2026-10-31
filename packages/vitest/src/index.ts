@@ -96,7 +96,12 @@ export function soundor(options: SoundorOptions = {}): Plugin {
             );
           native = project.native ?? {};
           parameters = project.parameters;
-          runtime = { plugin: project.plugin, parameters, ...runtime };
+          // The view opens at the editor's size, as in the runtimes.
+          const view = project.editor && {
+            width: project.editor.width,
+            height: project.editor.height,
+          };
+          runtime = { plugin: project.plugin, parameters, view, ...runtime };
         }
       }
       parameters = runtime.parameters ?? parameters;

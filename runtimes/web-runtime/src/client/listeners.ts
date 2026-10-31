@@ -9,6 +9,10 @@ import { report } from './report';
 export class Listeners<Value> {
   #entries: readonly { readonly listener: (value: Value) => void }[] = [];
 
+  clear(): void {
+    this.#entries = [];
+  }
+
   get size(): number {
     return this.#entries.length;
   }

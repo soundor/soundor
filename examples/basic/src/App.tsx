@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   useParameter,
+  useViewSize,
   View,
 } from '@soundor/react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -103,12 +104,24 @@ function PresetName() {
   );
 }
 
+/** Narrower than this, the controls stack instead of sitting side by side. */
+const COMPACT_WIDTH = 640;
+
 export function App() {
+  // The editor is resizable: the layout follows its size in logical pixels.
+  const { width, height } = useViewSize();
+  const compact = width < COMPACT_WIDTH;
   return (
     <View style={styles.root}>
       <Text style={styles.title}>{plugin.name}</Text>
       <HostStatus />
-      <View style={styles.row}>
+      <Text style={styles.caption}>
+        {`${Math.round(width)} × ${Math.round(height)}`}
+      </Text>
+      <View
+        accessibilityLabel={compact ? 'Controls, stacked' : 'Controls'}
+        style={[styles.row, compact && styles.stacked]}
+      >
         <GainFader />
         <View style={styles.panel}>
           <PresetName />
@@ -133,6 +146,7 @@ const styles = StyleSheet.create({
   title: { color: '#f2f3f5', fontSize: 20, fontWeight: 'bold' },
   caption: { color: '#8b8f98', fontSize: 12 },
   row: { flexDirection: 'row', gap: 24, marginTop: 12 },
+  stacked: { flexDirection: 'column', gap: 16 },
   faderColumn: { alignItems: 'center', gap: 6 },
   fader: {
     width: 36,

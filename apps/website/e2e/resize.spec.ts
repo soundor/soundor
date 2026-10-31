@@ -145,15 +145,44 @@ test('embedded, the view fills its iframe as the parent page resizes it', async 
     return [Math.round(box.width), Math.round(box.height)];
   };
   expect(await size()).toEqual([400, 300]);
-  const input = plugin.getByRole('textbox');
-  const before = await width(input);
+  // useViewSize() reports the iframe's size: narrow, the controls stack.
+  await expect(plugin.getByText('400 × 300')).toBeVisible();
+  await expect(plugin.getByLabel('Controls, stacked')).toBeVisible();
 
   // The parent page resizes the iframe; the window stays as it was.
-  await page.locator('iframe').evaluate((frame: HTMLIFrameElement) => {
-    frame.style.width = '700px';
-    frame.style.height = '450px';
-  });
+  const resize = (width: number, height: number) =>
+    page.locator('iframe').evaluate(
+      (frame: HTMLIFrameElement, [width, height]) => {
+        frame.style.width = `${width}px`;
+        frame.style.height = `${height}px`;
+      },
+      [width, height],
+    );
+  await resize(700, 450);
   await expect.poll(size).toEqual([700, 450]);
-  expect(await width(input)).toBe(before + 300);
+  await expect(plugin.getByText('700 × 450')).toBeVisible();
+  await expect(plugin.getByLabel('Controls', { exact: true })).toBeVisible();
+  const input = plugin.getByRole('textbox');
+  const before = await width(input);
+  await resize(900, 450);
+  await expect.poll(size).toEqual([900, 450]);
+  expect(await width(input)).toBe(before + 200);
   expect(page.viewportSize()).toEqual({ width: 1440, height: 900 });
+});
+
+test('the UI is told of its size and stacks its controls when narrow', async ({
+  page,
+}) => {
+  await expect(page.getByText('800 × 600')).toBeVisible();
+  await expect(page.getByLabel('Controls', { exact: true })).toBeVisible();
+  // Across the breakpoint (640), in steps as a drag makes them, and back.
+  await drag(page, -120, 0);
+  expect(await viewSize(page)).toEqual([560, 600]);
+  await expect(page.getByText('560 × 600')).toBeVisible();
+  await expect(page.getByLabel('Controls, stacked')).toBeVisible();
+  // The controls still work stacked.
+  await page.getByRole('button', { name: 'Reset gain' }).click();
+  await drag(page, 100, -50);
+  await expect(page.getByText('760 × 500')).toBeVisible();
+  await expect(page.getByLabel('Controls', { exact: true })).toBeVisible();
 });

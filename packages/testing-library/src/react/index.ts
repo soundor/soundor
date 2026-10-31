@@ -23,6 +23,7 @@ import { createQueries, resolveNode, type NodeTarget } from '../queries';
 import {
   testParameters as rawTestParameters,
   testHost as rawTestHost,
+  testView as rawTestView,
 } from '../setup';
 export type {
   TextMatch,
@@ -171,4 +172,7 @@ export const testParameters: typeof rawTestParameters = {
 };
 export const testHost: typeof rawTestHost = {
   set: (state) => syncUpdate(() => rawTestHost.set(state)),
+};
+export const testView: typeof rawTestView = {
+  resize: (size) => syncUpdate(() => rawTestView.resize(size)),
 };

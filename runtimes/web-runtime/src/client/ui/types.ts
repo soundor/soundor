@@ -298,3 +298,10 @@ export interface Accessibility {
   actions?: readonly AccessibilityAction[];
   modal?: boolean;
 }
+
+/** The view's size in logical pixels, and device pixels per logical pixel. */
+export interface ViewSize {
+  readonly width: number;
+  readonly height: number;
+  readonly scale: number;
+}

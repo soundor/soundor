@@ -15,6 +15,7 @@ import type {
   AnimationDescription,
   AnimationOptions,
   UiAnimation,
+  ViewSize,
 } from '../ui/types';
 export {
   effect,
@@ -102,9 +103,22 @@ export function createTextInput(
   return node;
 }
 
-/** The view's size in logical pixels, and device pixels per logical pixel. */
-export function viewSize(): { width: number; height: number; scale: number } {
+/**
+ * The view's size in logical pixels, and device pixels per logical pixel:
+ * the same frozen object until one of them changes.
+ */
+export function viewSize(): ViewSize {
   return view.size();
+}
+
+/**
+ * Calls `listener` with the new viewSize() whenever the view's size or scale
+ * changes. Returns a function that unsubscribes.
+ */
+export function subscribeViewSize(
+  listener: (size: ViewSize) => void,
+): () => void {
+  return view.subscribeSize(listener);
 }
 
 /**

@@ -488,6 +488,30 @@ describe('a resizable view', () => {
     expect(shell.element.querySelector('.soundor-fill')).not.toBeNull();
   });
 
+  it('has the view measured again when it scales it', () => {
+    const resize = observeStage();
+    const onScale = vi.fn<() => void>();
+    const context = setup('demo', RESIZABLE);
+    context.shell.remove();
+    const shell = createShell(document.body, {
+      pluginName: 'Fixture',
+      presentation: 'demo',
+      editor: RESIZABLE,
+      onScale,
+      host: context.host,
+      parameters: context.parameters,
+      audio: context.audio,
+    });
+    shells.push(shell);
+    onScale.mockClear();
+    resize(shell, 432, 392);
+    expect(onScale).toHaveBeenCalledOnce();
+    resize(shell, 433, 392);
+    expect(onScale).toHaveBeenCalledOnce();
+    resize(shell, 3000, 2000);
+    expect(onScale).toHaveBeenCalledTimes(2);
+  });
+
   it('is resizable in dev as in demo', () => {
     const { handle, drag, size } = resizable(RESIZABLE, 'dev');
     expect(handle).not.toBeNull();

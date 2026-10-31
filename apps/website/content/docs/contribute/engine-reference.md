@@ -567,6 +567,19 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     nodes.
   - **Keys and text:** `keydown`/`keyup` go to the focused node (else the
     root). Typed text arrives as `beforeinput`.
+- **The view's size:** the backend gives the Surface its logical size
+  (`Surface::setSize`, which ignores an unchanged size) and its scale
+  (`Surface::setScale`); Yoga lays both roots out at that size. The JUCE
+  editor does so every tick and when painting, and under the GPU
+  compositor also from `resized()`. `RuntimeHost::tick()` calls
+  `ui::notifyViewSize()` after parameter changes and before pending jobs
+  and animation frames: when the size or scale differs from what
+  JavaScript was last told, it calls the module's internal listener once,
+  and `viewSize()` replaces its frozen snapshot and calls the
+  `subscribeViewSize()` listeners. So a burst of resizes between two ticks
+  is one notification, and what the listeners change is laid out in the
+  same tick's frame. The last size told lives with the context's binding,
+  so a reloaded runtime starts afresh; no public engine header changed.
 - **Events:** capture and bubble as in the DOM, as `PointerEvent`,
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
   `preventDefault()` tells the backend the input was handled; unhandled keys

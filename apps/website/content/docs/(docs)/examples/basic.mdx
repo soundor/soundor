@@ -19,7 +19,8 @@ soundor.config.ts   identity, a resizable editor, the `gain` parameter,
                     both runtimes
 src/main.tsx        mounts src/App.tsx
 src/App.tsx         the plugin UI (@soundor/react): a fader, the host's
-                    transport, a preset name kept in soundor:storage
+                    transport, a preset name kept in soundor:storage,
+                    stacked when the editor is narrow
 
 runtimes/juce/      JUCE (C++): applies `gain` in PluginProcessor.cpp
 runtimes/web/       Web (TypeScript): applies `gain` with a GainNode in
@@ -55,7 +56,10 @@ Press ▶ to play the host's input (an oscillator, or an audio file of yours)
 and move the fader: the plugin UI sets `gain`, and the GainNode follows it.
 Its editor is resizable (`editor: { resizable: true }`): drag the handle at
 the view's corner and the UI is laid out again at the new size, as in the
-JUCE editor.
+JUCE editor. `App.tsx` reads the size with
+[`useViewSize()`](/docs/hooks/use-view-size): it shows it, and narrower than
+640 logical pixels it stacks the fader and the panel instead of setting them
+side by side, the same in both runtimes.
 
 The build works from any path and inside an iframe, so a docs page can show
 the code above next to the running plugin:

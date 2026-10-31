@@ -8,7 +8,9 @@
 //   soundor_juce_editor_resize <plugin.vst3>
 //
 // The plugin is the JUCE runtime's test plugin (tests/plugin), whose editor
-// is resizable: 640×480, within 400×300 and 1280×960. Built with the JUCE
+// is resizable: 640×480, within 400×300 and 1280×960. Its UI is a column of
+// three lines of text, or a row of them from 800 logical pixels wide, which
+// it learns through soundor:ui's subscribeViewSize(). Built with the JUCE
 // adapter tests; needs a display at least 1600×1040 large (on Linux:
 // xvfb-run -s "-screen 0 1920x1200x24").
 
@@ -117,22 +119,29 @@ int main(int argc, char** argv)
         expectCentred(first, { 640, 480 }, "at 640x480");
         expect(first.drawn.getWidth() > 20 && first.drawn.getHeight() > 20, "the UI drew text");
 
-        // Larger: laid out again, not scaled (the text keeps its size).
+        // Larger: laid out again, not scaled, and the UI, told of the new
+        // size, lays its text out in a row: one line, as wide as three.
         editor->setSize(1000, 700);
         expect(editor->getWidth() == 1000 && editor->getHeight() == 700,
                "it resizes to 1000x700: " + editor->getBounds().toString());
         const Shown larger = show(*editor, "1000x700");
         expect(window->getContentComponent()->getBounds().getWidth() == 1000, "the window follows the editor");
         expectCentred(larger, { 1000, 700 }, "at 1000x700");
-        expect(std::abs(larger.drawn.getHeight() - first.drawn.getHeight()) <= 2
-                   && std::abs(larger.drawn.getWidth() - first.drawn.getWidth()) <= 2,
-               "the UI keeps its size: " + first.drawn.toString() + " then " + larger.drawn.toString());
+        expect(larger.drawn.getHeight() * 2 < first.drawn.getHeight()
+                   && larger.drawn.getWidth() > first.drawn.getWidth() * 2,
+               "the UI switched to its row: " + first.drawn.toString() + " then " + larger.drawn.toString());
 
         // Beyond the limits: the plugin constrains what the host asks for.
+        // Narrow again, the column, at the size it had (not scaled).
         editor->setSize(200, 100);
         expect(editor->getWidth() == 400 && editor->getHeight() == 300,
                "too small is held at 400x300: " + editor->getBounds().toString());
-        expectCentred(show(*editor, "400x300"), { 400, 300 }, "at its minimum");
+        const Shown smallest = show(*editor, "400x300");
+        expectCentred(smallest, { 400, 300 }, "at its minimum");
+        expect(std::abs(smallest.drawn.getHeight() - first.drawn.getHeight()) <= 2
+                   && std::abs(smallest.drawn.getWidth() - first.drawn.getWidth()) <= 2,
+               "the UI is its column again, at its size: " + first.drawn.toString() + " then "
+                   + smallest.drawn.toString());
         editor->setSize(3000, 3000);
         expect(editor->getWidth() == 1280 && editor->getHeight() == 960,
                "too large is held at 1280x960: " + editor->getBounds().toString());
@@ -166,8 +175,10 @@ int main(int argc, char** argv)
         expect(physical.getWidth() == 1600 && physical.getHeight() == 1040,
                "at scale 2 the editor covers 1600x1040: " + physical.toString());
         expectCentred(scaled, { physical.getWidth(), physical.getHeight() }, "at scale 2");
-        expect(std::abs(scaled.drawn.getHeight() - 2 * first.drawn.getHeight()) <= 6,
-               "the UI is drawn twice as large: " + scaled.drawn.toString());
+        // 800 logical pixels wide: the row, twice as large as at scale 1.
+        expect(std::abs(scaled.drawn.getHeight() - 2 * larger.drawn.getHeight()) <= 6
+                   && std::abs(scaled.drawn.getWidth() - 2 * larger.drawn.getWidth()) <= 12,
+               "the UI is drawn twice as large: " + larger.drawn.toString() + " then " + scaled.drawn.toString());
 
         window.reset();
         editor.reset();

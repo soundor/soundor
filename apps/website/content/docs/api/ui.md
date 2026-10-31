@@ -77,12 +77,43 @@ has the details.
 | `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                                |
 | `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                     |
 | `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/components/events#pointer-lock)). |
-| `viewSize()`                                                                                          | The view's `{ width, height }` in logical pixels, and its `scale` (device pixels per logical pixel).         |
+| `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                   |
 | `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                         |
 | `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                                   |
 
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,
 before the view's next frame.
+
+## The view's size
+
+```ts
+function viewSize(): ViewSize;
+function subscribeViewSize(listener: (size: ViewSize) => void): () => void;
+
+interface ViewSize {
+  readonly width: number; // logical pixels
+  readonly height: number; // logical pixels
+  readonly scale: number; // device pixels per logical pixel
+}
+```
+
+`viewSize()` is the size the view is laid out at, in logical pixels, and
+its `scale`, the device pixels per logical pixel (the display's density,
+times any scaling the host applies). It is the same frozen object until one
+of them changes, so it serves as a store's snapshot.
+
+`subscribeViewSize(listener)` calls `listener` with the new size once
+whenever it changes: the user resized the editor (or a web host's iframe
+changed size), or the view moved to a display of another density. Never
+for an unchanged size, and never every frame; a listener that throws is
+reported and the others are still called. It returns a function that
+unsubscribes. In the JUCE runtime the change arrives on the editor's next
+tick, before the frame at the new size is laid out and drawn; a reloaded
+runtime starts with no subscribers. Before the host has sized the view,
+`width` and `height` may be 0.
+
+[`useViewSize()`](/docs/hooks/use-view-size) is the React way in:
+`useSyncExternalStore(subscribeViewSize, viewSize)`.
 
 The [`soundor:ui` reference](/docs/contribute/engine-reference#soundorui)
 describes how the native runtime implements it.

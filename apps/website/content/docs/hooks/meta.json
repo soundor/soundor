@@ -1,6 +1,6 @@
 {
   "title": "Hooks",
-  "description": "React hooks for parameters and frames",
+  "description": "React hooks for parameters, frames and the view size",
   "root": true,
-  "pages": ["index", "use-parameter", "use-animation-frame"]
+  "pages": ["index", "use-parameter", "use-animation-frame", "use-view-size"]
 }

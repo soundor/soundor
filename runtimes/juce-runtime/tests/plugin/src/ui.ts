@@ -1,19 +1,33 @@
 // The test plugins' UI, on soundor:ui itself (no React): what every plugin's
-// UI reads, the generated parameters and the host. Each plugin's src/main.ts
+// UI reads, the generated parameters, the host and the view's size. Each plugin's src/main.ts
 // mounts it.
 import { snapshot, subscribe } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
-import { createText, createView, pressable, root } from 'soundor:ui';
+import {
+  createText,
+  createView,
+  pressable,
+  root,
+  subscribeViewSize,
+  viewSize,
+  type ViewSize,
+} from 'soundor:ui';
 
 export function mount(): void {
-  const column = root.appendChild(
-    createView({
+  const column = root.appendChild(createView());
+  // A column, or a row from 800 logical pixels wide: the editor resize test
+  // (EditorResize.cpp) sees the layout follow the size the UI is told of.
+  const layOut = (size: ViewSize) => {
+    column.style = {
       flex: 1,
+      flexDirection: size.width >= 800 ? 'row' : 'column',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 8,
-    }),
-  );
+    };
+  };
+  layOut(viewSize());
+  subscribeViewSize(layOut);
   const gain = column.appendChild(createText());
   const bypass = column.appendChild(createText());
   const host = column.appendChild(createText());
