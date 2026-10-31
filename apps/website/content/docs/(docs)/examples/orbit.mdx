@@ -19,6 +19,10 @@ Open **Host settings → Audio → Input** to switch from the demo phrase to
 your own audio file, the microphone, an oscillator, or no input. **Sync** follows the host's
 tempo; **Free** keeps delay times independent of tempo.
 
+Drag the handle at the plugin's corner to resize it: Orbit's editor scales
+(`editor: { resizable: true, resize: 'scale' }`), so it zooms rather than
+laying its controls out again, in the browser and in a DAW alike.
+
 ## One interface, two audio implementations
 
 The UI uses `@soundor/react` and `soundor:parameters` in both runtimes. Its

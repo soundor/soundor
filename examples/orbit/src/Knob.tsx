@@ -3,6 +3,7 @@ import {
   Text,
   View,
   useParameter,
+  useViewSize,
   type ParameterLike,
 } from '@soundor/react';
 import { useEffect, useRef, useState } from 'react';
@@ -30,6 +31,9 @@ export function Knob({
 }) {
   const value = useParameter(parameter);
   const node = useRef<UiNode>(null);
+  // Device pixels per logical pixel, the editor's zoom included: the dial
+  // stays sharp at any size (at most 4).
+  const density = Math.min(4, useViewSize().scale);
   const drag = useRef<{ y: number; value: number } | null>(null);
   const [focused, setFocused] = useState(false);
   const { min, max } = parameter.info;
@@ -54,8 +58,7 @@ export function Knob({
   useEffect(() => {
     const ctx = node.current?.getContext('2d');
     if (!ctx) return;
-    const scale = Math.min(2, devicePixelRatio);
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.setTransform(density, 0, 0, density, 0, 0);
     ctx.clearRect(0, 0, 84, 84);
     const start = Math.PI * 0.75;
     const end = start + Math.PI * 1.5 * normalized;
@@ -89,7 +92,7 @@ export function Knob({
     ctx.moveTo(42 + Math.cos(end) * 17, 42 + Math.sin(end) * 17);
     ctx.lineTo(42 + Math.cos(end) * 23, 42 + Math.sin(end) * 23);
     ctx.stroke();
-  }, [normalized, focused]);
+  }, [normalized, focused, density]);
   return (
     <View style={{ alignItems: 'center', width: 113, gap: 0 }}>
       <View
@@ -162,8 +165,8 @@ export function Knob({
       >
         <Canvas
           ref={node}
-          width={84 * Math.min(2, devicePixelRatio)}
-          height={84 * Math.min(2, devicePixelRatio)}
+          width={Math.round(84 * density)}
+          height={Math.round(84 * density)}
           style={{ width: 84, height: 84, pointerEvents: 'none' }}
         />
       </View>

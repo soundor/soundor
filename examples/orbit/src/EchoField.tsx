@@ -4,6 +4,7 @@ import {
   View,
   useAnimationFrame,
   useParameter,
+  useViewSize,
 } from '@soundor/react';
 import { useEffect, useRef, useState } from 'react';
 import { parameters } from 'soundor:parameters';
@@ -196,6 +197,10 @@ export function EchoField({ bpm, playing }: { bpm: number; playing: boolean }) {
     playing,
   };
   const lastDraw = useRef<typeof state | null>(null);
+  // Device pixels per logical pixel, the editor's zoom included: the
+  // buffer follows it so the map stays sharp at any size (at most 4).
+  const density = Math.min(4, useViewSize().scale);
+  const lastDensity = useRef(density);
   useEffect(() => {
     lastDraw.current = null;
     if (!canvas.current) return;
@@ -221,10 +226,13 @@ export function EchoField({ bpm, playing }: { bpm: number; playing: boolean }) {
       state.motion !== previous.motion ||
       state.hold !== previous.hold ||
       state.bypass !== previous.bypass ||
-      state.playing !== previous.playing;
+      state.playing !== previous.playing ||
+      // A resized buffer is cleared: draw it again.
+      density !== lastDensity.current;
     if (changed || (state.playing && state.motion > 0 && !state.bypass)) {
       renderer.current?.draw(state, time / 1000);
       lastDraw.current = state;
+      lastDensity.current = density;
     }
   });
   return (
@@ -240,8 +248,8 @@ export function EchoField({ bpm, playing }: { bpm: number; playing: boolean }) {
       <Canvas
         key={String(fallback)}
         ref={canvas}
-        width={752 * Math.min(2, devicePixelRatio)}
-        height={332 * Math.min(2, devicePixelRatio)}
+        width={Math.round(752 * density)}
+        height={Math.round(332 * density)}
         style={{
           width: 752,
           height: 332,
