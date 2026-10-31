@@ -26,11 +26,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             return image.isValid() && image.getWidth() == width && image.getHeight() == height;
         }
-        // Draws the image as last presented, over the whole component.
+        // Draws the image as last presented, over the whole component or
+        // the part of it setArea() gave.
         void paint(juce::Graphics& g) const;
+        // Where in the component the image is shown: an editor that scales
+        // and keeps its aspect ratio leaves bands around it. Empty: all of it.
+        void setArea(juce::Rectangle<float> shown) noexcept { area = shown; }
 
     private:
+        [[nodiscard]] juce::Rectangle<float> shownArea() const
+        {
+            return area.isEmpty() ? component.getLocalBounds().toFloat() : area;
+        }
+
         juce::Component& component;
+        juce::Rectangle<float> area;
         juce::Image image;
         std::optional<juce::Image::BitmapData> pixels;
     };

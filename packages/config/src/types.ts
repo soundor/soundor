@@ -90,7 +90,11 @@ export interface PluginIdentity {
   name: string;
 }
 
-export type { EditorConfig, ResolvedEditorConfig } from './editor';
+export type {
+  EditorConfig,
+  EditorResize,
+  ResolvedEditorConfig,
+} from './editor';
 
 export type {
   NativeApiDeclaration,

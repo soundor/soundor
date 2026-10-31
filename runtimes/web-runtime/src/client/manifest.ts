@@ -53,6 +53,11 @@ export interface WebEditor {
   readonly maxWidth: number;
   readonly maxHeight: number;
   readonly resizable: boolean;
+  /**
+   * What resizing does: lays the UI out again at the new size, or draws its
+   * layout (width × height) at it, keeping the aspect ratio.
+   */
+  readonly resize: 'layout' | 'scale';
 }
 
 /** A method of the native API. */

@@ -31,7 +31,7 @@ import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
 import { startAudioOnGesture } from './gesture';
 import { Panel } from './panel';
-import { ResizeHandle, type Size } from './resize';
+import { ResizeHandle, type Size, zoomOf } from './resize';
 import { STYLE } from './style';
 
 export type Presentation = 'demo' | 'dev' | 'embed';
@@ -166,9 +166,10 @@ function Shell(options: ShellOptions) {
 /**
  * The plugin, centred at its size, or scaled down to fit a smaller stage
  * (an iframe in docs, the panel open). A resizable plugin has a handle at
- * its corner that changes its size, the size its UI is laid out at, within
- * the editor's limits and the room the stage has. Filling (`embed`), the
- * plugin view is the stage's size instead, whatever it is.
+ * its corner that changes its size within the editor's limits and the room
+ * the stage has: the size its UI is laid out at, or with an editor that
+ * scales, the size its layout (the editor's size) is drawn at. Filling
+ * (`embed`), the plugin view is the stage's size instead, whatever it is.
  */
 function Stage({
   editor,
@@ -182,16 +183,23 @@ function Stage({
   readonly children?: ComponentChildren;
 }) {
   const stage = useRef<HTMLElement>(null);
-  // The view's logical size: the editor's, until the user resizes it.
+  // The view's size: the editor's, until the user resizes it. Its logical
+  // size, or with an editor that scales, the size its layout is drawn at.
   const [size, setSize] = useState<Size>(() => ({
     width: editor.width,
     height: editor.height,
   }));
   // The stage's room for it in CSS pixels, once measured.
   const [room, setRoom] = useState<Size | null>(null);
+  // An editor that scales keeps its layout, filling the page included.
+  const scales = editor.resizable && editor.resize === 'scale';
   useLayoutEffect(() => {
     const element = stage.current;
-    if (fill || element === null || typeof ResizeObserver === 'undefined') {
+    if (
+      (fill && !scales) ||
+      element === null ||
+      typeof ResizeObserver === 'undefined'
+    ) {
       return;
     }
     const measure = (): void => {
@@ -209,14 +217,46 @@ function Stage({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [fill]);
+  }, [fill, scales]);
 
-  const scale =
+  const fit =
     fill || room === null
       ? 1
       : Math.min(1, room.width / size.width, room.height / size.height);
+  // With an editor that scales, its layout keeps the editor's size.
+  const zoom = fill ? 1 : zoomOf(editor, size);
+  const logical =
+    zoom === 1 ? size : { width: editor.width, height: editor.height };
+  // Filling the page, an editor that scales is as large as the page lets it.
+  const filled =
+    fill && scales && room !== null
+      ? Math.min(room.width / editor.width, room.height / editor.height)
+      : 1;
+  const scale = fill ? filled : fit * zoom;
   useLayoutEffect(() => onScale?.(), [onScale, scale]);
 
+  if (fill && scales) {
+    return (
+      <main ref={stage} class="soundor-stage soundor-fill">
+        <div
+          class="soundor-frame"
+          style={{
+            width: `${editor.width * scale}px`,
+            height: `${editor.height * scale}px`,
+          }}
+        >
+          <div
+            class="soundor-viewport"
+            style={{
+              width: `${editor.width}px`,
+              height: `${editor.height}px`,
+              transform: scale === 1 ? '' : `scale(${scale})`,
+            }}
+          />
+        </div>
+      </main>
+    );
+  }
   if (fill) {
     return (
       <main ref={stage} class="soundor-stage soundor-fill">
@@ -229,15 +269,15 @@ function Stage({
       <div
         class="soundor-frame"
         style={{
-          width: `${size.width * scale}px`,
-          height: `${size.height * scale}px`,
+          width: `${size.width * fit}px`,
+          height: `${size.height * fit}px`,
         }}
       >
         <div
           class="soundor-viewport"
           style={{
-            width: `${size.width}px`,
-            height: `${size.height}px`,
+            width: `${logical.width}px`,
+            height: `${logical.height}px`,
             transform: scale === 1 ? '' : `scale(${scale})`,
           }}
         />
@@ -245,7 +285,7 @@ function Stage({
           <ResizeHandle
             editor={editor}
             size={size}
-            scale={scale}
+            scale={fit}
             room={room}
             onResize={setSize}
           />

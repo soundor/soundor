@@ -18,6 +18,7 @@ export type {
   RuntimeFactory,
   PluginIdentity,
   EditorConfig,
+  EditorResize,
   ResolvedEditorConfig,
   RuntimeMode,
   RuntimePhase,

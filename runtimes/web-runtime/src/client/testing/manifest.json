@@ -10,7 +10,8 @@
     "minHeight": 600,
     "maxWidth": 800,
     "maxHeight": 600,
-    "resizable": false
+    "resizable": false,
+    "resize": "layout"
   },
   "parameters": [
     {

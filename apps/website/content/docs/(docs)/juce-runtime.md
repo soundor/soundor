@@ -157,6 +157,16 @@ Standalone does: drag any edge or corner (the border is thin; the pointer
 shows a resize cursor over it). A host that never resizes plugin windows leaves the editor at
 its opening size; the size is not remembered between sessions.
 
+With `editor.resize: 'scale'`, the editor also keeps its aspect ratio
+(JUCE's constrainer), and the UI stays laid out at the configured size: the
+editor's size over it is a zoom, by which the surface is drawn at more (or
+fewer) pixels, and by which pointer, wheel, pointer lock and accessibility
+coordinates are converted, so a press lands on what is drawn under it. In a
+host that ignores the aspect ratio (Ardour, for one), the zoom is the smaller
+of the two axes', and the UI is drawn in the middle with bands of the
+window's background around it: its layout never changes, and nothing is
+stretched.
+
 Resizing changes the view's size in logical pixels; the display's pixel
 density is separate, so a resized editor stays sharp, and one moved to a
 display of another density keeps its layout. To check the resize in a host:

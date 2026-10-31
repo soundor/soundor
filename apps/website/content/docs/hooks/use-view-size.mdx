@@ -17,6 +17,8 @@ interface ViewSize {
 component when it changes: when the user resizes a
 [resizable editor](/docs/cli/config#editor), when a web host's embedding
 iframe changes size, or when the view moves to a display of another density.
+An editor with `resize: 'scale'` keeps its `width` and `height` as the user
+resizes it; only `scale` changes.
 It does not re-render for an unchanged size, and it does not poll: the
 runtime tells it of a change, once.
 

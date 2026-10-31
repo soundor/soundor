@@ -28,6 +28,7 @@ const FIXED: WebEditor = {
   maxWidth: 800,
   maxHeight: 600,
   resizable: false,
+  resize: 'layout',
 };
 
 const RESIZABLE: WebEditor = {
@@ -38,6 +39,19 @@ const RESIZABLE: WebEditor = {
   maxWidth: 1200,
   maxHeight: 900,
   resizable: true,
+  resize: 'layout',
+};
+
+/** Scales: its layout stays 800×600, drawn at half to twice that. */
+const SCALING: WebEditor = {
+  width: 800,
+  height: 600,
+  minWidth: 400,
+  minHeight: 300,
+  maxWidth: 1600,
+  maxHeight: 1200,
+  resizable: true,
+  resize: 'scale',
 };
 
 function setup(presentation: Presentation = 'demo', editor = FIXED) {
@@ -517,6 +531,97 @@ describe('a resizable view', () => {
     expect(handle).not.toBeNull();
     drag(20, 20);
     expect(size()).toEqual(['840px', '640px']);
+  });
+});
+
+describe('a view that scales', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function scaling() {
+    const context = setup('demo', SCALING);
+    const handle =
+      context.shell.element.querySelector<HTMLElement>('.soundor-resize')!;
+    const frame =
+      context.shell.element.querySelector<HTMLElement>('.soundor-frame')!;
+    const drag = (dx: number, dy: number) => {
+      act(() => {
+        fireEvent.pointerDown(handle, {
+          pointerId: 1,
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+        });
+        fireEvent.pointerMove(handle, {
+          pointerId: 1,
+          clientX: 100 + dx,
+          clientY: 100 + dy,
+        });
+        fireEvent.pointerUp(handle, { pointerId: 1 });
+      });
+    };
+    const shown = () => [frame.style.width, frame.style.height];
+    return { ...context, handle, frame, drag, shown };
+  }
+
+  it('keeps its layout and draws it larger, keeping the aspect ratio', () => {
+    const { drag, shown, shell } = scaling();
+    // Mostly sideways: 800 → 1000 wide, so 1.25 times, 750 tall.
+    drag(100, 10);
+    expect(shown()).toEqual(['1000px', '750px']);
+    expect(shell.viewport.style.width).toBe('800px');
+    expect(shell.viewport.style.height).toBe('600px');
+    expect(shell.viewport.style.transform).toBe('scale(1.25)');
+  });
+
+  it('keeps to its limits, as a zoom', () => {
+    const { drag, shown, shell } = scaling();
+    drag(-1000, 0);
+    expect(shown()).toEqual(['400px', '300px']);
+    expect(shell.viewport.style.transform).toBe('scale(0.5)');
+    drag(5000, 5000);
+    expect(shown()).toEqual(['1600px', '1200px']);
+  });
+
+  it('shrinks with the arrow keys too', () => {
+    const { handle, shown } = scaling();
+    act(() => {
+      fireEvent.keyDown(handle, { key: 'ArrowUp', shiftKey: true });
+    });
+    // 50 off the height: 550 of 600, the width following.
+    expect(shown()).toEqual(['733px', '550px']);
+  });
+
+  it('is scaled down to fit on top of its zoom', () => {
+    const resize = observeStage();
+    const { drag, shell, shown } = scaling();
+    drag(200, 150);
+    expect(shown()).toEqual(['1200px', '900px']);
+    // Room for 800×600 only (the stage's padding: 16 around, 76 under it):
+    // drawn at 1.5, fitted at 2/3, so shown at its own size.
+    resize(shell, 832, 692);
+    expect(shown()).toEqual(['800px', '600px']);
+    expect(shell.viewport.style.width).toBe('800px');
+    expect(shell.viewport.style.transform).toBe('');
+    // A drag goes no further than the room it has.
+    drag(200, 150);
+    expect(shown()).toEqual(['800px', '600px']);
+  });
+});
+
+describe('a view that scales, embedded', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps its layout and fills the page as far as its shape lets it', () => {
+    const resize = observeStage();
+    const { shell } = setup('embed', SCALING);
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
+    resize(shell, 1200, 600);
+    expect(shell.viewport.style.width).toBe('800px');
+    expect(shell.viewport.style.height).toBe('600px');
+    // 600 tall: its own size, 1200 wide or not.
+    expect(shell.viewport.style.transform).toBe('');
+    resize(shell, 400, 600);
+    expect(shell.viewport.style.transform).toBe('scale(0.5)');
   });
 });
 

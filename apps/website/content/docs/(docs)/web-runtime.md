@@ -480,6 +480,12 @@ Two different things change how big the plugin looks:
 - **Scaling** draws the same layout smaller, with a CSS transform, when the
   page has less room than the view's size. Its logical size, and so its
   layout, stay as they were; `viewSize()` reports the scale in `scale`.
+- **An editor that scales** (`resize: 'scale'`) is resized by its handle
+  the other way: its logical size stays the editor's, and the handle sets
+  the size it is drawn at, keeping its aspect ratio, within its limits. That
+  zoom and the page's scaling multiply, and `viewSize()` reports both in
+  `scale`. In `embed` it fills the iframe as far as its aspect ratio lets
+  it, at its own layout.
 
 A fixed-size editor (the default) is only ever scaled, as before. Resizable,
 the view opens at its configured size (scaled down if the page is smaller)
@@ -520,7 +526,8 @@ plugin shares its storage.
 
 With `?embed`, a build shows the plugin view alone: no dock, no panel, and
 the view as big as the page (the iframe), however big that is, rather than
-the editor's size scaled down. Its logical size is the iframe's, and it
+the editor's size scaled down. Its logical size is the iframe's (unless the
+editor scales: see [Resizing and scaling](#resizing-and-scaling)), and it
 follows the iframe when the parent page resizes it, whether or not the
 editor is resizable: `editor` sets the size the standalone host opens at
 and whether it shows a handle, never an embedding page's layout, and the

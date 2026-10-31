@@ -59,6 +59,7 @@ function webEditor(config: SoundorConfig): WebEditor {
     maxWidth: editor.maxWidth,
     maxHeight: editor.maxHeight,
     resizable: editor.resizable,
+    resize: editor.resize,
   };
 }
 
