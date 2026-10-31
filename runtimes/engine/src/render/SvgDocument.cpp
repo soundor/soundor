@@ -6,9 +6,9 @@
 #define XML_STATIC
 #include <expat/expat.h>
 #include <include/core/SkStream.h>
+#include <include/utils/SkParse.h>
 
 #include <algorithm>
-#include <charconv>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -73,11 +73,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                         if (first == '+')
                             value.remove_prefix(1);
                         float number = 0;
-                        const auto parsed = std::from_chars(value.data(), value.data() + value.size(), number);
-                        if (parsed.ec != std::errc() || ! std::isfinite(number) || std::abs(number) > 1000000
+                        // Expat attributes are NUL-terminated, and removing
+                        // prefixes preserves that terminator. Use the pinned
+                        // Skia scalar reader: floating from_chars is absent in
+                        // supported Apple libc++ versions.
+                        const char* parsed = SkParse::FindScalar(value.data(), &number);
+                        if (parsed == nullptr || ! std::isfinite(number) || std::abs(number) > 1000000
                             || ++numbers > maxNumbers)
                             return false;
-                        value.remove_prefix(static_cast<std::size_t>(parsed.ptr - value.data()));
+                        value.remove_prefix(static_cast<std::size_t>(parsed - value.data()));
                     }
                     else
                         value.remove_prefix(1);
