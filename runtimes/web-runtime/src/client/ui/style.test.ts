@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { cssFor, cssText, pointerClass, readStyle, STYLESHEET } from './style';
+import {
+  cssFor,
+  cssText,
+  layoutClass,
+  pointerClass,
+  readStyle,
+  STYLESHEET,
+} from './style';
 
 describe('cssFor', () => {
   it('writes nothing for an empty style: the stylesheet has Yoga defaults', () => {
@@ -177,6 +184,63 @@ describe('pointerClass', () => {
     expect(pointerClass({ pointerEvents: 'none' })).toBe('sd-pe-none');
     expect(pointerClass({ pointerEvents: 'box-none' })).toBe('sd-pe-box-none');
     expect(pointerClass({ pointerEvents: 'box-only' })).toBe('sd-pe-box-only');
+  });
+});
+
+describe('layoutClass', () => {
+  it("names a parent's direction and whether it stretches", () => {
+    expect(layoutClass({})).toBe('sd-stretch');
+    expect(
+      layoutClass({ flexDirection: 'row-reverse', alignItems: 'center' }),
+    ).toBe('sd-row');
+    expect(layoutClass({ flexDirection: 'row', alignItems: 'auto' })).toBe(
+      'sd-row sd-stretch',
+    );
+  });
+
+  it('marks a fixed flex basis, which adds only itself to a row', () => {
+    expect(layoutClass({ flex: 1, alignItems: 'center' })).toBe('sd-basis');
+    expect(layoutClass({ flexBasis: 30, alignItems: 'center' })).toBe(
+      'sd-basis',
+    );
+    expect(
+      layoutClass({ flex: 1, flexBasis: 'auto', alignItems: 'center' }),
+    ).toBe('');
+    expect(layoutClass({ flexBasis: '50%', alignItems: 'center' })).toBe('');
+    expect(STYLESHEET).toContain(
+      '.sd-row > .sd-basis { contain: inline-size; }',
+    );
+  });
+
+  it('keeps an aspect ratio over the stretch when a size is given', () => {
+    const items = { alignItems: 'center' } as const;
+    expect(layoutClass({ ...items, aspectRatio: 2 })).toBe('');
+    expect(layoutClass({ ...items, aspectRatio: 2, height: 40 })).toBe(
+      'sd-ratio',
+    );
+    expect(layoutClass({ ...items, aspectRatio: 2, flex: 1 })).toBe(
+      'sd-basis sd-ratio',
+    );
+    expect(
+      layoutClass({
+        ...items,
+        aspectRatio: 2,
+        height: 40,
+        alignSelf: 'center',
+      }),
+    ).toBe('');
+    expect(
+      layoutClass({ ...items, aspectRatio: 2, width: 20, height: 90 }),
+    ).toBe('sd-ratio sd-ratio-both');
+    // A stretch the box asks for itself is undone inline.
+    expect(
+      cssFor({ aspectRatio: 2, height: 40, alignSelf: 'stretch' }, 'view')[
+        'align-self'
+      ],
+    ).toBe('flex-start');
+    expect(
+      cssFor({ aspectRatio: 2, alignSelf: 'stretch' }, 'view')['align-self'],
+    ).toBe('stretch');
   });
 });
 

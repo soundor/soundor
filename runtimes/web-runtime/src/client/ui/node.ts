@@ -22,7 +22,14 @@ import {
   type Matrix,
 } from './coordinates';
 import { eventParent, TreeEventTarget } from './events';
-import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
+import {
+  cssFor,
+  cssText,
+  layoutClass,
+  NODE_CLASS,
+  pointerClass,
+  readStyle,
+} from './style';
 import type { Accessibility, LayoutRect, NodeType, Style } from './types';
 import type {
   AnimationKeyframe,
@@ -177,7 +184,7 @@ export class UiNode extends TreeEventTarget {
     const { tag, className } = ELEMENTS[type];
     this.#element =
       element ?? view.rootElement.ownerDocument.createElement(tag);
-    this.#element.className = [className, this.#rootClass]
+    this.#element.className = [className, this.#rootClass, layoutClass({})]
       .filter(Boolean)
       .join(' ');
     if (type === 'image') {
@@ -279,7 +286,12 @@ export class UiNode extends TreeEventTarget {
     const style = readStyle(cssPixels(value));
     this.#element.style.cssText = cssText(cssFor(style, this.#type));
     const { className } = ELEMENTS[this.#type];
-    this.#element.className = [className, this.#rootClass, pointerClass(style)]
+    this.#element.className = [
+      className,
+      this.#rootClass,
+      pointerClass(style),
+      layoutClass(style),
+    ]
       .filter(Boolean)
       .join(' ');
     this.#style = Object.freeze({ ...style });

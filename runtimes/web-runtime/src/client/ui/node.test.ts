@@ -188,7 +188,7 @@ describe('UiNode content', () => {
     expect(view.rootElement.className).toBe('sd-surface');
     overlay.style = { pointerEvents: 'auto', zIndex: -5 };
     // Its layer and pass-through stay, whatever its style says.
-    expect(el(overlay).className).toBe('sd-node sd-root sd-overlay');
+    expect(el(overlay).className).toBe('sd-node sd-root sd-overlay sd-stretch');
     expect(STYLESHEET).toMatch(
       /\.sd-overlay \{ z-index: 1 !important; pointer-events: none !important; \}/,
     );
