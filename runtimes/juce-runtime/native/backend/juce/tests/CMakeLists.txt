@@ -13,6 +13,7 @@ target_sources(soundor_juce_tests
 juce_add_console_app(soundor_juce_platform_tests)
 target_sources(soundor_juce_platform_tests
   PRIVATE
+    JuceEditorConstrainerTests.cpp
     JuceInputTests.cpp
     JucePlatformTests.cpp
     JucePointerLockTests.cpp

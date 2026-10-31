@@ -440,6 +440,7 @@ function renderEditorHeader(): string {
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/a11y/Platform.h>
+#include <soundor/backend/JuceEditorConstrainer.h>
 #include <soundor/backend/JucePresentation.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/render/GpuCompositor.h>
@@ -473,7 +474,8 @@ namespace ${NS}
         ~AudioProcessorEditor() override;
 
         void paint(juce::Graphics&) override;
-        // A resized view lays the UI out again at its new size.
+        // A resized view lays the UI out again at its new size, or (editor
+        // resize: 'scale') draws the same layout at the new size.
         void resized() override;
 
         // The view's input goes to the UI (soundor:ui); what it leaves
@@ -499,14 +501,27 @@ namespace ${NS}
         AudioProcessor& processorRef;
 
     private:
+        // The size limits and aspect ratio of an editor that scales (editor
+        // resize: 'scale'): offered to a plugin's host, enforced in the
+        // Standalone (see JuceEditorConstrainer).
+        backend::JuceEditorConstrainer sizeConstrainer {
+            processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone
+        };
         void timerCallback() override;
         // Gives the UI the view's size and pixel density.
         void sizeSurface();
+        // The view's pixels per logical pixel of the UI's layout: 1, or with
+        // an editor that scales, the view's size over the layout's.
+        [[nodiscard]] float zoom() const;
+        // Where in the view the UI is drawn: all of it, or with an editor that
+        // scales, its layout at zoom() in the middle (bands where the view's
+        // shape is not the layout's).
+        [[nodiscard]] juce::Rectangle<float> uiArea() const;
         // Picks the compositor: on the GPU, presenting in this view's native
         // view, where there is one; on the CPU into \`image\` otherwise.
         void updateCompositor();
         void renderFrame();
-        void deliver(const ui::PointerInput& input);
+        void deliver(ui::PointerInput input);
         // Shows the cursor the UI asks for over the view (the style's
         // \`cursor\`), when it changed.
         void updateCursor();
@@ -574,10 +589,55 @@ namespace ${NS}
 function renderEditorSize(editor: ResolvedEditorConfig): string {
   const size = `setSize(${cppInt(editor.width)}, ${cppInt(editor.height)});`;
   if (!editor.resizable) return `        ${size}`;
-  return `        // soundor.config: editor (resizable). Resizing lays the UI out again.
-        setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
+  const limits = `setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});`;
+  if (editor.resize === 'scale')
+    return `        // soundor.config: editor (resizable, resize: 'scale'). Resizing draws
+        // the same layout larger or smaller: the window keeps its shape where
+        // the host lets it, and the UI is letterboxed where it does not.
+        sizeConstrainer.setSizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
+        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+        setConstrainer(&sizeConstrainer);
         setResizable(true, false);
         ${size}`;
+  return `        // soundor.config: editor (resizable). Resizing lays the UI out again.
+        ${limits}
+        setResizable(true, false);
+        ${size}`;
+}
+
+/**
+ * zoom() and uiArea(): 1 and the whole view, unless the editor scales: then
+ * its size over the layout's, the smaller of the two where a host does not
+ * keep the aspect ratio, and the layout at that zoom in the middle of the
+ * view. The layout never changes, and nothing is stretched.
+ */
+function renderEditorZoom(editor: ResolvedEditorConfig): string {
+  if (!editor.resizable || editor.resize !== 'scale')
+    return `    float AudioProcessorEditor::zoom() const
+    {
+        return 1.0F;
+    }
+
+    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    {
+        return getLocalBounds().toFloat();
+    }`;
+  const w = cppInt(editor.width);
+  const h = cppInt(editor.height);
+  return `    float AudioProcessorEditor::zoom() const
+    {
+        // soundor.config: editor (resize: 'scale'): the layout stays ${w}×${h}.
+        if (getWidth() <= 0 || getHeight() <= 0)
+            return 1.0F;
+        return std::min(static_cast<float>(getWidth()) / ${w}.0F, static_cast<float>(getHeight()) / ${h}.0F);
+    }
+
+    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    {
+        const float viewZoom = zoom();
+        return juce::Rectangle<float>(${w}.0F * viewZoom, ${h}.0F * viewZoom)
+            .withCentre(getLocalBounds().toFloat().getCentre());
+    }`;
 }
 
 function renderEditorSource(
@@ -591,6 +651,7 @@ function renderEditorSource(
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/platform/FileLog.h>
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -719,9 +780,15 @@ ${renderEditorSize(editor)}
         const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
         const double displayScale = display != nullptr ? display->scale : 1.0;
         auto& surface = runtimeHost().surface();
-        surface.setSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
-        surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this)));
+        const float viewZoom = zoom();
+        const auto area = uiArea();
+        surface.setSize({ area.getWidth() / viewZoom, area.getHeight() / viewZoom });
+        image.setArea(area);
+        surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this))
+                         * viewZoom);
     }
+
+${renderEditorZoom(editor)}
 
     void AudioProcessorEditor::updateCompositor()
     {
@@ -762,7 +829,7 @@ ${renderEditorSize(editor)}
         }
         if (gpu != nullptr && peer != nullptr)
         {
-            const auto area = peer->getComponent().getLocalArea(this, getLocalBounds().toFloat());
+            const auto area = peer->getComponent().getLocalArea(this, uiArea());
     #if JUCE_MAC
             // The native view's points.
             gpu->setBounds(area.getX(), area.getY(), area.getWidth(), area.getHeight(), runtimeHost().surface().scale());
@@ -870,15 +937,16 @@ ${renderEditorSize(editor)}
             return;
     #if JUCE_MAC
         // The surface in the view's points.
-        const auto topLeft = peer->getComponent().getLocalPoint(this, juce::Point<float> {});
-        const auto points = static_cast<float>(juce::Component::getApproximateScaleFactorForComponent(this));
+        const auto topLeft = peer->getComponent().getLocalPoint(this, uiArea().getPosition());
+        const auto points = static_cast<float>(juce::Component::getApproximateScaleFactorForComponent(this)) * zoom();
         accessibility->setGeometry({ topLeft.x, topLeft.y, points, {} });
     #else
         // The surface in the native view's physical pixels.
         const float scale = runtimeHost().surface().scale();
         const auto physical = static_cast<float>(peer->getPlatformScaleFactor());
-        const auto topLeft = peer->getComponent().getLocalPoint(this, juce::Point<float> {}) * physical;
-        const auto screen = getScreenBounds().toFloat() * scale;
+        const auto shown = uiArea();
+        const auto topLeft = peer->getComponent().getLocalPoint(this, shown.getPosition()) * physical;
+        const auto screen = localAreaToGlobal(shown) * (scale / zoom());
         accessibility->setGeometry({ topLeft.x, topLeft.y, scale,
                                      { screen.getX(), screen.getY(), screen.getWidth(), screen.getHeight() } });
     #endif
@@ -890,8 +958,12 @@ ${renderEditorSize(editor)}
         accessibility->tick(runtimeHost());
     }
 
-    void AudioProcessorEditor::deliver(const ui::PointerInput& input)
+    void AudioProcessorEditor::deliver(ui::PointerInput input)
     {
+        // The view's coordinates to the layout's.
+        const float viewZoom = zoom();
+        const auto origin = uiArea().getPosition();
+        input.position = { (input.position.x - origin.x) / viewZoom, (input.position.y - origin.y) / viewZoom };
 #if SOUNDOR_DEVTOOLS
         if (debug && debug->pointer(runtimeHost(), input)) return;
 #endif
@@ -905,7 +977,9 @@ ${renderEditorSize(editor)}
     {
         const auto lock = runtimeHost().surface().pointerLock();
         pointerLock.update(lock ? std::optional<int>(lock->pointerId) : std::nullopt,
-                           lock ? juce::Point<float>(lock->position.x, lock->position.y) : juce::Point<float>());
+                           lock ? juce::Point<float>(lock->position.x, lock->position.y) * zoom()
+                                      + uiArea().getPosition()
+                                : juce::Point<float>());
     }
 
     void AudioProcessorEditor::updateCursor()
@@ -958,7 +1032,9 @@ ${renderEditorSize(editor)}
 #if SOUNDOR_DEVTOOLS
         if (debug && debug->picking()) return;
 #endif
-        const bool handled = runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));
+        const bool handled
+            = runtimeHost().surface().wheel(
+                backend::wheelInput((event.position - uiArea().getPosition()) / zoom(), event.mods, wheel));
         runtimeHost().runtime().runPendingJobs();
         if (! handled)
             juce::AudioProcessorEditor::mouseWheelMove(event, wheel);
@@ -1026,9 +1102,11 @@ ${renderEditorSize(editor)}
             return;
         // Resized since the last frame: render one at the new size first.
         sizeSurface();
+        // The surface's pixels: its layout's size at its scale.
+        const auto size = runtimeHost().surface().size();
         const float scale = runtimeHost().surface().scale();
-        const int width = juce::roundToInt(static_cast<float>(getWidth()) * scale);
-        const int height = juce::roundToInt(static_cast<float>(getHeight()) * scale);
+        const int width = juce::roundToInt(size.width * scale);
+        const int height = juce::roundToInt(size.height * scale);
         if (width <= 0 || height <= 0)
             return;
         if (! image.matches(width, height))

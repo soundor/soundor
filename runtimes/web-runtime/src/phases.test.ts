@@ -187,6 +187,7 @@ describe('webGen', () => {
       maxWidth: 1600,
       maxHeight: 1200,
       resizable: true,
+      resize: 'layout',
     });
   });
 
@@ -240,6 +241,7 @@ describe('webGen', () => {
         maxWidth: 800,
         maxHeight: 600,
         resizable: false,
+        resize: 'layout',
       },
       parameters: [
         {

@@ -1,9 +1,11 @@
 /**
  * The handle at a resizable plugin view's bottom-right corner, outside the
  * view so that it never covers the plugin's own controls. Dragging it
- * changes the view's logical size (its UI is laid out again, not scaled);
- * with focus, the arrow keys do. The view stays centred on the stage, so
- * the size changes by twice the pointer's movement: the corner follows it.
+ * changes the view's size: its logical size, so its UI is laid out again,
+ * or with an editor that scales the size its layout is drawn at, keeping
+ * its aspect ratio. With focus, the arrow keys do. The view stays centred
+ * on the stage, so the size changes by twice the pointer's movement: the
+ * corner follows it.
  */
 
 import { useRef } from 'preact/hooks';
@@ -20,9 +22,12 @@ const KEY_STEP = 10;
 
 export interface ResizeHandleProps {
   readonly editor: WebEditor;
-  /** The view's logical size. */
+  /**
+   * The view's size: its logical size, or with an editor that scales, the
+   * size its layout is drawn at.
+   */
   readonly size: Size;
-  /** CSS pixels per logical pixel: the stage may scale the view down. */
+  /** CSS pixels per unit of `size`: the stage may scale the view down. */
   readonly scale: number;
   /** The stage's room for the view in CSS pixels, once measured. */
   readonly room: Size | null;
@@ -48,6 +53,7 @@ export function constrainSize(
   room: Size | null,
   from: Size = size,
 ): Size {
+  if (editor.resize === 'scale') return constrainZoom(editor, size, room, from);
   const axis = (value: number, min: number, max: number, fit: number) =>
     Math.min(
       Math.max(Math.round(value), min),
@@ -67,6 +73,50 @@ export function constrainSize(
       room === null ? Infinity : Math.max(from.height, Math.floor(room.height)),
     ),
   };
+}
+
+/**
+ * The size an editor that scales is drawn at, for a `size` asked for: its
+ * own size times one zoom, the one of the axis `size` moves further from
+ * `from` (a corner dragged mostly sideways, or an arrow key), within its
+ * limits and, unless it is larger already, the stage's room.
+ */
+function constrainZoom(
+  editor: WebEditor,
+  size: Size,
+  room: Size | null,
+  from: Size,
+): Size {
+  const { width, height } = editor;
+  const current = Math.min(from.width / width, from.height / height);
+  const across = size.width / width;
+  const down = size.height / height;
+  const wanted =
+    Math.abs(across - current) >= Math.abs(down - current) ? across : down;
+  const min = Math.max(editor.minWidth / width, editor.minHeight / height);
+  const max = Math.min(editor.maxWidth / width, editor.maxHeight / height);
+  const fit =
+    room === null
+      ? Infinity
+      : Math.max(
+          Math.min(from.width / width, from.height / height),
+          Math.min(room.width / width, room.height / height),
+        );
+  const zoom = Math.min(
+    Math.max(wanted, min),
+    Math.max(min, Math.min(max, fit)),
+  );
+  return { width: Math.round(width * zoom), height: Math.round(height * zoom) };
+}
+
+/**
+ * The zoom an editor's layout is drawn at in `size`: 1 unless it scales;
+ * then the smaller of the two axes, so it is never stretched.
+ */
+export function zoomOf(editor: WebEditor, size: Size): number {
+  return editor.resizable && editor.resize === 'scale'
+    ? Math.min(size.width / editor.width, size.height / editor.height)
+    : 1;
 }
 
 export function ResizeHandle({
@@ -138,6 +188,7 @@ export function ResizeHandle({
             editor,
             { width: size.width + width, height: size.height + height },
             room,
+            size,
           ),
         );
       }}

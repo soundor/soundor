@@ -156,7 +156,7 @@ describe('generateJuceSources', () => {
       'deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));',
     );
     expect(editor).toContain(
-      'runtimeHost().surface().wheel(backend::wheelInput(event.position, event.mods, wheel));',
+      'backend::wheelInput((event.position - uiArea().getPosition()) / zoom(), event.mods, wheel));',
     );
     expect(editor).toContain('backend::typedText(key));');
     // The UI's cursor, applied when it changes.
@@ -348,6 +348,58 @@ describe('generateJuceSources', () => {
       expect(source).toMatch(
         /if \(gpu == nullptr \|\| ! isShowing\(\)\)\s+return;\s+sizeSurface\(\);\s+updateCompositor\(\);/,
       );
+    });
+
+    it('scales an editor with resize scale, keeping its aspect ratio', () => {
+      const source = editorSource({
+        width: 1000,
+        height: 600,
+        resizable: true,
+        resize: 'scale',
+      });
+      expect(source).toContain(
+        [
+          '        sizeConstrainer.setSizeLimits(500, 300, 2000, 1200);',
+          '        sizeConstrainer.setFixedAspectRatio(1.6666666666666667);',
+          '        setConstrainer(&sizeConstrainer);',
+          '        setResizable(true, false);',
+          '        setSize(1000, 600);',
+        ].join('\n'),
+      );
+      // The ratio is enforced only in the Standalone: a host that sets
+      // another shape gets it, letterboxed, rather than a resize fight.
+      expect(fileMap(config).get('soundor/SoundorEditor.h')).toContain(
+        'processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone',
+      );
+      // The layout stays 1000×600: the view's size over it is the zoom.
+      expect(source).toContain(
+        'return std::min(static_cast<float>(getWidth()) / 1000.0F, static_cast<float>(getHeight()) / 600.0F);',
+      );
+      // Always laid out at 1000×600, in the middle of a view of another shape.
+      expect(source).toContain(
+        'return juce::Rectangle<float>(1000.0F * viewZoom, 600.0F * viewZoom)',
+      );
+      expect(source).toContain(
+        'surface.setSize({ area.getWidth() / viewZoom, area.getHeight() / viewZoom });',
+      );
+      // Input reaches the layout's coordinates.
+      expect(source).toContain(
+        'input.position = { (input.position.x - origin.x) / viewZoom, (input.position.y - origin.y) / viewZoom };',
+      );
+    });
+
+    it('lays out again at a zoom of 1 otherwise', () => {
+      for (const editor of [
+        { resizable: true },
+        { resize: 'scale' as const },
+        undefined,
+      ]) {
+        const source = editorSource(editor);
+        expect(source).toMatch(
+          /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
+        );
+        expect(source).not.toContain('setConstrainer(&sizeConstrainer)');
+      }
     });
 
     it('generates the same source for the same editor', () => {

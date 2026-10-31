@@ -58,22 +58,33 @@ export default defineSoundorConfig({
 });
 ```
 
-| Field                   | Meaning                                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `width`, `height`       | The size the editor opens at. Default 800×600.                                                           |
-| `resizable`             | Whether the user can resize the editor. Default `false`: a fixed-size editor.                            |
-| `minWidth`, `minHeight` | The smallest a resizable editor can be made. Default 480×320, or the opening size where that is smaller. |
-| `maxWidth`, `maxHeight` | The largest a resizable editor can be made. Default 1600×1200, or the opening size where that is larger. |
+| Field                   | Meaning                                                                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `width`, `height`       | The size the editor opens at. Default 800×600.                                                                                                  |
+| `resizable`             | Whether the user can resize the editor. Default `false`: a fixed-size editor.                                                                   |
+| `resize`                | What resizing does: `'layout'` (the default) lays the UI out again; `'scale'` zooms it. See below.                                              |
+| `minWidth`, `minHeight` | The smallest a resizable editor can be made. Default 480×320, or the opening size where that is smaller; half the size with `resize: 'scale'`.  |
+| `maxWidth`, `maxHeight` | The largest a resizable editor can be made. Default 1600×1200, or the opening size where that is larger; twice the size with `resize: 'scale'`. |
 
 Without `editor`, a plugin keeps a fixed 800×600 editor. Every size is a
 positive whole number; a minimum may not exceed its maximum, and a
 resizable editor must open within its limits. The limits of a fixed editor
 are ignored.
 
-Resizing changes the size the UI is laid out at, not its zoom: a view with
-`flex: 1` grows with the editor, and text keeps its size. Whether a user
-can actually resize the window is up to the host: most DAWs let a plugin
-window that says it is resizable be dragged by its edges, some never do.
+By default resizing changes the size the UI is laid out at, not its zoom: a
+view with `flex: 1` grows with the editor, and text keeps its size. With
+`resize: 'scale'` it is the other way round: the UI is always laid out at
+`width`×`height`, and resizing draws that same layout larger or smaller,
+the window keeping its aspect ratio. Nothing moves, which suits a plugin
+with many controls whose users find them by where they are:
+
+```ts
+editor: { width: 900, height: 560, resizable: true, resize: 'scale' },
+```
+
+Whether a user can actually resize the window is up to the host: most DAWs
+let a plugin window that says it is resizable be dragged by its edges, some
+never do.
 
 ### `native`
 

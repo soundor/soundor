@@ -19,23 +19,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     void JuceImageTarget::present(const render::Region& damage)
     {
         pixels.reset();
-        if (! image.isValid() || component.getWidth() <= 0 || component.getHeight() <= 0)
+        const auto shown = shownArea();
+        if (! image.isValid() || shown.isEmpty())
             return;
         // Device pixels to the component's coordinates, out to whole units.
-        const double scaleX = static_cast<double>(component.getWidth()) / image.getWidth();
-        const double scaleY = static_cast<double>(component.getHeight()) / image.getHeight();
+        const double scaleX = static_cast<double>(shown.getWidth()) / image.getWidth();
+        const double scaleY = static_cast<double>(shown.getHeight()) / image.getHeight();
         for (const render::IntRect& rect : damage.rects())
         {
-            const auto left = static_cast<int>(std::floor(rect.x * scaleX));
-            const auto top = static_cast<int>(std::floor(rect.y * scaleY));
-            component.repaint(left, top, static_cast<int>(std::ceil(rect.right() * scaleX)) - left,
-                              static_cast<int>(std::ceil(rect.bottom() * scaleY)) - top);
+            const auto left = static_cast<int>(std::floor(shown.getX() + rect.x * scaleX));
+            const auto top = static_cast<int>(std::floor(shown.getY() + rect.y * scaleY));
+            component.repaint(left, top, static_cast<int>(std::ceil(shown.getX() + rect.right() * scaleX)) - left,
+                              static_cast<int>(std::ceil(shown.getY() + rect.bottom() * scaleY)) - top);
         }
     }
 
     void JuceImageTarget::paint(juce::Graphics& g) const
     {
         if (image.isValid())
-            g.drawImage(image, component.getLocalBounds().toFloat());
+            g.drawImage(image, shownArea());
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

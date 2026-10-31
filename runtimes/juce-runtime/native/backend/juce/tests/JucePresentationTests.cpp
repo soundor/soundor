@@ -65,4 +65,26 @@ TEST_SUITE("JUCE presentation")
         CHECK(shown.getPixelAt(5, 10) == juce::Colour(0xFFFF0000));
         CHECK(shown.getPixelAt(45, 10) == juce::Colour(0xFF0000FF));
     }
+
+    TEST_CASE("a JuceImageTarget paints into the area it is given, letterboxed")
+    {
+        // An editor that scales, 80×20 for a 40×20 layout: the UI in the middle.
+        juce::ScopedJuceInitialiser_GUI gui;
+        juce::Component view;
+        view.setSize(80, 20);
+        backend::JuceImageTarget target(view);
+        target.setArea({ 20, 0, 40, 20 });
+        const auto pixels = target.acquire(40, 20);
+        fill(pixels.bitmap, { 0, 0, 40, 20 }, 0xFFFF0000);
+        target.present(render::Region({ 0, 0, 40, 20 }));
+
+        juce::Image shown(juce::Image::ARGB, 80, 20, true);
+        {
+            juce::Graphics g(shown);
+            target.paint(g);
+        }
+        CHECK(shown.getPixelAt(10, 10).getAlpha() == 0);
+        CHECK(shown.getPixelAt(40, 10) == juce::Colour(0xFFFF0000));
+        CHECK(shown.getPixelAt(70, 10).getAlpha() == 0);
+    }
 }

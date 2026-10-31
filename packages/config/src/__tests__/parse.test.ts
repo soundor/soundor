@@ -189,6 +189,7 @@ describe('validateConfig — validation rules', () => {
         maxWidth: 800,
         maxHeight: 600,
         resizable: false,
+        resize: 'layout',
       },
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
@@ -384,6 +385,7 @@ describe('validateConfig — editor', () => {
       maxWidth: 640,
       maxHeight: 400,
       resizable: false,
+      resize: 'layout',
     });
   });
 
@@ -398,6 +400,7 @@ describe('validateConfig — editor', () => {
       maxWidth: 1600,
       maxHeight: 1200,
       resizable: true,
+      resize: 'layout',
     });
     // Default limits never exclude the size it opens at.
     expect(
@@ -422,6 +425,7 @@ describe('validateConfig — editor', () => {
       maxWidth: 1800,
       maxHeight: 1000,
       resizable: true,
+      resize: 'scale' as const,
     };
     const resolved = validateConfig({ ...base, editor }).editor;
     expect(resolved).toEqual(editor);
@@ -429,6 +433,37 @@ describe('validateConfig — editor', () => {
       resolved,
     );
     expect(resolveEditor(resolved)).toEqual(resolved);
+  });
+
+  it('gives a scaling editor half and twice its size as default limits', () => {
+    expect(
+      validateConfig({
+        ...base,
+        editor: { width: 901, height: 500, resizable: true, resize: 'scale' },
+      }).editor,
+    ).toEqual({
+      width: 901,
+      height: 500,
+      minWidth: 451,
+      minHeight: 250,
+      maxWidth: 1802,
+      maxHeight: 1000,
+      resizable: true,
+      resize: 'scale',
+    });
+    // A fixed editor never scales.
+    expect(
+      validateConfig({ ...base, editor: { resize: 'scale' } }).editor,
+    ).toMatchObject({ resizable: false, resize: 'layout' });
+  });
+
+  it('rejects an unknown resize', () => {
+    expect(
+      expectValidation({
+        ...base,
+        editor: { resizable: true, resize: 'zoom' },
+      }).issues,
+    ).toContainEqual(expect.objectContaining({ path: 'editor.resize' }));
   });
 
   it('ignores the limits of a fixed editor', () => {

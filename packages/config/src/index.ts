@@ -2,6 +2,7 @@ export type {
   BaseParameter,
   BoolParameter,
   EditorConfig,
+  EditorResize,
   EnumParameter,
   FloatParameter,
   IntParameter,

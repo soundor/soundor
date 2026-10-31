@@ -39,11 +39,21 @@ export interface EditorConfig {
    */
   maxHeight?: number;
   /**
-   * Whether the user can resize the editor (where the host lets them):
-   * the UI is laid out again at the new size, not scaled. `false` by default.
+   * Whether the user can resize the editor (where the host lets them).
+   * `false` by default.
    */
   resizable?: boolean;
+  /**
+   * What resizing does: `'layout'` (the default) lays the UI out again at
+   * the new size; `'scale'` keeps its layout at `width`×`height` and draws
+   * it larger or smaller, the window keeping its aspect ratio, so nothing
+   * moves. Ignored unless `resizable`.
+   */
+  resize?: EditorResize;
 }
+
+/** What resizing an editor does: lays its UI out again, or scales it. */
+export type EditorResize = 'layout' | 'scale';
 
 /**
  * An {@link EditorConfig} with every field decided. A fixed editor's limits
@@ -57,11 +67,16 @@ export interface ResolvedEditorConfig {
   readonly maxWidth: number;
   readonly maxHeight: number;
   readonly resizable: boolean;
+  /** `'layout'` for a fixed editor. */
+  readonly resize: EditorResize;
 }
 
 /** The size an editor opens at when the config does not say. */
 export const DEFAULT_EDITOR_SIZE = { width: 800, height: 600 } as const;
-/** The limits a resizable editor gets when the config does not set them. */
+/**
+ * The limits a resizable editor that lays out again gets when the config
+ * does not set them. One that scales gets half and twice its size.
+ */
 export const DEFAULT_EDITOR_LIMITS = {
   minWidth: 480,
   minHeight: 320,
@@ -82,6 +97,7 @@ export const editorSchema = z.object({
   maxWidth: dimension.optional(),
   maxHeight: dimension.optional(),
   resizable: z.boolean().optional(),
+  resize: z.enum(['layout', 'scale']).optional(),
 });
 
 /**
@@ -102,24 +118,31 @@ export function resolveEditor(
       maxWidth: width,
       maxHeight: height,
       resizable: false,
+      resize: 'layout',
     };
   }
-  const minWidth =
-    editor.minWidth ?? Math.min(DEFAULT_EDITOR_LIMITS.minWidth, width);
-  const minHeight =
-    editor.minHeight ?? Math.min(DEFAULT_EDITOR_LIMITS.minHeight, height);
+  const resize = editor.resize ?? 'layout';
+  const defaults =
+    resize === 'scale'
+      ? {
+          minWidth: Math.round(width / 2),
+          minHeight: Math.round(height / 2),
+          maxWidth: width * 2,
+          maxHeight: height * 2,
+        }
+      : DEFAULT_EDITOR_LIMITS;
+  const minWidth = editor.minWidth ?? Math.min(defaults.minWidth, width);
+  const minHeight = editor.minHeight ?? Math.min(defaults.minHeight, height);
   return {
     width,
     height,
     minWidth,
     minHeight,
-    maxWidth:
-      editor.maxWidth ??
-      Math.max(DEFAULT_EDITOR_LIMITS.maxWidth, width, minWidth),
+    maxWidth: editor.maxWidth ?? Math.max(defaults.maxWidth, width, minWidth),
     maxHeight:
-      editor.maxHeight ??
-      Math.max(DEFAULT_EDITOR_LIMITS.maxHeight, height, minHeight),
+      editor.maxHeight ?? Math.max(defaults.maxHeight, height, minHeight),
     resizable: true,
+    resize,
   };
 }
 
