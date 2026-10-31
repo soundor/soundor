@@ -219,6 +219,10 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
   instead, with the same signature.
 - **The data directory** `<user application data>/Soundor/<plugin.id>` for
   storage and files.
+- **Pointer lock** (`requestPointerLock()`): the pointer is hidden and kept
+  in the view, moved back to where the lock began whenever it strays, and put
+  back there when the lock ends. Under Wayland (through XWayland) moving the
+  pointer depends on the compositor.
 
 ### Canvases: 2D and WebGL
 

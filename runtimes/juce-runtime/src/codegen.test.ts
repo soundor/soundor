@@ -161,6 +161,8 @@ describe('generateJuceSources', () => {
     expect(editor).toContain('backend::typedText(key));');
     // The UI's cursor, applied when it changes.
     expect(editor).toContain('setMouseCursor(backend::mouseCursor(cursor));');
+    // The UI's pointer lock, ended however the press ends.
+    expect(editor).toContain('pointerLock.update(');
     expect(editor).toContain('setWantsKeyboardFocus(true);');
     // Rendered by the runtime, only when the picture changed, and presented
     // by a compositor that outlives a reloaded runtime.
@@ -182,6 +184,9 @@ describe('generateJuceSources', () => {
     );
     expect(fileMap(config).get('setup.cmake')).toContain(
       'backend/juce/soundor/backend/JucePresentation.cpp',
+    );
+    expect(fileMap(config).get('setup.cmake')).toContain(
+      'backend/juce/soundor/backend/JucePointerLock.cpp',
     );
   });
 

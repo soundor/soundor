@@ -71,14 +71,15 @@ has the details.
 
 ## The rest
 
-| Export                                                                                                | What it is                                                                                           |
-| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `pressable(node, handlers)`                                                                           | Makes a node pressable and focusable (what `Pressable` uses); returns a function that undoes it.     |
-| `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                        |
-| `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                             |
-| `viewSize()`                                                                                          | The view's `{ width, height }` in logical pixels, and its `scale` (device pixels per logical pixel). |
-| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                 |
-| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                           |
+| Export                                                                                                | What it is                                                                                                   |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `pressable(node, handlers)`                                                                           | Makes a node pressable and focusable (what `Pressable` uses); returns a function that undoes it.             |
+| `clipboard`                                                                                           | The system clipboard's text: `readText()`, `writeText(text)`.                                                |
+| `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                     |
+| `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/components/events#pointer-lock)). |
+| `viewSize()`                                                                                          | The view's `{ width, height }` in logical pixels, and its `scale` (device pixels per logical pixel).         |
+| `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                         |
+| `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                                   |
 
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,
 before the view's next frame.

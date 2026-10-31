@@ -1097,6 +1097,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             event.offset = localPoint(target, input.position);
         }
+        event.movement = routedMovement;
         event.pointerId = input.pointerId;
         event.pointerType = input.type;
         event.button = input.button;
@@ -1246,13 +1247,75 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
     }
 
+    bool Surface::requestPointerLock(NodeId id)
+    {
+        if (! isConnected(id))
+            return false;
+        for (auto& [pointerId, state] : pointers)
+        {
+            if (state.captured == noNode || state.last.type == PointerType::Touch)
+                continue;
+            for (const Node* node = find(state.captured); node != nullptr; node = node->parentNode)
+                if (node->nodeId == id)
+                {
+                    // Its events go to the locking node from now on.
+                    state.captured = id;
+                    lockPosition = state.last.position;
+                    lock = PointerLock { .node = id, .pointerId = pointerId, .position = lockPosition };
+                    return true;
+                }
+        }
+        return false;
+    }
+
+    std::optional<Surface::PointerLock> Surface::pointerLock()
+    {
+        if (lock)
+        {
+            const auto state = pointers.find(lock->pointerId);
+            if (! isConnected(lock->node) || state == pointers.end() || state->second.captured != lock->node)
+                endLock();
+        }
+        return lock;
+    }
+
+    void Surface::exitPointerLock() noexcept
+    {
+        endLock();
+    }
+
+    void Surface::endLock() noexcept
+    {
+        if (! lock)
+            return;
+        if (const auto state = pointers.find(lock->pointerId); state != pointers.end())
+            state->second.last.position = lockPosition;
+        lock.reset();
+    }
+
     bool Surface::pointer(const PointerInput& input)
     {
         layout();
+        const auto known = pointers.find(input.pointerId);
+        routedMovement = known == pointers.end() ? Point {}
+                                                 : Point { input.position.x - known->second.last.position.x,
+                                                           input.position.y - known->second.last.position.y };
         PointerState& state = pointers[input.pointerId];
+        state.last = input;
+        // A locked pointer stays where its lock began; only movement changes.
+        PointerInput routed = input;
+        if (lock && lock->pointerId == input.pointerId)
+            routed.position = lockPosition;
+        const bool handled = route(state, routed);
+        routedMovement = {};
+        (void)pointerLock(); // ended by a release, a cancel, or the node going
+        return handled;
+    }
+
+    bool Surface::route(PointerState& state, const PointerInput& input)
+    {
         if (state.captured != noNode && ! isConnected(state.captured))
             state.captured = noNode;
-        state.last = input;
         state.inside = input.phase != PointerInput::Phase::Leave && input.phase != PointerInput::Phase::Cancel;
         const NodeId hit = input.phase == PointerInput::Phase::Leave ? noNode : hitTest(input.position);
 
@@ -1265,9 +1328,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const NodeId target = state.captured != noNode ? state.captured : hit;
                 if (target == noNode)
                     return false;
+                // Implicit capture until the last button is up, from before the
+                // listeners run, so they can lock it (a node they remove lets go).
+                if (state.captured == noNode)
+                    state.captured = target;
                 const bool prevented = dispatch(pointerEvent(Event::Type::PointerDown, target, input));
-                if (state.captured == noNode && isConnected(target))
-                    state.captured = target; // implicit capture until the last button is up
+                if (! isConnected(state.captured))
+                    state.captured = noNode;
                 if (! prevented)
                 {
                     // Focus goes to the nearest focusable node, or nowhere.

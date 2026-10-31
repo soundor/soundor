@@ -187,6 +187,7 @@ target_sources(\${PROJECT_NAME}
           'JuceHttpClient',
           'JuceInput',
           'JuceParameterHost',
+          'JucePointerLock',
           'JucePresentation',
           'JuceTransport',
         ]
@@ -436,6 +437,7 @@ function renderEditorHeader(): string {
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
 #include <soundor/runtime/RuntimeHost.h>
+#include <soundor/backend/JucePointerLock.h>
 #if SOUNDOR_DEVTOOLS
 #include <soundor/backend/JuceDebugBridge.h>
 #endif
@@ -498,6 +500,9 @@ namespace ${NS}
         // Shows the cursor the UI asks for over the view (the style's
         // \`cursor\`), when it changed.
         void updateCursor();
+        // Applies the pointer lock the UI asks for (requestPointerLock()), and
+        // ends it however the press ended, a reload included.
+        void updatePointerLock();
         // Presents the UI to the platform's assistive technology, in the
         // native view JUCE shows it in. The semantics are Soundor's: JUCE only
         // says where the view is (and, on macOS, lists Soundor's elements as
@@ -521,6 +526,8 @@ namespace ${NS}
         bool gpuLost = false;
         // The cursor shown over the view.
         ui::Cursor cursor = ui::Cursor::Default;
+        // Ends a lock by itself when the editor closes during a drag.
+        backend::PointerLock pointerLock;
         // Where the runtime's log goes: diagnostics go there too.
         js::LogSink log;
 #if SOUNDOR_DEVTOOLS
@@ -762,7 +769,9 @@ namespace ${NS}
         host->tick();
 #endif
         updateAccessibility();
-        // Styles also change outside input (timers, animations).
+        // A lock ends with a reloaded runtime or a drag the platform ended,
+        // and styles also change outside input (timers, animations).
+        updatePointerLock();
         updateCursor();
 #if SOUNDOR_DEVTOOLS
         if (debug) {
@@ -845,12 +854,21 @@ namespace ${NS}
 #endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
+        updatePointerLock();
         updateCursor();
+    }
+
+    void AudioProcessorEditor::updatePointerLock()
+    {
+        const auto lock = runtimeHost().surface().pointerLock();
+        pointerLock.update(lock ? std::optional<int>(lock->pointerId) : std::nullopt,
+                           lock ? juce::Point<float>(lock->position.x, lock->position.y) : juce::Point<float>());
     }
 
     void AudioProcessorEditor::updateCursor()
     {
-        const ui::Cursor wanted = runtimeHost().surface().cursor();
+        // None while the pointer is locked: it stays in this view for that.
+        const ui::Cursor wanted = pointerLock.active() ? ui::Cursor::None : runtimeHost().surface().cursor();
         if (wanted == cursor)
             return;
         cursor = wanted;
@@ -879,7 +897,12 @@ namespace ${NS}
 
     void AudioProcessorEditor::mouseDrag(const juce::MouseEvent& event)
     {
-        deliver(backend::pointerInput(event, ui::PointerInput::Phase::Move));
+        auto input = backend::pointerInput(event, ui::PointerInput::Phase::Move);
+        // A locked pointer goes on past the view's edges.
+        const auto position = pointerLock.follow(input.pointerId, { input.position.x, input.position.y },
+                                                 { static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
+        input.position = { position.x, position.y };
+        deliver(input);
     }
 
     void AudioProcessorEditor::mouseUp(const juce::MouseEvent& event)

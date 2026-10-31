@@ -368,6 +368,36 @@ TEST_SUITE("soundor:ui")
         CHECK(f.eval("JSON.stringify(result)").asString() == R"(["pointerenter",10])");
     }
 
+    TEST_CASE("a node locks the pointer pressing it, and events carry movement")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            import { exitPointerLock, pointerLockNode } from 'soundor:ui';
+            globalThis.steps = [];
+            a.style = { width: 100, height: 100 };
+            a.addEventListener('pointerdown', () => {
+              a.requestPointerLock().then(() => steps.push('locked', pointerLockNode() === a));
+            });
+            a.addEventListener('pointermove', (event) =>
+              steps.push(event.clientX, event.movementX, event.movementY));
+            // The release still comes under the lock, which ends after it.
+            a.addEventListener('pointerup', () => steps.push('up', pointerLockNode() === a));
+            globalThis.refuse = () => {
+              steps.push(pointerLockNode());
+              b.requestPointerLock().catch((error) => steps.push(error.name));
+            };
+            globalThis.exit = exitPointerLock;
+        )");
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
+        f.host.runtime().runPendingJobs();
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Move, 250, 4, 1, -1));
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 250, 4, 0, 0));
+        f.run("refuse(); exit();");
+        f.host.runtime().runPendingJobs();
+        CHECK(f.eval("JSON.stringify(steps)").asString()
+              == R"(["locked",true,10,240,-6,"up",true,null,"NotAllowedError"])");
+    }
+
     TEST_CASE("stopPropagation and preventDefault reach the surface")
     {
         UiFixture f;

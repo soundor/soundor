@@ -119,6 +119,16 @@ export function registerFont(
   return register(family, source, descriptors);
 }
 
+/** Ends the pointer lock, if any: the pointer shows again where it began. */
+export function exitPointerLock(): void {
+  view.exitPointerLock();
+}
+
+/** The node holding the pointer lock, if any. */
+export function pointerLockNode(): UiNode | null {
+  return view.pointerLockNode();
+}
+
 /** The node that has keyboard focus, if any. */
 export function focusedNode(): UiNode | null {
   return view.focusedNode();

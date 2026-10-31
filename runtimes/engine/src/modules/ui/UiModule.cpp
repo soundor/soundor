@@ -707,6 +707,33 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        jsi::Value requestPointerLock(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                      std::size_t count)
+        {
+            return call(context, "requestPointerLock", count, 1,
+                        [&](Surface& surface) { return jsi::Value(surface.requestPointerLock(readId(args[0]))); });
+        }
+
+        jsi::Value exitPointerLock(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "exitPointerLock", count, 0,
+                        [&](Surface& surface)
+                        {
+                            surface.exitPointerLock();
+                            return jsi::Value::undefined();
+                        });
+        }
+
+        jsi::Value pointerLock(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "pointerLock", count, 0,
+                        [&](Surface& surface) -> jsi::Value
+                        {
+                            const auto lock = surface.pointerLock();
+                            return { double(lock ? lock->node : noNode) };
+                        });
+        }
+
         jsi::Value focused(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return call(context, "focused", count, 0,
@@ -1247,6 +1274,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     data.set("y", jsi::Value(double(event.position.y)));
                     data.set("offsetX", jsi::Value(double(event.offset.x)));
                     data.set("offsetY", jsi::Value(double(event.offset.y)));
+                    data.set("movementX", jsi::Value(double(event.movement.x)));
+                    data.set("movementY", jsi::Value(double(event.movement.y)));
                     data.set("pointerId", jsi::Value(double(event.pointerId)));
                     data.set("pointerType", bind::write(context, pointerTypes[static_cast<int>(event.pointerType)]));
                     data.set("button", jsi::Value(double(event.button)));
@@ -1322,6 +1351,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "contentSize", contentSize, 1 },
             { "focus", focus, 1 },
             { "focused", focused, 0 },
+            { "requestPointerLock", requestPointerLock, 1 },
+            { "exitPointerLock", exitPointerLock, 0 },
+            { "pointerLock", pointerLock, 0 },
             { "frame", nodeFrame, 1 },
             { "bounds", bounds, 1 },
             { "size", viewSize, 0 },

@@ -32,7 +32,11 @@ the view's nodes as in the DOM.
   `stopImmediatePropagation()` keeps the target's other listeners from seeing
   it too.
 - **Pointer capture** is implicit: from a press to its release, the pressed
-  node receives the moves, wherever the pointer goes.
+  node receives the moves, wherever the pointer goes. It starts before the
+  `pointerdown` listeners run, so they can lock the press
+  ([Pointer lock](#pointer-lock)).
+- **`movementX`/`movementY`** say how far the pointer moved since its previous
+  event, so a drag needs no starting point.
 - **Focus:** a press focuses the nearest `focusable` node, unless its
   `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
   Keys go to the focused node.
@@ -55,6 +59,59 @@ the view) are the renderer's business and never show up in these numbers.
 There is no window or screen space: the view is all a plugin UI knows.
 (`clientX`/`clientY` and `offsetX`/`offsetY` are the Web names for
 `pageX`/`pageY` and `locationX`/`locationY`.)
+
+## Pointer lock
+
+<Snippet name="pointer-lock" height={180} />
+
+A knob or a fader can lock the pointer while it is dragged:
+`event.currentTarget.requestPointerLock()` in `onPointerDown`. While locked,
+the pointer is hidden and the screen's edges don't stop it; the events keep
+going to the node that locked it, their positions stay where the lock began,
+and `movementX`/`movementY` say how far it moved. The lock ends with the
+release, or `exitPointerLock()` from `soundor:ui`, and the pointer shows
+again where it began, on the knob.
+
+```tsx
+import { View } from '@soundor/react';
+import { useRef } from 'react';
+
+function Knob({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange(v: number): void;
+}) {
+  const dragging = useRef(false);
+  return (
+    <View
+      style={{ cursor: 'ns-resize' }}
+      onPointerDown={(event) => {
+        dragging.current = true;
+        event.currentTarget?.requestPointerLock().catch(() => {});
+      }}
+      onPointerMove={(event) => {
+        if (dragging.current) onChange(value - event.movementY / 200);
+      }}
+      onPointerUp={() => (dragging.current = false)}
+      onPointerCancel={() => (dragging.current = false)}
+    />
+  );
+}
+```
+
+- **Only for a press:** a lock needs a mouse or pen pressing the node (or a
+  node in it), which is why it is asked for in `onPointerDown`. Otherwise
+  `requestPointerLock()` rejects with a `NotAllowedError`; touches are never
+  locked.
+- **Keep your own drag state,** as above: `movementY` works without the lock
+  too, so a knob still turns if the lock is refused, stopping at the screen's
+  edge.
+- **`pointerLockNode()`** is the node holding the lock, or `null`. The
+  release still comes under the lock, which ends after it.
+- **In a browser** (the [web runtime](/docs/web-runtime)) the lock is the
+  page's Pointer Lock: Escape ends it early, and Firefox says so in a banner.
 
 ## Props
 

@@ -224,6 +224,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Point position;
         Point offset;
+        // How far the pointer moved since its previous input, also while
+        // locked (when `position` stays where the lock began).
+        Point movement;
         int pointerId = 0;
         PointerType pointerType = PointerType::Mouse;
         int button = -1;
@@ -422,6 +425,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // (no pointermove). The runtime calls it every tick.
         void refreshHover();
 
+        // A node holding a pointer's input for the press in progress: hidden by
+        // the backend, not stopped by the screen's edges, its events at the
+        // position the lock began with only `movement` changing.
+        struct PointerLock
+        {
+            NodeId node = noNode;
+            int pointerId = 0;
+            Point position; // where it began, in the view
+        };
+        // Locks the mouse or pen pressing `id` or a node in it to `id`, until
+        // its release, exitPointerLock(), or `id` leaving the tree; whether
+        // there was such a press. One lock at a time: a new one replaces it.
+        bool requestPointerLock(NodeId id);
+        void exitPointerLock() noexcept;
+        // The lock in force, for the backend to apply (read after input and
+        // every tick, as cursor()).
+        [[nodiscard]] std::optional<PointerLock> pointerLock();
+
         // Delivers an accessibility action to `target` (an
         // `accessibilityaction` event); whether something acted on it.
         bool accessibilityAction(NodeId target, std::string action,
@@ -514,5 +535,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId focusedNode = noNode;
         // revision() when hover was last refreshed.
         std::uint64_t hoverRevision = 0;
+        std::optional<PointerLock> lock;
+        Point lockPosition; // where the lock began, in the view
+        // The movement of the input being routed, for its events.
+        Point routedMovement;
+        bool route(PointerState& state, const PointerInput& input);
+        // Ends the lock; the pointer shows again where it began, so movement
+        // counts from there.
+        void endLock() noexcept;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

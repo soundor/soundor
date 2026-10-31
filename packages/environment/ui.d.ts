@@ -469,6 +469,16 @@ declare module 'soundor:ui' {
     readonly focused: boolean;
     focus(): void;
     blur(): void;
+    /**
+     * Locks the pointer pressing this node (or a node in it) to it for the
+     * press: hidden, not stopped by the screen's edges, its events at the
+     * position the lock began, with movementX/Y saying how far it moved. Ends
+     * with the release or exitPointerLock(); the pointer shows again where it
+     * began. Call it from pointerdown (the browser needs the press to allow
+     * it). Rejects with a NotAllowedError when no mouse or pen is pressing the
+     * node, or the browser refuses (the press goes on, unlocked).
+     */
+    requestPointerLock(): Promise<void>;
     appendChild<T extends UiNode>(child: T): T;
     insertBefore<T extends UiNode>(child: T, before: UiNode | null): T;
     removeChild<T extends UiNode>(child: T): T;
@@ -636,6 +646,10 @@ declare module 'soundor:ui' {
     readText(): Promise<string>;
     writeText(text: string): Promise<void>;
   };
+  /** Ends the pointer lock, if any: the pointer shows again where it began. */
+  export function exitPointerLock(): void;
+  /** The node holding the pointer lock, if any. */
+  export function pointerLockNode(): UiNode | null;
   /** The node that has keyboard focus, if any. */
   export function focusedNode(): UiNode | null;
   /** The view's size in logical pixels, and device pixels per logical pixel. */
@@ -686,6 +700,8 @@ declare module 'soundor:ui' {
     clientY?: number;
     offsetX?: number;
     offsetY?: number;
+    movementX?: number;
+    movementY?: number;
     button?: number;
     buttons?: number;
     pointerId?: number;
@@ -715,6 +731,12 @@ declare module 'soundor:ui' {
     /** locationX and locationY, by their Web names. */
     readonly offsetX: number;
     readonly offsetY: number;
+    /**
+     * How far the pointer moved since its previous event, in logical pixels;
+     * also while locked, when clientX/Y stay where the lock began.
+     */
+    readonly movementX: number;
+    readonly movementY: number;
     /** The button that changed: 0 primary, 1 middle, 2 secondary; -1 none. */
     readonly button: number;
     /** Buttons held: 1 primary, 2 secondary, 4 middle. */

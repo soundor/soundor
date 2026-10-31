@@ -10,6 +10,7 @@ import Gain from './gain';
 import Image from './image';
 import Modal from './modal';
 import Parameters from './parameters';
+import PointerLock from './pointer-lock';
 import Pressable from './pressable';
 import ScrollView from './scroll-view';
 import Spring from './spring';
@@ -28,6 +29,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   image: Image,
   modal: Modal,
   parameters: Parameters,
+  'pointer-lock': PointerLock,
   pressable: Pressable,
   'scroll-view': ScrollView,
   spring: Spring,

@@ -24,6 +24,25 @@ test('modifiers, physical descriptors, literal delimiters and Unicode retain ses
     'Unclosed keyboard descriptor',
   );
 });
+test('a knob locks its drag and turns by movement, as natively', async () => {
+  const r = getTestRuntime(),
+    knob = r.create('view'),
+    elsewhere = r.create('view');
+  r.root.appendChild(knob);
+  r.root.appendChild(elsewhere);
+  const turns: number[] = [];
+  knob.addEventListener('pointerdown', () => void knob.requestPointerLock());
+  knob.addEventListener('pointermove', (event) =>
+    turns.push(event['movementY'] as number),
+  );
+  const user = userEvent.setup();
+  await user.pointer({ target: knob, keys: '[MouseLeft>]' });
+  expect(r.pointerLockNode()).toBe(knob);
+  await user.pointer({ target: elsewhere, movementY: -30 });
+  await user.pointer({ target: elsewhere, keys: '[/MouseLeft]' });
+  expect(turns).toEqual([-30]);
+  expect(r.pointerLockNode()).toBeNull();
+});
 test('capture lasts through the last mouse button and uses native bit masks', async () => {
   const r = getTestRuntime(),
     a = r.create('view'),
@@ -169,8 +188,20 @@ test('foreign nodes cannot mutate a session or the active runtime', async () => 
     user = userEvent.setup();
   await expect(user.click(node)).rejects.toThrow('another runtime');
   await expect(user.type(node, 'x')).rejects.toThrow('another runtime');
-  expect(runtime.pointer).toEqual({ down: null, target: null, buttons: 0 });
-  expect(foreign.pointer).toEqual({ down: null, target: null, buttons: 0 });
+  expect(runtime.pointer).toEqual({
+    down: null,
+    target: null,
+    buttons: 0,
+    type: 'mouse',
+    locked: null,
+  });
+  expect(foreign.pointer).toEqual({
+    down: null,
+    target: null,
+    buttons: 0,
+    type: 'mouse',
+    locked: null,
+  });
   expect(node.value).toBe('');
   foreign.dispose();
 });
