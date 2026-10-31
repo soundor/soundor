@@ -97,6 +97,10 @@ TEST_SUITE("SVG document")
     {
         CHECK(parse(std::string(1024 * 1024 + 1, ' ')) == nullptr);
         CHECK(parse("<svg width='1e38'/>") == nullptr);
+        CHECK(parse("<svg width='NaN'/>") == nullptr);
+        CHECK(parse("<svg width='Infinity'/>") == nullptr);
+        CHECK(parse("<svg width='0x1p999'/>") == nullptr);
+        CHECK(parse("<svg><path d='M0 0LNaN 0'/></svg>") == nullptr);
         CHECK(parse("<svg><path d='M0 0L1e999 0'/></svg>") == nullptr);
         CHECK(parse("<svg><filter id='blur'/></svg>") == nullptr);
         std::string path = "<svg><path d='M0 0";

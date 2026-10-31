@@ -59,6 +59,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 while (! value.empty())
                 {
                     const char first = value.front();
+                    const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; };
+                    // Skia's scalar reader uses strtod, which also accepts
+                    // non-SVG NaN/Infinity and hexadecimal floats. Reject them
+                    // before they can bypass the finite decimal budget.
+                    if ((value.size() >= 3
+                         && ((lower(value[0]) == 'n' && lower(value[1]) == 'a' && lower(value[2]) == 'n')
+                             || (lower(value[0]) == 'i' && lower(value[1]) == 'n' && lower(value[2]) == 'f')))
+                        || (value.size() >= 2 && first == '0' && lower(value[1]) == 'x'))
+                        return false;
                     if ((first >= '0' && first <= '9') || first == '-' || first == '+' || first == '.')
                     {
                         if (first == '+')
