@@ -91,8 +91,9 @@ function CanvasStage({ scenario, register }: StageProps) {
   useEffect(() => {
     const context = ref.current!.getContext('2d')!;
     context.lineWidth = large ? 1 : 1.125;
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
+    context.lineCap = large ? 'butt' : 'round';
+    context.lineJoin = large ? 'miter' : 'round';
+    context.miterLimit = 4;
     // Canvas retains its current path across strokes and clearRect calls.
     // Build the same geometry once, rather than rebuilding it per frame.
     context.beginPath();
