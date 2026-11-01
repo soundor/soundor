@@ -93,9 +93,10 @@ body { margin: 0; background: var(--sd-bg); }
   }
 }
 .soundor-panel-header {
-  display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 16px;
+  display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 16px;
   border-bottom: 1px solid var(--sd-line); flex: none;
 }
+.soundor-logo { width: 28px; height: 28px; flex: none; }
 .soundor-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .soundor-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .soundor-subtitle { font-size: 11px; color: var(--sd-muted); }

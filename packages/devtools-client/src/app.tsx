@@ -13,6 +13,13 @@ export function App({ inspector }: { inspector: Inspector }) {
     <>
       <header>
         <h1>
+          <picture>
+            <source
+              media="(prefers-color-scheme: dark)"
+              srcSet="/icon-light.svg"
+            />
+            <img src="/icon.svg" alt="" width={24} height={24} />
+          </picture>
           Soundor{' '}
           <span style={{ fontWeight: 400, color: 'var(--muted)' }}>
             DevTools

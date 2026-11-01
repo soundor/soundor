@@ -1,5 +1,6 @@
 ---
 '@soundor/devtools-client': patch
+'@soundor/web-runtime': patch
 ---
 
-Add the Soundor icon as the DevTools dashboard's favicon.
+Show the Soundor icon in the DevTools dashboard (header and favicon) and in the Web host's settings panel.
