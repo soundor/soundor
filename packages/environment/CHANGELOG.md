@@ -1,5 +1,19 @@
 # @soundor/environment
 
+## 0.15.0
+
+### Minor Changes
+
+- [#194](https://github.com/soundor/soundor/pull/194) [`003c103`](https://github.com/soundor/soundor/commit/003c103191eb4bec37df0aca7bad4d8e3fbdbe4f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Support bundled SVG assets through Image with the existing content-addressed asset IDs and TypeScript imports. Native images cache bounded Skia SVG documents and render them at the effective physical resolution; Web images use the browser's image decoder. Preserve Image sizing and resize modes, with documented SVG intrinsic-size fallbacks and compatibility limits.
+
+- [#194](https://github.com/soundor/soundor/pull/194) [`6a677ac`](https://github.com/soundor/soundor/commit/6a677ac5d2d56b31f2101435ff6d3b69f31108db) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add soundor:ui createSvg and the bounded, atomic SVG scene protocol v1. SVG roots are Yoga leaves with normal input and accessibility. Native scenes retain Skia geometry with shared path caching and damage tracking; Web scenes use native SVG elements. Add scene update, path parse and draw counters to native benchmark reports. This protocol requires engine 0.6.0 or later; React components follow through the existing React package.
+
+- [#186](https://github.com/soundor/soundor/pull/186) [`96ef938`](https://github.com/soundor/soundor/commit/96ef938d7c0fc4dc745168a7083566400250a4a8) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `useViewSize()` in `@soundor/react` returns the plugin view's `{ width, height }` in logical pixels and its `scale` (device pixels per logical pixel), and re-renders when they change: the user resized the editor, a web host's embedding iframe changed size, or the view moved to a display of another density. It never re-renders for an unchanged size and does not poll. Underneath, `soundor:ui` has `subscribeViewSize(listener)`, and `viewSize()` is now the same frozen object until the size changes, so the pair works with `useSyncExternalStore`. The JUCE runtime tells subscribers once per change, on the editor's tick before the frame at the new size; the web runtime measures the view with the `ResizeObserver` that already updates hover, follows the page's pixel density and the host's scaling. In tests the view starts at the project's editor size, and `testView.resize()` changes it; the simulated `viewSize()` no longer throws.
+
+### Patch Changes
+
+- [#192](https://github.com/soundor/soundor/pull/192) [`c0420b2`](https://github.com/soundor/soundor/commit/c0420b2f70d747959292c7d1f7feac7db089268d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The JUCE and web runtimes lay out more styles the same. Natively, a box with no room (in a container squeezed to zero) keeps its content's size rather than its padding's (Yoga's shortcut for it is patched out), and a fixed `width` or `height` counts in a parent sized by its content after its `min*`/`max*` clamp. In the browser, `flex: n` (or a fixed `flexBasis`) adds only its basis to a row sized by its content, and `aspectRatio` wins over the stretch as in Yoga (with both sizes given, the one along the parent's direction stays). In the browser, a hidden node's (or its children's) `layout` is all zeros and its `getBoundingClientRect()` at its nearest shown ancestor, as natively, rather than at the page's corner. The cases that still differ are listed in the web runtime's guide, "Where layout differs".
+
 ## 0.14.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # vitest-environment-soundor
 
+## 0.15.0
+
+### Patch Changes
+
+- Updated dependencies [[`6a677ac`](https://github.com/soundor/soundor/commit/6a677ac5d2d56b31f2101435ff6d3b69f31108db), [`96ef938`](https://github.com/soundor/soundor/commit/96ef938d7c0fc4dc745168a7083566400250a4a8)]:
+  - @soundor/test-runtime@0.15.0
+
 ## 0.14.0
 
 ### Patch Changes

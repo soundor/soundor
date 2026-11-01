@@ -1,5 +1,11 @@
 # @soundor/devtools-client
 
+## 0.15.0
+
+### Patch Changes
+
+- [#197](https://github.com/soundor/soundor/pull/197) [`128f5fe`](https://github.com/soundor/soundor/commit/128f5fe2cf4d999ecaa34de8c5584e2acca44900) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Show the Soundor icon in the DevTools dashboard (header and favicon) and in the Web host's settings panel.
+
 ## 0.14.0
 
 No changes in this release.

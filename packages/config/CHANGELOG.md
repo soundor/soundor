@@ -1,5 +1,18 @@
 # @soundor/config
 
+## 0.15.0
+
+### Minor Changes
+
+- [#193](https://github.com/soundor/soundor/pull/193) [`36e2599`](https://github.com/soundor/soundor/commit/36e2599acb42049a8b129055faf150af2e72874e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `editor.resize: 'scale'` makes a resizable editor zoom rather than lay its UI out again: the UI stays laid out at `width`×`height`, and resizing draws it larger or smaller, keeping its aspect ratio (default limits: half and twice the size). In JUCE the editor offers its aspect ratio to the host (and keeps it in the Standalone), takes whatever shape a host that ignores it gives (Ardour) with the UI letterboxed in the middle, and draws the surface at the zoom, converting pointer, wheel, pointer lock and accessibility coordinates; in the web host the handle sets the zoom, and `embed` fills the iframe at the editor's layout. `useViewSize()` keeps `width` and `height` and reports the zoom in `scale`. The default, `resize: 'layout'`, is unchanged.
+
+- [#186](https://github.com/soundor/soundor/pull/186) [`a71ac96`](https://github.com/soundor/soundor/commit/a71ac965bb43686143991a875cf162daed1cdc3b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A config's `editor` sets the plugin editor's size, the same in every runtime: `width` and `height` (800×600 by default), and with `resizable: true` limits the user can resize it within (`minWidth`, `minHeight`, `maxWidth`, `maxHeight`; 480×320 to 1600×1200 by default). Without it, an editor is a fixed 800×600 view as before. `resolveEditor()` gives a runtime every field decided. The JUCE runtime's generated editor opens at that size and, when resizable, lets the host resize it within its limits; the UI is laid out again at the new size, and under the GPU compositor presented at it at once.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
