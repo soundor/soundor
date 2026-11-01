@@ -110,8 +110,14 @@ export function normalizeSvgScene(input: unknown): SvgScene {
     return value;
   };
   const array = (value: unknown, max: number): unknown[] => {
-    if (!Array.isArray(value) || value.length > max) fail('array');
-    return value;
+    if (!Array.isArray(value)) fail('array');
+    const size = value.length;
+    if (!Number.isInteger(size) || size < 0 || size > max) fail('array');
+    // Snapshot bounded indices into a dense ordinary array. Array.map skips
+    // holes and an input's own map method must not bypass validation.
+    const result: unknown[] = [];
+    for (let index = 0; index < size; index++) result[index] = value[index];
+    return result;
   };
   const tuple = (value: unknown, count: number): number[] => {
     const given = array(value, count);
@@ -221,8 +227,9 @@ export function normalizeSvgScene(input: unknown): SvgScene {
   ): SvgShape[] => {
     if (value === undefined) return [];
     if (depth > 64) fail('nesting');
-    return array(value, 4096 - nodes).map((item) => {
-      if (++nodes > 4096) fail('node count');
+    const items = array(value, 4096 - nodes);
+    nodes += items.length;
+    return items.map((item) => {
       const given = object(item),
         type = given['type'];
       if (typeof type !== 'string' || !Object.hasOwn(GEOMETRY, type))

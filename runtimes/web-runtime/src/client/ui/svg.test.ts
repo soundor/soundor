@@ -146,6 +146,50 @@ describe('retained SVG browser representation', () => {
     expect(element.outerHTML).toBe(before);
   });
 
+  it('rejects sparse arrays atomically and ignores caller-owned array methods', () => {
+    const { svg, element } = setup();
+    svg.setSvgScene(scene());
+    const before = element.outerHTML;
+    const origins = new Array<number>(4);
+    origins[1] = 0;
+    origins[2] = origins[3] = 100;
+    const points = new Array<number>(4);
+    points[0] = 0;
+    points[2] = points[3] = 10;
+    const dashes = new Array<number>(2);
+    dashes[0] = 2;
+    for (const bad of [
+      { version: 1, children: new Array<SvgScene['children'][number]>(1) },
+      { version: 1, viewBox: origins, children: [] },
+      { version: 1, children: [{ type: 'polygon', points }] },
+      { version: 1, presentation: { strokeDasharray: dashes }, children: [] },
+    ]) {
+      expect(() => svg.setSvgScene(bad as SvgScene)).toThrow('SVG scene');
+      expect(element.outerHTML).toBe(before);
+    }
+    let branch: SvgScene['children'][number] = { type: 'g' };
+    for (let depth = 0; depth < 5; depth++)
+      branch = {
+        type: 'g',
+        children: [
+          branch,
+          ...Array.from({ length: 1000 }, () => ({ type: 'g' as const })),
+        ],
+      };
+    expect(() => svg.setSvgScene({ version: 1, children: [branch] })).toThrow(
+      'array',
+    );
+    expect(element.outerHTML).toBe(before);
+    const children: SvgScene['children'][number][] = [];
+    Object.defineProperty(children, 'map', {
+      value: () => [{ type: 'image', presentation: { fill: 'url(external)' } }],
+    });
+    svg.setSvgScene({ version: 1, children });
+    expect(element.querySelectorAll('image,polygon,path,circle')).toHaveLength(
+      0,
+    );
+  });
+
   it('keeps root accessibility and hides every internal shape', () => {
     const { svg, element, view } = setup();
     svg.setSvgScene(scene());

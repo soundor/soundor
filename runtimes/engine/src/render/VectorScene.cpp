@@ -489,6 +489,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         AspectRatio aspect;
         ui::Size natural { 300, 150 };
         Budget budget;
+        std::size_t reservedNodes = 1;
 
         CompiledNode compileNode(const ui::SvgPresentation& props, const std::vector<ui::SvgShape>& children,
                                  const ui::SvgShape* source, const Inherited& inherited, const SkMatrix& parent,
@@ -532,8 +533,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 result.fill = makePaint(paints.fill, paints, false);
                 result.stroke = makePaint(paints.stroke, paints, true);
             }
-            if (children.size() > maxNodes - budget.nodes)
+            if (children.size() > maxNodes - reservedNodes)
                 invalid("scene complexity");
+            reservedNodes += children.size();
             result.children.reserve(children.size());
             for (std::size_t i = 0; i < children.size(); ++i)
             {

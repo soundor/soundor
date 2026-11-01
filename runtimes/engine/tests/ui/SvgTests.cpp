@@ -72,7 +72,9 @@ TEST_SUITE("soundor:ui SVG")
                "{version:1,children:[{type:'path',d:'M0 0\\0L1 1'}]}",
                "{version:1,children:[{type:'rect',width:Infinity}]}",
                "{version:1,children:[{type:'polygon',points:[0,1,2]}]}",
-               "{version:1,children:new Array(4096).fill({type:'g'})}",
+               "{version:1,children:new Array(4096).fill({type:'g'})}", "{version:1,children:new Array(1)}",
+               "{version:1,viewBox:[,0,100,100],children:[]}",
+               "{version:1,children:[{type:'polygon',points:[0,,10,10]}]}",
                "{version:1,children:[{type:'g',get children(){throw new Error('getter failure')}}]}" })
         {
             const auto error = f.error(std::string("svg.setSvgScene(") + data + ");");
@@ -84,6 +86,9 @@ TEST_SUITE("soundor:ui SVG")
             f.error("const cyclic={type:'g'};cyclic.children=[cyclic];svg.setSvgScene({version:1,children:[cyclic]});")
                 .find("nesting")
             != std::string::npos);
+        CHECK_FALSE(f.error("let pending={type:'g'};for(let i=0;i<5;i++)pending={type:'g',children:[pending,...new "
+                            "Array(1000).fill({type:'g'})]};svg.setSvgScene({version:1,children:[pending]});")
+                        .empty());
         CHECK(f.error("other.setSvgScene(null);").find("svg") != std::string::npos);
     }
 

@@ -315,6 +315,16 @@ TEST_SUITE("retained SVG scene")
             bad.children = { std::move(group) };
         }
         reject(bad);
+        bad = good;
+        bad.children.clear();
+        for (int depth = 0; depth < 5; ++depth)
+        {
+            auto group = shape(ui::SvgGroup {});
+            group.children = std::move(bad.children);
+            group.children.resize(1001);
+            bad.children = { std::move(group) };
+        }
+        reject(bad);
         for (int i = 0; i < 100; ++i)
         {
             f.surface.setSvgScene(f.node, std::nullopt);

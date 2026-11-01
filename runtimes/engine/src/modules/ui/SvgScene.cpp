@@ -162,11 +162,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const auto input = array(value, 4096 - nodeCount);
                 std::vector<SvgShape> result;
                 const auto size = input.size(context.rt);
+                // Count pending siblings before descending, bounding total reserved
+                // shape storage as well as the nodes already visited.
+                nodeCount += size;
                 result.reserve(size);
                 for (std::size_t i = 0; i < size; ++i)
                 {
-                    if (++nodeCount > 4096)
-                        fail("excessive nodes");
                     const auto node = object(input.getValueAtIndex(context.rt, i));
                     const auto type = text(node.getProperty(context.rt, "type"), 16);
                     SvgShape shape;
