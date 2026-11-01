@@ -8,6 +8,7 @@
     "view",
     "text",
     "image",
+    "svg",
     "pressable",
     "text-input",
     "scroll-view",

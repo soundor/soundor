@@ -9,7 +9,7 @@
 //              [--backend vulkan|opengl|metal|d3d11] [--software]
 //              [--save <name>] [--against <name>] [--baseline <report.json>]
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
-//              [--source]
+//              [--source] [--script-scale]
 //
 // The bundle runs as a built plugin runs it: compiled to Hermes bytecode by
 // the same build's hermesc (build/bench/soundor-compile-js.cmake); --source
@@ -47,6 +47,7 @@ const native = path.resolve(benchmark, '../../runtimes/engine');
 const { values: options } = parseArgs({
   options: {
     only: { type: 'string' },
+    'script-scale': { type: 'boolean', default: false },
     animations: { type: 'string', default: 'js' },
     runs: { type: 'string', default: '5' },
     frames: { type: 'string', default: '600' },
@@ -297,6 +298,7 @@ interface BuildInfo {
   buildType?: 'Release';
   collectBetweenPhases?: boolean;
   animationMode?: 'js' | 'native';
+  scriptScale?: boolean;
 }
 
 function run(command: string, args: string[], cwd: string): void {
@@ -637,6 +639,7 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     args.push('--animation-step-ms', String(1000 / 60));
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
+  if (options['script-scale']) args.push('--script-scale');
   // A build whose bundle was compiled runs it as bytecode (builds from
   // before bytecode have none, and a runner without the flag): Hermes
   // bytecode, or QuickJS's in a build saved before Hermes.
@@ -713,6 +716,7 @@ const current: Build = {
     buildType: 'Release',
     collectBetweenPhases: true,
     animationMode: options.animations as 'js' | 'native',
+    scriptScale: options['script-scale'],
   },
 };
 

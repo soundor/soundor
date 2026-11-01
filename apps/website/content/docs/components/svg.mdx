@@ -1,0 +1,191 @@
+---
+title: SVG
+description: Retained vector graphics through @soundor/react/svg, in Web and JUCE.
+---
+
+Import `Svg`, `G`, `Path`, `Circle`, `Rect`, `Ellipse`, `Line`, `Polygon` and
+`Polyline` from **`@soundor/react/svg`**. This subpath belongs to the existing
+React package and shares its version. It requires **engine 0.6.0 or later**,
+with either source or prebuilt engines.
+
+<Snippet name="svg" height={150} />
+
+```tsx
+import { Svg, Circle, Path } from '@soundor/react/svg';
+
+export function CheckIcon() {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Circle
+        cx={12}
+        cy={12}
+        r={10}
+        stroke="white"
+        strokeWidth={2}
+        fill="none"
+      />
+      <Path
+        d="M6 12L10 16L18 8"
+        stroke="white"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+```
+
+## Composition and updates
+
+These are normal React components. Custom components may return shapes;
+fragments, conditions, keyed children, insertion and reordering work normally.
+Changing a fill, path or group property updates that SVG's retained scene,
+without replacing the complete UI tree.
+
+```tsx
+function Marker({ color }: { color: string }) {
+  return <Circle cx={12} cy={12} r={6} fill={color} />;
+}
+function StatusIcon({ active }: { active: boolean }) {
+  return (
+    <Svg width={24} height={24} viewBox="0 0 24 24">
+      <Marker color={active ? '#22c55e' : '#6b7280'} />
+    </Svg>
+  );
+}
+```
+
+Only `Svg` creates a Soundor UI node and participates in Yoga/flexbox.
+Groups and shapes live in its own coordinate system. Use `G` for inherited
+presentation and nested transforms, rather than `View` inside an SVG.
+Nested `Svg` viewports and SVG text are not supported.
+
+## Sizing and coordinates
+
+`width` and `height` props are numeric logical layout dimensions. The root's
+Soundor `style` takes precedence, including percentages, flex, constraints,
+padding and borders. For example, `width={24} style={{ width: '100%' }}` follows
+the parent's width. Shape coordinates remain SVG user units.
+
+A `viewBox` is `"minX minY width height"` or a four-number tuple. Its dimensions
+must be positive; its origin may be nonzero. It supplies a ratio, not intrinsic
+pixels. Without layout dimensions, the ratio is contained in a 300×150 default
+object size. Without a viewBox, coordinates are logical content-box pixels.
+Explicit dimensions are the clearest choice for an icon.
+
+`preserveAspectRatio` defaults to `"xMidYMid meet"`. `meet` fits the complete
+viewBox, `slice` fills the viewport and crops, and `none` scales each axis
+independently. The nine `xMin/xMid/xMax` and `YMin/YMid/YMax` alignments are
+supported. Drawing always clips to the root's content viewport, including
+when its layout style says overflow visible; rounded and ancestor clips also
+apply.
+
+Layout resizing changes the root's viewport. Editor `resize: 'scale'` keeps
+its logical dimensions and changes the rendering resolution, including device
+pixel ratio and editor zoom. **Do not multiply SVG dimensions by
+`useViewSize().scale`.** Native SVG draws into the existing physical-resolution
+SkCanvas; Web uses browser SVG elements. Neither path permanently enlarges a
+small cached SVG bitmap.
+
+## Presentation and transforms
+
+Use SVG presentation props directly on `Svg`, `G` and shapes. They are separate
+from Soundor's layout `Style`.
+
+- `fill`, `stroke`, `color`: Soundor's named CSS colors, hex, RGB/RGBA and
+  HSL/HSLA; `none`, transparent colors and `currentColor` are supported.
+  `currentColor` uses the child's inherited `color`.
+- `strokeWidth`, `strokeLinecap`, `strokeLinejoin`, `strokeMiterlimit`,
+  `strokeDasharray`, `strokeDashoffset`, and `fillRule` follow SVG conventions.
+  Dash arrays accept numbers or a numeric list; `"none"` disables dashing.
+  Odd dash lists repeat. Stroke width zero draws no stroke.
+- Paint, stroke properties and fill/stroke opacity inherit through groups.
+  Defaults are black fill/color, no stroke, width 1, nonzero fill rule, butt
+  caps, miter joins/limit 4, opacity 1.
+- `opacity` isolates the entire shape or group, including overlap; it is not
+  inherited. `fillOpacity` and `strokeOpacity` inherit and can be overridden.
+- `transform` accepts an SVG transform list or `[a,b,c,d,e,f]` matrix.
+  `matrix`, `translate`, `scale`, `rotate` (including a center), `skewX` and
+  `skewY` are supported. SVG transform angles are **degrees**. Root
+  `style.transform` is the existing Soundor box transform, whose rotation is
+  in radians.
+
+```tsx
+<Svg width={100} height={100} viewBox="0 0 100 100">
+  <G stroke="white" strokeWidth={3} fill="none" transform="translate(2 3)">
+    <Circle cx={50} cy={50} r={30} />
+    <Path d="M30 50L45 65L70 35" />
+  </G>
+</Svg>
+```
+
+## Interaction and accessibility
+
+The SVG root accepts normal Soundor events, accessibility props, `debugId`,
+`focusable`, layout style and a `ref` to its `UiNode`. Its viewport is the hit
+area, including transparent parts. Event coordinates are logical UI pixels,
+not viewBox coordinates. Label meaningful graphics with `accessibilityLabel`;
+unlabelled SVGs are decorative. Groups and shapes have no independent event
+targets, refs or semantic nodes. Use a root or an enclosing
+[Pressable](/docs/components/pressable) for a control.
+
+## SVG Image, React SVG and Canvas
+
+| Use                                                          | Rendering                                   | Best fit                                                     |
+| ------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------------------ |
+| [Image with an SVG asset](/docs/components/image#svg-assets) | Cached SkSVGDOM / browser image             | Exported artwork, including supported gradients and clipping |
+| React SVG                                                    | Retained SkPath/SkPaint scene / browser SVG | Declarative shapes that update with React state              |
+| [Canvas](/docs/components/canvas)                            | Explicit drawing commands                   | Custom drawing algorithms and immediate control              |
+
+SVG Image files use the existing content-addressed asset bundler. They can
+support richer document features than these primitives. React SVG never
+parses XML, creates per-shape Yoga nodes or submits a native call per shape.
+It publishes one complete scene per affected root after a React commit.
+
+## Scope and performance
+
+This is Soundor's first-party SVG API. It does not implement react-native-svg,
+arbitrary React DOM SVG or third-party icon-library compatibility. No extra
+SVG or icon package is required.
+
+The primitive API has no gradients, patterns, masks, clip paths, text, filters,
+shadows, foreign objects, external resources, animation elements, CSS classes,
+stylesheets, variables, or general CSS length units. Geometry uses numbers;
+point lists and transforms accept the numeric SVG syntax described above.
+This is not complete SVG specification support.
+
+Native paths are parsed with Skia and retained. Paint and viewport changes
+reuse geometry; unchanged SVGs are not serialized again because an unrelated
+React component updates. Static SVGs do not schedule redraws. Normal damage
+tracking can still redraw an SVG when a changed region overlaps it. Large
+scenes and frequently changing path strings cost more than paint changes.
+Web retains unchanged geometry attributes in browser SVG elements.
+
+Scenes are bounded: 4,096 nodes including the root, 64 nesting levels,
+65,536 numbers, 1 MiB of strings, 256 KiB per path, and finite coordinates
+within ±1,000,000. Invalid low-level replacements leave the previous scene
+intact. The [scene protocol](/docs/contribute/engine-reference#retained-svg-scenes)
+describes validation, geometry caching and native benchmark counters.
+
+## Root API
+
+<auto-type-table path="packages/react/src/svg/types.ts" name="SvgProps" />
+
+## Shape API
+
+All shapes share the presentation props above. Missing numeric geometry
+properties default to zero. Rectangle radii default to zero; a single radius
+supplies the other.
+
+| Component  | Geometry / children                                               |
+| ---------- | ----------------------------------------------------------------- |
+| `G`        | `children` (React shapes and groups)                              |
+| `Path`     | `d` (standard SVG path commands, including arcs)                  |
+| `Circle`   | `cx`, `cy`, `r`                                                   |
+| `Rect`     | `x`, `y`, `width`, `height`, `rx`, `ry`                           |
+| `Ellipse`  | `cx`, `cy`, `rx`, `ry`                                            |
+| `Line`     | `x1`, `y1`, `x2`, `y2`                                            |
+| `Polygon`  | `points`: alternating x/y numbers or a numeric point list; closed |
+| `Polyline` | `points`: alternating x/y numbers or a numeric point list; open   |

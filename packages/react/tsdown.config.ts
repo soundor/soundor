@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig(
   withPreset(browser, {
-    entry: ['src/index.ts'],
+    entry: { index: 'src/index.ts', svg: 'src/svg/index.tsx' },
     platform: 'neutral',
     target: 'es2023',
     tsconfig: './tsconfig.app.json',

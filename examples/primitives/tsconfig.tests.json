@@ -16,6 +16,7 @@
     "src/**/*.test.tsx",
     "src/App.tsx",
     "vitest.config.ts",
-    ".soundor/generated/soundor.d.ts"
+    ".soundor/generated/soundor.d.ts",
+    "src/SvgExamples.tsx"
   ]
 }

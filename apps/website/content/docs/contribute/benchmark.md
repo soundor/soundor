@@ -313,3 +313,45 @@ regressions must be read alongside sample counts, idle ticks and work counts.
 
 The [recorded advanced results](https://github.com/soundor/soundor/blob/main/tools/benchmark/reports/advanced-native.md) include matched Hermes
 comparisons, P95/P99, storage estimates and rendering/kernel regressions.
+
+## SVG workloads
+
+The `svg` group covers 1/100/500 static icons, paint updates at those counts,
+100 changing paths, a retained 5,000-point vector, static SVGs while an
+unrelated region changes, SVG Image repainting, and editor presentation scale
+changes. Canvas controls retain the same current path between strokes; they
+clear and redraw the full Canvas rather than updating individual SVG roots.
+These controls compare different drawing models, not identical damage costs.
+
+```sh
+pnpm --filter soundor-benchmark bench --only svg --script-scale --runs 5 --frames 120 --warmup 30 --backend vulkan --software
+pnpm --filter soundor-benchmark test:svg-native
+```
+
+`--script-scale` enables a **benchmark-only** host hook. The editor-scale
+scenario requests 0.5/1/1.5/2 physical scales through `soundorRunUiScale`; the
+runner changes Surface's presentation scale, leaving logical SVG dimensions
+untouched. The hook is off for ordinary runs and does not exist in plugin
+applications. Each phase reports the actual `renderScale` range. Changing scale re-snaps
+the existing Yoga roots without changing their logical viewport dimensions.
+
+`surface.svgSceneUpdates`, `svgPathParses` and `svgDraws` count retained scene
+work per rendered frame. An idle phase has no rendered frames; use `ticks`,
+`idleTicks`, uploads and rasterized pixels as well. Warmup performs initial
+parsing, so zero measured parses means retained geometry is reused; the native
+cache tests also verify one parse across 500 roots. SVG Image uses its separate
+document cache and is not counted as a retained React scene.
+
+`test:svg-native` builds an actual production React bundle, compiles it with
+the engine's Hermes compiler, and verifies native pixels at six effective
+scales, paint/path changes, keyed order, root identity, unmounting and idle
+frames. It compares the scene with an independent SVG Image document. Its
+explicit Debug-runner `--capture` uses the existing DevTools capture path
+after measurement. Ordinary benchmark runs do not capture or read back.
+The website's browser tests use the same React fixture at DPR 1/2.
+
+To check overhead for plugins that do not use SVG, compare the unchanged `ui`
+and `canvas` groups against a saved build of main, alternating builds in the
+same session. An old engine cannot run the new SVG scenarios. Report timing
+spreads and work counts; a single smoke run establishes correctness, not a
+performance conclusion.

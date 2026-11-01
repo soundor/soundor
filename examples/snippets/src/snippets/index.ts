@@ -15,6 +15,7 @@ import PointerLock from './pointer-lock';
 import Pressable from './pressable';
 import ScrollView from './scroll-view';
 import Spring from './spring';
+import Svg from './svg';
 import Text from './text';
 import TextInput from './text-input';
 import Tooltip from './tooltip';
@@ -30,6 +31,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   gain: Gain,
   image: Image,
   'image-svg': SvgImage,
+  svg: Svg,
   modal: Modal,
   parameters: Parameters,
   'pointer-lock': PointerLock,

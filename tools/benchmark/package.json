@@ -13,7 +13,8 @@
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:svg-native": "node scripts/svg-native-test.mjs"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
@@ -23,11 +24,13 @@
     "three": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/three": "catalog:",
+    "rolldown": "catalog:",
     "soundor": "workspace:*",
     "typescript": "catalog:",
     "vitest": "catalog:"

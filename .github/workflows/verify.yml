@@ -222,6 +222,14 @@ jobs:
           pnpm --filter soundor-benchmark bench --only advanced-animation --animations native --runs 1 --frames 12 --warmup 3 --backend vulkan --software --out "$RUNNER_TEMP/advanced-animation.json"
           node tools/benchmark/scripts/verify-animation-report.ts "$RUNNER_TEMP/advanced-animation.json"
 
+      - name: Native React SVG rendering
+        if: needs.changes.outputs.benchmark == 'true'
+        run: |
+          pnpm --filter soundor-benchmark exec playwright install --with-deps chromium
+          pnpm --filter soundor-benchmark test:svg-native
+          pnpm --filter soundor-benchmark bench --only svg --script-scale --runs 1 --frames 12 --warmup 3 --backend vulkan --software --out "$RUNNER_TEMP/svg.json"
+          node tools/benchmark/scripts/verify-svg-report.mjs "$RUNNER_TEMP/svg.json"
+
       - name: Save native dependencies
         if: always() && steps.deps.outputs.cache-key != ''
         uses: ./.github/actions/native-deps-save

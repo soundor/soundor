@@ -25,7 +25,7 @@ describe('every snippet', () => {
     for (const specifier of imports) {
       // …and the images in src/assets/, which the docs page serves.
       expect(specifier).toMatch(
-        /^(react|@soundor\/react|soundor:[a-z]+|\.\.\/assets\/[\w-]+\.(png|jpe?g|webp|svg))$/,
+        /^(react|@soundor\/react(?:\/svg)?|soundor:[a-z]+|\.\.\/assets\/[\w-]+\.(png|jpe?g|webp|svg))$/,
       );
     }
     expect(code).toMatch(/^export default function /m);

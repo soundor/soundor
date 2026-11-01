@@ -21,6 +21,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutRect, PointerEvent, UiNode } from 'soundor:ui';
 
 import landscape from './assets/landscape.svg';
+import { SvgExamples } from './SvgExamples';
 
 // ── Small building blocks ────────────────────────────────────────────────────
 
@@ -659,6 +660,9 @@ export function App() {
         <AnimationDemo />
         <AdvancedAnimationDemo />
         <SvgImageDemo />
+        <Card title="React SVG">
+          <SvgExamples />
+        </Card>
         <Coordinates />
         <Stacking />
         <ContextMenuDemo />

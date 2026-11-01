@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "serve": "node scripts/serve.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "node ../../tools/benchmark/scripts/svg-fixture.mjs && playwright test"
   },
   "dependencies": {
     "@codemirror/autocomplete": "catalog:",
