@@ -1,18 +1,26 @@
 import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 
-import { appName, repository, soundorVersion } from './shared';
+import { appName, repository } from './shared';
 
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
       title: (
-        <span className="flex items-baseline gap-2">
-          <span className="font-semibold">{appName}</span>
-          {/* Plain text: the title is already a link home. */}
-          <span className="text-xs font-normal text-fd-muted-foreground">
-            v{soundorVersion}
-          </span>
-        </span>
+        <>
+          {/* The wordmark is outlined in the theme's ink: one file per theme. */}
+          <img
+            src="/soundor-logo.svg"
+            alt={appName}
+            height={28}
+            className="h-7 w-auto dark:hidden"
+          />
+          <img
+            src="/soundor-logo-dark-bg.svg"
+            alt={appName}
+            height={28}
+            className="hidden h-7 w-auto dark:block"
+          />
+        </>
       ),
     },
     githubUrl: repository.url,

@@ -40,6 +40,7 @@ export function Panel(props: PanelProps) {
       }}
     >
       <div class="soundor-panel-header">
+        <Logo />
         <div class="soundor-heading">
           <span class="soundor-title">{pluginName}</span>
           <span class="soundor-subtitle">Soundor Web host</span>
@@ -243,4 +244,37 @@ function Audio({
 
 function round(_key: string, value: unknown): unknown {
   return typeof value === 'number' ? Math.round(value * 1000) / 1000 : value;
+}
+
+/** The Soundor icon (light tile: the panel is always dark). */
+function Logo() {
+  return (
+    <svg
+      class="soundor-logo"
+      viewBox="6 6 108 108"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="6" y="6" width="108" height="108" rx="30" fill="#F2F4F7" />
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <polyline
+          points="38,42 24,60 38,78"
+          stroke="#0E0F12"
+          stroke-width="7"
+        />
+        <polyline
+          points="82,42 96,60 82,78"
+          stroke="#0E0F12"
+          stroke-width="7"
+        />
+        <g stroke="#FF5A1F" stroke-width="4.5">
+          <line x1="48" y1="64" x2="48" y2="56" />
+          <line x1="54" y1="69" x2="54" y2="51" />
+          <line x1="60" y1="74" x2="60" y2="46" />
+          <line x1="66" y1="68" x2="66" y2="52" />
+          <line x1="72" y1="63" x2="72" y2="57" />
+        </g>
+      </g>
+    </svg>
+  );
 }

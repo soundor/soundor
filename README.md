@@ -1,4 +1,7 @@
-# Soundor
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/brand/soundor-logo-dark-bg.svg">
+  <img alt="Soundor" src="assets/brand/soundor-logo.svg" height="64">
+</picture>
 
 Build audio plugin UIs in TypeScript and React, and run the same UI in a native
 JUCE plugin or a browser.
