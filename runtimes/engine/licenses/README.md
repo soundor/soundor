@@ -12,6 +12,7 @@ in `cmake/SoundorDependencies.cmake`:
 | `skia/libjpeg-turbo`   | Skia              | Skia's DEPS pin, `e14cbfaa85529d47f9f55b0f104a579c1061f9ad`                             |
 | `skia/libpng`          | Skia              | Skia's DEPS pin, `49363adcfaf098748d7a4c8c624ad8c45a8c3a86`                             |
 | `skia/libwebp`         | Skia              | Skia's DEPS pin, `845d5476a866141ba35ac133f856fa62f0b7445f` (decoding)                  |
+| `skia/expat`          | Skia              | Skia's DEPS pin, `8e49998f003d693213b538ef765814c7d21abada`                             |
 | `skia/zlib`            | Skia              | Skia's DEPS pin (Chromium's zlib), `646b7f569718921d7d4b5b8e22572ff6c76f2596`           |
 | `hermes/llvh`          | Hermes            | `external/llvh/LICENSE.txt` at the Hermes revision (LLVM's support library)             |
 | `hermes/dtoa`          | Hermes            | the notice heading `external/dtoa/dtoa.c` at the Hermes revision                        |

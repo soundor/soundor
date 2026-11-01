@@ -78,6 +78,11 @@ if(NOT SOUNDOR_SKIA_DIR)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/skia/SoundorSkiaPrefix.h" prefix_hash)
   get_filename_component(skia_cxx_name "${skia_cxx}" NAME)
   string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name}")
+  if(SOUNDOR_ENABLE_SANITIZERS)
+    # ASan adds state to Skia's inline containers. A non-ASan archive has a
+    # different SVG node layout and cannot be read through these headers.
+    string(SHA256 key "${key};address")
+  endif()
   string(SUBSTRING "${key}" 0 12 key)
   string(SUBSTRING "${SOUNDOR_SKIA_REVISION}" 0 10 short_revision)
   list(JOIN soundor_skia_cpus "-" cpu_names)
@@ -100,6 +105,7 @@ if(NOT SOUNDOR_SKIA_DIR)
           "-DFLAVORS=${soundor_skia_flavors}"
           "-DCC=${skia_cc}"
           "-DCXX=${skia_cxx}"
+          "-DADDRESS_SANITIZER=${SOUNDOR_ENABLE_SANITIZERS}"
           -P "${CMAKE_CURRENT_LIST_DIR}/SoundorSkiaBuild.cmake"
         RESULT_VARIABLE status)
       if(NOT status EQUAL 0)

@@ -41,7 +41,8 @@ endif()
 
 # Sanitizers instrument every object this build compiles, the dependencies it
 # compiles itself included, so they are applied directory-wide rather than per
-# target. Hermes, Skia and ANGLE come prebuilt from the cache, uninstrumented.
+# target. Skia has a matching ASan cache variant (its headers change layout);
+# Hermes and ANGLE come prebuilt from the cache, uninstrumented.
 if(SOUNDOR_ENABLE_SANITIZERS)
   if(MSVC)
     add_compile_options(/fsanitize=address)

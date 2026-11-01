@@ -125,6 +125,7 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
                 text: 'text',
                 image: 'image',
                 canvas: 'image',
+                svg: 'image',
                 input: 'textinput',
                 scroll: 'scrollview',
                 view: 'group',

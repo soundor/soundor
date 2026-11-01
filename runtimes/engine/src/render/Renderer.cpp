@@ -1,5 +1,6 @@
 #include "render/SkiaImages.h"
 #include "render/SkiaText.h"
+#include "render/VectorScene.h"
 
 #include <soundor/ui/Renderer.h>
 #if SOUNDOR_DEVTOOLS
@@ -106,6 +107,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void drawNode(SkCanvas& canvas, const Node& node);
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
+        void drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const;
         void drawInput(SkCanvas& canvas, const Node& node);
         void drawCanvas(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawScrollIndicators(SkCanvas& canvas, const Node& node) const;
@@ -300,9 +302,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const bool layered = opacity < 1 && ! singleShape;
         if (layered)
         {
-            const bool insideBox =
-                leaf
-                && (node.type() == NodeType::View || node.type() == NodeType::Image || node.type() == NodeType::Canvas);
+            const bool insideBox = leaf
+                                   && (node.type() == NodeType::View || node.type() == NodeType::Image
+                                       || node.type() == NodeType::Canvas || node.type() == NodeType::Svg);
             canvas.saveLayerAlphaf(insideBox ? &box : nullptr, opacity);
         }
 
@@ -334,6 +336,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     break;
                 case NodeType::Canvas:
                     drawCanvas(canvas, node, outer);
+                    break;
+                case NodeType::Svg:
+                    drawSvg(canvas, node, outer);
                     break;
                 case NodeType::View:
                 case NodeType::Scroll:
@@ -394,18 +399,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     void Renderer::Impl::drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer)
     {
-        const sk_sp<SkImage> image = images->image(node.source());
+        const auto* image = images->load(node.source());
         if (image == nullptr)
             return;
         const Rect content = node.contentBox();
         const SkRect box = SkRect::MakeXYWH(content.x, content.y, content.width, content.height);
-        const SkRect placed = placeImage({ static_cast<float>(image->width()), static_cast<float>(image->height()) },
-                                         box, node.style().resizeMode);
+        const SkRect placed = placeImage(image->size, box, node.style().resizeMode);
         canvas.save();
         canvas.clipRRect(outer, true);
         canvas.clipRect(box, true);
-        // Between the two nearest of its mipmaps: smooth at any size.
-        canvas.drawImageRect(image, placed, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear));
+        images->draw(canvas, *image, placed);
+        canvas.restore();
+    }
+
+    void Renderer::Impl::drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const
+    {
+        if (! node.vectorScene)
+            return;
+        const auto content = node.contentBox();
+        const auto box = SkRect::MakeXYWH(content.x, content.y, content.width, content.height);
+        canvas.save();
+        canvas.clipRRect(outer, true);
+        if (! box.isEmpty() && ! canvas.quickReject(box))
+        {
+            ++surface->counted.svgDraws;
+            node.vectorScene->draw(canvas, box);
+        }
         canvas.restore();
     }
 

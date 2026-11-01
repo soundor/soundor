@@ -35,6 +35,7 @@ A component's `ref` is its node: `ref.current.animate(…)`,
 | `createImage(source?, style?)` | A bundled image.                                                                 |
 | `createScrollView(style?)`     | A box whose children scroll.                                                     |
 | `createTextInput(options?)`    | A single-line input that edits itself.                                           |
+| `createSvg(style?)`            | A retained vector scene; only its root participates in layout.                   |
 | `createCanvas(style?)`         | A canvas, with a 2D or WebGL 2 context.                                          |
 
 A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
@@ -52,6 +53,18 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
 - per kind: `text`; `value`, `placeholder` and the selection; `source`;
   `width`, `height` and `getContext()`; `scrollTop`, `scrollLeft`,
   `scrollTo()` and `scrollBy()`.
+
+## Vector scenes
+
+`createSvg(style?)` creates a leaf UI node. Its `setSvgScene(scene)` method
+atomically replaces a validated version 1 scene; `setSvgScene(null)` clears
+it. The scene contains a viewBox, groups, paths and basic shapes, with
+SVG presentation properties kept separate from `Style`. Shapes are not UI
+children and have no individual event or accessibility targets.
+
+The [scene protocol](/docs/contribute/engine-reference#retained-svg-scenes)
+documents the data format, coordinate systems, validation limits and
+geometry caching. It requires engine 0.6.0 or later.
 
 ## Animations
 

@@ -3,7 +3,7 @@ title: Image
 description: A bundled image, sized by its pixels unless styled.
 ---
 
-`Image` shows an image bundled with the plugin: a PNG, JPEG or WebP file
+`Image` shows an image bundled with the plugin: a PNG, JPEG, WebP or SVG file
 imported from the project.
 
 <Snippet name="image" height={190} />
@@ -33,6 +33,74 @@ export function Logo() {
   embeds it in the plugin. There is no loading from URLs or files.
 - **To assistive technology** an image is decorative unless it is given a
   label (`accessibilityLabel`), a role or `accessible`.
+
+## SVG assets
+
+For shapes that update with React state, use the separate
+[React SVG API](/docs/components/svg) in `@soundor/react/svg`.
+
+<Snippet name="image-svg" height={170} />
+
+Import an SVG exactly as a bitmap. Its content-addressed asset ID, loading,
+interaction and accessibility use the existing Image API:
+
+```tsx
+import { Image } from '@soundor/react';
+import logo from './assets/logo.svg';
+
+export function Logo() {
+  return (
+    <Image
+      source={logo}
+      style={{ width: 200, height: 100, resizeMode: 'contain' }}
+    />
+  );
+}
+```
+
+The JUCE runtime caches a parsed Skia SVG document and draws it directly into
+its current render target. It does not keep a small bitmap and enlarge it.
+Layout resizing changes the image's box; editor `resize: 'scale'` changes the
+physical rendering resolution, including device-pixel ratio, without changing
+SVG coordinates. Neither mode needs application-side multiplication by
+`useViewSize().scale`. The Web runtime uses an ordinary browser image element,
+not XML inserted into the page.
+
+Explicit positive width and height determine intrinsic dimensions. A `viewBox`
+provides an aspect ratio, **not intrinsic pixel dimensions**. With one explicit
+side, the missing side follows that ratio; without one, the default is 300×150
+logical pixels, containing the viewBox ratio (a square becomes 150×150).
+Percentage dimensions are relative, so use the same fallback. Without a ratio,
+a missing width is 300 and a missing height is 150. Nonpositive resolved
+native dimensions show no image; unrecognized length syntax can retain Skia's
+default values. Set both layout dimensions when exact sizing
+across browsers matters: browser automatic sizing of ratio-only SVGs can also
+follow the available containing block.
+
+Paths, groups, transforms, solid colors, gradients and clipping use the pinned
+Skia SVG module. This is a compatibility scope, not complete SVG specification
+support. Browsers support more SVG/CSS features. In the native document loader:
+
+- External files, network resources, data-URL images and fonts are unavailable.
+  Convert text to outlines; native SVG text is not rendered.
+- Scripts do not execute. DOCTYPE declarations and filter elements are rejected;
+  filters need a separate intermediate-surface memory budget.
+- Documents are limited to 1 MiB and validated for geometry, nesting, references
+  and inline-style complexity. See the [engine reference](/docs/contribute/engine-reference#svg-document-rendering).
+- Prefer numeric or `px` lengths and a viewBox. Skia resolves physical units at
+  90 DPI; browsers use 96 DPI. General CSS styling is not portable.
+
+The bundler excludes unused SVG imports and applies the byte limit after tree
+shaking. Rejected documents safely show no native image; other unsupported
+attributes or elements can be ignored by Skia. Browser handling may differ.
+Use simple, self-contained artwork for consistent results.
+
+For a document with a viewBox, `resizeMode` places its viewport, and the SVG's
+own `preserveAspectRatio` then maps artwork into that viewport. In particular,
+`stretch` does not override the document's default `xMidYMid meet`: use
+`preserveAspectRatio="none"` in the asset when its artwork should distort with
+the box. This follows browser Image behavior. Canvas `drawImage()` instead
+scales/crops the image at its intrinsic size, as browser Canvas does.
 
 ## Props
 

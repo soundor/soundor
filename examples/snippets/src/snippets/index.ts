@@ -8,12 +8,14 @@ import Cursor from './cursor';
 import FocusScope from './focus-scope';
 import Gain from './gain';
 import Image from './image';
+import SvgImage from './image-svg';
 import Modal from './modal';
 import Parameters from './parameters';
 import PointerLock from './pointer-lock';
 import Pressable from './pressable';
 import ScrollView from './scroll-view';
 import Spring from './spring';
+import Svg from './svg';
 import Text from './text';
 import TextInput from './text-input';
 import Tooltip from './tooltip';
@@ -28,6 +30,8 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   'focus-scope': FocusScope,
   gain: Gain,
   image: Image,
+  'image-svg': SvgImage,
+  svg: Svg,
   modal: Modal,
   parameters: Parameters,
   'pointer-lock': PointerLock,

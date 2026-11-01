@@ -193,7 +193,7 @@ export function ResizeHandle({
         );
       }}
     >
-      <svg viewBox="0 0 12 12" aria-hidden="true">
+      <svg class="soundor-glyph" viewBox="0 0 12 12" aria-hidden="true">
         <path d="M12 2v10H2z" />
       </svg>
     </button>

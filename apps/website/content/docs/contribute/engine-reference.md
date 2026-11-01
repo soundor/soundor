@@ -1138,14 +1138,19 @@ counted the unclamped size. What still differs from the web runtime is in
 ### Skia
 
 Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
-gets only its PNG, JPEG, WebP and zlib code, each at the commit Skia's `DEPS`
-pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
+gets its PNG, JPEG, WebP, zlib and Expat code, each at the commit Skia's `DEPS`
+pins. SVG documents use `modules/svg`, resources and primitive shaping. It
+has no GPU backends, PDF, ICU or HarfBuzz.
 
 - **The build:** `cmake/SoundorSkiaBuild.cmake` runs gn and ninja.
   `cmake/SoundorSkia.cmake` runs it during the first configure on a machine
   (about two minutes on four cores) and caches the result in the user cache
   directory (override with `SOUNDOR_CACHE`), keyed by revision, build script,
   compiler and architectures. Every later configure reuses it.
+- **Sanitizers:** the sanitizer preset uses a separate ASan-instrumented Skia
+  cache. Skia's inline containers change layout under ASan, so the archive
+  and its consumers must agree; ordinary and prebuilt release builds keep
+  the uninstrumented archive.
 - **Prerequisites:** git, Python 3 and ninja. `soundor doctor` checks them.
 - **Using your own build:** set `SOUNDOR_SKIA_DIR` to a Skia install made by
   that script.
@@ -1174,6 +1179,90 @@ pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
 - **zlib for ANGLE too:** the install has the headers of the zlib inside the
   library (`zlib/`, Chromium's zlib with its `Cr_z_` names). ANGLE compiles
   against them and links Skia's zlib instead of its own (see ANGLE).
+
+### Retained SVG scenes
+
+`soundor:ui` exports `createSvg(style?)`. Its returned UiNode is one Yoga
+leaf with the normal Style, debugId, events and accessibility. Shapes in its
+vector scene have no UI ids, Yoga nodes, pointer targets or semantic nodes.
+The scene protocol is version 1 and requires **engine 0.6.0 or later**, in
+both source and prebuilt mode.
+
+```ts
+import { root, createSvg } from 'soundor:ui';
+
+const icon = createSvg({ width: 24, height: 24 });
+icon.setSvgScene({
+  version: 1,
+  viewBox: [0, 0, 24, 24],
+  presentation: {
+    fill: 'none',
+    stroke: 'currentColor',
+    color: 'blue',
+    strokeWidth: 2,
+  },
+  children: [
+    { type: 'circle', cx: 12, cy: 12, r: 10 },
+    {
+      type: 'path',
+      d: 'M6 12L10 16L18 8',
+      presentation: { strokeLinecap: 'round', strokeLinejoin: 'round' },
+    },
+  ],
+});
+root.appendChild(icon);
+```
+
+`setSvgScene(snapshot)` clones and validates a complete scene before installing
+it; invalid input leaves the previous scene intact. `setSvgScene(null)` clears
+its drawing, retaining the UiNode and Style. This interface is independent of
+React and does not parse XML.
+
+Shapes are `g` (with `children`), `path` (`d`), `circle` (`cx`, `cy`, `r`),
+`rect` (`x`, `y`, `width`, `height`, `rx`, `ry`), `ellipse` (`cx`, `cy`, `rx`,
+`ry`), `line` (`x1`, `y1`, `x2`, `y2`), and `polygon`/`polyline` (flat numeric
+`points`). Geometry defaults to zero; one rectangle corner radius supplies
+the other. Coordinates and lengths are numeric SVG user units.
+
+The optional `presentation` on a scene or shape includes `fill`, `stroke`,
+`color`, `strokeWidth`, `fillRule`, `strokeLinecap`, `strokeLinejoin`,
+`strokeMiterlimit`, `strokeDasharray`, `strokeDashoffset`, `opacity`,
+`fillOpacity`, `strokeOpacity`, and an affine `transform: [a,b,c,d,e,f]`.
+Paint and stroke properties inherit; currentColor resolves using the child's
+inherited color. Defaults follow SVG: black fill/color, no stroke, width 1,
+nonzero winding, butt caps, miter joins/limit 4, opacity 1. Opacity isolates a
+whole group or shape (including overlapping fill/stroke); it is not inherited.
+Odd dash lists repeat; all-zero lists mean solid. Width zero draws no stroke.
+
+Only the root's Style sizes its viewport. A viewBox supplies a ratio, not
+intrinsic pixels: the default object size is 300×150, containing that ratio.
+The viewport is the content box, clipped even with overflow visible, inside
+rounded clipping from the node. `preserveAspectRatio` defaults to
+`xMidYMid meet`; the nine Min/Mid/Max alignments, meet, slice and none are
+supported. ViewBox origins may be nonzero. Internal transforms never enter
+Yoga. Layout resize changes the viewport; scale resize and device density
+change the existing renderer's physical resolution. Neither needs multiplying
+scene dimensions by editor scale.
+
+The native compiler retains SkPaths and resolved paints. A bounded weak cache
+shares parsed path data across roots; unchanged geometry is reused during
+paint updates. Resizing a viewport does not compile a scene or parse a path.
+Damage tracking skips static roots outside a changed region. Web uses SVG
+namespace elements and retains unchanged geometry attributes, without XML or
+innerHTML. Its private vector elements do not join Soundor's UI tree.
+
+Limits: 4,096 scene nodes, 64 nesting levels, 65,536 numeric values, 1 MiB of
+strings (256 KiB per path), finite coordinates of magnitude at most one million,
+and bounded accumulated transforms. The native path cache holds at most 4 MiB
+of keys/4,096 entries and does not retain dead geometry. The native benchmark
+runner reports per-frame `svgSceneUpdates`, `svgPathParses`, and `svgDraws`
+under `surface`; older saved builds omit them.
+
+This is a first-party vector subset. It has no text, gradients, patterns,
+filters, masks, general CSS, external resources, animation elements or
+shape-level input/accessibility. SVG files through Image use the separate
+SkSVGDOM document path and can support richer artwork. Neither path promises
+complete SVG specification compliance.
 
 ### ANGLE
 
@@ -1710,3 +1799,32 @@ Composition colors use straight sRGB; direct browser paint interpolation follows
 browser CSS color semantics, which can differ for transparency or wide-gamut
 colors. No browser animation executes a JavaScript frame loop or invokes JS for
 an internal phase transition. Browser completion promises remain asynchronous.
+
+## SVG document rendering
+
+The engine privately builds the pinned Skia SVG module, `skresources`, primitive
+`skshaper`, and Expat into the same hidden static Skia archive used in source and
+prebuilt modes. It does not enable ICU, HarfBuzz, or a Unicode backend. Expat's C
+symbols are prefixed alongside the image codecs, including in coexistence tests;
+its pinned license notice is included in prebuilt staging.
+
+`render::parseSvgDocument` is an internal document-loading boundary. It uses
+Expat for a bounded validation pass and SkSVGDOM for document construction and
+rendering; it does not implement SVG geometry or XML syntax. The document keeps
+Skia's null resource provider: network, filesystem, data-URL images and external
+fonts are unavailable. Scripts are not executed. DOCTYPE declarations are
+rejected before expansion. Skia also rejects entity declarations independently.
+
+Documents are limited to 1 MiB, 4,096 elements, 64 levels of nesting (including
+local reference chains), 64 attributes/references per element, and 65,536 numeric
+geometry values with magnitude at most 1,000,000. Local references are checked
+for cycles and a 262,144-unit expanded element/geometry budget before Skia constructs its DOM.
+IDs containing whitespace and duplicate IDs are rejected. Filter elements are
+rejected because intermediate filter surfaces need their own allocation budget.
+Unsupported or invalid documents return no image. These limits bound accepted
+input; they are not a claim of complete SVG specification compliance.
+
+Paths, groups, transforms, gradients, and clipping use Skia's implementation.
+Browser support is broader, especially for CSS, text shaping, filters, and
+resources. Rendering remains on the existing SkCanvas and compositor; the
+foundation adds no UI node or public React API.

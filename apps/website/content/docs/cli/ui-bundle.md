@@ -15,7 +15,7 @@ runtime runs:
 - TSX uses the automatic JSX runtime (set `"jsx": "react-jsx"` in the
   tsconfig). `process.env.NODE_ENV` is replaced at build time, since the runtime
   has no `process`.
-- `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`) bundles the
+- `import logo from './logo.png'` (also `.jpg`, `.jpeg`, `.webp`, `.svg`) bundles the
   image as an asset and yields its stable, content-derived id; so does
   `import inter from './Inter.ttf'` (also `.otf`) for a font, which
   [`registerFont`](/docs/components/text#fonts) takes. Only the files the

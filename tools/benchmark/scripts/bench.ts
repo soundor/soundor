@@ -9,7 +9,7 @@
 //              [--backend vulkan|opengl|metal|d3d11] [--software]
 //              [--save <name>] [--against <name>] [--baseline <report.json>]
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
-//              [--source]
+//              [--source] [--script-scale]
 //
 // The bundle runs as a built plugin runs it: compiled to Hermes bytecode by
 // the same build's hermesc (build/bench/soundor-compile-js.cmake); --source
@@ -47,6 +47,7 @@ const native = path.resolve(benchmark, '../../runtimes/engine');
 const { values: options } = parseArgs({
   options: {
     only: { type: 'string' },
+    'script-scale': { type: 'boolean', default: false },
     animations: { type: 'string', default: 'js' },
     runs: { type: 'string', default: '5' },
     frames: { type: 'string', default: '600' },
@@ -129,6 +130,9 @@ interface Phase {
     layoutPasses: number;
     layoutMs: number;
     invalidations: number;
+    svgSceneUpdates?: number;
+    svgPathParses?: number;
+    svgDraws?: number;
   };
   // `collections` from Hermes builds, `allocations` (C allocator blocks)
   // from QuickJS ones.
@@ -201,6 +205,9 @@ const MEASURES = {
   styleChanges: { label: 'styles', timing: false, compare: true },
   layouts: { label: 'layouts', timing: false, compare: true },
   invalidations: { label: 'invalidations', timing: false, compare: true },
+  svgSceneUpdates: { label: 'SVG scene updates', timing: false, compare: true },
+  svgPathParses: { label: 'SVG path parses', timing: false, compare: true },
+  svgDraws: { label: 'SVG scene draws', timing: false, compare: true },
   // What the engine allocates and collects depends on the heap it is in
   // (when the garbage collector last ran), and so on what ran before: shown,
   // not compared. Hermes allocates in its own heap (allocated KB: its
@@ -291,6 +298,7 @@ interface BuildInfo {
   buildType?: 'Release';
   collectBetweenPhases?: boolean;
   animationMode?: 'js' | 'native';
+  scriptScale?: boolean;
 }
 
 function run(command: string, args: string[], cwd: string): void {
@@ -399,6 +407,9 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     styleChanges: phase.surface.styleChanges,
     layouts: phase.surface.layoutPasses,
     invalidations: phase.surface.invalidations,
+    svgSceneUpdates: phase.surface.svgSceneUpdates ?? NaN,
+    svgPathParses: phase.surface.svgPathParses ?? NaN,
+    svgDraws: phase.surface.svgDraws ?? NaN,
     collections: phase.engine.collections ?? 0,
     allocations: phase.engine.allocations ?? 0,
     allocatedKB: phase.engine.allocatedBytes / 1024,
@@ -628,6 +639,7 @@ function runOnce(build: Build, scratch: string, index: number): RunReport {
     args.push('--animation-step-ms', String(1000 / 60));
   if (options.backend) args.push('--backend', options.backend);
   if (options.software) args.push('--software');
+  if (options['script-scale']) args.push('--script-scale');
   // A build whose bundle was compiled runs it as bytecode (builds from
   // before bytecode have none, and a runner without the flag): Hermes
   // bytecode, or QuickJS's in a build saved before Hermes.
@@ -704,6 +716,7 @@ const current: Build = {
     buildType: 'Release',
     collectBetweenPhases: true,
     animationMode: options.animations as 'js' | 'native',
+    scriptScale: options['script-scale'],
   },
 };
 

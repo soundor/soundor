@@ -206,6 +206,17 @@ describe('the UI bundle in soundor dev', () => {
     expect(missing.headers.get('content-type')).not.toBe('image/png');
   });
 
+  it('serves SVG bytes as image/svg+xml through the same asset route', async () => {
+    const { ui, url } = await serve();
+    const id = '0123456789abcdef.svg';
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>';
+    await writeFile(join(ui.dir, 'assets', id), svg);
+    const response = await fetch(new URL(`soundor-assets/${id}`, url));
+    expect(response.headers.get('content-type')).toBe('image/svg+xml');
+    expect(await response.text()).toBe(svg);
+  });
+
   it('reloads on a new build-id only, keeping the page through failed builds', async () => {
     const { ui, server, url } = await serve();
     const send = vi.spyOn(server.ws, 'send');

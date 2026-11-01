@@ -18,7 +18,7 @@ function setup() {
   return view;
 }
 
-const el = (node: UiNode): HTMLElement => UiNode.elementOf(node);
+const el = (node: UiNode) => UiNode.elementOf(node);
 
 it('keeps logical layout and inverses nested presentation transforms for pointer coordinates', () => {
   const { root } = setup();
@@ -275,6 +275,24 @@ describe('UiNode content', () => {
     image.source = '../../etc/passwd';
     expect(element.hasAttribute('src')).toBe(false);
     expect(image.source).toBe('../../etc/passwd');
+  });
+
+  it('keeps SVG sources in the native image element through replacement and removal', () => {
+    setup();
+    const image = view.createNode('image');
+    const element = el(image) as HTMLImageElement;
+    image.source = '0123456789abcdef.svg';
+    expect(element.tagName).toBe('IMG');
+    expect(element.src).toContain('soundor-assets/0123456789abcdef.svg');
+    expect(element.childNodes).toHaveLength(0);
+    image.source = 'fedcba9876543210.svg';
+    expect(element.src).toContain('soundor-assets/fedcba9876543210.svg');
+    image.source = '0123456789abcdef.png';
+    expect(element.src).toContain('.png');
+    image.source = '';
+    expect(element.hasAttribute('src')).toBe(false);
+    image.source = 'data:image/svg+xml,<svg onload="alert(1)"/>';
+    expect(element.hasAttribute('src')).toBe(false);
   });
 
   it('scrolls only scroll views', () => {

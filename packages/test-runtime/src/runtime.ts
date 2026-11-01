@@ -696,6 +696,7 @@ export class TestRuntime {
     this.storage.dispose();
     for (const node of this.nodes.values()) {
       node.listeners.clear();
+      node.svgScene = null;
       node.kids.length = 0;
       node.parent = null;
       node.accessibilityParent = null;

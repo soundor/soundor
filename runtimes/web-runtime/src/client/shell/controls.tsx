@@ -5,6 +5,7 @@ import { ICONS, type IconName } from './icons';
 export function Icon({ name }: { readonly name: IconName }) {
   return (
     <svg
+      class="soundor-glyph"
       viewBox="0 0 24 24"
       aria-hidden="true"
       dangerouslySetInnerHTML={{ __html: ICONS[name] }}

@@ -24,7 +24,7 @@ const view = uiView();
 document.body.append(view.rootElement);
 
 /** The element drawing a node (plugin code sees the contract's UiNode). */
-const element = (node: object): HTMLElement => UiNode.elementOf(node as UiNode);
+const element = (node: object) => UiNode.elementOf(node as UiNode);
 
 /** Each ARIA attribute (and role, alt) an element has. */
 function aria(node: object): Record<string, string> {

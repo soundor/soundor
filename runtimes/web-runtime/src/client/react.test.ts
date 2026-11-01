@@ -29,7 +29,7 @@ import { uiView } from './context';
 import { UiNode } from './ui/node';
 
 /** The element drawing a node (plugin code sees the contract's UiNode). */
-const element = (node: object): HTMLElement => UiNode.elementOf(node as UiNode);
+const element = (node: object) => UiNode.elementOf(node as UiNode);
 const view = uiView();
 document.body.append(view.rootElement);
 

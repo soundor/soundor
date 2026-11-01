@@ -17,8 +17,19 @@
     #define SOUNDOR_PROBE_EXPORT extern "C"
 #endif
 
+#if defined(SOUNDOR_TEST_SVG)
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+{
+    bool svgDocumentProbe();
+}
+#endif
+
 SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
 {
+#if defined(SOUNDOR_TEST_SVG)
+    if (! soundor::render::svgDocumentProbe())
+        return -1;
+#endif
     soundor::RuntimeHost host({});
     host.surface().setSize({ 100, 100 });
     auto result =

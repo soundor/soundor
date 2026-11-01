@@ -46,6 +46,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                     return Role::Text;
                 case ui::NodeType::Image:
                 case ui::NodeType::Canvas:
+                case ui::NodeType::Svg:
                     return Role::Image;
                 case ui::NodeType::Input:
                     return Role::TextInput;
@@ -79,6 +80,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                 case ui::NodeType::View:
                 case ui::NodeType::Image: // decorative unless said otherwise
                 case ui::NodeType::Canvas:
+                case ui::NodeType::Svg:
                 case ui::NodeType::Scroll:
                     return false;
             }

@@ -40,17 +40,22 @@
 #include <soundor/platform/Resources.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/RuntimeHost.h>
+#if SOUNDOR_DEVTOOLS
+    #include <soundor/debug/Inspector.h>
+#endif
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -65,7 +70,8 @@ namespace
     {
         std::cerr << "usage: soundor_run_ui <ui directory> [--size WxH] [--scale S] [--seconds N] [--eval EXPR] "
                      "[--backend vulkan|opengl|metal|d3d11] [--software] [--json FILE] [--time-native-calls] "
-                     "[--bytecode] [--collect-between-phases] [--animation-step-ms N]\n";
+                     "[--bytecode] [--collect-between-phases] [--animation-step-ms N] [--capture PNG (Debug)] "
+                     "[--script-scale]\n";
         return 2;
     }
 
@@ -103,6 +109,7 @@ namespace
         double tick = 0;
         double build = 0;
         double composite = 0;
+        double presentationScale = 1;
         int layersRasterized = 0;
         long long pixelsRasterized = 0;
         int gpuReadbacks = 0;
@@ -127,6 +134,7 @@ namespace
         long long layoutPasses = 0;
         double layoutMs = 0;
         long long invalidations = 0;
+        long long svgSceneUpdates = 0, svgPathParses = 0, svgDraws = 0;
         long long collections = 0;
         long long allocatedBytes = 0;
         long long heapBytes = 0; // at the end of the frame
@@ -152,6 +160,9 @@ namespace
         sample.layoutPasses = count(before.surface.layoutPasses, after.surface.layoutPasses);
         sample.layoutMs = time(before.surface.layoutNanoseconds, after.surface.layoutNanoseconds);
         sample.invalidations = count(before.surface.invalidations, after.surface.invalidations);
+        sample.svgSceneUpdates = count(before.surface.svgSceneUpdates, after.surface.svgSceneUpdates);
+        sample.svgPathParses = count(before.surface.svgPathParses, after.surface.svgPathParses);
+        sample.svgDraws = count(before.surface.svgDraws, after.surface.svgDraws);
         sample.collections = count(before.runtime.collections, after.runtime.collections);
         sample.allocatedBytes = count(before.runtime.allocatedBytes, after.runtime.allocatedBytes);
         sample.heapBytes = static_cast<long long>(after.runtime.heapBytes);
@@ -293,6 +304,19 @@ namespace
         const double time = seconds(s);
         std::string out = "{ \"name\": " + jsonString(phase.name);
         out += ", \"frames\": " + std::to_string(s.size());
+        double minimumScale = 0, maximumScale = 0;
+        if (! s.empty())
+        {
+            minimumScale = maximumScale = s.front().presentationScale;
+            for (const auto& sample : s)
+            {
+                minimumScale = std::min(minimumScale, sample.presentationScale);
+                maximumScale = std::max(maximumScale, sample.presentationScale);
+            }
+        }
+        out += ", "
+               + field("renderScale",
+                       "{ " + field("min", number(minimumScale)) + ", " + field("max", number(maximumScale)) + " }");
         out += ", \"ticks\": " + std::to_string(phase.ticks);
         out += ", \"idleTicks\": " + std::to_string(phase.idleTicks);
         out += ", \"idleTickMs\": "
@@ -329,7 +353,10 @@ namespace
                + field("surface", "{ " + field("styleChanges", mean(&Sample::styleChanges)) + ", "
                                       + field("layoutPasses", mean(&Sample::layoutPasses)) + ", "
                                       + field("layoutMs", mean(&Sample::layoutMs)) + ", "
-                                      + field("invalidations", mean(&Sample::invalidations)) + " }");
+                                      + field("invalidations", mean(&Sample::invalidations)) + ", "
+                                      + field("svgSceneUpdates", mean(&Sample::svgSceneUpdates)) + ", "
+                                      + field("svgPathParses", mean(&Sample::svgPathParses)) + ", "
+                                      + field("svgDraws", mean(&Sample::svgDraws)) + " }");
         out += ", "
                + field("engine", "{ " + field("collections", mean(&Sample::collections)) + ", "
                                      + field("allocatedBytes", mean(&Sample::allocatedBytes)) + ", "
@@ -373,6 +400,7 @@ namespace
 } // namespace
 
 int main(int argc, char** argv)
+try
 {
     if (argc < 2)
         return usage();
@@ -385,8 +413,10 @@ int main(int argc, char** argv)
     std::optional<gpu::Backend> backend;
     bool software = false;
     std::string jsonPath;
+    std::string capturePath;
     bool timeNativeCalls = false;
     bool bytecode = false;
+    bool scriptScale = false;
     bool collectBetweenPhases = false;
     double animationStepMs = 0;
     double animationTimeMs = 0;
@@ -395,7 +425,7 @@ int main(int argc, char** argv)
     {
         const std::string_view flag = argv[i];
         const bool takesValue = flag != "--software" && flag != "--time-native-calls" && flag != "--bytecode"
-                                && flag != "--collect-between-phases";
+                                && flag != "--script-scale" && flag != "--collect-between-phases";
         if (takesValue && i + 1 >= argc)
             return usage();
         const auto value = [&] { return std::string(argv[++i]); };
@@ -430,6 +460,10 @@ int main(int argc, char** argv)
             software = true;
         else if (flag == "--json")
             jsonPath = value();
+        else if (flag == "--capture")
+            capturePath = value();
+        else if (flag == "--script-scale")
+            scriptScale = true;
         else if (flag == "--time-native-calls")
             timeNativeCalls = true;
         else if (flag == "--collect-between-phases")
@@ -545,6 +579,17 @@ int main(int argc, char** argv)
         previousPhase = phase;
         const auto begin = Clock::now();
         host.tick();
+        if (scriptScale)
+        {
+            auto requested =
+                host.context().evaluateScript("typeof soundorRunUiScale === 'number' ? soundorRunUiScale : null");
+            if (! requested)
+                throw std::runtime_error(requested.error().toString());
+            const double desired = requested.value().isNumber() ? requested.value().asNumber() : scale;
+            if (! std::isfinite(desired) || desired <= 0 || desired > 8)
+                throw std::invalid_argument("benchmark presentation scale must be finite and in (0, 8]");
+            host.surface().setScale(static_cast<float>(desired));
+        }
         const auto ticked = Clock::now();
         const bool renders = host.needsRender();
         if (measuring)
@@ -570,6 +615,7 @@ int main(int argc, char** argv)
             .tick = milliseconds(begin, ticked),
             .build = milliseconds(ticked, built),
             .composite = milliseconds(built, composited),
+            .presentationScale = host.surface().scale(),
             .layersRasterized = made.statistics.layersRasterized,
             .pixelsRasterized = made.statistics.pixelsRasterized,
             .gpuReadbacks = made.statistics.gpuReadbacks,
@@ -638,6 +684,29 @@ int main(int argc, char** argv)
         while (elapsed() < runSeconds)
             frame();
 
+    // Explicit test capture happens after measurement, through the same
+    // engine capture path as DevTools. Ordinary benchmark runs never read back.
+    if (! capturePath.empty())
+    {
+#if SOUNDOR_DEVTOOLS
+        bool captured = false;
+        debug::Inspector inspector([](const std::string& message) { std::cerr << message << "\n"; });
+        inspector.attachments(
+            [&](const std::string&, const std::vector<std::uint8_t>& png, const std::string&)
+            {
+                std::ofstream file(capturePath, std::ios::binary);
+                file.write(reinterpret_cast<const char*>(png.data()), static_cast<std::streamsize>(png.size()));
+                captured = file.good();
+            });
+        inspector.execute(host, { .id = "run-ui-capture", .method = "Capture.screenshot", .generation = 1 });
+        if (! captured)
+            return 1;
+#else
+        std::cerr << "--capture requires an engine built with DevTools (the dev preset)\n";
+        return 2;
+#endif
+    }
+
     for (const Phase& phase : phases)
         describe(phase);
     describe(all);
@@ -671,4 +740,9 @@ int main(int argc, char** argv)
         }
     }
     return status;
+}
+catch (const std::exception& error)
+{
+    std::cerr << error.what() << "\n";
+    return 1;
 }

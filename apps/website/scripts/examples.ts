@@ -40,7 +40,7 @@ export interface ExampleSources {
 }
 
 /** Image imports, as a snippet may have them: `import cover from '../assets/cover.png'`. */
-const IMAGE_IMPORT = /from '(\.{1,2}\/[^']+\.(?:png|jpe?g|webp))'/gi;
+const IMAGE_IMPORT = /from '(\.{1,2}\/[^']+\.(?:png|jpe?g|webp|svg))'/gi;
 
 /**
  * An image's asset id, as the CLI's bundler names it (`assetId` in

@@ -217,7 +217,8 @@ export type NodeType =
   | 'image'
   | 'scroll'
   | 'input'
-  | 'canvas';
+  | 'canvas'
+  | 'svg';
 
 export type AccessibilityRole =
   | 'none'
@@ -296,4 +297,90 @@ export interface Accessibility {
   value?: AccessibilityValue;
   actions?: readonly AccessibilityAction[];
   modal?: boolean;
+}
+
+/** Presentation in SVG user units, independent of Soundor's layout Style. */
+export interface SvgPresentation {
+  /** Fill paint; defaults to black. */
+  fill?: string;
+  /** Stroke paint; defaults to none. */
+  stroke?: string;
+  /** Inherited color used by currentColor; defaults to black. */
+  color?: string;
+  /** Stroke width in SVG user units; defaults to 1. Zero draws no stroke. */
+  strokeWidth?: number;
+  /** Fill winding rule; defaults to nonzero. */
+  fillRule?: 'nonzero' | 'evenodd';
+  /** Stroke endpoint shape; defaults to butt. */
+  strokeLinecap?: 'butt' | 'round' | 'square';
+  /** Stroke join shape; defaults to miter. */
+  strokeLinejoin?: 'miter' | 'round' | 'bevel';
+  /** Miter limit, at least 1; defaults to 4. */
+  strokeMiterlimit?: number;
+  /** Nonnegative dash lengths; an odd list repeats, all-zero means solid. */
+  strokeDasharray?: readonly number[];
+  /** Signed dash offset in SVG user units. */
+  strokeDashoffset?: number;
+  /** Isolated opacity of this shape/group, not inherited; defaults to 1. */
+  opacity?: number;
+  /** Inherited fill opacity; defaults to 1. */
+  fillOpacity?: number;
+  /** Inherited stroke opacity; defaults to 1. */
+  strokeOpacity?: number;
+  /** Local affine matrix [a,b,c,d,e,f]. */
+  transform?: readonly [number, number, number, number, number, number];
+}
+export type SvgAlignment = `x${'Min' | 'Mid' | 'Max'}Y${'Min' | 'Mid' | 'Max'}`;
+export type SvgPreserveAspectRatio =
+  | 'none'
+  | SvgAlignment
+  | `${SvgAlignment} ${'meet' | 'slice'}`;
+/** Retained geometry. Only groups contain shapes; none create UI nodes. */
+export type SvgShape = { readonly presentation?: SvgPresentation } & (
+  | { readonly type: 'g'; readonly children?: readonly SvgShape[] }
+  | { readonly type: 'path'; readonly d?: string }
+  | {
+      readonly type: 'circle';
+      readonly cx?: number;
+      readonly cy?: number;
+      readonly r?: number;
+    }
+  | {
+      readonly type: 'rect';
+      readonly x?: number;
+      readonly y?: number;
+      readonly width?: number;
+      readonly height?: number;
+      readonly rx?: number;
+      readonly ry?: number;
+    }
+  | {
+      readonly type: 'ellipse';
+      readonly cx?: number;
+      readonly cy?: number;
+      readonly rx?: number;
+      readonly ry?: number;
+    }
+  | {
+      readonly type: 'line';
+      readonly x1?: number;
+      readonly y1?: number;
+      readonly x2?: number;
+      readonly y2?: number;
+    }
+  | {
+      readonly type: 'polyline' | 'polygon';
+      readonly points?: readonly number[];
+    }
+);
+/** Atomic scene protocol v1, requiring @soundor/engine 0.6.0 or later. */
+export interface SvgScene {
+  readonly version: 1;
+  /** User-space origin and positive dimensions, independent of Yoga. */
+  readonly viewBox?: readonly [number, number, number, number];
+  /** ViewBox mapping; defaults to xMidYMid meet. */
+  readonly preserveAspectRatio?: SvgPreserveAspectRatio;
+  /** Root presentation, inherited by its shapes. */
+  readonly presentation?: SvgPresentation;
+  readonly children: readonly SvgShape[];
 }

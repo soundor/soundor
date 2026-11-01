@@ -345,6 +345,89 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(85, 35)));
     }
 
+    TEST_CASE("PNG JPEG and WebP continue through the shared Image drawing path")
+    {
+        for (const auto* source : { "halves.png", "solid.jpg", "solid.webp" })
+        {
+            RenderFixture f;
+            f.run(std::string(imports) + "root.appendChild(createImage('" + source
+                  + "', { width: 40, height: 20, resizeMode: 'stretch' }));");
+            f.render();
+            CHECK(isRed(f.at(5, 10)));
+        }
+    }
+
+    TEST_CASE("SVG Image viewBox uses the placed viewport as browsers do, including stretch")
+    {
+        for (const auto* mode : { "contain", "cover", "stretch", "center" })
+        {
+            RenderFixture f;
+            f.run(std::string(imports)
+                  + "root.appendChild(createImage('viewport.svg', { width: 100, height: 100, "
+                    "resizeMode: '"
+                  + mode + "' }));");
+            f.render();
+            CHECK(isRed(f.at(50, 50)));
+            CHECK(isClear(f.at(5, 50)));
+            const bool expanded = std::string_view(mode) == "cover" || std::string_view(mode) == "stretch";
+            CHECK(isRed(f.at(15, 50)) == expanded);
+            CHECK(isRed(f.at(50, 15)) == expanded);
+            CHECK(isRed(f.at(35, 50)));
+        }
+    }
+
+    TEST_CASE("SVG center resize mode keeps its natural size and centers without enlarging")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            root.appendChild(createImage('halves.svg', { width: 40, height: 40, resizeMode: 'center' }));
+        )");
+        f.render();
+        CHECK(isClear(f.at(10, 20)));
+        CHECK(isRed(f.at(19, 20)));
+        CHECK(isBlue(f.at(21, 20)));
+        CHECK(isClear(f.at(20, 10)));
+    }
+
+    TEST_CASE("SVG images follow Image sizing, clipping, transforms and source replacement at every scale")
+    {
+        for (const float scale : { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f })
+        {
+            RenderFixture f(100, 100, scale);
+            f.run(std::string(imports) + R"(
+                root.appendChild(createImage('halves.svg', { position: 'absolute', left: 0, top: 0,
+                    width: 40, height: 40, resizeMode: 'contain' }));
+                root.appendChild(createImage('halves.svg', { position: 'absolute', left: 50, top: 0,
+                    width: 40, height: 40, resizeMode: 'cover', borderRadius: 10 }));
+                const parent = createView({ position: 'absolute', left: 10, top: 50, width: 40, height: 30,
+                    overflow: 'hidden', transform: [{ translateX: 5 }] });
+                globalThis.vector = createImage('halves.svg', { width: 60, height: 30,
+                    resizeMode: 'stretch', opacity: 0.5 });
+                parent.appendChild(vector); root.appendChild(parent);
+            )");
+            f.render();
+            const auto pixel = [&](float x, float y)
+            { return f.at(static_cast<int>(x * scale), static_cast<int>(y * scale)); };
+            CHECK(isClear(pixel(20, 5)));
+            CHECK(isRed(pixel(5, 20)));
+            CHECK(isBlue(pixel(35, 20)));
+            CHECK(isRed(pixel(55, 15)));
+            CHECK(isBlue(pixel(85, 25)));
+            CHECK(isClear(pixel(50, 0)));
+            CHECK(isClear(pixel(12, 60)));
+            CHECK(pixel(25, 60).r > 240);
+            CHECK(pixel(25, 60).a >= 127);
+            CHECK(pixel(25, 60).a <= 128);
+            CHECK(isClear(pixel(60, 60)));
+            f.run("globalThis.vector.source = 'halves.png';");
+            f.render();
+            CHECK(pixel(25, 60).r > 240);
+            f.run("globalThis.vector.source = 'invalid.svg';");
+            f.render();
+            CHECK(isClear(pixel(25, 60)));
+        }
+    }
+
     TEST_CASE("an image drawn much smaller averages its pixels rather than skipping them")
     {
         // stripes.png: 64×8, every fourth column white, the rest black. Drawn

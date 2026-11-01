@@ -6,6 +6,7 @@ import {
   Canvas,
   createPortalHost,
   FocusScope,
+  Image,
   Modal,
   Portal,
   Pressable,
@@ -18,6 +19,9 @@ import {
 } from '@soundor/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutRect, PointerEvent, UiNode } from 'soundor:ui';
+
+import landscape from './assets/landscape.svg';
+import { SvgExamples } from './SvgExamples';
 
 // ── Small building blocks ────────────────────────────────────────────────────
 
@@ -623,6 +627,31 @@ function AdvancedAnimationDemo() {
   );
 }
 
+function SvgImageDemo() {
+  const [wide, setWide] = useState(true);
+  return (
+    <Card title="SVG Image (gradients and clipping)">
+      <View
+        style={{ height: 148, alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Image
+          source={landscape}
+          accessibilityLabel="SVG mountain landscape"
+          style={{
+            width: wide ? 320 : 160,
+            height: 128,
+            resizeMode: 'contain',
+          }}
+        />
+      </View>
+      <Button label="Resize SVG image" onPress={() => setWide(!wide)} />
+      <Text style={styles.caption}>
+        A bundled vector asset, using the ordinary Image component.
+      </Text>
+    </Card>
+  );
+}
+
 export function App() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -630,6 +659,10 @@ export function App() {
       <View style={styles.grid}>
         <AnimationDemo />
         <AdvancedAnimationDemo />
+        <SvgImageDemo />
+        <Card title="React SVG">
+          <SvgExamples />
+        </Card>
         <Coordinates />
         <Stacking />
         <ContextMenuDemo />

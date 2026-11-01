@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 # Fails when an object of ARCHIVE whose name matches MEMBERS defines a C symbol
 # that does not start with PREFIX: Skia's copies of libjpeg-turbo, libpng and
-# libwebp are renamed (cmake/skia/SoundorSkiaPrefix.h) so a plugin can contain
+# libwebp and Expat are renamed (cmake/skia/SoundorSkiaPrefix.h) so a plugin can contain
 # another copy of each, as JUCE's. A name the header misses, which a Skia
 # update can bring, is reported; cmake/skia/prefix.py adds it.
 #

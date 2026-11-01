@@ -7,6 +7,7 @@ import {
   type AnimationController,
   type ManagedAnimation,
 } from './animation';
+import type { UiElement } from './node';
 import type {
   AnimationDescription,
   AnimationOptions,
@@ -17,11 +18,11 @@ interface Phase {
   kind: 'effect' | 'sequence' | 'parallel' | 'stagger' | 'delay';
   settings: Required<AnimationOptions>;
   span: number;
-  element?: HTMLElement;
+  element?: UiElement;
   frames?: Keyframe[];
   children: Phase[];
   starts: number[];
-  owned: Map<HTMLElement, Set<string>>;
+  owned: Map<UiElement, Set<string>>;
 }
 export interface CompiledProgram {
   settings: Required<AnimationOptions>;
@@ -30,9 +31,9 @@ export interface CompiledProgram {
   prefix: number;
   delay: number;
   period: number;
-  owned: Map<HTMLElement, Set<string>>;
+  owned: Map<UiElement, Set<string>>;
   curves: Map<
-    HTMLElement,
+    UiElement,
     { prefix: Keyframe[]; cycle: Keyframe[]; final: Keyframe }
   >;
 }
@@ -43,16 +44,16 @@ const MAX_POINTS = 1_000_000;
 /** Compile once into browser-owned curves. Playback never evaluates this tree in JS. */
 export function compileProgram(
   controller: AnimationController,
-  defaultElement: HTMLElement,
+  defaultElement: UiElement,
   description: AnimationDescription,
   options: AnimationOptions,
 ): CompiledProgram {
-  const initial = new Map<HTMLElement, Keyframe>();
-  const virtual = new Map<HTMLElement, Keyframe>();
+  const initial = new Map<UiElement, Keyframe>();
+  const virtual = new Map<UiElement, Keyframe>();
   const colors = new Map<string, number[]>();
-  const prepared = new Map<HTMLElement, Set<string>>();
+  const prepared = new Map<UiElement, Set<string>>();
   let count = 0;
-  const color = (input: unknown, element: HTMLElement): number[] => {
+  const color = (input: unknown, element: UiElement): number[] => {
     const text = String(input);
     const cached = colors.get(text);
     if (cached) return cached;
@@ -92,7 +93,7 @@ export function compileProgram(
     from: unknown,
     to: unknown,
     progress: number,
-    element: HTMLElement,
+    element: UiElement,
   ): string | number => {
     if (property === 'opacity')
       return Number(from) + (Number(to) - Number(from)) * progress;
@@ -151,7 +152,7 @@ export function compileProgram(
   const apply = (
     phase: Phase,
     time: number,
-    state: Map<HTMLElement, Keyframe>,
+    state: Map<UiElement, Keyframe>,
     finite = false,
   ): void => {
     if (phase.kind === 'effect') {
@@ -409,7 +410,7 @@ export function compileProgram(
     return { prefix, period };
   };
   const tail = periodic(root);
-  const sample = (time: number, finite = false): Map<HTMLElement, Keyframe> => {
+  const sample = (time: number, finite = false): Map<UiElement, Keyframe> => {
     const state = new Map(
       [...initial].map(([element, frame]) => [element, { ...frame }]),
     );
@@ -464,7 +465,7 @@ export function compileProgram(
 /** A single public handle controls every browser effect in a composed program. */
 export class ProgramAnimation implements ManagedAnimation {
   readonly options: AnimationOptions;
-  readonly scopes: readonly HTMLElement[];
+  readonly scopes: readonly UiElement[];
   #clock!: Animation;
   #effects: Animation[] = [];
   #source: Promise<Animation> | undefined;
@@ -472,14 +473,14 @@ export class ProgramAnimation implements ManagedAnimation {
   #reduced = false;
   constructor(
     readonly controller: AnimationController,
-    readonly element: HTMLElement,
+    readonly element: UiElement,
     readonly program: CompiledProgram,
   ) {
     this.options = program.settings;
     this.scopes = [...program.owned.keys()];
     this.#start();
   }
-  propertiesFor(element: HTMLElement): ReadonlySet<string> {
+  propertiesFor(element: UiElement): ReadonlySet<string> {
     return this.program.owned.get(element) ?? new Set();
   }
   sampleTransform(element = this.element): string | undefined {

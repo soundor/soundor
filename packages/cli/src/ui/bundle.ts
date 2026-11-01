@@ -72,6 +72,7 @@ export const ASSET_TYPES: Readonly<Record<string, string>> = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
   '.ttf': 'font/ttf',
   '.otf': 'font/otf',
 };
@@ -178,6 +179,12 @@ export async function bundleUi(
   if (sorted.length > 0) {
     await mkdir(join(outDir, 'assets'), { recursive: true });
     for (const { asset, bytes } of sorted) {
+      // Match the native document boundary, after tree shaking: unused
+      // artwork must not become a build dependency or ship in the bundle.
+      if (asset.type === 'image/svg+xml' && bytes.length > 1024 * 1024)
+        throw new Error(
+          `SVG asset '${asset.source}' exceeds the 1 MiB document limit`,
+        );
       await writeFile(join(outDir, 'assets', asset.id), bytes);
     }
   }

@@ -117,7 +117,7 @@ const CHECKED_ROLES: ReadonlySet<string> = new Set([
 
 const semanticsOf = (node: UiNode): NormalizedAccessibility =>
   UiNode.semanticsOf(node);
-const elementOf = (node: UiNode): HTMLElement => UiNode.elementOf(node);
+const elementOf = (node: UiNode) => UiNode.elementOf(node);
 const displayed = (node: UiNode): boolean => node.style.display !== 'none';
 
 function isElement(node: UiNode): boolean {
@@ -140,6 +140,7 @@ function roleOf(node: UiNode): Role {
       return 'text';
     case 'image':
     case 'canvas':
+    case 'svg':
       return 'image';
     case 'input':
       return 'textinput';
@@ -272,7 +273,7 @@ class Pass {
 let ids = 0;
 
 /** A stable id for an element another one owns (aria-owns). */
-function idOf(element: HTMLElement): string {
+function idOf(element: Element): string {
   if (element.id === '') element.id = `sd-a11y-${++ids}`;
   return element.id;
 }
@@ -289,6 +290,7 @@ function attributesOf(node: UiNode, pass: Pass): Attributes {
     if (node.type === 'text' && semantics.accessible === false)
       out['aria-hidden'] = 'true';
     if (node.type === 'image') out.alt = '';
+    if (node.type === 'svg') out['aria-hidden'] = 'true';
     return out;
   }
 

@@ -9,6 +9,7 @@
  */
 
 import * as SoundorReact from '@soundor/react';
+import * as SoundorSvg from '@soundor/react/svg';
 import type { PlaygroundHost } from '@soundor/web-runtime/client';
 import * as React from 'react';
 import * as JsxRuntime from 'react/jsx-runtime';
@@ -45,6 +46,7 @@ function start(host: PlaygroundHost): void {
     react: React,
     'react/jsx-runtime': JsxRuntime,
     '@soundor/react': tracked,
+    '@soundor/react/svg': SoundorSvg,
     ...host.modules,
   };
   // Only the page that embeds this host, on this site, may send it code.

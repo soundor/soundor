@@ -79,7 +79,7 @@ function withProperty(style, key, value) {
   return next;
 }
 /** The native node types, by name. */
-const TYPES = ['view', 'text', 'image', 'scroll', 'input', 'canvas'];
+const TYPES = ['view', 'text', 'image', 'scroll', 'input', 'canvas', 'svg'];
 
 /** The roles `accessibility.role` names. */
 const ROLES = new Set([
@@ -703,6 +703,12 @@ export class UiNode extends EventTarget {
     native.setSource(this.#id, this.#source);
   }
 
+  /** Atomically replaces a root SVG's vector scene; null clears it. */
+  setSvgScene(scene) {
+    this.#expect('svg', 'setSvgScene()');
+    native.setSvgScene(this.#id, scene);
+  }
+
   /**
    * A canvas's drawing buffer, in pixels (300 by 150 to begin with, as on
    * the Web); shown stretched over the node's box. Setting either clears the
@@ -1034,6 +1040,13 @@ export function createText(text = '', style) {
 export function createImage(source = '', style) {
   const node = create('image');
   if (source !== '') node.source = source;
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
+/** A new SVG layout leaf. Its vector shapes never create UI/Yoga nodes. */
+export function createSvg(style) {
+  const node = create('svg');
   if (style !== undefined) node.style = style;
   return node;
 }

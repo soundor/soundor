@@ -11,7 +11,7 @@ body { margin: 0; background: var(--sd-bg); }
   color-scheme: dark;
 }
 .soundor-host button, .soundor-host select, .soundor-host input { font: inherit; color: inherit; }
-.soundor-host svg { width: 18px; height: 18px; fill: currentColor; flex: none; }
+.soundor-host .soundor-glyph { width: 18px; height: 18px; fill: currentColor; flex: none; }
 
 /* Stage: the plugin, centred, with room under it for the dock. */
 .soundor-stage {

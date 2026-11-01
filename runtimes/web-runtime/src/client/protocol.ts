@@ -8,7 +8,7 @@ export const ASSET_PATH = 'soundor-assets';
 
 /** A UI asset id as the CLI's bundler makes them: content hash + extension. */
 export function isAssetId(id: string): boolean {
-  return /^[0-9a-f]{16}\.(png|jpe?g|webp|ttf|otf)$/.test(id);
+  return /^[0-9a-f]{16}\.(png|jpe?g|webp|svg|ttf|otf)$/.test(id);
 }
 
 /** One console entry the page sends to `soundor dev`. */

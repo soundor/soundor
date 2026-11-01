@@ -17,6 +17,7 @@ import {
 } from 'react-reconciler/constants';
 import {
   createCanvas,
+  createSvg,
   createImage,
   createScrollView,
   createText,
@@ -34,6 +35,17 @@ import {
 import { ACCESSIBILITY_PROPS, accessibilityOf } from './accessibility';
 import { tagScope, type Scope } from './focus';
 import { flattenStyle } from './style';
+import {
+  SvgRoot,
+  VectorInstance,
+  isVector,
+  svgRoots,
+  insertVector,
+  removeVector,
+  publishSvgScenes,
+  touchVector,
+  type VectorType,
+} from './svg/scene';
 
 /** The host element types the components render. */
 export const HostTypes = {
@@ -43,9 +55,11 @@ export const HostTypes = {
   ScrollView: 'soundor-scroll',
   TextInput: 'soundor-input',
   Canvas: 'soundor-canvas',
+  Svg: 'soundor-svg',
 } as const;
 
-export type HostType = (typeof HostTypes)[keyof typeof HostTypes];
+type NodeHostType = (typeof HostTypes)[keyof typeof HostTypes];
+export type HostType = NodeHostType | VectorType;
 
 /**
  * The prop components pass their FocusScope through: host elements cannot
@@ -79,11 +93,12 @@ export class NodeInstance {
   animation: UiAnimation | null = null;
 
   constructor(
-    readonly type: HostType,
+    readonly type: NodeHostType,
     readonly node: UiNode,
     public props: Props,
   ) {
     instancesByNode.set(node, this);
+    if (type === HostTypes.Svg) new SvgRoot(node);
   }
 }
 
@@ -98,10 +113,11 @@ export class SpanInstance {
 }
 
 type Span = SpanInstance;
-export type Instance = NodeInstance | SpanInstance;
+export type Instance = NodeInstance | SpanInstance | VectorInstance;
 
 export interface HostContext {
   readonly insideText: boolean;
+  readonly insideSvg: boolean;
 }
 
 // ── Events ──────────────────────────────────────────────────────────────────
@@ -249,6 +265,11 @@ function updateListeners(instance: NodeInstance, props: Props): void {
 
 function styleOf(instance: NodeInstance, props: Props): Style {
   const style: Record<string, unknown> = { ...flattenStyle(props['style']) };
+  if (instance.type === HostTypes.Svg) {
+    for (const side of ['width', 'height'])
+      if (style[side] === undefined && props[side] !== undefined)
+        style[side] = props[side];
+  }
   if (instance.type === HostTypes.Text && props['numberOfLines'] !== undefined)
     style['numberOfLines'] = props['numberOfLines'];
   if (instance.hidden) style['display'] = 'none';
@@ -357,6 +378,7 @@ function applyProps(
 ): void {
   const { node } = instance;
   instance.props = next;
+  if (instance.type === HostTypes.Svg) svgRoots.get(node)!.update(next);
   if (previous === null || next[SCOPE_PROP] !== previous[SCOPE_PROP])
     tagScope(node, (next[SCOPE_PROP] as Scope | undefined) ?? null);
   const explicit = next[ANIMATION_PROP] as
@@ -529,14 +551,40 @@ function createNode(type: HostType): UiNode {
       return createTextInput();
     case HostTypes.Canvas:
       return createCanvas();
+    case HostTypes.Svg:
+      if (typeof createSvg !== 'function')
+        throw new Error('SVG requires Soundor engine 0.6.0 or later');
+      return createSvg();
   }
+  throw new Error(`Unsupported Soundor host element: ${type}`);
 }
 
 function insert(
   parent: Instance | UiNode,
   child: Instance,
   before: Instance | null,
+  committed = true,
 ): void {
+  if (child.kind === 'vector') {
+    const vectorParent =
+      parent instanceof VectorInstance
+        ? parent
+        : parent instanceof NodeInstance
+          ? svgRoots.get(parent.node)
+          : undefined;
+    if (!vectorParent) throw new Error('SVG shapes must be inside Svg or G');
+    insertVector(
+      vectorParent,
+      child,
+      before instanceof VectorInstance ? before : null,
+    );
+    return;
+  }
+  if (
+    parent instanceof VectorInstance ||
+    (parent instanceof NodeInstance && parent.type === HostTypes.Svg)
+  )
+    throw new Error('Svg can only contain SVG shapes and groups');
   if (child.kind === 'span') {
     if (parent instanceof NodeInstance || parent instanceof SpanInstance)
       insertSpan(parent, child, before as SpanInstance | null);
@@ -548,16 +596,36 @@ function insert(
     child.node,
     before !== null && before.kind === 'node' ? before.node : null,
   );
+  if (committed) mountSvgTrees(child.node);
+}
+
+function mountSvgTrees(node: UiNode): void {
+  svgRoots.get(node)?.mount();
+  for (const child of node.children) mountSvgTrees(child);
 }
 
 function cancelAnimations(node: UiNode): void {
   const instance = instancesByNode.get(node);
   instance?.animation?.cancel();
   if (instance) instance.animation = null;
+  const svg = svgRoots.get(node);
+  if (svg) {
+    svg.clear();
+    if (instance) {
+      for (const { type, capture, listener } of instance.listeners.values())
+        node.removeEventListener(type, listener, capture);
+      instance.listeners.clear();
+      instance.props = {};
+    }
+  }
   for (const child of node.children) cancelAnimations(child);
 }
 
 function remove(parent: Instance | UiNode, child: Instance): void {
+  if (child.kind === 'vector') {
+    if (child.parent) removeVector(child.parent, child);
+    return;
+  }
   if (child.kind === 'span') {
     if (parent instanceof NodeInstance || parent instanceof SpanInstance)
       removeSpan(parent, child);
@@ -593,10 +661,16 @@ export const hostConfig = {
   noTimeout: -1,
   scheduleMicrotask: queueMicrotask,
 
-  getRootHostContext: (): HostContext => ({ insideText: false }),
+  getRootHostContext: (): HostContext => ({
+    insideText: false,
+    insideSvg: false,
+  }),
   getChildHostContext: (parent: HostContext, type: HostType): HostContext => {
     const insideText = type === HostTypes.Text;
-    return parent.insideText === insideText ? parent : { insideText };
+    const insideSvg = type === HostTypes.Svg || parent.insideSvg;
+    return parent.insideText === insideText && parent.insideSvg === insideSvg
+      ? parent
+      : { insideText, insideSvg };
   },
 
   createInstance(
@@ -605,6 +679,14 @@ export const hostConfig = {
     _root: UiNode,
     context: HostContext,
   ): Instance {
+    if (context.insideSvg) {
+      if (!isVector(type))
+        throw new Error(
+          'Svg can only contain SVG shapes and G groups; nested Svg is not supported',
+        );
+      return new VectorInstance(type, props);
+    }
+    if (isVector(type)) throw new Error('SVG shapes must be inside Svg or G');
     if (context.insideText) {
       if (type !== HostTypes.Text)
         throw new Error(`<${hostName(type)}> cannot be inside <Text>`);
@@ -620,6 +702,11 @@ export const hostConfig = {
     _root: UiNode,
     context: HostContext,
   ): Instance {
+    if (context.insideSvg) {
+      const whitespace = new VectorInstance('#text', {});
+      whitespace.text(text);
+      return whitespace;
+    }
     if (!context.insideText) {
       throw new Error(
         `Text strings must be rendered within a <Text> component: "${text}"`,
@@ -629,14 +716,14 @@ export const hostConfig = {
   },
 
   appendInitialChild: (parent: Instance, child: Instance) =>
-    insert(parent, child, null),
+    insert(parent, child, null, false),
   finalizeInitialChildren: () => false,
   shouldSetTextContent: () => false,
   getPublicInstance: (instance: Instance) =>
     instance.kind === 'node' ? instance.node : null,
 
   prepareForCommit: () => null,
-  resetAfterCommit: () => {},
+  resetAfterCommit: publishSvgScenes,
   preparePortalMount: () => {},
 
   appendChild: (parent: Instance, child: Instance) =>
@@ -667,10 +754,18 @@ export const hostConfig = {
     next: Props,
   ): void {
     if (instance.kind === 'node') applyProps(instance, previous, next);
+    else if (instance.kind === 'vector') instance.update(next);
   },
-  commitTextUpdate(span: SpanInstance, _previous: string, next: string): void {
-    span.text = next;
-    refreshText(span);
+  commitTextUpdate(
+    span: SpanInstance | VectorInstance,
+    _previous: string,
+    next: string,
+  ): void {
+    if (span.kind === 'vector') span.text(next);
+    else {
+      span.text = next;
+      refreshText(span);
+    }
   },
   resetTextContent: () => {},
   commitMount: () => {},
@@ -679,26 +774,31 @@ export const hostConfig = {
     instance.hidden = true;
     if (instance.kind === 'node')
       setStyle(instance, styleOf(instance, instance.props));
+    else if (instance.kind === 'vector') touchVector(instance);
     else refreshText(instance);
   },
   unhideInstance(instance: Instance): void {
     instance.hidden = false;
     if (instance.kind === 'node')
       setStyle(instance, styleOf(instance, instance.props));
+    else if (instance.kind === 'vector') touchVector(instance);
     else refreshText(instance);
   },
-  hideTextInstance(span: SpanInstance): void {
+  hideTextInstance(span: SpanInstance | VectorInstance): void {
     span.hidden = true;
-    refreshText(span);
+    if (span.kind === 'vector') touchVector(span);
+    else refreshText(span);
   },
-  unhideTextInstance(span: SpanInstance): void {
+  unhideTextInstance(span: SpanInstance | VectorInstance): void {
     span.hidden = false;
-    refreshText(span);
+    if (span.kind === 'vector') touchVector(span);
+    else refreshText(span);
   },
 
   // Detached nodes are released when garbage collected.
   detachDeletedInstance: (instance: Instance) => {
     if (instance.kind === 'node') cancelAnimations(instance.node);
+    else if (instance.kind === 'vector') instance.dispose();
   },
 
   setCurrentUpdatePriority: (priority: number) => {

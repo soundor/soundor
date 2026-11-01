@@ -1,11 +1,12 @@
+import { TestAnimation } from './animation';
+import type { TestRuntime } from './runtime';
 /**
  * soundor:ui for tests in Node: the same tree semantics, kept in JavaScript,
  * with DOM-style capture and bubble dispatch. Plus helpers to fire events and
  * to print the tree.
  */
-
-import { TestAnimation } from './animation';
-import type { TestRuntime } from './runtime';
+import { normalizeSvgScene } from './svg-scene';
+import type { SvgScene } from './types';
 import type {
   AnimationKeyframe,
   AnimationDescription,
@@ -122,6 +123,17 @@ export class TestNode {
   text = '';
   placeholder = '';
   source = '';
+  svgScene: SvgScene | null = null;
+  svgSceneUpdates = 0;
+  setSvgScene(scene: SvgScene | null): void {
+    this.runtime.assertActive();
+    if (this.type !== 'svg')
+      throw new TypeError('setSvgScene() belongs to svg nodes');
+    const next = scene === null ? null : normalizeSvgScene(scene);
+    if (JSON.stringify(next) === JSON.stringify(this.svgScene)) return;
+    this.svgScene = next;
+    this.svgSceneUpdates++;
+  }
   // Canvases.
   width = 300;
   height = 150;
@@ -259,7 +271,12 @@ export class TestNode {
   }
 
   insertBefore(child: TestNode, before: TestNode | null) {
-    if (this.type === 'text' || this.type === 'image' || this.type === 'input')
+    if (
+      this.type === 'text' ||
+      this.type === 'image' ||
+      this.type === 'input' ||
+      this.type === 'svg'
+    )
       throw new TypeError('only views can have children');
     this.runtime.assertActive();
     if (child.runtime !== this.runtime)

@@ -66,6 +66,13 @@ export function createImage(source = '', style?: Style): UiNode {
   return node;
 }
 
+/** A root vector viewport; internal shapes have no UI/layout nodes. */
+export function createSvg(style?: Style): UiNode {
+  const node = view.createNode('svg');
+  if (style !== undefined) node.style = style;
+  return node;
+}
+
 /**
  * A new, detached canvas: pixels code draws with getContext('2d'), 300 by
  * 150 until its width and height say otherwise. Its box is that size in

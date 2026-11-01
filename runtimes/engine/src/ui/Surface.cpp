@@ -1,3 +1,5 @@
+#include "render/VectorScene.h"
+
 #include <soundor/ui/Surface.h>
 
 #include <yoga/Yoga.h>
@@ -246,6 +248,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return measureNatural(natural, width, widthMode, height, heightMode);
         }
 
+        static YGSize measureSvg(YGNodeConstRef yoga, float width, YGMeasureMode widthMode, float height,
+                                 YGMeasureMode heightMode)
+        {
+            const auto* node = static_cast<const Node*>(YGNodeGetContext(yoga));
+            const Size natural = node->vectorScene ? node->vectorScene->naturalSize() : Size { 300, 150 };
+            return measureNatural(natural, width, widthMode, height, heightMode);
+        }
+
         static YGSize measureNatural(Size natural, float width, YGMeasureMode widthMode, float height,
                                      YGMeasureMode heightMode)
         {
@@ -287,6 +297,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 canvasBuffer = std::make_shared<CanvasBuffer>();
                 canvasBuffer->pixels.resize(300, 150);
                 break;
+            case NodeType::Svg:
+                YGNodeSetMeasureFunc(yoga, &NodeAccess::measureSvg);
+                break;
             case NodeType::View:
             case NodeType::Scroll:
                 break;
@@ -296,6 +309,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     Node::~Node()
     {
         YGNodeFree(yoga);
+    }
+
+    const SvgScene* Node::svgScene() const noexcept
+    {
+        return vectorScene ? &vectorScene->snapshot() : nullptr;
     }
 
     Rect Node::frame() const noexcept
@@ -529,6 +547,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         node.imageSource = std::move(source);
         YGNodeMarkDirty(node.yoga);
+        markChanged(node);
+    }
+
+    void Surface::setSvgScene(NodeId id, std::optional<SvgScene> scene)
+    {
+        Node& node = get(id);
+        if (node.nodeType != NodeType::Svg)
+            throw std::invalid_argument("only SVG nodes have a scene");
+        if ((! scene && ! node.vectorScene) || (scene && node.vectorScene && *scene == node.vectorScene->snapshot()))
+            return;
+        const Size before = node.vectorScene ? node.vectorScene->naturalSize() : Size { 300, 150 };
+        std::unique_ptr<render::VectorScene> compiled;
+        if (scene)
+        {
+            if (! svgGeometryCache)
+                svgGeometryCache = std::make_unique<render::SvgGeometryCache>(counted.svgPathParses);
+            compiled = render::VectorScene::compile(std::move(*scene), *svgGeometryCache, node.vectorScene.get());
+        }
+        const Size after = compiled ? compiled->naturalSize() : Size { 300, 150 };
+        node.vectorScene = std::move(compiled);
+        ++counted.svgSceneUpdates;
+        if (before.width != after.width || before.height != after.height)
+            YGNodeMarkDirty(node.yoga);
         markChanged(node);
     }
 

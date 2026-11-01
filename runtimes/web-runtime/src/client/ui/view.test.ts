@@ -10,7 +10,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const el = (node: UiNode): HTMLElement => UiNode.elementOf(node);
+const el = (node: UiNode) => UiNode.elementOf(node);
 
 /**
  * A view whose hit test is a table from x to node: happy-dom has no layout.
@@ -621,7 +621,7 @@ describe('focus', () => {
 
   it('sends keys to the focused node, or the root', () => {
     const { other, events } = setup();
-    const key = (target: HTMLElement) =>
+    const key = (target: EventTarget) =>
       target.dispatchEvent(
         new window.KeyboardEvent('keydown', { key: 'a', bubbles: true }),
       );
