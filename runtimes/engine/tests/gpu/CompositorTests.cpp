@@ -1,6 +1,8 @@
+#include "../web/WebTestSupport.h"
 #include "GpuTestSupport.h"
 #include "gpu/OffscreenCompositor.h"
 
+#include <soundor/platform/Resources.h>
 #include <soundor/render/Compositor.h>
 
 #include <cstdint>
@@ -86,6 +88,36 @@ namespace
 
 TEST_SUITE("gpu::LayerRenderer")
 {
+    TEST_CASE("SVG Image CPU layers stay sharp through GPU composition at each editor and device scale")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        RuntimeHost::Options options;
+        options.gpuDevice = device;
+        options.allowSoftwareGpu = true;
+        options.resources = std::make_shared<platform::DirectoryResources>(SOUNDOR_TEST_FIXTURES "/images");
+        test::WebFixture f(options);
+        f.host.surface().setSize({ 64, 64 });
+        f.run(R"(
+            import { root, createImage, createView } from 'soundor:ui';
+            const parent = createView({ width: 60, height: 60, overflow: 'hidden', borderRadius: 8,
+                transform: [{ translateX: 2 }, { rotate: 12 }] });
+            parent.appendChild(createImage('halves.svg', { width: 64, height: 48,
+                resizeMode: 'contain', opacity: 0.75 }));
+            root.appendChild(parent);
+        )");
+        gpu::OffscreenCompositor compositor(device);
+        for (float scale : { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f })
+        {
+            f.host.surface().setScale(scale);
+            const auto& frame = f.host.frame();
+            CHECK(frame.width == static_cast<int>(64 * scale));
+            compareWithCpu(compositor, frame);
+            CHECK(f.host.frame().statistics.pixelsRasterized == 0);
+        }
+    }
+
     TEST_CASE("composites like the CPU compositor: order, alpha, opacity, transforms, clips")
     {
         const auto device = test::testDevice();

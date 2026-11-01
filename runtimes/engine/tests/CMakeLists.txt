@@ -12,7 +12,7 @@ target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SO
 # The document foundation also runs in Release (without Hermes's compiler).
 # Skia is private; prebuilt consumer tests exercise it through Image instead.
 if(NOT SOUNDOR_ENGINE_PREBUILT)
-  add_executable(soundor_svg_tests main.cpp render/SvgDocumentTests.cpp)
+  add_executable(soundor_svg_tests main.cpp render/SvgDocumentTests.cpp render/SvgImageTests.cpp)
   target_include_directories(soundor_svg_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
   target_link_libraries(soundor_svg_tests PRIVATE Soundor::Engine soundor_skia soundor_doctest)
   if(WIN32)
@@ -65,6 +65,10 @@ if(SOUNDOR_JS_SOURCE)
   target_include_directories(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
   # Tests exercise internal seams (native modules), so they may see Hermes.
   target_link_libraries(soundor_runtime_tests PRIVATE Soundor::Engine soundor_hermes soundor_doctest)
+  if(NOT SOUNDOR_ENGINE_PREBUILT)
+    target_link_libraries(soundor_runtime_tests PRIVATE soundor_skia)
+    target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_TEST_SVG=1)
+  endif()
   if(WIN32)
     target_link_libraries(soundor_runtime_tests PRIVATE dbghelp)
   endif()

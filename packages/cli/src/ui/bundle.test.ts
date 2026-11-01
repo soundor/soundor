@@ -189,6 +189,54 @@ describe('bundleUi', () => {
     });
   });
 
+  it('bundles SVG by content identity and MIME type, excluding tree-shaken SVGs', async () => {
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><path d="M0 0h20v10H0z"/></svg>';
+    await write('src/logo.svg', svg);
+    await write('src/copy.svg', svg);
+    await write('src/unused.svg', '<svg width="999"/>');
+    await write(
+      'src/library.ts',
+      `import unused from './unused.svg'; export const discarded = () => unused; export const label = 'logo';`,
+    );
+    await write(
+      'src/main.ts',
+      `import logo from './logo.svg'; import copy from './copy.svg'; import { label } from './library'; globalThis.assets = [logo, copy, label];`,
+    );
+    const { result, code } = await bundle();
+    const id = assetId(Buffer.from(svg), 'logo.svg');
+    expect(id).toMatch(/^[0-9a-f]{16}\.svg$/);
+    expect(result.assets).toEqual([
+      expect.objectContaining({
+        id,
+        type: 'image/svg+xml',
+        size: Buffer.byteLength(svg),
+      }),
+    ]);
+    expect(code).toContain(id);
+    expect(await readFile(join(result.dir, 'assets', id), 'utf8')).toBe(svg);
+    await write('src/logo.svg', svg.replace('20', '21'));
+    expect((await bundle()).result.assets).toHaveLength(2);
+  });
+
+  it('bounds referenced SVG documents after tree shaking', async () => {
+    await write('src/large.svg', '<svg>' + ' '.repeat(1024 * 1024) + '</svg>');
+    await write(
+      'src/library.ts',
+      `import large from './large.svg'; export const discarded = () => large; export const label = 'ok';`,
+    );
+    await write(
+      'src/main.ts',
+      `import { label } from './library'; globalThis.label = label;`,
+    );
+    expect((await bundle()).result.assets).toEqual([]);
+    await write(
+      'src/main.ts',
+      `import large from './large.svg'; globalThis.asset = large;`,
+    );
+    await expect(bundle()).rejects.toThrow('exceeds the 1 MiB document limit');
+  });
+
   it('bundles imported fonts as assets too', async () => {
     const FONT = Uint8Array.from([0, 1, 0, 0, 7]);
     await write('src/Brand.ttf', FONT);

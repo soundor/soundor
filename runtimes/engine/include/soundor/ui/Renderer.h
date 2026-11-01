@@ -20,7 +20,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     class Renderer
     {
     public:
-        // The bytes of a bundled asset by id: an image (PNG, JPEG or WebP)
+        // The bytes of a bundled asset by id: an image (PNG, JPEG, WebP or SVG)
         // or a font (TrueType or OpenType).
         using AssetLoader = std::function<std::optional<std::span<const std::uint8_t>>(std::string_view id)>;
 

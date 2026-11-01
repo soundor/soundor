@@ -19,6 +19,10 @@ declare module '*.webp' {
   const asset: string;
   export default asset;
 }
+declare module '*.svg' {
+  const asset: string;
+  export default asset;
+}
 declare module '*.ttf' {
   const asset: string;
   export default asset;

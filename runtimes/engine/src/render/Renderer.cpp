@@ -394,18 +394,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     void Renderer::Impl::drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer)
     {
-        const sk_sp<SkImage> image = images->image(node.source());
+        const auto* image = images->load(node.source());
         if (image == nullptr)
             return;
         const Rect content = node.contentBox();
         const SkRect box = SkRect::MakeXYWH(content.x, content.y, content.width, content.height);
-        const SkRect placed = placeImage({ static_cast<float>(image->width()), static_cast<float>(image->height()) },
-                                         box, node.style().resizeMode);
+        const SkRect placed = placeImage(image->size, box, node.style().resizeMode);
         canvas.save();
         canvas.clipRRect(outer, true);
         canvas.clipRect(box, true);
-        // Between the two nearest of its mipmaps: smooth at any size.
-        canvas.drawImageRect(image, placed, SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kLinear));
+        images->draw(canvas, *image, placed);
         canvas.restore();
     }
 

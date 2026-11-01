@@ -91,7 +91,7 @@ import brandRegular from '@acme/fonts/ttf/Brand-Regular.ttf';
 ### Files in your library
 
 A library can also keep the files in its own package. Mark them external
-(with tsdown, `external: [/\.(png|jpe?g|webp|ttf|otf)$/]`) and publish them.
+(with tsdown, `external: [/\.(png|jpe?g|webp|svg|ttf|otf)$/]`) and publish them.
 The import's path is resolved from the built file, not the source: keep the
 same relative path between them. With `src/index.ts` built to
 `dist/index.mjs`, put the files in a directory beside both, such as `assets/`,

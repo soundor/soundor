@@ -652,6 +652,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 });
         }
 
+        void drawVector(SkiaImages& cache, const SkiaImages::Image& image, SkRect source, SkRect destination)
+        {
+            source.sort();
+            destination.sort();
+            if (source.isEmpty() || destination.isEmpty())
+                return;
+            const float sx = destination.width() / source.width();
+            const float sy = destination.height() / source.height();
+            const SkRect placed = SkRect::MakeXYWH(destination.x() - source.x() * sx, destination.y() - source.y() * sy,
+                                                   image.size.width * sx, image.size.height * sy);
+            SkPaint paint;
+            paint.setAlphaf(state().globalAlpha);
+            if (! unbounded(state().blend))
+                paint.setBlendMode(state().blend);
+            composite(
+                [&](SkCanvas& into)
+                {
+                    into.saveLayer(&destination, &paint);
+                    into.clipRect(destination, true);
+                    cache.draw(into, image, placed);
+                    into.restore();
+                });
+        }
+
         std::uint32_t scratchPixel = 0;
     };
 
@@ -1229,17 +1253,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                              double dy, std::optional<double> dw, std::optional<double> dh)
     {
         auto* images = dynamic_cast<SkiaImages*>(impl->images.get());
-        const sk_sp<SkImage> image = images != nullptr ? images->image(asset) : nullptr;
+        const auto* image = images != nullptr ? images->load(asset) : nullptr;
         if (image == nullptr)
             return false;
         const SkRect source =
             sourceRect ? SkRect::MakeXYWH(static_cast<float>((*sourceRect)[0]), static_cast<float>((*sourceRect)[1]),
                                           static_cast<float>((*sourceRect)[2]), static_cast<float>((*sourceRect)[3]))
-                       : SkRect::MakeIWH(image->width(), image->height());
-        impl->drawImage(image, source,
-                        SkRect::MakeXYWH(static_cast<float>(dx), static_cast<float>(dy),
-                                         static_cast<float>(dw.value_or(source.width())),
-                                         static_cast<float>(dh.value_or(source.height()))));
+                       : SkRect::MakeWH(image->size.width, image->size.height);
+        const SkRect destination = SkRect::MakeXYWH(static_cast<float>(dx), static_cast<float>(dy),
+                                                    static_cast<float>(dw.value_or(source.width())),
+                                                    static_cast<float>(dh.value_or(source.height())));
+        if (image->raster != nullptr)
+            impl->drawImage(image->raster, source, destination);
+        else
+            impl->drawVector(*images, *image, source, destination);
         return true;
     }
 

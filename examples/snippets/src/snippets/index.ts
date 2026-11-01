@@ -8,6 +8,7 @@ import Cursor from './cursor';
 import FocusScope from './focus-scope';
 import Gain from './gain';
 import Image from './image';
+import SvgImage from './image-svg';
 import Modal from './modal';
 import Parameters from './parameters';
 import PointerLock from './pointer-lock';
@@ -28,6 +29,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   'focus-scope': FocusScope,
   gain: Gain,
   image: Image,
+  'image-svg': SvgImage,
   modal: Modal,
   parameters: Parameters,
   'pointer-lock': PointerLock,

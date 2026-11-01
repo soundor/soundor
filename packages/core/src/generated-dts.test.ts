@@ -76,7 +76,10 @@ import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createScrollView, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
 import logo from './logo.png';
+import vector from './logo.svg';
 const asset: string = logo;
+const svgAsset: string = vector;
+createImage(svgAsset, { width: 200, height: 100 });
 
 const gain: number = parameters.gain.get();
 parameters.gain.set(gain - 1);

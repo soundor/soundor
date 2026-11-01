@@ -267,6 +267,21 @@ TEST_SUITE("soundor:ui canvas")
         CHECK(f.error("ctx.getImageData(0, 0, 0, 1);").find("IndexSizeError") != std::string::npos);
     }
 
+    TEST_CASE("drawImage renders SVG documents into the canvas buffer with cropping and opacity")
+    {
+        CanvasFixture f;
+        f.run(R"(
+            import { createImage } from 'soundor:ui';
+            const svg = createImage('halves.svg');
+            ctx.drawImage(svg, 0, 0, 40, 20);
+            ctx.globalAlpha = 0.5;
+            ctx.drawImage(svg, 2, 0, 2, 2, 50, 0, 20, 20);
+        )");
+        CHECK(f.pixel(5, 10) == "255,0,0,255");
+        CHECK(f.pixel(35, 10) == "0,0,255,255");
+        CHECK(f.pixel(55, 10) == "0,0,255,128");
+    }
+
     TEST_CASE("drawImage: another canvas, and bundled images")
     {
         CanvasFixture f;

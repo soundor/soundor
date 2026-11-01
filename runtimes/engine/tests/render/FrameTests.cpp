@@ -1,6 +1,9 @@
 #include "../web/WebTestSupport.h"
 
 #include <soundor/platform/Resources.h>
+#if defined(SOUNDOR_TEST_SVG)
+    #include "render/SkiaImages.h"
+#endif
 #include <soundor/render/Compositor.h>
 
 #include <algorithm>
@@ -110,6 +113,52 @@ TEST_SUITE("render::ViewRenderer")
         CHECK(second.statistics.pixelsRasterized == 0);
         CHECK(std::get<render::RasterContent>(second.layers.front().content).damage.empty());
         CHECK(second.layers.front().id == id);
+    }
+
+    TEST_CASE("SVG images retain geometry across layout and presentation resizing without idle redraws")
+    {
+        FrameFixture f(100, 100);
+        f.run(R"(
+            import { root, createImage, createView } from 'soundor:ui';
+            globalThis.svg = createImage('halves.svg', { position: 'absolute', width: '40%', height: 40,
+                resizeMode: 'contain', borderRadius: 4 });
+            globalThis.other = createView({ position: 'absolute', left: 80, top: 80, width: 10, height: 10,
+                backgroundColor: 'red' });
+            root.appendChild(svg); root.appendChild(other);
+        )");
+        f.frame();
+#if defined(SOUNDOR_TEST_SVG)
+        const auto images = std::dynamic_pointer_cast<render::SkiaImages>(f.host.surface().images());
+        REQUIRE(images != nullptr);
+        CHECK(images->svgParseAttempts() == 1);
+        const auto draws = images->svgDraws();
+#endif
+        CHECK(f.host.frame().damage.empty());
+        f.run("other.style.backgroundColor = 'blue';");
+        CHECK_FALSE(f.host.frame().damage.empty());
+#if defined(SOUNDOR_TEST_SVG)
+        CHECK(images->svgDraws() == draws);
+#endif
+        // Layout mode changes logical bounds; scale mode keeps those bounds
+        // and changes the physical target. Both use the same retained DOM.
+        f.host.surface().setSize({ 200, 100 });
+        f.frame();
+        CHECK(f.eval("svg.layout.width").asNumber() == 80);
+        for (float scale : { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f })
+        {
+            f.host.surface().setScale(scale);
+            const auto& frame = f.frame();
+            CHECK(frame.width == static_cast<int>(200 * scale));
+            CHECK(frame.height == static_cast<int>(100 * scale));
+            CHECK(f.eval("svg.layout.width").asNumber() == 80);
+        }
+        f.step("svg.source = 'halves.png';");
+        f.step("svg.source = 'halves.svg';");
+        f.step("svg.source = 'missing.svg';");
+        f.step("svg.remove();");
+#if defined(SOUNDOR_TEST_SVG)
+        CHECK(images->svgParseAttempts() == 1);
+#endif
     }
 
     TEST_CASE("draws again only what changed, exactly as a full redraw would")
