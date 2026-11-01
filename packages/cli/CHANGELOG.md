@@ -1,5 +1,19 @@
 # soundor
 
+## 0.15.0
+
+### Minor Changes
+
+- [#194](https://github.com/soundor/soundor/pull/194) [`003c103`](https://github.com/soundor/soundor/commit/003c103191eb4bec37df0aca7bad4d8e3fbdbe4f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Support bundled SVG assets through Image with the existing content-addressed asset IDs and TypeScript imports. Native images cache bounded Skia SVG documents and render them at the effective physical resolution; Web images use the browser's image decoder. Preserve Image sizing and resize modes, with documented SVG intrinsic-size fallbacks and compatibility limits.
+
+### Patch Changes
+
+- Updated dependencies [[`128f5fe`](https://github.com/soundor/soundor/commit/128f5fe2cf4d999ecaa34de8c5584e2acca44900)]:
+  - @soundor/devtools-client@0.15.0
+  - @soundor/core@0.15.0
+  - @soundor/devtools-server@0.15.0
+  - @soundor/driver@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
