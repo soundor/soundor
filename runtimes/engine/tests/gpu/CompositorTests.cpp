@@ -118,6 +118,39 @@ TEST_SUITE("gpu::LayerRenderer")
         }
     }
 
+    TEST_CASE("SVG scene CPU layers retain geometry through GPU composition at editor and device scales")
+    {
+        const auto device = test::testDevice();
+        if (device == nullptr)
+            return;
+        RuntimeHost::Options options;
+        options.gpuDevice = device;
+        options.allowSoftwareGpu = true;
+
+        test::WebFixture f(options);
+        f.host.surface().setSize({ 64, 64 });
+        f.run(R"(
+            import { root, createSvg, createView } from 'soundor:ui';
+            const parent = createView({ width: 60, height: 60, overflow: 'hidden', borderRadius: 8,
+                transform: [{ translateX: 2 }, { rotate: 0.2 }] });
+            const svg = createSvg({ width: 64, height: 48, opacity: 0.75 });
+            svg.setSvgScene({version:1,viewBox:[0,0,24,24],presentation:{fill:'none',stroke:'blue',strokeWidth:2},
+                children:[{type:'circle',cx:12,cy:12,r:10},{type:'path',d:'M6 12L10 16L18 8'}]});
+            parent.appendChild(svg);
+            root.appendChild(parent);
+        )");
+        gpu::OffscreenCompositor compositor(device);
+        for (float scale : { 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f })
+        {
+            f.host.surface().setScale(scale);
+            const auto& frame = f.host.frame();
+            CHECK(frame.width == static_cast<int>(64 * scale));
+            compareWithCpu(compositor, frame);
+            CHECK(f.host.frame().statistics.pixelsRasterized == 0);
+        }
+        CHECK(f.host.surface().statistics().svgPathParses == 1);
+    }
+
     TEST_CASE("composites like the CPU compositor: order, alpha, opacity, transforms, clips")
     {
         const auto device = test::testDevice();

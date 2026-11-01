@@ -18,7 +18,7 @@ function setup() {
   return view;
 }
 
-const el = (node: UiNode): HTMLElement => UiNode.elementOf(node);
+const el = (node: UiNode) => UiNode.elementOf(node);
 
 it('keeps logical layout and inverses nested presentation transforms for pointer coordinates', () => {
   const { root } = setup();

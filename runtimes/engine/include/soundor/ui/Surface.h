@@ -6,6 +6,7 @@
 #include <soundor/render/Frame.h>
 #include <soundor/ui/Input.h>
 #include <soundor/ui/Style.h>
+#include <soundor/ui/Svg.h>
 #include <soundor/ui/Text.h>
 
 #include <cstdint>
@@ -24,6 +25,12 @@
 struct YGNode; // Yoga stays private to the runtime.
 struct YGConfig;
 
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+{
+    class VectorScene;
+    class SvgGeometryCache;
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
     using NodeId = std::uint32_t;
@@ -37,6 +44,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Scroll, // a view whose content scrolls
         Input,  // an editable line of text
         Canvas, // pixels drawn by code (a 2D context)
+        Svg,    // one layout leaf containing a retained vector scene
     };
 
     // A canvas node's pixels: its drawing buffer, `width`×`height` like an
@@ -106,6 +114,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     };
 
     class Surface;
+    class Renderer;
 
     // A node of a Surface's tree. Read-only outside the Surface.
     class Node
@@ -146,6 +155,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] const std::string& source() const noexcept { return imageSource; }
         // Canvas: its drawing buffer (null for other nodes).
         [[nodiscard]] const CanvasBuffer* canvas() const noexcept { return canvasBuffer.get(); }
+        [[nodiscard]] const SvgScene* svgScene() const noexcept;
         // Input: shown while the text is empty.
         [[nodiscard]] const std::string& placeholder() const noexcept { return placeholderText; }
         [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
@@ -162,6 +172,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     private:
         friend class Surface;
+        friend class Renderer;
         friend struct NodeAccess;
         Node(Surface& owner, NodeId id, NodeType type);
 
@@ -169,6 +180,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId nodeId;
         NodeType nodeType;
         YGNode* yoga;
+        std::unique_ptr<render::VectorScene> vectorScene;
         Node* parentNode = nullptr;
         std::vector<Node*> childNodes;
         // childNodes sorted by zIndex; empty while that is tree order.
@@ -259,6 +271,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::uint64_t layoutPasses = 0;      // trees laid out by Yoga
         std::uint64_t layoutNanoseconds = 0; // ... and the time it took
         std::uint64_t invalidations = 0;     // nodes marked as looking different
+        std::uint64_t svgSceneUpdates = 0;   // installed/cleared vector snapshots
+        std::uint64_t svgPathParses = 0;     // cache misses that parse path syntax
+        std::uint64_t svgDraws = 0;          // vector scene walks within damage
     };
 
     // The UI of one plugin view: a tree of nodes with flexbox layout, and the
@@ -303,6 +318,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void setDebugId(NodeId id, std::string debugId);
         // Image nodes.
         void setSource(NodeId id, std::string source);
+        // Validates/compiles before replacing the scene; invalid input leaves
+        // the old scene installed. Clearing preserves the UI node and Style.
+        void setSvgScene(NodeId id, std::optional<SvgScene> scene);
         // Input nodes.
         void setPlaceholder(NodeId id, std::string placeholder);
         // Clamped to the text and to code point boundaries.
@@ -483,6 +501,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void debugMetadataChanged(const Node& node);
 #endif
         friend class Node;
+        friend class Renderer;
         friend struct NodeAccess;
 
         struct PointerState
@@ -525,6 +544,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Size viewSize;
         float pixelScale = 1;
         SurfaceStatistics counted;
+        std::unique_ptr<render::SvgGeometryCache> svgGeometryCache;
         bool changed = true;
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;

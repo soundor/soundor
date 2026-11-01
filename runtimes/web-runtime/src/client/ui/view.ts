@@ -22,7 +22,13 @@ import {
   PointerEvent,
   WheelEvent,
 } from './events';
-import { createNode, nodeOf, UiNode, type ViewLink } from './node';
+import {
+  createNode,
+  nodeOf,
+  UiNode,
+  type ViewLink,
+  type UiElement,
+} from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
 import type { Cursor, NodeType, ViewSize } from './types';
@@ -41,7 +47,7 @@ interface PointerState {
   inside: boolean;
 }
 
-const elementOf = (node: UiNode): HTMLElement => UiNode.elementOf(node);
+const elementOf = (node: UiNode): UiElement => UiNode.elementOf(node);
 
 export class UiView implements ViewLink {
   readonly animations: AnimationController;

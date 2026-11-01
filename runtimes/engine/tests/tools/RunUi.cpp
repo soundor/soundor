@@ -127,6 +127,7 @@ namespace
         long long layoutPasses = 0;
         double layoutMs = 0;
         long long invalidations = 0;
+        long long svgSceneUpdates = 0, svgPathParses = 0, svgDraws = 0;
         long long collections = 0;
         long long allocatedBytes = 0;
         long long heapBytes = 0; // at the end of the frame
@@ -152,6 +153,9 @@ namespace
         sample.layoutPasses = count(before.surface.layoutPasses, after.surface.layoutPasses);
         sample.layoutMs = time(before.surface.layoutNanoseconds, after.surface.layoutNanoseconds);
         sample.invalidations = count(before.surface.invalidations, after.surface.invalidations);
+        sample.svgSceneUpdates = count(before.surface.svgSceneUpdates, after.surface.svgSceneUpdates);
+        sample.svgPathParses = count(before.surface.svgPathParses, after.surface.svgPathParses);
+        sample.svgDraws = count(before.surface.svgDraws, after.surface.svgDraws);
         sample.collections = count(before.runtime.collections, after.runtime.collections);
         sample.allocatedBytes = count(before.runtime.allocatedBytes, after.runtime.allocatedBytes);
         sample.heapBytes = static_cast<long long>(after.runtime.heapBytes);
@@ -329,7 +333,10 @@ namespace
                + field("surface", "{ " + field("styleChanges", mean(&Sample::styleChanges)) + ", "
                                       + field("layoutPasses", mean(&Sample::layoutPasses)) + ", "
                                       + field("layoutMs", mean(&Sample::layoutMs)) + ", "
-                                      + field("invalidations", mean(&Sample::invalidations)) + " }");
+                                      + field("invalidations", mean(&Sample::invalidations)) + ", "
+                                      + field("svgSceneUpdates", mean(&Sample::svgSceneUpdates)) + ", "
+                                      + field("svgPathParses", mean(&Sample::svgPathParses)) + ", "
+                                      + field("svgDraws", mean(&Sample::svgDraws)) + " }");
         out += ", "
                + field("engine", "{ " + field("collections", mean(&Sample::collections)) + ", "
                                      + field("allocatedBytes", mean(&Sample::allocatedBytes)) + ", "

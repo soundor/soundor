@@ -1180,6 +1180,90 @@ has no GPU backends, PDF, ICU or HarfBuzz.
   library (`zlib/`, Chromium's zlib with its `Cr_z_` names). ANGLE compiles
   against them and links Skia's zlib instead of its own (see ANGLE).
 
+### Retained SVG scenes
+
+`soundor:ui` exports `createSvg(style?)`. Its returned UiNode is one Yoga
+leaf with the normal Style, debugId, events and accessibility. Shapes in its
+vector scene have no UI ids, Yoga nodes, pointer targets or semantic nodes.
+The scene protocol is version 1 and requires **engine 0.6.0 or later**, in
+both source and prebuilt mode.
+
+```ts
+import { root, createSvg } from 'soundor:ui';
+
+const icon = createSvg({ width: 24, height: 24 });
+icon.setSvgScene({
+  version: 1,
+  viewBox: [0, 0, 24, 24],
+  presentation: {
+    fill: 'none',
+    stroke: 'currentColor',
+    color: 'blue',
+    strokeWidth: 2,
+  },
+  children: [
+    { type: 'circle', cx: 12, cy: 12, r: 10 },
+    {
+      type: 'path',
+      d: 'M6 12L10 16L18 8',
+      presentation: { strokeLinecap: 'round', strokeLinejoin: 'round' },
+    },
+  ],
+});
+root.appendChild(icon);
+```
+
+`setSvgScene(snapshot)` clones and validates a complete scene before installing
+it; invalid input leaves the previous scene intact. `setSvgScene(null)` clears
+its drawing, retaining the UiNode and Style. This interface is independent of
+React and does not parse XML.
+
+Shapes are `g` (with `children`), `path` (`d`), `circle` (`cx`, `cy`, `r`),
+`rect` (`x`, `y`, `width`, `height`, `rx`, `ry`), `ellipse` (`cx`, `cy`, `rx`,
+`ry`), `line` (`x1`, `y1`, `x2`, `y2`), and `polygon`/`polyline` (flat numeric
+`points`). Geometry defaults to zero; one rectangle corner radius supplies
+the other. Coordinates and lengths are numeric SVG user units.
+
+The optional `presentation` on a scene or shape includes `fill`, `stroke`,
+`color`, `strokeWidth`, `fillRule`, `strokeLinecap`, `strokeLinejoin`,
+`strokeMiterlimit`, `strokeDasharray`, `strokeDashoffset`, `opacity`,
+`fillOpacity`, `strokeOpacity`, and an affine `transform: [a,b,c,d,e,f]`.
+Paint and stroke properties inherit; currentColor resolves using the child's
+inherited color. Defaults follow SVG: black fill/color, no stroke, width 1,
+nonzero winding, butt caps, miter joins/limit 4, opacity 1. Opacity isolates a
+whole group or shape (including overlapping fill/stroke); it is not inherited.
+Odd dash lists repeat; all-zero lists mean solid. Width zero draws no stroke.
+
+Only the root's Style sizes its viewport. A viewBox supplies a ratio, not
+intrinsic pixels: the default object size is 300×150, containing that ratio.
+The viewport is the content box, clipped even with overflow visible, inside
+rounded clipping from the node. `preserveAspectRatio` defaults to
+`xMidYMid meet`; the nine Min/Mid/Max alignments, meet, slice and none are
+supported. ViewBox origins may be nonzero. Internal transforms never enter
+Yoga. Layout resize changes the viewport; scale resize and device density
+change the existing renderer's physical resolution. Neither needs multiplying
+scene dimensions by editor scale.
+
+The native compiler retains SkPaths and resolved paints. A bounded weak cache
+shares parsed path data across roots; unchanged geometry is reused during
+paint updates. Resizing a viewport does not compile a scene or parse a path.
+Damage tracking skips static roots outside a changed region. Web uses SVG
+namespace elements and retains unchanged geometry attributes, without XML or
+innerHTML. Its private vector elements do not join Soundor's UI tree.
+
+Limits: 4,096 scene nodes, 64 nesting levels, 65,536 numeric values, 1 MiB of
+strings (256 KiB per path), finite coordinates of magnitude at most one million,
+and bounded accumulated transforms. The native path cache holds at most 4 MiB
+of keys/4,096 entries and does not retain dead geometry. The native benchmark
+runner reports per-frame `svgSceneUpdates`, `svgPathParses`, and `svgDraws`
+under `surface`; older saved builds omit them.
+
+This is a first-party vector subset. It has no text, gradients, patterns,
+filters, masks, general CSS, external resources, animation elements or
+shape-level input/accessibility. SVG files through Image use the separate
+SkSVGDOM document path and can support richer artwork. Neither path promises
+complete SVG specification compliance.
+
 ### ANGLE
 
 [ANGLE](https://chromium.googlesource.com/angle/angle) implements OpenGL ES 3

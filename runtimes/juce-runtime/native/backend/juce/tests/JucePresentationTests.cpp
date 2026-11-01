@@ -24,66 +24,80 @@ namespace
 
 TEST_SUITE("JUCE presentation")
 {
-    TEST_CASE("SVG Image stays sharp through letterboxed editor scaling and display density")
+    TEST_CASE("SVG Image and scenes stay sharp through letterboxed editor scaling and display density")
     {
         juce::ScopedJuceInitialiser_GUI gui;
         constexpr std::string_view svg = "<svg width='8' height='8' viewBox='0 0 8 8'>"
                                          "<circle cx='4' cy='4' r='3' fill='red'/></svg>";
-        int reads = 0;
-        ui::Renderer renderer(
-            [&](std::string_view) -> std::optional<std::span<const std::uint8_t>>
-            {
-                ++reads;
-                return std::span(reinterpret_cast<const std::uint8_t*>(svg.data()), svg.size());
-            });
-        ui::Surface surface({ .textEngine = renderer.textEngine(), .images = renderer.images() });
-        const auto node = surface.createNode(ui::NodeType::Image);
-        surface.setSource(node, "circle.svg");
-        ui::Style style;
-        style.width = ui::Length::points(64);
-        style.height = ui::Length::points(64);
-        surface.setStyle(node, style);
-        surface.insertChild(surface.root().id(), node);
-        surface.setSize({ 64, 64 });
-        juce::Component view;
-        backend::JuceImageTarget target(view);
-        for (const float editorScale : { 0.5f, 1.0f, 1.5f, 2.0f })
-            for (const float density : { 1.0f, 2.0f })
-            {
-                const float effectiveScale = editorScale * density;
-                surface.setScale(effectiveScale);
-                view.setSize(static_cast<int>(128 * editorScale), static_cast<int>(80 * editorScale));
-                target.setArea({ 32 * editorScale, 8 * editorScale, 64 * editorScale, 64 * editorScale });
-                const int side = static_cast<int>(64 * effectiveScale);
-                const auto stride = static_cast<std::size_t>(side);
-                std::vector<std::uint32_t> reference(stride * stride);
-                renderer.render(surface, { reference.data(), side, side, stride * 4 }, 0);
-                renderer.render(surface, target.acquire(side, side).bitmap, 0);
-                target.present(render::Region({ 0, 0, side, side }));
-                juce::Image shown(juce::Image::ARGB, static_cast<int>(128 * effectiveScale),
-                                  static_cast<int>(80 * effectiveScale), true);
+        for (const bool retained : { false, true })
+        {
+            int reads = 0;
+            ui::Renderer renderer(
+                [&](std::string_view) -> std::optional<std::span<const std::uint8_t>>
                 {
-                    juce::Graphics graphics(shown);
-                    graphics.addTransform(juce::AffineTransform::scale(density));
-                    target.paint(graphics);
-                }
-                const int left = static_cast<int>(32 * effectiveScale);
-                const int top = static_cast<int>(8 * effectiveScale);
-                int worst = 0;
-                for (int y = 0; y < side; ++y)
-                    for (int x = 0; x < side; ++x)
-                    {
-                        const auto expected =
-                            reference[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x)] >> 24;
-                        worst = std::max(worst, std::abs(static_cast<int>(expected)
-                                                         - shown.getPixelAt(left + x, top + y).getAlpha()));
-                    }
-                CHECK_MESSAGE(worst <= 2, "editor scale " << editorScale << ", density " << density);
-                CHECK(shown.getPixelAt(0, shown.getHeight() / 2).getAlpha() == 0);
-                CHECK(shown.getPixelAt(left + side / 2, top + side / 2) == juce::Colour(0xffff0000));
-                CHECK(surface.find(node)->frame().width == 64);
+                    ++reads;
+                    return std::span(reinterpret_cast<const std::uint8_t*>(svg.data()), svg.size());
+                });
+            ui::Surface surface({ .textEngine = renderer.textEngine(), .images = renderer.images() });
+            const auto node = surface.createNode(retained ? ui::NodeType::Svg : ui::NodeType::Image);
+            if (retained)
+            {
+                ui::SvgScene scene;
+                scene.viewBox = { 0, 0, 8, 8 };
+                ui::SvgShape circle;
+                circle.geometry = ui::SvgCircle { 4, 4, 3 };
+                circle.presentation.fill = "red";
+                scene.children.push_back(std::move(circle));
+                surface.setSvgScene(node, std::move(scene));
             }
-        CHECK(reads == 1);
+            else
+                surface.setSource(node, "circle.svg");
+            ui::Style style;
+            style.width = ui::Length::points(64);
+            style.height = ui::Length::points(64);
+            surface.setStyle(node, style);
+            surface.insertChild(surface.root().id(), node);
+            surface.setSize({ 64, 64 });
+            juce::Component view;
+            backend::JuceImageTarget target(view);
+            for (const float editorScale : { 0.5f, 1.0f, 1.5f, 2.0f })
+                for (const float density : { 1.0f, 2.0f })
+                {
+                    const float effectiveScale = editorScale * density;
+                    surface.setScale(effectiveScale);
+                    view.setSize(static_cast<int>(128 * editorScale), static_cast<int>(80 * editorScale));
+                    target.setArea({ 32 * editorScale, 8 * editorScale, 64 * editorScale, 64 * editorScale });
+                    const int side = static_cast<int>(64 * effectiveScale);
+                    const auto stride = static_cast<std::size_t>(side);
+                    std::vector<std::uint32_t> reference(stride * stride);
+                    renderer.render(surface, { reference.data(), side, side, stride * 4 }, 0);
+                    renderer.render(surface, target.acquire(side, side).bitmap, 0);
+                    target.present(render::Region({ 0, 0, side, side }));
+                    juce::Image shown(juce::Image::ARGB, static_cast<int>(128 * effectiveScale),
+                                      static_cast<int>(80 * effectiveScale), true);
+                    {
+                        juce::Graphics graphics(shown);
+                        graphics.addTransform(juce::AffineTransform::scale(density));
+                        target.paint(graphics);
+                    }
+                    const int left = static_cast<int>(32 * effectiveScale);
+                    const int top = static_cast<int>(8 * effectiveScale);
+                    int worst = 0;
+                    for (int y = 0; y < side; ++y)
+                        for (int x = 0; x < side; ++x)
+                        {
+                            const auto expected =
+                                reference[static_cast<std::size_t>(y) * stride + static_cast<std::size_t>(x)] >> 24;
+                            worst = std::max(worst, std::abs(static_cast<int>(expected)
+                                                             - shown.getPixelAt(left + x, top + y).getAlpha()));
+                        }
+                    CHECK_MESSAGE(worst <= 2, "editor scale " << editorScale << ", density " << density);
+                    CHECK(shown.getPixelAt(0, shown.getHeight() / 2).getAlpha() == 0);
+                    CHECK(shown.getPixelAt(left + side / 2, top + side / 2) == juce::Colour(0xffff0000));
+                    CHECK(surface.find(node)->frame().width == 64);
+                }
+            CHECK(reads == (retained ? 0 : 1));
+        }
     }
 
     TEST_CASE("a JuceImageTarget keeps its pixels until the size changes")

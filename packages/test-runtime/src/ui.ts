@@ -150,6 +150,7 @@ export function createUiModule(runtime: TestRuntime) {
       return node;
     },
     createCanvas: (style?: Style) => runtime.create('canvas', style),
+    createSvg: (style?: Style) => runtime.create('svg', style),
     pressable: (...args: Parameters<typeof runtime.pressable>) =>
       runtime.pressable(...args),
     focusedNode: () => runtime.focusedNode(),

@@ -434,14 +434,108 @@ declare module 'soundor:ui' {
     accessibilityaction: AccessibilityActionEvent;
   }
 
+  /** Presentation in SVG user units, independent of Soundor's layout Style. */
+  export interface SvgPresentation {
+    /** Fill paint; defaults to black. */
+    fill?: string;
+    /** Stroke paint; defaults to none. */
+    stroke?: string;
+    /** Inherited color used by currentColor; defaults to black. */
+    color?: string;
+    /** Stroke width in SVG user units; defaults to 1. Zero draws no stroke. */
+    strokeWidth?: number;
+    /** Fill winding rule; defaults to nonzero. */
+    fillRule?: 'nonzero' | 'evenodd';
+    /** Stroke endpoint shape; defaults to butt. */
+    strokeLinecap?: 'butt' | 'round' | 'square';
+    /** Stroke join shape; defaults to miter. */
+    strokeLinejoin?: 'miter' | 'round' | 'bevel';
+    /** Miter limit, at least 1; defaults to 4. */
+    strokeMiterlimit?: number;
+    /** Nonnegative dash lengths; an odd list repeats, all-zero means solid. */
+    strokeDasharray?: readonly number[];
+    /** Signed dash offset in SVG user units. */
+    strokeDashoffset?: number;
+    /** Isolated opacity of this shape/group, not inherited; defaults to 1. */
+    opacity?: number;
+    /** Inherited fill opacity; defaults to 1. */
+    fillOpacity?: number;
+    /** Inherited stroke opacity; defaults to 1. */
+    strokeOpacity?: number;
+    /** Local affine matrix [a,b,c,d,e,f]. */
+    transform?: readonly [number, number, number, number, number, number];
+  }
+  export type SvgAlignment =
+    `x${'Min' | 'Mid' | 'Max'}Y${'Min' | 'Mid' | 'Max'}`;
+  export type SvgPreserveAspectRatio =
+    | 'none'
+    | SvgAlignment
+    | `${SvgAlignment} ${'meet' | 'slice'}`;
+  /** Retained geometry. Only groups contain shapes; none create UI nodes. */
+  export type SvgShape = { readonly presentation?: SvgPresentation } & (
+    | { readonly type: 'g'; readonly children?: readonly SvgShape[] }
+    | { readonly type: 'path'; readonly d?: string }
+    | {
+        readonly type: 'circle';
+        readonly cx?: number;
+        readonly cy?: number;
+        readonly r?: number;
+      }
+    | {
+        readonly type: 'rect';
+        readonly x?: number;
+        readonly y?: number;
+        readonly width?: number;
+        readonly height?: number;
+        readonly rx?: number;
+        readonly ry?: number;
+      }
+    | {
+        readonly type: 'ellipse';
+        readonly cx?: number;
+        readonly cy?: number;
+        readonly rx?: number;
+        readonly ry?: number;
+      }
+    | {
+        readonly type: 'line';
+        readonly x1?: number;
+        readonly y1?: number;
+        readonly x2?: number;
+        readonly y2?: number;
+      }
+    | {
+        readonly type: 'polyline' | 'polygon';
+        readonly points?: readonly number[];
+      }
+  );
+  /** Atomic scene protocol v1, requiring @soundor/engine 0.6.0 or later. */
+  export interface SvgScene {
+    readonly version: 1;
+    /** User-space origin and positive dimensions, independent of Yoga. */
+    readonly viewBox?: readonly [number, number, number, number];
+    /** ViewBox mapping; defaults to xMidYMid meet. */
+    readonly preserveAspectRatio?: SvgPreserveAspectRatio;
+    /** Root presentation, inherited by its shapes. */
+    readonly presentation?: SvgPresentation;
+    readonly children: readonly SvgShape[];
+  }
+
   /**
    * A node of the view: a flexbox box ('view'), text, an image, a scroll view,
-   * a text input or a canvas. Events capture and bubble along the tree as in
+   * a text input, a canvas or an SVG viewport. Events capture and bubble along the tree as in
    * the DOM.
    */
   export class UiNode extends EventTarget {
     private constructor();
-    readonly type: 'view' | 'text' | 'image' | 'scroll' | 'input' | 'canvas';
+    readonly type:
+      | 'view'
+      | 'text'
+      | 'image'
+      | 'scroll'
+      | 'input'
+      | 'canvas'
+      | 'svg';
     readonly parent: UiNode | null;
     readonly children: readonly UiNode[];
     readonly firstChild: UiNode | null;
@@ -452,6 +546,8 @@ declare module 'soundor:ui' {
     readonly isConnected: boolean;
     /** The style: assigned as a whole, or one property at a time (`node.style.width = 120`). */
     style: Style;
+    /** Atomically replaces a validated vector scene; null clears it. SVG nodes only. */
+    setSvgScene(scene: SvgScene | null): void;
     /** Text nodes only. */
     text: string;
     /** What the node is to assistive technology; replaced as a whole on assignment. */
@@ -596,6 +692,8 @@ declare module 'soundor:ui' {
    * drawing buffer's size in logical pixels unless its style sizes it.
    */
   export function createCanvas(style?: Style): UiNode;
+  /** A layout leaf with a retained vector scene. Shapes have no layout/input nodes. */
+  export function createSvg(style?: Style): UiNode;
 
   // The canvas classes, which are globals too, as on the Web.
   export type CanvasRenderingContext2D = globalThis.CanvasRenderingContext2D;

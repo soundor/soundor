@@ -1,5 +1,6 @@
 #include "render/SkiaImages.h"
 #include "render/SkiaText.h"
+#include "render/VectorScene.h"
 
 #include <soundor/ui/Renderer.h>
 #if SOUNDOR_DEVTOOLS
@@ -106,6 +107,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void drawNode(SkCanvas& canvas, const Node& node);
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
+        void drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const;
         void drawInput(SkCanvas& canvas, const Node& node);
         void drawCanvas(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawScrollIndicators(SkCanvas& canvas, const Node& node) const;
@@ -300,9 +302,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const bool layered = opacity < 1 && ! singleShape;
         if (layered)
         {
-            const bool insideBox =
-                leaf
-                && (node.type() == NodeType::View || node.type() == NodeType::Image || node.type() == NodeType::Canvas);
+            const bool insideBox = leaf
+                                   && (node.type() == NodeType::View || node.type() == NodeType::Image
+                                       || node.type() == NodeType::Canvas || node.type() == NodeType::Svg);
             canvas.saveLayerAlphaf(insideBox ? &box : nullptr, opacity);
         }
 
@@ -334,6 +336,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     break;
                 case NodeType::Canvas:
                     drawCanvas(canvas, node, outer);
+                    break;
+                case NodeType::Svg:
+                    drawSvg(canvas, node, outer);
                     break;
                 case NodeType::View:
                 case NodeType::Scroll:
@@ -404,6 +409,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         canvas.clipRRect(outer, true);
         canvas.clipRect(box, true);
         images->draw(canvas, *image, placed);
+        canvas.restore();
+    }
+
+    void Renderer::Impl::drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const
+    {
+        if (! node.vectorScene)
+            return;
+        const auto content = node.contentBox();
+        const auto box = SkRect::MakeXYWH(content.x, content.y, content.width, content.height);
+        canvas.save();
+        canvas.clipRRect(outer, true);
+        if (! box.isEmpty() && ! canvas.quickReject(box))
+        {
+            ++surface->counted.svgDraws;
+            node.vectorScene->draw(canvas, box);
+        }
         canvas.restore();
     }
 

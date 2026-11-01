@@ -1,4 +1,5 @@
 import { compileProgram, ProgramAnimation } from './animation-program';
+import type { UiElement } from './node';
 import {
   sampleSpring,
   springDuration,
@@ -307,15 +308,15 @@ function pairedTransforms(
 
 export interface ManagedAnimation extends AnimationContract {
   readonly options: AnimationOptions;
-  readonly scopes: readonly HTMLElement[];
-  propertiesFor(element: HTMLElement): ReadonlySet<string>;
-  sampleTransform(element?: HTMLElement): string | undefined;
-  springVelocity(key: string, element?: HTMLElement): number | undefined;
+  readonly scopes: readonly UiElement[];
+  propertiesFor(element: UiElement): ReadonlySet<string>;
+  sampleTransform(element?: UiElement): string | undefined;
+  springVelocity(key: string, element?: UiElement): number | undefined;
 }
 
 /** One view's browser-owned animations. There is no JS frame scheduler. */
 export class AnimationController {
-  readonly #byElement = new WeakMap<HTMLElement, Set<ManagedAnimation>>();
+  readonly #byElement = new WeakMap<UiElement, Set<ManagedAnimation>>();
   readonly #handles = new Set<WeakRef<ManagedAnimation>>();
   readonly #refs = new WeakMap<ManagedAnimation, WeakRef<ManagedAnimation>>();
   readonly #media: MediaQueryList | undefined;
@@ -354,7 +355,7 @@ export class AnimationController {
     this.#handles.clear();
   }
   create(
-    element: HTMLElement,
+    element: UiElement,
     frames: readonly AnimationKeyframe[],
     options: AnimationOptions = {},
   ): UiAnimation {
@@ -396,7 +397,7 @@ export class AnimationController {
     this.#handles.add(ref);
   }
   createProgram(
-    element: HTMLElement,
+    element: UiElement,
     description: AnimationDescription,
     options: AnimationOptions = {},
   ): AnimationContract {
@@ -416,11 +417,11 @@ export class AnimationController {
     return new ProgramAnimation(this, element, compiled);
   }
   /** @internal Used only while compiling or retargeting a description. */
-  existing(element: HTMLElement): readonly ManagedAnimation[] {
+  existing(element: UiElement): readonly ManagedAnimation[] {
     return [...(this.#byElement.get(element) ?? [])];
   }
   /** @internal Snapshot ordered transforms before removing an older override. */
-  snapshot(element: HTMLElement): Keyframe {
+  snapshot(element: UiElement): Keyframe {
     const computed =
       element.ownerDocument.defaultView!.getComputedStyle(element);
     const previous = [...(this.#byElement.get(element) ?? [])].find((item) =>
@@ -439,7 +440,7 @@ export class AnimationController {
   }
   start(
     handle: UiAnimation,
-    element: HTMLElement,
+    element: UiElement,
     frames: Keyframe[],
     properties: ReadonlySet<string>,
     options: Required<AnimationOptions>,
@@ -516,7 +517,7 @@ export class AnimationController {
   }
   /** @internal Compile once; composition supplies its preceding virtual presentation. */
   prepare(
-    element: HTMLElement,
+    element: UiElement,
     frames: Keyframe[],
     properties: ReadonlySet<string>,
     options: Required<AnimationOptions>,
@@ -666,7 +667,7 @@ export class AnimationController {
   }
   settled(
     handle: ManagedAnimation,
-    _element: HTMLElement,
+    _element: UiElement,
     cancelled: boolean,
   ): void {
     if (
@@ -699,7 +700,7 @@ export class UiAnimation implements AnimationContract {
   #spring = new Map<string, SpringTrack>();
   constructor(
     readonly controller: AnimationController,
-    readonly element: HTMLElement,
+    readonly element: UiElement,
     readonly frames: Keyframe[],
     readonly properties: ReadonlySet<string>,
     readonly options: Required<AnimationOptions>,
@@ -707,10 +708,10 @@ export class UiAnimation implements AnimationContract {
     this.#native = controller.start(this, element, frames, properties, options);
     void this.finished;
   }
-  get scopes(): readonly HTMLElement[] {
+  get scopes(): readonly UiElement[] {
     return [this.element];
   }
-  propertiesFor(_element: HTMLElement): ReadonlySet<string> {
+  propertiesFor(_element: UiElement): ReadonlySet<string> {
     return this.properties;
   }
   /** @internal Only sampled at retarget time, never from a JS frame loop. */

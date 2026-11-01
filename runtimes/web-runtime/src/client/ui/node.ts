@@ -5,6 +5,11 @@
  */
 
 import { ASSET_PATH, isAssetId } from '../protocol';
+import { SvgDom, SVG_NS } from './svg-dom';
+import { normalizeSvgScene } from './svg-scene';
+import type { SvgScene } from './types';
+
+export type UiElement = HTMLElement | SVGSVGElement;
 import {
   freezeAccessibility,
   normalizeAccessibility,
@@ -62,6 +67,7 @@ const ELEMENTS: Record<NodeType, { tag: string; className: string }> = {
   scroll: { tag: 'div', className: `${NODE_CLASS} sd-scroll` },
   input: { tag: 'input', className: `${NODE_CLASS} sd-input` },
   canvas: { tag: 'canvas', className: `${NODE_CLASS} sd-canvas` },
+  svg: { tag: 'svg', className: `${NODE_CLASS} sd-svg` },
 };
 
 /** The node an element draws. */
@@ -143,7 +149,8 @@ function imageSourceOf(value: unknown): unknown {
 export class UiNode extends TreeEventTarget {
   readonly #view: ViewLink;
   readonly #type: NodeType;
-  readonly #element: HTMLElement;
+  readonly #element: UiElement;
+  readonly #svg: SvgDom | null;
   readonly #root: boolean;
   /** The classes of a root node's element. */
   readonly #rootClass: string;
@@ -183,10 +190,17 @@ export class UiNode extends TreeEventTarget {
         : 'sd-root';
     const { tag, className } = ELEMENTS[type];
     this.#element =
-      element ?? view.rootElement.ownerDocument.createElement(tag);
-    this.#element.className = [className, this.#rootClass, layoutClass({})]
-      .filter(Boolean)
-      .join(' ');
+      element ??
+      (type === 'svg'
+        ? view.rootElement.ownerDocument.createElementNS(SVG_NS, 'svg')
+        : view.rootElement.ownerDocument.createElement(tag));
+    this.#element.setAttribute(
+      'class',
+      [className, this.#rootClass, layoutClass({})].filter(Boolean).join(' '),
+    );
+    this.#svg =
+      type === 'svg' ? new SvgDom(this.#element as SVGSVGElement) : null;
+    this.#svgStyle({});
     if (type === 'image') {
       const image = this.#element as HTMLImageElement;
       image.alt = '';
@@ -286,15 +300,36 @@ export class UiNode extends TreeEventTarget {
     const style = readStyle(cssPixels(value));
     this.#element.style.cssText = cssText(cssFor(style, this.#type));
     const { className } = ELEMENTS[this.#type];
-    this.#element.className = [
-      className,
-      this.#rootClass,
-      pointerClass(style),
-      layoutClass(style),
-    ]
-      .filter(Boolean)
-      .join(' ');
+    this.#element.setAttribute(
+      'class',
+      [className, this.#rootClass, pointerClass(style), layoutClass(style)]
+        .filter(Boolean)
+        .join(' '),
+    );
+    this.#svgStyle(style);
     this.#style = Object.freeze({ ...style });
+    this.#view.semanticsChanged();
+  }
+
+  #svgStyle(style: Readonly<Style>): void {
+    if (!this.#svg) return;
+    // A vector viewport always clips, like Image/Canvas content. Layout Style
+    // transforms affect the outer box; scene transforms are inside it.
+    this.#element.style.overflow = 'hidden';
+    // CSS auto must override SVG width/height presentation attributes when
+    // one layout side is omitted, so the intrinsic ratio sizes that side.
+    if (style.width === undefined) this.#element.style.width = 'auto';
+    if (style.height === undefined) this.#element.style.height = 'auto';
+    this.#element.style.display = style.display === 'none' ? 'none' : 'block';
+    this.#element.style.transformBox = 'border-box';
+    this.#element.style.transformOrigin = '50% 50%';
+  }
+
+  /** Atomically replaces the vector snapshot after complete validation. */
+  setSvgScene(scene: SvgScene | null): void {
+    this.#expect('svg', 'setSvgScene()');
+    const normalized = scene === null ? null : normalizeSvgScene(scene);
+    this.#svg!.update(normalized);
     this.#view.semanticsChanged();
   }
 
@@ -663,11 +698,13 @@ export class UiNode extends TreeEventTarget {
   get layout(): LayoutRect {
     if (!this.isConnected || this.#hiddenRoot() !== null) return ZERO;
     if (this.#transformed())
-      return logicalLayout(
-        this.#element,
-        this.#parent ? this.#parent.#element : null,
-        this.#view.rootElement,
-      );
+      return this.#type === 'svg'
+        ? this.#svgLayout()
+        : logicalLayout(
+            this.#element as HTMLElement,
+            this.#parent ? (this.#parent.#element as HTMLElement) : null,
+            this.#view.rootElement,
+          );
     const box = this.#rect();
     const scale = this.#view.scale();
     const width = box.width / scale;
@@ -698,7 +735,7 @@ export class UiNode extends TreeEventTarget {
   }
 
   /** @internal Targets cannot cross runtime/view ownership. */
-  animationElement(controller: AnimationController): HTMLElement {
+  animationElement(controller: AnimationController): UiElement {
     if (controller !== this.#view.animations)
       throw new TypeError('animation target belongs to another view');
     return this.#element;
@@ -740,12 +777,57 @@ export class UiNode extends TreeEventTarget {
     return false;
   }
 
-  #matrix(): Matrix {
-    const box = logicalLayout(
-      this.#element,
-      this.#parent ? this.#parent.#element : null,
-      this.#view.rootElement,
+  #svgLayout(): LayoutRect {
+    const element = this.#element as SVGSVGElement;
+    const style = element.ownerDocument.defaultView!.getComputedStyle(element);
+    const cssWidth = Number.parseFloat(style.width);
+    const width = Number.isFinite(cssWidth)
+      ? cssWidth
+      : Number(element.getAttribute('width'));
+    const height =
+      Number.parseFloat(style.height) || element.height.baseVal.value;
+    const screen = element.getScreenCTM?.();
+    if (!screen) return { x: 0, y: 0, width, height };
+    const root = this.#view.rootElement.getBoundingClientRect(),
+      scale = this.#view.scale();
+    const parent = this.#parent;
+    const point = inversePoint(
+      parent ? parent.#matrix() : IDENTITY,
+      (screen.e - root.left) / scale,
+      (screen.f - root.top) / scale,
     );
+    const transform = computedTransform(element);
+    const px =
+      (Number.parseFloat(style.borderLeftWidth) || 0) +
+      (Number.parseFloat(style.paddingLeft) || 0) -
+      width / 2;
+    const py =
+      (Number.parseFloat(style.borderTopWidth) || 0) +
+      (Number.parseFloat(style.paddingTop) || 0) -
+      height / 2;
+    return {
+      x:
+        point.x -
+        (transform[0] * px + transform[2] * py + transform[4] + width / 2) +
+        (parent ? parent.#element.scrollLeft : 0),
+      y:
+        point.y -
+        (transform[1] * px + transform[3] * py + transform[5] + height / 2) +
+        (parent ? parent.#element.scrollTop : 0),
+      width,
+      height,
+    };
+  }
+
+  #matrix(): Matrix {
+    const box =
+      this.#type === 'svg'
+        ? this.#svgLayout()
+        : logicalLayout(
+            this.#element as HTMLElement,
+            this.#parent ? (this.#parent.#element as HTMLElement) : null,
+            this.#view.rootElement,
+          );
     const parent = this.#parent;
     const before = parent ? parent.#matrix() : IDENTITY;
     return multiply(
@@ -795,7 +877,7 @@ export class UiNode extends TreeEventTarget {
   }
 
   /** For the view: the element that draws `node`. */
-  static elementOf(node: UiNode): HTMLElement {
+  static elementOf(node: UiNode): UiElement {
     return node.#element;
   }
 

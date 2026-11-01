@@ -10,7 +10,7 @@ add_library(soundor_doctest INTERFACE)
 target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SOURCE_DIR})
 
 # Uses only installed headers, so this also runs against Release prebuilts.
-add_executable(soundor_svg_image_tests main.cpp prebuilt/SvgImages.cpp)
+add_executable(soundor_svg_image_tests main.cpp prebuilt/SvgImages.cpp prebuilt/SvgScenes.cpp)
 target_link_libraries(soundor_svg_image_tests PRIVATE Soundor::Engine soundor_doctest)
 if(WIN32)
   target_link_libraries(soundor_svg_image_tests PRIVATE dbghelp)
@@ -66,6 +66,7 @@ if(SOUNDOR_JS_SOURCE)
     ui/RendererTests.cpp
     ui/CanvasTests.cpp
     ui/UiModuleTests.cpp
+    ui/SvgTests.cpp
     web/FetchTests.cpp
     web/GlobalsTests.cpp
     web/PlatformModulesTests.cpp

@@ -27,7 +27,7 @@ export function inversePoint(
     y: (-matrix[1] * dx + matrix[0] * dy) / determinant,
   };
 }
-export function computedTransform(element: HTMLElement): Matrix {
+export function computedTransform(element: HTMLElement | SVGElement): Matrix {
   const text =
     element.ownerDocument.defaultView!.getComputedStyle(element).transform;
   if (!text || text === 'none') return IDENTITY;

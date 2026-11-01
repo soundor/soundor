@@ -4,6 +4,7 @@
 #include "js/Bindings.h"
 #include "modules/Embedded.h"
 #include "modules/ui/CanvasModule.h"
+#include "modules/ui/SvgScene.h"
 #include "ui/Color.h"
 
 #include <algorithm>
@@ -590,7 +591,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface)
                         {
                             const int type = bind::toInt32(context, args[0]);
-                            if (type < 0 || type > static_cast<int>(NodeType::Canvas))
+                            if (type < 0 || type > static_cast<int>(NodeType::Svg))
                                 throw std::invalid_argument("invalid node type");
                             return jsi::Value(double(surface.createNode(
                                 static_cast<NodeType>(type)))); // NOLINT(modernize-return-braced-init-list): a lambda
@@ -811,6 +812,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface)
                         {
                             surface.setSource(readId(args[0]), readString(context, args[1], "source"));
+                            return jsi::Value::undefined();
+                        });
+        }
+
+        jsi::Value setSvgScene(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "setSvgScene", count, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setSvgScene(readId(args[0]), args[1].isNull()
+                                                                     ? std::nullopt
+                                                                     : std::optional(readSvgScene(context, args[1])));
                             return jsi::Value::undefined();
                         });
         }
@@ -1360,6 +1373,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setAccessibility", setAccessibility, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
+            { "setSvgScene", setSvgScene, 2 },
             { "setCanvasSize", setCanvasSize, 3 },
             { "setPlaceholder", setPlaceholder, 2 },
             { "setSelection", setSelection, 3 },

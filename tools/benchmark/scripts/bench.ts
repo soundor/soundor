@@ -129,6 +129,9 @@ interface Phase {
     layoutPasses: number;
     layoutMs: number;
     invalidations: number;
+    svgSceneUpdates?: number;
+    svgPathParses?: number;
+    svgDraws?: number;
   };
   // `collections` from Hermes builds, `allocations` (C allocator blocks)
   // from QuickJS ones.
@@ -201,6 +204,9 @@ const MEASURES = {
   styleChanges: { label: 'styles', timing: false, compare: true },
   layouts: { label: 'layouts', timing: false, compare: true },
   invalidations: { label: 'invalidations', timing: false, compare: true },
+  svgSceneUpdates: { label: 'SVG scene updates', timing: false, compare: true },
+  svgPathParses: { label: 'SVG path parses', timing: false, compare: true },
+  svgDraws: { label: 'SVG scene draws', timing: false, compare: true },
   // What the engine allocates and collects depends on the heap it is in
   // (when the garbage collector last ran), and so on what ran before: shown,
   // not compared. Hermes allocates in its own heap (allocated KB: its
@@ -399,6 +405,9 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     styleChanges: phase.surface.styleChanges,
     layouts: phase.surface.layoutPasses,
     invalidations: phase.surface.invalidations,
+    svgSceneUpdates: phase.surface.svgSceneUpdates ?? NaN,
+    svgPathParses: phase.surface.svgPathParses ?? NaN,
+    svgDraws: phase.surface.svgDraws ?? NaN,
     collections: phase.engine.collections ?? 0,
     allocations: phase.engine.allocations ?? 0,
     allocatedKB: phase.engine.allocatedBytes / 1024,

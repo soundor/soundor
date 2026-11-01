@@ -41,6 +41,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/modules/parameters/ParametersModule.cpp
   src/modules/ui/CanvasModule.cpp
   src/modules/ui/UiModule.cpp
+  src/modules/ui/SvgScene.cpp
   src/platform/FileLog.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
@@ -53,6 +54,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/render/Renderer.cpp
   src/render/SkiaText.cpp
   src/render/SvgDocument.cpp
+  src/render/VectorScene.cpp
   src/render/AnimationRenderer.cpp
   src/render/ViewRenderer.cpp
   src/ui/Color.cpp
