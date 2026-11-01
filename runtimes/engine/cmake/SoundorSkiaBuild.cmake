@@ -175,11 +175,19 @@ foreach(flavor IN LISTS FLAVORS)
       endif()
       # RTTI like the rest of the plugin (and UBSan's vptr checks) expect.
       string(APPEND args "extra_cflags_cc = [ \"/GR\" ]\n")
+      if(ADDRESS_SANITIZER)
+        string(APPEND args "extra_cflags += [ \"/fsanitize=address\" ]\n")
+      endif()
     else()
       # libwebp exports its API (visibility "default") unless told otherwise;
       # a plugin exports nothing of Skia's.
       string(APPEND args "extra_cflags = [ \"-DWEBP_EXTERN=extern\", \"-include\", \"${prefix_header}\" ]\n")
       string(APPEND args "extra_cflags_cc = [ \"-frtti\" ]\n")
+      if(ADDRESS_SANITIZER)
+        # Match the caller's container ABI and instrument the archive. GN's
+        # sanitize preset also switches Linux to libc++; keep our toolchain.
+        string(APPEND args "extra_cflags += [ \"-fsanitize=address\", \"-fno-omit-frame-pointer\" ]\n")
+      endif()
       if(DEFINED CC AND NOT CC STREQUAL "")
         string(APPEND args "cc = \"${CC}\"\ncxx = \"${CXX}\"\n")
       endif()

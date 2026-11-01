@@ -9,6 +9,17 @@ soundor_fetch_source(
 add_library(soundor_doctest INTERFACE)
 target_include_directories(soundor_doctest SYSTEM INTERFACE ${SOUNDOR_DOCTEST_SOURCE_DIR})
 
+# Uses only installed headers, so this also runs against Release prebuilts.
+add_executable(soundor_svg_image_tests main.cpp prebuilt/SvgImages.cpp)
+target_link_libraries(soundor_svg_image_tests PRIVATE Soundor::Engine soundor_doctest)
+if(WIN32)
+  target_link_libraries(soundor_svg_image_tests PRIVATE dbghelp)
+endif()
+soundor_configure_target(soundor_svg_image_tests)
+soundor_attach_plugin_shim(soundor_svg_image_tests)
+add_test(NAME soundor_svg_image_tests COMMAND soundor_svg_image_tests)
+set_tests_properties(soundor_svg_image_tests PROPERTIES TIMEOUT 30)
+
 # The document foundation also runs in Release (without Hermes's compiler).
 # Skia is private; prebuilt consumer tests exercise it through Image instead.
 if(NOT SOUNDOR_ENGINE_PREBUILT)

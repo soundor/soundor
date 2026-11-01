@@ -1138,14 +1138,19 @@ counted the unclamped size. What still differs from the web runtime is in
 ### Skia
 
 Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
-gets only its PNG, JPEG, WebP and zlib code, each at the commit Skia's `DEPS`
-pins. It has no GPU backends, PDF, SVG, ICU or HarfBuzz.
+gets its PNG, JPEG, WebP, zlib and Expat code, each at the commit Skia's `DEPS`
+pins. SVG documents use `modules/svg`, resources and primitive shaping. It
+has no GPU backends, PDF, ICU or HarfBuzz.
 
 - **The build:** `cmake/SoundorSkiaBuild.cmake` runs gn and ninja.
   `cmake/SoundorSkia.cmake` runs it during the first configure on a machine
   (about two minutes on four cores) and caches the result in the user cache
   directory (override with `SOUNDOR_CACHE`), keyed by revision, build script,
   compiler and architectures. Every later configure reuses it.
+- **Sanitizers:** the sanitizer preset uses a separate ASan-instrumented Skia
+  cache. Skia's inline containers change layout under ASan, so the archive
+  and its consumers must agree; ordinary and prebuilt release builds keep
+  the uninstrumented archive.
 - **Prerequisites:** git, Python 3 and ninja. `soundor doctor` checks them.
 - **Using your own build:** set `SOUNDOR_SKIA_DIR` to a Skia install made by
   that script.
