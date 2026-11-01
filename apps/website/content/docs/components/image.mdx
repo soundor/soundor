@@ -68,8 +68,9 @@ provides an aspect ratio, **not intrinsic pixel dimensions**. With one explicit
 side, the missing side follows that ratio; without one, the default is 300×150
 logical pixels, containing the viewBox ratio (a square becomes 150×150).
 Percentage dimensions are relative, so use the same fallback. Without a ratio,
-a missing width is 300 and a missing height is 150. Invalid/nonpositive explicit
-native dimensions show no image. Set both layout dimensions when exact sizing
+a missing width is 300 and a missing height is 150. Nonpositive resolved
+native dimensions show no image; unrecognized length syntax can retain Skia's
+default values. Set both layout dimensions when exact sizing
 across browsers matters: browser automatic sizing of ratio-only SVGs can also
 follow the available containing block.
 
@@ -87,8 +88,16 @@ support. Browsers support more SVG/CSS features. In the native document loader:
   90 DPI; browsers use 96 DPI. General CSS styling is not portable.
 
 The bundler excludes unused SVG imports and applies the byte limit after tree
-shaking. Unsupported documents safely show no native image; browser handling
-may differ. Use simple, self-contained artwork for consistent results.
+shaking. Rejected documents safely show no native image; other unsupported
+attributes or elements can be ignored by Skia. Browser handling may differ.
+Use simple, self-contained artwork for consistent results.
+
+For a document with a viewBox, `resizeMode` places its viewport, and the SVG's
+own `preserveAspectRatio` then maps artwork into that viewport. In particular,
+`stretch` does not override the document's default `xMidYMid meet`: use
+`preserveAspectRatio="none"` in the asset when its artwork should distort with
+the box. This follows browser Image behavior. Canvas `drawImage()` instead
+scales/crops the image at its intrinsic size, as browser Canvas does.
 
 ## Props
 

@@ -671,7 +671,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 {
                     into.saveLayer(&destination, &paint);
                     into.clipRect(destination, true);
-                    cache.draw(into, image, placed);
+                    cache.draw(into, image, placed, SkiaImages::SvgViewport::Intrinsic);
                     into.restore();
                 });
         }

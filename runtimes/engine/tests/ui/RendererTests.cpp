@@ -357,6 +357,25 @@ TEST_SUITE("ui::Renderer")
         }
     }
 
+    TEST_CASE("SVG Image viewBox uses the placed viewport as browsers do, including stretch")
+    {
+        for (const auto* mode : { "contain", "cover", "stretch", "center" })
+        {
+            RenderFixture f;
+            f.run(std::string(imports)
+                  + "root.appendChild(createImage('viewport.svg', { width: 100, height: 100, "
+                    "resizeMode: '"
+                  + mode + "' }));");
+            f.render();
+            CHECK(isRed(f.at(50, 50)));
+            CHECK(isClear(f.at(5, 50)));
+            const bool expanded = std::string_view(mode) == "cover" || std::string_view(mode) == "stretch";
+            CHECK(isRed(f.at(15, 50)) == expanded);
+            CHECK(isRed(f.at(50, 15)) == expanded);
+            CHECK(isRed(f.at(35, 50)));
+        }
+    }
+
     TEST_CASE("SVG center resize mode keeps its natural size and centers without enlarging")
     {
         RenderFixture f;

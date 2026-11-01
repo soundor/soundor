@@ -40,6 +40,8 @@ TEST_SUITE("SVG images")
             { "width='80' height='30' viewBox='0 0 20 10'", { 80, 30 } },
             { "width='100%' height='100%' viewBox='0 0 20 20'", { 150, 150 } },
             { "width='12.5px' height='25px'", { 12.5f, 25 } },
+            { "width='broken'", { 300, 150 } },
+            { "width='broken' height='40' viewBox='0 0 20 10'", { 80, 40 } },
         };
         for (const auto& item : cases)
         {
@@ -66,6 +68,28 @@ TEST_SUITE("SVG images")
         REQUIRE(surface->peekPixels(&pixels));
         CHECK(pixels.getColor(10, 20) == SK_ColorRED);
         CHECK(pixels.getColor(70, 20) == SK_ColorBLUE);
+    }
+
+    TEST_CASE("Image viewports and Canvas intrinsic mapping share a document without stale sizing")
+    {
+        constexpr std::string_view xml = "<svg width='80' height='40' viewBox='0 0 20 20'>"
+                                         "<circle cx='10' cy='10' r='8' fill='red'/></svg>";
+        render::SkiaImages images([&](std::string_view) { return bytes(xml); });
+        const auto* image = images.load("viewport.svg");
+        REQUIRE(image != nullptr);
+        auto surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(100, 100));
+        for (const auto viewport : { render::SkiaImages::SvgViewport::Image, render::SkiaImages::SvgViewport::Intrinsic,
+                                     render::SkiaImages::SvgViewport::Image })
+        {
+            surface->getCanvas()->clear(SK_ColorTRANSPARENT);
+            images.draw(*surface->getCanvas(), *image, SkRect::MakeWH(100, 100), viewport);
+            SkPixmap pixels;
+            REQUIRE(surface->peekPixels(&pixels));
+            CHECK(pixels.getColor(50, 15) == SK_ColorRED);
+            CHECK((pixels.getColor(15, 50) == SK_ColorRED) == (viewport == render::SkiaImages::SvgViewport::Image));
+        }
+        CHECK(images.svgParseAttempts() == 1);
+        CHECK(images.imageSize("viewport.svg").value_or(ui::Size {}).width == 80);
     }
 
     TEST_CASE("documents and failures are cached by asset identity")

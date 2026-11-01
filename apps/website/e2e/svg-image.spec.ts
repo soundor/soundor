@@ -43,6 +43,82 @@ for (const deviceScaleFactor of [1, 2]) {
       expect(pixels.sky[3]).toBe(255);
     });
 
+    test('SVG viewBox mapping follows the placed Image viewport in every resize mode', async ({
+      page,
+    }) => {
+      await page.goto(PAGE);
+      const image = page.getByRole('img', { name: LABEL });
+      await page.route('**/soundor-assets/eeeeeeeeeeeeeeee.svg', (route) =>
+        route.fulfill({
+          contentType: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="40" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="red"/></svg>',
+        }),
+      );
+      await image.evaluate(async (element) => {
+        const img = element as HTMLImageElement;
+        img.src = new URL(
+          'soundor-assets/eeeeeeeeeeeeeeee.svg',
+          document.baseURI,
+        ).href;
+        img.style.width = '100px';
+        img.style.height = '100px';
+        await img.decode();
+      });
+      for (const [fit, diameter] of [
+        ['fill', 80],
+        ['contain', 40],
+        ['cover', 80],
+        ['none', 32],
+      ] as const) {
+        await image.evaluate((element, value) => {
+          (element as HTMLImageElement).style.objectFit = value;
+        }, fit);
+        const png = (await image.screenshot({ scale: 'device' })).toString(
+          'base64',
+        );
+        const bounds = await page.evaluate(async (encoded) => {
+          const bitmap = await createImageBitmap(
+            await (await fetch(`data:image/png;base64,${encoded}`)).blob(),
+          );
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          const context = canvas.getContext('2d')!;
+          context.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          const { data } = context.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height,
+          );
+          let left = canvas.width,
+            top = canvas.height,
+            right = -1,
+            bottom = -1;
+          for (let y = 0; y < canvas.height; y++)
+            for (let x = 0; x < canvas.width; x++) {
+              const offset = (y * canvas.width + x) * 4;
+              if (
+                data[offset]! > 200 &&
+                data[offset + 1]! < 20 &&
+                data[offset + 2]! < 20
+              ) {
+                left = Math.min(left, x);
+                top = Math.min(top, y);
+                right = Math.max(right, x);
+                bottom = Math.max(bottom, y);
+              }
+            }
+          return [right - left + 1, bottom - top + 1];
+        }, png);
+        for (const side of bounds)
+          expect(
+            Math.abs(side - diameter * deviceScaleFactor),
+          ).toBeLessThanOrEqual(2);
+      }
+    });
+
     test('screenshots stay sharp after a small draw and host presentation scaling', async ({
       page,
     }) => {

@@ -40,6 +40,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             sk_sp<SkImage> raster;
             sk_sp<SkSVGDOM> document;
             ui::Size size;
+            bool viewBox = false;
         };
 
         std::optional<ui::Size> imageSize(std::string_view source) override
@@ -74,7 +75,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                             if (const auto size = svgSize(*document))
                             {
                                 document->setContainerSize(SkSize::Make(size->width, size->height));
-                                decoded = std::make_unique<Image>(Image { nullptr, std::move(document), *size });
+                                const bool viewBox = document->getRoot()->getViewBox().has_value();
+                                if (viewBox)
+                                {
+                                    // As in a browser Image, CSS supplies the
+                                    // document viewport; intrinsic dimensions
+                                    // still determine Image placement above it.
+                                    const SkSVGLength relative(100, SkSVGLength::Unit::kPercentage);
+                                    document->getRoot()->setWidth(relative);
+                                    document->getRoot()->setHeight(relative);
+                                }
+                                decoded =
+                                    std::make_unique<Image>(Image { nullptr, std::move(document), *size, viewBox });
                             }
                     }
                     else if (auto raster = decode(*bytes))
@@ -87,7 +99,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             return cache.emplace(std::move(key), std::move(decoded)).first->second.get();
         }
 
-        void draw(SkCanvas& canvas, const Image& image, const SkRect& destination)
+        enum class SvgViewport
+        {
+            Image,
+            Intrinsic, // Canvas drawImage scales/crops the natural image.
+        };
+
+        void draw(SkCanvas& canvas, const Image& image, const SkRect& destination,
+                  SvgViewport viewport = SvgViewport::Image)
         {
             if (destination.isEmpty() || canvas.quickReject(destination))
                 return;
@@ -103,7 +122,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 // content-box and rounded clips as usual.
                 canvas.clipRect(destination, true);
                 canvas.translate(destination.x(), destination.y());
-                canvas.scale(destination.width() / image.size.width, destination.height() / image.size.height);
+                if (image.viewBox && viewport == SvgViewport::Image)
+                    image.document->setContainerSize(SkSize::Make(destination.width(), destination.height()));
+                else
+                {
+                    image.document->setContainerSize(SkSize::Make(image.size.width, image.size.height));
+                    canvas.scale(destination.width() / image.size.width, destination.height() / image.size.height);
+                }
                 image.document->render(&canvas);
                 canvas.restore();
             }

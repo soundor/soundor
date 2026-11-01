@@ -282,6 +282,19 @@ TEST_SUITE("soundor:ui canvas")
         CHECK(f.pixel(55, 10) == "0,0,255,128");
     }
 
+    TEST_CASE("drawImage scales an SVG's intrinsic image rather than overriding its viewBox viewport")
+    {
+        CanvasFixture f;
+        f.run(R"(
+            import { createImage } from 'soundor:ui';
+            c.height = 100;
+            ctx.drawImage(createImage('viewport.svg'), 0, 0, 100, 100);
+        )");
+        CHECK(f.pixel(15, 50) == "0,0,0,0");
+        CHECK(f.pixel(35, 50) == "255,0,0,255");
+        CHECK(f.pixel(50, 15) == "255,0,0,255");
+    }
+
     TEST_CASE("drawImage: another canvas, and bundled images")
     {
         CanvasFixture f;
