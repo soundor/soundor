@@ -96,13 +96,13 @@ TEST_SUITE("retained SVG scene")
         data.presentation.fill = "none";
         data.presentation.stroke = "currentColor";
         data.presentation.color = "blue";
-        data.presentation.strokeWidth = 2;
+        data.presentation.strokeWidth = 2.0f;
         auto group = shape(ui::SvgGroup {});
         group.presentation.transform = { 1, 0, 0, 1, 2, 3 };
         group.presentation.strokeLinecap = "round";
         group.presentation.strokeLinejoin = "bevel";
         group.children = { shape(ui::SvgCircle { 15, 15, 10 }),
-                           shape(ui::SvgRect { 35, 5, 25, 20, 4, {} }),
+                           shape(ui::SvgRect { 35, 5, 25, 20, 4.0f, {} }),
                            shape(ui::SvgEllipse { 85, 15, 10, 5 }),
                            shape(ui::SvgLine { 5, 40, 25, 60 }),
                            shape(ui::SvgPoints { { 35, 35, 60, 35, 50, 60 }, true }),
@@ -157,7 +157,7 @@ TEST_SUITE("retained SVG scene")
         CHECK((f.at(40, 30) >> 24) == 128);
         CHECK(f.at(10, 80) == 0xff0000ff);
         scene.children = { shape(ui::SvgRect { 10, 10, 60, 60 },
-                                 { .fill = "red", .stroke = "blue", .strokeWidth = 10, .opacity = 0.5f }) };
+                                 { .fill = "red", .stroke = "blue", .strokeWidth = 10.0f, .opacity = 0.5f }) };
         f.surface.setSvgScene(f.node, scene);
         f.draw();
         CHECK((f.at(12, 30) >> 24) == 128);
@@ -170,14 +170,14 @@ TEST_SUITE("retained SVG scene")
         ui::SvgScene scene;
         scene.children = { shape(ui::SvgPath { "M0 0h60v60H0z M10 10h40v40H10z" },
                                  { .fill = "red", .fillRule = "evenodd" }),
-                           shape(ui::SvgLine { 0, 80, 100, 80 }, { .stroke = "blue", .strokeWidth = 0 }) };
+                           shape(ui::SvgLine { 0, 80, 100, 80 }, { .stroke = "blue", .strokeWidth = 0.0f }) };
         f.surface.setSvgScene(f.node, scene);
         f.draw();
         CHECK(f.at(5, 5) == 0xffff0000);
         CHECK(f.at(30, 30) == 0);
         CHECK(f.at(50, 80) == 0);
         scene.presentation.stroke = "blue";
-        scene.presentation.strokeWidth = 4;
+        scene.presentation.strokeWidth = 4.0f;
         scene.presentation.strokeDasharray = std::vector<float> { 10 };
         scene.children = { shape(ui::SvgLine { 0, 80, 100, 80 }) };
         f.surface.setSvgScene(f.node, scene);
@@ -293,7 +293,7 @@ TEST_SUITE("retained SVG scene")
         bad.presentation.strokeDasharray = std::vector<float> { -1, 2 };
         reject(bad);
         bad = good;
-        bad.presentation.strokeMiterlimit = 0;
+        bad.presentation.strokeMiterlimit = 0.0f;
         reject(bad);
         bad = good;
         bad.presentation.fill = "url(https://example.invalid/a)";
