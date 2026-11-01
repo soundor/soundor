@@ -406,8 +406,7 @@ A directory counts as JUCE when it carries the top-level `CMakeLists.txt` and
 `modules/`. `soundor doctor` reports exactly where it looked when JUCE is
 missing.
 
-JUCE 8 and JUCE 9 are supported; CI builds plugins against JUCE 8.0.14 and
-9.0.4.
+Soundor requires JUCE 9; CI builds plugins against JUCE 9.0.4.
 
 ## License
 

@@ -13,7 +13,7 @@ Use Node.js `%node%`, and pnpm or npm. Soundor supports these two package
 managers only: Yarn's Plug'n'Play leaves no `node_modules` for native builds to
 find packages in, and bun is untested.
 
-Native builds also need CMake, a C++20 compiler, and a JUCE checkout. Plugin
+Native builds also need CMake, a C++20 compiler, and a JUCE 9 checkout. Plugin
 builds use Ninja on macOS and Linux, and Visual Studio on Windows. Source engine
 builds additionally need the tools described in [Soundor Engine](/docs/engine#prebuilt-and-source-mode).
 
