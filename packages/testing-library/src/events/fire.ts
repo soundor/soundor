@@ -12,6 +12,9 @@ export interface PointerOptions extends Modifiers {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+  /** Where the pointer is on the screen, in editor pixels: clientX/Y by default. */
+  screenX?: number;
+  screenY?: number;
   /** How far the pointer moved since its previous event (a locked pointer's only change). */
   movementX?: number;
   movementY?: number;

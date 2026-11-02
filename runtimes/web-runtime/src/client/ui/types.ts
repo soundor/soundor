@@ -305,6 +305,13 @@ export interface ViewSize {
   readonly width: number;
   readonly height: number;
   readonly scale: number;
+  readonly safeArea: LayoutRect;
+}
+
+export interface EditorSize {
+  readonly width: number;
+  readonly height: number;
+  readonly resizable: boolean;
 }
 
 /** Presentation in SVG user units, independent of Soundor's layout Style. */

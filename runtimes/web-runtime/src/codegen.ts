@@ -60,6 +60,8 @@ function webEditor(config: SoundorConfig): WebEditor {
     maxHeight: editor.maxHeight,
     resizable: editor.resizable,
     resize: editor.resize,
+    fit: editor.fit,
+    keepAspectRatio: editor.keepAspectRatio,
   };
 }
 

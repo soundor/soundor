@@ -10,11 +10,14 @@ import {
   createText,
   createTextInput,
   createView,
+  editorSize,
   focusedNode,
   KeyboardEvent,
   PointerEvent,
   pressable,
   root,
+  requestEditorSize,
+  subscribeEditorSize,
   subscribeViewSize,
   UiNode,
   viewSize,
@@ -23,7 +26,13 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { uiView } from './context';
 import type { PressableState } from './modules/ui';
-import type { Accessibility, LayoutRect, Style, ViewSize } from './ui/types';
+import type {
+  Accessibility,
+  EditorSize,
+  LayoutRect,
+  Style,
+  ViewSize,
+} from './ui/types';
 
 describe('soundor:ui', () => {
   it('declares the same shapes as the contract', () => {
@@ -32,6 +41,25 @@ describe('soundor:ui', () => {
     expectTypeOf<PressableState>().toEqualTypeOf<Contract.PressableState>();
     expectTypeOf<Accessibility>().toEqualTypeOf<Contract.Accessibility>();
     expectTypeOf<ViewSize>().toEqualTypeOf<Contract.ViewSize>();
+    expectTypeOf<EditorSize>().toEqualTypeOf<Contract.EditorSize>();
+  });
+
+  it("reports the editor's size the host gives the page view", () => {
+    const first = editorSize();
+    expect(editorSize()).toBe(first);
+    const sizes: Contract.EditorSize[] = [];
+    const unsubscribe = subscribeEditorSize((next) => sizes.push(next));
+    uiView().setGeometry({
+      editor: { width: 900, height: 700 },
+      safeArea: null,
+    });
+    expect(sizes).toEqual([{ width: 900, height: 700, resizable: false }]);
+    expect(sizes[0]).toBe(editorSize());
+    // A view whose host owns its size (no shell here): nothing is asked.
+    expect(requestEditorSize(1000, 800)).toBeNull();
+    unsubscribe();
+    uiView().setGeometry({ editor: first, safeArea: null });
+    expect(sizes).toHaveLength(1);
   });
 
   it("reports the page view's size and tells subscribers of a change", () => {
@@ -46,7 +74,9 @@ describe('soundor:ui', () => {
       configurable: true,
     });
     uiView().measure();
-    expect(sizes).toEqual([{ ...size, width: 320 }]);
+    expect(sizes).toEqual([
+      { ...size, width: 320, safeArea: { ...size.safeArea, width: 320 } },
+    ]);
     expect(sizes[0]).toBe(viewSize());
     unsubscribe();
     Object.defineProperty(uiView().rootElement, 'offsetWidth', {

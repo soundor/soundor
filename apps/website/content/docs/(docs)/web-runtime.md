@@ -182,6 +182,9 @@ UiNodes.
   allows it during a press, ends it on Escape, may refuse it (the promise
   rejects, the press goes on), and Firefox shows a banner while it lasts.
   `movementX`/`movementY` are the browser's, in the view's logical pixels.
+- **`screenX`/`screenY`** are the browser's, in the editor's pixels: the
+  page's CSS pixels over the scale the host page fits the plugin into its
+  stage with (1 unless the stage is smaller than the plugin).
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
   stacking context inside the viewport, the overlay above; every node
   stacks its own children, so `zIndex` orders siblings as in the JUCE
@@ -486,11 +489,25 @@ Two different things change how big the plugin looks:
   zoom and the page's scaling multiply, and `viewSize()` reports both in
   `scale`. In `embed` it fills the iframe as far as its aspect ratio lets
   it, at its own layout.
+- **An editor that scales without its aspect ratio**
+  (`keepAspectRatio: false`) is resized by its handle to any shape within
+  its limits, still zoomed by the smaller side: its layout is drawn in the
+  middle of the viewport, with bands of the editor's background around it,
+  unless it covers the viewport.
+- **An editor that covers** (`fit: 'cover'`) is laid out over the whole
+  viewport at its zoom, whatever its shape (one its handle sets, or the
+  iframe's in `embed`): `viewSize().safeArea` is the configured size in its
+  middle. In `embed` it covers the whole iframe rather than leaving bands.
 
 A fixed-size editor (the default) is only ever scaled, as before. Resizable,
 the view opens at its configured size (scaled down if the page is smaller)
 and is resized within its limits; dragged past the page's edge, it stops
-there rather than being scaled.
+there rather than being scaled. Its handle is shown only where its limits
+allow another size. In `embed` the page owns the size and may make it
+larger than its maximum: the editor then lays its UI out as its `fit`
+says, as in a JUCE host that ignores the maximum: at most at the maximum,
+centred in bands of the editor's background (`'contain'`), or over all of
+it around the safe area (`'cover'`).
 
 Plugin code learns of both through
 [`useViewSize()`](/docs/hooks/use-view-size) (or `soundor:ui`'s
@@ -499,6 +516,22 @@ logical size, and `scale` the device pixels per logical pixel, which counts
 the host's scaling. The view measures itself with the `ResizeObserver` that
 also keeps hover up to date, watches the page's pixel density, and is told
 when the host changes its scaling, which no observer sees.
+
+`soundor:ui`'s [`editorSize()`](/docs/api/ui#the-editors-size) is the
+editor's own size, in its logical pixels: the viewport's in `demo` and
+`dev` (what the handle sets, before the page's scaling), and the page's in
+`embed`, bands included. The page owns that size, so in `embed` it follows
+the iframe whatever the editor's limits are.
+
+[`requestEditorSize()`](/docs/api/ui#asking-for-a-size) resizes the
+viewport as its handle does: the same size, held to the same limits and
+the room the page has, so the two never disagree, and the viewport resizes
+with the page's next render. It is the viewport's size, never the browser
+window's (no `window.resizeTo()`). In `embed`, and for a fixed editor, the
+page owns the size: `editorSize().resizable` is false and requests return
+`false`. Each view on a page asks its own host only. The editor stays
+centred on the stage as it resizes, so a grip the UI draws in its corner
+moves half as far as the pointer, as the host's handle does.
 
 ```ts
 export default defineSoundorConfig({
@@ -526,12 +559,13 @@ plugin shares its storage.
 
 With `?embed`, a build shows the plugin view alone: no dock, no panel, and
 the view as big as the page (the iframe), however big that is, rather than
-the editor's size scaled down. Its logical size is the iframe's (unless the
-editor scales: see [Resizing and scaling](#resizing-and-scaling)), and it
-follows the iframe when the parent page resizes it, whether or not the
-editor is resizable: `editor` sets the size the standalone host opens at
-and whether it shows a handle, never an embedding page's layout, and the
-view never resizes its iframe. It suits a small piece of UI in a docs page,
+the editor's size scaled down. Its logical size is the iframe's (up to a
+resizable editor's maximum, or at its zoom when it scales: see
+[Resizing and scaling](#resizing-and-scaling)), and it follows the iframe
+when the parent page resizes it, whether or not the editor is resizable:
+`editor` sets the size the standalone host opens at and whether it shows a
+handle, never an embedding page's layout, and the view never resizes its
+iframe: `requestEditorSize()` returns `null` there. It suits a small piece of UI in a docs page,
 which is how this site shows its snippets:
 
 ```html

@@ -37,6 +37,12 @@ the view's nodes as in the DOM.
   ([Pointer lock](#pointer-lock)).
 - **`movementX`/`movementY`** say how far the pointer moved since its previous
   event, so a drag needs no starting point.
+- **`screenX`/`screenY`** are where the pointer is on the screen, in the
+  editor's logical pixels: they do not move when the editor resizes or, an
+  editor that scales, zooms, as `clientX`/`clientY` do. A drag that resizes
+  the editor measures with them
+  ([A resize grip](/docs/api/ui#a-resize-grip)). A wheel event's are its
+  `clientX`/`clientY`.
 - **Focus:** a press focuses the nearest `focusable` node, unless its
   `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
   Keys go to the focused node.

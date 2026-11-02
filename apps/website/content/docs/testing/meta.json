@@ -33,6 +33,7 @@
     "test-parameters",
     "test-host",
     "test-view",
+    "test-editor",
     "mock-native",
     "---Assertions---",
     "to-have-focus"

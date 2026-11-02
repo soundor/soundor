@@ -41,11 +41,65 @@ export interface HostSnapshot {
     readonly timeInSamples: number;
   } | null;
 }
-/** The simulated view's size: logical pixels, and device pixels per one. */
+/** A rectangle in the view's logical pixels. */
+export interface ViewRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+/**
+ * The simulated view's size: logical pixels, device pixels per one, and the
+ * part of it always shown (the whole view unless a test says otherwise).
+ */
 export interface ViewSize {
   readonly width: number;
   readonly height: number;
   readonly scale: number;
+  readonly safeArea: ViewRect;
+}
+/** What a test sets of the view: a safe area of null is the whole view. */
+export interface ViewSizeInit {
+  readonly width?: number;
+  readonly height?: number;
+  readonly scale?: number;
+  readonly safeArea?: ViewRect | null;
+}
+/**
+ * The simulated editor's size, in its whole logical pixels, and whether
+ * requestEditorSize() can ask for another.
+ */
+export interface EditorSize {
+  readonly width: number;
+  readonly height: number;
+  readonly resizable: boolean;
+}
+/**
+ * The simulated editor: its size, and how it takes requestEditorSize(). A
+ * project's soundor.config sets the size, resizability and limits.
+ */
+export interface EditorInit {
+  /** By default the view's (an editor that lays out again, shown). */
+  width?: number;
+  height?: number;
+  /** Whether requestEditorSize() can ask for another size: false by default. */
+  resizable?: boolean;
+  /** The limits requests are held to: 1 to Infinity by default. */
+  minWidth?: number;
+  minHeight?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+  /**
+   * The configured size of an editor that scales keeping its aspect ratio:
+   * requests keep its shape. Null (the default): each side on its own.
+   */
+  aspectRatio?: { readonly width: number; readonly height: number } | null;
+  /**
+   * Whether the simulated host gives the editor the sizes asked for (after
+   * the calling code, in a microtask), or, false, ignores them as a host may.
+   * True by default.
+   */
+  applyRequests?: boolean;
 }
 export interface RuntimeOptions {
   plugin?: { id: string; name: string };
@@ -53,10 +107,16 @@ export interface RuntimeOptions {
   host?: Partial<HostSnapshot>;
   /**
    * The view's size; by default the project's editor size (800×600 without
-   * one) at a scale of 1. Nothing is laid out at it: it is what viewSize()
-   * reports.
+   * one) at a scale of 1, all of it safe. Nothing is laid out at it: it is
+   * what viewSize() reports.
    */
-  view?: Partial<ViewSize>;
+  view?: ViewSizeInit;
+  /**
+   * The editor, whose size editorSize() reports; by default the view's (an
+   * editor that lays out again, shown), fixed. Independent of the view: set
+   * both to simulate an editor that scales.
+   */
+  editor?: EditorInit;
   /** Declared methods in the simulated project; omitted for direct runtime unit tests. */
   nativeMethods?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;

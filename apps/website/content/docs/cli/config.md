@@ -58,18 +58,20 @@ export default defineSoundorConfig({
 });
 ```
 
-| Field                   | Meaning                                                                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `width`, `height`       | The size the editor opens at. Default 800×600.                                                                                                  |
-| `resizable`             | Whether the user can resize the editor. Default `false`: a fixed-size editor.                                                                   |
-| `resize`                | What resizing does: `'layout'` (the default) lays the UI out again; `'scale'` zooms it. See below.                                              |
-| `minWidth`, `minHeight` | The smallest a resizable editor can be made. Default 480×320, or the opening size where that is smaller; half the size with `resize: 'scale'`.  |
-| `maxWidth`, `maxHeight` | The largest a resizable editor can be made. Default 1600×1200, or the opening size where that is larger; twice the size with `resize: 'scale'`. |
+| Field                   | Meaning                                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `width`, `height`       | The size the editor opens at. Default 800×600.                                                              |
+| `resizable`             | Whether the user can resize the editor. Default `false`: a fixed-size editor.                               |
+| `resize`                | What resizing does: `'layout'` (the default) lays the UI out again; `'scale'` zooms it. See below.          |
+| `minWidth`, `minHeight` | The smallest a resizable editor can be made. Default: the opening size, so it only grows.                   |
+| `maxWidth`, `maxHeight` | The largest size a resizable editor asks for. Default: none (`Infinity`). See below.                        |
+| `fit`                   | With `resizable` only: what the UI does in a window larger than its maximum, or (scaling) of another shape. |
+| `keepAspectRatio`       | With `resize: 'scale'` only: whether the editor asks to keep its shape. Default `true`. See below.          |
 
 Without `editor`, a plugin keeps a fixed 800×600 editor. Every size is a
-positive whole number; a minimum may not exceed its maximum, and a
-resizable editor must open within its limits. The limits of a fixed editor
-are ignored.
+positive whole number (a maximum may also be `Infinity`); a minimum may not
+exceed its maximum, and a resizable editor must open within its limits. The
+limits of a fixed editor are ignored.
 
 By default resizing changes the size the UI is laid out at, not its zoom: a
 view with `flex: 1` grows with the editor, and text keeps its size. With
@@ -82,9 +84,88 @@ with many controls whose users find them by where they are:
 editor: { width: 900, height: 560, resizable: true, resize: 'scale' },
 ```
 
+By default a resizable editor opens at its size and only grows, as far as
+the host and the screen let it. Set `minWidth`/`minHeight` to let it shrink
+below its opening size, and `maxWidth`/`maxHeight` where the UI stops
+making sense larger.
+
 Whether a user can actually resize the window is up to the host: most DAWs
 let a plugin window that says it is resizable be dragged by its edges, some
 never do.
+
+#### Limits, `fit` and `keepAspectRatio`: windows the UI was not made for
+
+The limits, and the aspect ratio of an editor that scales, are what the
+editor **asks for**: it offers them to its host (VST3's
+`checkSizeConstraint`), the Standalone's window keeps to them, and so does
+the web host's resize handle. Most hosts follow them. Some set a window of
+any size or shape regardless (Ardour, for one, lets a plugin window grow
+past its maximum and take any shape), and a web page that embeds the
+editor (`?embed`) makes it the size of its iframe. The editor then takes
+that window, keeping only to its minimum: rather than leave the host's
+background beside it, its UI fills the window as `fit` says.
+
+- `'contain'` (the default) keeps the UI as it was made: laid out at most at
+  `maxWidth`×`maxHeight` (or, scaling, at `width`×`height`, zoomed by the
+  smaller side, at most as far as the maximum allows), in the middle of the
+  window, with bands of the editor's background around it. The UI needs to
+  know nothing.
+- `'cover'` lays the UI out over the whole window. Laying out again, the
+  window's size; scaling, the window's size over the zoom. The part it was
+  made for, in the middle, is its **safe area**: `viewSize().safeArea` (and
+  `useViewSize()`) says where (at most the maximum, or scaling the
+  `width`×`height`). The UI keeps its content there and decorates the rest
+  (its background, a pattern, its branding).
+
+`keepAspectRatio: false` (scaling only) asks for no shape at all: the
+window may take any shape within its limits, everywhere, and `fit` decides
+how the UI fills it. The settings are independent: `cover` with the aspect
+ratio kept draws the UI edge to edge only where a host or a page imposes
+another shape; `cover` with `keepAspectRatio: false` lets the user drag the
+window to any shape and fills it.
+
+```ts
+editor: {
+  width: 900,
+  height: 560,
+  resizable: true,
+  resize: 'scale',
+  fit: 'cover',
+  keepAspectRatio: false,
+},
+```
+
+```tsx
+function App() {
+  const { width, height, safeArea } = useViewSize();
+  return (
+    // The whole window: decorate it.
+    <View style={{ width, height, backgroundColor: '#14161c' }}>
+      {/* The safe area: the UI as designed, always shown whole. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: safeArea.x,
+          top: safeArea.y,
+          width: safeArea.width,
+          height: safeArea.height,
+        }}
+      >
+        <Controls />
+      </View>
+    </View>
+  );
+}
+```
+
+Within its limits, and in its own shape, the safe area is the whole view, so
+the same UI works whatever `fit` is. Without a maximum (the default) a
+layout never goes beyond it, so `fit` matters only once a plugin sets one,
+or scales. A fixed editor has no `fit`: hosts keep a view that says it
+cannot be resized at its size (the VST3 standard), so there is nothing
+beyond it to fill. `fit` is only allowed with `resizable: true`, and
+`keepAspectRatio` with `resize: 'scale'`: the config's types reject them
+elsewhere, and so does validation of a config that is not type-checked.
 
 ### `native`
 

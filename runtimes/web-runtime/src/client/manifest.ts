@@ -50,6 +50,7 @@ export interface WebEditor {
   readonly height: number;
   readonly minWidth: number;
   readonly minHeight: number;
+  /** Infinity for none (null in the manifest's JSON: see readManifest). */
   readonly maxWidth: number;
   readonly maxHeight: number;
   readonly resizable: boolean;
@@ -58,6 +59,34 @@ export interface WebEditor {
    * layout (width × height) at it, keeping the aspect ratio.
    */
   readonly resize: 'layout' | 'scale';
+  /**
+   * How a resizable view fills a viewport it was not made for (beyond its
+   * maximum, or of another shape when it scales): its layout centred within
+   * bands, or laid out over the whole viewport around a safe area.
+   * 'contain' for a fixed view.
+   */
+  readonly fit: 'contain' | 'cover';
+  /**
+   * Whether resizing keeps the shape of width × height: a view that scales
+   * does unless told not to; no other has a ratio to keep.
+   */
+  readonly keepAspectRatio: boolean;
+}
+
+/**
+ * The manifest as the host reads it: JSON has no Infinity, so an unbounded
+ * maximum arrives as null and is made Infinity again.
+ */
+export function readManifest(raw: WebManifest): WebManifest {
+  const unbounded = (value: number | null): number => value ?? Infinity;
+  return {
+    ...raw,
+    editor: {
+      ...raw.editor,
+      maxWidth: unbounded(raw.editor.maxWidth),
+      maxHeight: unbounded(raw.editor.maxHeight),
+    },
+  };
 }
 
 /** A method of the native API. */

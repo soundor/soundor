@@ -6,8 +6,17 @@ export default defineSoundorConfig({
   plugin: { id: 'dev.soundor.orbit', name: 'Orbit' },
   // Resizing zooms the plugin rather than laying it out again, so its knobs
   // and echoes stay where the user learned them: always laid out at
-  // 800×600, drawn between 400×300 and 1600×1200.
-  editor: { resizable: true, resize: 'scale' },
+  // 800×600, drawn between 400×300 and 1600×1200. In a window of another
+  // shape, its background covers the rest (src/main.tsx).
+  editor: {
+    resizable: true,
+    resize: 'scale',
+    fit: 'cover',
+    minWidth: 400,
+    minHeight: 300,
+    maxWidth: 1600,
+    maxHeight: 1200,
+  },
   runtimes: [
     juceRuntime({
       formats: ['vst3', 'standalone'],

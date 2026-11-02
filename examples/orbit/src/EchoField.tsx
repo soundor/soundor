@@ -6,12 +6,20 @@ import {
   useParameter,
   useViewSize,
 } from '@soundor/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { parameters } from 'soundor:parameters';
 import type { UiNode } from 'soundor:ui';
 
 import { createFieldRenderer, type FieldRenderer } from './field-renderer';
-import { beatLabel, clamp, colors, levels, milliseconds, times } from './model';
+import {
+  beatLabel,
+  bufferDensity,
+  clamp,
+  colors,
+  levels,
+  milliseconds,
+  times,
+} from './model';
 
 function Echo({
   index,
@@ -198,8 +206,8 @@ export function EchoField({ bpm, playing }: { bpm: number; playing: boolean }) {
   };
   const lastDraw = useRef<typeof state | null>(null);
   // Device pixels per logical pixel, the editor's zoom included: the
-  // buffer follows it so the map stays sharp at any size (at most 4).
-  const density = Math.min(4, useViewSize().scale);
+  // buffer follows it so the map stays sharp at any size.
+  const density = bufferDensity(useViewSize().scale);
   const lastDensity = useRef(density);
   useEffect(() => {
     lastDraw.current = null;
@@ -216,6 +224,14 @@ export function EchoField({ bpm, playing }: { bpm: number; playing: boolean }) {
       renderer.current = null;
     };
   }, [fallback]);
+  // A resized buffer is cleared: drawn again before the frame is shown, not
+  // at the next animation frame, so it never shows blank.
+  useLayoutEffect(() => {
+    if (density === lastDensity.current) return;
+    renderer.current?.draw(state, performance.now() / 1000);
+    lastDraw.current = state;
+    lastDensity.current = density;
+  });
   useAnimationFrame((time) => {
     const previous = lastDraw.current;
     const changed =

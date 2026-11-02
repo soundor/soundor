@@ -4,6 +4,7 @@
 #include <soundor/Config.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
@@ -50,6 +51,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Phase phase = Phase::Move;
         Point position;
+        // Where the pointer is on the screen, in the editor's logical pixels
+        // (the units of the editor's size, not the view's layout, which an
+        // editor that scales zooms): what soundor:ui's screenX/Y report, so
+        // a drag that resizes the editor measures how far it went in units
+        // that do not change with the size. Nullopt where the backend does
+        // not know: `position` is reported.
+        std::optional<Point> screen;
         // Distinguishes simultaneous pointers (touches); the mouse is 1.
         int pointerId = 1;
         PointerType type = PointerType::Mouse;

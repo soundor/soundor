@@ -34,11 +34,12 @@ export function useAnimationFrame(callback: (time: number) => void): void {
 }
 
 /**
- * The plugin view's size in logical pixels, and its `scale` (device pixels
- * per logical pixel), re-rendering when the user resizes the editor or the
- * view moves to a display of another density; never for an unchanged size.
- * For a layout that changes at a breakpoint; a layout that only grows and
- * shrinks needs flexbox, not this.
+ * The plugin view's size in logical pixels, its `scale` (device pixels per
+ * logical pixel) and its `safeArea`, re-rendering when the user resizes the
+ * editor or the view moves to a display of another density; never for an
+ * unchanged size. For a layout that changes at a breakpoint, or that keeps
+ * its content in the safe area of an editor that covers its window (`fit:
+ * 'cover'`); a layout that only grows and shrinks needs flexbox, not this.
  *
  *   const { width } = useViewSize();
  *   const compact = width < 640;

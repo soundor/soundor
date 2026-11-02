@@ -182,12 +182,15 @@ describe('webGen', () => {
     expect(JSON.parse(ctx.codegen.files()[0]!.contents).editor).toEqual({
       width: 1000,
       height: 640,
-      minWidth: 480,
-      minHeight: 320,
-      maxWidth: 1600,
-      maxHeight: 1200,
+      minWidth: 1000,
+      minHeight: 640,
+      // Unbounded: Infinity, which JSON writes as null (readManifest).
+      maxWidth: null,
+      maxHeight: null,
       resizable: true,
       resize: 'layout',
+      fit: 'contain',
+      keepAspectRatio: false,
     });
   });
 
@@ -242,6 +245,8 @@ describe('webGen', () => {
         maxHeight: 600,
         resizable: false,
         resize: 'layout',
+        fit: 'contain',
+        keepAspectRatio: false,
       },
       parameters: [
         {

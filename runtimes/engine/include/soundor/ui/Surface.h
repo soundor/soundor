@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -236,6 +237,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Point position;
         Point offset;
+        // Where the pointer is on the screen, in the editor's logical pixels
+        // (PointerInput::screen).
+        Point screen;
         // How far the pointer moved since its previous input, also while
         // locked (when `position` stays where the lock began).
         Point movement;
@@ -375,6 +379,47 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Device pixels per logical pixel; layout snaps to device pixels.
         void setScale(float scale);
         [[nodiscard]] float scale() const noexcept { return pixelScale; }
+        // The part of the view always shown whole, in its logical pixels:
+        // all of it (nullopt, the default), or less where the backend lays
+        // the view out beyond the size the plugin designed it at (an editor
+        // that scales with fit 'cover'). Told to plugin code with the size;
+        // layout does not read it.
+        void setSafeArea(std::optional<Rect> area) noexcept { safe = area; }
+        [[nodiscard]] Rect safeArea() const noexcept
+        {
+            return safe.value_or(Rect { 0, 0, viewSize.width, viewSize.height });
+        }
+        // The size of the editor the view is shown in (the plugin's window),
+        // in its logical pixels: the view's size times the zoom of an editor
+        // that scales. 0×0 until the backend sets it.
+        void setEditorSize(Size size) noexcept { editor = size; }
+        [[nodiscard]] Size editorSize() const noexcept { return editor; }
+        // Whether the editor's size can be asked for (soundor:ui's
+        // requestEditorSize()): the backend says so for an editor whose
+        // limits allow another size; false by default.
+        void setEditorResizable(bool resizable) noexcept { editorResizable = resizable; }
+        [[nodiscard]] bool canRequestEditorSize() const noexcept { return editorResizable; }
+        // How the backend holds a size plugin code asks for to the editor's
+        // limits (and its aspect ratio, and what it learned of the host's),
+        // so requestEditorSize() can say at once what is asked of the host.
+        // None: the size as asked.
+        void setEditorSizeHold(std::function<Size(Size)> hold) { editorHold = std::move(hold); }
+        // Plugin code asking for another editor size, in its logical pixels:
+        // held as the backend holds it, the latest request is kept until the
+        // backend takes it, resizes the editor and says what it got with
+        // setEditorSize(). Returns the size asked of the host, or nothing
+        // where the editor's size cannot be asked for.
+        std::optional<Size> requestEditorSize(Size size)
+        {
+            if (! editorResizable)
+                return std::nullopt;
+            editorRequest = editorHold ? editorHold(size) : size;
+            return editorRequest;
+        }
+        [[nodiscard]] std::optional<Size> takeEditorSizeRequest() noexcept
+        {
+            return std::exchange(editorRequest, std::nullopt);
+        }
 
         // Brings the layout up to date (cheap when nothing changed).
         void layout();
@@ -543,9 +588,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId nextId = 1;
         Size viewSize;
         float pixelScale = 1;
+        std::optional<Rect> safe;
+        Size editor;
+        std::optional<Size> editorRequest;
         SurfaceStatistics counted;
         std::unique_ptr<render::SvgGeometryCache> svgGeometryCache;
+        std::function<Size(Size)> editorHold;
         bool changed = true;
+        bool editorResizable = false;
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;
         bool invalidAll = true;

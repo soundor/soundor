@@ -20,8 +20,17 @@ your own audio file, the microphone, an oscillator, or no input. **Sync** follow
 tempo; **Free** keeps delay times independent of tempo.
 
 Drag the handle at the plugin's corner to resize it: Orbit's editor scales
-(`editor: { resizable: true, resize: 'scale' }`), so it zooms rather than
-laying its controls out again, in the browser and in a DAW alike.
+(`editor: { resizable: true, resize: 'scale', fit: 'cover' }`), so it zooms
+rather than laying its controls out again, keeping its shape, in the
+browser and in a DAW alike. Where a host or a page gives it another shape
+anyway (embedded in a wide iframe, say), its background covers the rest of
+the window rather than leaving bands: `src/main.tsx` places the 800×600
+Orbit is designed at in `useViewSize().safeArea`, the middle of the view.
+Its own resize grip (`src/ResizeGrip.tsx`) sits in the view's corner,
+outside the safe area: covering the window, the view's corner is the
+window's, whatever shape the host gives it. The grip asks for a size with
+[`requestEditorSize()`](/docs/api/ui#asking-for-a-size), measuring its drag
+with `screenX`/`screenY`, which the zoom does not change.
 
 ## One interface, two audio implementations
 

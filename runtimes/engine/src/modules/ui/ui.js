@@ -1098,31 +1098,44 @@ export const root = new UiNode(CONSTRUCTING, 'view', native.rootId);
  */
 export const overlayRoot = new UiNode(CONSTRUCTING, 'view', native.overlayId);
 
+/** A view size from native, frozen, its safe area too. */
+function frozenSize(size) {
+  size.safeArea = Object.freeze(size.safeArea);
+  return Object.freeze(size);
+}
+
 /** The latest viewSize(); replaced (never changed) when the size changes. */
-let currentSize = Object.freeze(native.size());
+let currentSize = frozenSize(native.size());
 
 /**
- * The view's size in logical pixels, and device pixels per logical pixel.
- * The same frozen object until one of them changes, so it works as a store
- * snapshot (e.g. React's useSyncExternalStore(subscribeViewSize, viewSize)).
+ * The view's size in logical pixels, device pixels per logical pixel, and
+ * its safe area. The same frozen object until one of them changes, so it
+ * works as a store snapshot (e.g. React's
+ * useSyncExternalStore(subscribeViewSize, viewSize)).
  */
 export function viewSize() {
   const size = native.size();
+  const safe = size.safeArea;
+  const known = currentSize.safeArea;
   if (
     size.width !== currentSize.width ||
     size.height !== currentSize.height ||
-    size.scale !== currentSize.scale
+    size.scale !== currentSize.scale ||
+    safe.x !== known.x ||
+    safe.y !== known.y ||
+    safe.width !== known.width ||
+    safe.height !== known.height
   )
-    currentSize = Object.freeze(size);
+    currentSize = frozenSize(size);
   return currentSize;
 }
 
 const sizeListeners = new Set();
 
 /**
- * Calls `listener` with the new viewSize() once whenever the view's size or
- * scale changes (not every frame), before the view is drawn at it. Returns
- * an unsubscribe function.
+ * Calls `listener` with the new viewSize() once whenever the view's size,
+ * scale or safe area changes (not every frame), before the view is drawn at
+ * it. Returns an unsubscribe function.
  */
 export function subscribeViewSize(listener) {
   if (typeof listener !== 'function')
@@ -1134,6 +1147,17 @@ export function subscribeViewSize(listener) {
   };
 }
 
+/** Calls each listener of `listeners` with `value`, reporting what throws. */
+function tell(listeners, value) {
+  for (const { listener } of [...listeners]) {
+    try {
+      listener(value);
+    } catch (error) {
+      reportError(error);
+    }
+  }
+}
+
 /** The size subscribers were last told of (viewSize() may be newer). */
 let notifiedSize = currentSize;
 
@@ -1141,13 +1165,81 @@ native.setViewSizeListener(() => {
   const size = viewSize();
   if (size === notifiedSize) return;
   notifiedSize = size;
-  for (const { listener } of [...sizeListeners]) {
-    try {
-      listener(size);
-    } catch (error) {
-      reportError(error);
-    }
-  }
+  tell(sizeListeners, size);
+});
+
+/** The latest editorSize(); replaced (never changed) when it changes. */
+let currentEditorSize = Object.freeze(native.editorSize());
+
+/**
+ * The actual size of the editor the view is shown in, in its logical pixels,
+ * and whether requestEditorSize() can change it. The same frozen object
+ * until either changes, so it works as a store snapshot.
+ */
+export function editorSize() {
+  const size = native.editorSize();
+  if (
+    size.width !== currentEditorSize.width ||
+    size.height !== currentEditorSize.height ||
+    size.resizable !== currentEditorSize.resizable
+  )
+    currentEditorSize = Object.freeze(size);
+  return currentEditorSize;
+}
+
+/** One side of a size requestEditorSize() is asked for, checked and whole. */
+function requestedSide(value, name) {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!Number.isFinite(value))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
+    );
+  return Math.round(value);
+}
+
+/**
+ * Asks for the editor to be `width`×`height` logical pixels (rounded to
+ * whole ones; any finite size, held to its limits). Returns the size asked
+ * of the host, or null where the editor's size cannot be asked for
+ * (editorSize().resizable). The host resizes it later, or not, as it
+ * decides: subscribeEditorSize() says what it got.
+ */
+export function requestEditorSize(width, height) {
+  const w = requestedSide(width, 'width');
+  const h = requestedSide(height, 'height');
+  const asked = native.requestEditorSize(w, h);
+  return asked === null
+    ? null
+    : Object.freeze({ width: asked.width, height: asked.height });
+}
+
+const editorSizeListeners = new Set();
+
+/**
+ * Calls `listener` with the new editorSize() once whenever the editor's
+ * size changes, whoever changed it. Returns an unsubscribe function.
+ */
+export function subscribeEditorSize(listener) {
+  if (typeof listener !== 'function')
+    throw new TypeError('subscribeEditorSize() expects a function');
+  const entry = { listener };
+  editorSizeListeners.add(entry);
+  return () => {
+    editorSizeListeners.delete(entry);
+  };
+}
+
+/** The editor size subscribers were last told of. */
+let notifiedEditorSize = currentEditorSize;
+
+native.setEditorSizeListener(() => {
+  const size = editorSize();
+  if (size === notifiedEditorSize) return;
+  notifiedEditorSize = size;
+  tell(editorSizeListeners, size);
 });
 
 /** Ends the pointer lock, if any: the pointer shows again where it began. */
@@ -1407,6 +1499,8 @@ export class PointerEvent extends ModifierEvent {
       clientY: init.clientY ?? 0,
       offsetX: init.offsetX ?? 0,
       offsetY: init.offsetY ?? 0,
+      screenX: init.screenX ?? init.clientX ?? 0,
+      screenY: init.screenY ?? init.clientY ?? 0,
       movementX: init.movementX ?? 0,
       movementY: init.movementY ?? 0,
       button: init.button ?? 0,
@@ -1452,6 +1546,17 @@ export class PointerEvent extends ModifierEvent {
   }
   get offsetY() {
     return this.#init.offsetY;
+  }
+  /**
+   * Where the pointer is on the screen, in the editor's logical pixels (the
+   * units of editorSize()): unlike clientX/Y, these do not change as the
+   * editor's size, or the zoom of an editor that scales, does.
+   */
+  get screenX() {
+    return this.#init.screenX;
+  }
+  get screenY() {
+    return this.#init.screenY;
   }
   /**
    * How far the pointer moved since its previous event, in logical pixels;
@@ -1849,6 +1954,8 @@ native.setListener((type, targetId, data) => {
     clientY: data.y,
     offsetX: data.offsetX,
     offsetY: data.offsetY,
+    screenX: data.screenX,
+    screenY: data.screenY,
     movementX: data.movementX,
     movementY: data.movementY,
     button: data.button,

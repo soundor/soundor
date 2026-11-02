@@ -3,11 +3,12 @@ import { fireEvent, queryByRole, within } from '@testing-library/dom';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createShell, type Presentation } from '.';
+import { createShell, type Presentation, type ViewGeometry } from '.';
 import { WebAudioHost } from '../audio';
 import { WebHost } from '../host';
-import type { WebEditor } from '../manifest';
+import { readManifest, type WebEditor } from '../manifest';
 import { createParameterStore } from '../parameters';
+import { viewLayout } from './resize';
 import '../testing/preact';
 
 const shells: { remove(): void }[] = [];
@@ -29,6 +30,8 @@ const FIXED: WebEditor = {
   maxHeight: 600,
   resizable: false,
   resize: 'layout',
+  fit: 'contain',
+  keepAspectRatio: false,
 };
 
 const RESIZABLE: WebEditor = {
@@ -40,6 +43,8 @@ const RESIZABLE: WebEditor = {
   maxHeight: 900,
   resizable: true,
   resize: 'layout',
+  fit: 'contain',
+  keepAspectRatio: false,
 };
 
 /** Scales: its layout stays 800×600, drawn at half to twice that. */
@@ -52,9 +57,23 @@ const SCALING: WebEditor = {
   maxHeight: 1200,
   resizable: true,
   resize: 'scale',
+  fit: 'contain',
+  keepAspectRatio: true,
 };
 
-function setup(presentation: Presentation = 'demo', editor = FIXED) {
+/**
+ * Scales, laid out over a viewport of another shape: 800×600 is its safe
+ * area. Its handle keeps its aspect ratio.
+ */
+const COVERING: WebEditor = { ...SCALING, fit: 'cover' };
+/** Covers a viewport of any shape, its handle setting any. */
+const COVERING_FREELY: WebEditor = { ...COVERING, keepAspectRatio: false };
+
+function setup(
+  presentation: Presentation = 'demo',
+  editor = FIXED,
+  onGeometry?: (geometry: ViewGeometry) => void,
+) {
   const host = new WebHost({
     now: () => 0,
     frames: { request: () => 1, cancel: () => {} },
@@ -84,6 +103,7 @@ function setup(presentation: Presentation = 'demo', editor = FIXED) {
     pluginName: 'Fixture',
     presentation,
     editor,
+    onGeometry,
     host,
     parameters,
     audio,
@@ -496,10 +516,49 @@ describe('a resizable view', () => {
   });
 
   it('is not resizable embedded, where it fills the page', () => {
+    const resize = observeStage();
     const { shell } = setup('embed', RESIZABLE);
     expect(shell.element.querySelector('.soundor-resize')).toBeNull();
-    expect(shell.viewport.style.width).toBe('');
     expect(shell.element.querySelector('.soundor-fill')).not.toBeNull();
+    // Laid out at the page's size, which owns it…
+    resize(shell, 1000, 700);
+    expect([shell.viewport.style.width, shell.viewport.style.height]).toEqual([
+      '1000px',
+      '700px',
+    ]);
+    // …up to its maximum (1200×900): beyond it, centred in bands.
+    resize(shell, 1500, 1000);
+    expect([shell.viewport.style.width, shell.viewport.style.height]).toEqual([
+      '1200px',
+      '900px',
+    ]);
+    expect([shell.viewport.style.left, shell.viewport.style.top]).toEqual([
+      '150px',
+      '50px',
+    ]);
+    expect(
+      shell.element
+        .querySelector('.soundor-frame')!
+        .classList.contains('soundor-letterbox'),
+    ).toBe(true);
+  });
+
+  it('has no handle when its limits allow no other size', () => {
+    const { shell } = setup('demo', {
+      ...RESIZABLE,
+      minWidth: 800,
+      maxWidth: 800,
+      minHeight: 600,
+      maxHeight: 600,
+    });
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
+    // One axis free is enough.
+    const wide = setup('demo', {
+      ...RESIZABLE,
+      minHeight: 600,
+      maxHeight: 600,
+    });
+    expect(wide.shell.element.querySelector('.soundor-resize')).not.toBeNull();
   });
 
   it('has the view measured again when it scales it', () => {
@@ -565,8 +624,8 @@ describe('a view that scales', () => {
 
   it('keeps its layout and draws it larger, keeping the aspect ratio', () => {
     const { drag, shown, shell } = scaling();
-    // Mostly sideways: 800 → 1000 wide, so 1.25 times, 750 tall.
-    drag(100, 10);
+    // 800×600 → 1000×750: 1.25 times.
+    drag(100, 75);
     expect(shown()).toEqual(['1000px', '750px']);
     expect(shell.viewport.style.width).toBe('800px');
     expect(shell.viewport.style.height).toBe('600px');
@@ -587,8 +646,8 @@ describe('a view that scales', () => {
     act(() => {
       fireEvent.keyDown(handle, { key: 'ArrowUp', shiftKey: true });
     });
-    // 50 off the height: 550 of 600, the width following.
-    expect(shown()).toEqual(['733px', '550px']);
+    // 50 off the height: the nearest size at its ratio to 800×550.
+    expect(shown()).toEqual(['776px', '582px']);
   });
 
   it('is scaled down to fit on top of its zoom', () => {
@@ -622,6 +681,269 @@ describe('a view that scales, embedded', () => {
     expect(shell.viewport.style.transform).toBe('');
     resize(shell, 400, 600);
     expect(shell.viewport.style.transform).toBe('scale(0.5)');
+  });
+});
+
+describe("the editor's size and the view's safe area", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function geometry(presentation: Presentation, editor: WebEditor) {
+    // The sizes; what the plugin may ask is checked on its own below.
+    const told: Pick<ViewGeometry, 'editor' | 'safeArea'>[] = [];
+    const all: ViewGeometry[] = [];
+    const context = setup(presentation, editor, (next) => {
+      all.push(next);
+      told.push({ editor: next.editor, safeArea: next.safeArea });
+    });
+    const handle =
+      context.shell.element.querySelector<HTMLElement>('.soundor-resize');
+    const drag = (dx: number, dy: number) => {
+      act(() => {
+        fireEvent.pointerDown(handle!, {
+          pointerId: 1,
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+        });
+        fireEvent.pointerMove(handle!, {
+          pointerId: 1,
+          clientX: 100 + dx,
+          clientY: 100 + dy,
+        });
+        fireEvent.pointerUp(handle!, { pointerId: 1 });
+      });
+    };
+    const viewport = () => [
+      context.shell.viewport.style.width,
+      context.shell.viewport.style.height,
+      context.shell.viewport.style.transform,
+    ];
+    return { ...context, told, all, drag, viewport };
+  }
+
+  it('are the view and all of it, telling once per change', () => {
+    const { told, drag } = geometry('demo', RESIZABLE);
+    expect(told).toEqual([
+      { editor: { width: 800, height: 600 }, safeArea: null },
+    ]);
+    drag(50, 25);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 900, height: 650 },
+      safeArea: null,
+    });
+    // Dragged to the same size again: nothing new.
+    const count = told.length;
+    drag(0, 0);
+    expect(told).toHaveLength(count);
+  });
+
+  it('are the size the layout is drawn at, with an editor that contains it', () => {
+    const { told, drag, viewport } = geometry('demo', SCALING);
+    drag(100, 75);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1000, height: 750 },
+      safeArea: null,
+    });
+    expect(viewport()).toEqual(['800px', '600px', 'scale(1.25)']);
+  });
+
+  it('cover: keeps the aspect ratio by default, so all of it is safe', () => {
+    const { told, drag, viewport, shell } = geometry('demo', COVERING);
+    // Zoomed by 1.25 as a whole, as without cover.
+    drag(100, 75);
+    expect(viewport()).toEqual(['800px', '600px', 'scale(1.25)']);
+    // Its own shape: no bands.
+    expect(
+      shell.element
+        .querySelector('.soundor-frame')!
+        .classList.contains('soundor-letterbox'),
+    ).toBe(false);
+    expect(shell.viewport.style.left).toBe('');
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1000, height: 750 },
+      safeArea: { x: 0, y: 0, width: 800, height: 600 },
+    });
+  });
+
+  it('contain without its aspect ratio: any shape, letterboxed', () => {
+    const { told, drag, viewport, shell } = geometry('demo', {
+      ...SCALING,
+      keepAspectRatio: false,
+    });
+    drag(100, 0);
+    // The layout stays 800×600, at the smaller side's zoom (1), in the
+    // middle of the editor's 1000×600, bands of its own beside it.
+    expect(viewport()).toEqual(['800px', '600px', '']);
+    const frame = shell.element.querySelector<HTMLElement>('.soundor-frame')!;
+    expect(frame.classList.contains('soundor-letterbox')).toBe(true);
+    expect([shell.viewport.style.left, shell.viewport.style.top]).toEqual([
+      '100px',
+      '0px',
+    ]);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1000, height: 600 },
+      safeArea: null,
+    });
+  });
+
+  it('cover without its aspect ratio: any shape, the layout extended around the configured size', () => {
+    const { told, drag, viewport } = geometry('demo', COVERING_FREELY);
+    expect(told).toEqual([
+      {
+        editor: { width: 800, height: 600 },
+        safeArea: { x: 0, y: 0, width: 800, height: 600 },
+      },
+    ]);
+    // Wider only: no aspect ratio kept, the zoom stays 1, the layout widens.
+    drag(100, 0);
+    expect(viewport()).toEqual(['1000px', '600px', '']);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1000, height: 600 },
+      safeArea: { x: 100, y: 0, width: 800, height: 600 },
+    });
+    // Taller still: zoomed by the smaller side (1.5), laid out at the
+    // editor's size over it, the bands above and below.
+    drag(100, 300);
+    expect(viewport()).toEqual(['800px', '800px', 'scale(1.5)']);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1200, height: 1200 },
+      safeArea: { x: 0, y: 100, width: 800, height: 600 },
+    });
+    // Its limits still hold.
+    drag(-5000, -5000);
+    expect(told.at(-1)!.editor).toEqual({ width: 400, height: 300 });
+  });
+
+  it("embedded: the page's size, its own owned by the page", () => {
+    const resize = observeStage();
+    const { told, shell } = geometry('embed', RESIZABLE);
+    expect(shell.element.querySelector('.soundor-resize')).toBeNull();
+    // Not shown yet: nothing known.
+    expect(told).toEqual([{ editor: { width: 0, height: 0 }, safeArea: null }]);
+    resize(shell, 1023.6, 500);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1024, height: 500 },
+      safeArea: null,
+    });
+  });
+
+  it('embedded, an editor that contains its layout: the page, bands included', () => {
+    const resize = observeStage();
+    const { told, shell, viewport } = geometry('embed', SCALING);
+    resize(shell, 1200, 600);
+    expect(viewport()).toEqual(['800px', '600px', '']);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1200, height: 600 },
+      safeArea: null,
+    });
+  });
+
+  it('embedded, an editor that covers the page: laid out over all of it', () => {
+    const resize = observeStage();
+    const { told, shell, viewport } = geometry('embed', COVERING);
+    // Before the page is measured: its configured size, nothing known.
+    expect(viewport()).toEqual(['800px', '600px', '']);
+    expect(told[0]!.editor).toEqual({ width: 0, height: 0 });
+    resize(shell, 1200, 600);
+    expect(viewport()).toEqual(['1200px', '600px', '']);
+    const frame = shell.element.querySelector<HTMLElement>('.soundor-frame')!;
+    expect([frame.style.width, frame.style.height]).toEqual([
+      '1200px',
+      '600px',
+    ]);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 1200, height: 600 },
+      safeArea: { x: 200, y: 0, width: 800, height: 600 },
+    });
+    // A tall page: zoomed by its width, the bands above and below.
+    resize(shell, 400, 600);
+    expect(viewport()).toEqual(['800px', '1200px', 'scale(0.5)']);
+    expect(told.at(-1)).toEqual({
+      editor: { width: 400, height: 600 },
+      safeArea: { x: 0, y: 300, width: 800, height: 600 },
+    });
+  });
+});
+
+describe("the plugin's own size requests", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function requested(editor: WebEditor, presentation: Presentation = 'demo') {
+    const all: ViewGeometry[] = [];
+    const context = setup(presentation, editor, (next) => all.push(next));
+    const request = (width: number, height: number) => {
+      let asked: { width: number; height: number } | null = null;
+      act(() => {
+        asked = context.shell.requestEditorSize({ width, height });
+      });
+      return asked;
+    };
+    return { ...context, all, request };
+  }
+
+  it('resize the viewport as its handle does, within the limits', () => {
+    const { all, request, shell } = requested(RESIZABLE);
+    expect(all.at(-1)).toMatchObject({ resizable: true, fit: 1 });
+    expect(request(1000, 700)).toEqual({ width: 1000, height: 700 });
+    expect(all.at(-1)?.editor).toEqual({ width: 1000, height: 700 });
+    expect(shell.viewport.style.width).toBe('1000px');
+    // Held to 480×320 – 1200×900, each side on its own: the answer says so
+    // at once.
+    expect(request(5000, -100)).toEqual({ width: 1200, height: 320 });
+    expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 320 });
+    // The size it has: nothing new.
+    const count = all.length;
+    expect(request(1200, 320)).toEqual({ width: 1200, height: 320 });
+    expect(all).toHaveLength(count);
+  });
+
+  it('keep the aspect ratio of an editor that scales, at the nearest size', () => {
+    const { all, request, shell } = requested(SCALING);
+    request(1200, 900);
+    expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 900 });
+    expect(shell.viewport.style.transform).toBe('scale(1.5)');
+    // Wider only: between the two sides' zooms, nearer the wider's.
+    request(1200, 600);
+    expect(all.at(-1)?.editor).toEqual({ width: 1056, height: 792 });
+  });
+
+  it('answer a size the same whatever the size is, so a drag never flips', () => {
+    const { all, request } = requested(SCALING);
+    // A corner dragged narrower and taller, each step from 800×600: it
+    // shrinks steadily, never larger and smaller in turn.
+    const widths: number[] = [];
+    for (let step = 1; step <= 8; step += 1) {
+      request(800 - step * 5, 600 + step * 4);
+      widths.push(all.at(-1)!.editor.width);
+    }
+    expect(widths).toEqual([...widths].sort((a, b) => b - a));
+    expect(new Set(widths).size).toBe(widths.length);
+  });
+
+  it("stop at the stage's room, as the handle does", () => {
+    const resize = observeStage();
+    const { all, request, shell } = requested(RESIZABLE);
+    // 1000×600 of room (the stage's padding taken off).
+    resize(shell, 1032, 692);
+    request(1200, 900);
+    expect(all.at(-1)?.editor).toEqual({ width: 1000, height: 600 });
+  });
+
+  it('are refused where the page owns the size, or no other is allowed', () => {
+    const embedded = requested(RESIZABLE, 'embed');
+    expect(embedded.all.at(-1)?.resizable).toBe(false);
+    expect(embedded.request(1000, 700)).toBeNull();
+    const fixed = requested(FIXED);
+    expect(fixed.all.at(-1)?.resizable).toBe(false);
+    expect(fixed.request(1000, 700)).toBeNull();
+    expect(fixed.shell.viewport.style.width).toBe('800px');
+  });
+
+  it('tell the view how many CSS pixels an editor pixel is, scaled to fit', () => {
+    const resize = observeStage();
+    const { all, shell } = requested(RESIZABLE);
+    resize(shell, 432, 392);
+    expect(all.at(-1)?.fit).toBe(0.5);
   });
 });
 
@@ -693,5 +1015,83 @@ describe('presentations', () => {
       parameters.byId['gain']!.set(0.9);
       host.setBpm(80);
     }).not.toThrow();
+  });
+});
+
+describe('viewLayout', () => {
+  const at = (width: number, height: number) => ({ width, height });
+
+  it('lays a fixed editor out at whatever size it is given', () => {
+    expect(viewLayout(FIXED, at(300, 200))).toEqual({
+      zoom: 1,
+      layout: at(300, 200),
+      safeArea: null,
+    });
+  });
+
+  it('holds a layout to its maximum, per axis, unless it covers', () => {
+    const editor = { ...RESIZABLE, maxWidth: 1000, maxHeight: Infinity };
+    expect(viewLayout(editor, at(900, 2000))).toEqual({
+      zoom: 1,
+      layout: at(900, 2000),
+      safeArea: null,
+    });
+    expect(viewLayout(editor, at(1400, 700))).toEqual({
+      zoom: 1,
+      layout: at(1000, 700),
+      safeArea: null,
+    });
+    expect(viewLayout({ ...editor, fit: 'cover' }, at(1400, 700))).toEqual({
+      zoom: 1,
+      layout: at(1400, 700),
+      safeArea: { x: 200, y: 0, width: 1000, height: 700 },
+    });
+    // Within its limits, a covering layout is all safe.
+    expect(viewLayout({ ...editor, fit: 'cover' }, at(900, 700))).toEqual({
+      zoom: 1,
+      layout: at(900, 700),
+      safeArea: null,
+    });
+  });
+
+  it('zooms a scaling layout by the smaller side, up to its maximum', () => {
+    // SCALING: 800×600, at most 1600×1200.
+    expect(viewLayout(SCALING, at(1200, 600)).zoom).toBe(1);
+    expect(viewLayout(SCALING, at(4000, 3000))).toEqual({
+      zoom: 2,
+      layout: at(800, 600),
+      safeArea: null,
+    });
+    expect(viewLayout(COVERING, at(4000, 3000))).toEqual({
+      zoom: 2,
+      layout: at(2000, 1500),
+      safeArea: { x: 600, y: 450, width: 800, height: 600 },
+    });
+    // No maximum: no limit to the zoom.
+    expect(
+      viewLayout(
+        { ...SCALING, maxWidth: Infinity, maxHeight: Infinity },
+        at(4000, 3000),
+      ).zoom,
+    ).toBe(5);
+  });
+});
+
+describe('readManifest', () => {
+  it('reads an unbounded maximum (null in JSON) as Infinity', () => {
+    const manifest = readManifest({
+      plugin: { id: 'a.b', name: 'A' },
+      editor: {
+        ...RESIZABLE,
+        maxWidth: null,
+        maxHeight: 900,
+      } as unknown as WebEditor,
+      parameters: [],
+      native: { methods: [] },
+    });
+    expect([manifest.editor.maxWidth, manifest.editor.maxHeight]).toEqual([
+      Infinity,
+      900,
+    ]);
   });
 });

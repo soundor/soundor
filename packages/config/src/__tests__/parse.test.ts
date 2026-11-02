@@ -190,6 +190,8 @@ describe('validateConfig — validation rules', () => {
         maxHeight: 600,
         resizable: false,
         resize: 'layout',
+        fit: 'contain',
+        keepAspectRatio: false,
       },
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
@@ -386,34 +388,45 @@ describe('validateConfig — editor', () => {
       maxHeight: 400,
       resizable: false,
       resize: 'layout',
+      fit: 'contain',
+      keepAspectRatio: false,
     });
   });
 
-  it('gives a resizable editor default limits around its size', () => {
+  it('lets a resizable editor grow from its size, without limit, by default', () => {
     expect(
       validateConfig({ ...base, editor: { resizable: true } }).editor,
     ).toEqual({
       width: 800,
       height: 600,
-      minWidth: 480,
-      minHeight: 320,
-      maxWidth: 1600,
-      maxHeight: 1200,
+      minWidth: 800,
+      minHeight: 600,
+      maxWidth: Infinity,
+      maxHeight: Infinity,
       resizable: true,
       resize: 'layout',
+      fit: 'contain',
+      keepAspectRatio: false,
     });
-    // Default limits never exclude the size it opens at.
+    // Explicit limits on one axis leave the other's defaults.
     expect(
       validateConfig({
         ...base,
-        editor: { width: 300, height: 2000, resizable: true },
+        editor: { width: 300, height: 2000, minWidth: 200, resizable: true },
       }).editor,
     ).toMatchObject({
-      minWidth: 300,
-      maxWidth: 1600,
-      minHeight: 320,
-      maxHeight: 2000,
+      minWidth: 200,
+      maxWidth: Infinity,
+      minHeight: 2000,
+      maxHeight: Infinity,
     });
+    // Infinity, said explicitly, is the same.
+    expect(
+      validateConfig({
+        ...base,
+        editor: { resizable: true, maxWidth: Infinity },
+      }).editor,
+    ).toMatchObject({ maxWidth: Infinity });
   });
 
   it('keeps explicit limits, and resolving again changes nothing', () => {
@@ -424,8 +437,10 @@ describe('validateConfig — editor', () => {
       minHeight: 400,
       maxWidth: 1800,
       maxHeight: 1000,
-      resizable: true,
+      resizable: true as const,
       resize: 'scale' as const,
+      fit: 'cover' as const,
+      keepAspectRatio: false,
     };
     const resolved = validateConfig({ ...base, editor }).editor;
     expect(resolved).toEqual(editor);
@@ -435,7 +450,7 @@ describe('validateConfig — editor', () => {
     expect(resolveEditor(resolved)).toEqual(resolved);
   });
 
-  it('gives a scaling editor half and twice its size as default limits', () => {
+  it('gives a scaling editor the same defaults: its size up, unbounded', () => {
     expect(
       validateConfig({
         ...base,
@@ -444,17 +459,96 @@ describe('validateConfig — editor', () => {
     ).toEqual({
       width: 901,
       height: 500,
-      minWidth: 451,
-      minHeight: 250,
-      maxWidth: 1802,
-      maxHeight: 1000,
+      minWidth: 901,
+      minHeight: 500,
+      maxWidth: Infinity,
+      maxHeight: Infinity,
       resizable: true,
       resize: 'scale',
+      fit: 'contain',
+      keepAspectRatio: true,
     });
     // A fixed editor never scales.
     expect(
       validateConfig({ ...base, editor: { resize: 'scale' } }).editor,
     ).toMatchObject({ resizable: false, resize: 'layout' });
+  });
+
+  it('covers the window only with a resizable editor that asks for it', () => {
+    for (const resize of ['layout', 'scale'] as const)
+      expect(
+        validateConfig({
+          ...base,
+          editor: { resizable: true, resize, fit: 'cover' },
+        }).editor,
+      ).toMatchObject({ resize, fit: 'cover' });
+    // 'contain', the default, is what a fixed editor resolves to.
+    expect(
+      validateConfig({ ...base, editor: { fit: 'contain' } }).editor,
+    ).toMatchObject({ resizable: false, fit: 'contain' });
+    for (const editor of [
+      { fit: 'cover' },
+      { resize: 'scale', fit: 'cover' },
+    ]) {
+      expect(expectValidation({ ...base, editor }).issues).toContainEqual({
+        path: 'editor.fit',
+        message: "fit: 'cover' only applies with resizable: true",
+      });
+    }
+    expect(
+      expectValidation({
+        ...base,
+        editor: { resizable: true, resize: 'scale', fit: 'fill' },
+      }).issues,
+    ).toContainEqual(expect.objectContaining({ path: 'editor.fit' }));
+  });
+
+  it('keeps the aspect ratio of an editor that scales unless told not to', () => {
+    for (const fit of ['contain', 'cover'] as const) {
+      expect(
+        validateConfig({
+          ...base,
+          editor: { resizable: true, resize: 'scale', fit },
+        }).editor,
+      ).toMatchObject({ fit, keepAspectRatio: true });
+      expect(
+        validateConfig({
+          ...base,
+          editor: {
+            resizable: true,
+            resize: 'scale',
+            fit,
+            keepAspectRatio: false,
+          },
+        }).editor,
+      ).toMatchObject({ fit, keepAspectRatio: false });
+    }
+    // No other editor has a ratio to keep: false is what they resolve to.
+    expect(
+      validateConfig({
+        ...base,
+        editor: { resizable: true, keepAspectRatio: false },
+      }).editor,
+    ).toMatchObject({ resize: 'layout', keepAspectRatio: false });
+    for (const editor of [
+      { keepAspectRatio: true },
+      { resizable: true, keepAspectRatio: true },
+      { resize: 'scale', keepAspectRatio: true },
+    ]) {
+      expect(expectValidation({ ...base, editor }).issues).toContainEqual({
+        path: 'editor.keepAspectRatio',
+        message:
+          "keepAspectRatio only applies with resizable: true and resize: 'scale'",
+      });
+    }
+    expect(
+      expectValidation({
+        ...base,
+        editor: { resizable: true, resize: 'scale', keepAspectRatio: 'yes' },
+      }).issues,
+    ).toContainEqual(
+      expect.objectContaining({ path: 'editor.keepAspectRatio' }),
+    );
   });
 
   it('rejects an unknown resize', () => {
@@ -479,7 +573,9 @@ describe('validateConfig — editor', () => {
     ['width', 0, 'positive'],
     ['height', -10, 'positive'],
     ['minWidth', 480.5, 'whole number'],
-    ['maxHeight', Number.POSITIVE_INFINITY, ''],
+    ['minHeight', Number.POSITIVE_INFINITY, ''],
+    ['maxHeight', 1.5, 'or Infinity'],
+    ['maxWidth', Number.NEGATIVE_INFINITY, ''],
     ['width', Number.NaN, ''],
   ])('rejects %s = %s', (key, value, message) => {
     const error = expectValidation({
@@ -524,6 +620,7 @@ describe('validateConfig — editor', () => {
         width: 400,
         minWidth: 480,
         height: 1300,
+        minHeight: 300,
         maxHeight: 1200,
         resizable: true,
       },
@@ -532,12 +629,26 @@ describe('validateConfig — editor', () => {
       {
         path: 'editor.width',
         message:
-          'width (400) is outside the resize limits; set it within [480, 1600]',
+          'width (400) is outside the resize limits; set it within [480, Infinity]',
       },
       {
         path: 'editor.height',
         message:
-          'height (1300) is outside the resize limits; set it within [320, 1200]',
+          'height (1300) is outside the resize limits; set it within [300, 1200]',
+      },
+    ]);
+  });
+
+  it('rejects a maximum below the size the editor opens at', () => {
+    const error = expectValidation({
+      ...base,
+      editor: { width: 800, height: 600, maxWidth: 100, resizable: true },
+    });
+    expect(error.issues).toEqual([
+      {
+        path: 'editor.maxWidth',
+        message:
+          'maxWidth (100) is below width (800), the size the editor opens at',
       },
     ]);
   });

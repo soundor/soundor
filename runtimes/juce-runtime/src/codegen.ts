@@ -453,6 +453,7 @@ function renderEditorHeader(): string {
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "SoundorProcessor.h"
@@ -501,22 +502,42 @@ namespace ${NS}
         AudioProcessor& processorRef;
 
     private:
-        // The size limits and aspect ratio of an editor that scales (editor
-        // resize: 'scale'): offered to a plugin's host, enforced in the
-        // Standalone (see JuceEditorConstrainer).
+        // The size limits of a resizable editor, and the aspect ratio of one
+        // that scales and keeps it: offered to a plugin's host, enforced in
+        // the Standalone (see JuceEditorConstrainer).
         backend::JuceEditorConstrainer sizeConstrainer {
             processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone
         };
         void timerCallback() override;
-        // Gives the UI the view's size and pixel density.
+        // Gives the UI the view's size, pixel density and safe area, and the
+        // editor's size and whether it can ask for another.
         void sizeSurface();
+        // Resizes the editor to the size the UI last asked for
+        // (requestEditorSize()), held to its limits, as the host would:
+        // setSize() tells the host (VST3 resizeView, AU, the Standalone's
+        // window), which may give another size or none. After the UI's code
+        // has run, never inside it.
+        void applyEditorSizeRequest();
+        // The size a request last asked the host for, and when: a host that
+        // gives another size soon after kept to a limit of its own, which
+        // later requests keep to (JuceEditorConstrainer::hostReplaced()).
+        std::optional<juce::Point<int>> askedOfHost;
+        juce::uint32 askedAt = 0;
+        // What a resize says of the host: that it replaced a size asked of it,
+        // or set one of its own.
+        void noteHostSize();
         // The view's pixels per logical pixel of the UI's layout: 1, or with
         // an editor that scales, the view's size over the layout's.
         [[nodiscard]] float zoom() const;
         // Where in the view the UI is drawn: all of it, or with an editor that
         // scales, its layout at zoom() in the middle (bands where the view's
-        // shape is not the layout's).
+        // shape is not the layout's), unless it covers the view (fit:
+        // 'cover').
         [[nodiscard]] juce::Rectangle<float> uiArea() const;
+        // The part of the UI's layout always shown whole: all of it
+        // (nullopt), or with an editor that covers the view, its configured
+        // size in the middle of the layout.
+        [[nodiscard]] std::optional<ui::Rect> safeArea() const;
         // Picks the compositor: on the GPU, presenting in this view's native
         // view, where there is one; on the CPU into \`image\` otherwise.
         void updateCompositor();
@@ -580,64 +601,208 @@ namespace ${NS}
 `;
 }
 
+/** A limit in C++: unbounded (Infinity) is JUCE's own unlimited size. */
+function cppLimit(value: number): string {
+  return Number.isFinite(value) ? cppInt(value) : '0x3FFFFFFF';
+}
+
+/** A float in C++, as JUCE's sizes are compared with. */
+function cppFloatF(value: number): string {
+  return Number.isInteger(value) ? `${value}.0F` : `${value}F`;
+}
+
 /**
  * The editor's size from the config's `editor`. A resizable one is resized by
- * the host (or the Standalone's window): JUCE's corner resizer is not used,
- * since it would sit under a GPU compositor's layer and take the pointer from
- * the UI's own bottom-right corner.
+ * the host (or the Standalone's window), within limits that JUCE's
+ * constrainer offers it and the Standalone keeps (see JuceEditorConstrainer).
+ * JUCE's corner resizer is not used, since it would sit under a GPU
+ * compositor's layer and take the pointer from the UI's own bottom-right
+ * corner.
  */
 function renderEditorSize(editor: ResolvedEditorConfig): string {
   const size = `setSize(${cppInt(editor.width)}, ${cppInt(editor.height)});`;
   if (!editor.resizable) return `        ${size}`;
-  const limits = `setResizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});`;
-  if (editor.resize === 'scale')
-    return `        // soundor.config: editor (resizable, resize: 'scale'). Resizing draws
-        // the same layout larger or smaller: the window keeps its shape where
-        // the host lets it, and the UI is letterboxed where it does not.
-        sizeConstrainer.setSizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppInt(editor.maxWidth)}, ${cppInt(editor.maxHeight)});
-        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+  const what =
+    editor.resize === 'scale'
+      ? `resize: 'scale'${editor.keepAspectRatio ? '' : ', keepAspectRatio: false'}, fit: '${editor.fit}'`
+      : `fit: '${editor.fit}'`;
+  const ratio =
+    editor.resize === 'scale' && editor.keepAspectRatio
+      ? `\n        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+        sizeConstrainer.setScaledLayout({ ${cppInt(editor.width)}, ${cppInt(editor.height)} });`
+      : '';
+  return `        // soundor.config: editor (resizable, ${what}).
+        sizeConstrainer.setSizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppLimit(editor.maxWidth)}, ${cppLimit(editor.maxHeight)});${ratio}
         setConstrainer(&sizeConstrainer);
-        setResizable(true, false);
-        ${size}`;
-  return `        // soundor.config: editor (resizable). Resizing lays the UI out again.
-        ${limits}
         setResizable(true, false);
         ${size}`;
 }
 
 /**
- * zoom() and uiArea(): 1 and the whole view, unless the editor scales: then
- * its size over the layout's, the smaller of the two where a host does not
- * keep the aspect ratio, and the layout at that zoom in the middle of the
- * view. The layout never changes, and nothing is stretched.
+ * Whether the UI can ask for another editor size: a resizable editor whose
+ * limits allow one (the Web host's canResize() says the same).
  */
-function renderEditorZoom(editor: ResolvedEditorConfig): string {
-  if (!editor.resizable || editor.resize !== 'scale')
-    return `    float AudioProcessorEditor::zoom() const
+function canRequestEditorSize(editor: ResolvedEditorConfig): boolean {
+  return (
+    editor.resizable &&
+    (editor.minWidth < editor.maxWidth || editor.minHeight < editor.maxHeight)
+  );
+}
+
+/**
+ * applyEditorSizeRequest(): a request the surface holds, as setSize(), and
+ * noteHostSize(): what the host's answer says of its own limits.
+ */
+function renderEditorRequest(editor: ResolvedEditorConfig): string {
+  if (!canRequestEditorSize(editor))
+    return `    void AudioProcessorEditor::applyEditorSizeRequest()
     {
-        return 1.0F;
+        // A fixed editor: the surface takes no requests.
+        (void)runtimeHost().surface().takeEditorSizeRequest();
     }
 
-    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    void AudioProcessorEditor::noteHostSize() {}`;
+  return `    void AudioProcessorEditor::applyEditorSizeRequest()
+    {
+        const auto wanted = runtimeHost().surface().takeEditorSizeRequest();
+        if (! wanted)
+            return;
+        // Held as the surface's hold held it (sizeSurface()), again: what the
+        // host showed of its limits may have changed since.
+        const auto size = sizeConstrainer.constrainRequest(
+            { juce::roundToInt(wanted->width), juce::roundToInt(wanted->height) });
+        if (size == juce::Point<int> { getWidth(), getHeight() })
+            return;
+        askedOfHost = size;
+        askedAt = juce::Time::getMillisecondCounter();
+        setSize(size.x, size.y);
+    }
+
+    void AudioProcessorEditor::noteHostSize()
+    {
+        const juce::Point<int> now { getWidth(), getHeight() };
+        // The resize setSize() itself makes, or one asked for: nothing said.
+        if (askedOfHost && now == *askedOfHost)
+            return;
+        // Another size soon after a request (the host's window kept to a
+        // minimum of its own, or a maximum): the host replaced it. Later, the
+        // host's own resize.
+        constexpr juce::uint32 answerTime = 500;
+        if (askedOfHost && juce::Time::getMillisecondCounter() - askedAt < answerTime)
+            sizeConstrainer.hostReplaced(*askedOfHost, now);
+        else
+            sizeConstrainer.hostGave(now);
+        askedOfHost.reset();
+    }`;
+}
+
+/**
+ * zoom(), uiArea() and safeArea(): what the UI's layout is in the view.
+ *
+ * - A fixed editor: 1, the whole view, all of it safe.
+ * - One that lays out again: a zoom of 1, and the whole view laid out, up to
+ *   its maximum. Beyond it (a host that sets a larger window regardless),
+ *   fit 'contain' lays the UI out at the maximum in the middle, bands
+ *   around it; 'cover' lays it out over the whole view, the maximum in the
+ *   middle being the safe area.
+ * - One that scales: its size over the layout's, the smaller of the two
+ *   where a host does not keep the aspect ratio, and never beyond the zoom
+ *   the maximum allows. 'contain' draws the layout at that zoom in the
+ *   middle; 'cover' lays it out over the whole view, the configured size in
+ *   its middle being the safe area. Nothing is stretched.
+ */
+function renderEditorArea(editor: ResolvedEditorConfig): string {
+  const whole = `    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
     {
         return getLocalBounds().toFloat();
     }`;
+  const allSafe = `    std::optional<ui::Rect> AudioProcessorEditor::safeArea() const
+    {
+        return std::nullopt;
+    }`;
+  const unzoomed = `    float AudioProcessorEditor::zoom() const
+    {
+        return 1.0F;
+    }`;
+  if (!editor.resizable) return [unzoomed, whole, allSafe].join('\n\n');
+  const bounded =
+    Number.isFinite(editor.maxWidth) || Number.isFinite(editor.maxHeight);
+  // A side of the view, held to its maximum where there is one.
+  const held = (side: string, max: number) =>
+    Number.isFinite(max) ? `std::min(${side}, ${cppFloatF(max)})` : side;
+  const maxima = `${Number.isFinite(editor.maxWidth) ? editor.maxWidth : '∞'}×${Number.isFinite(editor.maxHeight) ? editor.maxHeight : '∞'}`;
+  if (editor.resize === 'layout') {
+    if (!bounded) return [unzoomed, whole, allSafe].join('\n\n');
+    if (editor.fit === 'cover')
+      return [
+        unzoomed,
+        `    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    {
+        // fit: 'cover': the layout covers the view, beyond its maximum too.
+        return getLocalBounds().toFloat();
+    }`,
+        `    std::optional<ui::Rect> AudioProcessorEditor::safeArea() const
+    {
+        // Up to the maximum (${maxima}), in the middle of the view.
+        const auto view = getLocalBounds().toFloat();
+        const float width = ${held('view.getWidth()', editor.maxWidth)};
+        const float height = ${held('view.getHeight()', editor.maxHeight)};
+        return ui::Rect { (view.getWidth() - width) / 2.0F, (view.getHeight() - height) / 2.0F, width, height };
+    }`,
+      ].join('\n\n');
+    return [
+      unzoomed,
+      `    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    {
+        // fit: 'contain': laid out up to the maximum (${maxima}), in the middle.
+        const auto view = getLocalBounds().toFloat();
+        return juce::Rectangle<float>(${held('view.getWidth()', editor.maxWidth)}, ${held('view.getHeight()', editor.maxHeight)})
+            .withCentre(view.getCentre());
+    }`,
+      allSafe,
+    ].join('\n\n');
+  }
   const w = cppInt(editor.width);
   const h = cppInt(editor.height);
-  return `    float AudioProcessorEditor::zoom() const
+  const maxZoom = Math.min(
+    editor.maxWidth / editor.width,
+    editor.maxHeight / editor.height,
+  );
+  const fitted = `static_cast<float>(getWidth()) / ${w}.0F, static_cast<float>(getHeight()) / ${h}.0F`;
+  const zoom = `    float AudioProcessorEditor::zoom() const
     {
-        // soundor.config: editor (resize: 'scale'): the layout stays ${w}×${h}.
+        // soundor.config: editor (resize: 'scale'): the layout is designed at ${w}×${h}${Number.isFinite(maxZoom) ? `,\n        // drawn at most ${maxZoom} times as large (its maximum, ${maxima})` : ''}.
         if (getWidth() <= 0 || getHeight() <= 0)
             return 1.0F;
-        return std::min(static_cast<float>(getWidth()) / ${w}.0F, static_cast<float>(getHeight()) / ${h}.0F);
-    }
-
-    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+        return ${Number.isFinite(maxZoom) ? `std::min({ ${fitted}, ${cppFloatF(maxZoom)} })` : `std::min(${fitted})`};
+    }`;
+  if (editor.fit === 'cover')
+    return [
+      zoom,
+      `    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
+    {
+        // fit: 'cover': the layout covers the view, bands included.
+        return getLocalBounds().toFloat();
+    }`,
+      `    std::optional<ui::Rect> AudioProcessorEditor::safeArea() const
+    {
+        // The ${w}×${h} the layout is designed at, in the middle of the layout.
+        const float viewZoom = zoom();
+        const float width = static_cast<float>(getWidth()) / viewZoom;
+        const float height = static_cast<float>(getHeight()) / viewZoom;
+        return ui::Rect { (width - ${w}.0F) / 2.0F, (height - ${h}.0F) / 2.0F, ${w}.0F, ${h}.0F };
+    }`,
+    ].join('\n\n');
+  return [
+    zoom,
+    `    juce::Rectangle<float> AudioProcessorEditor::uiArea() const
     {
         const float viewZoom = zoom();
         return juce::Rectangle<float>(${w}.0F * viewZoom, ${h}.0F * viewZoom)
             .withCentre(getLocalBounds().toFloat().getCentre());
-    }`;
+    }`,
+    allSafe,
+  ].join('\n\n');
 }
 
 function renderEditorSource(
@@ -783,12 +948,31 @@ ${renderEditorSize(editor)}
         const float viewZoom = zoom();
         const auto area = uiArea();
         surface.setSize({ area.getWidth() / viewZoom, area.getHeight() / viewZoom });
+        surface.setSafeArea(safeArea());
+        // The editor's own size, which soundor:ui's editorSize() reports.
+        surface.setEditorSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
+        surface.setEditorResizable(${canRequestEditorSize(editor) ? 'true' : 'false'});${
+          canRequestEditorSize(editor)
+            ? `
+        // A request is held at once, so requestEditorSize() returns the size
+        // asked of the host.
+        surface.setEditorSizeHold(
+            [this](ui::Size wanted)
+            {
+                const auto size = sizeConstrainer.constrainRequest(
+                    { juce::roundToInt(wanted.width), juce::roundToInt(wanted.height) });
+                return ui::Size { static_cast<float>(size.x), static_cast<float>(size.y) };
+            });`
+            : ''
+        }
         image.setArea(area);
         surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this))
                          * viewZoom);
     }
 
-${renderEditorZoom(editor)}
+${renderEditorRequest(editor)}
+
+${renderEditorArea(editor)}
 
     void AudioProcessorEditor::updateCompositor()
     {
@@ -856,6 +1040,7 @@ ${renderEditorZoom(editor)}
 
     void AudioProcessorEditor::resized()
     {
+        noteHostSize();
         // On the CPU, paint() (which the resize asks for) renders at the new
         // size. The GPU compositor presents over the view instead: present at
         // the new size now, not on the next tick, so a window being dragged
@@ -878,6 +1063,8 @@ ${renderEditorZoom(editor)}
 #else
         host->tick();
 #endif
+        // Asked for by timers, animations or async work the tick ran.
+        applyEditorSizeRequest();
         updateAccessibility();
         // A lock ends with a reloaded runtime or a drag the platform ended,
         // and styles also change outside input (timers, animations).
@@ -969,6 +1156,7 @@ ${renderEditorZoom(editor)}
 #endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         updatePointerLock();
         updateCursor();
     }
@@ -1056,6 +1244,7 @@ ${renderEditorZoom(editor)}
                                                            .modifiers = backend::modifiersOf(key.getModifiers()) },
                                                          backend::typedText(key));
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         return handled;
     }
 
@@ -1091,6 +1280,7 @@ ${renderEditorZoom(editor)}
             key = heldKeys.erase(key);
         }
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         return handled;
     }
 

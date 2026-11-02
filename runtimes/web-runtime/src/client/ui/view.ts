@@ -31,7 +31,13 @@ import {
 } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
-import type { Cursor, NodeType, ViewSize } from './types';
+import type {
+  Cursor,
+  EditorSize,
+  LayoutRect,
+  NodeType,
+  ViewSize,
+} from './types';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -77,10 +83,33 @@ export class UiView implements ViewLink {
   #hoverFrame: number | null = null;
   #resizes: ResizeObserver | null = null;
   /** The latest size(); replaced (never changed) when the size changes. */
-  #size: ViewSize = Object.freeze({ width: 0, height: 0, scale: 1 });
+  #size: ViewSize = Object.freeze({
+    width: 0,
+    height: 0,
+    scale: 1,
+    safeArea: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }),
+  });
   /** The size subscribers were last told of (size() may be newer). */
   #notifiedSize = this.#size;
   readonly #sizeListeners = new Listeners<ViewSize>();
+  /** What the host says of the view: its safe area (null: all of it). */
+  #safeArea: LayoutRect | null = null;
+  /** The editor's size, as the host last said; replaced when it changes. */
+  #editorSize: EditorSize = Object.freeze({
+    width: 0,
+    height: 0,
+    resizable: false,
+  });
+  readonly #editorListeners = new Listeners<EditorSize>();
+  /** CSS pixels per editor pixel, as the host last said. */
+  #editorFit = 1;
+  /** Where requestEditorSize() goes: the host's viewport. */
+  #requestEditorSize:
+    | ((size: { width: number; height: number }) => {
+        width: number;
+        height: number;
+      } | null)
+    | null = null;
 
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
@@ -115,6 +144,7 @@ export class UiView implements ViewLink {
     this.animations.dispose();
     this.#resizes?.disconnect();
     this.#sizeListeners.clear();
+    this.#editorListeners.clear();
     if (this.#hoverFrame !== null)
       this.rootElement.ownerDocument.defaultView?.cancelAnimationFrame(
         this.#hoverFrame,
@@ -143,15 +173,104 @@ export class UiView implements ViewLink {
     const width = this.rootElement.offsetWidth;
     const height = this.rootElement.offsetHeight;
     const scale = (window?.devicePixelRatio ?? 1) * this.scale();
+    const safe = this.#safeArea ?? { x: 0, y: 0, width, height };
     const size = this.#size;
+    const known = size.safeArea;
     if (
       width !== size.width ||
       height !== size.height ||
-      scale !== size.scale
+      scale !== size.scale ||
+      safe.x !== known.x ||
+      safe.y !== known.y ||
+      safe.width !== known.width ||
+      safe.height !== known.height
     ) {
-      this.#size = Object.freeze({ width, height, scale });
+      this.#size = Object.freeze({
+        width,
+        height,
+        scale,
+        safeArea: Object.freeze({ ...safe }),
+      });
     }
     return this.#size;
+  }
+
+  /**
+   * The editor's size in its logical pixels, as the host last said: the
+   * same frozen object until it changes.
+   */
+  editorSize(): EditorSize {
+    return this.#editorSize;
+  }
+
+  /**
+   * Calls `listener` with the new editorSize() whenever the host says the
+   * editor has another size. Returns a function that unsubscribes.
+   */
+  subscribeEditorSize(listener: (size: EditorSize) => void): () => void {
+    return this.#editorListeners.add(listener, 'subscribeEditorSize()');
+  }
+
+  /**
+   * The host's word on the view: the size of the editor it shows it in,
+   * whether the plugin can ask for another, CSS pixels per editor pixel,
+   * and its safe area (null: all of it). Tells subscribers of what changed:
+   * the view's size first, as it is measured again, then the editor's.
+   */
+  setGeometry(geometry: {
+    readonly editor: { readonly width: number; readonly height: number };
+    readonly safeArea: LayoutRect | null;
+    readonly resizable?: boolean;
+    readonly fit?: number;
+  }): void {
+    const { editor, safeArea, resizable = false, fit = 1 } = geometry;
+    this.#safeArea = safeArea === null ? null : { ...safeArea };
+    this.#editorFit = fit > 0 ? fit : 1;
+    this.measure();
+    const known = this.#editorSize;
+    if (
+      editor.width === known.width &&
+      editor.height === known.height &&
+      resizable === known.resizable
+    )
+      return;
+    this.#editorSize = Object.freeze({
+      width: editor.width,
+      height: editor.height,
+      resizable,
+    });
+    this.#editorListeners.notify(this.#editorSize);
+  }
+
+  /** Where requestEditorSize() sends a checked, whole size: the host. */
+  setEditorRequester(
+    request:
+      | ((size: { width: number; height: number }) => {
+          width: number;
+          height: number;
+        } | null)
+      | null,
+  ): void {
+    this.#requestEditorSize = request;
+  }
+
+  /**
+   * Asks the host for another editor size, checked and rounded as the JUCE
+   * runtime does. Returns the size asked of the host (held to the editor's
+   * limits), or null where the editor's size cannot be asked for.
+   */
+  requestEditorSize(
+    width: unknown,
+    height: unknown,
+  ): { readonly width: number; readonly height: number } | null {
+    const w = requestedSide(width, 'width');
+    const h = requestedSide(height, 'height');
+    if (!this.#editorSize.resizable || this.#requestEditorSize === null)
+      return null;
+    const asked = this.#requestEditorSize({ width: w, height: h });
+    return asked === null
+      ? null
+      : Object.freeze({ width: asked.width, height: asked.height });
   }
 
   /**
@@ -638,6 +757,10 @@ export class UiView implements ViewLink {
       clientY: y,
       offsetX: local.x,
       offsetY: local.y,
+      // The screen in the editor's pixels: the page's CSS pixels over the
+      // stage's fit (not the view's zoom, which a resize changes).
+      screenX: (event.screenX ?? x) / this.#editorFit,
+      screenY: (event.screenY ?? y) / this.#editorFit,
       // The browser's, in CSS pixels; synthetic events may have none.
       movementX: (event.movementX ?? 0) / scale,
       movementY: (event.movementY ?? 0) / scale,
@@ -960,4 +1083,32 @@ export class UiView implements ViewLink {
     if (next !== null && this.rootElement.contains(next)) return;
     this.focus(null, false);
   }
+}
+
+/**
+ * One side of a size requestEditorSize() is asked for, checked and whole:
+ * any finite number, held to what the JUCE runtime converts (1 to
+ * 0x3FFFFFFF), then to the editor's limits by the host.
+ */
+function requestedSide(value: unknown, name: string): number {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!Number.isFinite(value))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
+    );
+  return Math.min(Math.max(Math.round(value), 1), 0x3fffffff);
+}
+
+/** What a value is, as the JUCE runtime's errors say it. */
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'object')
+    return (
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      'object'
+    );
+  return typeof value;
 }

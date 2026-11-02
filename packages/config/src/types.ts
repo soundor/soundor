@@ -9,7 +9,7 @@
 
 import type { NativeApiDeclaration } from '@soundor/core';
 
-import type { EditorConfig } from './editor';
+import type { EditorConfig, ResolvedEditorConfig } from './editor';
 import type { RuntimeDescriptor } from './runtime';
 
 /**
@@ -92,7 +92,11 @@ export interface PluginIdentity {
 
 export type {
   EditorConfig,
+  EditorFit,
   EditorResize,
+  FixedEditorConfig,
+  LayoutEditorConfig,
+  ScaleEditorConfig,
   ResolvedEditorConfig,
 } from './editor';
 
@@ -130,7 +134,7 @@ export interface SoundorConfig {
    * every runtime. Omitted, the editor is a fixed 800×600 view. After
    * validation, every field is set (see `resolveEditor`).
    */
-  editor?: EditorConfig;
+  editor?: EditorConfig | ResolvedEditorConfig;
   runtimes: RuntimeDescriptor[];
   parameters: Parameter[];
   /** The plugin's typed native API, exposed to JavaScript as `soundor:native`. */

@@ -18,6 +18,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     // A JUCE mouse event as pointer input. For Down, the pressed button is the
     // one reported; for Up, JUCE's modifiers still hold the released button.
+    // Its screen position is in the event component's logical pixels.
     [[nodiscard]] ui::PointerInput pointerInput(const juce::MouseEvent& event, ui::PointerInput::Phase phase);
 
     // The platform's cursor for a resolved Soundor cursor (never Auto).

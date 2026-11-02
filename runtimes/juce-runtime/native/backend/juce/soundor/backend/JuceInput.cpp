@@ -108,6 +108,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         ui::PointerInput input;
         input.phase = phase;
         input.position = { event.position.x, event.position.y };
+        if (const auto* component = event.eventComponent)
+        {
+            // The screen in the component's own pixels: a host may scale the
+            // editor (setScaleFactor), which a logical pixel of it covers.
+            const auto unit = component->localAreaToGlobal(juce::Rectangle<float>(0, 0, 1, 1));
+            const float perPixel = unit.getWidth() > 0 ? unit.getWidth() : 1.0F;
+            const auto screen = component->localPointToGlobal(event.position) / perPixel;
+            input.screen = ui::Point { screen.x, screen.y };
+        }
         // The mouse is pointer 1, as on the Web; touches follow.
         input.pointerId = event.source.getIndex() + 1;
         input.type = pointerTypeOf(event.source.getType());

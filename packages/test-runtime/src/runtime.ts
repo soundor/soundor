@@ -8,7 +8,11 @@ import {
   MemoryStorage,
   type RuntimeOptions,
   type HostSnapshot,
+  type EditorInit,
+  type EditorSize,
+  type ViewRect,
   type ViewSize,
+  type ViewSizeInit,
 } from './services';
 import type {
   AnimationDescription,
@@ -41,7 +45,18 @@ export class TestRuntime {
   private hostState: HostSnapshot;
   private hostListeners = new Listeners<HostSnapshot>();
   private size: ViewSize;
+  /** The safe area a test set; null: the whole view. */
+  private safe: ViewRect | null = null;
   private sizeListeners = new Listeners<ViewSize>();
+  private editor: EditorSize;
+  private editorListeners = new Listeners<EditorSize>();
+  private readonly editorPolicy: Required<
+    Omit<EditorInit, 'width' | 'height' | 'resizable'>
+  >;
+  /** The sizes requestEditorSize() asked for, held to the limits. */
+  private readonly editorRequests: { width: number; height: number }[] = [];
+  /** The size the simulated host is about to give, if any. */
+  private pendingEditorSize: { width: number; height: number } | null = null;
   private clipboardText = '';
   private cleanups = new Set<() => void>();
   private committed = new WeakMap<TestNode, string>();
@@ -71,11 +86,71 @@ export class TestRuntime {
       transport: null,
       ...options.host,
     });
-    this.size = Object.freeze({
-      width: 800,
-      height: 600,
-      scale: 1,
-      ...options.view,
+    const { safeArea = null, ...view } = options.view ?? {};
+    this.safe = safeArea;
+    this.size = this.viewSnapshot(
+      { width: 800, height: 600, scale: 1, ...view },
+      safeArea,
+    );
+    const {
+      width = this.size.width,
+      height = this.size.height,
+      resizable = false,
+      ...policy
+    } = options.editor ?? {};
+    this.editor = this.editorSnapshot({ width, height, resizable });
+    this.editorPolicy = {
+      minWidth: 1,
+      minHeight: 1,
+      maxWidth: Infinity,
+      maxHeight: Infinity,
+      aspectRatio: null,
+      applyRequests: true,
+      ...policy,
+    };
+  }
+  /** A checked, frozen view size, safe in `safe` (null: all of it). */
+  private viewSnapshot(
+    next: Omit<ViewSize, 'safeArea'>,
+    safe: ViewRect | null,
+  ): ViewSize {
+    for (const key of ['width', 'height', 'scale'] as const) {
+      if (!(Number.isFinite(next[key]) && next[key] >= 0))
+        throw new RangeError(
+          `The view's ${key} must be a finite, non-negative number`,
+        );
+    }
+    if (
+      safe !== null &&
+      !(['x', 'y', 'width', 'height'] as const).every((key) =>
+        Number.isFinite(safe[key]),
+      )
+    )
+      throw new RangeError(
+        "The view's safe area must be null or a rectangle of finite numbers",
+      );
+    const { width, height, scale } = next;
+    const { x, y, width: w, height: h } = safe ?? { x: 0, y: 0, width, height };
+    return Object.freeze({
+      width,
+      height,
+      scale,
+      safeArea: Object.freeze({ x, y, width: w, height: h }),
+    });
+  }
+  private editorSnapshot(next: EditorSize): EditorSize {
+    for (const key of ['width', 'height'] as const) {
+      if (!(Number.isInteger(next[key]) && next[key] >= 0))
+        throw new RangeError(
+          `The editor's ${key} must be a whole, non-negative number of logical pixels`,
+        );
+    }
+    if (typeof next.resizable !== 'boolean')
+      throw new TypeError("The editor's resizable must be a boolean");
+    return Object.freeze({
+      width: next.width,
+      height: next.height,
+      resizable: next.resizable,
     });
   }
   get isDisposed() {
@@ -638,24 +713,88 @@ export class TestRuntime {
     this.assertActive();
     return this.sizeListeners.add(listener, 'subscribeViewSize()');
   }
-  /** Resizes the view, as a user resizing the editor would; tells subscribers once per change. */
-  setViewSize(size: Partial<ViewSize>) {
+  /**
+   * Resizes the view, as a user resizing the editor would; tells subscribers
+   * once per change. A safe area of null is the whole view again.
+   */
+  setViewSize(size: ViewSizeInit) {
     this.assertActive();
-    const next = { ...this.size, ...size };
-    for (const key of ['width', 'height', 'scale'] as const) {
-      if (!(Number.isFinite(next[key]) && next[key] >= 0))
-        throw new RangeError(
-          `The view's ${key} must be a finite, non-negative number`,
-        );
-    }
+    const { safeArea = this.safe, ...view } = size;
+    const { width, height, scale } = this.size;
+    const next = this.viewSnapshot({ width, height, scale, ...view }, safeArea);
+    this.safe = safeArea;
+    const was = this.size;
     if (
-      next.width === this.size.width &&
-      next.height === this.size.height &&
-      next.scale === this.size.scale
+      next.width === was.width &&
+      next.height === was.height &&
+      next.scale === was.scale &&
+      next.safeArea.x === was.safeArea.x &&
+      next.safeArea.y === was.safeArea.y &&
+      next.safeArea.width === was.safeArea.width &&
+      next.safeArea.height === was.safeArea.height
     )
       return;
-    this.size = Object.freeze(next);
+    this.size = next;
     this.sizeListeners.notify(this.size);
+  }
+  editorSize() {
+    this.assertActive();
+    return this.editor;
+  }
+  subscribeEditorSize(listener: (size: EditorSize) => void) {
+    this.assertActive();
+    return this.editorListeners.add(listener, 'subscribeEditorSize()');
+  }
+  /**
+   * Resizes the editor, as a user or a DAW would; tells subscribers once per
+   * change. The view is not resized with it: nothing is laid out here.
+   */
+  setEditorSize(size: Partial<EditorSize>) {
+    this.assertActive();
+    const next = this.editorSnapshot({ ...this.editor, ...size });
+    if (
+      next.width === this.editor.width &&
+      next.height === this.editor.height &&
+      next.resizable === this.editor.resizable
+    )
+      return;
+    this.editor = next;
+    this.editorListeners.notify(this.editor);
+  }
+  /**
+   * Asks for another editor size, checked, rounded and held to the limits
+   * as the runtimes do. The simulated host gives it after the calling code
+   * (a microtask), the latest request winning, unless it ignores requests.
+   * Returns the size asked of it, or null where none can be.
+   */
+  requestEditorSize(
+    width: unknown,
+    height: unknown,
+  ): { readonly width: number; readonly height: number } | null {
+    this.assertActive();
+    const wanted = {
+      width: requestedSide(width, 'width'),
+      height: requestedSide(height, 'height'),
+    };
+    if (!this.editor.resizable) return null;
+    const next = constrainRequest(this.editorPolicy, wanted);
+    this.editorRequests.push(next);
+    const asked = Object.freeze({ ...next });
+    if (!this.editorPolicy.applyRequests) return asked;
+    const scheduled = this.pendingEditorSize !== null;
+    this.pendingEditorSize = next;
+    if (!scheduled)
+      queueMicrotask(() => {
+        const size = this.pendingEditorSize;
+        this.pendingEditorSize = null;
+        if (size !== null && !this.disposed) this.setEditorSize(size);
+      });
+    return asked;
+  }
+  /** The sizes requestEditorSize() asked for, held to the limits, in order. */
+  requestedEditorSizes(): readonly { width: number; height: number }[] {
+    this.assertActive();
+    return this.editorRequests.map((size) => ({ ...size }));
   }
   mockNative(name: string, implementation: (...args: never[]) => unknown) {
     this.assertActive();
@@ -693,6 +832,7 @@ export class TestRuntime {
     this.parameters.list.forEach((parameter) => parameter.dispose());
     this.hostListeners.clear();
     this.sizeListeners.clear();
+    this.editorListeners.clear();
     this.storage.dispose();
     for (const node of this.nodes.values()) {
       node.listeners.clear();
@@ -712,4 +852,62 @@ export class TestRuntime {
 }
 export function createTestRuntime(options: RuntimeOptions = {}) {
   return new TestRuntime(options);
+}
+
+/**
+ * One side of a size requestEditorSize() is asked for, checked and whole:
+ * any finite number, held to 1 to 0x3FFFFFFF as the JUCE runtime holds it.
+ */
+function requestedSide(value: unknown, name: string): number {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!Number.isFinite(value))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
+    );
+  return Math.min(Math.max(Math.round(value), 1), 0x3fffffff);
+}
+
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'object')
+    return (
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      'object'
+    );
+  return typeof value;
+}
+
+/**
+ * A request held to the editor's limits, as the runtimes hold it: each side
+ * within them, or keeping the configured aspect ratio, that size times the
+ * zoom nearest to the size asked for, within the zooms the limits allow,
+ * rounded. Never from the current size.
+ */
+function constrainRequest(
+  policy: Required<Omit<EditorInit, 'width' | 'height' | 'resizable'>>,
+  wanted: { width: number; height: number },
+): { width: number; height: number } {
+  const held = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), Math.max(min, max));
+  const ratio = policy.aspectRatio;
+  if (ratio === null)
+    return {
+      width: held(wanted.width, policy.minWidth, policy.maxWidth),
+      height: held(wanted.height, policy.minHeight, policy.maxHeight),
+    };
+  const asked =
+    (wanted.width * ratio.width + wanted.height * ratio.height) /
+    (ratio.width * ratio.width + ratio.height * ratio.height);
+  const zoom = held(
+    asked,
+    Math.max(policy.minWidth / ratio.width, policy.minHeight / ratio.height),
+    Math.min(policy.maxWidth / ratio.width, policy.maxHeight / ratio.height),
+  );
+  return {
+    width: Math.round(ratio.width * zoom),
+    height: Math.round(ratio.height * zoom),
+  };
 }

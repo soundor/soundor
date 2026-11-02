@@ -11,7 +11,9 @@
     "maxWidth": 800,
     "maxHeight": 600,
     "resizable": false,
-    "resize": "layout"
+    "resize": "layout",
+    "fit": "contain",
+    "keepAspectRatio": false
   },
   "parameters": [
     {

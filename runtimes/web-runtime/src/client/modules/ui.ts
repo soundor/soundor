@@ -15,6 +15,7 @@ import type {
   AnimationDescription,
   AnimationOptions,
   UiAnimation,
+  EditorSize,
   ViewSize,
 } from '../ui/types';
 export {
@@ -111,21 +112,54 @@ export function createTextInput(
 }
 
 /**
- * The view's size in logical pixels, and device pixels per logical pixel:
- * the same frozen object until one of them changes.
+ * The view's size in logical pixels, device pixels per logical pixel and its
+ * safe area: the same frozen object until one of them changes.
  */
 export function viewSize(): ViewSize {
   return view.size();
 }
 
 /**
- * Calls `listener` with the new viewSize() whenever the view's size or scale
- * changes. Returns a function that unsubscribes.
+ * Calls `listener` with the new viewSize() whenever the view's size, scale
+ * or safe area changes. Returns a function that unsubscribes.
  */
 export function subscribeViewSize(
   listener: (size: ViewSize) => void,
 ): () => void {
   return view.subscribeSize(listener);
+}
+
+/**
+ * The size of the plugin viewport on the host's page, in the editor's
+ * logical pixels: the same frozen object until it changes.
+ */
+export function editorSize(): EditorSize {
+  return view.editorSize();
+}
+
+/**
+ * Asks for the plugin viewport to be `width`×`height` editor pixels, held to
+ * the editor's limits and the page's room, as its handle resizes it, and
+ * returns that size; null where it cannot be asked (`?embed`, a fixed
+ * editor). The viewport resizes with the host page's next render;
+ * subscribeEditorSize() tells of it.
+ */
+export function requestEditorSize(
+  width: number,
+  height: number,
+): { readonly width: number; readonly height: number } | null {
+  return view.requestEditorSize(width, height);
+}
+
+/**
+ * Calls `listener` with the new editorSize() whenever the viewport changes
+ * size, or whether it can be asked for, whoever resized it. Returns a
+ * function that unsubscribes.
+ */
+export function subscribeEditorSize(
+  listener: (size: EditorSize) => void,
+): () => void {
+  return view.subscribeEditorSize(listener);
 }
 
 /**

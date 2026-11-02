@@ -362,7 +362,12 @@ describe('UiNode layout', () => {
       width: 200,
       height: 100,
     });
-    expect(view.size()).toEqual({ width: 800, height: 600, scale: 0.5 });
+    expect(view.size()).toEqual({
+      width: 800,
+      height: 600,
+      scale: 0.5,
+      safeArea: { x: 0, y: 0, width: 800, height: 600 },
+    });
   });
 
   it('is zero while hidden, at the nearest shown ancestor, as in Yoga', () => {

@@ -10,7 +10,15 @@ export default defineSoundorConfig({
   // Opens at 800×600; the user can resize it (between 480×400, where its
   // controls still fit, and 1600×1200), and the UI is laid out again at the
   // new size.
-  editor: { width: 800, height: 600, minHeight: 400, resizable: true },
+  editor: {
+    width: 800,
+    height: 600,
+    minWidth: 480,
+    minHeight: 400,
+    maxWidth: 1600,
+    maxHeight: 1200,
+    resizable: true,
+  },
   // One plugin, two runtimes: the same UI (src/main.tsx) in a JUCE plugin
   // and in the browser.
   runtimes: [

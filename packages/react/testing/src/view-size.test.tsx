@@ -3,11 +3,12 @@ import { getTestRuntime, type TestRuntime } from '@soundor/test-runtime';
 import {
   render,
   screen,
+  testEditor,
   testView,
   userEvent,
 } from '@soundor/testing-library/react';
-import { useState } from 'react';
-import { viewSize } from 'soundor:ui';
+import { useState, useSyncExternalStore } from 'react';
+import { editorSize, subscribeEditorSize, viewSize } from 'soundor:ui';
 import { describe, expect, it, vi } from 'vitest';
 
 /** Counts its renders, and shows the size it sees. */
@@ -140,6 +141,74 @@ describe('useViewSize', () => {
   it("follows the runtime the test gives it, not a previous test's", () => {
     // A fresh runtime per test (as a reload makes a fresh one): its own size.
     const runtime: TestRuntime = getTestRuntime();
-    expect(runtime.viewSize()).toEqual({ width: 800, height: 600, scale: 1 });
+    expect(runtime.viewSize()).toEqual({
+      width: 800,
+      height: 600,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 800, height: 600 },
+    });
+  });
+});
+
+/** The safe-area layout the docs show: content in the safe area, bands around it. */
+function Covered() {
+  const { width, height, safeArea } = useViewSize();
+  return (
+    <View style={{ width, height }}>
+      {safeArea.x > 0 ? (
+        <View accessibilityLabel="left band" style={{ width: safeArea.x }} />
+      ) : null}
+      <View
+        accessibilityLabel={`content at ${safeArea.x},${safeArea.y}`}
+        style={{
+          position: 'absolute',
+          left: safeArea.x,
+          top: safeArea.y,
+          width: safeArea.width,
+          height: safeArea.height,
+        }}
+      />
+    </View>
+  );
+}
+
+describe('the safe area', () => {
+  it('is the whole view until a covering editor gets another shape', async () => {
+    await render(<Covered />);
+    expect(screen.getByLabelText('content at 0,0')).toBeDefined();
+    expect(screen.queryByLabelText('left band')).toBeNull();
+    // A host gives an editor laid out for 800×600 a 1000×600 window.
+    await testView.resize({
+      width: 1000,
+      safeArea: { x: 100, y: 0, width: 800, height: 600 },
+    });
+    expect(screen.getByLabelText('content at 100,0')).toBeDefined();
+    expect(screen.getByLabelText('left band')).toBeDefined();
+    await testView.resize({ width: 800, safeArea: null });
+    expect(screen.getByLabelText('content at 0,0')).toBeDefined();
+  });
+});
+
+describe('the editor size', () => {
+  function Editor({ renders }: { renders: () => void }) {
+    renders();
+    const { width, height } = useSyncExternalStore(
+      subscribeEditorSize,
+      editorSize,
+    );
+    return <Text>{`editor ${width} × ${height}`}</Text>;
+  }
+
+  it('re-renders a store of it once per change, apart from the view', async () => {
+    const renders = vi.fn<() => void>();
+    await render(<Editor renders={renders} />);
+    expect(screen.getByText('editor 800 × 600')).toBeDefined();
+    // An editor that scales: the window doubles, the layout stays.
+    await testEditor.resize({ width: 1600, height: 1200 });
+    expect(screen.getByText('editor 1600 × 1200')).toBeDefined();
+    expect(viewSize().width).toBe(800);
+    await testEditor.resize({ width: 1600 });
+    await testView.resize({ scale: 2 });
+    expect(renders).toHaveBeenCalledTimes(2);
   });
 });

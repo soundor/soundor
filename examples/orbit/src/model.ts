@@ -14,6 +14,16 @@ export const levels = [
 export const clamp = (value: number, min = 0, max = 1) =>
   Math.max(min, Math.min(max, value));
 
+/**
+ * Device pixels per logical pixel for a canvas buffer at the view's `scale`
+ * (the editor's zoom included): rounded up to a quarter, at most 4. A
+ * resized buffer is cleared and drawn again, so while the editor is dragged
+ * to another size it changes a few times, not at every step; between them
+ * the buffer is drawn a little larger or smaller, never blurred by less.
+ */
+export const bufferDensity = (scale: number) =>
+  Math.min(4, Math.ceil(scale * 4) / 4);
+
 // Times are quarter-note beats in sync mode, or multiples of 500 ms in free mode.
 export function milliseconds(
   beats: number,

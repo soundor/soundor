@@ -753,7 +753,10 @@ declare module 'soundor:ui' {
   export function pointerLockNode(): UiNode | null;
   /** The node that has keyboard focus, if any. */
   export function focusedNode(): UiNode | null;
-  /** The plugin view's size: what it is laid out at, and its pixel density. */
+  /**
+   * The plugin view's size: what it is laid out at, its pixel density, and
+   * the part of it that is always shown.
+   */
   export interface ViewSize {
     /** Width in logical pixels (the units of styles and pointer positions). */
     readonly width: number;
@@ -761,25 +764,106 @@ declare module 'soundor:ui' {
     readonly height: number;
     /**
      * Device pixels per logical pixel: the display's density, times any
-     * scaling the host applies (a web host scales a view down to fit a page).
+     * scaling the host applies (an editor that scales, a web host scaling a
+     * view down to fit a page).
      */
     readonly scale: number;
+    /**
+     * The part of the view always shown whole, in logical pixels relative to
+     * the view's top-left corner: the whole view, unless the editor is
+     * resizable with `fit: 'cover'` (soundor.config) and its window is one
+     * it was not made for: larger than its maximum, or, scaling, of another
+     * shape than its layout. Then the view covers the whole window and this
+     * is the part made for (at most the maximum, or the configured
+     * `width`×`height` when it scales), centred, the rest being room the UI
+     * may draw in. Fractional where the zoom makes it so.
+     */
+    readonly safeArea: LayoutRect;
   }
   /**
-   * The view's size in logical pixels, and device pixels per logical pixel.
-   * The same frozen object until one of them changes, so it works as a store
-   * snapshot (`useSyncExternalStore(subscribeViewSize, viewSize)`). Before
-   * the host has given the view a size, width and height may be 0.
+   * The view's size in logical pixels, device pixels per logical pixel and
+   * its safe area. The same frozen object until one of them changes, so it
+   * works as a store snapshot (`useSyncExternalStore(subscribeViewSize,
+   * viewSize)`). Before the host has given the view a size, width and height
+   * may be 0.
    */
   export function viewSize(): ViewSize;
   /**
    * Calls `listener` with the new {@link viewSize} once whenever the view's
-   * size or scale changes: when the user resizes the editor (or its iframe),
-   * or it moves to a display of another density. Never for an unchanged
-   * size, and not every frame. Returns a function that unsubscribes.
+   * size, scale or safe area changes: when the user resizes the editor (or
+   * its iframe), or it moves to a display of another density. Never for an
+   * unchanged size, and not every frame. Returns a function that
+   * unsubscribes.
    */
   export function subscribeViewSize(
     listener: (size: ViewSize) => void,
+  ): () => void;
+
+  /**
+   * The editor the view is shown in: the plugin's window in a DAW or the
+   * Standalone, the plugin viewport on the Web host's page. Its size is the
+   * view's in layout mode; an editor that scales draws its view at another
+   * (the view's size times its zoom), and with `fit: 'contain'` letterboxes
+   * it where the window has another shape.
+   */
+  export interface EditorSize {
+    /** The editor's actual width, in its logical pixels (before display density). */
+    readonly width: number;
+    /** The editor's actual height, in its logical pixels. */
+    readonly height: number;
+    /**
+     * Whether {@link requestEditorSize} can ask for another size: true for a
+     * resizable editor (soundor.config) whose limits allow one, in a DAW,
+     * the Standalone and the Web host's page; false for a fixed editor, and
+     * where its container owns its size (a Web build opened with `?embed`).
+     * A UI hides its own resize grip where it is false. It says the editor
+     * may be asked, not that the host will agree.
+     */
+    readonly resizable: boolean;
+  }
+  /**
+   * The editor's actual size, in whole logical pixels, and whether it can be
+   * asked for another. The same frozen object until either changes, so it
+   * works as a store snapshot
+   * (`useSyncExternalStore(subscribeEditorSize, editorSize)`). Before the
+   * host has shown the editor, width and height are 0.
+   */
+  export function editorSize(): EditorSize;
+  /**
+   * Asks for the editor to be `width`×`height`, in its logical pixels (the
+   * units of {@link editorSize}, before display density, not the layout's
+   * of an editor that scales), rounded to whole pixels. Any finite size can
+   * be asked for: it is held to the editor's limits (soundor.config), each
+   * side within its minimum and maximum, or for an editor that scales
+   * keeping its aspect ratio, its configured size times one zoom: the size
+   * at its ratio nearest to the one asked for (asking for one side changes
+   * both, by less), within the zooms the limits allow, whatever the current
+   * size is. On the Web host's page, also no larger than the room the page
+   * has, unless it is already; in a DAW, also within a minimum or maximum
+   * of its own the host showed, by giving another size in place of one
+   * asked for (Ardour's window is no narrower than its toolbar).
+   *
+   * Returns that size: the one asked of the host. Null where none can be
+   * (`editorSize().resizable` is false: a fixed editor, limits that allow
+   * one size, the Web host's `?embed`). It is not the size the editor gets:
+   * the editor resizes after the calling code returns, to the size the host
+   * gives it, which may be another or none, and {@link subscribeEditorSize}
+   * tells of it; editorSize() is the old size until then. Throws a
+   * TypeError when a side is not a number, a RangeError when it is not
+   * finite.
+   */
+  export function requestEditorSize(
+    width: number,
+    height: number,
+  ): { readonly width: number; readonly height: number } | null;
+  /**
+   * Calls `listener` with the new {@link editorSize} once whenever the
+   * editor's size changes, whoever resized it: the user, the DAW, the Web
+   * host's page or a {@link requestEditorSize}. Never for an unchanged size,
+   * and not every frame. Returns a function that unsubscribes.
+   */
+  export function subscribeEditorSize(
+    listener: (size: EditorSize) => void,
   ): () => void;
 
   export interface FontDescriptors {
@@ -827,6 +911,8 @@ declare module 'soundor:ui' {
     clientY?: number;
     offsetX?: number;
     offsetY?: number;
+    screenX?: number;
+    screenY?: number;
     movementX?: number;
     movementY?: number;
     button?: number;
@@ -858,6 +944,16 @@ declare module 'soundor:ui' {
     /** locationX and locationY, by their Web names. */
     readonly offsetX: number;
     readonly offsetY: number;
+    /**
+     * Where the pointer is on the screen, in the editor's logical pixels
+     * (the units of editorSize() and requestEditorSize()). Unlike clientX/Y,
+     * they do not change when the editor is resized, or zoomed when it
+     * scales, so a drag that resizes the editor measures its distance with
+     * them: the size at the press plus how far screenX/Y moved since. Where
+     * a runtime cannot tell (a wheel event, a simulated one), clientX/Y.
+     */
+    readonly screenX: number;
+    readonly screenY: number;
     /**
      * How far the pointer moved since its previous event, in logical pixels;
      * also while locked, when clientX/Y stay where the lock began.

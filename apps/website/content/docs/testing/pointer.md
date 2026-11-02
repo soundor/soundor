@@ -9,7 +9,7 @@ await user.pointer(actions: PointerAction | PointerAction[]): Promise<void>;
 interface PointerAction {
   target?: NodeTarget; // the node; the previous one when omitted
   keys?: string;       // '[MouseLeft]', '[MouseLeft>]', '[/MouseLeft]', also MouseRight, MouseMiddle
-  clientX?: number;    // and clientY, offsetX, offsetY, movementX, movementY, modifiers…
+  clientX?: number;    // and clientY, offsetX, offsetY, screenX, screenY, movementX, movementY, modifiers…
 }
 ```
 

@@ -76,4 +76,46 @@ describe('defineSoundorConfig', () => {
     });
     expect(authored.parameters).toHaveLength(1);
   });
+
+  it('allows fit for a resizable editor, keepAspectRatio for one that scales (type-level)', () => {
+    const base = {
+      plugin: { id: 'com.example.test', name: 'Test' },
+      runtimes: [],
+      parameters: [],
+    };
+    const cover = defineSoundorConfig({
+      ...base,
+      editor: { resizable: true, resize: 'scale', fit: 'cover' },
+    });
+    expect(cover.editor.fit).toBe('cover');
+    defineSoundorConfig({
+      ...base,
+      editor: { resizable: true, fit: 'cover', maxWidth: 1000 },
+    });
+    defineSoundorConfig({
+      ...base,
+      editor: { resizable: true, maxWidth: Infinity, maxHeight: Infinity },
+    });
+    defineSoundorConfig({
+      ...base,
+      // @ts-expect-error a fixed editor has no fit
+      editor: { fit: 'cover' },
+    });
+    // Any editor that scales may let go of its aspect ratio; no other.
+    for (const fit of ['contain', 'cover'] as const)
+      defineSoundorConfig({
+        ...base,
+        editor: {
+          resizable: true,
+          resize: 'scale',
+          fit,
+          keepAspectRatio: false,
+        },
+      });
+    defineSoundorConfig({
+      ...base,
+      // @ts-expect-error keepAspectRatio needs resize: 'scale'
+      editor: { resizable: true, keepAspectRatio: false },
+    });
+  });
 });

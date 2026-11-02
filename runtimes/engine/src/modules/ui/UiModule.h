@@ -13,9 +13,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     // long as the context lives.
     void install(js::Context& context, std::shared_ptr<Surface> surface);
 
-    // Tells soundor:ui's viewSize() subscribers that the surface's size or
-    // scale changed since they were last told; nothing when it did not.
+    // Tells soundor:ui's viewSize() subscribers that the surface's size,
+    // scale or safe area changed since they were last told; nothing when it
+    // did not.
     void notifyViewSize(js::Context& context);
+    // Tells soundor:ui's editorSize() subscribers that the editor's size, or
+    // whether it can be asked for, changed since they were last told;
+    // nothing when neither did.
+    void notifyEditorSize(js::Context& context);
 
     // Runs the callbacks requestAnimationFrame() collected.
     void frame(js::Context& context);
