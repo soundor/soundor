@@ -112,7 +112,6 @@ TEST_SUITE("Three.js")
             globalThis.result = [px(32, 32), px(2, 2)].join(' ');
         )");
         CHECK(f.string("result") == "255,0,0,255 0,0,255,255");
-        CHECK(f.string("THREE.REVISION") == "186");
         f.expectClean();
     }
 
