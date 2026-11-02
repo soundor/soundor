@@ -369,7 +369,6 @@ const styles = StyleSheet.create({
   },
   held: { backgroundColor: '#c4e693', borderColor: '#afce80' },
   footer: {
-    height: 22,
     marginTop: 14,
     flexDirection: 'row',
     alignItems: 'center',
