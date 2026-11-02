@@ -162,6 +162,11 @@ export function createUiModule(runtime: TestRuntime) {
     subscribeViewSize: (
       listener: Parameters<TestRuntime['subscribeViewSize']>[0],
     ) => runtime.subscribeViewSize(listener),
+    /** The simulated editor's size: the same object until set. */
+    editorSize: () => runtime.editorSize(),
+    subscribeEditorSize: (
+      listener: Parameters<TestRuntime['subscribeEditorSize']>[0],
+    ) => runtime.subscribeEditorSize(listener),
     /** Checks its arguments as the runtimes do; there is no text to set in it. */
     registerFont: (
       family: string,

@@ -312,7 +312,7 @@ describe('generateJuceSources', () => {
       expect(source).not.toMatch(/setResizable|setResizeLimits/);
     });
 
-    it('lets the host resize a resizable editor within its limits', () => {
+    it('offers a resizable editor its limits through its constrainer', () => {
       const source = editorSource({
         width: 900,
         height: 500,
@@ -324,18 +324,30 @@ describe('generateJuceSources', () => {
       });
       expect(source).toContain(
         [
-          '        setResizeLimits(600, 400, 1800, 1000);',
+          '        sizeConstrainer.setSizeLimits(600, 400, 1800, 1000);',
+          '        setConstrainer(&sizeConstrainer);',
           '        setResizable(true, false);',
           '        setSize(900, 500);',
         ].join('\n'),
       );
+      // A layout has no aspect ratio to keep.
+      expect(source).not.toContain('setFixedAspectRatio');
       // The host resizes it: no corner component over the UI.
       expect(source).not.toContain('setResizable(true, true)');
+      // Offered to a plugin's host, enforced in the Standalone only.
+      expect(fileMap(config).get('soundor/SoundorEditor.h')).toContain(
+        'processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone',
+      );
     });
 
-    it('gives a resizable editor the default limits', () => {
-      expect(editorSource({ resizable: true })).toContain(
-        'setResizeLimits(480, 320, 1600, 1200);',
+    it('lets a resizable editor grow from its size without limit by default', () => {
+      const source = editorSource({ resizable: true });
+      expect(source).toContain(
+        'sizeConstrainer.setSizeLimits(800, 600, 0x3FFFFFFF, 0x3FFFFFFF);',
+      );
+      // Nothing is beyond no maximum: the UI is laid out over the whole view.
+      expect(source).toMatch(
+        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+return getLocalBounds\(\)\.toFloat\(\);/,
       );
     });
 
@@ -350,10 +362,55 @@ describe('generateJuceSources', () => {
       );
     });
 
+    it('beyond its maximum, contains the layout at the maximum, in the middle', () => {
+      const source = editorSource({
+        resizable: true,
+        width: 800,
+        height: 600,
+        maxWidth: 1000,
+      });
+      // Only the axis with a maximum is held.
+      expect(source).toContain(
+        'return juce::Rectangle<float>(std::min(view.getWidth(), 1000.0F), view.getHeight())',
+      );
+      expect(source).toContain('.withCentre(view.getCentre());');
+      expect(source).toMatch(
+        /std::optional<ui::Rect> AudioProcessorEditor::safeArea\(\) const\s+\{\s+return std::nullopt;/,
+      );
+      expect(source).toMatch(
+        /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
+      );
+    });
+
+    it('beyond its maximum, covers the view around a safe area with fit cover', () => {
+      const source = editorSource({
+        resizable: true,
+        fit: 'cover',
+        maxWidth: 1000,
+        maxHeight: 700,
+      });
+      expect(source).toMatch(
+        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+\/\/ fit: 'cover'[^\n]*\n\s+return getLocalBounds\(\)\.toFloat\(\);/,
+      );
+      expect(source).toContain(
+        'const float width = std::min(view.getWidth(), 1000.0F);',
+      );
+      expect(source).toContain(
+        'const float height = std::min(view.getHeight(), 700.0F);',
+      );
+      expect(source).toContain(
+        'return ui::Rect { (view.getWidth() - width) / 2.0F, (view.getHeight() - height) / 2.0F, width, height };',
+      );
+    });
+
     it('scales an editor with resize scale, keeping its aspect ratio', () => {
       const source = editorSource({
         width: 1000,
         height: 600,
+        minWidth: 500,
+        minHeight: 300,
+        maxWidth: 2000,
+        maxHeight: 1200,
         resizable: true,
         resize: 'scale',
       });
@@ -366,14 +423,10 @@ describe('generateJuceSources', () => {
           '        setSize(1000, 600);',
         ].join('\n'),
       );
-      // The ratio is enforced only in the Standalone: a host that sets
-      // another shape gets it, letterboxed, rather than a resize fight.
-      expect(fileMap(config).get('soundor/SoundorEditor.h')).toContain(
-        'processorRef.wrapperType == juce::AudioProcessor::wrapperType_Standalone',
-      );
-      // The layout stays 1000×600: the view's size over it is the zoom.
+      // The layout stays 1000×600: the view's size over it is the zoom, at
+      // most what its maximum allows.
       expect(source).toContain(
-        'return std::min(static_cast<float>(getWidth()) / 1000.0F, static_cast<float>(getHeight()) / 600.0F);',
+        'return std::min({ static_cast<float>(getWidth()) / 1000.0F, static_cast<float>(getHeight()) / 600.0F, 2.0F });',
       );
       // Always laid out at 1000×600, in the middle of a view of another shape.
       expect(source).toContain(
@@ -388,12 +441,66 @@ describe('generateJuceSources', () => {
       );
     });
 
-    it('lays out again at a zoom of 1 otherwise', () => {
+    it('zooms without limit when an editor that scales has no maximum', () => {
+      expect(editorSource({ resizable: true, resize: 'scale' })).toContain(
+        'return std::min(static_cast<float>(getWidth()) / 800.0F, static_cast<float>(getHeight()) / 600.0F);',
+      );
+    });
+
+    it('covers the view with an editor that scales with fit cover', () => {
+      const source = editorSource({
+        width: 1000,
+        height: 600,
+        resizable: true,
+        resize: 'scale',
+        fit: 'cover',
+      });
+      // Its aspect ratio kept by default, as without fit.
+      expect(source).toContain(
+        '        sizeConstrainer.setFixedAspectRatio(1.6666666666666667);',
+      );
+      expect(source).toMatch(
+        /juce::Rectangle<float> AudioProcessorEditor::uiArea\(\) const\s+\{\s+\/\/ fit: 'cover'[^\n]*\n\s+return getLocalBounds\(\)\.toFloat\(\);/,
+      );
+      // The configured size, centred in the layout, is the safe area.
+      expect(source).toContain(
+        'return ui::Rect { (width - 1000.0F) / 2.0F, (height - 600.0F) / 2.0F, 1000.0F, 600.0F };',
+      );
+    });
+
+    it('lets go of the aspect ratio with keepAspectRatio false, either fit', () => {
+      for (const fit of ['contain', 'cover'] as const) {
+        const source = editorSource({
+          width: 1000,
+          height: 600,
+          resizable: true,
+          resize: 'scale',
+          fit,
+          keepAspectRatio: false,
+        });
+        expect(source).toContain(
+          'sizeConstrainer.setSizeLimits(1000, 600, 0x3FFFFFFF, 0x3FFFFFFF);',
+        );
+        expect(source).not.toContain('setFixedAspectRatio');
+      }
+    });
+
+    it('tells the UI its safe area and the editor size in every mode', () => {
       for (const editor of [
-        { resizable: true },
-        { resize: 'scale' as const },
         undefined,
+        { resizable: true as const },
+        { resizable: true as const, resize: 'scale' as const },
       ]) {
+        const source = editorSource(editor);
+        expect(source).toContain('surface.setSafeArea(safeArea());');
+        expect(source).toContain(
+          'surface.setEditorSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });',
+        );
+      }
+    });
+
+    it('keeps a fixed editor at a zoom of 1, all of it', () => {
+      for (const editor of [{ resize: 'scale' as const }, undefined]) {
         const source = editorSource(editor);
         expect(source).toMatch(
           /float AudioProcessorEditor::zoom\(\) const\s+\{\s+return 1\.0F;\s+\}/,
@@ -403,7 +510,7 @@ describe('generateJuceSources', () => {
     });
 
     it('generates the same source for the same editor', () => {
-      const editor = { width: 700, height: 500, resizable: true };
+      const editor = { width: 700, height: 500, resizable: true as const };
       expect(editorSource(editor)).toBe(editorSource({ ...editor }));
     });
   });

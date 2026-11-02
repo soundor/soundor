@@ -375,6 +375,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Device pixels per logical pixel; layout snaps to device pixels.
         void setScale(float scale);
         [[nodiscard]] float scale() const noexcept { return pixelScale; }
+        // The part of the view always shown whole, in its logical pixels:
+        // all of it (nullopt, the default), or less where the backend lays
+        // the view out beyond the size the plugin designed it at (an editor
+        // that scales with fit 'cover'). Told to plugin code with the size;
+        // layout does not read it.
+        void setSafeArea(std::optional<Rect> area) noexcept { safe = area; }
+        [[nodiscard]] Rect safeArea() const noexcept
+        {
+            return safe.value_or(Rect { 0, 0, viewSize.width, viewSize.height });
+        }
+        // The size of the editor the view is shown in (the plugin's window),
+        // in its logical pixels: the view's size times the zoom of an editor
+        // that scales. 0×0 until the backend sets it.
+        void setEditorSize(Size size) noexcept { editor = size; }
+        [[nodiscard]] Size editorSize() const noexcept { return editor; }
 
         // Brings the layout up to date (cheap when nothing changed).
         void layout();
@@ -543,6 +558,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId nextId = 1;
         Size viewSize;
         float pixelScale = 1;
+        std::optional<Rect> safe;
+        Size editor;
         SurfaceStatistics counted;
         std::unique_ptr<render::SvgGeometryCache> svgGeometryCache;
         bool changed = true;

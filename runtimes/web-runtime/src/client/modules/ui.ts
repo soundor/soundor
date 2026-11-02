@@ -15,6 +15,7 @@ import type {
   AnimationDescription,
   AnimationOptions,
   UiAnimation,
+  EditorSize,
   ViewSize,
 } from '../ui/types';
 export {
@@ -111,21 +112,39 @@ export function createTextInput(
 }
 
 /**
- * The view's size in logical pixels, and device pixels per logical pixel:
- * the same frozen object until one of them changes.
+ * The view's size in logical pixels, device pixels per logical pixel and its
+ * safe area: the same frozen object until one of them changes.
  */
 export function viewSize(): ViewSize {
   return view.size();
 }
 
 /**
- * Calls `listener` with the new viewSize() whenever the view's size or scale
- * changes. Returns a function that unsubscribes.
+ * Calls `listener` with the new viewSize() whenever the view's size, scale
+ * or safe area changes. Returns a function that unsubscribes.
  */
 export function subscribeViewSize(
   listener: (size: ViewSize) => void,
 ): () => void {
   return view.subscribeSize(listener);
+}
+
+/**
+ * The size of the plugin viewport on the host's page, in the editor's
+ * logical pixels: the same frozen object until it changes.
+ */
+export function editorSize(): EditorSize {
+  return view.editorSize();
+}
+
+/**
+ * Calls `listener` with the new editorSize() whenever the viewport changes
+ * size, whoever resized it. Returns a function that unsubscribes.
+ */
+export function subscribeEditorSize(
+  listener: (size: EditorSize) => void,
+): () => void {
+  return view.subscribeEditorSize(listener);
 }
 
 /**

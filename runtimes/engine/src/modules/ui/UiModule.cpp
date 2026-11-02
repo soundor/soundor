@@ -31,6 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const char frameListenerKey = 0;
         const char animationListenerKey = 0;
         const char viewSizeListenerKey = 0;
+        const char editorSizeListenerKey = 0;
 
         // JavaScript indexes strings in UTF-16 code units, the surface in
         // UTF-8 bytes.
@@ -71,10 +72,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Binding& operator=(const Binding&) = delete;
 
             std::shared_ptr<Surface> surface;
-            // The view's size and scale JavaScript was last told of.
+            // The view's size, scale and safe area JavaScript was last told of.
             Size notifiedSize;
             float notifiedScale = 0;
+            Rect notifiedSafeArea;
+            // The editor's size JavaScript was last told of.
+            Size notifiedEditorSize;
         };
+
+        bool sameSize(Size a, Size b) noexcept
+        {
+            return a.width == b.width && a.height == b.height;
+        }
 
         NodeId readId(const jsi::Value& value)
         {
@@ -779,6 +788,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             object.set("width", jsi::Value(double(surface.size().width)));
                             object.set("height", jsi::Value(double(surface.size().height)));
                             object.set("scale", jsi::Value(double(surface.scale())));
+                            object.set("safeArea", writeRect(context, surface.safeArea()));
+                            return object.release();
+                        });
+        }
+
+        jsi::Value editorSize(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "editorSize", count, 0,
+                        [&](Surface& surface)
+                        {
+                            bind::ObjectBuilder object(context);
+                            object.set("width", jsi::Value(double(surface.editorSize().width)));
+                            object.set("height", jsi::Value(double(surface.editorSize().height)));
                             return object.release();
                         });
         }
@@ -987,7 +1009,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             {
                 binding->notifiedSize = binding->surface->size();
                 binding->notifiedScale = binding->surface->scale();
+                binding->notifiedSafeArea = binding->surface->safeArea();
             }
+            return jsi::Value::undefined();
+        }
+
+        jsi::Value setEditorSizeListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                         std::size_t count)
+        {
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setEditorSizeListener() expects a function");
+            bind::retainValue(context, &editorSizeListenerKey, jsi::Value(context.rt, args[0]));
+            // The module read the size as it loaded: that is what it knows.
+            if (auto* binding = bind::contextData<Binding>(context, &bindingKey))
+                binding->notifiedEditorSize = binding->surface->editorSize();
             return jsi::Value::undefined();
         }
 
@@ -1390,12 +1425,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "frame", nodeFrame, 1 },
             { "bounds", bounds, 1 },
             { "size", viewSize, 0 },
+            { "editorSize", editorSize, 0 },
             { "readClipboard", readClipboard, 0 },
             { "writeClipboard", writeClipboard, 1 },
             { "registerFont", registerFont, 4 },
             { "setListener", setListener, 1 },
             { "setFrameListener", setFrameListener, 1 },
             { "setViewSizeListener", setViewSizeListener, 1 },
+            { "setEditorSizeListener", setEditorSizeListener, 1 },
             { "animate", animate, 3 },
             { "animationControl", animationControl, 2 },
             { "setAnimationListener", setAnimationListener, 1 },
@@ -1497,8 +1534,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return;
         const Size size = binding->surface->size();
         const float scale = binding->surface->scale();
-        if (size.width == binding->notifiedSize.width && size.height == binding->notifiedSize.height
-            && scale == binding->notifiedScale)
+        const Rect safeArea = binding->surface->safeArea();
+        if (sameSize(size, binding->notifiedSize) && scale == binding->notifiedScale
+            && safeArea == binding->notifiedSafeArea)
             return;
         const jsi::Value* retained = bind::retainedValue(state, &viewSizeListenerKey);
         if (retained == nullptr || ! bind::isFunction(state, *retained))
@@ -1506,8 +1544,27 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Before calling: a listener that throws is not called again for the same size.
         binding->notifiedSize = size;
         binding->notifiedScale = scale;
+        binding->notifiedSafeArea = safeArea;
         const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
         bind::call(state, listener, jsi::Value::undefined(), {}, "view size listener failed");
+    }
+
+    void notifyEditorSize(js::Context& context)
+    {
+        auto& state = js::stateOf(context);
+        auto* binding = js::bind::contextData<Binding>(state, &bindingKey);
+        if (binding == nullptr)
+            return;
+        const Size size = binding->surface->editorSize();
+        if (sameSize(size, binding->notifiedEditorSize))
+            return;
+        const jsi::Value* retained = bind::retainedValue(state, &editorSizeListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
+            return;
+        // Before calling: a listener that throws is not called again for the same size.
+        binding->notifiedEditorSize = size;
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        bind::call(state, listener, jsi::Value::undefined(), {}, "editor size listener failed");
     }
 
     void frame(js::Context& context)

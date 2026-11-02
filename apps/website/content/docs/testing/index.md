@@ -67,6 +67,7 @@ test gets a fresh runtime ([the environment](/docs/testing/vitest-environment-so
 | Move animations forward          | [`advanceTime`](/docs/testing/advance-time)                                                                                                                                            |
 | Set parameters, the host, native | [`testParameters`](/docs/testing/test-parameters), [`testHost`](/docs/testing/test-host), [`mockNative`](/docs/testing/mock-native)                                                    |
 | Resize the view                  | [`testView`](/docs/testing/test-view)                                                                                                                                                  |
+| Resize the editor                | [`testEditor`](/docs/testing/test-editor)                                                                                                                                              |
 | Check focus                      | [`toHaveFocus`](/docs/testing/to-have-focus)                                                                                                                                           |
 
 [Best practices](/docs/testing/best-practices) says how to put them together.

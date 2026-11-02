@@ -579,7 +579,18 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   `subscribeViewSize()` listeners. So a burst of resizes between two ticks
   is one notification, and what the listeners change is laid out in the
   same tick's frame. The last size told lives with the context's binding,
-  so a reloaded runtime starts afresh; no public engine header changed.
+  so a reloaded runtime starts afresh.
+- **The safe area and the editor's size:** with the size, the backend gives
+  the Surface the view's safe area (`Surface::setSafeArea`, nullopt for the
+  whole view; layout never reads it) and the size of the editor it shows
+  the view in (`Surface::setEditorSize`, in the editor's logical pixels,
+  0×0 until set). The generated JUCE editor sets both in `sizeSurface()`:
+  the configured size centred in the layout when the editor scales with
+  `fit: 'cover'` (its `uiArea()` is then the whole editor), its component
+  size for the editor. The safe area travels in `viewSize()`'s snapshot and
+  `notifyViewSize()`; the editor's size has its own,
+  `ui::notifyEditorSize()`, called right after it in `tick()` with the same
+  rules (once per change, the last size told kept with the binding).
 - **Events:** capture and bubble as in the DOM, as `PointerEvent`,
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
   `preventDefault()` tells the backend the input was handled; unhandled keys

@@ -41,11 +41,34 @@ export interface HostSnapshot {
     readonly timeInSamples: number;
   } | null;
 }
-/** The simulated view's size: logical pixels, and device pixels per one. */
+/** A rectangle in the view's logical pixels. */
+export interface ViewRect {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+/**
+ * The simulated view's size: logical pixels, device pixels per one, and the
+ * part of it always shown (the whole view unless a test says otherwise).
+ */
 export interface ViewSize {
   readonly width: number;
   readonly height: number;
   readonly scale: number;
+  readonly safeArea: ViewRect;
+}
+/** What a test sets of the view: a safe area of null is the whole view. */
+export interface ViewSizeInit {
+  readonly width?: number;
+  readonly height?: number;
+  readonly scale?: number;
+  readonly safeArea?: ViewRect | null;
+}
+/** The simulated editor's size, in its whole logical pixels. */
+export interface EditorSize {
+  readonly width: number;
+  readonly height: number;
 }
 export interface RuntimeOptions {
   plugin?: { id: string; name: string };
@@ -53,10 +76,16 @@ export interface RuntimeOptions {
   host?: Partial<HostSnapshot>;
   /**
    * The view's size; by default the project's editor size (800×600 without
-   * one) at a scale of 1. Nothing is laid out at it: it is what viewSize()
-   * reports.
+   * one) at a scale of 1, all of it safe. Nothing is laid out at it: it is
+   * what viewSize() reports.
    */
-  view?: Partial<ViewSize>;
+  view?: ViewSizeInit;
+  /**
+   * The editor's size, which editorSize() reports; by default the view's
+   * (an editor that lays out again, shown). Independent of the view: set
+   * both to simulate an editor that scales.
+   */
+  editor?: Partial<EditorSize>;
   /** Declared methods in the simulated project; omitted for direct runtime unit tests. */
   nativeMethods?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;

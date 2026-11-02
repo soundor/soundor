@@ -147,28 +147,52 @@ never overwrites existing files.
 
 The generated editor opens at the config's
 [`editor`](/docs/cli/config#editor) size, 800×600 by default. With
-`editor.resizable`, it tells the host that it can be resized within its
-limits (JUCE's `setResizeLimits` and `setResizable(true, false)`), so the
-host or the Standalone's window offers the resize, and the UI is laid out
-again at every new size. JUCE's own corner resizer is not used: it would
-cover the UI's bottom-right corner, and under the GPU compositor it would
-not even show. The Standalone resizes by its window's border, as every JUCE
+`editor.resizable`, it tells the host that it can be resized
+(`setResizable(true, false)`) and offers it its limits through its
+constrainer (`soundor::backend::JuceEditorConstrainer`), so the host or the
+Standalone's window offers the resize, and the UI is laid out again at
+every new size. JUCE's own corner resizer is not used: it would cover the
+UI's bottom-right corner, and under the GPU compositor it would not even
+show. The Standalone resizes by its window's border, as every JUCE
 Standalone does: drag any edge or corner (the border is thin; the pointer
-shows a resize cursor over it). A host that never resizes plugin windows leaves the editor at
-its opening size; the size is not remembered between sessions.
+shows a resize cursor over it). A host that never resizes plugin windows
+leaves the editor at its opening size; the size is not remembered between
+sessions.
 
-With `editor.resize: 'scale'`, the editor offers its aspect ratio to the
-host (VST3's `checkSizeConstraint`), and keeps it in the Standalone, while
-the UI stays laid out at the configured size: the
-editor's size over it is a zoom, by which the surface is drawn at more (or
-fewer) pixels, and by which pointer, wheel, pointer lock and accessibility
-coordinates are converted, so a press lands on what is drawn under it. In a
-host that ignores the aspect ratio (Ardour, for one), the editor takes the
-size the host gives it rather than asking for its own shape back, which
-would make the window flicker as the two disagree; the zoom is then the
-smaller of the two axes', and the UI is drawn in the middle with bands of
-the window's background around it: its layout never changes, and nothing is
-stretched.
+The limits are offered, not imposed: a VST3 host that asks
+(`checkSizeConstraint`) is answered with them, and the Standalone keeps to
+them, but in a plugin a size the host sets regardless (`onSize`) keeps only
+to the minimum. Ardour, for one, lets its plugin window grow past the
+maximum and tells the editor so; the editor then takes that size, and lays
+its UI out as its [`fit`](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for)
+says: at most at the maximum in the middle, bands of the window's
+background around it (`'contain'`, the default), or over the whole window
+around a safe area (`'cover'`), rather than leaving the host's background
+beside it. A fixed editor tells the host it cannot be resized, and hosts
+then keep its view at its size (as the VST3 standard has it): a host window
+wider than it (its toolbar, say) shows the host's background beside it.
+
+With `editor.resize: 'scale'`, the editor also offers its aspect ratio
+(unless `keepAspectRatio: false`), and keeps it in the Standalone, while
+the UI stays laid out at the configured size: the editor's size over it is
+a zoom, by which the surface is drawn at more (or fewer) pixels, and by
+which pointer, wheel, pointer lock and accessibility coordinates are
+converted, so a press lands on what is drawn under it. The zoom is the
+smaller of the two axes', never beyond what the maximum allows. In a host
+that ignores the aspect ratio (Ardour), the editor takes the size the host
+gives it rather than asking for its own shape back, which would make the
+window flicker as the two disagree: with `'contain'` the UI is drawn in the
+middle with bands around it, its layout never changing, nothing stretched;
+with `'cover'` it is laid out over the whole window, its configured size
+centred in it as `viewSize().safeArea`. Input and accessibility
+coordinates cover the whole window then, and the GPU compositor presents
+over all of it.
+
+`soundor:ui`'s [`editorSize()`](/docs/api/ui#the-editors-size) reports the
+editor's own size (JUCE's component size, in its logical pixels) whatever
+the mode, and `subscribeEditorSize()` tells of every change, a host's
+included, within a frame. It is the view's size in an editor that lays
+out again; in one that scales, the view's size times its zoom.
 
 Resizing changes the view's size in logical pixels; the display's pixel
 density is separate, so a resized editor stays sharp, and one moved to a

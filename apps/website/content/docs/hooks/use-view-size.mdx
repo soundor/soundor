@@ -1,6 +1,6 @@
 ---
 title: useViewSize
-description: The plugin view's size and pixel density, re-rendering the component when the user resizes the editor.
+description: The plugin view's size, pixel density and safe area, re-rendering the component when the user resizes the editor.
 ---
 
 ```ts
@@ -10,6 +10,7 @@ interface ViewSize {
   readonly width: number; // logical pixels
   readonly height: number; // logical pixels
   readonly scale: number; // device pixels per logical pixel
+  readonly safeArea: LayoutRect; // the part always shown, in logical pixels
 }
 ```
 
@@ -18,7 +19,9 @@ component when it changes: when the user resizes a
 [resizable editor](/docs/cli/config#editor), when a web host's embedding
 iframe changes size, or when the view moves to a display of another density.
 An editor with `resize: 'scale'` keeps its `width` and `height` as the user
-resizes it; only `scale` changes.
+resizes it; only `scale` changes, unless it covers a window of another
+shape (`fit: 'cover'`), where `width` and `height` grow and `safeArea` says
+where its configured size is.
 It does not re-render for an unchanged size, and it does not poll: the
 runtime tells it of a change, once.
 
@@ -53,6 +56,38 @@ fixed-size view at half its size in a small page reports half the
 display's density. Draw a canvas at `width * scale` pixels for a sharp
 picture; lay out with `width` and `height`.
 
+## The safe area
+
+`safeArea` is the whole view, except in a resizable editor with
+[`fit: 'cover'`](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for)
+in a window it was not made for (larger than its maximum, or of another
+shape when it scales): there the view covers the window and `safeArea` is
+the part it was made for, in its middle. Keep the content in it and decorate the rest:
+
+```tsx
+function App() {
+  const { width, height, safeArea } = useViewSize();
+  return (
+    <View style={{ width, height, backgroundColor: '#14161c' }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: safeArea.x,
+          top: safeArea.y,
+          width: safeArea.width,
+          height: safeArea.height,
+        }}
+      >
+        <Controls />
+      </View>
+    </View>
+  );
+}
+```
+
+The editor's own size, in its pixels, is
+[`editorSize()`](/docs/api/ui#the-editors-size).
+
 ## Flexbox first
 
 Most layouts need no size at all: a view with `flex: 1` fills the editor and
@@ -72,7 +107,8 @@ when there is room, or a canvas's drawing buffer.
   `dev` presentations (resizable with its handle), and the iframe's in
   `?embed`, following the iframe as the parent page resizes it.
 - **Tests:** the editor's size from the project's config (800×600 without
-  one); [`testView.resize()`](/docs/testing/test-view) changes it.
+  one), all of it safe; [`testView.resize()`](/docs/testing/test-view)
+  changes it, the safe area included.
 
 It reads [`soundor:ui`](/docs/api/ui#the-views-size)'s `viewSize()` and
 `subscribeViewSize()`, which code outside React can use directly.

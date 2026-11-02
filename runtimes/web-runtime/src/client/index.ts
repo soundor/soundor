@@ -97,6 +97,7 @@ export async function startSoundorWebHost(
     presentation: options.presentation ?? pagePresentation(),
     editor: context.manifest.editor,
     onScale: () => view.measure(),
+    onGeometry: (geometry) => view.setGeometry(geometry),
     host: context.host,
     parameters: context.parameters,
     audio,

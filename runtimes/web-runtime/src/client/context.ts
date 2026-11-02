@@ -8,7 +8,7 @@
 import manifest from 'soundor:internal/manifest';
 
 import { WebHost, type WebHostOptions } from './host';
-import type { WebManifest } from './manifest';
+import { readManifest, type WebManifest } from './manifest';
 import { createParameterStore, type ParameterStore } from './parameters';
 import { UiView } from './ui/view';
 
@@ -25,6 +25,7 @@ export function createHostContext(
   manifest: WebManifest,
   options: WebHostOptions = {},
 ): WebHostContext {
+  manifest = readManifest(manifest);
   return {
     manifest,
     plugin: Object.freeze({ ...manifest.plugin }),

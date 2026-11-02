@@ -753,7 +753,10 @@ declare module 'soundor:ui' {
   export function pointerLockNode(): UiNode | null;
   /** The node that has keyboard focus, if any. */
   export function focusedNode(): UiNode | null;
-  /** The plugin view's size: what it is laid out at, and its pixel density. */
+  /**
+   * The plugin view's size: what it is laid out at, its pixel density, and
+   * the part of it that is always shown.
+   */
   export interface ViewSize {
     /** Width in logical pixels (the units of styles and pointer positions). */
     readonly width: number;
@@ -761,25 +764,69 @@ declare module 'soundor:ui' {
     readonly height: number;
     /**
      * Device pixels per logical pixel: the display's density, times any
-     * scaling the host applies (a web host scales a view down to fit a page).
+     * scaling the host applies (an editor that scales, a web host scaling a
+     * view down to fit a page).
      */
     readonly scale: number;
+    /**
+     * The part of the view always shown whole, in logical pixels relative to
+     * the view's top-left corner: the whole view, unless the editor is
+     * resizable with `fit: 'cover'` (soundor.config) and its window is one
+     * it was not made for: larger than its maximum, or, scaling, of another
+     * shape than its layout. Then the view covers the whole window and this
+     * is the part made for (at most the maximum, or the configured
+     * `width`×`height` when it scales), centred, the rest being room the UI
+     * may draw in. Fractional where the zoom makes it so.
+     */
+    readonly safeArea: LayoutRect;
   }
   /**
-   * The view's size in logical pixels, and device pixels per logical pixel.
-   * The same frozen object until one of them changes, so it works as a store
-   * snapshot (`useSyncExternalStore(subscribeViewSize, viewSize)`). Before
-   * the host has given the view a size, width and height may be 0.
+   * The view's size in logical pixels, device pixels per logical pixel and
+   * its safe area. The same frozen object until one of them changes, so it
+   * works as a store snapshot (`useSyncExternalStore(subscribeViewSize,
+   * viewSize)`). Before the host has given the view a size, width and height
+   * may be 0.
    */
   export function viewSize(): ViewSize;
   /**
    * Calls `listener` with the new {@link viewSize} once whenever the view's
-   * size or scale changes: when the user resizes the editor (or its iframe),
-   * or it moves to a display of another density. Never for an unchanged
-   * size, and not every frame. Returns a function that unsubscribes.
+   * size, scale or safe area changes: when the user resizes the editor (or
+   * its iframe), or it moves to a display of another density. Never for an
+   * unchanged size, and not every frame. Returns a function that
+   * unsubscribes.
    */
   export function subscribeViewSize(
     listener: (size: ViewSize) => void,
+  ): () => void;
+
+  /**
+   * The editor the view is shown in: the plugin's window in a DAW or the
+   * Standalone, the plugin viewport on the Web host's page. Its size is the
+   * view's in layout mode; an editor that scales draws its view at another
+   * (the view's size times its zoom), and with `fit: 'contain'` letterboxes
+   * it where the window has another shape.
+   */
+  export interface EditorSize {
+    /** The editor's actual width, in its logical pixels (before display density). */
+    readonly width: number;
+    /** The editor's actual height, in its logical pixels. */
+    readonly height: number;
+  }
+  /**
+   * The editor's actual size, in whole logical pixels. The same frozen
+   * object until it changes, so it works as a store snapshot
+   * (`useSyncExternalStore(subscribeEditorSize, editorSize)`). Before the
+   * host has shown the editor, width and height are 0.
+   */
+  export function editorSize(): EditorSize;
+  /**
+   * Calls `listener` with the new {@link editorSize} once whenever the
+   * editor's size changes, whoever resized it: the user, the DAW, or the Web
+   * host's page. Never for an unchanged size, and not every frame. Returns a
+   * function that unsubscribes.
+   */
+  export function subscribeEditorSize(
+    listener: (size: EditorSize) => void,
   ): () => void;
 
   export interface FontDescriptors {

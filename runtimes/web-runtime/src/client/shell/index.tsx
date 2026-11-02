@@ -31,10 +31,26 @@ import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
 import { startAudioOnGesture } from './gesture';
 import { Panel } from './panel';
-import { ResizeHandle, type Size, zoomOf } from './resize';
+import { canResize, ResizeHandle, type Size, viewLayout } from './resize';
 import { STYLE } from './style';
 
 export type Presentation = 'demo' | 'dev' | 'embed';
+
+/** What the shell says of the plugin view it shows. */
+export interface ViewGeometry {
+  /** The plugin viewport's size in the editor's logical pixels, whole. */
+  readonly editor: Size;
+  /**
+   * The part of the view always shown, in its logical pixels; null for all
+   * of it (anything but a view that scales with fit 'cover').
+   */
+  readonly safeArea: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  } | null;
+}
 
 /** The URL parameter that opens a static build in the `embed` presentation. */
 export const EMBED_PARAM = 'embed';
@@ -52,6 +68,12 @@ export interface ShellOptions {
    * which no ResizeObserver sees: the view measures itself again.
    */
   readonly onScale?: () => void;
+  /**
+   * Called with the editor's size (the plugin viewport's, in its logical
+   * pixels) and the view's safe area whenever either changes, before the
+   * page is painted.
+   */
+  readonly onGeometry?: (geometry: ViewGeometry) => void;
   readonly host: WebHost;
   readonly parameters: ParameterStore;
   readonly audio: WebAudioHost;
@@ -125,7 +147,14 @@ export function createShell(
 
 function Shell(options: ShellOptions) {
   if (options.presentation === 'embed') {
-    return <Stage editor={options.editor} fill />;
+    return (
+      <Stage
+        editor={options.editor}
+        onScale={options.onScale}
+        onGeometry={options.onGeometry}
+        fill
+      />
+    );
   }
   const remember = options.presentation === 'dev';
   const [panelOpen, setPanelOpen] = useState(
@@ -136,7 +165,11 @@ function Shell(options: ShellOptions) {
   }, [remember, panelOpen]);
   return (
     <>
-      <Stage editor={options.editor} onScale={options.onScale}>
+      <Stage
+        editor={options.editor}
+        onScale={options.onScale}
+        onGeometry={options.onGeometry}
+      >
         <Dock
           host={options.host}
           audio={options.audio}
@@ -168,18 +201,21 @@ function Shell(options: ShellOptions) {
  * (an iframe in docs, the panel open). A resizable plugin has a handle at
  * its corner that changes its size within the editor's limits and the room
  * the stage has: the size its UI is laid out at, or with an editor that
- * scales, the size its layout (the editor's size) is drawn at. Filling
- * (`embed`), the plugin view is the stage's size instead, whatever it is.
+ * scales, the size its layout (the editor's size) is drawn at, keeping its
+ * aspect ratio unless told not to. Filling (`embed`), the plugin view is the
+ * stage's size instead, whatever it is: the page owns the editor's size.
  */
 function Stage({
   editor,
   fill = false,
   onScale,
+  onGeometry,
   children,
 }: {
   readonly editor: WebEditor;
   readonly fill?: boolean;
   readonly onScale?: (() => void) | undefined;
+  readonly onGeometry?: ((geometry: ViewGeometry) => void) | undefined;
   readonly children?: ComponentChildren;
 }) {
   const stage = useRef<HTMLElement>(null);
@@ -191,17 +227,9 @@ function Stage({
   }));
   // The stage's room for it in CSS pixels, once measured.
   const [room, setRoom] = useState<Size | null>(null);
-  // An editor that scales keeps its layout, filling the page included.
-  const scales = editor.resizable && editor.resize === 'scale';
   useLayoutEffect(() => {
     const element = stage.current;
-    if (
-      (fill && !scales) ||
-      element === null ||
-      typeof ResizeObserver === 'undefined'
-    ) {
-      return;
-    }
+    if (element === null || typeof ResizeObserver === 'undefined') return;
     const measure = (): void => {
       const styles = getComputedStyle(element);
       const width =
@@ -217,77 +245,101 @@ function Stage({
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [fill, scales]);
+  }, []);
 
+  // The editor: the size the handle sets, or filling, the page's (which
+  // owns it, beyond the editor's maximum too). Not measured yet, filling:
+  // shown at its configured size, nothing known.
+  const shown: Size | null = fill ? room : size;
+  const { zoom, layout, safeArea } = viewLayout(
+    editor,
+    shown ?? { width: editor.width, height: editor.height },
+  );
   const fit =
     fill || room === null
       ? 1
       : Math.min(1, room.width / size.width, room.height / size.height);
-  // With an editor that scales, its layout keeps the editor's size.
-  const zoom = fill ? 1 : zoomOf(editor, size);
-  const logical =
-    zoom === 1 ? size : { width: editor.width, height: editor.height };
-  // Filling the page, an editor that scales is as large as the page lets it.
-  const filled =
-    fill && scales && room !== null
-      ? Math.min(room.width / editor.width, room.height / editor.height)
-      : 1;
-  const scale = fill ? filled : fit * zoom;
+  const scale = fit * zoom;
   useLayoutEffect(() => onScale?.(), [onScale, scale]);
 
-  if (fill && scales) {
-    return (
-      <main ref={stage} class="soundor-stage soundor-fill">
-        <div
-          class="soundor-frame"
-          style={{
-            width: `${editor.width * scale}px`,
-            height: `${editor.height * scale}px`,
-          }}
-        >
-          <div
-            class="soundor-viewport"
-            style={{
-              width: `${editor.width}px`,
-              height: `${editor.height}px`,
-              transform: scale === 1 ? '' : `scale(${scale})`,
-            }}
-          />
-        </div>
-      </main>
-    );
-  }
-  if (fill) {
+  const editorWidth = shown === null ? 0 : Math.round(shown.width);
+  const editorHeight = shown === null ? 0 : Math.round(shown.height);
+  const safeX = safeArea?.x ?? null;
+  const safeY = safeArea?.y ?? null;
+  const safeWidth = safeArea?.width ?? null;
+  const safeHeight = safeArea?.height ?? null;
+  useLayoutEffect(() => {
+    onGeometry?.({
+      editor: { width: editorWidth, height: editorHeight },
+      safeArea:
+        safeX === null ||
+        safeY === null ||
+        safeWidth === null ||
+        safeHeight === null
+          ? null
+          : { x: safeX, y: safeY, width: safeWidth, height: safeHeight },
+    });
+  }, [
+    onGeometry,
+    editorWidth,
+    editorHeight,
+    safeX,
+    safeY,
+    safeWidth,
+    safeHeight,
+  ]);
+
+  // A fixed editor filling the page is laid out at the page's size.
+  if (fill && !editor.resizable) {
     return (
       <main ref={stage} class="soundor-stage soundor-fill">
         <div class="soundor-viewport" />
       </main>
     );
   }
+  // The editor in CSS pixels, and its layout in the middle of it: bands
+  // around it where the layout does not fill it (fit 'contain', in a shape
+  // or a size it was not made for).
+  const frame: Size = fill
+    ? (room ?? { width: layout.width * scale, height: layout.height * scale })
+    : { width: size.width * fit, height: size.height * fit };
+  const bandX = (frame.width - layout.width * scale) / 2;
+  const bandY = (frame.height - layout.height * scale) / 2;
+  const letterboxed = Math.abs(bandX) >= 0.5 || Math.abs(bandY) >= 0.5;
   return (
-    <main ref={stage} class="soundor-stage">
+    <main
+      ref={stage}
+      class={fill ? 'soundor-stage soundor-fill' : 'soundor-stage'}
+    >
       <div
-        class="soundor-frame"
-        style={{
-          width: `${size.width * fit}px`,
-          height: `${size.height * fit}px`,
-        }}
+        class={
+          letterboxed ? 'soundor-frame soundor-letterbox' : 'soundor-frame'
+        }
+        style={{ width: `${frame.width}px`, height: `${frame.height}px` }}
       >
         <div
           class="soundor-viewport"
           style={{
-            width: `${logical.width}px`,
-            height: `${logical.height}px`,
+            width: `${layout.width}px`,
+            height: `${layout.height}px`,
+            left: letterboxed ? `${bandX}px` : '',
+            top: letterboxed ? `${bandY}px` : '',
             transform: scale === 1 ? '' : `scale(${scale})`,
           }}
         />
-        {editor.resizable ? (
+        {!fill && canResize(editor) ? (
           <ResizeHandle
             editor={editor}
             size={size}
             scale={fit}
             room={room}
-            onResize={setSize}
+            onResize={(next) =>
+              setSize((current) =>
+                current.width === next.width && current.height === next.height
+                  ? current
+                  : next,
+              )
+            }
           />
         ) : null}
       </div>

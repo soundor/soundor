@@ -12,7 +12,10 @@ export type {
   RuntimeOptions,
   ParameterInfo,
   HostSnapshot,
+  EditorSize,
+  ViewRect,
   ViewSize,
+  ViewSizeInit,
 } from './services';
 export type * from './types';
 export {

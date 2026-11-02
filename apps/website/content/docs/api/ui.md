@@ -91,6 +91,7 @@ has the details.
 | `focusedNode()`                                                                                       | The node with keyboard focus, or `null`.                                                                     |
 | `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/components/events#pointer-lock)). |
 | `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                   |
+| `editorSize()`, `subscribeEditorSize(listener)`                                                       | The editor's size and its subscription ([The editor's size](#the-editors-size)).                             |
 | `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                         |
 | `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                                   |
 
@@ -107,17 +108,37 @@ interface ViewSize {
   readonly width: number; // logical pixels
   readonly height: number; // logical pixels
   readonly scale: number; // device pixels per logical pixel
+  readonly safeArea: LayoutRect; // the part always shown, in logical pixels
 }
 ```
 
-`viewSize()` is the size the view is laid out at, in logical pixels, and
-its `scale`, the device pixels per logical pixel (the display's density,
-times any scaling the host applies). It is the same frozen object until one
-of them changes, so it serves as a store's snapshot.
+`viewSize()` is the size the view is laid out at, in logical pixels, its
+`scale`, the device pixels per logical pixel (the display's density, times
+any scaling the host applies), and its `safeArea`. It is the same frozen
+object until one of them changes, so it serves as a store's snapshot.
+
+`safeArea` is the part of the view that is always shown whole, relative to
+its top-left corner: the whole view, except in a resizable editor with
+[`fit: 'cover'`](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for)
+in a window it was not made for: larger than its maximum, or, scaling, of
+another shape than its layout. There the view covers the whole window and
+`safeArea` is the part made for (at most the maximum, or the configured
+`width`×`height` when it scales) in its middle, fractional where the zoom
+makes it so; keep the UI's content in it and decorate the rest.
+
+| Editor                                            | `width`×`height` | `safeArea`                                   |
+| ------------------------------------------------- | ---------------- | -------------------------------------------- |
+| Lays out again, 1000×700                          | 1000×700         | the whole view                               |
+| Lays out again, max 1000×700, `contain`, 1400×700 | 1000×700         | the whole view (bands outside it)            |
+| Lays out again, max 1000×700, `cover`, 1400×700   | 1400×700         | `{ x: 200, y: 0, width: 1000, height: 700 }` |
+| Scales, 640×480, `contain`, 1000×480              | 640×480          | the whole view (bands outside it)            |
+| Scales, 640×480, `cover`, 1000×480                | 1000×480         | `{ x: 180, y: 0, width: 640, height: 480 }`  |
+| Scales, 640×480, `cover`, 2000×960                | 1000×480         | `{ x: 180, y: 0, width: 640, height: 480 }`  |
 
 `subscribeViewSize(listener)` calls `listener` with the new size once
 whenever it changes: the user resized the editor (or a web host's iframe
-changed size), or the view moved to a display of another density. Never
+changed size), the safe area moved, or the view moved to a display of
+another density. Never
 for an unchanged size, and never every frame; a listener that throws is
 reported and the others are still called. It returns a function that
 unsubscribes. In the JUCE runtime the change arrives on the editor's next
@@ -127,6 +148,33 @@ runtime starts with no subscribers. Before the host has sized the view,
 
 [`useViewSize()`](/docs/hooks/use-view-size) is the React way in:
 `useSyncExternalStore(subscribeViewSize, viewSize)`.
+
+## The editor's size
+
+```ts
+function editorSize(): EditorSize;
+function subscribeEditorSize(listener: (size: EditorSize) => void): () => void;
+
+interface EditorSize {
+  readonly width: number; // the editor's logical pixels, whole
+  readonly height: number;
+}
+```
+
+`editorSize()` is the actual size of the editor the view is shown in: the
+plugin's window in a DAW or the Standalone, the plugin viewport on the web
+host's page (the page itself in `?embed`). Its units are the editor's
+logical pixels, before display density: in an editor that lays out again
+they are the view's, and its size is `viewSize()`'s; in one that scales the
+view is drawn at a zoom, so the editor is the view times that zoom, bands
+included with `fit: 'contain'`. It is the same frozen object until it
+changes; before the host shows the editor it is 0×0.
+
+`subscribeEditorSize(listener)` calls `listener` with the new size once
+whenever it changes, whoever resized the editor: the user, the DAW, or the
+web page. Never for an unchanged size; a listener that throws is reported
+and the others are still called. It returns a function that unsubscribes.
+In React, `useSyncExternalStore(subscribeEditorSize, editorSize)` reads it.
 
 The [`soundor:ui` reference](/docs/contribute/engine-reference#soundorui)
 describes how the native runtime implements it.

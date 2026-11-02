@@ -17,4 +17,10 @@ export type {
 export { waitFor, advanceTime } from './async';
 export type { WaitOptions } from './async';
 
-export { testParameters, testHost, testView, mockNative } from './setup';
+export {
+  testParameters,
+  testHost,
+  testView,
+  testEditor,
+  mockNative,
+} from './setup';

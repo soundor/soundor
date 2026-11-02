@@ -8,7 +8,10 @@ import {
   MemoryStorage,
   type RuntimeOptions,
   type HostSnapshot,
+  type EditorSize,
+  type ViewRect,
   type ViewSize,
+  type ViewSizeInit,
 } from './services';
 import type {
   AnimationDescription,
@@ -41,7 +44,11 @@ export class TestRuntime {
   private hostState: HostSnapshot;
   private hostListeners = new Listeners<HostSnapshot>();
   private size: ViewSize;
+  /** The safe area a test set; null: the whole view. */
+  private safe: ViewRect | null = null;
   private sizeListeners = new Listeners<ViewSize>();
+  private editor: EditorSize;
+  private editorListeners = new Listeners<EditorSize>();
   private clipboardText = '';
   private cleanups = new Set<() => void>();
   private committed = new WeakMap<TestNode, string>();
@@ -71,12 +78,55 @@ export class TestRuntime {
       transport: null,
       ...options.host,
     });
-    this.size = Object.freeze({
-      width: 800,
-      height: 600,
-      scale: 1,
-      ...options.view,
+    const { safeArea = null, ...view } = options.view ?? {};
+    this.safe = safeArea;
+    this.size = this.viewSnapshot(
+      { width: 800, height: 600, scale: 1, ...view },
+      safeArea,
+    );
+    this.editor = this.editorSnapshot({
+      width: this.size.width,
+      height: this.size.height,
+      ...options.editor,
     });
+  }
+  /** A checked, frozen view size, safe in `safe` (null: all of it). */
+  private viewSnapshot(
+    next: Omit<ViewSize, 'safeArea'>,
+    safe: ViewRect | null,
+  ): ViewSize {
+    for (const key of ['width', 'height', 'scale'] as const) {
+      if (!(Number.isFinite(next[key]) && next[key] >= 0))
+        throw new RangeError(
+          `The view's ${key} must be a finite, non-negative number`,
+        );
+    }
+    if (
+      safe !== null &&
+      !(['x', 'y', 'width', 'height'] as const).every((key) =>
+        Number.isFinite(safe[key]),
+      )
+    )
+      throw new RangeError(
+        "The view's safe area must be null or a rectangle of finite numbers",
+      );
+    const { width, height, scale } = next;
+    const { x, y, width: w, height: h } = safe ?? { x: 0, y: 0, width, height };
+    return Object.freeze({
+      width,
+      height,
+      scale,
+      safeArea: Object.freeze({ x, y, width: w, height: h }),
+    });
+  }
+  private editorSnapshot(next: EditorSize): EditorSize {
+    for (const key of ['width', 'height'] as const) {
+      if (!(Number.isInteger(next[key]) && next[key] >= 0))
+        throw new RangeError(
+          `The editor's ${key} must be a whole, non-negative number of logical pixels`,
+        );
+    }
+    return Object.freeze({ width: next.width, height: next.height });
   }
   get isDisposed() {
     return this.disposed;
@@ -638,24 +688,49 @@ export class TestRuntime {
     this.assertActive();
     return this.sizeListeners.add(listener, 'subscribeViewSize()');
   }
-  /** Resizes the view, as a user resizing the editor would; tells subscribers once per change. */
-  setViewSize(size: Partial<ViewSize>) {
+  /**
+   * Resizes the view, as a user resizing the editor would; tells subscribers
+   * once per change. A safe area of null is the whole view again.
+   */
+  setViewSize(size: ViewSizeInit) {
     this.assertActive();
-    const next = { ...this.size, ...size };
-    for (const key of ['width', 'height', 'scale'] as const) {
-      if (!(Number.isFinite(next[key]) && next[key] >= 0))
-        throw new RangeError(
-          `The view's ${key} must be a finite, non-negative number`,
-        );
-    }
+    const { safeArea = this.safe, ...view } = size;
+    const { width, height, scale } = this.size;
+    const next = this.viewSnapshot({ width, height, scale, ...view }, safeArea);
+    this.safe = safeArea;
+    const was = this.size;
     if (
-      next.width === this.size.width &&
-      next.height === this.size.height &&
-      next.scale === this.size.scale
+      next.width === was.width &&
+      next.height === was.height &&
+      next.scale === was.scale &&
+      next.safeArea.x === was.safeArea.x &&
+      next.safeArea.y === was.safeArea.y &&
+      next.safeArea.width === was.safeArea.width &&
+      next.safeArea.height === was.safeArea.height
     )
       return;
-    this.size = Object.freeze(next);
+    this.size = next;
     this.sizeListeners.notify(this.size);
+  }
+  editorSize() {
+    this.assertActive();
+    return this.editor;
+  }
+  subscribeEditorSize(listener: (size: EditorSize) => void) {
+    this.assertActive();
+    return this.editorListeners.add(listener, 'subscribeEditorSize()');
+  }
+  /**
+   * Resizes the editor, as a user or a DAW would; tells subscribers once per
+   * change. The view is not resized with it: nothing is laid out here.
+   */
+  setEditorSize(size: Partial<EditorSize>) {
+    this.assertActive();
+    const next = this.editorSnapshot({ ...this.editor, ...size });
+    if (next.width === this.editor.width && next.height === this.editor.height)
+      return;
+    this.editor = next;
+    this.editorListeners.notify(this.editor);
   }
   mockNative(name: string, implementation: (...args: never[]) => unknown) {
     this.assertActive();
@@ -693,6 +768,7 @@ export class TestRuntime {
     this.parameters.list.forEach((parameter) => parameter.dispose());
     this.hostListeners.clear();
     this.sizeListeners.clear();
+    this.editorListeners.clear();
     this.storage.dispose();
     for (const node of this.nodes.values()) {
       node.listeners.clear();

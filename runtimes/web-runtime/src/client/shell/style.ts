@@ -40,6 +40,13 @@ body { margin: 0; background: var(--sd-bg); }
   transform-origin: 0 0; border-radius: 6px;
   box-shadow: 0 0 0 1px var(--sd-line), 0 20px 60px rgb(0 0 0 / 0.5);
 }
+/* A view that scales letterboxed in its frame: the bands are the editor's. */
+.soundor-letterbox {
+  background: #17181c; border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--sd-line), 0 20px 60px rgb(0 0 0 / 0.5);
+}
+.soundor-letterbox > .soundor-viewport { border-radius: 0; box-shadow: none; }
+.soundor-fill .soundor-letterbox { border-radius: 0; box-shadow: none; }
 .soundor-message {
   position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 6px; padding: 24px;

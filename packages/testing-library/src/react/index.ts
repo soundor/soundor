@@ -24,6 +24,7 @@ import {
   testParameters as rawTestParameters,
   testHost as rawTestHost,
   testView as rawTestView,
+  testEditor as rawTestEditor,
 } from '../setup';
 export type {
   TextMatch,
@@ -175,4 +176,7 @@ export const testHost: typeof rawTestHost = {
 };
 export const testView: typeof rawTestView = {
   resize: (size) => syncUpdate(() => rawTestView.resize(size)),
+};
+export const testEditor: typeof rawTestEditor = {
+  resize: (size) => syncUpdate(() => rawTestEditor.resize(size)),
 };

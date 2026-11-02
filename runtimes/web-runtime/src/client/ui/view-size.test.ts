@@ -90,16 +90,31 @@ describe('the view size', () => {
   it('is measured, and the same frozen object until it changes', () => {
     layOut(800, 600);
     const size = view.size();
-    expect(size).toEqual({ width: 800, height: 600, scale: 1 });
+    expect(size).toEqual({
+      width: 800,
+      height: 600,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 800, height: 600 },
+    });
     expect(Object.isFrozen(size)).toBe(true);
     expect(view.size()).toBe(size);
     layOut(800, 601);
     expect(view.size()).not.toBe(size);
-    expect(view.size()).toEqual({ width: 800, height: 601, scale: 1 });
+    expect(view.size()).toEqual({
+      width: 800,
+      height: 601,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 800, height: 601 },
+    });
   });
 
   it('is 0×0 before the view is laid out', () => {
-    expect(view.size()).toEqual({ width: 0, height: 0, scale: 1 });
+    expect(view.size()).toEqual({
+      width: 0,
+      height: 0,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 0, height: 0 },
+    });
   });
 
   it("tells subscribers when the view's own observer sees a resize", () => {
@@ -110,7 +125,14 @@ describe('the view size', () => {
     const frame = vi.spyOn(window, 'requestAnimationFrame');
     layOut(1000, 640);
     resized!();
-    expect(a).toEqual([{ width: 1000, height: 640, scale: 1 }]);
+    expect(a).toEqual([
+      {
+        width: 1000,
+        height: 640,
+        scale: 1,
+        safeArea: { x: 0, y: 0, width: 1000, height: 640 },
+      },
+    ]);
     expect(b).toEqual(a);
     expect(a[0]).toBe(view.size());
     // Hover is still refreshed after the resize.
@@ -134,7 +156,14 @@ describe('the view size', () => {
       configurable: true,
     });
     densityChanged!();
-    expect(sizes).toEqual([{ width: 800, height: 600, scale: 2 }]);
+    expect(sizes).toEqual([
+      {
+        width: 800,
+        height: 600,
+        scale: 2,
+        safeArea: { x: 0, y: 0, width: 800, height: 600 },
+      },
+    ]);
     // A media query matches one density: the next one is watched.
     expect(queries.at(-1)).toBe('(resolution: 2dppx)');
     Object.defineProperty(window, 'devicePixelRatio', {
@@ -152,7 +181,14 @@ describe('the view size', () => {
     // The host scaled the view down to half (no observer sees that).
     layOut(800, 600, 0.5);
     view.measure();
-    expect(sizes).toEqual([{ width: 800, height: 600, scale: 0.5 }]);
+    expect(sizes).toEqual([
+      {
+        width: 800,
+        height: 600,
+        scale: 0.5,
+        safeArea: { x: 0, y: 0, width: 800, height: 600 },
+      },
+    ]);
     view.measure();
     expect(sizes).toHaveLength(1);
   });
@@ -161,9 +197,21 @@ describe('the view size', () => {
     const sizes = subscribe();
     layOut(640, 480);
     // Plugin code reads the new size first (a render, an event handler).
-    expect(view.size()).toEqual({ width: 640, height: 480, scale: 1 });
+    expect(view.size()).toEqual({
+      width: 640,
+      height: 480,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 640, height: 480 },
+    });
     resized!();
-    expect(sizes).toEqual([{ width: 640, height: 480, scale: 1 }]);
+    expect(sizes).toEqual([
+      {
+        width: 640,
+        height: 480,
+        scale: 1,
+        safeArea: { x: 0, y: 0, width: 640, height: 480 },
+      },
+    ]);
   });
 
   it('stops telling a subscriber that unsubscribed', () => {
@@ -202,5 +250,82 @@ describe('the view size', () => {
     layOut(500, 400);
     view.measure();
     expect(sizes).toEqual([]);
+  });
+});
+
+describe('the safe area and the editor size', () => {
+  it('are the whole view and 0×0 until the host says otherwise', () => {
+    layOut(800, 600);
+    expect(view.size().safeArea).toEqual({
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600,
+    });
+    expect(view.editorSize()).toEqual({ width: 0, height: 0 });
+    expect(Object.isFrozen(view.editorSize())).toBe(true);
+  });
+
+  it("take the host's word, telling each subscriber once per change", () => {
+    layOut(1000, 600);
+    const sizes = subscribe();
+    const editors: { width: number; height: number }[] = [];
+    view.subscribeEditorSize((size) => editors.push(size));
+    // A view that covers a 1000×600 viewport, laid out for 800×600.
+    const geometry = {
+      editor: { width: 1000, height: 600 },
+      safeArea: { x: 100, y: 0, width: 800, height: 600 },
+    };
+    view.setGeometry(geometry);
+    expect(sizes).toEqual([
+      {
+        width: 1000,
+        height: 600,
+        scale: 1,
+        safeArea: { x: 100, y: 0, width: 800, height: 600 },
+      },
+    ]);
+    expect(Object.isFrozen(sizes[0]!.safeArea)).toBe(true);
+    expect(editors).toEqual([{ width: 1000, height: 600 }]);
+    expect(editors[0]).toBe(view.editorSize());
+    // The same again: no news, the same snapshots.
+    const editor = view.editorSize();
+    view.setGeometry({ ...geometry });
+    expect(sizes).toHaveLength(1);
+    expect(editors).toHaveLength(1);
+    expect(view.editorSize()).toBe(editor);
+    // The editor alone (an editor that scales, zooming).
+    view.setGeometry({ ...geometry, editor: { width: 2000, height: 1200 } });
+    expect(sizes).toHaveLength(1);
+    expect(editors).toEqual([
+      { width: 1000, height: 600 },
+      { width: 2000, height: 1200 },
+    ]);
+    // Back to all of it.
+    view.setGeometry({ editor: { width: 2000, height: 1200 }, safeArea: null });
+    expect(sizes.at(-1)!.safeArea).toEqual({
+      x: 0,
+      y: 0,
+      width: 1000,
+      height: 600,
+    });
+  });
+
+  it("keeps each view's to itself, and lets go when disposed", () => {
+    const other = new UiView(document);
+    const told: unknown[] = [];
+    other.subscribeEditorSize((size) => told.push(size));
+    view.setGeometry({ editor: { width: 640, height: 480 }, safeArea: null });
+    expect(told).toEqual([]);
+    expect(other.editorSize()).toEqual({ width: 0, height: 0 });
+    other.dispose();
+    const mine: unknown[] = [];
+    view.subscribeEditorSize((size) => mine.push(size));
+    view.dispose();
+    view.setGeometry({ editor: { width: 700, height: 480 }, safeArea: null });
+    expect(mine).toEqual([]);
+    expect(() => view.subscribeEditorSize(1 as never)).toThrow(
+      'subscribeEditorSize() expects a function',
+    );
   });
 });

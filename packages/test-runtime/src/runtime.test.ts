@@ -717,7 +717,12 @@ describe('the view size', () => {
     const runtime = createTestRuntime({ view: { width: 640, height: 480 } });
     const ui = createUiModule(runtime);
     const size = ui.viewSize();
-    expect(size).toEqual({ width: 640, height: 480, scale: 1 });
+    expect(size).toEqual({
+      width: 640,
+      height: 480,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 640, height: 480 },
+    });
     expect(ui.viewSize()).toBe(size);
     const a = vi.fn<(size: unknown) => void>();
     const b = vi.fn<(size: unknown) => void>();
@@ -726,7 +731,12 @@ describe('the view size', () => {
     runtime.setViewSize({ width: 900 });
     runtime.setViewSize({ width: 900, height: 480 });
     expect(a).toHaveBeenCalledOnce();
-    expect(a).toHaveBeenLastCalledWith({ width: 900, height: 480, scale: 1 });
+    expect(a).toHaveBeenLastCalledWith({
+      width: 900,
+      height: 480,
+      scale: 1,
+      safeArea: { x: 0, y: 0, width: 900, height: 480 },
+    });
     expect(ui.viewSize()).toBe(a.mock.calls[0]![0]);
     unsubscribe();
     runtime.setViewSize({ scale: 2 });
@@ -744,6 +754,104 @@ describe('the view size', () => {
       width: 800,
       height: 600,
       scale: 1,
+      safeArea: { x: 0, y: 0, width: 800, height: 600 },
     });
+  });
+
+  it('has the safe area a test sets, the whole view by default', () => {
+    const runtime = createTestRuntime({
+      view: {
+        width: 1000,
+        height: 600,
+        safeArea: { x: 100, y: 0, width: 800, height: 600 },
+      },
+    });
+    const ui = createUiModule(runtime);
+    const first = ui.viewSize();
+    expect(first.safeArea).toEqual({ x: 100, y: 0, width: 800, height: 600 });
+    expect(Object.isFrozen(first.safeArea)).toBe(true);
+    const told = vi.fn<(size: unknown) => void>();
+    ui.subscribeViewSize(told);
+    // Kept as the view resizes, until set again.
+    runtime.setViewSize({ width: 1200 });
+    expect(ui.viewSize().safeArea).toEqual(first.safeArea);
+    runtime.setViewSize({
+      safeArea: { x: 200, y: 0, width: 800, height: 600 },
+    });
+    runtime.setViewSize({
+      safeArea: { x: 200, y: 0, width: 800, height: 600 },
+    });
+    expect(told).toHaveBeenCalledTimes(2);
+    runtime.setViewSize({ safeArea: null });
+    expect(ui.viewSize().safeArea).toEqual({
+      x: 0,
+      y: 0,
+      width: 1200,
+      height: 600,
+    });
+    expect(() =>
+      runtime.setViewSize({
+        safeArea: { x: Number.NaN, y: 0, width: 1, height: 1 },
+      }),
+    ).toThrow(RangeError);
+    // A rejected change changes nothing.
+    expect(ui.viewSize().safeArea.width).toBe(1200);
+    runtime.dispose();
+  });
+});
+
+describe('the editor size', () => {
+  it("is the view's by default, the same object until set", () => {
+    const runtime = createTestRuntime({ view: { width: 640, height: 480 } });
+    const ui = createUiModule(runtime);
+    const size = ui.editorSize();
+    expect(size).toEqual({ width: 640, height: 480 });
+    expect(Object.isFrozen(size)).toBe(true);
+    expect(ui.editorSize()).toBe(size);
+    expect(
+      createUiModule(
+        createTestRuntime({ editor: { width: 1280, height: 960 } }),
+      ).editorSize(),
+    ).toEqual({ width: 1280, height: 960 });
+  });
+
+  it("tells subscribers once per change, apart from the view's", () => {
+    const runtime = createTestRuntime();
+    const ui = createUiModule(runtime);
+    const editor = vi.fn<(size: unknown) => void>();
+    const view = vi.fn<(size: unknown) => void>();
+    const unsubscribe = ui.subscribeEditorSize(editor);
+    ui.subscribeViewSize(view);
+    // An editor that scales: twice the size, the layout as it was.
+    runtime.setEditorSize({ width: 1600, height: 1200 });
+    runtime.setEditorSize({ width: 1600 });
+    expect(editor).toHaveBeenCalledOnce();
+    expect(editor).toHaveBeenLastCalledWith({ width: 1600, height: 1200 });
+    expect(ui.editorSize()).toBe(editor.mock.calls[0]![0]);
+    expect(view).not.toHaveBeenCalled();
+    expect(ui.viewSize().width).toBe(800);
+    unsubscribe();
+    runtime.setEditorSize({ height: 900 });
+    expect(editor).toHaveBeenCalledOnce();
+    for (const width of [-1, 1.5, Number.NaN, Infinity])
+      expect(() => runtime.setEditorSize({ width })).toThrow(RangeError);
+    expect(() => ui.subscribeEditorSize(1 as never)).toThrow(
+      'subscribeEditorSize() expects a function',
+    );
+  });
+
+  it('keeps each runtime to itself, and rejects use once disposed', () => {
+    const first = createTestRuntime();
+    const second = createTestRuntime();
+    const told = vi.fn<(size: unknown) => void>();
+    createUiModule(second).subscribeEditorSize(told);
+    first.setEditorSize({ width: 900 });
+    expect(told).not.toHaveBeenCalled();
+    expect(createUiModule(second).editorSize().width).toBe(800);
+    const ui = createUiModule(first);
+    first.dispose();
+    expect(() => ui.editorSize()).toThrow('disposed');
+    expect(() => ui.subscribeEditorSize(() => {})).toThrow('disposed');
+    expect(() => first.setEditorSize({ width: 1000 })).toThrow('disposed');
   });
 });

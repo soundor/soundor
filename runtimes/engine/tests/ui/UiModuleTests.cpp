@@ -500,7 +500,103 @@ TEST_SUITE("soundor:ui")
         UiFixture f;
         f.host.surface().setScale(2);
         CHECK(f.run(std::string(imports) + "globalThis.result = JSON.stringify(viewSize());").asString()
-              == R"({"width":200,"height":100,"scale":2})");
+              == R"({"width":200,"height":100,"scale":2,"safeArea":{"x":0,"y":0,"width":200,"height":100}})");
+    }
+
+    TEST_CASE("the safe area is the whole view unless the backend says otherwise")
+    {
+        UiFixture f;
+        f.host.surface().setSafeArea(ui::Rect { 30, 0, 140, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.viewSize = viewSize;
+            globalThis.first = viewSize();
+            globalThis.result = JSON.stringify(first.safeArea);
+            globalThis.frozen = Object.isFrozen(first) && Object.isFrozen(first.safeArea);
+        )");
+        CHECK(f.eval("result").asString() == R"({"x":30,"y":0,"width":140,"height":100})");
+        CHECK(f.eval("frozen").asBoolean());
+        // A new safe area alone is a new snapshot; the same one is not.
+        f.host.surface().setSafeArea(ui::Rect { 30, 0, 140, 100 });
+        CHECK(f.eval("viewSize() === first").asBoolean());
+        f.host.surface().setSafeArea(std::nullopt);
+        CHECK(f.eval("JSON.stringify(viewSize().safeArea)").asString() == R"({"x":0,"y":0,"width":200,"height":100})");
+        CHECK(f.eval("viewSize() !== first").asBoolean());
+    }
+
+    TEST_CASE("editorSize is the editor's, apart from the view's, and frozen until it changes")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { editorSize, viewSize } from 'soundor:ui';
+            globalThis.viewSize = viewSize;
+            globalThis.read = editorSize;
+            globalThis.first = editorSize();
+        )");
+        // Before the backend says: nothing shown yet.
+        CHECK(f.eval("JSON.stringify(first)").asString() == R"({"width":0,"height":0})");
+        CHECK(f.eval("Object.isFrozen(first) && read() === first").asBoolean());
+        // An editor that scales: twice the view's size.
+        f.host.surface().setEditorSize({ 400, 200 });
+        CHECK(f.eval("JSON.stringify(read())").asString() == R"({"width":400,"height":200})");
+        CHECK(f.eval("read() === read() && read() !== first").asBoolean());
+        CHECK(f.eval("viewSize().width").asNumber() == 200);
+    }
+
+    TEST_CASE("subscribeEditorSize tells each subscriber once per change, apart from the view's")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeEditorSize, subscribeViewSize, editorSize } from 'soundor:ui';
+            globalThis.log = [];
+            subscribeEditorSize((size) => {
+                log.push(`editor ${size.width}x${size.height}`);
+                if (size !== editorSize()) log.push('not the snapshot');
+            });
+            globalThis.unsubscribe = subscribeEditorSize(() => log.push('b'));
+            subscribeViewSize((size) => log.push(`view ${size.width}x${size.height}`));
+            subscribeEditorSize(() => { throw new Error('editor listener failed'); });
+        )");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+
+        // The editor resized, the view not (an editor that scales): only
+        // editor subscribers hear of it, once for many changes.
+        f.host.surface().setEditorSize({ 300, 150 });
+        f.host.surface().setEditorSize({ 400, 200 });
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log.splice(0))").asString() == R"(["editor 400x200","b"])");
+        f.host.surface().setEditorSize({ 400, 200 });
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+
+        // Both at once, and an unsubscribed listener hears nothing.
+        f.eval("unsubscribe()");
+        f.host.surface().setEditorSize({ 500, 250 });
+        f.host.surface().setSize({ 250, 125 });
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log.splice(0))").asString() == R"(["view 250x125","editor 500x250"])");
+        bool reported = false;
+        for (const auto& [level, message] : f.logs)
+            reported = reported || message.find("editor listener failed") != std::string::npos;
+        CHECK(reported);
+        CHECK(
+            f.error(std::string(imports) + "import { subscribeEditorSize } from 'soundor:ui'; subscribeEditorSize(1);")
+                .find("subscribeEditorSize() expects a function")
+            != std::string::npos);
+    }
+
+    TEST_CASE("subscribeViewSize tells of a new safe area")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { subscribeViewSize } from 'soundor:ui';
+            globalThis.told = [];
+            subscribeViewSize((size) => told.push(size.safeArea.x));
+        )");
+        f.host.surface().setSafeArea(ui::Rect { 20, 0, 160, 100 });
+        f.host.tick();
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(told)").asString() == "[20]");
     }
 
     TEST_CASE("viewSize is the same frozen object until the size or scale changes")
@@ -641,5 +737,30 @@ TEST_SUITE("soundor:ui")
         reloaded.surface().setSize({ 640, 480 });
         reloaded.tick();
         CHECK(sizes(reloaded) == "[640]");
+    }
+
+    TEST_CASE("a reloaded runtime reads the editor's size as it starts, and is told of changes")
+    {
+        RuntimeHost::Options options;
+        auto first = std::make_unique<RuntimeHost>(options);
+        first->surface().setEditorSize({ 800, 600 });
+        first.reset();
+        RuntimeHost reloaded(options);
+        reloaded.surface().setEditorSize({ 800, 600 });
+        REQUIRE(reloaded.context()
+                    .evaluateModule(soundor::test::module(R"(
+                        import { editorSize, subscribeEditorSize } from 'soundor:ui';
+                        globalThis.start = editorSize().width;
+                        globalThis.told = [];
+                        subscribeEditorSize((size) => told.push(size.width));
+                    )"),
+                                    "/editor.js")
+                    .ok());
+        reloaded.tick();
+        CHECK(reloaded.context().evaluateScript("start").value().asNumber() == 800);
+        CHECK(reloaded.context().evaluateScript("told.length").value().asNumber() == 0);
+        reloaded.surface().setEditorSize({ 900, 600 });
+        reloaded.tick();
+        CHECK(reloaded.context().evaluateScript("JSON.stringify(told)").value().asString() == "[900]");
     }
 }

@@ -2,7 +2,11 @@ export type {
   BaseParameter,
   BoolParameter,
   EditorConfig,
+  EditorFit,
   EditorResize,
+  FixedEditorConfig,
+  LayoutEditorConfig,
+  ScaleEditorConfig,
   EnumParameter,
   FloatParameter,
   IntParameter,
@@ -20,11 +24,7 @@ export type {
   SoundorConfig,
 } from './types';
 export { defineSoundorConfig } from './define';
-export {
-  DEFAULT_EDITOR_LIMITS,
-  DEFAULT_EDITOR_SIZE,
-  resolveEditor,
-} from './editor';
+export { DEFAULT_EDITOR_SIZE, resolveEditor } from './editor';
 export { parseConfig } from './parse';
 export type { ParseConfigOptions } from './parse';
 

@@ -31,7 +31,13 @@ import {
 } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
-import type { Cursor, NodeType, ViewSize } from './types';
+import type {
+  Cursor,
+  EditorSize,
+  LayoutRect,
+  NodeType,
+  ViewSize,
+} from './types';
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -77,10 +83,20 @@ export class UiView implements ViewLink {
   #hoverFrame: number | null = null;
   #resizes: ResizeObserver | null = null;
   /** The latest size(); replaced (never changed) when the size changes. */
-  #size: ViewSize = Object.freeze({ width: 0, height: 0, scale: 1 });
+  #size: ViewSize = Object.freeze({
+    width: 0,
+    height: 0,
+    scale: 1,
+    safeArea: Object.freeze({ x: 0, y: 0, width: 0, height: 0 }),
+  });
   /** The size subscribers were last told of (size() may be newer). */
   #notifiedSize = this.#size;
   readonly #sizeListeners = new Listeners<ViewSize>();
+  /** What the host says of the view: its safe area (null: all of it). */
+  #safeArea: LayoutRect | null = null;
+  /** The editor's size, as the host last said; replaced when it changes. */
+  #editorSize: EditorSize = Object.freeze({ width: 0, height: 0 });
+  readonly #editorListeners = new Listeners<EditorSize>();
 
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
@@ -115,6 +131,7 @@ export class UiView implements ViewLink {
     this.animations.dispose();
     this.#resizes?.disconnect();
     this.#sizeListeners.clear();
+    this.#editorListeners.clear();
     if (this.#hoverFrame !== null)
       this.rootElement.ownerDocument.defaultView?.cancelAnimationFrame(
         this.#hoverFrame,
@@ -143,15 +160,63 @@ export class UiView implements ViewLink {
     const width = this.rootElement.offsetWidth;
     const height = this.rootElement.offsetHeight;
     const scale = (window?.devicePixelRatio ?? 1) * this.scale();
+    const safe = this.#safeArea ?? { x: 0, y: 0, width, height };
     const size = this.#size;
+    const known = size.safeArea;
     if (
       width !== size.width ||
       height !== size.height ||
-      scale !== size.scale
+      scale !== size.scale ||
+      safe.x !== known.x ||
+      safe.y !== known.y ||
+      safe.width !== known.width ||
+      safe.height !== known.height
     ) {
-      this.#size = Object.freeze({ width, height, scale });
+      this.#size = Object.freeze({
+        width,
+        height,
+        scale,
+        safeArea: Object.freeze({ ...safe }),
+      });
     }
     return this.#size;
+  }
+
+  /**
+   * The editor's size in its logical pixels, as the host last said: the
+   * same frozen object until it changes.
+   */
+  editorSize(): EditorSize {
+    return this.#editorSize;
+  }
+
+  /**
+   * Calls `listener` with the new editorSize() whenever the host says the
+   * editor has another size. Returns a function that unsubscribes.
+   */
+  subscribeEditorSize(listener: (size: EditorSize) => void): () => void {
+    return this.#editorListeners.add(listener, 'subscribeEditorSize()');
+  }
+
+  /**
+   * The host's word on the view: the size of the editor it shows it in, and
+   * its safe area (null: all of it). Tells subscribers of what changed: the
+   * view's size first, as it is measured again, then the editor's.
+   */
+  setGeometry(geometry: {
+    readonly editor: EditorSize;
+    readonly safeArea: LayoutRect | null;
+  }): void {
+    const { editor, safeArea } = geometry;
+    this.#safeArea = safeArea === null ? null : { ...safeArea };
+    this.measure();
+    const known = this.#editorSize;
+    if (editor.width === known.width && editor.height === known.height) return;
+    this.#editorSize = Object.freeze({
+      width: editor.width,
+      height: editor.height,
+    });
+    this.#editorListeners.notify(this.#editorSize);
   }
 
   /**

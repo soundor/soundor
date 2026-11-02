@@ -25,24 +25,31 @@ namespace
 
 TEST_SUITE("JUCE editor constrainer")
 {
-    TEST_CASE("in a plugin it keeps the limits, and offers the ratio without enforcing it")
+    TEST_CASE("in a plugin it keeps the minimum, and offers the maximum and the ratio")
     {
         backend::JuceEditorConstrainer constrainer(false);
         limit(constrainer);
         // A size of another shape is kept: the UI is letterboxed in it.
         CHECK(resized(constrainer, { 0, 0, 1000, 400 }) == juce::Rectangle<int>(0, 0, 1000, 400));
-        // The limits still hold.
-        CHECK(resized(constrainer, { 0, 0, 100, 3000 }) == juce::Rectangle<int>(0, 0, 300, 800));
-        // A host that asks (checkSizeConstraint) still reads the ratio.
+        // The minimum still holds; a size beyond the maximum is kept, the UI
+        // filling it as its fit says.
+        CHECK(resized(constrainer, { 0, 0, 100, 3000 }) == juce::Rectangle<int>(0, 0, 300, 3000));
+        CHECK(resized(constrainer, { 0, 0, 2000, 100 }) == juce::Rectangle<int>(0, 0, 2000, 200));
+        // A host that asks (checkSizeConstraint) still reads them all.
+        CHECK(constrainer.getMaximumWidth() == 1200);
+        CHECK(constrainer.getMaximumHeight() == 800);
         CHECK(constrainer.getFixedAspectRatio() == doctest::Approx(1.5));
     }
 
-    TEST_CASE("in the Standalone it enforces the ratio too")
+    TEST_CASE("in the Standalone it enforces the limits and the ratio")
     {
         backend::JuceEditorConstrainer constrainer(true);
         limit(constrainer);
         const auto bounds = resized(constrainer, { 0, 0, 1000, 400 });
         // 3:2, to the nearest pixel.
         CHECK(std::abs(bounds.getWidth() - bounds.getHeight() * 1.5) <= 1.0);
+        const auto large = resized(constrainer, { 0, 0, 3000, 3000 });
+        CHECK(large.getWidth() <= 1200);
+        CHECK(large.getHeight() <= 800);
     }
 }
