@@ -440,6 +440,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.borderRadius.topRight, number("borderTopRightRadius"));
                 assign(out.borderRadius.bottomRight, number("borderBottomRightRadius"));
                 assign(out.borderRadius.bottomLeft, number("borderBottomLeftRadius"));
+                assign(out.outlineWidth, number("outlineWidth"));
+                assign(out.outlineOffset, number("outlineOffset"));
+                assign(out.outlineColor, color("outlineColor"));
                 if (const auto opacity = number("opacity"))
                     out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
                 const Property transform(*this, "transform");
@@ -754,6 +757,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             return call(context, "focused", count, 0,
                         [&](Surface& surface) -> jsi::Value { return { double(surface.focused()) }; });
+        }
+
+        jsi::Value focusVisible(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "focusVisible", count, 0,
+                        [&](Surface& surface) -> jsi::Value { return { surface.focusVisible() }; });
         }
 
         jsi::Value nodeFrame(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
@@ -1403,6 +1412,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     break;
                 case Event::Type::Focus:
                 case Event::Type::Blur:
+                case Event::Type::FocusVisibleChange:
+                    data.set("focusVisible", jsi::Value(event.focusVisible));
+                    break;
                 case Event::Type::Scroll:
                     break;
             }
@@ -1456,6 +1468,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "contentSize", contentSize, 1 },
             { "focus", focus, 1 },
             { "focused", focused, 0 },
+            { "focusVisible", focusVisible, 0 },
             { "requestPointerLock", requestPointerLock, 1 },
             { "exitPointerLock", exitPointerLock, 0 },
             { "pointerLock", pointerLock, 0 },

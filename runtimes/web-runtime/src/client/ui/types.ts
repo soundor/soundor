@@ -182,6 +182,10 @@ export interface Style {
   borderTopRightRadius?: number;
   borderBottomRightRadius?: number;
   borderBottomLeftRadius?: number;
+  /** A line around the node outside its border, taking no room (CSS outline). */
+  outlineWidth?: number;
+  outlineColor?: Color;
+  outlineOffset?: number;
   /** 0 to 1, for the node and everything in it. */
   opacity?: number;
   transform?: readonly TransformOperation[];

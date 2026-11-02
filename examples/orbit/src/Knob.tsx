@@ -35,7 +35,8 @@ export function Knob({
   // stays sharp at any size.
   const density = bufferDensity(useViewSize().scale);
   const drag = useRef<{ y: number; value: number } | null>(null);
-  const [focused, setFocused] = useState(false);
+  // Keyboard focus shows; a press's does not (focusVisible).
+  const [focusVisible, setFocusVisible] = useState(false);
   const { min, max } = parameter.info;
   const normalized = (value - min) / (max - min);
   const change = (next: number) => parameter.set(clamp(next, min, max));
@@ -70,7 +71,7 @@ export function Knob({
     ctx.arc(42, 42, 36, start, Math.PI * 2.25);
     ctx.stroke();
     if (normalized > 0) {
-      ctx.strokeStyle = focused ? '#7752bd' : '#5e6260';
+      ctx.strokeStyle = focusVisible ? '#7752bd' : '#5e6260';
       ctx.beginPath();
       ctx.arc(42, 42, 36, start, end);
       ctx.stroke();
@@ -93,7 +94,7 @@ export function Knob({
     ctx.moveTo(42 + Math.cos(end) * 17, 42 + Math.sin(end) * 17);
     ctx.lineTo(42 + Math.cos(end) * 23, 42 + Math.sin(end) * 23);
     ctx.stroke();
-  }, [normalized, focused, density]);
+  }, [normalized, focusVisible, density]);
   return (
     <View style={{ alignItems: 'center', width: 113, gap: 0 }}>
       <View
@@ -121,11 +122,8 @@ export function Knob({
           else return;
           event.preventDefault();
         }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
-          setFocused(false);
-          end();
-        }}
+        onFocusVisibleChange={(event) => setFocusVisible(event.focusVisible)}
+        onBlur={end}
         onKeyDown={(event) => {
           const step = (max - min) * (event.shiftKey ? 0.1 : 0.01);
           if (event.key === 'ArrowUp' || event.key === 'ArrowRight')
@@ -158,8 +156,12 @@ export function Knob({
           width: 84,
           height: 84,
           borderRadius: 42,
-          borderWidth: focused ? 1 : 0,
-          borderColor: '#9473ca',
+          // Room for the ring above the label.
+          marginBottom: 6,
+          // Drawn outside the dial, taking no room: nothing moves.
+          outlineWidth: focusVisible ? 2 : 0,
+          outlineOffset: 2,
+          outlineColor: '#9473ca',
           // Dragged up and down.
           cursor: 'ns-resize',
         }}

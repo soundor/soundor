@@ -32,6 +32,13 @@ window's, whatever shape the host gives it. The grip asks for a size with
 [`requestEditorSize()`](/docs/api/ui#asking-for-a-size), measuring its drag
 with `screenX`/`screenY`, which the zoom does not change.
 
+Every control shows a focus ring only for the keyboard: it draws an
+[outline](/docs/components/style#outline) while
+[`focusVisible`](/docs/components/events#focus-rings), so clicking one shows
+none, and Tab or an arrow key does, without moving anything. Controls that
+touch a neighbour, or the view's edge, draw it inside (a negative
+`outlineOffset`).
+
 ## One interface, two audio implementations
 
 The UI uses `@soundor/react` and `soundor:parameters` in both runtimes. Its

@@ -212,6 +212,14 @@ TEST_SUITE("render::ViewRenderer")
             f.step("globalThis.a.style = { ...globalThis.a.style, marginRight: -10, zIndex: 2 };");
             f.step("globalThis.a.style = { ...globalThis.a.style, zIndex: 0 };");
         }
+        SUBCASE("an outline, outside the box")
+        {
+            f.step("globalThis.a.style = { ...globalThis.a.style, outlineWidth: 3, outlineOffset: 2, "
+                   "outlineColor: 'blue' };");
+            f.step("globalThis.a.style = { ...globalThis.a.style, outlineColor: 'lime' };");
+            f.step("globalThis.panel.style = { ...globalThis.panel.style, opacity: 0.5 };");
+            f.step("globalThis.a.style = { ...globalThis.a.style, outlineWidth: 0 };");
+        }
         SUBCASE("an image")
         {
             f.step("globalThis.image.source = 'halves.png';");

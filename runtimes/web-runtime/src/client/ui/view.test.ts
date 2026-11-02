@@ -661,6 +661,55 @@ describe('focus', () => {
     expect(view.focusedNode()).toBeNull();
     expect(events).toContain('blur@other');
   });
+
+  it('shows focus the keyboard moved, and a pressed node from a key on', () => {
+    const { panel, other } = setup();
+    panel.focusable = true;
+    other.focusable = true;
+    const changes: string[] = [];
+    for (const [node, name] of [
+      [panel, 'panel'],
+      [other, 'other'],
+    ] as const)
+      node.addEventListener('focusvisiblechange', (event) =>
+        changes.push(
+          `${name}:${String((event as unknown as { focusVisible: boolean }).focusVisible)}`,
+        ),
+      );
+    const key = (name: string, init: KeyboardEventInit = {}) =>
+      el(view.focusedNode() ?? view.root).dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          key: name,
+          bubbles: true,
+          cancelable: true,
+          ...init,
+        }),
+      );
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(panel.focused).toBe(true);
+    expect(panel.focusVisible).toBe(false);
+    // A modifier on its own, or a shortcut, is not using the keyboard.
+    key('Shift');
+    key('c', { ctrlKey: true });
+    expect(panel.focusVisible).toBe(false);
+    key('ArrowUp');
+    expect(panel.focusVisible).toBe(true);
+    key('Tab');
+    expect(other.focusVisible).toBe(true);
+    expect(panel.focusVisible).toBe(false);
+    expect(changes).toEqual(['panel:true', 'panel:false', 'other:true']);
+  });
+
+  it('always shows the focus of a text input', () => {
+    setup();
+    const input = view.createNode('input');
+    view.root.appendChild(input);
+    pointer('pointerdown', 30, { button: 0, buttons: 1 });
+    pointer('pointerup', 30, { button: 0, buttons: 0 });
+    input.focus();
+    expect(input.focusVisible).toBe(true);
+  });
 });
 
 describe('wheel', () => {

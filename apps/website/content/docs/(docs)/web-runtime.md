@@ -167,8 +167,9 @@ UiNodes.
 - **Events.** Events capture and bubble along the Soundor tree, and input
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
-  release, focus on press, Tab cycling, and the wheel scrolling the nearest
-  scroll view. All four `pointerEvents` modes work, and the cursor is the
+  release, focus on press, Tab cycling, `focusVisible` (by the JUCE
+  runtime's rules, not the browser's `:focus-visible`), and the wheel
+  scrolling the nearest scroll view. All four `pointerEvents` modes work, and the cursor is the
   JUCE runtime's: the view resolves `cursor` along the Soundor tree and
   shows it on its element, which every node inherits. Hover follows what
   changes under a pointer that did not move (the tree, a style, a scroll, a
@@ -244,6 +245,13 @@ a layout depends on it:
   from the clamped one.
 - **`flexWrap` in a column sized by its content** wraps at the height its
   parent offers in Yoga, and never in CSS.
+- **A box sized by its content with less room across than it needs**, when
+  it is not stretched (an `alignItems` other than `'stretch'`): Yoga makes it
+  at most the room its parent has and squeezes what is in it, CSS keeps its
+  content's size and lets it overflow. A 21-high button in a row of
+  `height: 22` with `paddingTop: 10` is 11 high natively, its label spilling
+  out, and 21 here. Give a box with a fixed `height` (or `width`) room for
+  its content, or leave the size out so that it fits it.
 - **Rounding.** Yoga puts every edge on a device pixel, the browser keeps
   fractions: three `flex: 1` boxes in 100 are 33, 34 and 33 natively and
   33.33 each here, so edges can be a fraction of a pixel apart.

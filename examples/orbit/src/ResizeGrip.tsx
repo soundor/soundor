@@ -13,7 +13,7 @@
 
 import { View } from '@soundor/react';
 import { Path, Svg } from '@soundor/react/svg';
-import { useRef, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import {
   editorSize,
   requestEditorSize,
@@ -68,6 +68,8 @@ export function ResizeGrip({ color = '#8a8f99' }: { readonly color?: string }) {
     // A drag the platform took back leaves the size as it was.
     if (cancelled) requestEditorSize(from.width, from.height);
   };
+  // Keyboard focus shows, inside: the grip is in the view's corner.
+  const [focusVisible, setFocusVisible] = useState(false);
   const onKeyDown = (event: KeyboardEvent) => {
     const step = event.shiftKey ? KEY_STEP * 5 : KEY_STEP;
     const [width, height] =
@@ -93,6 +95,7 @@ export function ResizeGrip({ color = '#8a8f99' }: { readonly color?: string }) {
       onPointerUp={(event) => end(event, false)}
       onPointerCancel={(event) => end(event, true)}
       onKeyDown={onKeyDown}
+      onFocusVisibleChange={(event) => setFocusVisible(event.focusVisible)}
       style={{
         position: 'absolute',
         right: 0,
@@ -100,6 +103,10 @@ export function ResizeGrip({ color = '#8a8f99' }: { readonly color?: string }) {
         width: SIZE,
         height: SIZE,
         cursor: 'nwse-resize',
+        borderRadius: 4,
+        outlineWidth: focusVisible ? 2 : 0,
+        outlineOffset: -2,
+        outlineColor: '#9473ca',
       }}
     >
       <Svg width={SIZE} height={SIZE} viewBox="0 0 18 18">

@@ -256,16 +256,18 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
             root.appendChild(button);
             globalThis.stop = pressable(button, {
               onPress: (e) => log.push('press:' + e.type),
-              onStateChange: ({ pressed, hovered, focused }) =>
-                log.push((pressed ? 'P' : 'p') + (hovered ? 'H' : 'h') + (focused ? 'F' : 'f')),
+              onStateChange: ({ pressed, hovered, focused, focusVisible }) =>
+                log.push((pressed ? 'P' : 'p') + (hovered ? 'H' : 'h') + (focused ? 'F' : 'f') +
+                         (focusVisible ? 'V' : 'v')),
             });
         )");
         f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
         f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 10, 10, 0, 0));
-        CHECK(f.eval("log.splice(0).join(' ')").asString() == "pHf PHf PHF pHF press:click");
+        CHECK(f.eval("log.splice(0).join(' ')").asString() == "pHfv PHfv PHFv pHFv press:click");
         CHECK(f.eval("button.focused").asBoolean());
         CHECK(f.host.surface().key(key("Enter")));
-        CHECK(f.eval("log.splice(0).join(' ')").asString() == "press:keydown");
+        // A key shows the focus a press gave.
+        CHECK(f.eval("log.splice(0).join(' ')").asString() == "pHFV press:keydown");
         f.run(std::string(imports) + "stop();");
         CHECK_FALSE(f.host.surface().key(key("Enter")));
     }
@@ -367,8 +369,8 @@ TEST_SUITE("soundor:ui pressable")
             globalThis.result = states.join(' ');
         )");
         CHECK(f.eval("result").asString()
-              == R"({"pressed":false,"hovered":false,"focused":true} )"
-                 R"({"pressed":false,"hovered":false,"focused":false})");
+              == R"({"pressed":false,"hovered":false,"focused":true,"focusVisible":true} )"
+                 R"({"pressed":false,"hovered":false,"focused":false,"focusVisible":false})");
     }
 }
 

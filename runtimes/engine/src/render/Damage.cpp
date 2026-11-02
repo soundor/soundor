@@ -118,7 +118,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         const ui::Rect frame = node.frame();
         const float x = originX + frame.x;
         const float y = originY + frame.y;
-        IntRect own = pass.device(x, y, frame.width, frame.height);
+        // An outline draws outside the box.
+        const float outline = style.outlineExtent();
+        IntRect own = pass.device(x - outline, y - outline, frame.width + (outline * 2), frame.height + (outline * 2));
         std::uint64_t key = 0;
         if (node.type() == ui::NodeType::Text)
         {

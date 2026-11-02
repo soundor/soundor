@@ -40,6 +40,13 @@ export class TestRuntime {
   readonly native: Record<string, (...args: never[]) => unknown>;
   private readonly nativeMethods?: ReadonlySet<string>;
   private focused: TestNode | null = null;
+  /**
+   * Whether the focused node shows its focus, and whether the last input
+   * was the keyboard's (or assistive technology's) rather than a pointer
+   * press, as the JUCE runtime decides.
+   */
+  private focusShown = false;
+  private keyboardModality = true;
   private disposed = false;
   private reducedMotion = false;
   private hostState: HostSnapshot;
@@ -174,6 +181,9 @@ export class TestRuntime {
     if (this.focused !== null && !this.focused.isConnected) this.focused = null;
     return this.focused;
   }
+  focusVisible() {
+    return this.focusedNode() !== null && this.focusShown;
+  }
   moveFocus(node: TestNode | null) {
     this.assertActive();
     if (
@@ -189,18 +199,55 @@ export class TestRuntime {
       return;
     const previous = this.focusedNode();
     if (previous === node) return;
+    const wasShown = previous !== null && this.focusShown;
     this.focused = node;
-    previous?.dispatchEvent(
-      new TestEvent('blur', { relatedTarget: node, cancelable: false }, false),
-    );
-    if (node && this.focused === node)
-      node.dispatchEvent(
+    // Text inputs show focus however they got it, as in browsers.
+    this.focusShown =
+      node !== null && (this.keyboardModality || node.type === 'input');
+    const shown = this.focusShown;
+    if (previous) {
+      previous.dispatchEvent(
         new TestEvent(
-          'focus',
-          { relatedTarget: previous, cancelable: false },
+          'blur',
+          { relatedTarget: node, cancelable: false },
           false,
         ),
       );
+      if (wasShown && previous.isConnected)
+        previous.dispatchEvent(
+          new TestEvent('focusvisiblechange', { cancelable: false }, false),
+        );
+    }
+    if (node && this.focused === node) {
+      node.dispatchEvent(
+        new TestEvent(
+          'focus',
+          { relatedTarget: previous, cancelable: false, focusVisible: shown },
+          false,
+        ),
+      );
+      if (shown && this.focused === node && this.focusShown)
+        node.dispatchEvent(
+          new TestEvent(
+            'focusvisiblechange',
+            { cancelable: false, focusVisible: true },
+            false,
+          ),
+        );
+    }
+  }
+  /** Shows the focused node's focus, from a key press on. */
+  private showFocus() {
+    const node = this.focusedNode();
+    if (node === null || this.focusShown) return;
+    this.focusShown = true;
+    node.dispatchEvent(
+      new TestEvent(
+        'focusvisiblechange',
+        { cancelable: false, focusVisible: true },
+        false,
+      ),
+    );
   }
   displayed(node: TestNode) {
     for (let at: TestNode | null = node; at; at = at.parent)
@@ -229,6 +276,16 @@ export class TestRuntime {
   }
   pressKey(key: string, init: Record<string, unknown> = {}) {
     this.keys.add(key);
+    // Using the keyboard shows focus: not a shortcut, nor a modifier alone.
+    if (
+      !init['ctrlKey'] &&
+      !init['altKey'] &&
+      !init['metaKey'] &&
+      !['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'CapsLock'].includes(key)
+    ) {
+      this.keyboardModality = true;
+      this.showFocus();
+    }
     const event = new TestEvent('keydown', { key, ...init });
     (this.focusedNode() ?? this.root).dispatchEvent(event);
     if (
@@ -262,12 +319,15 @@ export class TestRuntime {
   }
   fire(node: TestNode, type: string, init: Record<string, unknown> = {}) {
     this.assertNode(node);
+    // Assistive technology moves focus as the keyboard does: shown.
+    if (type === 'accessibilityaction') this.keyboardModality = true;
     const event = new TestEvent(
       type,
       {
         cancelable: ![
           'focus',
           'blur',
+          'focusvisiblechange',
           'input',
           'change',
           'scroll',
@@ -281,9 +341,14 @@ export class TestRuntime {
         pointerType: 'mouse',
         ...init,
       },
-      !['focus', 'blur', 'scroll', 'pointerenter', 'pointerleave'].includes(
-        type,
-      ),
+      ![
+        'focus',
+        'blur',
+        'focusvisiblechange',
+        'scroll',
+        'pointerenter',
+        'pointerleave',
+      ].includes(type),
     );
     node.dispatchEvent(event);
     return event;
@@ -301,6 +366,8 @@ export class TestRuntime {
     this.pointer.down ??= node;
     this.pointer.target = node;
     this.pointer.buttons |= [1, 4, 2][button]!;
+    // Focus a press moves is not shown.
+    this.keyboardModality = false;
     const target = this.pointer.down;
     const event = this.fire(target, 'pointerdown', init);
     if (!event.defaultPrevented) {
@@ -472,7 +539,12 @@ export class TestRuntime {
     this.assertActive();
     if (node.runtime !== this)
       throw new TypeError('node belongs to another runtime');
-    const state = { pressed: false, hovered: false, focused: node.focused };
+    const state = {
+      pressed: false,
+      hovered: false,
+      focused: node.focused,
+      focusVisible: node.focusVisible,
+    };
     let originX = 0,
       originY = 0;
     let timer: number | undefined,
@@ -551,8 +623,11 @@ export class TestRuntime {
         change({ hovered: false });
         call('onHoverOut', event);
       },
-      focus: () => change({ focused: true }),
-      blur: () => change({ focused: false }),
+      focus: (event) =>
+        change({ focused: true, focusVisible: Boolean(event['focusVisible']) }),
+      blur: () => change({ focused: false, focusVisible: false }),
+      focusvisiblechange: (event) =>
+        change({ focusVisible: Boolean(event['focusVisible']) }),
       keydown: (event) => {
         if (
           event.target !== node ||
@@ -843,6 +918,8 @@ export class TestRuntime {
     }
     this.nodes.clear();
     this.focused = null;
+    this.focusShown = false;
+    this.keyboardModality = true;
     this.pointer.down = null;
     this.pointer.target = null;
     this.pointer.buttons = 0;

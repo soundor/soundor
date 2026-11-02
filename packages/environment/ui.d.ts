@@ -281,6 +281,19 @@ declare module 'soundor:ui' {
     borderTopRightRadius?: number;
     borderBottomRightRadius?: number;
     borderBottomLeftRadius?: number;
+    /**
+     * A line around the node, in logical pixels, drawn outside its border
+     * and following its corners, as CSS's `outline`: it takes no room in
+     * layout and is not hit. 0 (the default) draws none.
+     */
+    outlineWidth?: number;
+    /** The outline's color: any CSS color. Black by default. */
+    outlineColor?: Color;
+    /**
+     * How far the outline is from the border, in logical pixels: 0 by
+     * default, inside the node when negative.
+     */
+    outlineOffset?: number;
     /** 0 to 1, for the node and everything in it. */
     opacity?: number;
     /**
@@ -420,6 +433,11 @@ declare module 'soundor:ui' {
     beforeinput: InputEvent;
     focus: FocusEvent;
     blur: FocusEvent;
+    /**
+     * The node's `focusVisible` changed: when it takes focus that is shown,
+     * loses it, or shows it after a key press. Does not bubble.
+     */
+    focusvisiblechange: FocusEvent;
     /** Scroll views: the content scrolled. */
     scroll: Event;
     /** Text inputs: the value changed. */
@@ -566,6 +584,13 @@ declare module 'soundor:ui' {
     /** Whether the node takes focus when pressed or tabbed to. */
     focusable: boolean;
     readonly focused: boolean;
+    /**
+     * Whether it has focus and should show it, as CSS's `:focus-visible`:
+     * not when a pointer press gave it focus, until a key is pressed (a
+     * text input always shows it). Draw a focus ring for this, not
+     * `focused`.
+     */
+    readonly focusVisible: boolean;
     focus(): void;
     blur(): void;
     /**
@@ -713,6 +738,8 @@ declare module 'soundor:ui' {
     readonly pressed: boolean;
     readonly hovered: boolean;
     readonly focused: boolean;
+    /** It has focus and should show it (UiNode.focusVisible). */
+    readonly focusVisible: boolean;
   }
   export interface PressableHandlers {
     /**
@@ -1013,9 +1040,14 @@ declare module 'soundor:ui' {
   export class FocusEvent extends Event {
     constructor(
       type: string,
-      init?: EventInit & { relatedTarget?: UiNode | null },
+      init?: EventInit & {
+        relatedTarget?: UiNode | null;
+        focusVisible?: boolean;
+      },
     );
     readonly relatedTarget: UiNode | null;
+    /** Whether the target shows its focus now (UiNode.focusVisible). */
+    readonly focusVisible: boolean;
     readonly target: UiNode | null;
     readonly currentTarget: UiNode | null;
   }

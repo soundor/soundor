@@ -70,6 +70,13 @@ export interface EventProps {
   onFocus?: (event: FocusEvent) => void;
   /** The node lost keyboard focus; does not bubble. */
   onBlur?: (event: FocusEvent) => void;
+  /**
+   * Whether the node shows its focus changed (`event.focusVisible`, as
+   * CSS's `:focus-visible`): it took focus from the keyboard, lost it, or a
+   * key was pressed while a press had given it focus. Draw a focus ring
+   * from this rather than from onFocus; does not bubble.
+   */
+  onFocusVisibleChange?: (event: FocusEvent) => void;
 }
 
 /** Props for developer tools: DevTools and Soundor Driver. */
@@ -254,12 +261,18 @@ export interface PressableState {
   readonly hovered: boolean;
   /** It has keyboard focus. */
   readonly focused: boolean;
+  /**
+   * It has focus and should show it, as CSS's `:focus-visible`: not when a
+   * press gave it focus, until a key is pressed. Draw a focus ring for this.
+   */
+  readonly focusVisible: boolean;
 }
 
 const RESTING: PressableState = Object.freeze({
   pressed: false,
   hovered: false,
   focused: false,
+  focusVisible: false,
 });
 
 export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
@@ -287,9 +300,15 @@ export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
   onHoverOut?: (event: PointerEvent) => void;
   /** Not pressable, nor focusable; assistive technology is told it is disabled. */
   disabled?: boolean;
-  /** A style, or a function of its state: pressed, hovered, focused. */
+  /**
+   * A style, or a function of its state: pressed, hovered, focused,
+   * focusVisible.
+   */
   style?: StyleProp | ((state: PressableState) => StyleProp);
-  /** Children, or a function of its state: pressed, hovered, focused. */
+  /**
+   * Children, or a function of its state: pressed, hovered, focused,
+   * focusVisible.
+   */
   children?: ReactNode | ((state: PressableState) => ReactNode);
 }
 
@@ -299,7 +318,7 @@ const LONG_PRESS: AccessibilityActionInfo = { name: 'longpress' };
 /**
  * A view that responds to presses: a click, or Enter/Space while focused,
  * and long presses. `style` and `children` may depend on whether it is
- * pressed, hovered or focused.
+ * pressed, hovered or focused, and whether it shows its focus.
  *
  * To assistive technology it is one element, a button unless given another
  * role, labelled by its text; it offers 'activate' (onPress) and, with

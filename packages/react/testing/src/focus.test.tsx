@@ -358,6 +358,40 @@ describe('FocusScope', () => {
     expect([await tab(), await tab(), await tab()]).toEqual(['b', 'a', 'b']);
   });
 
+  it('shows a focus ring for keyboard focus, not for a press', async () => {
+    const rings: boolean[] = [];
+    await show(
+      <View>
+        <Pressable
+          ref={(value) => {
+            if (value) nodes.set('pressable', value as unknown as TestNode);
+          }}
+          style={({ focusVisible }) => ({ outlineWidth: focusVisible ? 2 : 0 })}
+        >
+          <Text>Go</Text>
+        </Pressable>
+        <View
+          focusable
+          ref={(value) => {
+            if (value) nodes.set('knob', value as unknown as TestNode);
+          }}
+          onFocusVisibleChange={(event) => rings.push(event.focusVisible)}
+        />
+      </View>,
+    );
+    const pressable = nodes.get('pressable')!;
+    await user.click(pressable);
+    expect(focusedName()).toBe('pressable');
+    expect(pressable.style.outlineWidth).toBe(0);
+    await user.keyboard('{ArrowUp}');
+    expect(pressable.style.outlineWidth).toBe(2);
+    await user.tab();
+    expect(focusedName()).toBe('knob');
+    expect(pressable.style.outlineWidth).toBe(0);
+    await user.click(pressable);
+    expect(rings).toEqual([true, false]);
+  });
+
   it('counts a Pressable as a member', async () => {
     function App() {
       const [count] = useState(0);

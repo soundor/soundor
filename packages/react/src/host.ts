@@ -137,6 +137,7 @@ const EVENT_PROPS: Readonly<Record<string, string>> = {
   onKeyUp: 'keyup',
   onFocus: 'focus',
   onBlur: 'blur',
+  onFocusVisibleChange: 'focusvisiblechange',
   onScroll: 'scroll',
   onBeforeInput: 'beforeinput',
   onInput: 'input',
