@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 
 #include <algorithm>
+#include <iterator>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -29,9 +30,25 @@ namespace
             surface.setEventSink(
                 [this](const Event& event)
                 {
-                    static constexpr const char* names[] = { "down",  "move",  "up",    "cancel",  "enter",
-                                                             "leave", "click", "wheel", "keydown", "keyup",
-                                                             "input", "focus", "blur",  "scroll",  "contextmenu" };
+                    static constexpr const char* names[] = { "down",
+                                                             "move",
+                                                             "up",
+                                                             "cancel",
+                                                             "enter",
+                                                             "leave",
+                                                             "click",
+                                                             "wheel",
+                                                             "keydown",
+                                                             "keyup",
+                                                             "input",
+                                                             "focus",
+                                                             "blur",
+                                                             "scroll",
+                                                             "contextmenu",
+                                                             "accessibilityaction",
+                                                             "focusvisiblechange" };
+                    static_assert(std::size(names) == static_cast<std::size_t>(Event::Type::FocusVisibleChange) + 1,
+                                  "a name for every event type");
                     events.push_back(std::string(names[static_cast<int>(event.type)]) + "@"
                                      + std::to_string(event.target));
                     last = event;
