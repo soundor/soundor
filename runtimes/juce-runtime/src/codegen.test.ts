@@ -266,6 +266,7 @@ describe('generateJuceSources', () => {
     expect(editor).toContain('.getChildFile(AudioProcessor::pluginId)');
     const setup = fileMap(config).get('setup.cmake')!;
     for (const name of [
+      'JuceCursor',
       'JuceHttpClient',
       'JuceParameterHost',
       'JuceTransport',

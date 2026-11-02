@@ -191,6 +191,7 @@ target_sources(\${PROJECT_NAME}
         ${[
           // Compiles to nothing unless the engine has DevTools (SOUNDOR_DEVTOOLS,
           // which the engine defines: a debug prebuilt always has them).
+          'JuceCursor',
           'JuceDebugBridge',
           'JuceHttpClient',
           'JuceInput',

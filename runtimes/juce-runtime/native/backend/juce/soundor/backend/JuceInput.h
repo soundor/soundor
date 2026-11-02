@@ -24,6 +24,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     // The platform's cursor for a resolved Soundor cursor (never Auto).
     [[nodiscard]] juce::MouseCursor mouseCursor(ui::Cursor cursor);
 
+    // The platform's arrow, which Cursor::Default shows. On X11 it is the
+    // theme's arrow rather than JUCE's NormalCursor, which shows whatever the
+    // host's window shows (JuceCursor.cpp).
+    [[nodiscard]] juce::MouseCursor arrowCursor();
+
     // Smooth (trackpad) scrolling in pixels; a stepped wheel in lines, three
     // per notch, as browsers report them.
     [[nodiscard]] ui::WheelInput wheelInput(juce::Point<float> position, const juce::ModifierKeys& modifiers,
