@@ -245,6 +245,13 @@ a layout depends on it:
   from the clamped one.
 - **`flexWrap` in a column sized by its content** wraps at the height its
   parent offers in Yoga, and never in CSS.
+- **A box sized by its content with less room across than it needs**, when
+  it is not stretched (an `alignItems` other than `'stretch'`): Yoga makes it
+  at most the room its parent has and squeezes what is in it, CSS keeps its
+  content's size and lets it overflow. A 21-high button in a row of
+  `height: 22` with `paddingTop: 10` is 11 high natively, its label spilling
+  out, and 21 here. Give a box with a fixed `height` (or `width`) room for
+  its content, or leave the size out so that it fits it.
 - **Rounding.** Yoga puts every edge on a device pixel, the browser keeps
   fractions: three `flex: 1` boxes in 100 are 33, 34 and 33 natively and
   33.33 each here, so edges can be a fraction of a pixel apart.
