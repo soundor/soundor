@@ -12,7 +12,7 @@ using namespace soundor;
 using test::WebFixture;
 
 // Three.js's WebGLRenderer, from the unmodified npm package (SOUNDOR_THREE_DIR,
-// pinned in SoundorDependencies.cmake), on Soundor's WebGL 2.
+// installed by pnpm from the workspace catalog), on Soundor's WebGL 2.
 
 namespace
 {
@@ -112,7 +112,6 @@ TEST_SUITE("Three.js")
             globalThis.result = [px(32, 32), px(2, 2)].join(' ');
         )");
         CHECK(f.string("result") == "255,0,0,255 0,0,255,255");
-        CHECK(f.string("THREE.REVISION") == "186");
         f.expectClean();
     }
 

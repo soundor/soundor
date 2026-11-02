@@ -891,7 +891,8 @@ its headers.
     throw a `TypeError` saying so. `finish()` only flushes, because Soundor
     never waits for the GPU on the UI thread.
 - **Three.js:** WebGL is tested against Three.js's `WebGLRenderer`, the
-  unmodified npm package pinned in `cmake/SoundorDependencies.cmake`
+  unmodified npm package installed by pnpm as the engine's dev dependency,
+  using the same workspace catalog version as the examples
   (`tests/gpu/ThreeTests.cpp`). The tests cover lights and shadows, physical
   materials, tone mapping, PMREM environments, multisampled, float, cube and
   depth render targets, instancing, morph targets, skinning, points, lines
@@ -1129,20 +1130,22 @@ its values any more.
 
 ## Dependencies
 
-All dependencies are fetched by CMake (`FetchContent`) from exact revisions,
+Native dependencies are fetched by CMake (`FetchContent`) from exact revisions,
 verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
+Three.js is installed by `pnpm install` from the workspace catalog; CMake
+lowers its modules for the native GPU tests without downloading another copy.
 
-| Dependency  | Version             | License          | Role                                                            |
-| ----------- | ------------------- | ---------------- | --------------------------------------------------------------- |
-| Hermes      | main (`602befe`)    | MIT              | JavaScript engine (shipped: the interpreter; built from source) |
-| QuickJS-NG  | v0.17.0 (`6d46d07`) | MIT              | Unicode tables for Hermes on Linux (shipped: libunicode)        |
-| ada         | v3.4.4 (`8d50724`)  | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)                   |
-| Yoga        | v3.2.1 (`042f501`)  | MIT              | flexbox layout (shipped)                                        |
-| Skia        | m144 (`ed427fd`)    | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
-| ANGLE       | M151 (`7e08726`)    | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
-| accesskit-c | 0.23.1              | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt)        |
-| doctest     | v2.5.3 (`2d0a935`)  | MIT              | test framework (tests only)                                     |
-| three       | 0.186.1 (npm)       | MIT              | WebGL compatibility tests (tests only)                          |
+| Dependency  | Version                 | License          | Role                                                            |
+| ----------- | ----------------------- | ---------------- | --------------------------------------------------------------- |
+| Hermes      | main (`602befe`)        | MIT              | JavaScript engine (shipped: the interpreter; built from source) |
+| QuickJS-NG  | v0.17.0 (`6d46d07`)     | MIT              | Unicode tables for Hermes on Linux (shipped: libunicode)        |
+| ada         | v3.4.4 (`8d50724`)      | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)                   |
+| Yoga        | v3.2.1 (`042f501`)      | MIT              | flexbox layout (shipped)                                        |
+| Skia        | m144 (`ed427fd`)        | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
+| ANGLE       | M151 (`7e08726`)        | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
+| accesskit-c | 0.23.1                  | MIT / Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt)        |
+| doctest     | v2.5.3 (`2d0a935`)      | MIT              | test framework (tests only)                                     |
+| three       | workspace catalog (npm) | MIT              | WebGL compatibility tests (tests only)                          |
 
 Hermes is built by its own CMake, once per machine and configuration
 (revision, Soundor's patches, compiler, platform, architectures), into
