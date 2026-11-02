@@ -1,5 +1,15 @@
 # @soundor/react
 
+## 0.15.0
+
+### Minor Changes
+
+- [#206](https://github.com/soundor/soundor/pull/206) [`2a5caa9`](https://github.com/soundor/soundor/commit/2a5caa9156a2335de3490835886d19734fd64e66) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Focus rings that show only for the keyboard, and outlines to draw them with. `node.focusVisible` (`soundor:ui`) is CSS's `:focus-visible`: focus a pointer press gave is not shown until a key is pressed (not a shortcut nor a modifier on its own), focus moved by Tab, assistive technology or code after a key is, and a text input's always is. Every runtime decides it by the same rules, the web runtime too rather than by the browser's. A `focusvisiblechange` event (React: `onFocusVisibleChange`) fires whenever it changes, `FocusEvent.focusVisible` says what it is, and `pressable()`'s state and React's `PressableState` have `focusVisible`. The new styles `outlineWidth`, `outlineColor` and `outlineOffset` draw a line around a node as CSS's `outline`: outside its border, following its corners, taking no room in layout and not hit, so a ring can appear without moving anything.
+
+- [#194](https://github.com/soundor/soundor/pull/194) [`160322b`](https://github.com/soundor/soundor/commit/160322b55e64b29e545ec4c50fc0849dc525b598) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add the @soundor/react/svg subpath with Svg, G, Path, Circle, Rect, Ellipse, Line, Polygon and Polyline. React reconciles logical vector children and publishes atomic scenes only for affected roots; only Svg participates in layout. Includes inherited presentation, viewBox mapping, numeric geometry, transforms, root refs/events/accessibility, examples and documentation. Requires the SVG scene protocol in @soundor/engine 0.6.0 or later. The API shares the React package version and does not provide third-party icon-library compatibility.
+
+- [#186](https://github.com/soundor/soundor/pull/186) [`96ef938`](https://github.com/soundor/soundor/commit/96ef938d7c0fc4dc745168a7083566400250a4a8) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `useViewSize()` in `@soundor/react` returns the plugin view's `{ width, height }` in logical pixels and its `scale` (device pixels per logical pixel), and re-renders when they change: the user resized the editor, a web host's embedding iframe changed size, or the view moved to a display of another density. It never re-renders for an unchanged size and does not poll. Underneath, `soundor:ui` has `subscribeViewSize(listener)`, and `viewSize()` is now the same frozen object until the size changes, so the pair works with `useSyncExternalStore`. The JUCE runtime tells subscribers once per change, on the editor's tick before the frame at the new size; the web runtime measures the view with the `ResizeObserver` that already updates hover, follows the page's pixel density and the host's scaling. In tests the view starts at the project's editor size, and `testView.resize()` changes it; the simulated `viewSize()` no longer throws.
+
 ## 0.14.0
 
 ### Minor Changes

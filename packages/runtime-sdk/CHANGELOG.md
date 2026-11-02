@@ -1,5 +1,16 @@
 # @soundor/runtime-sdk
 
+## 0.15.0
+
+### Minor Changes
+
+- [#186](https://github.com/soundor/soundor/pull/186) [`a71ac96`](https://github.com/soundor/soundor/commit/a71ac965bb43686143991a875cf162daed1cdc3b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A config's `editor` sets the plugin editor's size, the same in every runtime: `width` and `height` (800×600 by default), and with `resizable: true` limits the user can resize it within (`minWidth`, `minHeight`, `maxWidth`, `maxHeight`; 480×320 to 1600×1200 by default). Without it, an editor is a fixed 800×600 view as before. `resolveEditor()` gives a runtime every field decided. The JUCE runtime's generated editor opens at that size and, when resizable, lets the host resize it within its limits; the UI is laid out again at the new size, and under the GPU compositor presented at it at once.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/core@0.15.0
+
 ## 0.14.0
 
 ### Minor Changes
