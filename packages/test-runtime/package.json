@@ -1,6 +1,6 @@
 {
   "name": "@soundor/test-runtime",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Internal in-memory Soundor runtime for testing",
   "license": "MIT",
   "repository": {
