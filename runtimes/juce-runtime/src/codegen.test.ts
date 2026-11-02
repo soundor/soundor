@@ -418,6 +418,7 @@ describe('generateJuceSources', () => {
         [
           '        sizeConstrainer.setSizeLimits(500, 300, 2000, 1200);',
           '        sizeConstrainer.setFixedAspectRatio(1.6666666666666667);',
+          '        sizeConstrainer.setScaledLayout({ 1000, 600 });',
           '        setConstrainer(&sizeConstrainer);',
           '        setResizable(true, false);',
           '        setSize(1000, 600);',
@@ -482,6 +483,46 @@ describe('generateJuceSources', () => {
           'sizeConstrainer.setSizeLimits(1000, 600, 0x3FFFFFFF, 0x3FFFFFFF);',
         );
         expect(source).not.toContain('setFixedAspectRatio');
+        expect(source).not.toContain('setScaledLayout');
+      }
+    });
+
+    it('resizes to what the UI asks for, held to the limits, after its code ran', () => {
+      const source = editorSource({
+        resizable: true,
+        minWidth: 400,
+        maxWidth: 1600,
+      });
+      expect(source).toContain('surface.setEditorResizable(true);');
+      expect(source).toMatch(
+        /const auto wanted = runtimeHost\(\)\.surface\(\)\.takeEditorSizeRequest\(\);[\s\S]+sizeConstrainer\.constrainRequest\([\s\S]+if \(size != current\)\s+setSize\(size\.x, size\.y\);/,
+      );
+      // After pointer and key input, and the tick's timers.
+      expect(source).toMatch(
+        /surface\(\)\.pointer\(input\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest\(\);/,
+      );
+      expect(source).toMatch(
+        /backend::typedText\(key\)\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest\(\);/,
+      );
+      expect(source).toMatch(
+        /host->tick\(\);[\s\S]{0,120}applyEditorSizeRequest\(\);/,
+      );
+    });
+
+    it('takes no request where no other size is allowed', () => {
+      for (const editor of [
+        undefined,
+        {
+          resizable: true as const,
+          width: 500,
+          height: 400,
+          maxWidth: 500,
+          maxHeight: 400,
+        },
+      ]) {
+        const source = editorSource(editor);
+        expect(source).toContain('surface.setEditorResizable(false);');
+        expect(source).not.toContain('constrainRequest');
       }
     });
 

@@ -688,8 +688,13 @@ describe("the editor's size and the view's safe area", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   function geometry(presentation: Presentation, editor: WebEditor) {
-    const told: ViewGeometry[] = [];
-    const context = setup(presentation, editor, (next) => told.push(next));
+    // The sizes; what the plugin may ask is checked on its own below.
+    const told: Pick<ViewGeometry, 'editor' | 'safeArea'>[] = [];
+    const all: ViewGeometry[] = [];
+    const context = setup(presentation, editor, (next) => {
+      all.push(next);
+      told.push({ editor: next.editor, safeArea: next.safeArea });
+    });
     const handle =
       context.shell.element.querySelector<HTMLElement>('.soundor-resize');
     const drag = (dx: number, dy: number) => {
@@ -713,7 +718,7 @@ describe("the editor's size and the view's safe area", () => {
       context.shell.viewport.style.height,
       context.shell.viewport.style.transform,
     ];
-    return { ...context, told, drag, viewport };
+    return { ...context, told, all, drag, viewport };
   }
 
   it('are the view and all of it, telling once per change', () => {
@@ -857,6 +862,73 @@ describe("the editor's size and the view's safe area", () => {
       editor: { width: 400, height: 600 },
       safeArea: { x: 0, y: 300, width: 800, height: 600 },
     });
+  });
+});
+
+describe("the plugin's own size requests", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function requested(editor: WebEditor, presentation: Presentation = 'demo') {
+    const all: ViewGeometry[] = [];
+    const context = setup(presentation, editor, (next) => all.push(next));
+    const request = (width: number, height: number) => {
+      let asked = false;
+      act(() => {
+        asked = context.shell.requestEditorSize({ width, height });
+      });
+      return asked;
+    };
+    return { ...context, all, request };
+  }
+
+  it('resize the viewport as its handle does, within the limits', () => {
+    const { all, request, shell } = requested(RESIZABLE);
+    expect(all.at(-1)).toMatchObject({ resizable: true, fit: 1 });
+    expect(request(1000, 700)).toBe(true);
+    expect(all.at(-1)?.editor).toEqual({ width: 1000, height: 700 });
+    expect(shell.viewport.style.width).toBe('1000px');
+    // Held to 480×320 – 1200×900, each side on its own.
+    request(5000, 100);
+    expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 320 });
+    // The size it has: nothing new.
+    const count = all.length;
+    expect(request(1200, 320)).toBe(true);
+    expect(all).toHaveLength(count);
+  });
+
+  it('keep the aspect ratio of an editor that scales, by the side asked to change the more', () => {
+    const { all, request, shell } = requested(SCALING);
+    request(1200, 610);
+    expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 900 });
+    expect(shell.viewport.style.transform).toBe('scale(1.5)');
+    request(1210, 600);
+    expect(all.at(-1)?.editor).toEqual({ width: 800, height: 600 });
+  });
+
+  it("stop at the stage's room, as the handle does", () => {
+    const resize = observeStage();
+    const { all, request, shell } = requested(RESIZABLE);
+    // 1000×600 of room (the stage's padding taken off).
+    resize(shell, 1032, 692);
+    request(1200, 900);
+    expect(all.at(-1)?.editor).toEqual({ width: 1000, height: 600 });
+  });
+
+  it('are refused where the page owns the size, or no other is allowed', () => {
+    const embedded = requested(RESIZABLE, 'embed');
+    expect(embedded.all.at(-1)?.resizable).toBe(false);
+    expect(embedded.request(1000, 700)).toBe(false);
+    const fixed = requested(FIXED);
+    expect(fixed.all.at(-1)?.resizable).toBe(false);
+    expect(fixed.request(1000, 700)).toBe(false);
+    expect(fixed.shell.viewport.style.width).toBe('800px');
+  });
+
+  it('tell the view how many CSS pixels an editor pixel is, scaled to fit', () => {
+    const resize = observeStage();
+    const { all, shell } = requested(RESIZABLE);
+    resize(shell, 432, 392);
+    expect(all.at(-1)?.fit).toBe(0.5);
   });
 });
 

@@ -510,8 +510,14 @@ namespace ${NS}
         };
         void timerCallback() override;
         // Gives the UI the view's size, pixel density and safe area, and the
-        // editor's size.
+        // editor's size and whether it can ask for another.
         void sizeSurface();
+        // Resizes the editor to the size the UI last asked for
+        // (requestEditorSize()), held to its limits, as the host would:
+        // setSize() tells the host (VST3 resizeView, AU, the Standalone's
+        // window), which may give another size or none. After the UI's code
+        // has run, never inside it.
+        void applyEditorSizeRequest();
         // The view's pixels per logical pixel of the UI's layout: 1, or with
         // an editor that scales, the view's size over the layout's.
         [[nodiscard]] float zoom() const;
@@ -614,13 +620,48 @@ function renderEditorSize(editor: ResolvedEditorConfig): string {
       : `fit: '${editor.fit}'`;
   const ratio =
     editor.resize === 'scale' && editor.keepAspectRatio
-      ? `\n        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});`
+      ? `\n        sizeConstrainer.setFixedAspectRatio(${cppDouble(editor.width / editor.height)});
+        sizeConstrainer.setScaledLayout({ ${cppInt(editor.width)}, ${cppInt(editor.height)} });`
       : '';
   return `        // soundor.config: editor (resizable, ${what}).
         sizeConstrainer.setSizeLimits(${cppInt(editor.minWidth)}, ${cppInt(editor.minHeight)}, ${cppLimit(editor.maxWidth)}, ${cppLimit(editor.maxHeight)});${ratio}
         setConstrainer(&sizeConstrainer);
         setResizable(true, false);
         ${size}`;
+}
+
+/**
+ * Whether the UI can ask for another editor size: a resizable editor whose
+ * limits allow one (the Web host's canResize() says the same).
+ */
+function canRequestEditorSize(editor: ResolvedEditorConfig): boolean {
+  return (
+    editor.resizable &&
+    (editor.minWidth < editor.maxWidth || editor.minHeight < editor.maxHeight)
+  );
+}
+
+/** applyEditorSizeRequest(): a request the surface holds, as setSize(). */
+function renderEditorRequest(editor: ResolvedEditorConfig): string {
+  if (!canRequestEditorSize(editor))
+    return `    void AudioProcessorEditor::applyEditorSizeRequest()
+    {
+        // A fixed editor: the surface takes no requests.
+        (void)runtimeHost().surface().takeEditorSizeRequest();
+    }`;
+  return `    void AudioProcessorEditor::applyEditorSizeRequest()
+    {
+        const auto wanted = runtimeHost().surface().takeEditorSizeRequest();
+        if (! wanted)
+            return;
+        // The constrainer holds a host's resize only to the minimum; a request
+        // keeps to all the limits (and the ratio of an editor that scales).
+        const juce::Point<int> current { getWidth(), getHeight() };
+        const auto size = sizeConstrainer.constrainRequest(
+            { juce::roundToInt(wanted->width), juce::roundToInt(wanted->height) }, current);
+        if (size != current)
+            setSize(size.x, size.y);
+    }`;
 }
 
 /**
@@ -878,10 +919,13 @@ ${renderEditorSize(editor)}
         surface.setSafeArea(safeArea());
         // The editor's own size, which soundor:ui's editorSize() reports.
         surface.setEditorSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
+        surface.setEditorResizable(${canRequestEditorSize(editor) ? 'true' : 'false'});
         image.setArea(area);
         surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this))
                          * viewZoom);
     }
+
+${renderEditorRequest(editor)}
 
 ${renderEditorArea(editor)}
 
@@ -973,6 +1017,8 @@ ${renderEditorArea(editor)}
 #else
         host->tick();
 #endif
+        // Asked for by timers, animations or async work the tick ran.
+        applyEditorSizeRequest();
         updateAccessibility();
         // A lock ends with a reloaded runtime or a drag the platform ended,
         // and styles also change outside input (timers, animations).
@@ -1064,6 +1110,7 @@ ${renderEditorArea(editor)}
 #endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         updatePointerLock();
         updateCursor();
     }
@@ -1151,6 +1198,7 @@ ${renderEditorArea(editor)}
                                                            .modifiers = backend::modifiersOf(key.getModifiers()) },
                                                          backend::typedText(key));
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         return handled;
     }
 
@@ -1186,6 +1234,7 @@ ${renderEditorArea(editor)}
             key = heldKeys.erase(key);
         }
         runtimeHost().runtime().runPendingJobs();
+        applyEditorSizeRequest();
         return handled;
     }
 

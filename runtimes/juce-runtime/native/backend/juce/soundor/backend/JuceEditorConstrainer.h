@@ -5,6 +5,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <algorithm>
+#include <cmath>
+#include <optional>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 {
@@ -38,7 +40,42 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                            std::max(bounds.getHeight(), getMinimumHeight()));
         }
 
+        // The size an editor that scales keeping its aspect ratio is designed
+        // at: requests keep that shape.
+        void setScaledLayout(juce::Point<int> layout) noexcept { scaledLayout = layout; }
+
+        // The size plugin code asks for (soundor:ui's requestEditorSize(),
+        // whole and positive) held to the limits, from the editor's `current`
+        // size: each side within them, or with an editor that scales keeping
+        // its ratio, the layout's size times one zoom, the zoom of the side
+        // asked to change the more from the current zoom (a corner dragged
+        // mostly sideways, an arrow key), within the zooms the limits allow,
+        // then rounded. The Web host's constrainSize() does the same.
+        [[nodiscard]] juce::Point<int> constrainRequest(juce::Point<int> wanted,
+                                                        juce::Point<int> current) const noexcept
+        {
+            if (! scaledLayout || scaledLayout->x <= 0 || scaledLayout->y <= 0)
+                return { held(wanted.x, getMinimumWidth(), getMaximumWidth()),
+                         held(wanted.y, getMinimumHeight(), getMaximumHeight()) };
+            const double width = scaledLayout->x;
+            const double height = scaledLayout->y;
+            const double now = std::min(current.x / width, current.y / height);
+            const double across = wanted.x / width;
+            const double down = wanted.y / height;
+            const double asked = std::abs(across - now) >= std::abs(down - now) ? across : down;
+            const double least = std::max(getMinimumWidth() / width, getMinimumHeight() / height);
+            const double most = std::min(getMaximumWidth() / width, getMaximumHeight() / height);
+            const double zoom = std::min(std::max(asked, least), std::max(least, most));
+            return { static_cast<int>(std::lround(width * zoom)), static_cast<int>(std::lround(height * zoom)) };
+        }
+
     private:
+        static int held(int value, int least, int most) noexcept
+        {
+            return std::min(std::max(value, least), std::max(least, most));
+        }
+
         bool enforce;
+        std::optional<juce::Point<int>> scaledLayout;
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

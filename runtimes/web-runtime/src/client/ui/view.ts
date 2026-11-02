@@ -95,8 +95,18 @@ export class UiView implements ViewLink {
   /** What the host says of the view: its safe area (null: all of it). */
   #safeArea: LayoutRect | null = null;
   /** The editor's size, as the host last said; replaced when it changes. */
-  #editorSize: EditorSize = Object.freeze({ width: 0, height: 0 });
+  #editorSize: EditorSize = Object.freeze({
+    width: 0,
+    height: 0,
+    resizable: false,
+  });
   readonly #editorListeners = new Listeners<EditorSize>();
+  /** CSS pixels per editor pixel, as the host last said. */
+  #editorFit = 1;
+  /** Where requestEditorSize() goes: the host's viewport. */
+  #requestEditorSize:
+    | ((size: { width: number; height: number }) => boolean)
+    | null = null;
 
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
@@ -199,24 +209,53 @@ export class UiView implements ViewLink {
   }
 
   /**
-   * The host's word on the view: the size of the editor it shows it in, and
-   * its safe area (null: all of it). Tells subscribers of what changed: the
-   * view's size first, as it is measured again, then the editor's.
+   * The host's word on the view: the size of the editor it shows it in,
+   * whether the plugin can ask for another, CSS pixels per editor pixel,
+   * and its safe area (null: all of it). Tells subscribers of what changed:
+   * the view's size first, as it is measured again, then the editor's.
    */
   setGeometry(geometry: {
-    readonly editor: EditorSize;
+    readonly editor: { readonly width: number; readonly height: number };
     readonly safeArea: LayoutRect | null;
+    readonly resizable?: boolean;
+    readonly fit?: number;
   }): void {
-    const { editor, safeArea } = geometry;
+    const { editor, safeArea, resizable = false, fit = 1 } = geometry;
     this.#safeArea = safeArea === null ? null : { ...safeArea };
+    this.#editorFit = fit > 0 ? fit : 1;
     this.measure();
     const known = this.#editorSize;
-    if (editor.width === known.width && editor.height === known.height) return;
+    if (
+      editor.width === known.width &&
+      editor.height === known.height &&
+      resizable === known.resizable
+    )
+      return;
     this.#editorSize = Object.freeze({
       width: editor.width,
       height: editor.height,
+      resizable,
     });
     this.#editorListeners.notify(this.#editorSize);
+  }
+
+  /** Where requestEditorSize() sends a checked, whole size: the host. */
+  setEditorRequester(
+    request: ((size: { width: number; height: number }) => boolean) | null,
+  ): void {
+    this.#requestEditorSize = request;
+  }
+
+  /**
+   * Asks the host for another editor size, checked and rounded as the JUCE
+   * runtime does; false where the editor's size cannot be asked for.
+   */
+  requestEditorSize(width: unknown, height: unknown): boolean {
+    const w = requestedSide(width, 'width');
+    const h = requestedSide(height, 'height');
+    if (!this.#editorSize.resizable || this.#requestEditorSize === null)
+      return false;
+    return this.#requestEditorSize({ width: w, height: h });
   }
 
   /**
@@ -703,6 +742,10 @@ export class UiView implements ViewLink {
       clientY: y,
       offsetX: local.x,
       offsetY: local.y,
+      // The screen in the editor's pixels: the page's CSS pixels over the
+      // stage's fit (not the view's zoom, which a resize changes).
+      screenX: (event.screenX ?? x) / this.#editorFit,
+      screenY: (event.screenY ?? y) / this.#editorFit,
       // The browser's, in CSS pixels; synthetic events may have none.
       movementX: (event.movementX ?? 0) / scale,
       movementY: (event.movementY ?? 0) / scale,
@@ -1025,4 +1068,28 @@ export class UiView implements ViewLink {
     if (next !== null && this.rootElement.contains(next)) return;
     this.focus(null, false);
   }
+}
+
+/** One side of a size requestEditorSize() is asked for, checked and whole. */
+function requestedSide(value: unknown, name: string): number {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!(Number.isFinite(value) && value > 0))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+    );
+  return Math.round(value);
+}
+
+/** What a value is, as the JUCE runtime's errors say it. */
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'object')
+    return (
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      'object'
+    );
+  return typeof value;
 }

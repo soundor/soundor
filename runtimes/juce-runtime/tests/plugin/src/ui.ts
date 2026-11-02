@@ -7,6 +7,7 @@ import {
   createText,
   createView,
   pressable,
+  requestEditorSize,
   root,
   subscribeViewSize,
   viewSize,
@@ -46,6 +47,13 @@ export function mount(): void {
   showBypass(parameters.bypass.get());
   showHost();
   parameters.gain.subscribe(showGain);
+  // Gain at its maximum asks for a larger editor, taller than its limits
+  // allow: the editor resize test (EditorResize.cpp) sees the request held
+  // to them and applied, the host's window following. A fixed editor (the
+  // prebuilt test plugin's) takes no requests.
+  parameters.gain.subscribe((value) => {
+    if (value >= 0.99) requestEditorSize(900, 5000);
+  });
   parameters.bypass.subscribe(showBypass);
   subscribe(showHost);
   pressable(bypass, {

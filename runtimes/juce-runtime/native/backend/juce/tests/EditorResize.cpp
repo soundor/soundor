@@ -2,8 +2,8 @@
 // resizes it the way a host does: the editor must open at the size its
 // soundor.config sets, keep to its limits, and lay its UI out again at every
 // new size (the UI moves with the view's centre; it is not scaled). Then it
-// closes the editor and opens a new one, and shows one at a display scale
-// of 2.
+// has the UI ask for a size of its own (requestEditorSize()), closes the
+// editor and opens a new one, and shows one at a display scale of 2.
 //
 //   soundor_juce_editor_resize <plugin.vst3>
 //
@@ -151,6 +151,25 @@ int main(int argc, char** argv)
         for (int step = 0; step < 40; ++step)
             editor->setSize(500 + step * 10, 400 + step * 5);
         expectCentred(show(*editor, "dragged"), { 890, 595 }, "after a drag");
+
+        // The UI asks for another size (requestEditorSize(), when the gain
+        // reaches its maximum): the plugin resizes its editor within its
+        // limits, and the host's window follows.
+        juce::AudioProcessorParameter* gain = nullptr;
+        for (auto* parameter : plugin->getParameters())
+            if (parameter->getName(64) == "Gain")
+                gain = parameter;
+        expect(gain != nullptr, "the plugin has its gain");
+        if (gain == nullptr)
+            return 1;
+        gain->setValueNotifyingHost(1.0f);
+        const Shown requested = show(*editor, "requested");
+        expect(editor->getWidth() == 900 && editor->getHeight() == 960,
+               "the UI's request for 900x5000 is held to 900x960: " + editor->getBounds().toString());
+        expect(window->getContentComponent()->getBounds().getHeight() == 960, "the window follows the request");
+        expectCentred(requested, { 900, 960 }, "at the size the UI asked for");
+        gain->setValueNotifyingHost(0.5f);
+        settle(200);
 
         // Closed and opened again: a new editor, at the configured size.
         window.reset();

@@ -1151,6 +1151,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.type = type;
         event.target = target;
         event.position = input.position;
+        event.screen = input.screen.value_or(input.position);
         if (isConnected(target))
         {
             event.offset = localPoint(target, input.position);
@@ -1472,6 +1473,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.type = Event::Type::Wheel;
         event.target = target;
         event.position = input.position;
+        event.screen = input.position;
         event.offset = localPoint(target, input.position);
         event.deltaX = input.deltaX;
         event.deltaY = input.deltaY;

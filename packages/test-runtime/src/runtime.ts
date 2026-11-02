@@ -8,6 +8,7 @@ import {
   MemoryStorage,
   type RuntimeOptions,
   type HostSnapshot,
+  type EditorInit,
   type EditorSize,
   type ViewRect,
   type ViewSize,
@@ -49,6 +50,13 @@ export class TestRuntime {
   private sizeListeners = new Listeners<ViewSize>();
   private editor: EditorSize;
   private editorListeners = new Listeners<EditorSize>();
+  private readonly editorPolicy: Required<
+    Omit<EditorInit, 'width' | 'height' | 'resizable'>
+  >;
+  /** The sizes requestEditorSize() asked for, held to the limits. */
+  private readonly editorRequests: { width: number; height: number }[] = [];
+  /** The size the simulated host is about to give, if any. */
+  private pendingEditorSize: { width: number; height: number } | null = null;
   private clipboardText = '';
   private cleanups = new Set<() => void>();
   private committed = new WeakMap<TestNode, string>();
@@ -84,11 +92,22 @@ export class TestRuntime {
       { width: 800, height: 600, scale: 1, ...view },
       safeArea,
     );
-    this.editor = this.editorSnapshot({
-      width: this.size.width,
-      height: this.size.height,
-      ...options.editor,
-    });
+    const {
+      width = this.size.width,
+      height = this.size.height,
+      resizable = false,
+      ...policy
+    } = options.editor ?? {};
+    this.editor = this.editorSnapshot({ width, height, resizable });
+    this.editorPolicy = {
+      minWidth: 1,
+      minHeight: 1,
+      maxWidth: Infinity,
+      maxHeight: Infinity,
+      aspectRatio: null,
+      applyRequests: true,
+      ...policy,
+    };
   }
   /** A checked, frozen view size, safe in `safe` (null: all of it). */
   private viewSnapshot(
@@ -126,7 +145,13 @@ export class TestRuntime {
           `The editor's ${key} must be a whole, non-negative number of logical pixels`,
         );
     }
-    return Object.freeze({ width: next.width, height: next.height });
+    if (typeof next.resizable !== 'boolean')
+      throw new TypeError("The editor's resizable must be a boolean");
+    return Object.freeze({
+      width: next.width,
+      height: next.height,
+      resizable: next.resizable,
+    });
   }
   get isDisposed() {
     return this.disposed;
@@ -727,10 +752,44 @@ export class TestRuntime {
   setEditorSize(size: Partial<EditorSize>) {
     this.assertActive();
     const next = this.editorSnapshot({ ...this.editor, ...size });
-    if (next.width === this.editor.width && next.height === this.editor.height)
+    if (
+      next.width === this.editor.width &&
+      next.height === this.editor.height &&
+      next.resizable === this.editor.resizable
+    )
       return;
     this.editor = next;
     this.editorListeners.notify(this.editor);
+  }
+  /**
+   * Asks for another editor size, checked, rounded and held to the limits
+   * as the runtimes do. The simulated host gives it after the calling code
+   * (a microtask), the latest request winning, unless it ignores requests.
+   */
+  requestEditorSize(width: unknown, height: unknown): boolean {
+    this.assertActive();
+    const wanted = {
+      width: requestedSide(width, 'width'),
+      height: requestedSide(height, 'height'),
+    };
+    if (!this.editor.resizable) return false;
+    const next = constrainRequest(this.editorPolicy, wanted, this.editor);
+    this.editorRequests.push(next);
+    if (!this.editorPolicy.applyRequests) return true;
+    const scheduled = this.pendingEditorSize !== null;
+    this.pendingEditorSize = next;
+    if (!scheduled)
+      queueMicrotask(() => {
+        const size = this.pendingEditorSize;
+        this.pendingEditorSize = null;
+        if (size !== null && !this.disposed) this.setEditorSize(size);
+      });
+    return true;
+  }
+  /** The sizes requestEditorSize() asked for, held to the limits, in order. */
+  requestedEditorSizes(): readonly { width: number; height: number }[] {
+    this.assertActive();
+    return this.editorRequests.map((size) => ({ ...size }));
   }
   mockNative(name: string, implementation: (...args: never[]) => unknown) {
     this.assertActive();
@@ -788,4 +847,64 @@ export class TestRuntime {
 }
 export function createTestRuntime(options: RuntimeOptions = {}) {
   return new TestRuntime(options);
+}
+
+/** One side of a size requestEditorSize() is asked for, checked and whole. */
+function requestedSide(value: unknown, name: string): number {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!(Number.isFinite(value) && value > 0))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+    );
+  return Math.round(value);
+}
+
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (typeof value === 'object')
+    return (
+      (value as { constructor?: { name?: string } }).constructor?.name ??
+      'object'
+    );
+  return typeof value;
+}
+
+/**
+ * A request held to the editor's limits, as the runtimes hold it: each side
+ * within them, or keeping the configured aspect ratio, that size times the
+ * zoom of the side asked to change the more from the current zoom, within
+ * the zooms the limits allow, rounded.
+ */
+function constrainRequest(
+  policy: Required<Omit<EditorInit, 'width' | 'height' | 'resizable'>>,
+  wanted: { width: number; height: number },
+  current: { width: number; height: number },
+): { width: number; height: number } {
+  const held = (value: number, min: number, max: number) =>
+    Math.min(Math.max(value, min), Math.max(min, max));
+  const ratio = policy.aspectRatio;
+  if (ratio === null)
+    return {
+      width: held(wanted.width, policy.minWidth, policy.maxWidth),
+      height: held(wanted.height, policy.minHeight, policy.maxHeight),
+    };
+  const now = Math.min(
+    current.width / ratio.width,
+    current.height / ratio.height,
+  );
+  const across = wanted.width / ratio.width;
+  const down = wanted.height / ratio.height;
+  const asked = Math.abs(across - now) >= Math.abs(down - now) ? across : down;
+  const zoom = held(
+    asked,
+    Math.max(policy.minWidth / ratio.width, policy.minHeight / ratio.height),
+    Math.min(policy.maxWidth / ratio.width, policy.maxHeight / ratio.height),
+  );
+  return {
+    width: Math.round(ratio.width * zoom),
+    height: Math.round(ratio.height * zoom),
+  };
 }

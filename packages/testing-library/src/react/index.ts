@@ -179,4 +179,5 @@ export const testView: typeof rawTestView = {
 };
 export const testEditor: typeof rawTestEditor = {
   resize: (size) => syncUpdate(() => rawTestEditor.resize(size)),
+  requests: () => rawTestEditor.requests(),
 };

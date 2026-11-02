@@ -98,4 +98,27 @@ TEST_SUITE("JUCE input")
         CHECK(stepped.deltaY == doctest::Approx(3)); // one notch towards the user scrolls down
         CHECK(backend::wheelInput({}, {}, wheel(-notch, 0, false)).deltaX == doctest::Approx(3));
     }
+
+    TEST_CASE("a pointer's screen position is in the editor's logical pixels, however the host scales it")
+    {
+        juce::ScopedJuceInitialiser_GUI gui;
+        juce::Component window;
+        juce::Component editor;
+        window.setBounds(0, 0, 2000, 2000);
+        window.addAndMakeVisible(editor);
+        editor.setBounds(100, 50, 400, 300);
+        // A host at a display scale of 2 (setScaleFactor).
+        editor.setTransform(juce::AffineTransform::scale(2.0F));
+        const auto now = juce::Time::getCurrentTime();
+        const juce::MouseEvent event(juce::Desktop::getInstance().getMainMouseSource(), { 10, 20 }, {}, 0, 0, 0, 0, 0,
+                                     &editor, &editor, now, { 10, 20 }, now, 1, false);
+        const auto input = backend::pointerInput(event, ui::PointerInput::Phase::Move);
+        CHECK(input.position.x == 10);
+        REQUIRE(input.screen.has_value());
+        // 110×70 of the editor's pixels from the screen's corner (220×140 of
+        // the screen's own).
+        const auto screen = input.screen.value_or(ui::Point {});
+        CHECK(screen.x == doctest::Approx(110));
+        CHECK(screen.y == doctest::Approx(70));
+    }
 }

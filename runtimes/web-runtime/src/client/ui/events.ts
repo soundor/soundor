@@ -280,6 +280,8 @@ export interface PointerEventInit extends ModifierEventInit {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+  screenX?: number;
+  screenY?: number;
   movementX?: number;
   movementY?: number;
   button?: number;
@@ -303,6 +305,8 @@ export class PointerEvent extends ModifierEvent {
       clientY: init.clientY ?? 0,
       offsetX: init.offsetX ?? 0,
       offsetY: init.offsetY ?? 0,
+      screenX: init.screenX ?? init.clientX ?? 0,
+      screenY: init.screenY ?? init.clientY ?? 0,
       movementX: init.movementX ?? 0,
       movementY: init.movementY ?? 0,
       button: init.button ?? 0,
@@ -348,6 +352,17 @@ export class PointerEvent extends ModifierEvent {
   }
   get offsetY(): number {
     return this.#init.offsetY;
+  }
+  /**
+   * Where the pointer is on the screen, in the editor's logical pixels (the
+   * units of editorSize()): unlike clientX/Y, these do not change as the
+   * editor's size, or the zoom of an editor that scales, does.
+   */
+  get screenX(): number {
+    return this.#init.screenX;
+  }
+  get screenY(): number {
+    return this.#init.screenY;
   }
   /**
    * How far the pointer moved since its previous event, in logical pixels;

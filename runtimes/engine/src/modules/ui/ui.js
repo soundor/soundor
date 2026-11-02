@@ -1168,21 +1168,49 @@ native.setViewSizeListener(() => {
   tell(sizeListeners, size);
 });
 
-/** The latest editorSize(); replaced (never changed) when the size changes. */
+/** The latest editorSize(); replaced (never changed) when it changes. */
 let currentEditorSize = Object.freeze(native.editorSize());
 
 /**
- * The actual size of the editor the view is shown in, in its logical pixels.
- * The same frozen object until it changes, so it works as a store snapshot.
+ * The actual size of the editor the view is shown in, in its logical pixels,
+ * and whether requestEditorSize() can change it. The same frozen object
+ * until either changes, so it works as a store snapshot.
  */
 export function editorSize() {
   const size = native.editorSize();
   if (
     size.width !== currentEditorSize.width ||
-    size.height !== currentEditorSize.height
+    size.height !== currentEditorSize.height ||
+    size.resizable !== currentEditorSize.resizable
   )
     currentEditorSize = Object.freeze(size);
   return currentEditorSize;
+}
+
+/** One side of a size requestEditorSize() is asked for, checked and whole. */
+function requestedSide(value, name) {
+  if (typeof value !== 'number')
+    throw new TypeError(
+      `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
+    );
+  if (!(Number.isFinite(value) && value > 0))
+    throw new RangeError(
+      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+    );
+  return Math.round(value);
+}
+
+/**
+ * Asks for the editor to be `width`×`height` logical pixels (rounded to
+ * whole ones), within its limits. Returns whether it was asked for: false
+ * where the editor's size cannot be (editorSize().resizable). The host
+ * resizes it later, or not, as it decides: subscribeEditorSize() says what
+ * it got.
+ */
+export function requestEditorSize(width, height) {
+  const w = requestedSide(width, 'width');
+  const h = requestedSide(height, 'height');
+  return native.requestEditorSize(w, h);
 }
 
 const editorSizeListeners = new Set();
@@ -1468,6 +1496,8 @@ export class PointerEvent extends ModifierEvent {
       clientY: init.clientY ?? 0,
       offsetX: init.offsetX ?? 0,
       offsetY: init.offsetY ?? 0,
+      screenX: init.screenX ?? init.clientX ?? 0,
+      screenY: init.screenY ?? init.clientY ?? 0,
       movementX: init.movementX ?? 0,
       movementY: init.movementY ?? 0,
       button: init.button ?? 0,
@@ -1513,6 +1543,17 @@ export class PointerEvent extends ModifierEvent {
   }
   get offsetY() {
     return this.#init.offsetY;
+  }
+  /**
+   * Where the pointer is on the screen, in the editor's logical pixels (the
+   * units of editorSize()): unlike clientX/Y, these do not change as the
+   * editor's size, or the zoom of an editor that scales, does.
+   */
+  get screenX() {
+    return this.#init.screenX;
+  }
+  get screenY() {
+    return this.#init.screenY;
   }
   /**
    * How far the pointer moved since its previous event, in logical pixels;
@@ -1910,6 +1951,8 @@ native.setListener((type, targetId, data) => {
     clientY: data.y,
     offsetX: data.offsetX,
     offsetY: data.offsetY,
+    screenX: data.screenX,
+    screenY: data.screenY,
     movementX: data.movementX,
     movementY: data.movementY,
     button: data.button,

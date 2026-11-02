@@ -262,7 +262,11 @@ describe('the safe area and the editor size', () => {
       width: 800,
       height: 600,
     });
-    expect(view.editorSize()).toEqual({ width: 0, height: 0 });
+    expect(view.editorSize()).toEqual({
+      width: 0,
+      height: 0,
+      resizable: false,
+    });
     expect(Object.isFrozen(view.editorSize())).toBe(true);
   });
 
@@ -286,7 +290,7 @@ describe('the safe area and the editor size', () => {
       },
     ]);
     expect(Object.isFrozen(sizes[0]!.safeArea)).toBe(true);
-    expect(editors).toEqual([{ width: 1000, height: 600 }]);
+    expect(editors).toEqual([{ width: 1000, height: 600, resizable: false }]);
     expect(editors[0]).toBe(view.editorSize());
     // The same again: no news, the same snapshots.
     const editor = view.editorSize();
@@ -298,8 +302,8 @@ describe('the safe area and the editor size', () => {
     view.setGeometry({ ...geometry, editor: { width: 2000, height: 1200 } });
     expect(sizes).toHaveLength(1);
     expect(editors).toEqual([
-      { width: 1000, height: 600 },
-      { width: 2000, height: 1200 },
+      { width: 1000, height: 600, resizable: false },
+      { width: 2000, height: 1200, resizable: false },
     ]);
     // Back to all of it.
     view.setGeometry({ editor: { width: 2000, height: 1200 }, safeArea: null });
@@ -317,7 +321,11 @@ describe('the safe area and the editor size', () => {
     other.subscribeEditorSize((size) => told.push(size));
     view.setGeometry({ editor: { width: 640, height: 480 }, safeArea: null });
     expect(told).toEqual([]);
-    expect(other.editorSize()).toEqual({ width: 0, height: 0 });
+    expect(other.editorSize()).toEqual({
+      width: 0,
+      height: 0,
+      resizable: false,
+    });
     other.dispose();
     const mine: unknown[] = [];
     view.subscribeEditorSize((size) => mine.push(size));

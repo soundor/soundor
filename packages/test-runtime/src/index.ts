@@ -12,6 +12,7 @@ export type {
   RuntimeOptions,
   ParameterInfo,
   HostSnapshot,
+  EditorInit,
   EditorSize,
   ViewRect,
   ViewSize,

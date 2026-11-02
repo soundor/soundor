@@ -533,13 +533,82 @@ TEST_SUITE("soundor:ui")
             globalThis.first = editorSize();
         )");
         // Before the backend says: nothing shown yet.
-        CHECK(f.eval("JSON.stringify(first)").asString() == R"({"width":0,"height":0})");
+        CHECK(f.eval("JSON.stringify(first)").asString() == R"({"width":0,"height":0,"resizable":false})");
         CHECK(f.eval("Object.isFrozen(first) && read() === first").asBoolean());
         // An editor that scales: twice the view's size.
         f.host.surface().setEditorSize({ 400, 200 });
-        CHECK(f.eval("JSON.stringify(read())").asString() == R"({"width":400,"height":200})");
+        CHECK(f.eval("JSON.stringify(read())").asString() == R"({"width":400,"height":200,"resizable":false})");
         CHECK(f.eval("read() === read() && read() !== first").asBoolean());
         CHECK(f.eval("viewSize().width").asNumber() == 200);
+        // The backend saying requests can resize it is a new snapshot too.
+        f.eval("globalThis.second = read()");
+        f.host.surface().setEditorResizable(true);
+        CHECK(f.eval("read() !== second && read().resizable").asBoolean());
+    }
+
+    TEST_CASE("requestEditorSize asks the backend for a whole size, only where it can be asked for")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { requestEditorSize, editorSize } from 'soundor:ui';
+            globalThis.request = requestEditorSize;
+            globalThis.read = editorSize;
+        )");
+        auto& surface = f.host.surface();
+        // A fixed editor: nothing is asked.
+        CHECK_FALSE(f.eval("request(500, 400)").asBoolean());
+        CHECK_FALSE(surface.takeEditorSizeRequest().has_value());
+
+        surface.setEditorResizable(true);
+        surface.setEditorSize({ 400, 300 });
+        CHECK(f.eval("request(500.4, 399.5)").asBoolean());
+        // The latest request is the one taken, rounded to whole pixels.
+        CHECK(f.eval("request(640.6, 480.2)").asBoolean());
+        const auto taken = surface.takeEditorSizeRequest().value_or(ui::Size {});
+        CHECK(taken.width == 641);
+        CHECK(taken.height == 480);
+        CHECK_FALSE(surface.takeEditorSizeRequest().has_value());
+        // Asking is not getting: the size is the backend's until it says.
+        CHECK(f.eval("read().width").asNumber() == 400);
+        // A size no screen has is held to what converts, never overflowing.
+        CHECK(f.eval("request(1e300, 1)").asBoolean());
+        CHECK(surface.takeEditorSizeRequest().value_or(ui::Size {}).width == 0x3FFFFFFF);
+
+        const auto fails = [&](const char* call) { return f.error(std::string(imports) + call); };
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize('500', 400);")
+                  .find("TypeError: requestEditorSize(): width must be a number, got string")
+              != std::string::npos);
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize(500);")
+                  .find("TypeError: requestEditorSize(): height must be a number, got undefined")
+              != std::string::npos);
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize(0, 400);")
+                  .find("RangeError: requestEditorSize(): width must be a finite number above 0, got 0")
+              != std::string::npos);
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize(500, -1);")
+                  .find("RangeError: requestEditorSize(): height must be a finite number above 0, got -1")
+              != std::string::npos);
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize(Infinity, 400);")
+                  .find("RangeError: requestEditorSize(): width must be a finite number above 0, got Infinity")
+              != std::string::npos);
+        CHECK(fails("import { requestEditorSize } from 'soundor:ui'; requestEditorSize(NaN, 400);").find("got NaN")
+              != std::string::npos);
+        CHECK_FALSE(surface.takeEditorSizeRequest().has_value());
+    }
+
+    TEST_CASE("pointer events say where the pointer is on the screen, in the editor's pixels")
+    {
+        UiFixture f;
+        f.run(R"(
+            globalThis.seen = [];
+            a.addEventListener('pointerdown', (event) => seen.push([event.clientX, event.screenX, event.screenY]));
+        )");
+        auto input = pointer(ui::PointerInput::Phase::Down, 10, 20, 1, 0);
+        input.screen = ui::Point { 1210, 820 };
+        f.host.surface().pointer(input);
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 10, 20, 0, 0));
+        // A backend that does not know: the view's position.
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Down, 30, 40, 1, 0));
+        CHECK(f.eval("JSON.stringify(seen)").asString() == "[[10,1210,820],[30,30,40]]");
     }
 
     TEST_CASE("subscribeEditorSize tells each subscriber once per change, apart from the view's")
@@ -575,6 +644,11 @@ TEST_SUITE("soundor:ui")
         f.host.surface().setSize({ 250, 125 });
         f.host.tick();
         CHECK(f.eval("JSON.stringify(log.splice(0))").asString() == R"(["view 250x125","editor 500x250"])");
+        // Whether it can be asked for is part of it.
+        f.host.surface().setEditorResizable(true);
+        f.host.tick();
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(log.splice(0))").asString() == R"(["editor 500x250"])");
         bool reported = false;
         for (const auto& [level, message] : f.logs)
             reported = reported || message.find("editor listener failed") != std::string::npos;

@@ -89,6 +89,8 @@ export class TestEvent {
     });
     this['pageX'] = init['pageX'] ?? init['clientX'] ?? 0;
     this['pageY'] = init['pageY'] ?? init['clientY'] ?? 0;
+    this['screenX'] = init['screenX'] ?? this['pageX'];
+    this['screenY'] = init['screenY'] ?? this['pageY'];
     this['locationX'] = init['locationX'] ?? init['offsetX'] ?? 0;
     this['locationY'] = init['locationY'] ?? init['offsetY'] ?? 0;
   }

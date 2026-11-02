@@ -194,6 +194,20 @@ the mode, and `subscribeEditorSize()` tells of every change, a host's
 included, within a frame. It is the view's size in an editor that lays
 out again; in one that scales, the view's size times its zoom.
 
+The UI can ask for a size itself:
+[`requestEditorSize()`](/docs/api/ui#asking-for-a-size) keeps the latest
+request on the surface, and the editor takes it once the input or the tick
+that made it is done, never inside the UI's code. It holds the request to
+all the limits (and, scaling, the aspect ratio) with
+`JuceEditorConstrainer::constrainRequest()`, then calls `setSize()`, which
+JUCE passes on to the host: VST3's `resizeView()`, AU's view and the
+Standalone's window. The host gives that size or another, as a resize by
+the user would be, and the editor reports what it got. A fixed editor, or
+limits that allow no other size, takes no requests
+(`editorSize().resizable` is false). Hosts that refuse to resize plugin
+windows leave the editor where it is: only a VST3 host on Linux (JUCE's
+own, and Ardour) has been checked so far.
+
 Resizing changes the view's size in logical pixels; the display's pixel
 density is separate, so a resized editor stays sharp, and one moved to a
 display of another density keeps its layout. To check the resize in a host:

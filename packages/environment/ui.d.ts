@@ -811,19 +811,50 @@ declare module 'soundor:ui' {
     readonly width: number;
     /** The editor's actual height, in its logical pixels. */
     readonly height: number;
+    /**
+     * Whether {@link requestEditorSize} can ask for another size: true for a
+     * resizable editor (soundor.config) whose limits allow one, in a DAW,
+     * the Standalone and the Web host's page; false for a fixed editor, and
+     * where its container owns its size (a Web build opened with `?embed`).
+     * A UI hides its own resize grip where it is false. It says the editor
+     * may be asked, not that the host will agree.
+     */
+    readonly resizable: boolean;
   }
   /**
-   * The editor's actual size, in whole logical pixels. The same frozen
-   * object until it changes, so it works as a store snapshot
+   * The editor's actual size, in whole logical pixels, and whether it can be
+   * asked for another. The same frozen object until either changes, so it
+   * works as a store snapshot
    * (`useSyncExternalStore(subscribeEditorSize, editorSize)`). Before the
    * host has shown the editor, width and height are 0.
    */
   export function editorSize(): EditorSize;
   /**
+   * Asks for the editor to be `width`×`height`, in its logical pixels (the
+   * units of {@link editorSize}, before display density, not the layout's
+   * of an editor that scales), rounded to whole pixels. The size is held to
+   * the editor's limits (soundor.config): each side within its minimum and
+   * maximum, or for an editor that scales keeping its aspect ratio, its
+   * configured size times one zoom: the zoom of the side asked to change
+   * the more from the editor's current zoom, within the zooms the limits
+   * allow. On the Web host's page, also no larger than the room the page
+   * has, unless it is already.
+   *
+   * Returns true when the size was asked for, false where it cannot be
+   * (`editorSize().resizable` is false), when nothing changes. True says
+   * nothing of what the host does: the editor resizes after the calling
+   * code returns, to the size the host gives it, which may be another or
+   * none, and {@link subscribeEditorSize} tells of it; editorSize() is the
+   * old size until then. Asking for the current size changes nothing.
+   * Throws a TypeError when a side is not a number, a RangeError when it is
+   * not finite or not above 0.
+   */
+  export function requestEditorSize(width: number, height: number): boolean;
+  /**
    * Calls `listener` with the new {@link editorSize} once whenever the
-   * editor's size changes, whoever resized it: the user, the DAW, or the Web
-   * host's page. Never for an unchanged size, and not every frame. Returns a
-   * function that unsubscribes.
+   * editor's size changes, whoever resized it: the user, the DAW, the Web
+   * host's page or a {@link requestEditorSize}. Never for an unchanged size,
+   * and not every frame. Returns a function that unsubscribes.
    */
   export function subscribeEditorSize(
     listener: (size: EditorSize) => void,
@@ -874,6 +905,8 @@ declare module 'soundor:ui' {
     clientY?: number;
     offsetX?: number;
     offsetY?: number;
+    screenX?: number;
+    screenY?: number;
     movementX?: number;
     movementY?: number;
     button?: number;
@@ -905,6 +938,16 @@ declare module 'soundor:ui' {
     /** locationX and locationY, by their Web names. */
     readonly offsetX: number;
     readonly offsetY: number;
+    /**
+     * Where the pointer is on the screen, in the editor's logical pixels
+     * (the units of editorSize() and requestEditorSize()). Unlike clientX/Y,
+     * they do not change when the editor is resized, or zoomed when it
+     * scales, so a drag that resizes the editor measures its distance with
+     * them: the size at the press plus how far screenX/Y moved since. Where
+     * a runtime cannot tell (a wheel event, a simulated one), clientX/Y.
+     */
+    readonly screenX: number;
+    readonly screenY: number;
     /**
      * How far the pointer moved since its previous event, in logical pixels;
      * also while locked, when clientX/Y stay where the lock began.

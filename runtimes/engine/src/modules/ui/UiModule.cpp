@@ -76,8 +76,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Size notifiedSize;
             float notifiedScale = 0;
             Rect notifiedSafeArea;
-            // The editor's size JavaScript was last told of.
+            // The editor's size, and whether it can be asked for, JavaScript
+            // was last told of.
             Size notifiedEditorSize;
+            bool notifiedEditorResizable = false;
         };
 
         bool sameSize(Size a, Size b) noexcept
@@ -801,7 +803,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             bind::ObjectBuilder object(context);
                             object.set("width", jsi::Value(double(surface.editorSize().width)));
                             object.set("height", jsi::Value(double(surface.editorSize().height)));
+                            object.set("resizable", jsi::Value(surface.canRequestEditorSize()));
                             return object.release();
+                        });
+        }
+
+        // The editor's largest size a request can ask for, in logical pixels:
+        // what a whole number converts to safely, and far beyond any screen.
+        constexpr double largestEditorSize = 0x3FFFFFFF;
+
+        // ui.js checks and rounds the size; here it is held to what converts.
+        jsi::Value requestEditorSize(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                     std::size_t count)
+        {
+            return call(context, "requestEditorSize", count, 2,
+                        [&](Surface& surface)
+                        {
+                            const auto side = [&](const jsi::Value& value)
+                            {
+                                const double number = bind::toNumber(context, value);
+                                if (! std::isfinite(number) || ! (number > 0))
+                                    throw std::invalid_argument("expected a positive, finite size");
+                                return static_cast<float>(std::clamp(std::round(number), 1.0, largestEditorSize));
+                            };
+                            const Size size { side(args[0]), side(args[1]) };
+                            return jsi::Value(surface.requestEditorSize(size));
                         });
         }
 
@@ -1022,7 +1048,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             bind::retainValue(context, &editorSizeListenerKey, jsi::Value(context.rt, args[0]));
             // The module read the size as it loaded: that is what it knows.
             if (auto* binding = bind::contextData<Binding>(context, &bindingKey))
+            {
                 binding->notifiedEditorSize = binding->surface->editorSize();
+                binding->notifiedEditorResizable = binding->surface->canRequestEditorSize();
+            }
             return jsi::Value::undefined();
         }
 
@@ -1341,6 +1370,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     data.set("y", jsi::Value(double(event.position.y)));
                     data.set("offsetX", jsi::Value(double(event.offset.x)));
                     data.set("offsetY", jsi::Value(double(event.offset.y)));
+                    data.set("screenX", jsi::Value(double(event.screen.x)));
+                    data.set("screenY", jsi::Value(double(event.screen.y)));
                     data.set("movementX", jsi::Value(double(event.movement.x)));
                     data.set("movementY", jsi::Value(double(event.movement.y)));
                     data.set("pointerId", jsi::Value(double(event.pointerId)));
@@ -1426,6 +1457,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "bounds", bounds, 1 },
             { "size", viewSize, 0 },
             { "editorSize", editorSize, 0 },
+            { "requestEditorSize", requestEditorSize, 2 },
             { "readClipboard", readClipboard, 0 },
             { "writeClipboard", writeClipboard, 1 },
             { "registerFont", registerFont, 4 },
@@ -1556,13 +1588,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (binding == nullptr)
             return;
         const Size size = binding->surface->editorSize();
-        if (sameSize(size, binding->notifiedEditorSize))
+        const bool resizable = binding->surface->canRequestEditorSize();
+        if (sameSize(size, binding->notifiedEditorSize) && resizable == binding->notifiedEditorResizable)
             return;
         const jsi::Value* retained = bind::retainedValue(state, &editorSizeListenerKey);
         if (retained == nullptr || ! bind::isFunction(state, *retained))
             return;
         // Before calling: a listener that throws is not called again for the same size.
         binding->notifiedEditorSize = size;
+        binding->notifiedEditorResizable = resizable;
         const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
         bind::call(state, listener, jsi::Value::undefined(), {}, "editor size listener failed");
     }

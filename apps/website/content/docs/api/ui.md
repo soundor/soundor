@@ -92,6 +92,7 @@ has the details.
 | `exitPointerLock()`, `pointerLockNode()`                                                              | End the pointer lock; the node holding it, or `null` ([Pointer lock](/docs/components/events#pointer-lock)). |
 | `viewSize()`, `subscribeViewSize(listener)`                                                           | The view's size and its subscription ([The view's size](#the-views-size)).                                   |
 | `editorSize()`, `subscribeEditorSize(listener)`                                                       | The editor's size and its subscription ([The editor's size](#the-editors-size)).                             |
+| `requestEditorSize(width, height)`                                                                    | Asks for another editor size ([Asking for a size](#asking-for-a-size)).                                      |
 | `registerFont(family, source, descriptors?)`                                                          | Makes a bundled font file a face of `family` ([Fonts](/docs/components/text#fonts)).                         |
 | `PointerEvent`, `WheelEvent`, `KeyboardEvent`, `FocusEvent`, `InputEvent`, `AccessibilityActionEvent` | The events nodes fire ([Events](/docs/components/events)).                                                   |
 
@@ -158,6 +159,7 @@ function subscribeEditorSize(listener: (size: EditorSize) => void): () => void;
 interface EditorSize {
   readonly width: number; // the editor's logical pixels, whole
   readonly height: number;
+  readonly resizable: boolean; // whether requestEditorSize() can ask for another
 }
 ```
 
@@ -170,11 +172,119 @@ view is drawn at a zoom, so the editor is the view times that zoom, bands
 included with `fit: 'contain'`. It is the same frozen object until it
 changes; before the host shows the editor it is 0×0.
 
+`resizable` says whether [`requestEditorSize()`](#asking-for-a-size) can ask
+for another size: true for a resizable editor whose limits allow one, in a
+DAW, the Standalone and the web host's page; false for a fixed editor, and
+in `?embed`, whose page owns the size. A grip the UI draws hides where it is
+false.
+
 `subscribeEditorSize(listener)` calls `listener` with the new size once
 whenever it changes, whoever resized the editor: the user, the DAW, or the
-web page. Never for an unchanged size; a listener that throws is reported
+web page, or a request. Never for an unchanged size; a listener that throws is reported
 and the others are still called. It returns a function that unsubscribes.
 In React, `useSyncExternalStore(subscribeEditorSize, editorSize)` reads it.
+
+### Asking for a size
+
+```ts
+function requestEditorSize(width: number, height: number): boolean;
+```
+
+`requestEditorSize(width, height)` asks for the editor to be
+`width`×`height`, in the editor's logical pixels (`editorSize()`'s units,
+not the layout's of an editor that scales), each rounded to a whole pixel.
+A side that is not a number throws a `TypeError`, one that is not finite or
+not above 0 a `RangeError`, in every runtime:
+`requestEditorSize(): width must be a finite number above 0, got 0`.
+
+The size is held to the editor's
+[limits](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for),
+all of them, though a host resizing the editor itself is held only to its
+minimum:
+
+- each side within its minimum and maximum, or
+- for an editor that scales keeping its aspect ratio, its configured size
+  times one zoom: the zoom of the side asked to change the more from the
+  editor's current zoom (a corner dragged mostly sideways follows the
+  width), within the zooms the limits allow, then rounded;
+- on the web host's page, also no larger than the room the page has,
+  unless it is already: the rules its own resize handle keeps.
+
+It returns `true` when the size was asked for, `false` where it cannot be
+(`editorSize().resizable` is false), when nothing changes. `true` is not the
+new size: the editor resizes after the calling code returns (in the JUCE
+runtime, once the event or the tick that ran it is done; on the web, with
+the page's next render), to what the host gives. The JUCE editor asks its
+host with `setSize()`, which a VST3 host hears as `resizeView()`, AU and the
+Standalone's window as their own; a host may give another size, or keep the
+one it has. `subscribeEditorSize()` tells of the size it got, and
+`editorSize()` is the old one until then. Asking for the size the editor
+has changes nothing; of requests made before the editor resizes, the latest
+wins.
+
+### A resize grip
+
+A grip the UI draws itself, in the corner of its view, is a node whose
+pointer and key events call `requestEditorSize()`. Its drag measures with
+`screenX` and `screenY`, which are the pointer on the screen in the
+editor's pixels: unlike `clientX`/`clientY`, they do not move when the
+editor resizes or, scaling, zooms. The size it asks for is the size at the
+press plus how far the pointer went since, so nothing drifts:
+
+```tsx
+const editor = useSyncExternalStore(subscribeEditorSize, editorSize);
+const drag = useRef<{ x: number; y: number; width: number; height: number }>();
+if (!editor.resizable) return null;
+return (
+  <View
+    focusable
+    accessibilityRole="button"
+    accessibilityLabel="Resize the editor"
+    style={{
+      position: 'absolute',
+      right: 0,
+      bottom: 0,
+      width: 18,
+      height: 18,
+      cursor: 'nwse-resize',
+    }}
+    onPointerDown={(event) => {
+      drag.current = { x: event.screenX, y: event.screenY, ...editor };
+    }}
+    onPointerMove={(event) => {
+      const from = drag.current;
+      if (from)
+        requestEditorSize(
+          from.width + event.screenX - from.x,
+          from.height + event.screenY - from.y,
+        );
+    }}
+    onPointerUp={() => (drag.current = undefined)}
+  >
+    {/* Its look: an <Svg>, or anything else. */}
+  </View>
+);
+```
+
+The pressed node keeps the pointer's events until the release, also where
+the pointer leaves it. The examples' `ResizeGrip.tsx`
+([Basic](/docs/examples/basic), [Orbit](/docs/examples/orbit)) is the
+whole grip: a cancelled drag going back to its first size, the arrow keys,
+and its look an `<Svg>` to replace with any other.
+
+Where the corner is depends on the editor's
+[`fit`](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for).
+A host may make the window larger than the editor's maximum, or of another
+shape than an editor that scales, whatever it was asked. With `fit:
+'contain'` the view stays at the size it was made for, centred in bands,
+and a grip in its corner is in the middle of the window. With `fit:
+'cover'` the view covers the window, so a grip in its corner, outside the
+[safe area](#the-views-size), is the window's corner: the fit for a UI with
+a grip of its own.
+
+On the web host's demo page the editor stays centred as it resizes, so its
+corner moves half as far as the pointer; in a DAW its top-left corner
+stays where it is and the corner follows the pointer.
 
 The [`soundor:ui` reference](/docs/contribute/engine-reference#soundorui)
 describes how the native runtime implements it.

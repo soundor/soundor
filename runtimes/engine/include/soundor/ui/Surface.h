@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -236,6 +237,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         Point position;
         Point offset;
+        // Where the pointer is on the screen, in the editor's logical pixels
+        // (PointerInput::screen).
+        Point screen;
         // How far the pointer moved since its previous input, also while
         // locked (when `position` stays where the lock began).
         Point movement;
@@ -390,6 +394,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // that scales. 0×0 until the backend sets it.
         void setEditorSize(Size size) noexcept { editor = size; }
         [[nodiscard]] Size editorSize() const noexcept { return editor; }
+        // Whether the editor's size can be asked for (soundor:ui's
+        // requestEditorSize()): the backend says so for an editor whose
+        // limits allow another size; false by default.
+        void setEditorResizable(bool resizable) noexcept { editorResizable = resizable; }
+        [[nodiscard]] bool canRequestEditorSize() const noexcept { return editorResizable; }
+        // Plugin code asking for another editor size, in its logical pixels:
+        // the latest request is kept until the backend takes it, resizes the
+        // editor within its limits and says what it got with setEditorSize().
+        // Ignored (false) where the editor's size cannot be asked for.
+        bool requestEditorSize(Size size) noexcept
+        {
+            if (! editorResizable)
+                return false;
+            editorRequest = size;
+            return true;
+        }
+        [[nodiscard]] std::optional<Size> takeEditorSizeRequest() noexcept
+        {
+            return std::exchange(editorRequest, std::nullopt);
+        }
 
         // Brings the layout up to date (cheap when nothing changed).
         void layout();
@@ -560,9 +584,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float pixelScale = 1;
         std::optional<Rect> safe;
         Size editor;
+        std::optional<Size> editorRequest;
         SurfaceStatistics counted;
         std::unique_ptr<render::SvgGeometryCache> svgGeometryCache;
         bool changed = true;
+        bool editorResizable = false;
         std::uint64_t changes = 1;
         std::vector<NodeId> invalidNodes;
         bool invalidAll = true;

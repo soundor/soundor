@@ -781,3 +781,93 @@ describe('clipboard', () => {
     expect(await view.readClipboard()).toBe('copied');
   });
 });
+
+describe('requestEditorSize', () => {
+  it('checks its arguments as the JUCE runtime does, then asks the host', () => {
+    const asked: { width: number; height: number }[] = [];
+    view.setEditorRequester((size) => {
+      asked.push(size);
+      return true;
+    });
+    // Not resizable until the host says it is.
+    expect(view.requestEditorSize(500, 400)).toBe(false);
+    view.setGeometry({
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+    });
+    expect(view.editorSize().resizable).toBe(true);
+    expect(view.requestEditorSize(640.6, 480.2)).toBe(true);
+    expect(asked).toEqual([{ width: 641, height: 480 }]);
+    // Asking is not getting: the size is the host's until it says.
+    expect(view.editorSize().width).toBe(800);
+    expect(() => view.requestEditorSize('500', 400)).toThrow(
+      new TypeError('requestEditorSize(): width must be a number, got string'),
+    );
+    expect(() => view.requestEditorSize(500, undefined)).toThrow(
+      new TypeError(
+        'requestEditorSize(): height must be a number, got undefined',
+      ),
+    );
+    expect(() => view.requestEditorSize(0, 400)).toThrow(
+      new RangeError(
+        'requestEditorSize(): width must be a finite number above 0, got 0',
+      ),
+    );
+    expect(() => view.requestEditorSize(500, Infinity)).toThrow(
+      new RangeError(
+        'requestEditorSize(): height must be a finite number above 0, got Infinity',
+      ),
+    );
+    expect(asked).toHaveLength(1);
+    // Without a host to ask: nothing is.
+    view.setEditorRequester(null);
+    expect(view.requestEditorSize(500, 400)).toBe(false);
+  });
+
+  it("goes to its own view's host only", () => {
+    const other = new UiView(document);
+    const mine: unknown[] = [];
+    const theirs: unknown[] = [];
+    view.setEditorRequester((size) => mine.push(size) > 0);
+    other.setEditorRequester((size) => theirs.push(size) > 0);
+    const geometry = {
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+    };
+    view.setGeometry(geometry);
+    other.setGeometry(geometry);
+    view.requestEditorSize(900, 700);
+    expect(mine).toHaveLength(1);
+    expect(theirs).toHaveLength(0);
+    other.dispose();
+  });
+});
+
+describe('screenX and screenY', () => {
+  it("are the screen in the editor's pixels, the page's fit taken off", () => {
+    const { button } = setup();
+    const seen: number[][] = [];
+    button.addEventListener('pointerdown', (event) =>
+      seen.push([
+        (event as unknown as { screenX: number }).screenX,
+        (event as unknown as { screenY: number }).screenY,
+      ]),
+    );
+    view.setGeometry({
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+      fit: 0.5,
+    });
+    pointer('pointerdown', 10, {
+      button: 0,
+      buttons: 1,
+      screenX: 300,
+      screenY: 200,
+    });
+    pointer('pointerup', 10, { button: 0 });
+    expect(seen).toEqual([[600, 400]]);
+  });
+});

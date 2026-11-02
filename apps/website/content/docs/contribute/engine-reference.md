@@ -538,6 +538,10 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     `pointerdown` listeners run.
   - **Movement:** each pointer event's `movement` is how far the pointer moved
     since its previous input (`movementX`/`movementY`).
+  - **Screen:** `PointerInput::screen` is where the pointer is on the screen
+    in the editor's logical pixels (`screenX`/`screenY`); the JUCE adapter
+    divides JUCE's screen position by the editor's scale. Without one, the
+    position is reported.
   - **Pointer lock:** `Surface::requestPointerLock()` moves a mouse or pen
     press to the node asking (it or a node in it must be pressed). Until the
     release, a cancel, `exitPointerLock()` or the node leaving the tree, its
@@ -591,6 +595,18 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   `notifyViewSize()`; the editor's size has its own,
   `ui::notifyEditorSize()`, called right after it in `tick()` with the same
   rules (once per change, the last size told kept with the binding).
+- **Asking for the editor's size:** the backend says whether the editor's
+  size can be asked for (`Surface::setEditorResizable`, false by default;
+  part of `editorSize()`'s snapshot and its notification).
+  `requestEditorSize()` checks and rounds the size in `ui.js`, and the
+  binding holds it to what converts to an int (at most `0x3FFFFFFF`) and
+  keeps it as the surface's request (`Surface::requestEditorSize`, the
+  latest winning; refused where it cannot be asked). No JSI value or
+  callback is kept: the backend takes the request
+  (`takeEditorSizeRequest()`) after the input or the tick that ran the
+  code, and resizes the editor, which tells the surface the new size as
+  any resize does. The generated JUCE editor does it in
+  `applyEditorSizeRequest()`.
 - **Events:** capture and bubble as in the DOM, as `PointerEvent`,
   `WheelEvent`, `KeyboardEvent`, `FocusEvent` and `InputEvent`.
   `preventDefault()` tells the backend the input was handled; unhandled keys

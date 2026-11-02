@@ -1,7 +1,12 @@
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ConfigError, locateConfig, parseConfig } from '@soundor/config';
+import {
+  ConfigError,
+  locateConfig,
+  parseConfig,
+  resolveEditor,
+} from '@soundor/config';
 import {
   describeNativeApi,
   generateSoundorFiles,
@@ -96,12 +101,44 @@ export function soundor(options: SoundorOptions = {}): Plugin {
             );
           native = project.native ?? {};
           parameters = project.parameters;
-          // The view opens at the editor's size, as in the runtimes.
-          const view = project.editor && {
-            width: project.editor.width,
-            height: project.editor.height,
+          // The view opens at the editor's size, as in the runtimes, and the
+          // editor takes requests within its limits.
+          const editor = project.editor && resolveEditor(project.editor);
+          const view = editor && {
+            width: editor.width,
+            height: editor.height,
           };
-          runtime = { plugin: project.plugin, parameters, view, ...runtime };
+          // An unbounded maximum is left out: these options go to the test
+          // workers as JSON, which has no Infinity, and none is the default.
+          const editorInit: RuntimeOptions['editor'] = editor && {
+            width: editor.width,
+            height: editor.height,
+            resizable:
+              editor.resizable &&
+              (editor.minWidth < editor.maxWidth ||
+                editor.minHeight < editor.maxHeight),
+            minWidth: editor.minWidth,
+            minHeight: editor.minHeight,
+            ...(Number.isFinite(editor.maxWidth) && {
+              maxWidth: editor.maxWidth,
+            }),
+            ...(Number.isFinite(editor.maxHeight) && {
+              maxHeight: editor.maxHeight,
+            }),
+            aspectRatio:
+              editor.resizable &&
+              editor.resize === 'scale' &&
+              editor.keepAspectRatio
+                ? { width: editor.width, height: editor.height }
+                : null,
+          };
+          runtime = {
+            plugin: project.plugin,
+            parameters,
+            view,
+            editor: editorInit,
+            ...runtime,
+          };
         }
       }
       parameters = runtime.parameters ?? parameters;

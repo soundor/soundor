@@ -52,4 +52,31 @@ TEST_SUITE("JUCE editor constrainer")
         CHECK(large.getWidth() <= 1200);
         CHECK(large.getHeight() <= 800);
     }
+
+    TEST_CASE("a request is held to the limits, side by side")
+    {
+        backend::JuceEditorConstrainer constrainer(false);
+        constrainer.setSizeLimits(300, 200, 1200, 0x3FFFFFFF);
+        CHECK(constrainer.constrainRequest({ 700, 500 }, { 600, 400 }) == juce::Point<int>(700, 500));
+        CHECK(constrainer.constrainRequest({ 100, 100 }, { 600, 400 }) == juce::Point<int>(300, 200));
+        // No maximum height: as tall as asked.
+        CHECK(constrainer.constrainRequest({ 5000, 5000 }, { 600, 400 }) == juce::Point<int>(1200, 5000));
+    }
+
+    TEST_CASE("a request to an editor that keeps its ratio follows the side that changes the more")
+    {
+        backend::JuceEditorConstrainer constrainer(false);
+        limit(constrainer);
+        constrainer.setScaledLayout({ 600, 400 });
+        // Mostly wider: the width's zoom (1.5).
+        CHECK(constrainer.constrainRequest({ 900, 420 }, { 600, 400 }) == juce::Point<int>(900, 600));
+        // Mostly taller: the height's (1.25).
+        CHECK(constrainer.constrainRequest({ 610, 500 }, { 600, 400 }) == juce::Point<int>(750, 500));
+        // Within the zooms the limits allow: 0.5 to 2.
+        CHECK(constrainer.constrainRequest({ 3000, 400 }, { 600, 400 }) == juce::Point<int>(1200, 800));
+        CHECK(constrainer.constrainRequest({ 10, 10 }, { 600, 400 }) == juce::Point<int>(300, 200));
+        // From a window of another shape (a host that ignored the ratio), the
+        // current zoom is the smaller side's: the wider side asks for more.
+        CHECK(constrainer.constrainRequest({ 1000, 400 }, { 1000, 400 }) == juce::Point<int>(1000, 667));
+    }
 }

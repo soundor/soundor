@@ -44,6 +44,14 @@ export const testEditor = {
   resize(size: Partial<EditorSize>): void {
     getTestRuntime().setEditorSize(size);
   },
+  /**
+   * The sizes the UI asked for with requestEditorSize(), held to the
+   * editor's limits, in order: what a host was asked, whether it gave them
+   * (`editor: { applyRequests: false }` simulates one that does not).
+   */
+  requests(): readonly { width: number; height: number }[] {
+    return getTestRuntime().requestedEditorSizes();
+  },
 };
 
 /** Register a declared simulated native method with an ordinary function or vi.fn(). */

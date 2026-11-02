@@ -182,6 +182,9 @@ UiNodes.
   allows it during a press, ends it on Escape, may refuse it (the promise
   rejects, the press goes on), and Firefox shows a banner while it lasts.
   `movementX`/`movementY` are the browser's, in the view's logical pixels.
+- **`screenX`/`screenY`** are the browser's, in the editor's pixels: the
+  page's CSS pixels over the scale the host page fits the plugin into its
+  stage with (1 unless the stage is smaller than the plugin).
 - **Layers.** `root` and `overlayRoot` are two elements in one isolated
   stacking context inside the viewport, the overlay above; every node
   stacks its own children, so `zIndex` orders siblings as in the JUCE
@@ -520,6 +523,16 @@ editor's own size, in its logical pixels: the viewport's in `demo` and
 `embed`, bands included. The page owns that size, so in `embed` it follows
 the iframe whatever the editor's limits are.
 
+[`requestEditorSize()`](/docs/api/ui#asking-for-a-size) resizes the
+viewport as its handle does: the same size, held to the same limits and
+the room the page has, so the two never disagree, and the viewport resizes
+with the page's next render. It is the viewport's size, never the browser
+window's (no `window.resizeTo()`). In `embed`, and for a fixed editor, the
+page owns the size: `editorSize().resizable` is false and requests return
+`false`. Each view on a page asks its own host only. The editor stays
+centred on the stage as it resizes, so a grip the UI draws in its corner
+moves half as far as the pointer, as the host's handle does.
+
 ```ts
 export default defineSoundorConfig({
   // …
@@ -552,7 +565,7 @@ resizable editor's maximum, or at its zoom when it scales: see
 when the parent page resizes it, whether or not the editor is resizable:
 `editor` sets the size the standalone host opens at and whether it shows a
 handle, never an embedding page's layout, and the view never resizes its
-iframe. It suits a small piece of UI in a docs page,
+iframe: `requestEditorSize()` returns `false` there. It suits a small piece of UI in a docs page,
 which is how this site shows its snippets:
 
 ```html

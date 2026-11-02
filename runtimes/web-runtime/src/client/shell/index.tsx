@@ -31,7 +31,13 @@ import type { ParameterStore } from '../parameters';
 import { Dock } from './dock';
 import { startAudioOnGesture } from './gesture';
 import { Panel } from './panel';
-import { canResize, ResizeHandle, type Size, viewLayout } from './resize';
+import {
+  canResize,
+  constrainSize,
+  ResizeHandle,
+  type Size,
+  viewLayout,
+} from './resize';
 import { STYLE } from './style';
 
 export type Presentation = 'demo' | 'dev' | 'embed';
@@ -50,6 +56,17 @@ export interface ViewGeometry {
     readonly width: number;
     readonly height: number;
   } | null;
+  /**
+   * Whether the plugin can ask for another editor size (requestEditorSize):
+   * a resizable editor whose limits allow one, unless the page owns its
+   * size (`embed`).
+   */
+  readonly resizable: boolean;
+  /**
+   * CSS pixels per editor pixel: below 1 where the stage scales the editor
+   * down to fit, 1 otherwise.
+   */
+  readonly fit: number;
 }
 
 /** The URL parameter that opens a static build in the `embed` presentation. */
@@ -87,7 +104,20 @@ export interface HostShell {
   showMessage(title: string, detail?: string): void;
   /** Removes the notices showMessage() showed. */
   clearMessages(): void;
+  /**
+   * Resizes the plugin viewport as its handle would, to `size` (in the
+   * editor's logical pixels) held to the editor's limits and the stage's
+   * room: what the plugin's requestEditorSize() asks. False where the
+   * plugin cannot ask (ViewGeometry's `resizable`), when nothing changes.
+   * The viewport is resized with the next render.
+   */
+  requestEditorSize(size: Size): boolean;
   remove(): void;
+}
+
+/** Where the stage takes the plugin's size requests, while it can. */
+interface EditorRequests {
+  current: ((size: Size) => void) | null;
 }
 
 /** Where `dev` remembers whether the panel was open. */
@@ -109,7 +139,8 @@ export function createShell(
   element.className = 'soundor-host';
   element.dataset['presentation'] = options.presentation;
   container.append(element);
-  render(<Shell {...options} />, element);
+  const requests: EditorRequests = { current: null };
+  render(<Shell {...options} requests={requests} />, element);
   const viewport = element.querySelector<HTMLElement>('.soundor-viewport')!;
   const stopListening = startAudioOnGesture(document, options.audio);
 
@@ -128,6 +159,11 @@ export function createShell(
       );
       viewport.append(message);
     },
+    requestEditorSize(size) {
+      if (requests.current === null) return false;
+      requests.current(size);
+      return true;
+    },
     clearMessages() {
       for (const message of viewport.querySelectorAll(
         ':scope > .soundor-message',
@@ -145,11 +181,12 @@ export function createShell(
   };
 }
 
-function Shell(options: ShellOptions) {
+function Shell(options: ShellOptions & { readonly requests: EditorRequests }) {
   if (options.presentation === 'embed') {
     return (
       <Stage
         editor={options.editor}
+        requests={options.requests}
         onScale={options.onScale}
         onGeometry={options.onGeometry}
         fill
@@ -167,6 +204,7 @@ function Shell(options: ShellOptions) {
     <>
       <Stage
         editor={options.editor}
+        requests={options.requests}
         onScale={options.onScale}
         onGeometry={options.onGeometry}
       >
@@ -207,12 +245,14 @@ function Shell(options: ShellOptions) {
  */
 function Stage({
   editor,
+  requests,
   fill = false,
   onScale,
   onGeometry,
   children,
 }: {
   readonly editor: WebEditor;
+  readonly requests: EditorRequests;
   readonly fill?: boolean;
   readonly onScale?: (() => void) | undefined;
   readonly onGeometry?: ((geometry: ViewGeometry) => void) | undefined;
@@ -262,6 +302,25 @@ function Stage({
   const scale = fit * zoom;
   useLayoutEffect(() => onScale?.(), [onScale, scale]);
 
+  // The plugin's requests resize the viewport as the handle does: the same
+  // size state, limits and room. Filling, the page owns the size.
+  const resizable = !fill && canResize(editor);
+  const roomRef = useRef(room);
+  roomRef.current = room;
+  useLayoutEffect(() => {
+    if (!resizable) return;
+    requests.current = (wanted) =>
+      setSize((current) => {
+        const next = constrainSize(editor, wanted, roomRef.current, current);
+        return next.width === current.width && next.height === current.height
+          ? current
+          : next;
+      });
+    return () => {
+      requests.current = null;
+    };
+  }, [requests, editor, resizable]);
+
   const editorWidth = shown === null ? 0 : Math.round(shown.width);
   const editorHeight = shown === null ? 0 : Math.round(shown.height);
   const safeX = safeArea?.x ?? null;
@@ -278,9 +337,13 @@ function Stage({
         safeHeight === null
           ? null
           : { x: safeX, y: safeY, width: safeWidth, height: safeHeight },
+      resizable,
+      fit,
     });
   }, [
     onGeometry,
+    resizable,
+    fit,
     editorWidth,
     editorHeight,
     safeX,
@@ -327,7 +390,7 @@ function Stage({
             transform: scale === 1 ? '' : `scale(${scale})`,
           }}
         />
-        {!fill && canResize(editor) ? (
+        {resizable ? (
           <ResizeHandle
             editor={editor}
             size={size}

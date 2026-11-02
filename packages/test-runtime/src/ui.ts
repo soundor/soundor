@@ -164,6 +164,8 @@ export function createUiModule(runtime: TestRuntime) {
     ) => runtime.subscribeViewSize(listener),
     /** The simulated editor's size: the same object until set. */
     editorSize: () => runtime.editorSize(),
+    requestEditorSize: (width: number, height: number) =>
+      runtime.requestEditorSize(width, height),
     subscribeEditorSize: (
       listener: Parameters<TestRuntime['subscribeEditorSize']>[0],
     ) => runtime.subscribeEditorSize(listener),

@@ -805,14 +805,14 @@ describe('the editor size', () => {
     const runtime = createTestRuntime({ view: { width: 640, height: 480 } });
     const ui = createUiModule(runtime);
     const size = ui.editorSize();
-    expect(size).toEqual({ width: 640, height: 480 });
+    expect(size).toEqual({ width: 640, height: 480, resizable: false });
     expect(Object.isFrozen(size)).toBe(true);
     expect(ui.editorSize()).toBe(size);
     expect(
       createUiModule(
         createTestRuntime({ editor: { width: 1280, height: 960 } }),
       ).editorSize(),
-    ).toEqual({ width: 1280, height: 960 });
+    ).toEqual({ width: 1280, height: 960, resizable: false });
   });
 
   it("tells subscribers once per change, apart from the view's", () => {
@@ -826,7 +826,11 @@ describe('the editor size', () => {
     runtime.setEditorSize({ width: 1600, height: 1200 });
     runtime.setEditorSize({ width: 1600 });
     expect(editor).toHaveBeenCalledOnce();
-    expect(editor).toHaveBeenLastCalledWith({ width: 1600, height: 1200 });
+    expect(editor).toHaveBeenLastCalledWith({
+      width: 1600,
+      height: 1200,
+      resizable: false,
+    });
     expect(ui.editorSize()).toBe(editor.mock.calls[0]![0]);
     expect(view).not.toHaveBeenCalled();
     expect(ui.viewSize().width).toBe(800);
@@ -853,5 +857,104 @@ describe('the editor size', () => {
     expect(() => ui.editorSize()).toThrow('disposed');
     expect(() => ui.subscribeEditorSize(() => {})).toThrow('disposed');
     expect(() => first.setEditorSize({ width: 1000 })).toThrow('disposed');
+  });
+});
+
+describe('requestEditorSize', () => {
+  const resizable = {
+    width: 800,
+    height: 600,
+    resizable: true,
+    minWidth: 400,
+    minHeight: 300,
+    maxWidth: 1600,
+    maxHeight: 1200,
+  };
+
+  it('is refused by a fixed editor, by default', () => {
+    const runtime = createTestRuntime();
+    const ui = createUiModule(runtime);
+    expect(ui.requestEditorSize(1000, 700)).toBe(false);
+    expect(runtime.requestedEditorSizes()).toEqual([]);
+  });
+
+  it('resizes after the calling code, held to the limits, the latest winning', async () => {
+    const runtime = createTestRuntime({ editor: resizable });
+    const ui = createUiModule(runtime);
+    const told = vi.fn<(size: unknown) => void>();
+    ui.subscribeEditorSize(told);
+    expect(ui.requestEditorSize(1000.4, 99999)).toBe(true);
+    expect(ui.requestEditorSize(900.5, 700)).toBe(true);
+    // Asked, not given yet.
+    expect(ui.editorSize().width).toBe(800);
+    await Promise.resolve();
+    expect(told).toHaveBeenCalledOnce();
+    expect(ui.editorSize()).toEqual({
+      width: 901,
+      height: 700,
+      resizable: true,
+    });
+    expect(runtime.requestedEditorSizes()).toEqual([
+      { width: 1000, height: 1200 },
+      { width: 901, height: 700 },
+    ]);
+    // The size it has: nothing new.
+    ui.requestEditorSize(901, 700);
+    await Promise.resolve();
+    expect(told).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the aspect ratio of an editor that scales, by the side asked to change the more', async () => {
+    const runtime = createTestRuntime({
+      editor: { ...resizable, aspectRatio: { width: 800, height: 600 } },
+    });
+    const ui = createUiModule(runtime);
+    ui.requestEditorSize(1200, 610);
+    await Promise.resolve();
+    expect(ui.editorSize()).toMatchObject({ width: 1200, height: 900 });
+    ui.requestEditorSize(1210, 600);
+    await Promise.resolve();
+    expect(ui.editorSize()).toMatchObject({ width: 800, height: 600 });
+    ui.requestEditorSize(5000, 5000);
+    await Promise.resolve();
+    expect(ui.editorSize()).toMatchObject({ width: 1600, height: 1200 });
+  });
+
+  it('can meet a host that ignores requests', async () => {
+    const runtime = createTestRuntime({
+      editor: { ...resizable, applyRequests: false },
+    });
+    const ui = createUiModule(runtime);
+    expect(ui.requestEditorSize(1000, 700)).toBe(true);
+    await Promise.resolve();
+    expect(ui.editorSize().width).toBe(800);
+    expect(runtime.requestedEditorSizes()).toEqual([
+      { width: 1000, height: 700 },
+    ]);
+  });
+
+  it('checks its arguments as the runtimes do', () => {
+    const ui = createUiModule(createTestRuntime({ editor: resizable }));
+    expect(() => ui.requestEditorSize('500' as never, 400)).toThrow(
+      new TypeError('requestEditorSize(): width must be a number, got string'),
+    );
+    expect(() => ui.requestEditorSize(500, -1)).toThrow(
+      new RangeError(
+        'requestEditorSize(): height must be a finite number above 0, got -1',
+      ),
+    );
+    expect(() => ui.requestEditorSize(Number.NaN, 400)).toThrow(RangeError);
+  });
+
+  it('gives nothing to a runtime disposed before the host answers', async () => {
+    const runtime = createTestRuntime({ editor: resizable });
+    const ui = createUiModule(runtime);
+    const told = vi.fn<(size: unknown) => void>();
+    ui.subscribeEditorSize(told);
+    ui.requestEditorSize(1000, 700);
+    runtime.dispose();
+    await Promise.resolve();
+    expect(told).not.toHaveBeenCalled();
+    expect(() => ui.requestEditorSize(1000, 700)).toThrow('disposed');
   });
 });

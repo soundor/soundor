@@ -17,10 +17,11 @@ One Soundor plugin, a gain, built for two runtimes from one config and one UI.
 ```text
 soundor.config.ts   identity, a resizable editor, the `gain` parameter,
                     both runtimes
-src/main.tsx        mounts src/App.tsx
+src/main.tsx        mounts src/App.tsx, and its resize grip
 src/App.tsx         the plugin UI (@soundor/react): a fader, the host's
                     transport, a preset name kept in soundor:storage,
                     stacked when the editor is narrow
+src/ResizeGrip.tsx  a resize grip of its own, in the view's corner
 
 runtimes/juce/      JUCE (C++): applies `gain` in PluginProcessor.cpp
 runtimes/web/       Web (TypeScript): applies `gain` with a GainNode in
@@ -60,6 +61,14 @@ JUCE editor. `App.tsx` reads the size with
 [`useViewSize()`](/docs/hooks/use-view-size): it shows it, and narrower than
 640 logical pixels it stacks the fader and the panel instead of setting them
 side by side, the same in both runtimes.
+
+The grip in the view's own corner (`src/ResizeGrip.tsx`) resizes it too:
+dragged, or focused (Tab) with the arrow keys, it asks for a size with
+[`requestEditorSize()`](/docs/api/ui#asking-for-a-size), and hides where the
+editor's size cannot be asked for (`?embed`). The editor centres its layout
+in a window larger than its 1600×1200 maximum (`fit: 'contain'`), so a host
+making it larger still leaves the grip in the middle of the window; Orbit
+covers the window instead.
 
 The build works from any path and inside an iframe, so a docs page can show
 the code above next to the running plugin:
