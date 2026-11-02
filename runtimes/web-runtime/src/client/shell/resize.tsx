@@ -80,9 +80,11 @@ export function constrainSize(
 
 /**
  * The size an editor that scales is drawn at, for a `size` asked for: its
- * own size times one zoom, the one of the axis `size` moves further from
- * `from` (a corner dragged mostly sideways, or an arrow key), within its
- * limits and, unless it is larger already, the stage's room.
+ * own size times the zoom nearest to it (the point at its ratio closest to
+ * a corner dragged anywhere), within its limits and, unless it is larger
+ * already, the stage's room. `from`, the size it has, decides only that:
+ * the same size asked for gets the same answer whatever the size is, or a
+ * drag would answer one way and the other in turn as the editor resizes.
  */
 function constrainZoom(
   editor: WebEditor,
@@ -91,11 +93,9 @@ function constrainZoom(
   from: Size,
 ): Size {
   const { width, height } = editor;
-  const current = Math.min(from.width / width, from.height / height);
-  const across = size.width / width;
-  const down = size.height / height;
   const wanted =
-    Math.abs(across - current) >= Math.abs(down - current) ? across : down;
+    (size.width * width + size.height * height) /
+    (width * width + height * height);
   const min = Math.max(editor.minWidth / width, editor.minHeight / height);
   const max = Math.min(editor.maxWidth / width, editor.maxHeight / height);
   const fit =

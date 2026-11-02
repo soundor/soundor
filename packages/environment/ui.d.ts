@@ -832,24 +832,30 @@ declare module 'soundor:ui' {
   /**
    * Asks for the editor to be `width`×`height`, in its logical pixels (the
    * units of {@link editorSize}, before display density, not the layout's
-   * of an editor that scales), rounded to whole pixels. The size is held to
-   * the editor's limits (soundor.config): each side within its minimum and
-   * maximum, or for an editor that scales keeping its aspect ratio, its
-   * configured size times one zoom: the zoom of the side asked to change
-   * the more from the editor's current zoom, within the zooms the limits
-   * allow. On the Web host's page, also no larger than the room the page
-   * has, unless it is already.
+   * of an editor that scales), rounded to whole pixels. Any finite size can
+   * be asked for: it is held to the editor's limits (soundor.config), each
+   * side within its minimum and maximum, or for an editor that scales
+   * keeping its aspect ratio, its configured size times one zoom: the size
+   * at its ratio nearest to the one asked for (asking for one side changes
+   * both, by less), within the zooms the limits allow, whatever the current
+   * size is. On the Web host's page, also no larger than the room the page
+   * has, unless it is already; in a DAW, also within a minimum or maximum
+   * of its own the host showed, by giving another size in place of one
+   * asked for (Ardour's window is no narrower than its toolbar).
    *
-   * Returns true when the size was asked for, false where it cannot be
-   * (`editorSize().resizable` is false), when nothing changes. True says
-   * nothing of what the host does: the editor resizes after the calling
-   * code returns, to the size the host gives it, which may be another or
-   * none, and {@link subscribeEditorSize} tells of it; editorSize() is the
-   * old size until then. Asking for the current size changes nothing.
-   * Throws a TypeError when a side is not a number, a RangeError when it is
-   * not finite or not above 0.
+   * Returns that size: the one asked of the host. Null where none can be
+   * (`editorSize().resizable` is false: a fixed editor, limits that allow
+   * one size, the Web host's `?embed`). It is not the size the editor gets:
+   * the editor resizes after the calling code returns, to the size the host
+   * gives it, which may be another or none, and {@link subscribeEditorSize}
+   * tells of it; editorSize() is the old size until then. Throws a
+   * TypeError when a side is not a number, a RangeError when it is not
+   * finite.
    */
-  export function requestEditorSize(width: number, height: number): boolean;
+  export function requestEditorSize(
+    width: number,
+    height: number,
+  ): { readonly width: number; readonly height: number } | null;
   /**
    * Calls `listener` with the new {@link editorSize} once whenever the
    * editor's size changes, whoever resized it: the user, the DAW, the Web

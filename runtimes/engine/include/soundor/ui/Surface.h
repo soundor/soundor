@@ -399,16 +399,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // limits allow another size; false by default.
         void setEditorResizable(bool resizable) noexcept { editorResizable = resizable; }
         [[nodiscard]] bool canRequestEditorSize() const noexcept { return editorResizable; }
+        // How the backend holds a size plugin code asks for to the editor's
+        // limits (and its aspect ratio, and what it learned of the host's),
+        // so requestEditorSize() can say at once what is asked of the host.
+        // None: the size as asked.
+        void setEditorSizeHold(std::function<Size(Size)> hold) { editorHold = std::move(hold); }
         // Plugin code asking for another editor size, in its logical pixels:
-        // the latest request is kept until the backend takes it, resizes the
-        // editor within its limits and says what it got with setEditorSize().
-        // Ignored (false) where the editor's size cannot be asked for.
-        bool requestEditorSize(Size size) noexcept
+        // held as the backend holds it, the latest request is kept until the
+        // backend takes it, resizes the editor and says what it got with
+        // setEditorSize(). Returns the size asked of the host, or nothing
+        // where the editor's size cannot be asked for.
+        std::optional<Size> requestEditorSize(Size size)
         {
             if (! editorResizable)
-                return false;
-            editorRequest = size;
-            return true;
+                return std::nullopt;
+            editorRequest = editorHold ? editorHold(size) : size;
+            return editorRequest;
         }
         [[nodiscard]] std::optional<Size> takeEditorSizeRequest() noexcept
         {
@@ -587,6 +593,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::optional<Size> editorRequest;
         SurfaceStatistics counted;
         std::unique_ptr<render::SvgGeometryCache> svgGeometryCache;
+        std::function<Size(Size)> editorHold;
         bool changed = true;
         bool editorResizable = false;
         std::uint64_t changes = 1;

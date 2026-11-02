@@ -812,7 +812,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // what a whole number converts to safely, and far beyond any screen.
         constexpr double largestEditorSize = 0x3FFFFFFF;
 
-        // ui.js checks and rounds the size; here it is held to what converts.
+        // ui.js checks and rounds the size; here it is held to what converts
+        // (a side of 0 or less to 1), then as the backend holds it.
         jsi::Value requestEditorSize(ContextState& context, const jsi::Value&, const jsi::Value* args,
                                      std::size_t count)
         {
@@ -822,12 +823,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                             const auto side = [&](const jsi::Value& value)
                             {
                                 const double number = bind::toNumber(context, value);
-                                if (! std::isfinite(number) || ! (number > 0))
-                                    throw std::invalid_argument("expected a positive, finite size");
+                                if (! std::isfinite(number))
+                                    throw std::invalid_argument("expected a finite size");
                                 return static_cast<float>(std::clamp(std::round(number), 1.0, largestEditorSize));
                             };
-                            const Size size { side(args[0]), side(args[1]) };
-                            return jsi::Value(surface.requestEditorSize(size));
+                            const auto asked = surface.requestEditorSize({ side(args[0]), side(args[1]) });
+                            if (! asked)
+                                return jsi::Value::null();
+                            bind::ObjectBuilder object(context);
+                            object.set("width", jsi::Value(double(asked->width)));
+                            object.set("height", jsi::Value(double(asked->height)));
+                            return object.release();
                         });
         }
 

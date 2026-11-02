@@ -598,11 +598,13 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
 - **Asking for the editor's size:** the backend says whether the editor's
   size can be asked for (`Surface::setEditorResizable`, false by default;
   part of `editorSize()`'s snapshot and its notification).
-  `requestEditorSize()` checks and rounds the size in `ui.js`, and the
-  binding holds it to what converts to an int (at most `0x3FFFFFFF`) and
-  keeps it as the surface's request (`Surface::requestEditorSize`, the
-  latest winning; refused where it cannot be asked). No JSI value or
-  callback is kept: the backend takes the request
+  `requestEditorSize()` checks and rounds the size in `ui.js` (any finite
+  number), and the binding holds it to what converts to an int (1 to
+  `0x3FFFFFFF`), then with the backend's hold
+  (`Surface::setEditorSizeHold`, the editor's limits), keeps it as the
+  surface's request (`Surface::requestEditorSize`, the latest winning;
+  nothing where it cannot be asked) and returns it as `{ width, height }`,
+  or `null`. No JSI value or callback is kept: the backend takes the request
   (`takeEditorSizeRequest()`) after the input or the tick that ran the
   code, and resizes the editor, which tells the surface the new size as
   any resize does. The generated JUCE editor does it in

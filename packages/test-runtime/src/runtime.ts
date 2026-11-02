@@ -765,17 +765,22 @@ export class TestRuntime {
    * Asks for another editor size, checked, rounded and held to the limits
    * as the runtimes do. The simulated host gives it after the calling code
    * (a microtask), the latest request winning, unless it ignores requests.
+   * Returns the size asked of it, or null where none can be.
    */
-  requestEditorSize(width: unknown, height: unknown): boolean {
+  requestEditorSize(
+    width: unknown,
+    height: unknown,
+  ): { readonly width: number; readonly height: number } | null {
     this.assertActive();
     const wanted = {
       width: requestedSide(width, 'width'),
       height: requestedSide(height, 'height'),
     };
-    if (!this.editor.resizable) return false;
-    const next = constrainRequest(this.editorPolicy, wanted, this.editor);
+    if (!this.editor.resizable) return null;
+    const next = constrainRequest(this.editorPolicy, wanted);
     this.editorRequests.push(next);
-    if (!this.editorPolicy.applyRequests) return true;
+    const asked = Object.freeze({ ...next });
+    if (!this.editorPolicy.applyRequests) return asked;
     const scheduled = this.pendingEditorSize !== null;
     this.pendingEditorSize = next;
     if (!scheduled)
@@ -784,7 +789,7 @@ export class TestRuntime {
         this.pendingEditorSize = null;
         if (size !== null && !this.disposed) this.setEditorSize(size);
       });
-    return true;
+    return asked;
   }
   /** The sizes requestEditorSize() asked for, held to the limits, in order. */
   requestedEditorSizes(): readonly { width: number; height: number }[] {
@@ -849,17 +854,20 @@ export function createTestRuntime(options: RuntimeOptions = {}) {
   return new TestRuntime(options);
 }
 
-/** One side of a size requestEditorSize() is asked for, checked and whole. */
+/**
+ * One side of a size requestEditorSize() is asked for, checked and whole:
+ * any finite number, held to 1 to 0x3FFFFFFF as the JUCE runtime holds it.
+ */
 function requestedSide(value: unknown, name: string): number {
   if (typeof value !== 'number')
     throw new TypeError(
       `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
     );
-  if (!(Number.isFinite(value) && value > 0))
+  if (!Number.isFinite(value))
     throw new RangeError(
-      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
     );
-  return Math.round(value);
+  return Math.min(Math.max(Math.round(value), 1), 0x3fffffff);
 }
 
 function describe(value: unknown): string {
@@ -875,13 +883,12 @@ function describe(value: unknown): string {
 /**
  * A request held to the editor's limits, as the runtimes hold it: each side
  * within them, or keeping the configured aspect ratio, that size times the
- * zoom of the side asked to change the more from the current zoom, within
- * the zooms the limits allow, rounded.
+ * zoom nearest to the size asked for, within the zooms the limits allow,
+ * rounded. Never from the current size.
  */
 function constrainRequest(
   policy: Required<Omit<EditorInit, 'width' | 'height' | 'resizable'>>,
   wanted: { width: number; height: number },
-  current: { width: number; height: number },
 ): { width: number; height: number } {
   const held = (value: number, min: number, max: number) =>
     Math.min(Math.max(value, min), Math.max(min, max));
@@ -891,13 +898,9 @@ function constrainRequest(
       width: held(wanted.width, policy.minWidth, policy.maxWidth),
       height: held(wanted.height, policy.minHeight, policy.maxHeight),
     };
-  const now = Math.min(
-    current.width / ratio.width,
-    current.height / ratio.height,
-  );
-  const across = wanted.width / ratio.width;
-  const down = wanted.height / ratio.height;
-  const asked = Math.abs(across - now) >= Math.abs(down - now) ? across : down;
+  const asked =
+    (wanted.width * ratio.width + wanted.height * ratio.height) /
+    (ratio.width * ratio.width + ratio.height * ratio.height);
   const zoom = held(
     asked,
     Math.max(policy.minWidth / ratio.width, policy.minHeight / ratio.height),

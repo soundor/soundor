@@ -38,7 +38,8 @@ the editor's size would.
 The simulated editor takes
 [`requestEditorSize()`](/docs/api/ui#asking-for-a-size) as the runtimes do:
 it checks and rounds the size, holds it to the project's `editor` limits
-(and, scaling, its aspect ratio), and the simulated host gives the editor
+(and, scaling, its aspect ratio) and returns that, and the simulated host
+gives the editor
 that size after the calling code, in a microtask, the latest request
 winning. `testEditor.requests()` lists every size asked for, held to the
 limits, whether the host gave it or not:

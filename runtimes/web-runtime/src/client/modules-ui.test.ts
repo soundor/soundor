@@ -56,7 +56,7 @@ describe('soundor:ui', () => {
     expect(sizes).toEqual([{ width: 900, height: 700, resizable: false }]);
     expect(sizes[0]).toBe(editorSize());
     // A view whose host owns its size (no shell here): nothing is asked.
-    expect(requestEditorSize(1000, 800)).toBe(false);
+    expect(requestEditorSize(1000, 800)).toBeNull();
     unsubscribe();
     uiView().setGeometry({ editor: first, safeArea: null });
     expect(sizes).toHaveLength(1);

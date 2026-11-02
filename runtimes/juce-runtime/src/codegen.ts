@@ -518,6 +518,14 @@ namespace ${NS}
         // window), which may give another size or none. After the UI's code
         // has run, never inside it.
         void applyEditorSizeRequest();
+        // The size a request last asked the host for, and when: a host that
+        // gives another size soon after kept to a limit of its own, which
+        // later requests keep to (JuceEditorConstrainer::hostReplaced()).
+        std::optional<juce::Point<int>> askedOfHost;
+        juce::uint32 askedAt = 0;
+        // What a resize says of the host: that it replaced a size asked of it,
+        // or set one of its own.
+        void noteHostSize();
         // The view's pixels per logical pixel of the UI's layout: 1, or with
         // an editor that scales, the view's size over the layout's.
         [[nodiscard]] float zoom() const;
@@ -641,26 +649,50 @@ function canRequestEditorSize(editor: ResolvedEditorConfig): boolean {
   );
 }
 
-/** applyEditorSizeRequest(): a request the surface holds, as setSize(). */
+/**
+ * applyEditorSizeRequest(): a request the surface holds, as setSize(), and
+ * noteHostSize(): what the host's answer says of its own limits.
+ */
 function renderEditorRequest(editor: ResolvedEditorConfig): string {
   if (!canRequestEditorSize(editor))
     return `    void AudioProcessorEditor::applyEditorSizeRequest()
     {
         // A fixed editor: the surface takes no requests.
         (void)runtimeHost().surface().takeEditorSizeRequest();
-    }`;
+    }
+
+    void AudioProcessorEditor::noteHostSize() {}`;
   return `    void AudioProcessorEditor::applyEditorSizeRequest()
     {
         const auto wanted = runtimeHost().surface().takeEditorSizeRequest();
         if (! wanted)
             return;
-        // The constrainer holds a host's resize only to the minimum; a request
-        // keeps to all the limits (and the ratio of an editor that scales).
-        const juce::Point<int> current { getWidth(), getHeight() };
+        // Held as the surface's hold held it (sizeSurface()), again: what the
+        // host showed of its limits may have changed since.
         const auto size = sizeConstrainer.constrainRequest(
-            { juce::roundToInt(wanted->width), juce::roundToInt(wanted->height) }, current);
-        if (size != current)
-            setSize(size.x, size.y);
+            { juce::roundToInt(wanted->width), juce::roundToInt(wanted->height) });
+        if (size == juce::Point<int> { getWidth(), getHeight() })
+            return;
+        askedOfHost = size;
+        askedAt = juce::Time::getMillisecondCounter();
+        setSize(size.x, size.y);
+    }
+
+    void AudioProcessorEditor::noteHostSize()
+    {
+        const juce::Point<int> now { getWidth(), getHeight() };
+        // The resize setSize() itself makes, or one asked for: nothing said.
+        if (askedOfHost && now == *askedOfHost)
+            return;
+        // Another size soon after a request (the host's window kept to a
+        // minimum of its own, or a maximum): the host replaced it. Later, the
+        // host's own resize.
+        constexpr juce::uint32 answerTime = 500;
+        if (askedOfHost && juce::Time::getMillisecondCounter() - askedAt < answerTime)
+            sizeConstrainer.hostReplaced(*askedOfHost, now);
+        else
+            sizeConstrainer.hostGave(now);
+        askedOfHost.reset();
     }`;
 }
 
@@ -919,7 +951,20 @@ ${renderEditorSize(editor)}
         surface.setSafeArea(safeArea());
         // The editor's own size, which soundor:ui's editorSize() reports.
         surface.setEditorSize({ static_cast<float>(getWidth()), static_cast<float>(getHeight()) });
-        surface.setEditorResizable(${canRequestEditorSize(editor) ? 'true' : 'false'});
+        surface.setEditorResizable(${canRequestEditorSize(editor) ? 'true' : 'false'});${
+          canRequestEditorSize(editor)
+            ? `
+        // A request is held at once, so requestEditorSize() returns the size
+        // asked of the host.
+        surface.setEditorSizeHold(
+            [this](ui::Size wanted)
+            {
+                const auto size = sizeConstrainer.constrainRequest(
+                    { juce::roundToInt(wanted.width), juce::roundToInt(wanted.height) });
+                return ui::Size { static_cast<float>(size.x), static_cast<float>(size.y) };
+            });`
+            : ''
+        }
         image.setArea(area);
         surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this))
                          * viewZoom);
@@ -995,6 +1040,7 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::resized()
     {
+        noteHostSize();
         // On the CPU, paint() (which the resize asks for) renders at the new
         // size. The GPU compositor presents over the view instead: present at
         // the new size now, not on the next tick, so a window being dragged

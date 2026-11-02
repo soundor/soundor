@@ -785,20 +785,31 @@ describe('clipboard', () => {
 describe('requestEditorSize', () => {
   it('checks its arguments as the JUCE runtime does, then asks the host', () => {
     const asked: { width: number; height: number }[] = [];
+    // A host that holds it to no more than 1000 wide.
     view.setEditorRequester((size) => {
       asked.push(size);
-      return true;
+      return { width: Math.min(size.width, 1000), height: size.height };
     });
     // Not resizable until the host says it is.
-    expect(view.requestEditorSize(500, 400)).toBe(false);
+    expect(view.requestEditorSize(500, 400)).toBeNull();
     view.setGeometry({
       editor: { width: 800, height: 600 },
       safeArea: null,
       resizable: true,
     });
     expect(view.editorSize().resizable).toBe(true);
-    expect(view.requestEditorSize(640.6, 480.2)).toBe(true);
+    // The size the host holds it to, frozen.
+    const size = view.requestEditorSize(640.6, 480.2);
+    expect(size).toEqual({ width: 641, height: 480 });
+    expect(Object.isFrozen(size)).toBe(true);
     expect(asked).toEqual([{ width: 641, height: 480 }]);
+    expect(view.requestEditorSize(5000, 480)).toEqual({
+      width: 1000,
+      height: 480,
+    });
+    // Any finite size: none, or less, is a pixel, then the host's limits.
+    view.requestEditorSize(0, -40);
+    expect(asked.at(-1)).toEqual({ width: 1, height: 1 });
     // Asking is not getting: the size is the host's until it says.
     expect(view.editorSize().width).toBe(800);
     expect(() => view.requestEditorSize('500', 400)).toThrow(
@@ -809,28 +820,28 @@ describe('requestEditorSize', () => {
         'requestEditorSize(): height must be a number, got undefined',
       ),
     );
-    expect(() => view.requestEditorSize(0, 400)).toThrow(
+    expect(() => view.requestEditorSize(NaN, 400)).toThrow(
       new RangeError(
-        'requestEditorSize(): width must be a finite number above 0, got 0',
+        'requestEditorSize(): width must be a finite number, got NaN',
       ),
     );
     expect(() => view.requestEditorSize(500, Infinity)).toThrow(
       new RangeError(
-        'requestEditorSize(): height must be a finite number above 0, got Infinity',
+        'requestEditorSize(): height must be a finite number, got Infinity',
       ),
     );
-    expect(asked).toHaveLength(1);
+    expect(asked).toHaveLength(3);
     // Without a host to ask: nothing is.
     view.setEditorRequester(null);
-    expect(view.requestEditorSize(500, 400)).toBe(false);
+    expect(view.requestEditorSize(500, 400)).toBeNull();
   });
 
   it("goes to its own view's host only", () => {
     const other = new UiView(document);
     const mine: unknown[] = [];
     const theirs: unknown[] = [];
-    view.setEditorRequester((size) => mine.push(size) > 0);
-    other.setEditorRequester((size) => theirs.push(size) > 0);
+    view.setEditorRequester((size) => (mine.push(size), size));
+    other.setEditorRequester((size) => (theirs.push(size), size));
     const geometry = {
       editor: { width: 800, height: 600 },
       safeArea: null,

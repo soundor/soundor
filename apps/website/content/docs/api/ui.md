@@ -187,15 +187,19 @@ In React, `useSyncExternalStore(subscribeEditorSize, editorSize)` reads it.
 ### Asking for a size
 
 ```ts
-function requestEditorSize(width: number, height: number): boolean;
+function requestEditorSize(
+  width: number,
+  height: number,
+): { readonly width: number; readonly height: number } | null;
 ```
 
 `requestEditorSize(width, height)` asks for the editor to be
 `width`×`height`, in the editor's logical pixels (`editorSize()`'s units,
 not the layout's of an editor that scales), each rounded to a whole pixel.
-A side that is not a number throws a `TypeError`, one that is not finite or
-not above 0 a `RangeError`, in every runtime:
-`requestEditorSize(): width must be a finite number above 0, got 0`.
+Any finite size can be asked for, 0 or less too (a grip dragged far past
+the editor's corner): the limits hold it. A side that is not a number
+throws a `TypeError`, one that is not finite a `RangeError`, in every
+runtime: `requestEditorSize(): width must be a finite number, got NaN`.
 
 The size is held to the editor's
 [limits](/docs/cli/config#limits-fit-and-keepaspectratio-windows-the-ui-was-not-made-for),
@@ -204,15 +208,26 @@ minimum:
 
 - each side within its minimum and maximum, or
 - for an editor that scales keeping its aspect ratio, its configured size
-  times one zoom: the zoom of the side asked to change the more from the
-  editor's current zoom (a corner dragged mostly sideways follows the
-  width), within the zooms the limits allow, then rounded;
+  times one zoom: the size at its ratio nearest to the one asked for (where
+  a dragged corner is, as near as it can be), within the zooms the limits
+  allow, then rounded. Asking for one side only changes both, by less: at
+  800×600, 1000×600 gives 928×696. The answer depends on the size asked for
+  only, never on the editor's current size, so a drag asking from where it
+  began resizes one way;
 - on the web host's page, also no larger than the room the page has,
-  unless it is already: the rules its own resize handle keeps.
+  unless it is already: the rules its own resize handle keeps;
+- in a plugin, also within a minimum or maximum of the host's own that it
+  showed: a host that gives another size soon after one was asked for
+  (Ardour's window is no narrower than its toolbar, so it sets the editor
+  back to the window's width) is not asked for less, or more, again, so a
+  grip dragged past it stops there rather than springing back at every
+  step. The first time still springs back. The host resizing the editor
+  itself beyond what it showed forgets it.
 
-It returns `true` when the size was asked for, `false` where it cannot be
-(`editorSize().resizable` is false), when nothing changes. `true` is not the
-new size: the editor resizes after the calling code returns (in the JUCE
+It returns that size, the one asked of the host, frozen, or `null` where
+none can be asked for (`editorSize().resizable` is false: a fixed editor,
+limits that allow one size, the web host's `?embed`). It is not the new
+size: the editor resizes after the calling code returns (in the JUCE
 runtime, once the event or the tick that ran it is done; on the web, with
 the page's next render), to what the host gives. The JUCE editor asks its
 host with `setSize()`, which a VST3 host hears as `resizeView()`, AU and the

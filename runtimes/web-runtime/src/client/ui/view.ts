@@ -105,7 +105,10 @@ export class UiView implements ViewLink {
   #editorFit = 1;
   /** Where requestEditorSize() goes: the host's viewport. */
   #requestEditorSize:
-    | ((size: { width: number; height: number }) => boolean)
+    | ((size: { width: number; height: number }) => {
+        width: number;
+        height: number;
+      } | null)
     | null = null;
 
   constructor(document: Document = globalThis.document) {
@@ -241,21 +244,33 @@ export class UiView implements ViewLink {
 
   /** Where requestEditorSize() sends a checked, whole size: the host. */
   setEditorRequester(
-    request: ((size: { width: number; height: number }) => boolean) | null,
+    request:
+      | ((size: { width: number; height: number }) => {
+          width: number;
+          height: number;
+        } | null)
+      | null,
   ): void {
     this.#requestEditorSize = request;
   }
 
   /**
    * Asks the host for another editor size, checked and rounded as the JUCE
-   * runtime does; false where the editor's size cannot be asked for.
+   * runtime does. Returns the size asked of the host (held to the editor's
+   * limits), or null where the editor's size cannot be asked for.
    */
-  requestEditorSize(width: unknown, height: unknown): boolean {
+  requestEditorSize(
+    width: unknown,
+    height: unknown,
+  ): { readonly width: number; readonly height: number } | null {
     const w = requestedSide(width, 'width');
     const h = requestedSide(height, 'height');
     if (!this.#editorSize.resizable || this.#requestEditorSize === null)
-      return false;
-    return this.#requestEditorSize({ width: w, height: h });
+      return null;
+    const asked = this.#requestEditorSize({ width: w, height: h });
+    return asked === null
+      ? null
+      : Object.freeze({ width: asked.width, height: asked.height });
   }
 
   /**
@@ -1070,17 +1085,21 @@ export class UiView implements ViewLink {
   }
 }
 
-/** One side of a size requestEditorSize() is asked for, checked and whole. */
+/**
+ * One side of a size requestEditorSize() is asked for, checked and whole:
+ * any finite number, held to what the JUCE runtime converts (1 to
+ * 0x3FFFFFFF), then to the editor's limits by the host.
+ */
 function requestedSide(value: unknown, name: string): number {
   if (typeof value !== 'number')
     throw new TypeError(
       `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
     );
-  if (!(Number.isFinite(value) && value > 0))
+  if (!Number.isFinite(value))
     throw new RangeError(
-      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
     );
-  return Math.round(value);
+  return Math.min(Math.max(Math.round(value), 1), 0x3fffffff);
 }
 
 /** What a value is, as the JUCE runtime's errors say it. */

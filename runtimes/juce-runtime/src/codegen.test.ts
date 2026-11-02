@@ -495,7 +495,18 @@ describe('generateJuceSources', () => {
       });
       expect(source).toContain('surface.setEditorResizable(true);');
       expect(source).toMatch(
-        /const auto wanted = runtimeHost\(\)\.surface\(\)\.takeEditorSizeRequest\(\);[\s\S]+sizeConstrainer\.constrainRequest\([\s\S]+if \(size != current\)\s+setSize\(size\.x, size\.y\);/,
+        /const auto wanted = runtimeHost\(\)\.surface\(\)\.takeEditorSizeRequest\(\);[\s\S]+sizeConstrainer\.constrainRequest\([\s\S]+askedOfHost = size;[\s\S]+setSize\(size\.x, size\.y\);/,
+      );
+      // Held at once, so requestEditorSize() returns the size asked for.
+      expect(source).toMatch(
+        /surface\.setEditorSizeHold\([\s\S]+sizeConstrainer\.constrainRequest\(/,
+      );
+      // What the host gives in its place soon after is a limit of its own.
+      expect(source).toMatch(
+        /void AudioProcessorEditor::resized\(\)\s+\{\s+noteHostSize\(\);/,
+      );
+      expect(source).toMatch(
+        /sizeConstrainer\.hostReplaced\(\*askedOfHost, now\);\s+else\s+sizeConstrainer\.hostGave\(now\);/,
       );
       // After pointer and key input, and the tick's timers.
       expect(source).toMatch(
@@ -523,6 +534,8 @@ describe('generateJuceSources', () => {
         const source = editorSource(editor);
         expect(source).toContain('surface.setEditorResizable(false);');
         expect(source).not.toContain('constrainRequest');
+        expect(source).not.toContain('setEditorSizeHold');
+        expect(source).not.toContain('hostReplaced');
       }
     });
 

@@ -15,6 +15,7 @@
   "include": [
     "src/**/*.test.tsx",
     "src/App.tsx",
+    "src/ResizeGrip.tsx",
     "vitest.config.ts",
     ".soundor/generated/soundor.d.ts"
   ]

@@ -565,7 +565,7 @@ resizable editor's maximum, or at its zoom when it scales: see
 when the parent page resizes it, whether or not the editor is resizable:
 `editor` sets the size the standalone host opens at and whether it shows a
 handle, never an embedding page's layout, and the view never resizes its
-iframe: `requestEditorSize()` returns `false` there. It suits a small piece of UI in a docs page,
+iframe: `requestEditorSize()` returns `null` there. It suits a small piece of UI in a docs page,
 which is how this site shows its snippets:
 
 ```html

@@ -624,8 +624,8 @@ describe('a view that scales', () => {
 
   it('keeps its layout and draws it larger, keeping the aspect ratio', () => {
     const { drag, shown, shell } = scaling();
-    // Mostly sideways: 800 → 1000 wide, so 1.25 times, 750 tall.
-    drag(100, 10);
+    // 800×600 → 1000×750: 1.25 times.
+    drag(100, 75);
     expect(shown()).toEqual(['1000px', '750px']);
     expect(shell.viewport.style.width).toBe('800px');
     expect(shell.viewport.style.height).toBe('600px');
@@ -646,8 +646,8 @@ describe('a view that scales', () => {
     act(() => {
       fireEvent.keyDown(handle, { key: 'ArrowUp', shiftKey: true });
     });
-    // 50 off the height: 550 of 600, the width following.
-    expect(shown()).toEqual(['733px', '550px']);
+    // 50 off the height: the nearest size at its ratio to 800×550.
+    expect(shown()).toEqual(['776px', '582px']);
   });
 
   it('is scaled down to fit on top of its zoom', () => {
@@ -739,7 +739,7 @@ describe("the editor's size and the view's safe area", () => {
 
   it('are the size the layout is drawn at, with an editor that contains it', () => {
     const { told, drag, viewport } = geometry('demo', SCALING);
-    drag(100, 10);
+    drag(100, 75);
     expect(told.at(-1)).toEqual({
       editor: { width: 1000, height: 750 },
       safeArea: null,
@@ -749,8 +749,8 @@ describe("the editor's size and the view's safe area", () => {
 
   it('cover: keeps the aspect ratio by default, so all of it is safe', () => {
     const { told, drag, viewport, shell } = geometry('demo', COVERING);
-    // Mostly sideways: zoomed by 1.25 as a whole, as without cover.
-    drag(100, 10);
+    // Zoomed by 1.25 as a whole, as without cover.
+    drag(100, 75);
     expect(viewport()).toEqual(['800px', '600px', 'scale(1.25)']);
     // Its own shape: no bands.
     expect(
@@ -872,7 +872,7 @@ describe("the plugin's own size requests", () => {
     const all: ViewGeometry[] = [];
     const context = setup(presentation, editor, (next) => all.push(next));
     const request = (width: number, height: number) => {
-      let asked = false;
+      let asked: { width: number; height: number } | null = null;
       act(() => {
         asked = context.shell.requestEditorSize({ width, height });
       });
@@ -884,25 +884,40 @@ describe("the plugin's own size requests", () => {
   it('resize the viewport as its handle does, within the limits', () => {
     const { all, request, shell } = requested(RESIZABLE);
     expect(all.at(-1)).toMatchObject({ resizable: true, fit: 1 });
-    expect(request(1000, 700)).toBe(true);
+    expect(request(1000, 700)).toEqual({ width: 1000, height: 700 });
     expect(all.at(-1)?.editor).toEqual({ width: 1000, height: 700 });
     expect(shell.viewport.style.width).toBe('1000px');
-    // Held to 480×320 – 1200×900, each side on its own.
-    request(5000, 100);
+    // Held to 480×320 – 1200×900, each side on its own: the answer says so
+    // at once.
+    expect(request(5000, -100)).toEqual({ width: 1200, height: 320 });
     expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 320 });
     // The size it has: nothing new.
     const count = all.length;
-    expect(request(1200, 320)).toBe(true);
+    expect(request(1200, 320)).toEqual({ width: 1200, height: 320 });
     expect(all).toHaveLength(count);
   });
 
-  it('keep the aspect ratio of an editor that scales, by the side asked to change the more', () => {
+  it('keep the aspect ratio of an editor that scales, at the nearest size', () => {
     const { all, request, shell } = requested(SCALING);
-    request(1200, 610);
+    request(1200, 900);
     expect(all.at(-1)?.editor).toEqual({ width: 1200, height: 900 });
     expect(shell.viewport.style.transform).toBe('scale(1.5)');
-    request(1210, 600);
-    expect(all.at(-1)?.editor).toEqual({ width: 800, height: 600 });
+    // Wider only: between the two sides' zooms, nearer the wider's.
+    request(1200, 600);
+    expect(all.at(-1)?.editor).toEqual({ width: 1056, height: 792 });
+  });
+
+  it('answer a size the same whatever the size is, so a drag never flips', () => {
+    const { all, request } = requested(SCALING);
+    // A corner dragged narrower and taller, each step from 800×600: it
+    // shrinks steadily, never larger and smaller in turn.
+    const widths: number[] = [];
+    for (let step = 1; step <= 8; step += 1) {
+      request(800 - step * 5, 600 + step * 4);
+      widths.push(all.at(-1)!.editor.width);
+    }
+    expect(widths).toEqual([...widths].sort((a, b) => b - a));
+    expect(new Set(widths).size).toBe(widths.length);
   });
 
   it("stop at the stage's room, as the handle does", () => {
@@ -917,10 +932,10 @@ describe("the plugin's own size requests", () => {
   it('are refused where the page owns the size, or no other is allowed', () => {
     const embedded = requested(RESIZABLE, 'embed');
     expect(embedded.all.at(-1)?.resizable).toBe(false);
-    expect(embedded.request(1000, 700)).toBe(false);
+    expect(embedded.request(1000, 700)).toBeNull();
     const fixed = requested(FIXED);
     expect(fixed.all.at(-1)?.resizable).toBe(false);
-    expect(fixed.request(1000, 700)).toBe(false);
+    expect(fixed.request(1000, 700)).toBeNull();
     expect(fixed.shell.viewport.style.width).toBe('800px');
   });
 

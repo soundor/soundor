@@ -6,10 +6,10 @@ import {
   useViewSize,
   type ParameterLike,
 } from '@soundor/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { UiNode } from 'soundor:ui';
 
-import { clamp } from './model';
+import { bufferDensity, clamp } from './model';
 
 type KnobParameter = ParameterLike<number> & {
   info: { min: number; max: number; default: number };
@@ -32,8 +32,8 @@ export function Knob({
   const value = useParameter(parameter);
   const node = useRef<UiNode>(null);
   // Device pixels per logical pixel, the editor's zoom included: the dial
-  // stays sharp at any size (at most 4).
-  const density = Math.min(4, useViewSize().scale);
+  // stays sharp at any size.
+  const density = bufferDensity(useViewSize().scale);
   const drag = useRef<{ y: number; value: number } | null>(null);
   const [focused, setFocused] = useState(false);
   const { min, max } = parameter.info;
@@ -55,7 +55,8 @@ export function Knob({
     },
     [parameter],
   );
-  useEffect(() => {
+  // Before the frame is shown: a buffer just resized is blank until then.
+  useLayoutEffect(() => {
     const ctx = node.current?.getContext('2d');
     if (!ctx) return;
     ctx.setTransform(density, 0, 0, density, 0, 0);

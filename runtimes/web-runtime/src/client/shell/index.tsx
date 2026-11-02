@@ -107,17 +107,17 @@ export interface HostShell {
   /**
    * Resizes the plugin viewport as its handle would, to `size` (in the
    * editor's logical pixels) held to the editor's limits and the stage's
-   * room: what the plugin's requestEditorSize() asks. False where the
-   * plugin cannot ask (ViewGeometry's `resizable`), when nothing changes.
-   * The viewport is resized with the next render.
+   * room: what the plugin's requestEditorSize() asks. Returns that size,
+   * or null where the plugin cannot ask (ViewGeometry's `resizable`). The
+   * viewport is resized with the next render.
    */
-  requestEditorSize(size: Size): boolean;
+  requestEditorSize(size: Size): Size | null;
   remove(): void;
 }
 
 /** Where the stage takes the plugin's size requests, while it can. */
 interface EditorRequests {
-  current: ((size: Size) => void) | null;
+  current: ((size: Size) => Size) | null;
 }
 
 /** Where `dev` remembers whether the panel was open. */
@@ -160,9 +160,7 @@ export function createShell(
       viewport.append(message);
     },
     requestEditorSize(size) {
-      if (requests.current === null) return false;
-      requests.current(size);
-      return true;
+      return requests.current === null ? null : requests.current(size);
     },
     clearMessages() {
       for (const message of viewport.querySelectorAll(
@@ -307,15 +305,27 @@ function Stage({
   const resizable = !fill && canResize(editor);
   const roomRef = useRef(room);
   roomRef.current = room;
+  // The size, or the one a request asked for since the last render: the
+  // answer is known at once, so requestEditorSize() returns it.
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
   useLayoutEffect(() => {
     if (!resizable) return;
-    requests.current = (wanted) =>
-      setSize((current) => {
-        const next = constrainSize(editor, wanted, roomRef.current, current);
-        return next.width === current.width && next.height === current.height
+    requests.current = (wanted) => {
+      const next = constrainSize(
+        editor,
+        wanted,
+        roomRef.current,
+        sizeRef.current,
+      );
+      sizeRef.current = next;
+      setSize((current) =>
+        next.width === current.width && next.height === current.height
           ? current
-          : next;
-      });
+          : next,
+      );
+      return next;
+    };
     return () => {
       requests.current = null;
     };

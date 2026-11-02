@@ -5,7 +5,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
@@ -44,28 +46,64 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         // at: requests keep that shape.
         void setScaledLayout(juce::Point<int> layout) noexcept { scaledLayout = layout; }
 
-        // The size plugin code asks for (soundor:ui's requestEditorSize(),
-        // whole and positive) held to the limits, from the editor's `current`
-        // size: each side within them, or with an editor that scales keeping
-        // its ratio, the layout's size times one zoom, the zoom of the side
-        // asked to change the more from the current zoom (a corner dragged
-        // mostly sideways, an arrow key), within the zooms the limits allow,
-        // then rounded. The Web host's constrainSize() does the same.
-        [[nodiscard]] juce::Point<int> constrainRequest(juce::Point<int> wanted,
-                                                        juce::Point<int> current) const noexcept
+        // A size the host gave in place of the one a request asked of it
+        // (Ardour: its window has a minimum of its own, so it sets the editor
+        // back to the window's size). Later requests keep to what it showed:
+        // no smaller than it gave where it gave more, no larger where less,
+        // so a grip dragged on past it stops there rather than resizing the
+        // editor inside a window that stays, which springs back each time.
+        // A pixel or two off is the host rounding (a display's scale), not a
+        // limit; the Standalone has no host.
+        void hostReplaced(juce::Point<int> asked, juce::Point<int> given) noexcept
         {
+            if (enforce)
+                return;
+            constexpr int rounding = 2;
+            if (std::abs(given.x - asked.x) <= rounding)
+                given.x = asked.x;
+            if (std::abs(given.y - asked.y) <= rounding)
+                given.y = asked.y;
+            if (given.x > asked.x)
+                hostLeast.x = std::max(hostLeast.x, given.x);
+            if (given.y > asked.y)
+                hostLeast.y = std::max(hostLeast.y, given.y);
+            if (given.x < asked.x)
+                hostMost.x = std::min(hostMost.x, given.x);
+            if (given.y < asked.y)
+                hostMost.y = std::min(hostMost.y, given.y);
+        }
+
+        // A size the host set of its own (its window resized): what it showed
+        // of its limits gives way to it.
+        void hostGave(juce::Point<int> given) noexcept
+        {
+            hostLeast = { std::min(hostLeast.x, given.x), std::min(hostLeast.y, given.y) };
+            hostMost = { std::max(hostMost.x, given.x), std::max(hostMost.y, given.y) };
+        }
+
+        // The size plugin code asks for (soundor:ui's requestEditorSize(),
+        // whole and positive) held to the limits, and to what the host showed
+        // of its own (hostReplaced()): each side within them, or
+        // with an editor that scales keeping its ratio, the layout's size
+        // times the zoom nearest to the size asked for (the point at its
+        // ratio closest to a corner dragged anywhere), within the zooms the
+        // limits allow, then rounded. Never from the editor's current size,
+        // which would make the same drag answer differently as it resizes.
+        // The Web host's constrainSize() does the same.
+        [[nodiscard]] juce::Point<int> constrainRequest(juce::Point<int> wanted) const noexcept
+        {
+            const juce::Point<int> least { std::max(getMinimumWidth(), hostLeast.x),
+                                           std::max(getMinimumHeight(), hostLeast.y) };
+            const juce::Point<int> most { std::min(getMaximumWidth(), hostMost.x),
+                                          std::min(getMaximumHeight(), hostMost.y) };
             if (! scaledLayout || scaledLayout->x <= 0 || scaledLayout->y <= 0)
-                return { held(wanted.x, getMinimumWidth(), getMaximumWidth()),
-                         held(wanted.y, getMinimumHeight(), getMaximumHeight()) };
+                return { held(wanted.x, least.x, most.x), held(wanted.y, least.y, most.y) };
             const double width = scaledLayout->x;
             const double height = scaledLayout->y;
-            const double now = std::min(current.x / width, current.y / height);
-            const double across = wanted.x / width;
-            const double down = wanted.y / height;
-            const double asked = std::abs(across - now) >= std::abs(down - now) ? across : down;
-            const double least = std::max(getMinimumWidth() / width, getMinimumHeight() / height);
-            const double most = std::min(getMaximumWidth() / width, getMaximumHeight() / height);
-            const double zoom = std::min(std::max(asked, least), std::max(least, most));
+            const double asked = (wanted.x * width + wanted.y * height) / (width * width + height * height);
+            const double smallest = std::max(least.x / width, least.y / height);
+            const double largest = std::min(most.x / width, most.y / height);
+            const double zoom = std::min(std::max(asked, smallest), std::max(smallest, largest));
             return { static_cast<int>(std::lround(width * zoom)), static_cast<int>(std::lround(height * zoom)) };
         }
 
@@ -77,5 +115,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
         bool enforce;
         std::optional<juce::Point<int>> scaledLayout;
+        juce::Point<int> hostLeast { 0, 0 };
+        juce::Point<int> hostMost { INT_MAX, INT_MAX };
     };
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

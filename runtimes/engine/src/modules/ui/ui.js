@@ -1193,24 +1193,27 @@ function requestedSide(value, name) {
     throw new TypeError(
       `requestEditorSize(): ${name} must be a number, got ${describe(value)}`,
     );
-  if (!(Number.isFinite(value) && value > 0))
+  if (!Number.isFinite(value))
     throw new RangeError(
-      `requestEditorSize(): ${name} must be a finite number above 0, got ${value}`,
+      `requestEditorSize(): ${name} must be a finite number, got ${value}`,
     );
   return Math.round(value);
 }
 
 /**
  * Asks for the editor to be `width`×`height` logical pixels (rounded to
- * whole ones), within its limits. Returns whether it was asked for: false
- * where the editor's size cannot be (editorSize().resizable). The host
- * resizes it later, or not, as it decides: subscribeEditorSize() says what
- * it got.
+ * whole ones; any finite size, held to its limits). Returns the size asked
+ * of the host, or null where the editor's size cannot be asked for
+ * (editorSize().resizable). The host resizes it later, or not, as it
+ * decides: subscribeEditorSize() says what it got.
  */
 export function requestEditorSize(width, height) {
   const w = requestedSide(width, 'width');
   const h = requestedSide(height, 'height');
-  return native.requestEditorSize(w, h);
+  const asked = native.requestEditorSize(w, h);
+  return asked === null
+    ? null
+    : Object.freeze({ width: asked.width, height: asked.height });
 }
 
 const editorSizeListeners = new Set();

@@ -874,7 +874,7 @@ describe('requestEditorSize', () => {
   it('is refused by a fixed editor, by default', () => {
     const runtime = createTestRuntime();
     const ui = createUiModule(runtime);
-    expect(ui.requestEditorSize(1000, 700)).toBe(false);
+    expect(ui.requestEditorSize(1000, 700)).toBeNull();
     expect(runtime.requestedEditorSizes()).toEqual([]);
   });
 
@@ -883,8 +883,15 @@ describe('requestEditorSize', () => {
     const ui = createUiModule(runtime);
     const told = vi.fn<(size: unknown) => void>();
     ui.subscribeEditorSize(told);
-    expect(ui.requestEditorSize(1000.4, 99999)).toBe(true);
-    expect(ui.requestEditorSize(900.5, 700)).toBe(true);
+    // The size asked of the host, held to the limits at once.
+    expect(ui.requestEditorSize(1000.4, 99999)).toEqual({
+      width: 1000,
+      height: 1200,
+    });
+    expect(ui.requestEditorSize(900.5, 700)).toEqual({
+      width: 901,
+      height: 700,
+    });
     // Asked, not given yet.
     expect(ui.editorSize().width).toBe(800);
     await Promise.resolve();
@@ -904,17 +911,19 @@ describe('requestEditorSize', () => {
     expect(told).toHaveBeenCalledOnce();
   });
 
-  it('keeps the aspect ratio of an editor that scales, by the side asked to change the more', async () => {
+  it('keeps the aspect ratio of an editor that scales, at the nearest size', async () => {
     const runtime = createTestRuntime({
       editor: { ...resizable, aspectRatio: { width: 800, height: 600 } },
     });
     const ui = createUiModule(runtime);
-    ui.requestEditorSize(1200, 610);
+    ui.requestEditorSize(1200, 900);
     await Promise.resolve();
     expect(ui.editorSize()).toMatchObject({ width: 1200, height: 900 });
-    ui.requestEditorSize(1210, 600);
+    // Wider only: between the two sides' zooms, nearer the wider's. The
+    // same answer from any size: 1200×900 now.
+    ui.requestEditorSize(1200, 600);
     await Promise.resolve();
-    expect(ui.editorSize()).toMatchObject({ width: 800, height: 600 });
+    expect(ui.editorSize()).toMatchObject({ width: 1056, height: 792 });
     ui.requestEditorSize(5000, 5000);
     await Promise.resolve();
     expect(ui.editorSize()).toMatchObject({ width: 1600, height: 1200 });
@@ -925,7 +934,10 @@ describe('requestEditorSize', () => {
       editor: { ...resizable, applyRequests: false },
     });
     const ui = createUiModule(runtime);
-    expect(ui.requestEditorSize(1000, 700)).toBe(true);
+    expect(ui.requestEditorSize(1000, 700)).toEqual({
+      width: 1000,
+      height: 700,
+    });
     await Promise.resolve();
     expect(ui.editorSize().width).toBe(800);
     expect(runtime.requestedEditorSizes()).toEqual([
@@ -938,12 +950,14 @@ describe('requestEditorSize', () => {
     expect(() => ui.requestEditorSize('500' as never, 400)).toThrow(
       new TypeError('requestEditorSize(): width must be a number, got string'),
     );
-    expect(() => ui.requestEditorSize(500, -1)).toThrow(
+    expect(() => ui.requestEditorSize(500, Infinity)).toThrow(
       new RangeError(
-        'requestEditorSize(): height must be a finite number above 0, got -1',
+        'requestEditorSize(): height must be a finite number, got Infinity',
       ),
     );
     expect(() => ui.requestEditorSize(Number.NaN, 400)).toThrow(RangeError);
+    // None, or less: held to the minimum (400×300), as any size.
+    expect(ui.requestEditorSize(0, -1)).toEqual({ width: 400, height: 300 });
   });
 
   it('gives nothing to a runtime disposed before the host answers', async () => {

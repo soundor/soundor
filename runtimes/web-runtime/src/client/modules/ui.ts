@@ -139,11 +139,15 @@ export function editorSize(): EditorSize {
 
 /**
  * Asks for the plugin viewport to be `width`×`height` editor pixels, held to
- * the editor's limits and the page's room, as its handle resizes it. False
- * where it cannot be asked (`?embed`, a fixed editor). The viewport resizes
- * with the host page's next render; subscribeEditorSize() tells of it.
+ * the editor's limits and the page's room, as its handle resizes it, and
+ * returns that size; null where it cannot be asked (`?embed`, a fixed
+ * editor). The viewport resizes with the host page's next render;
+ * subscribeEditorSize() tells of it.
  */
-export function requestEditorSize(width: number, height: number): boolean {
+export function requestEditorSize(
+  width: number,
+  height: number,
+): { readonly width: number; readonly height: number } | null {
   return view.requestEditorSize(width, height);
 }
 
