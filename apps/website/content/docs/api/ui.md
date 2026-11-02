@@ -45,7 +45,9 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
   ([Style](/docs/components/style));
 - `layout` (its box in its parent's) and `getBoundingClientRect()` (in the
   view's), in logical pixels ([coordinates](/docs/components/events#coordinates));
-- `focusable`, `focus()`, `blur()`;
+- `focusable`, `focused`, `focusVisible` (whether it should show its
+  focus: [Focus rings](/docs/components/events#focus-rings)), `focus()`,
+  `blur()`, and the `focusvisiblechange` event;
 - `debugId`, the name [DevTools](/docs/cli/devtools) shows and
   [Soundor Driver](/docs/driver) finds the node by;
 - `accessibility`, what it is to assistive technology;

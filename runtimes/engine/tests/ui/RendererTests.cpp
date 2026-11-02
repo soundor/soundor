@@ -110,6 +110,31 @@ TEST_SUITE("ui::Renderer")
         CHECK(isClear(f.at(61, 35)));
     }
 
+    TEST_CASE("draws outlines outside the box, taking no room")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            const outlined = createView({ position: 'absolute', left: 20, top: 20, width: 40, height: 30,
+                                          backgroundColor: '#00f', outlineWidth: 3, outlineOffset: 2,
+                                          outlineColor: 'red' });
+            root.appendChild(outlined);
+            // A translucent leaf's layer holds its outline too.
+            root.appendChild(createView({ position: 'absolute', left: 80, top: 20, width: 20, height: 20,
+                                          backgroundColor: '#00f', opacity: 0.99, outlineWidth: 3,
+                                          outlineColor: 'red' }));
+            globalThis.result = JSON.stringify(outlined.layout);
+        )");
+        CHECK(f.eval("result").asString() == R"({"x":20,"y":20,"width":40,"height":30})");
+        f.render();
+        CHECK(isRed(f.at(16, 35)));   // the outline, 2 to 5 left of the box
+        CHECK(isClear(f.at(18, 35))); // the offset
+        CHECK(isBlue(f.at(21, 35)));  // the box
+        CHECK(isRed(f.at(63, 52)));   // bottom right
+        CHECK(isClear(f.at(66, 35)));
+        CHECK(isRed(f.at(78, 30)));
+        CHECK(isBlue(f.at(90, 30)));
+    }
+
     TEST_CASE("rounds corners, applies opacity, and clips children to overflow")
     {
         RenderFixture f;

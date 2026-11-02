@@ -5,8 +5,8 @@ description: A view that responds to presses, with its state for styling.
 
 `Pressable` is a view that responds to presses: a click, Enter or Space while
 it has focus, or a screen reader's "activate". Its `style` and `children` may
-be functions of its state (pressed, hovered, focused), so a button is drawn
-from the same state the runtime tracks.
+be functions of its state (pressed, hovered, focused, focusVisible), so a
+button is drawn from the same state the runtime tracks.
 
 <Snippet name="pressable" height={200} />
 
@@ -19,6 +19,9 @@ from the same state the runtime tracks.
 - **Disabled:** `disabled` makes it neither pressable nor focusable, and tells
   assistive technology so.
 - **Focus:** it is focusable, so Tab reaches it; Enter or Space press it.
+  Draw a focus ring from `focusVisible`, which a click does not set
+  ([Focus rings](/docs/components/events#focus-rings)):
+  `style={({ focusVisible }) => ({ outlineWidth: focusVisible ? 2 : 0 })}`.
 - **To assistive technology** it is one element, a `button` unless given
   another role, labelled by its text. It offers `activate` (its `onPress`)
   and, with `onLongPress`, `longpress`.

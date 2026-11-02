@@ -4,6 +4,7 @@
 #include <soundor/Config.h>
 #include <soundor/ui/Animation.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -245,12 +246,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Color backgroundColor;
         Color borderColor = black;
         Corners borderRadius;
+        // A line around the box (CSS `outline`), outside its border,
+        // `outlineOffset` away from it (inside when negative) and following
+        // its corners. Neither laid out nor hit: it takes no room.
+        float outlineWidth = 0;
+        float outlineOffset = 0;
+        Color outlineColor = black;
         // 0 (invisible) to 1; applies to the node and everything in it.
         float opacity = 1;
         Presentation transform;
         ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;
+
+        [[nodiscard]] bool outlined() const noexcept { return outlineWidth > 0 && outlineColor.visible(); }
+        // How far the outline reaches outside the box: 0 without one.
+        [[nodiscard]] float outlineExtent() const noexcept
+        {
+            return outlined() ? std::max(0.0f, outlineOffset + outlineWidth) : 0;
+        }
 
         friend bool operator==(const Style&, const Style&) = default;
     };

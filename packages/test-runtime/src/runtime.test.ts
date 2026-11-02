@@ -98,6 +98,41 @@ describe('events and input', () => {
     expect(r.focusedNode()).toBeNull();
     r.dispose();
   });
+  it('shows focus the keyboard moved, and a pressed node from a key on', () => {
+    const r = createTestRuntime(),
+      a = r.create('view'),
+      b = r.create('view'),
+      input = r.create('input');
+    a.focusable = b.focusable = true;
+    r.root.appendChild(a);
+    r.root.appendChild(b);
+    r.root.appendChild(input);
+    const changes: string[] = [];
+    for (const [node, name] of [
+      [a, 'a'],
+      [b, 'b'],
+    ] as const)
+      node.addEventListener('focusvisiblechange', (event) =>
+        changes.push(`${name}:${String(event['focusVisible'])}`),
+      );
+    r.pointerDown(a);
+    r.pointerUp(a);
+    expect([a.focused, a.focusVisible]).toEqual([true, false]);
+    r.pressKey('Shift');
+    r.pressKey('c', { ctrlKey: true });
+    expect(a.focusVisible).toBe(false);
+    r.pressKey('ArrowUp');
+    expect(a.focusVisible).toBe(true);
+    r.pressKey('Tab');
+    expect([a.focusVisible, b.focusVisible]).toEqual([false, true]);
+    expect(changes).toEqual(['a:true', 'a:false', 'b:true']);
+    // A text input shows focus however it got it.
+    r.pointerDown(a);
+    r.pointerUp(a);
+    input.focus();
+    expect(input.focusVisible).toBe(true);
+    r.dispose();
+  });
   it('edits input selection, honors prevented input, and commits on blur', () => {
     const r = createTestRuntime(),
       node = r.create('input');

@@ -135,7 +135,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 painting.emplace_back();
                 return;
             }
-            IntRect own = scaled(local, scale).mapBounds(pixels({ 0, 0, box.width, box.height }, scale));
+            // An outline draws outside the box.
+            const float outline = style.outlineExtent();
+            IntRect own =
+                scaled(local, scale)
+                    .mapBounds(
+                        pixels({ -outline, -outline, box.width + (outline * 2), box.height + (outline * 2) }, scale));
             if (node.type() == ui::NodeType::Text)
             {
                 const auto content = node.contentBox();
@@ -157,7 +162,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const auto& border = style.borderWidth;
             const bool bordered = style.borderColor.visible()
                                   && (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0);
-            if (style.backgroundColor.visible()
+            if (style.backgroundColor.visible() || style.outlined()
                 || (node.type() != ui::NodeType::View && node.type() != ui::NodeType::Scroll
                     && ! gpuCanvas(node, device)))
                 painting.back() = painting.back().united(own);
@@ -178,7 +183,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const Transform children = local * Transform::translate(-scroll.x, -scroll.y);
             for (const ui::Node* child : node.stackedChildren())
                 self(self, *child, children, false);
-            if (bordered || node.type() == ui::NodeType::Scroll)
+            if (bordered || style.outlined() || node.type() == ui::NodeType::Scroll)
                 painting.back() = painting.back().united(own);
         };
         walk(walk, root, {}, true);

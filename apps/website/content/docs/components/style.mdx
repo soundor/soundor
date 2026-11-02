@@ -61,6 +61,30 @@ list of `translateX`, `translateY`, `scale`, `scaleX`, `scaleY` and `rotate`
 moves how the node is drawn and hit, not its layout;
 [`Animated.View`](/docs/components/animated-view) animates it.
 
+## Outline
+
+`outlineWidth` draws a line around a node, as CSS's `outline`: outside its
+border, following its `borderRadius`, `outlineOffset` away from it (inside
+when negative), in `outlineColor` (black by default). Unlike a border it
+takes no room and is not hit, so it can come and go without moving
+anything: a focus ring
+([Focus rings](/docs/components/events#focus-rings)).
+
+```tsx
+<View
+  style={{
+    borderRadius: 8,
+    outlineWidth: 2,
+    outlineOffset: 2,
+    outlineColor: '#3a7bfd',
+  }}
+/>
+```
+
+Leave room for it: an ancestor with `overflow: 'hidden'` clips it, and in
+the JUCE runtime a later sibling drawn over the same place covers it (a
+browser draws outlines above).
+
 ## Cursor
 
 <Snippet name="cursor" height={200} />

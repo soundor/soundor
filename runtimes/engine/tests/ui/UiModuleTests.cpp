@@ -435,6 +435,70 @@ TEST_SUITE("soundor:ui")
         CHECK(f.log() == "focus@a<-");
     }
 
+    TEST_CASE("focus shows when the keyboard moved it, or a key is pressed after a press")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            for (const node of [a, b]) {
+              node.focusable = true;
+              node.addEventListener('focus', (e) => log.push('focus@' + e.target.name + ':' + e.focusVisible));
+              node.addEventListener('focusvisiblechange',
+                  (e) => log.push('visible@' + e.target.name + ':' + e.focusVisible));
+            }
+        )");
+        auto& surface = f.host.surface();
+        // Pressed: focused, not shown.
+        surface.pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
+        surface.pointer(pointer(ui::PointerInput::Phase::Up, 10, 10, 0, 0));
+        CHECK(f.log() == "focus@a:false");
+        CHECK(f.eval("[a.focused, a.focusVisible].join()").asString() == "true,false");
+        // A modifier on its own, or a shortcut, is not using the keyboard.
+        surface.key({ .down = true, .key = "Shift", .repeat = false, .modifiers = ui::Modifier::Shift });
+        surface.key({ .down = true, .key = "c", .repeat = false, .modifiers = ui::Modifier::Control });
+        CHECK(f.log() == "");
+        surface.key({ .down = true, .key = "ArrowUp", .repeat = false, .modifiers = 0 });
+        CHECK(f.log() == "visible@a:true");
+        CHECK(f.eval("a.focusVisible").asBoolean());
+        // Tab moves it, shown.
+        surface.key({ .down = true, .key = "Tab", .repeat = false, .modifiers = 0 });
+        CHECK(f.log() == "visible@a:false focus@b:true visible@b:true");
+        CHECK(f.eval("[a.focusVisible, b.focusVisible].join()").asString() == "false,true");
+        // Focus moved by code shows as the last input would have.
+        surface.pointer(pointer(ui::PointerInput::Phase::Down, 300, 300, 1, 0));
+        surface.pointer(pointer(ui::PointerInput::Phase::Up, 300, 300, 0, 0));
+        f.run("a.focus();");
+        CHECK(f.log() == "visible@b:false focus@a:false");
+        // Assistive technology moves focus as the keyboard does.
+        surface.pointer(pointer(ui::PointerInput::Phase::Down, 300, 300, 1, 0));
+        surface.pointer(pointer(ui::PointerInput::Phase::Up, 300, 300, 0, 0));
+        CHECK(surface.accessibilityAction(surface.hitTest({ 150, 50 }), "focus"));
+        CHECK(f.log() == "focus@b:true visible@b:true");
+    }
+
+    TEST_CASE("a text input shows focus however it got it; pressable reports focusVisible")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            import { pressable, createTextInput } from 'soundor:ui';
+            globalThis.states = [];
+            pressable(a, { onStateChange: (state) => states.push(state.focused + '/' + state.focusVisible) });
+            globalThis.field = createTextInput();
+            root.appendChild(field);
+        )");
+        auto& surface = f.host.surface();
+        surface.pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
+        surface.pointer(pointer(ui::PointerInput::Phase::Up, 10, 10, 0, 0));
+        surface.key({ .down = true, .key = "x", .repeat = false, .modifiers = 0 });
+        f.run("field.focus();");
+        // Hovered and pressed (false/false), focused by the press, released, a key.
+        CHECK(f.eval("states.join(' ')").asString()
+              == "false/false false/false true/false true/false true/true false/false");
+        CHECK(f.eval("field.focusVisible").asBoolean());
+        surface.pointer(pointer(ui::PointerInput::Phase::Down, 10, 10, 1, 0));
+        f.run("field.focus();");
+        CHECK(f.eval("field.focusVisible").asBoolean());
+    }
+
     TEST_CASE("text input arrives as beforeinput on the focused node")
     {
         UiFixture f;

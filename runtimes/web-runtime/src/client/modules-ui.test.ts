@@ -182,8 +182,8 @@ describe('pressable', () => {
     node.focus();
     other.focus();
     expect(states).toEqual([
-      '{"pressed":false,"hovered":false,"focused":true}',
-      '{"pressed":false,"hovered":false,"focused":false}',
+      '{"pressed":false,"hovered":false,"focused":true,"focusVisible":true}',
+      '{"pressed":false,"hovered":false,"focused":false,"focusVisible":false}',
     ]);
     undo();
   });

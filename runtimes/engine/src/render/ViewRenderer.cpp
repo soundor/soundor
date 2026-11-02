@@ -81,9 +81,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const ui::Edges<float>& border = style.borderWidth;
                 const bool bordered = (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0)
                                       && style.borderColor.visible();
-                // What it draws itself (a plain view draws nothing).
-                if (style.backgroundColor.visible() || bordered || node.type() != ui::NodeType::View)
-                    paint(x, y, frame.width, frame.height);
+                const bool outlined = style.outlined();
+                const float outline = style.outlineExtent();
+                // What it draws itself (a plain view draws nothing), its
+                // outline outside its box.
+                const auto paintOwn = [&]
+                { paint(x - outline, y - outline, frame.width + (outline * 2), frame.height + (outline * 2)); };
+                if (style.backgroundColor.visible() || bordered || outlined || node.type() != ui::NodeType::View)
+                    paintOwn();
                 const std::size_t layers = painted.size();
                 if (node.type() == ui::NodeType::Canvas)
                     canvas(node, x, y, seen, clip);
@@ -101,10 +106,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const ui::Point scrolled = node.scrollOffset();
                 for (const ui::Node* child : node.stackedChildren())
                     walk(*child, x - scrolled.x, y - scrolled.y, seen, inner);
-                // Its border and scroll indicators paint after its children:
-                // in a later layer when a canvas among them is promoted.
-                if (painted.size() != layers && (bordered || node.type() == ui::NodeType::Scroll))
-                    paint(x, y, frame.width, frame.height);
+                // Its border, outline and scroll indicators paint after its
+                // children: in a later layer when a canvas among them is
+                // promoted.
+                if (painted.size() != layers && (bordered || outlined || node.type() == ui::NodeType::Scroll))
+                    paintOwn();
             }
 
             void canvas(const ui::Node& node, float x, float y, float opacity, const std::optional<AncestorClip>& clip)

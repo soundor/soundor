@@ -458,17 +458,27 @@ export class KeyboardEvent extends ModifierEvent {
 
 export class FocusEvent extends Event {
   readonly #relatedTarget: EventTarget | null;
+  readonly #focusVisible: boolean;
 
   constructor(
     type: string,
-    init: EventInit & { relatedTarget?: EventTarget | null } = {},
+    init: EventInit & {
+      relatedTarget?: EventTarget | null;
+      focusVisible?: boolean;
+    } = {},
   ) {
     super(type, init);
     this.#relatedTarget = init.relatedTarget ?? null;
+    this.#focusVisible = Boolean(init.focusVisible);
   }
 
   get relatedTarget(): EventTarget | null {
     return this.#relatedTarget;
+  }
+
+  /** Whether the target shows its focus now (UiNode.focusVisible). */
+  get focusVisible(): boolean {
+    return this.#focusVisible;
   }
 }
 

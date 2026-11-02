@@ -47,6 +47,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return rounded;
         }
 
+        // `radii` for a rectangle grown by `by` on every side: rounded
+        // corners grow (or shrink) with it, square ones stay square, as
+        // CSS draws an outline.
+        SkRRect grownRect(const SkRect& rect, const Corners& radii, float by)
+        {
+            const auto grow = [by](float radius) { return radius > 0 ? std::max(0.0f, radius + by) : 0.0f; };
+            const SkVector corners[4] = {
+                { grow(radii.topLeft), grow(radii.topLeft) },
+                { grow(radii.topRight), grow(radii.topRight) },
+                { grow(radii.bottomRight), grow(radii.bottomRight) },
+                { grow(radii.bottomLeft), grow(radii.bottomLeft) },
+            };
+            SkRRect rounded;
+            rounded.setRectRadii(rect.makeOutset(by, by), corners);
+            return rounded;
+        }
+
         // Where an image of `image` size goes inside `box`.
         SkRect placeImage(Size image, const SkRect& box, ResizeMode mode)
         {
@@ -105,6 +122,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         void draw(SkCanvas& canvas);
         void drawNode(SkCanvas& canvas, const Node& node);
+        void drawOutline(SkCanvas& canvas, const SkRect& box, const Style& style);
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const;
@@ -291,18 +309,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Edges<float>& border = style.borderWidth;
         const bool bordered =
             (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible();
+        const bool outlined = style.outlined();
         // Opacity applies to the node and everything in it as one picture,
         // drawn into a layer. A view that paints a single shape (its
-        // background: no border, nothing in it) looks the same with the
-        // opacity in its paint, without a layer. A leaf that paints only
-        // inside its box gets a layer of that size; others, one the size
-        // of what is drawn.
+        // background: no border or outline, nothing in it) looks the same
+        // with the opacity in its paint, without a layer. A leaf that paints
+        // only inside its box gets a layer of that size; others, one the
+        // size of what is drawn.
         const bool leaf = node.children().empty();
-        const bool singleShape = opacity < 1 && leaf && ! bordered && node.type() == NodeType::View;
+        const bool singleShape = opacity < 1 && leaf && ! bordered && ! outlined && node.type() == NodeType::View;
         const bool layered = opacity < 1 && ! singleShape;
         if (layered)
         {
-            const bool insideBox = leaf
+            const bool insideBox = leaf && style.outlineExtent() <= 0
                                    && (node.type() == NodeType::View || node.type() == NodeType::Image
                                        || node.type() == NodeType::Canvas || node.type() == NodeType::Svg);
             canvas.saveLayerAlphaf(insideBox ? &box : nullptr, opacity);
@@ -374,9 +393,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 canvas.drawDRRect(outer, roundedRect(inner, style.borderRadius, border), paint);
         }
 
+        if (outlined && painting())
+            drawOutline(canvas, box, style);
+
         if (layered)
             canvas.restore();
         canvas.restore();
+    }
+
+    void Renderer::Impl::drawOutline(SkCanvas& canvas, const SkRect& box, const Style& style)
+    {
+        const SkRRect outer = grownRect(box, style.borderRadius, style.outlineOffset + style.outlineWidth);
+        if (outer.isEmpty())
+            return;
+        SkPaint paint(SkColor4f::FromColor(skColor(style.outlineColor)));
+        paint.setAntiAlias(true);
+        const SkRRect inner = grownRect(box, style.borderRadius, style.outlineOffset);
+        if (inner.isEmpty())
+            canvas.drawRRect(outer, paint);
+        else
+            canvas.drawDRRect(outer, inner, paint);
     }
 
     void Renderer::Impl::drawText(SkCanvas& canvas, const Node& node)

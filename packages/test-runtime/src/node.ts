@@ -85,6 +85,7 @@ export class TestEvent {
       data: null,
       inputType: '',
       relatedTarget: null,
+      focusVisible: false,
       ...init,
     });
     this['pageX'] = init['pageX'] ?? init['clientX'] ?? 0;
@@ -182,6 +183,11 @@ export class TestNode {
 
   get focused(): boolean {
     return this.runtime.focusedNode() === this;
+  }
+
+  /** It has focus and should show it, as in the JUCE runtime. */
+  get focusVisible(): boolean {
+    return this.focused && this.runtime.focusVisible();
   }
 
   focus() {
@@ -426,7 +432,7 @@ export function fire(
   const event = new TestEvent(
     type,
     init,
-    !['focus', 'blur', 'scroll'].includes(type),
+    !['focus', 'blur', 'focusvisiblechange', 'scroll'].includes(type),
   );
   node.dispatchEvent(event);
   return event;

@@ -32,7 +32,8 @@ function Echo({
 }) {
   const time = useParameter(times[index]!);
   const level = useParameter(levels[index]!);
-  const [focused, setFocused] = useState(false);
+  // Keyboard focus shows; a press's does not (focusVisible).
+  const [focusVisible, setFocusVisible] = useState(false);
   const drag = useRef<{
     x: number;
     y: number;
@@ -97,11 +98,8 @@ function Echo({
         } else return;
         event.preventDefault();
       }}
-      onFocus={() => setFocused(true)}
-      onBlur={() => {
-        setFocused(false);
-        end();
-      }}
+      onFocusVisibleChange={(event) => setFocusVisible(event.focusVisible)}
+      onBlur={end}
       onKeyDown={(event) => {
         if (event.key === 'ArrowLeft') step(-1);
         else if (event.key === 'ArrowRight') step(1);
@@ -143,8 +141,10 @@ function Echo({
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 21,
-        borderWidth: focused ? 2 : 1,
-        borderColor: focused ? '#fff' : `${color}55`,
+        borderWidth: 1,
+        borderColor: `${color}55`,
+        outlineWidth: focusVisible ? 2 : 0,
+        outlineColor: '#fff',
         backgroundColor: `${color}15`,
       }}
     >

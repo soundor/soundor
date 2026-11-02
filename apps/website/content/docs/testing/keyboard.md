@@ -32,5 +32,7 @@ await user.keyboard('{{'); // a literal {
   [`click`](/docs/testing/click) or [`tab`](/docs/testing/tab).
 - **Default actions follow:** Tab moves focus, Enter presses a focused
   button, a text input edits itself (unless a listener prevents it).
+- **A key shows focus** that a click gave (`focusVisible`, as in the
+  runtime), unless it is a shortcut or a modifier on its own.
 - **Soundor's editing rules,** not a keyboard layout or an input method:
   what is typed is the character written.

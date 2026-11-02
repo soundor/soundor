@@ -243,6 +243,8 @@ const NUMBERS = [
   'borderTopRightRadius',
   'borderBottomRightRadius',
   'borderBottomLeftRadius',
+  'outlineWidth',
+  'outlineOffset',
   'opacity',
   'fontSize',
   'lineHeight',
@@ -282,7 +284,7 @@ const LENGTHS = [
   'paddingLeft',
 ];
 
-const COLORS = ['color', 'backgroundColor', 'borderColor'];
+const COLORS = ['color', 'backgroundColor', 'borderColor', 'outlineColor'];
 
 /**
  * Checks a style as the JUCE runtime does and returns it without null or
@@ -495,6 +497,14 @@ export function cssFor(style: Style, type: NodeType): Css {
   ] as const) {
     const value = style[key];
     if (value !== undefined) css[property] = px(value);
+  }
+  // An outline takes no room, as natively; none unless it has a width.
+  if (style.outlineWidth !== undefined && style.outlineWidth > 0) {
+    css['outline-style'] = 'solid';
+    css['outline-width'] = px(style.outlineWidth);
+    css['outline-color'] = style.outlineColor ?? 'black';
+    if (style.outlineOffset !== undefined)
+      css['outline-offset'] = px(style.outlineOffset);
   }
   if (style.transform !== undefined)
     css['transform'] = transformCss(style.transform);

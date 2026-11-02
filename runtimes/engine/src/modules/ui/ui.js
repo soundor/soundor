@@ -891,6 +891,14 @@ export class UiNode extends EventTarget {
     return native.focused() === this.#id;
   }
 
+  /**
+   * Whether it has focus and should show it, as CSS's :focus-visible:
+   * focus a pointer press moved is not shown, unless a key is pressed after.
+   */
+  get focusVisible() {
+    return this.focused && native.focusVisible();
+  }
+
   focus() {
     native.focus(this.#id);
   }
@@ -1327,18 +1335,24 @@ const LONG_PRESS_SLOP = 10;
 /**
  * Makes `node` pressable: press with the primary button (released over it)
  * or, when focused, with Enter or Space; hold it for a long press. Reports
- * the pressed, hovered and focused state as it changes. Returns a function
- * that undoes it.
+ * the pressed, hovered, focused and focus-visible state as it changes.
+ * Returns a function that undoes it.
  */
 export function pressable(node, handlers = {}) {
   expectNode(node, 'node');
-  const state = { pressed: false, hovered: false, focused: node.focused };
+  const state = {
+    pressed: false,
+    hovered: false,
+    focused: node.focused,
+    focusVisible: node.focusVisible,
+  };
   const update = (change) => {
     const next = { ...state, ...change };
     if (
       next.pressed === state.pressed &&
       next.hovered === state.hovered &&
-      next.focused === state.focused
+      next.focused === state.focused &&
+      next.focusVisible === state.focusVisible
     )
       return;
     Object.assign(state, next);
@@ -1415,8 +1429,13 @@ export function pressable(node, handlers = {}) {
     update({ hovered: false });
     handlers.onHoverOut?.(event);
   });
-  on('focus', () => update({ focused: true }));
-  on('blur', () => update({ focused: false }));
+  on('focus', (event) =>
+    update({ focused: true, focusVisible: event.focusVisible }),
+  );
+  on('blur', () => update({ focused: false, focusVisible: false }));
+  on('focusvisiblechange', (event) =>
+    update({ focusVisible: event.focusVisible }),
+  );
   // Assistive technology presses without the pointer or the keyboard.
   on('accessibilityaction', (event) => {
     if (event.target !== node || event.defaultPrevented) return;
@@ -1641,14 +1660,21 @@ export class KeyboardEvent extends ModifierEvent {
 
 export class FocusEvent extends Event {
   #relatedTarget;
+  #focusVisible;
 
   constructor(type, init = {}) {
     super(type, init);
     this.#relatedTarget = init.relatedTarget ?? null;
+    this.#focusVisible = Boolean(init.focusVisible);
   }
 
   get relatedTarget() {
     return this.#relatedTarget;
+  }
+
+  /** Whether the target shows its focus now (UiNode.focusVisible). */
+  get focusVisible() {
+    return this.#focusVisible;
   }
 }
 
@@ -1709,6 +1735,7 @@ const EVENT_TYPES = [
   ['scroll', Event, false, false],
   ['contextmenu', PointerEvent, true, true],
   ['accessibilityaction', AccessibilityActionEvent, true, true],
+  ['focusvisiblechange', FocusEvent, false, false],
 ];
 
 // ── Text editing: the default actions of an input's events ─────────────────
@@ -1972,6 +1999,7 @@ native.setListener((type, targetId, data) => {
     data: data.data,
     inputType: 'insertText',
     relatedTarget: nodeById(data.related),
+    focusVisible: data.focusVisible,
     actionName: data.action,
     value: data.value,
   });

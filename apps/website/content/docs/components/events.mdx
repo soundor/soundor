@@ -23,8 +23,8 @@ the view's nodes as in the DOM.
 ```
 
 - **Capture and bubble:** an event goes down to its target through the
-  `…Capture` props, then back up through the others. Enter, leave, focus and
-  blur do not bubble.
+  `…Capture` props, then back up through the others. Enter, leave, focus,
+  blur and focus-visible changes do not bubble.
 - **`preventDefault()`** stops the runtime's own response: a press focusing a
   node, a text input's editing, a key or wheel input going on to the plugin's
   host (a DAW's shortcuts).
@@ -45,9 +45,41 @@ the view's nodes as in the DOM.
   `clientX`/`clientY`.
 - **Focus:** a press focuses the nearest `focusable` node, unless its
   `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
-  Keys go to the focused node.
+  Keys go to the focused node. Show focus with `focusVisible`, not `focused`
+  ([Focus rings](#focus-rings)).
 - **`onContextMenu`** fires when the secondary button goes down, so a UI can
   open its own menu ([Portal](/docs/components/portal#over-everything)).
+
+## Focus rings
+
+A press focuses what it presses, so a ring drawn while a node is `focused`
+appears on every click. As CSS's `:focus-visible`, `node.focusVisible` says
+whether the focus should show: not when a press gave it, until a key is
+pressed (not a shortcut nor a modifier on its own); when Tab, a screen
+reader or code moved it after a key; and always in a text input.
+`onFocusVisibleChange` fires whenever it changes, with
+`event.focusVisible`, and a [`Pressable`](/docs/components/pressable)'s
+state has it. Draw the ring with an
+[outline](/docs/components/style#outline), which takes no room, so nothing
+moves when it shows:
+
+```tsx
+const [ring, setRing] = useState(false);
+
+<View
+  focusable
+  onFocusVisibleChange={(event) => setRing(event.focusVisible)}
+  style={{
+    borderRadius: 42,
+    outlineWidth: ring ? 2 : 0,
+    outlineOffset: 2,
+    outlineColor: '#9473ca',
+  }}
+/>;
+```
+
+Both runtimes decide it by these rules, the web runtime too, rather than
+by the browser's own.
 
 ## Coordinates
 

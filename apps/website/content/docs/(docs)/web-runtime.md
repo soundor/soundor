@@ -167,8 +167,9 @@ UiNodes.
 - **Events.** Events capture and bubble along the Soundor tree, and input
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
-  release, focus on press, Tab cycling, and the wheel scrolling the nearest
-  scroll view. All four `pointerEvents` modes work, and the cursor is the
+  release, focus on press, Tab cycling, `focusVisible` (by the JUCE
+  runtime's rules, not the browser's `:focus-visible`), and the wheel
+  scrolling the nearest scroll view. All four `pointerEvents` modes work, and the cursor is the
   JUCE runtime's: the view resolves `cursor` along the Soundor tree and
   shows it on its element, which every node inherits. Hover follows what
   changes under a pointer that did not move (the tree, a style, a scroll, a

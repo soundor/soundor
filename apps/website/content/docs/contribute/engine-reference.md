@@ -526,7 +526,7 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   property, as on the Web; `''`, `null` or `delete` removes it.
 - **Restyling costs what changed:** assigning what a style already is does
   not reach native code. A change that only looks different (colors, border
-  radius, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
+  radius, outline, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
   not laid out; text is measured again only when its font changes. A
   `cursor` change is neither: the backend reads it.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
@@ -568,7 +568,12 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   - **Clicks:** a `click` goes to the deepest node common to press and release.
   - **Focus:** a press focuses the nearest `focusable` node unless
     `pointerdown` is prevented. Tab and Shift+Tab cycle through focusable
-    nodes.
+    nodes. `Surface::focusVisible()` is CSS's `:focus-visible`: the Surface
+    remembers whether the last input was a pointer press or the keyboard (or
+    assistive technology), and focus a press moved is not shown until a key
+    other than a shortcut or a lone modifier is pressed; a text input always
+    shows it. A `FocusVisibleChange` event goes to each node whose
+    visibility changes. The web and test runtimes keep the same rules.
   - **Keys and text:** `keydown`/`keyup` go to the focused node (else the
     root). Typed text arrives as `beforeinput`.
 - **The view's size:** the backend gives the Surface its logical size
@@ -673,7 +678,7 @@ Beyond views and text there are the primitives a plugin UI is made of:
     (WebGL 1) is null.
 - **`pressable(node, { onPress, onStateChange, … })`:** a press is a primary
   click, Enter/Space while focused, or an `activate` accessibility action. It
-  reports pressed and hovered state.
+  reports pressed, hovered, focused and focus-visible state.
 - **`requestAnimationFrame()`:** global, as on the Web. Callbacks run once on
   the view's next frame, before it is drawn.
 
@@ -738,13 +743,17 @@ still draws the whole view in one go, for tests and tools.
 
 - **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere
   (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
-- **Boxes:** backgrounds, borders, per-corner radii, opacity, overflow
-  clipping, scrolling, text, images, and inputs with selection and a caret.
+- **Boxes:** backgrounds, borders, per-corner radii, outlines, opacity,
+  overflow clipping, scrolling, text, images, and inputs with selection and a
+  caret.
+- **Outlines** draw after the node's children and border, outside its box
+  (`Style::outlineExtent()`), so damage, the layers a promoted canvas splits
+  a view into and animation groups all count that far around the box.
 - **Opacity** is a node's and everything in it, drawn as one picture into a
-  layer. A view that paints a single shape (a background, without a border
-  or children) is drawn with the opacity in its paint instead, which looks
-  the same; a view, image or canvas without children gets a layer only the
-  size of its box.
+  layer. A view that paints a single shape (a background, without a border,
+  outline or children) is drawn with the opacity in its paint instead, which
+  looks the same; a view, image or canvas without children or an outline
+  outside its box gets a layer only the size of its box.
 - **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
   invalid one is a `TypeError` naming the property.
 - **Text:** the platform's fonts (CoreText, DirectWrite, fontconfig/FreeType),

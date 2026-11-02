@@ -194,6 +194,9 @@ export interface Style {
   borderTopRightRadius?: number;
   borderBottomRightRadius?: number;
   borderBottomLeftRadius?: number;
+  outlineWidth?: number;
+  outlineColor?: Color;
+  outlineOffset?: number;
   /** 0 to 1, for the node and everything in it. */
   opacity?: number;
   transform?: readonly TransformOperation[];

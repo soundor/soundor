@@ -10,7 +10,8 @@ await user.click(node: NodeTarget): Promise<void>;
 Moves the pointer over `node` (it is hovered), then presses and releases the
 primary button on it: `pointerenter`, `pointermove`, `pointerdown`,
 `pointerup` and `click`, with focus moving to the nearest focusable node,
-as in the runtime.
+as in the runtime: not shown (`focusVisible` is false) until a key is
+pressed.
 
 ```ts
 await user.click(screen.getByRole('button', { name: 'Reset gain' }));

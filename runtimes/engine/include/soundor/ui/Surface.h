@@ -227,6 +227,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             Scroll, // does not bubble
             ContextMenu,
             AccessibilityAction,
+            FocusVisibleChange, // does not bubble
         };
 
         Type type = Type::PointerMove;
@@ -262,6 +263,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::variant<std::monostate, double, std::string> value;
 
         Modifiers modifiers = 0;
+
+        // Focus, blur and focus-visible changes: whether the target shows its
+        // focus now (focusVisible()).
+        bool focusVisible = false;
     };
 
     // Delivers an event; returns true when a listener called preventDefault().
@@ -512,9 +517,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                  std::variant<std::monostate, double, std::string> value = {});
 
         // Moves focus to `id` (focusable and connected) or nowhere (noNode),
-        // dispatching blur and focus.
+        // dispatching blur and focus, and a focus-visible change to each
+        // whose focusVisible() changes.
         void focus(NodeId id);
         [[nodiscard]] NodeId focused() noexcept;
+        // Whether the focused node should show that it has focus, as CSS's
+        // :focus-visible: unless a pointer press was the last input before
+        // it took focus. A text input always shows it, and a key press (not
+        // a shortcut nor a lone modifier) shows it from then on.
+        [[nodiscard]] bool focusVisible() noexcept;
 
 #if SOUNDOR_DEVTOOLS
         // Debug state is separate from layout, styles and event targets.
@@ -603,6 +614,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         EventSink sink;
         std::map<int, PointerState> pointers;
         NodeId focusedNode = noNode;
+        // Whether the focused node shows its focus, and whether the last
+        // input was the keyboard's (or assistive technology's) rather than a
+        // pointer press: what focus moved now would show.
+        bool focusShown = false;
+        bool keyboardModality = true;
+        void showFocus();
         // revision() when hover was last refreshed.
         std::uint64_t hoverRevision = 0;
         std::optional<PointerLock> lock;

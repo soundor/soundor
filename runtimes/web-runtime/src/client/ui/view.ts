@@ -41,6 +41,15 @@ import type {
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
+/** Keys that pressed on their own do not show focus. */
+const MODIFIER_KEYS = new Set([
+  'Shift',
+  'Control',
+  'Alt',
+  'Meta',
+  'AltGraph',
+  'CapsLock',
+]);
 
 const STYLE_ID = 'soundor-ui-style';
 
@@ -67,6 +76,13 @@ export class UiView implements ViewLink {
   readonly #committed = new WeakMap<UiNode, string>();
   readonly #controller = new AbortController();
   #focused: UiNode | null = null;
+  /**
+   * Whether the focused node shows its focus, and whether the last input
+   * was the keyboard's (or assistive technology's) rather than a pointer
+   * press: what focus moved now would show. As the JUCE runtime decides.
+   */
+  #focusShown = false;
+  #keyboardModality = true;
   /** Set while the view moves DOM focus itself. */
   #movingFocus = false;
   /** Whether the last pointerdown kept the browser's default (focus, caret). */
@@ -301,15 +317,25 @@ export class UiView implements ViewLink {
     return this.#focused;
   }
 
+  focusVisible(): boolean {
+    return this.focusedNode() !== null && this.#focusShown;
+  }
+
   /**
-   * Moves focus to `node` (or nowhere), firing blur then focus. A node that
-   * is not focusable or not in the tree is ignored.
+   * Moves focus to `node` (or nowhere), firing blur then focus, and
+   * focusvisiblechange to each whose focusVisible changes. A node that is
+   * not focusable or not in the tree is ignored.
    */
   focus(node: UiNode | null, moveDomFocus = true): void {
     if (node !== null && (!node.focusable || !node.isConnected)) return;
     const previous = this.focusedNode();
     if (previous === node) return;
+    const wasShown = previous !== null && this.#focusShown;
     this.#focused = node;
+    // Text inputs show focus however they got it, as in browsers.
+    this.#focusShown =
+      node !== null && (this.#keyboardModality || node.type === 'input');
+    const shown = this.#focusShown;
     if (moveDomFocus) {
       this.#movingFocus = true;
       try {
@@ -325,15 +351,48 @@ export class UiView implements ViewLink {
       previous.dispatchEvent(
         new FocusEvent('blur', { composed: true, relatedTarget: node }),
       );
+      if (wasShown && previous.isConnected)
+        previous.dispatchEvent(
+          new FocusEvent('focusvisiblechange', { composed: true }),
+        );
       if (previous.type === 'input') this.#commit(previous);
     }
     if (node !== null && this.#focused === node && node.isConnected) {
       if (node.type === 'input' && !this.#committed.has(node))
         this.#committed.set(node, node.value);
       node.dispatchEvent(
-        new FocusEvent('focus', { composed: true, relatedTarget: previous }),
+        new FocusEvent('focus', {
+          composed: true,
+          relatedTarget: previous,
+          focusVisible: shown,
+        }),
       );
+      if (
+        shown &&
+        this.#focused === node &&
+        this.#focusShown &&
+        node.isConnected
+      )
+        node.dispatchEvent(
+          new FocusEvent('focusvisiblechange', {
+            composed: true,
+            focusVisible: true,
+          }),
+        );
     }
+  }
+
+  /** Shows the focused node's focus, from a key press on. */
+  #showFocus(): void {
+    const node = this.focusedNode();
+    if (node === null || this.#focusShown) return;
+    this.#focusShown = true;
+    node.dispatchEvent(
+      new FocusEvent('focusvisiblechange', {
+        composed: true,
+        focusVisible: true,
+      }),
+    );
   }
 
   #moveFocus(backwards: boolean): boolean {
@@ -562,6 +621,8 @@ export class UiView implements ViewLink {
   #click(event: MouseEvent): void {
     event.stopPropagation();
     if (event.detail !== 0) return;
+    // Assistive technology moves focus as the keyboard does: shown.
+    this.#keyboardModality = true;
     for (
       let node = nodeOf(event.target as Element | null, this.rootElement);
       node !== null;
@@ -820,6 +881,8 @@ export class UiView implements ViewLink {
   }
 
   #pointerDown(event: globalThis.PointerEvent): void {
+    // Focus a press moves is not shown (focusVisible()).
+    this.#keyboardModality = false;
     const state = this.#state(event.pointerId);
     const hit = this.#hitTest(event);
     if (state.captured === null) this.#updateHover(state, event, hit);
@@ -1008,6 +1071,13 @@ export class UiView implements ViewLink {
 
   #key(event: globalThis.KeyboardEvent, down: boolean): void {
     if (event.isComposing) return;
+    const shortcut = event.ctrlKey || event.altKey || event.metaKey;
+    // Using the keyboard shows focus, as browsers do: not a shortcut, nor a
+    // modifier pressed on its own.
+    if (down && !shortcut && !MODIFIER_KEYS.has(event.key)) {
+      this.#keyboardModality = true;
+      this.#showFocus();
+    }
     const target = this.focusedNode() ?? this.root;
     const allowed = target.dispatchEvent(
       new KeyboardEvent(down ? 'keydown' : 'keyup', {
@@ -1027,7 +1097,6 @@ export class UiView implements ViewLink {
       return;
     }
     if (!down) return;
-    const shortcut = event.ctrlKey || event.altKey || event.metaKey;
     if (event.key === 'Tab' && !shortcut) {
       event.preventDefault();
       this.#moveFocus(event.shiftKey);
@@ -1072,8 +1141,12 @@ export class UiView implements ViewLink {
   #focusIn(event: globalThis.FocusEvent): void {
     if (this.#movingFocus) return;
     const node = nodeOf(event.target as Element, this.rootElement);
-    if (node !== null && node.focusable && node !== this.focusedNode())
+    if (node !== null && node.focusable && node !== this.focusedNode()) {
+      // Not a press (the view moves that focus itself): assistive
+      // technology, or the browser's keyboard. Shown.
+      this.#keyboardModality = true;
       this.focus(node, false);
+    }
   }
 
   /** Focus leaving the plugin (to the host page) blurs the focused node. */

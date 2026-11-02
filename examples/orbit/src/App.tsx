@@ -90,7 +90,10 @@ export function App() {
             onPress={() =>
               choose((preset + presets.length - 1) % presets.length)
             }
-            style={styles.arrow}
+            style={({ focusVisible }) => [
+              styles.arrow,
+              focusVisible && styles.ring,
+            ]}
           >
             <Text style={styles.arrowText}>‹</Text>
           </Pressable>
@@ -107,7 +110,10 @@ export function App() {
           <Pressable
             accessibilityLabel="Next preset"
             onPress={() => choose((preset + 1) % presets.length)}
-            style={styles.arrow}
+            style={({ focusVisible }) => [
+              styles.arrow,
+              focusVisible && styles.ring,
+            ]}
           >
             <Text style={styles.arrowText}>›</Text>
           </Pressable>
@@ -136,9 +142,11 @@ export function App() {
                 parameters.bypass.set(dry);
                 parameters.bypass.endGesture();
               }}
-              style={[
+              style={({ focusVisible }) => [
                 styles.compareOption,
                 bypass === dry && { backgroundColor: '#30362f' },
+                // Inside: the options touch, and the next would cover it.
+                focusVisible && styles.ringInside,
               ]}
             >
               <Text
@@ -207,11 +215,12 @@ export function App() {
             accessibilityRole="togglebutton"
             accessibilityState={{ checked: hold }}
             onPress={() => toggle(parameters.hold)}
-            style={({ hovered, pressed }) => [
+            style={({ hovered, pressed, focusVisible }) => [
               styles.hold,
               hold && styles.held,
               hovered && { borderColor: '#9eae86' },
               pressed && { opacity: 0.8 },
+              focusVisible && styles.ring,
             ]}
           >
             <View
@@ -249,7 +258,11 @@ export function App() {
             accessibilityRole="togglebutton"
             accessibilityState={{ checked: sync }}
             onPress={() => toggle(parameters.sync)}
-            style={[styles.sync, sync && { backgroundColor: '#dfe6d5' }]}
+            style={({ focusVisible }) => [
+              styles.sync,
+              sync && { backgroundColor: '#dfe6d5' },
+              focusVisible && styles.ring,
+            ]}
           >
             <Text
               style={{
@@ -280,7 +293,10 @@ export function App() {
           accessibilityRole="togglebutton"
           accessibilityState={{ checked: help }}
           onPress={() => setHelp(!help)}
-          style={{ padding: 4 }}
+          style={({ focusVisible }) => [
+            { padding: 4, borderRadius: 4 },
+            focusVisible && styles.ring,
+          ]}
         >
           <Text style={{ color: '#777e71', fontSize: 10 }}>
             {help ? 'CLOSE' : '? HELP'}
@@ -363,4 +379,7 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   sync: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
+  // Keyboard focus (focusVisible): an outline, so nothing moves.
+  ring: { outlineWidth: 2, outlineOffset: 2, outlineColor: '#9473ca' },
+  ringInside: { outlineWidth: 2, outlineOffset: -2, outlineColor: '#9473ca' },
 });

@@ -152,6 +152,30 @@ describe('cssFor', () => {
     });
   });
 
+  it('draws an outline only with a width, solid and black by default', () => {
+    expect(
+      cssFor(
+        { outlineWidth: 2, outlineColor: 'red', outlineOffset: 3 },
+        'view',
+      ),
+    ).toEqual({
+      'outline-style': 'solid',
+      'outline-width': '2px',
+      'outline-color': 'red',
+      'outline-offset': '3px',
+    });
+    expect(cssFor({ outlineWidth: 1 }, 'view')).toEqual({
+      'outline-style': 'solid',
+      'outline-width': '1px',
+      'outline-color': 'black',
+    });
+    expect(cssFor({ outlineWidth: 0, outlineColor: 'red' }, 'view')).toEqual(
+      {},
+    );
+    expect(() => readStyle({ outlineWidth: '2px' })).toThrow(/outlineWidth/);
+    expect(() => readStyle({ outlineColor: 3 })).toThrow(/outlineColor/);
+  });
+
   it('hides with display none and serializes', () => {
     const css = cssFor({ display: 'none', position: 'absolute' }, 'view');
     expect(cssText(css)).toBe('display:none;position:absolute;');

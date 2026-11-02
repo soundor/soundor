@@ -49,6 +49,8 @@ export interface ViewLink {
   /** CSS pixels per logical pixel (the host may scale the view). */
   scale(): number;
   focusedNode(): UiNode | null;
+  /** Whether the focused node shows its focus (UiNode.focusVisible). */
+  focusVisible(): boolean;
   focus(node: UiNode | null): void;
   requestPointerLock(node: UiNode): Promise<void>;
   /**
@@ -616,6 +618,15 @@ export class UiNode extends TreeEventTarget {
 
   get focused(): boolean {
     return this.#view.focusedNode() === this;
+  }
+
+  /**
+   * Whether it has focus and should show it, as CSS's :focus-visible (by
+   * the JUCE runtime's rules, not the browser's): focus a pointer press
+   * moved is not shown, unless a key is pressed after.
+   */
+  get focusVisible(): boolean {
+    return this.focused && this.#view.focusVisible();
   }
 
   focus(): void {

@@ -83,6 +83,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             style.backgroundColor = {};
             style.borderColor = {};
             style.borderRadius = {};
+            style.outlineWidth = 0;
+            style.outlineOffset = 0;
+            style.outlineColor = {};
             style.opacity = 1;
             style.transform = {};
             style.resizeMode = {};
@@ -1382,6 +1385,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             case PointerInput::Phase::Down:
             {
+                // Focus a press moves is not shown (focusVisible()).
+                keyboardModality = false;
                 if (state.captured == noNode)
                     updateHover(state, input, hit);
                 const NodeId target = state.captured != noNode ? state.captured : hit;
@@ -1511,6 +1516,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     bool Surface::key(const KeyInput& input)
     {
+        constexpr Modifiers shortcut = Modifier::Control | Modifier::Alt | Modifier::Meta;
+        // Using the keyboard shows focus, as browsers do: not a shortcut,
+        // nor a modifier pressed on its own.
+        if (input.down && (input.modifiers & shortcut) == 0 && input.key != "Shift" && input.key != "Control"
+            && input.key != "Alt" && input.key != "Meta" && input.key != "AltGraph" && input.key != "CapsLock")
+        {
+            keyboardModality = true;
+            showFocus();
+        }
         Event event;
         event.type = input.down ? Event::Type::KeyDown : Event::Type::KeyUp;
         const NodeId target = focused();
@@ -1520,7 +1534,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.modifiers = input.modifiers;
         if (dispatch(event))
             return true;
-        constexpr Modifiers shortcut = Modifier::Control | Modifier::Alt | Modifier::Meta;
         if (input.down && input.key == "Tab" && (input.modifiers & shortcut) == 0)
             return moveFocus((input.modifiers & Modifier::Shift) != 0);
         return false;
@@ -1552,6 +1565,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         if (! isConnected(target))
             return false;
+        // Assistive technology moves focus as the keyboard does: shown.
+        keyboardModality = true;
         Event event;
         event.type = Event::Type::AccessibilityAction;
         event.target = target;
@@ -1578,7 +1593,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const NodeId previous = focused();
         if (previous == id)
             return;
+        const bool wasShown = previous != noNode && focusShown;
         focusedNode = id;
+        // Text inputs show focus however they got it, as in browsers.
+        focusShown = id != noNode && (keyboardModality || find(id)->nodeType == NodeType::Input);
+        const bool shown = focusShown;
         // An input shows its caret and selection only while focused.
         invalidate(previous);
         invalidate(id);
@@ -1589,6 +1608,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             blur.target = previous;
             blur.related = id;
             dispatch(blur);
+            if (wasShown && isConnected(previous))
+            {
+                Event hidden;
+                hidden.type = Event::Type::FocusVisibleChange;
+                hidden.target = previous;
+                dispatch(hidden);
+            }
         }
         if (id != noNode && focusedNode == id && isConnected(id))
         {
@@ -1596,8 +1622,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             focusEvent.type = Event::Type::Focus;
             focusEvent.target = id;
             focusEvent.related = previous;
+            focusEvent.focusVisible = shown;
             dispatch(focusEvent);
+            if (shown && focusedNode == id && focusShown && isConnected(id))
+            {
+                Event visible;
+                visible.type = Event::Type::FocusVisibleChange;
+                visible.target = id;
+                visible.focusVisible = true;
+                dispatch(visible);
+            }
         }
+    }
+
+    bool Surface::focusVisible() noexcept
+    {
+        return focused() != noNode && focusShown;
+    }
+
+    void Surface::showFocus()
+    {
+        const NodeId target = focused();
+        if (target == noNode || focusShown)
+            return;
+        focusShown = true;
+        Event visible;
+        visible.type = Event::Type::FocusVisibleChange;
+        visible.target = target;
+        visible.focusVisible = true;
+        dispatch(visible);
     }
 
     void Surface::collectFocusable(Node& node, std::vector<NodeId>& out)
