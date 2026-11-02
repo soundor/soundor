@@ -69,7 +69,6 @@ catalog:
   rolldown: ^1.2.16
   sucrase: ^3.35.1
   tailwindcss: ^4.3.3
-  # Exact: the native tests pin the same release (SoundorDependencies.cmake).
   three: 0.187.0
   tsdown: ^0.23.4
   turbo: ^2.11.10
