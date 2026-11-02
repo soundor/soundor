@@ -80,7 +80,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             case ui::Cursor::Auto:
             case ui::Cursor::Default:
-                return Type::NormalCursor;
+                return arrowCursor();
             case ui::Cursor::None:
                 return Type::NoCursor;
             case ui::Cursor::Pointer:
@@ -100,7 +100,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             case ui::Cursor::NwseResize:
                 return Type::TopLeftCornerResizeCursor;
         }
-        return Type::NormalCursor;
+        return arrowCursor();
     }
 
     ui::PointerInput pointerInput(const juce::MouseEvent& event, ui::PointerInput::Phase phase)

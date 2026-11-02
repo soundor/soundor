@@ -70,7 +70,7 @@ TEST_SUITE("JUCE input")
 
     TEST_CASE("cursors are the platform's own shapes")
     {
-        CHECK(backend::mouseCursor(ui::Cursor::Default) == juce::MouseCursor::NormalCursor);
+        CHECK(backend::mouseCursor(ui::Cursor::Default) == backend::arrowCursor());
         CHECK(backend::mouseCursor(ui::Cursor::None) == juce::MouseCursor::NoCursor);
         CHECK(backend::mouseCursor(ui::Cursor::Pointer) == juce::MouseCursor::PointingHandCursor);
         CHECK(backend::mouseCursor(ui::Cursor::Text) == juce::MouseCursor::IBeamCursor);
