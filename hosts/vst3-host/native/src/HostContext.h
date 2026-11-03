@@ -52,7 +52,7 @@ namespace soundor::vst3host
         tresult PLUGIN_API queryInterface(const TUID iid, void** obj) override;
 
     private:
-        FUnknown* runLoop_;
+        [[maybe_unused]] FUnknown* runLoop_; // Linux only
     };
 
     /** What the plugin's controller and editor ask of the host. */
@@ -109,6 +109,6 @@ namespace soundor::vst3host
 
     private:
         HostListener& listener_;
-        FUnknown* runLoop_;
+        [[maybe_unused]] FUnknown* runLoop_; // Linux only
     };
 } // namespace soundor::vst3host

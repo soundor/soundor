@@ -85,7 +85,11 @@ else()
   find_package(X11 REQUIRED)
   target_sources(SoundorHostFixtures PRIVATE fixtures/FixtureNativeX11.cpp "${sdk}/public.sdk/source/main/linuxmain.cpp")
   target_link_libraries(SoundorHostFixtures PRIVATE X11::X11)
-  target_link_options(SoundorHostFixtures PRIVATE -Wl,--no-undefined)
+  # Every symbol resolved at link time, except under sanitizers, whose
+  # runtime the host executable provides.
+  if(NOT SOUNDOR_VST3_HOST_SANITIZERS)
+    target_link_options(SoundorHostFixtures PRIVATE -Wl,--no-undefined)
+  endif()
   set_target_properties(SoundorHostFixtures PROPERTIES PREFIX "" SUFFIX ".so")
   soundor_vst3_host_output(SoundorHostFixtures LIBRARY "${bundle}/Contents/${CMAKE_SYSTEM_PROCESSOR}-linux")
 endif()

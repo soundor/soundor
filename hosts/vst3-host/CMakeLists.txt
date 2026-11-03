@@ -70,12 +70,19 @@ if(WIN32)
     "${sdk}/public.sdk/source/vst/hosting/module_win32.cpp"
     "${sdk}/public.sdk/source/common/threadchecker_win32.cpp")
   target_link_libraries(soundor_vst3_sdk_hosting PUBLIC ole32 shell32)
+  # Written for C++17, where u8string() returns std::string.
+  set_source_files_properties("${sdk}/public.sdk/source/vst/hosting/module_win32.cpp"
+    PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/Zc:char8_t->")
   target_compile_definitions(soundor_vst3_sdk_hosting PUBLIC UNICODE _UNICODE NOMINMAX)
 elseif(APPLE)
   target_sources(soundor_vst3_sdk_hosting PRIVATE
     "${sdk}/public.sdk/source/vst/hosting/module_mac.mm"
     "${sdk}/public.sdk/source/common/threadchecker_mac.mm")
   target_link_libraries(soundor_vst3_sdk_hosting PUBLIC "-framework CoreFoundation" "-framework Foundation")
+  # The SDK's Objective-C++ needs ARC; the host's own (EditorWindowMac.mm,
+  # EventLoopMac.mm) manages references itself.
+  set_source_files_properties("${sdk}/public.sdk/source/vst/hosting/module_mac.mm"
+    PROPERTIES COMPILE_OPTIONS -fobjc-arc)
 else()
   target_sources(soundor_vst3_sdk_hosting PRIVATE
     "${sdk}/public.sdk/source/vst/hosting/module_linux.cpp"

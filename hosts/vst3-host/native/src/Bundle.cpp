@@ -134,6 +134,7 @@ namespace soundor::vst3host
             return out.empty() ? "none" : out;
         }
 
+#if ! defined(__APPLE__)
         // Linux and Windows bundles keep one binary per architecture in
         // Contents/<arch>-<os>/; macOS keeps one (possibly universal) binary.
         std::string folderArchitecture(const std::string& name)
@@ -149,6 +150,7 @@ namespace soundor::vst3host
                 return "arm";
             return "unknown";
         }
+#endif
 
         BundleCheck fail(std::string code, std::string message)
         {
