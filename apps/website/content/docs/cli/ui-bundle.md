@@ -10,6 +10,9 @@ runtime runs:
 
 - Everything it imports from npm is inlined. `soundor:*` modules stay imports;
   the runtime provides them.
+- Package `exports` and `imports` resolve with the `soundor` condition enabled.
+  Libraries can provide Soundor implementations through the same import used
+  on other platforms. This applies to both JUCE and the web runtime.
 - `build` minifies and tree-shakes into `.soundor/ui/production`. `dev` keeps
   source maps, in `.soundor/ui/development`.
 - TSX uses the automatic JSX runtime (set `"jsx": "react-jsx"` in the
@@ -44,10 +47,19 @@ without `"DOM"`, so code that assumes a browser fails to compile:
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["soundor"],
   },
   "include": ["src", ".soundor/generated/soundor.d.ts"],
 }
 ```
+
+The scaffolder includes `customConditions`. When setting up a project from
+scratch or upgrading an existing one, add `"customConditions": ["soundor"]`
+to the UI's tsconfig (usually `tsconfig.app.json`), keeping any other custom
+conditions you use. This makes TypeScript select a library's Soundor
+declarations, matching the CLI's bundle resolution. `soundor init` initializes
+runtime host files; it does not update the UI's tsconfig. The web host's own
+DOM and Web Audio code has a separate tsconfig.
 
 The bundler never ships with the plugin: the plugin contains plain JavaScript
 only.

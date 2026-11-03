@@ -1,0 +1,19 @@
+{
+  "name": "conditional-ui",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#platform": {
+      "soundor": "./platform.js",
+      "default": "./dom.js"
+    }
+  },
+  "exports": {
+    ".": {
+      "soundor": {
+        "import": "./soundor.js"
+      },
+      "default": "./dom.js"
+    }
+  }
+}

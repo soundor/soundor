@@ -29,5 +29,6 @@ export default defineConfig({
     include: ['*.spec.tsx'],
     maxWorkers: 2,
     clearMocks: false,
+    server: { deps: { inline: ['conditional-ui-inline'] } },
   },
 });

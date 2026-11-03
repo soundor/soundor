@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,17 @@ const cli = resolve(
   'vitest.mjs',
 );
 async function run(config?: string, args: string[] = []) {
+  const fixture = fileURLToPath(
+    new URL('../fixtures/integration', import.meta.url),
+  );
+  for (const name of ['conditional-ui', 'conditional-ui-inline']) {
+    await mkdir(resolve(fixture, 'node_modules'), { recursive: true });
+    await cp(
+      resolve(fixture, 'conditions'),
+      resolve(fixture, 'node_modules', name),
+      { recursive: true },
+    );
+  }
   const directory = await mkdtemp(resolve(tmpdir(), 'soundor-vitest-'));
   const output = resolve(directory, 'results.json');
   try {
@@ -44,6 +55,12 @@ async function run(config?: string, args: string[] = []) {
     return { code, report: JSON.parse(await readFile(output, 'utf8')) };
   } finally {
     await rm(directory, { recursive: true, force: true });
+    for (const name of ['conditional-ui', 'conditional-ui-inline']) {
+      await rm(resolve(fixture, 'node_modules', name), {
+        recursive: true,
+        force: true,
+      });
+    }
   }
 }
 test('runs virtual modules and the real React renderer in parallel isolated files', async () => {

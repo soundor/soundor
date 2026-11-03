@@ -5,6 +5,7 @@
     "types": ["node"],
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["soundor"],
     "jsx": "react-jsx",
     "strict": true,
     "skipLibCheck": true,

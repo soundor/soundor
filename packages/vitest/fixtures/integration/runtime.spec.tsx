@@ -1,4 +1,6 @@
 import { getTestRuntime } from '@soundor/test-runtime';
+import { platform as externalPlatform } from 'conditional-ui';
+import { platform as inlinePlatform } from 'conditional-ui-inline';
 import { readText } from 'soundor:fs';
 import { snapshot, subscribe } from 'soundor:host';
 import { probe, load } from 'soundor:native';
@@ -26,6 +28,8 @@ afterEach(() => {
   previous = getTestRuntime();
 });
 test('normal imports dispatch to the active runtime', async () => {
+  expect(externalPlatform).toBe('soundor');
+  expect(inlinePlatform).toBe('soundor');
   expectFreshRuntime();
   const node = createTextInput({ value: 'Soundor' });
   root.appendChild(node);

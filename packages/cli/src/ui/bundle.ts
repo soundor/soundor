@@ -167,6 +167,8 @@ export async function bundleUi(
       'import.meta.env.PROD': JSON.stringify(production),
     },
     outputOptions: { codeSplitting: false },
+    // Libraries can provide Soundor components for every runtime, including web.
+    inputOptions: { resolve: { conditionNames: ['soundor'] } },
     plugins: [assetPlugin(options.root, assets)],
   });
 
