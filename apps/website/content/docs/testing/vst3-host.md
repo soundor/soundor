@@ -228,7 +228,9 @@ Failures are `Vst3HostError`s with a `code`:
 
 The host's and the plugin's own output (stderr, and what plugins print to
 stdout) never mix with the protocol: `onLog` receives it line by line, and the
-last of it is appended to `host-exited` and `timeout` errors.
+last of it is appended to `host-exited` and `timeout` errors. On Windows, what
+a plugin with its own statically linked C runtime prints to stdout is lost
+rather than logged; its stderr output is logged.
 
 `close()` unloads the plugin and ends the process, and kills it if it does not
 end in time. It is safe to call more than once, after a failure, and in

@@ -94,8 +94,13 @@ describe('loading', () => {
         onLog: (line) => logs.push(line),
       }),
     );
+    // The protocol is intact: the failure is the plugin's, not a corrupt frame.
     expect(error.code).toBe('initialization-failed');
-    expect(logs).toContain('Fixture Broken writes to stdout');
+    // On Windows a plugin with its own C runtime writes to the stdout handle
+    // the process started with, which the host has closed: the text is lost.
+    expect(logs.includes('Fixture Broken writes to stdout')).toBe(
+      process.platform !== 'win32',
+    );
   });
 
   test('names the architectures of a plugin for another CPU', async () => {
