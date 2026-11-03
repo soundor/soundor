@@ -1,0 +1,115 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Debug build with the self-test and fixture plugins",
+      "binaryDir": "${sourceDir}/build/dev",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SOUNDOR_VST3_HOST_BUILD_TESTS": "ON",
+        "SOUNDOR_VST3_HOST_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "The shipped configuration, with the fixtures for its tests",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_VST3_HOST_BUILD_TESTS": "ON",
+        "SOUNDOR_VST3_HOST_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "dev",
+      "displayName": "Debug build with ASan + UBSan",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "SOUNDOR_VST3_HOST_SANITIZERS": "ON"
+      }
+    },
+    {
+      "name": "tidy",
+      "inherits": "dev",
+      "displayName": "Debug build checked by clang-tidy",
+      "binaryDir": "${sourceDir}/build/tidy",
+      "cacheVariables": {
+        "SOUNDOR_VST3_HOST_CLANG_TIDY": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev", "configuration": "Debug" },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "configuration": "Release"
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "configuration": "Debug"
+    },
+    { "name": "tidy", "configurePreset": "tidy", "configuration": "Debug" }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "sanitize",
+      "configurePreset": "sanitize",
+      "configuration": "Debug",
+      "output": { "outputOnFailure": true }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "dev",
+      "steps": [
+        { "type": "configure", "name": "dev" },
+        { "type": "build", "name": "dev" },
+        { "type": "test", "name": "dev" }
+      ]
+    },
+    {
+      "name": "release",
+      "steps": [
+        { "type": "configure", "name": "release" },
+        { "type": "build", "name": "release" },
+        { "type": "test", "name": "release" }
+      ]
+    },
+    {
+      "name": "sanitize",
+      "steps": [
+        { "type": "configure", "name": "sanitize" },
+        { "type": "build", "name": "sanitize" },
+        { "type": "test", "name": "sanitize" }
+      ]
+    },
+    {
+      "name": "tidy",
+      "steps": [
+        { "type": "configure", "name": "tidy" },
+        { "type": "build", "name": "tidy" }
+      ]
+    }
+  ]
+}

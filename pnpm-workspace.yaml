@@ -3,6 +3,7 @@ packages:
   - packages/*
   - packages/react/testing
   - runtimes/*
+  - hosts/*
   - configs/*
   - examples/*
   - tools/*

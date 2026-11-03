@@ -1,0 +1,7 @@
+{
+  "$comment": "The host's IPC protocol identity, read by the native build (CMakeLists.txt) and the Node client (src/protocol.ts). Bump `version` for any incompatible change to frames or messages.",
+  "version": 1,
+  "magic": "SVH1",
+  "maxHeaderBytes": 1048576,
+  "defaultMaxPayloadBytes": 268435456
+}

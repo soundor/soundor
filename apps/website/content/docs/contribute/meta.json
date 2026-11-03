@@ -27,6 +27,7 @@
     "devtools-protocol",
     "devtools-server",
     "devtools-client",
+    "vst3-host",
     "---Testing---",
     "test-runtime",
     "react-tests",

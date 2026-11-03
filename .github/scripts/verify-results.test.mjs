@@ -7,7 +7,13 @@ function jobs(flags = {}) {
   return {
     changes: {
       result: 'success',
-      outputs: { native: 'false', juce: 'false', benchmark: 'false', ...flags },
+      outputs: {
+        native: 'false',
+        juce: 'false',
+        benchmark: 'false',
+        host: 'false',
+        ...flags,
+      },
     },
     fast: { result: 'success' },
     ...Object.fromEntries(
@@ -18,6 +24,7 @@ function jobs(flags = {}) {
         'native',
         'benchmark',
         'juce',
+        'host',
       ].map((name) => [name, { result: 'skipped' }]),
     ),
   };
@@ -55,4 +62,13 @@ test('failures, cancellations and detection failures always fail', () => {
       assert.throws(() => verifyResults(needs));
     }
   }
+});
+test('an affected VST3 host requires its native checks', () => {
+  const needs = jobs({ host: 'true' });
+  assert.throws(() => verifyResults(needs), /host=skipped/);
+  needs.host.result = 'success';
+  verifyResults(needs);
+  // Host changes alone never require the engine's suites.
+  for (const name of ['engine', 'native', 'engine-artifacts', 'juce'])
+    assert.equal(needs[name].result, 'skipped');
 });

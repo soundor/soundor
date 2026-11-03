@@ -36,6 +36,8 @@
     "test-editor",
     "mock-native",
     "---Assertions---",
-    "to-have-focus"
+    "to-have-focus",
+    "---Plugin binaries---",
+    "vst3-host"
   ]
 }

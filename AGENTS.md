@@ -40,7 +40,7 @@ pnpm 12 + Node 24 monorepo driven by Turborepo. The root scripts exclude
 pnpm install
 pnpm build            # tsc -b && tsdown in every package
 pnpm test             # package unit tests (no native engine compilation)
-pnpm test:native      # engine source build and native tests (dev preset)
+pnpm test:native      # engine source build and native tests (dev preset), and the VST3 host's
 pnpm lint             # oxlint
 pnpm lint:native      # clang-tidy (cmake --workflow --preset tidy)
 pnpm check:native     # native lint and tests
@@ -78,6 +78,15 @@ ctest --test-dir build/dev -R <name> # one native test after a dev build
 pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
 ```
 
+The VST3 host (`hosts/vst3-host`; its `build` and `test` never compile it):
+
+```sh
+pnpm --filter @soundor/vst3-host test:native    # dev preset, self-test, fixtures, integration tests
+pnpm --filter @soundor/vst3-host build:native   # select or build the executable (prepareHost)
+(cd hosts/vst3-host && cmake --workflow --preset tidy)      # clang-tidy
+(cd hosts/vst3-host && node scripts/native.ts test --preset sanitize)
+```
+
 The first native configure builds Skia, ANGLE and Hermes from source
 (minutes) and caches them in the user cache dir (`SOUNDOR_CACHE` overrides);
 later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
@@ -112,7 +121,8 @@ by the release workflow after npm publishing, or run by hand.
 Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
 Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
-`soundor-benchmark`. What a job builds must therefore be a dependency of its
+`soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
+(`vst3-host-artifacts.yml`). What a job builds must therefore be a dependency of its
 package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
@@ -201,6 +211,13 @@ read the docs bundled with the installed package
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
   `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under `src/client/shell/`).
+- `hosts/vst3-host` (`@soundor/vst3-host`) — a standalone VST3 host: a C++
+  executable (VST3 SDK 3.8.1, native windows; no JUCE, no engine) and the
+  Node API that launches it (`launchHost()`), over a framed stdin/stdout
+  protocol (`protocol.json`). Independently versioned; its executables ship as
+  generated platform packages (`targets.json`, `scripts/release.ts`), never
+  committed. Nothing in the workspace depends on it yet; JUCE runtime and
+  Driver integrations are future work. See `contribute/vst3-host.md`.
 - `configs/*` — private shared tsconfig and tsdown presets.
 - `apps/website` — soundor.dev (private, never published): Fumadocs on
   TanStack Start, prerendered to static files for GitHub Pages. Content in
@@ -313,6 +330,7 @@ generated framework or the runtime package, not in `init` templates.
   The pre-commit hook runs lint-staged.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
-- Releases are Changesets; the fifteen packages under `packages/` are a fixed version group.
+- Releases are Changesets; the fifteen packages under `packages/` are a fixed version group;
+  `@soundor/engine` and `@soundor/vst3-host` are versioned on their own.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

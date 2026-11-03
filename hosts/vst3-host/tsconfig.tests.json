@@ -1,0 +1,15 @@
+{
+  "extends": "@soundor/typescript-config/node-test",
+  "compilerOptions": {
+    "erasableSyntaxOnly": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tests.tsbuildinfo"
+  },
+  "include": [
+    "src",
+    "tests",
+    "scripts",
+    "protocol.json",
+    "targets.json",
+    "*.config.ts"
+  ]
+}

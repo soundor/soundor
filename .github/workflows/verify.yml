@@ -2,6 +2,10 @@ name: Verify
 
 on:
   workflow_call:
+    outputs:
+      host:
+        description: Whether this run built and tested the VST3 host's artifacts
+        value: ${{ jobs.changes.outputs.host }}
   pull_request:
     # Each layer of the SVG stack must be verified against its own base.
     branches: [main, feat/svg-skia, feat/svg-image, feat/svg-scene]
@@ -22,6 +26,7 @@ jobs:
       native: ${{ steps.detect.outputs.native }}
       juce: ${{ steps.detect.outputs.juce }}
       benchmark: ${{ steps.detect.outputs.benchmark }}
+      host: ${{ steps.detect.outputs.host }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -505,6 +510,18 @@ jobs:
                   print(f'::error title=JUCE integration failure::{chunk}')
           PYTHON
 
+  # @soundor/vst3-host: its executable on every target, tested headless and
+  # with its editor, plus clang-tidy and sanitizers. Nothing of the engine.
+  host:
+    name: VST3 host
+    needs: changes
+    if: needs.changes.outputs.host == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vst3-host-artifacts.yml
+    with:
+      checks: true
+
   verify:
     name: Verify
     if: always()
@@ -518,6 +535,7 @@ jobs:
         benchmark,
         native,
         juce,
+        host,
       ]
     runs-on: ubuntu-24.04
     permissions:
