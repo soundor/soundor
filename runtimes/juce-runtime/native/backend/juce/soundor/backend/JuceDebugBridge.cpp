@@ -192,7 +192,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                                     { "version", protocolVersion },
                                     { "sessionId", descriptorData->session },
                                     { "name", name },
-                                    { "runtime", "JUCE Standalone" },
+                                    { "runtime", "JUCE" },
                                     { "generation", generation.load() },
                                     { "capabilities", debug::Value::Array { "inspector", "accessibility", "animations",
                                                                             "performance", "input", "capture" } },
