@@ -82,15 +82,21 @@ that knowingly runs long in one call.
 The runtime declares optional Soundor DevTools support for native inspection,
 accessibility, animations and performance. The CLI discovers support before
 launch; connected instances negotiate the features actually implemented.
-The development Standalone bridge supports inspection, accessibility, animation,
-and performance diagnostics.
+The Debug bridge supports inspection, accessibility, animation, performance
+diagnostics, input and capture in every plugin format.
 
-`soundor dev juce` enables the bridge only with an active `ctx.devtools` session.
+`soundor dev juce` supplies the bridge with its active `ctx.devtools` session.
 Include `standalone` in `formats` to launch a native window. The CLI passes only
 the protected descriptor path through `SOUNDOR_DEVTOOLS_SESSION`, including on
 macOS where it launches the bundle's executable directly to preserve that
 environment. It discovers both `Debug/Standalone` and older unconfigured
 artifact directories. There is one server per development session, not per view.
+
+To inspect a Debug VST3 or AU inside a host, launch the host with
+`SOUNDOR_DEVTOOLS_SESSION` set to the session descriptor path printed by
+`soundor dev`, then load the plugin and open its editor. The bridge is compiled
+only when the engine's Debug DevTools support is enabled; Release builds do not
+include it. Without a descriptor, Debug plugins run without connecting.
 
 The bridge reads Soundor's actual C++ tree, normalized base/presentation styles,
 Yoga layout results, focus and accessibility semantics. Highlights are a cached

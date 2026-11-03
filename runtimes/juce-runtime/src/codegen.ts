@@ -912,12 +912,10 @@ namespace ${NS}
         setOpaque(true);
 ${renderEditorSize(editor)}
 #if SOUNDOR_DEVTOOLS
-        if (owner.wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
-            const auto descriptor = juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {});
-            if (descriptor.isNotEmpty()) {
-                try { debug = std::make_unique<backend::JuceDebugBridge>(descriptor.toStdString(), AudioProcessor::pluginName, log); }
-                catch (const std::exception&) { log(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally."); }
-            }
+        const auto descriptor = juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {});
+        if (descriptor.isNotEmpty()) {
+            try { debug = std::make_unique<backend::JuceDebugBridge>(descriptor.toStdString(), AudioProcessor::pluginName, log); }
+            catch (const std::exception&) { log(js::LogLevel::Warn, "DevTools could not connect; native UI continues normally."); }
         }
 #endif
         startTimerHz(60);

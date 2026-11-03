@@ -22,8 +22,8 @@ dashboard and any number of Driver clients can watch one plugin at once.
 Soundor Driver is not:
 
 - a test runner: use it from any script or test runner, or none;
-- a plugin host or launcher: it attaches to a plugin that `soundor dev`
-  started (a JUCE Standalone with DevTools);
+- a plugin host or launcher: it attaches to a Debug JUCE plugin connected to a
+  DevTools session;
 - parameter automation, nor an audio or MIDI driver: it works with the UI
   only, never with audio processing;
 - a browser automation tool: the [Web runtime](/docs/web-runtime) runs in
@@ -131,7 +131,8 @@ generation, and the references of the old one are refused.
 
 DevTools runs only in development: the engine compiles its inspector only in
 Debug builds with DevTools enabled, which `soundor build` never makes, and a
-plugin connects only when `soundor dev` hands it a session.
+plugin connects only when `SOUNDOR_DEVTOOLS_SESSION` names its designated
+DevTools session descriptor.
 
 - The server listens on 127.0.0.1 only. The Driver refuses any other
   endpoint, so the key is never sent to another host.
@@ -145,9 +146,10 @@ plugin connects only when `soundor dev` hands it a session.
 
 ## Limitations
 
-- It attaches to running plugins only: JUCE Standalones started by
-  `soundor dev juce`, on macOS, Windows and Linux. Plugins inside a DAW have
-  no DevTools session yet.
+- It attaches to running Debug JUCE plugins with DevTools enabled, on macOS,
+  Windows and Linux. For VST3 or AU, launch the host with
+  `SOUNDOR_DEVTOOLS_SESSION` set to the session descriptor and open the plugin's
+  editor. Driver does not launch or manage the host.
 - A tree snapshot holds at most 5000 nodes; a locator reports when the node
   may be beyond a truncated snapshot.
 - Input is the engine's: pointer, wheel and keyboard as the plugin's view

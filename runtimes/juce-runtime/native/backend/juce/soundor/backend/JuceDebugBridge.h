@@ -9,7 +9,7 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 {
-    // Development Standalone adapter. Workers own all networking; tick and
+    // Debug plugin adapter. Workers own all networking; tick and
     // input interception run exclusively on the engine's UI thread.
     class JuceDebugBridge
     {
