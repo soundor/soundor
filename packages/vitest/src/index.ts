@@ -20,6 +20,7 @@ import {
   getTestRuntime as currentRuntime,
   type RuntimeOptions,
 } from '@soundor/test-runtime';
+import { defaultExternalConditions, defaultServerConditions } from 'vite';
 import type {} from 'vitest';
 import type { Plugin } from 'vitest/config';
 
@@ -158,6 +159,19 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       );
       return {
         oxc: { jsx: { runtime: 'automatic' } },
+        ssr: {
+          resolve: {
+            conditions: [
+              'soundor',
+              ...(config.ssr?.resolve?.conditions ?? defaultServerConditions),
+            ],
+            externalConditions: [
+              'soundor',
+              ...(config.ssr?.resolve?.externalConditions ??
+                defaultExternalConditions),
+            ],
+          },
+        },
         test: {
           setupFiles: [setup],
           sequence: { setupFiles: 'list' },

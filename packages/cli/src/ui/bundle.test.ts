@@ -115,6 +115,70 @@ describe('bundleUi', () => {
     expect(code).toContain('42');
   });
 
+  it.each(['development', 'production'] as const)(
+    'resolves Soundor exports and private imports in %s',
+    async (mode) => {
+      await write(
+        'node_modules/conditional-ui/package.json',
+        JSON.stringify({
+          name: 'conditional-ui',
+          type: 'module',
+          exports: {
+            '.': { soundor: { import: './soundor.js' }, default: './dom.js' },
+            './ordinary': { import: './ordinary.js', default: './dom.js' },
+            './commonjs': { require: './commonjs.cjs', default: './dom.js' },
+            './fallback': { default: './fallback.js' },
+          },
+          imports: {
+            '#platform': { soundor: './platform.js', default: './dom.js' },
+          },
+        }),
+      );
+      await write(
+        'node_modules/conditional-ui/soundor.js',
+        "export { platform } from '#platform';",
+      );
+      await write(
+        'node_modules/conditional-ui/platform.js',
+        "export const platform = 'soundor-ui';",
+      );
+      await write(
+        'node_modules/conditional-ui/ordinary.js',
+        "export default 'ordinary-import';",
+      );
+      await write(
+        'node_modules/conditional-ui/commonjs.cjs',
+        "module.exports = 'ordinary-require';",
+      );
+      await write(
+        'node_modules/conditional-ui/fallback.js',
+        "export default 'ordinary-fallback';",
+      );
+      await write(
+        'node_modules/conditional-ui/dom.js',
+        "throw new Error('DOM branch selected');",
+      );
+      await write(
+        'src/main.ts',
+        `
+        import { platform } from 'conditional-ui';
+        import ordinary from 'conditional-ui/ordinary';
+        import fallback from 'conditional-ui/fallback';
+        const commonjs = require('conditional-ui/commonjs');
+        export const selected = [platform, ordinary, commonjs, fallback];
+      `,
+      );
+      const { result } = await bundle(mode);
+      const module = await import(join(result.dir, 'bundle.mjs'));
+      expect(module.selected).toEqual([
+        'soundor-ui',
+        'ordinary-import',
+        'ordinary-require',
+        'ordinary-fallback',
+      ]);
+    },
+  );
+
   it('compiles TSX with React, resolving NODE_ENV at build time', async () => {
     await write(
       'src/main.tsx',

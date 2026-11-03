@@ -54,6 +54,38 @@ An asset is its id, a plain `string` (`Asset` in `soundor:ui`), so an image
 import typed by another bundler fits wherever `soundor:ui` or `@soundor/react`
 takes one.
 
+## Supporting Soundor and other renderers
+
+A library can expose Soundor components and React DOM components through the
+same package import. The plugin UI bundler enables the `soundor` condition in
+package `exports` and `imports`, for both JUCE and the web runtime:
+
+```json
+{
+  "exports": {
+    ".": {
+      "soundor": {
+        "types": "./dist/soundor/index.d.ts",
+        "default": "./dist/soundor/index.js"
+      },
+      "types": "./dist/web/index.d.ts",
+      "default": "./dist/web/index.js"
+    }
+  }
+}
+```
+
+Place `soundor` before generic branches such as `import` or `default`:
+matching follows the order of keys in the export map. Keep a `default`
+implementation for other environments. The Soundor entry must work with
+Soundor's UI contract on every runtime; it cannot assume JUCE or access a DOM.
+
+Consumers need `"customConditions": ["soundor"]` in their UI tsconfig to
+select the matching declarations (see [UI TypeScript setup](/docs/cli/ui-bundle#typescript)).
+Use that setting with `"moduleResolution": "bundler"` in your library's
+Soundor TypeScript project too, when it consumes conditional dependencies.
+[`@soundor/vitest`](/docs/testing/vitest) enables the condition in tests.
+
 ## Images and fonts
 
 An image or font is imported, as a plugin does, and the plugin's bundler

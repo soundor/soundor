@@ -42,6 +42,29 @@ test('reports explicit missing configurations', async () => {
     'Config file does not exist',
   );
 });
+test('adds the Soundor condition while preserving custom resolution conditions', async () => {
+  const { result } = await configure(
+    { config: false },
+    {
+      test: { environment: 'soundor' },
+      ssr: {
+        resolve: {
+          conditions: ['library-source'],
+          externalConditions: ['node', 'library-external'],
+        },
+      },
+    },
+  );
+  expect(result?.ssr?.resolve?.conditions).toEqual([
+    'soundor',
+    'library-source',
+  ]);
+  expect(result?.ssr?.resolve?.externalConditions).toEqual([
+    'soundor',
+    'node',
+    'library-external',
+  ]);
+});
 test('generates the actual shared contracts for a library project', async () => {
   const { result, root } = await configure({
     config: false,

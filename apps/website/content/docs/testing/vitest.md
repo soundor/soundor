@@ -30,6 +30,12 @@ No aliases or setup file are needed. TS and TSX use Vite's automatic JSX
 transform. Published `@soundor/react` is transformed through Vite so its
 `soundor:ui` imports work too; React remains an application dependency.
 
+The plugin enables the `soundor` package condition for transformed and
+external dependencies, matching the CLI's UI bundle resolution. Libraries
+with separate DOM and Soundor entries therefore use their Soundor entry in
+tests. Include `"customConditions": ["soundor"]` in the test TypeScript
+project too, or inherit it from the UI tsconfig, to select matching types.
+
 ```ts
 import { createTextInput, root } from 'soundor:ui';
 import { test, expect } from 'vitest';

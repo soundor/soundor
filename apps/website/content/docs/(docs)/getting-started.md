@@ -72,6 +72,11 @@ You own `src/`, the config, and the files under `runtimes/`. Soundor owns
 `.soundor/`, which is disposable build output. `init` preserves existing host
 files; `gen` rewrites generated files. See [Project lifecycle](/docs/project-lifecycle).
 
+If you create the project from scratch or upgrade an existing project, use
+the [UI TypeScript setup](/docs/cli/ui-bundle#typescript), including
+`"customConditions": ["soundor"]`, so library types match the implementation
+selected by the bundler. The scaffolder sets this up automatically.
+
 ## Declare the plugin contract
 
 The scaffold creates a config like this:
