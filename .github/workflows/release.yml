@@ -7,11 +7,18 @@ name: Release
 #   prebuilts when @soundor/engine is to be published: its prebuilt release
 #             for this commit, built and published if missing, verified if not
 #             (engine-prebuilts.yml); nothing native otherwise
+#   host-artifacts  when @soundor/vst3-host is to be published: its executables
+#             for this commit (vst3-host-artifacts.yml), unless Verify built
+#             and tested them in this run already
 #   pack      build, write the engine's artifacts/manifest.json from the
-#             verified public release, pack the planned packages, and check
-#             the packed engine carries that manifest
-#   publish   publish exactly those tarballs to npm; tag and create a GitHub
-#             release per package
+#             verified public release, generate and pack the VST3 host's
+#             platform packages from those executables and pin them in the
+#             host's manifest, pack the planned packages, and check the packed
+#             engine and host
+#   publish   publish the host's platform packages (resumable: what is on npm
+#             is verified, never replaced) and check all are there; then
+#             publish exactly the planned tarballs to npm, the host last of
+#             its family; tag and create a GitHub release per package
 #   website   deploy soundor.dev from the released commit (website.yml), so
 #             the docs describe what npm has
 #
@@ -48,6 +55,7 @@ jobs:
       mode: ${{ steps.mode.outputs.mode }}
       publish-plan: ${{ steps.mode.outputs.publish-plan-artifact-id }}
       engine: ${{ steps.engine.outputs.engine || 'false' }}
+      host: ${{ steps.host.outputs.host || 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,6 +74,12 @@ jobs:
         run: |
           pnpm changeset publish-plan --output "$RUNNER_TEMP/publish-plan.json"
           node .github/scripts/engine-prebuilts.mjs planned-engine "$RUNNER_TEMP/publish-plan.json"
+
+      # The same plan: does it publish @soundor/vst3-host?
+      - name: Is the VST3 host released
+        id: host
+        if: steps.mode.outputs.mode == 'publish'
+        run: node hosts/vst3-host/scripts/release.ts planned "$RUNNER_TEMP/publish-plan.json"
 
   version:
     name: Version
@@ -100,17 +114,33 @@ jobs:
       mode: publish
       reuse-artifacts: true
 
+  # The executables Verify did not already build and test in this run.
+  host-artifacts:
+    name: VST3 host artifacts
+    needs: [verify, select]
+    if: >-
+      needs.select.outputs.mode == 'publish' && needs.select.outputs.host == 'true' &&
+      needs.verify.outputs.host != 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/vst3-host-artifacts.yml
+    with:
+      checks: false
+
   pack:
     name: Pack
-    needs: [select, prebuilts]
+    needs: [verify, select, prebuilts, host-artifacts]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
-      (needs.select.outputs.engine != 'true' || needs.prebuilts.result == 'success')
+      (needs.select.outputs.engine != 'true' || needs.prebuilts.result == 'success') &&
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success' ||
+       (needs.host-artifacts.result == 'skipped' && needs.verify.outputs.host == 'true'))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     outputs:
       pack-dir: ${{ steps.pack.outputs.pack-dir-artifact-id }}
+      host-tarballs: ${{ steps.host-tarballs.outputs.artifact-id }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,6 +160,37 @@ jobs:
           TAG: ${{ needs.prebuilts.outputs.tag }}
         run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out runtimes/engine/artifacts/manifest.json
 
+      # Every target's validated executable of this commit, from this run.
+      - name: Download the VST3 host's executables
+        if: needs.select.outputs.host == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: vst3-host-${{ github.sha }}-*
+          path: ${{ runner.temp }}/vst3-host-artifacts
+
+      # Generated, packed and checked before the main package is packed; its
+      # manifest then pins them (never committed).
+      - name: The VST3 host's platform packages
+        if: needs.select.outputs.host == 'true'
+        run: |
+          set -eo pipefail
+          artifacts="$RUNNER_TEMP/vst3-host-artifacts"
+          for directory in "$artifacts"/vst3-host-"$GITHUB_SHA"-*; do
+            mv "$directory" "$artifacts/${directory##*/vst3-host-$GITHUB_SHA-}"
+          done
+          node hosts/vst3-host/scripts/release.ts generate "$artifacts" --out "$RUNNER_TEMP/vst3-host-packages" --commit "$GITHUB_SHA"
+          node hosts/vst3-host/scripts/release.ts pack "$RUNNER_TEMP/vst3-host-packages" --out "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
+          node hosts/vst3-host/scripts/release.ts add-optional-dependencies
+
+      - name: Keep the platform packages
+        id: host-tarballs
+        if: needs.select.outputs.host == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vst3-host-platform-packages-${{ github.sha }}
+          path: ${{ runner.temp }}/vst3-host-tarballs
+          if-no-files-found: error
+
       - name: Pack
         id: pack
         uses: changesets/action/pack@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -137,7 +198,7 @@ jobs:
           publish-plan-artifact-id: ${{ needs.select.outputs.publish-plan }}
 
       - name: Download the packed packages
-        if: needs.select.outputs.engine == 'true'
+        if: needs.select.outputs.engine == 'true' || needs.select.outputs.host == 'true'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           artifact-ids: ${{ steps.pack.outputs.pack-dir-artifact-id }}
@@ -146,6 +207,10 @@ jobs:
       - name: The packed engine carries the manifest
         if: needs.select.outputs.engine == 'true'
         run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" runtimes/engine/artifacts/manifest.json
+
+      - name: The packed VST3 host pins its platform packages
+        if: needs.select.outputs.host == 'true'
+        run: node hosts/vst3-host/scripts/release.ts check-main "$RUNNER_TEMP/packed"
 
   publish:
     name: Publish
@@ -164,6 +229,26 @@ jobs:
         with:
           cache: false
           registry-url: https://registry.npmjs.org
+
+      - name: Download the VST3 host's platform packages
+        if: needs.select.outputs.host == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.pack.outputs.host-tarballs }}
+          path: ${{ runner.temp }}/vst3-host-tarballs
+
+      # Before the main package, which pins them: a version already on npm is
+      # verified (same native inputs) and skipped, never replaced; a missing
+      # one is published. A failure leaves the main package unpublished, so
+      # the next run resumes here.
+      - name: Publish the VST3 host's platform packages
+        if: needs.select.outputs.host == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+        run: |
+          node hosts/vst3-host/scripts/release.ts publish "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
+          node hosts/vst3-host/scripts/release.ts verify "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
 
       - name: Publish
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2

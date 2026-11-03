@@ -6,7 +6,8 @@ description: 'Every package in the repository, what it is responsible for, and h
 ## Purpose
 
 The repository is a pnpm workspace: published packages under `packages/`,
-the runtimes and the engine under `runtimes/`, private shared configs under
+the runtimes and the engine under `runtimes/`, standalone hosts under `hosts/`
+(the VST3 host), private shared configs under
 `configs/`, the examples under `examples/` and the website under
 `apps/website`.
 
@@ -52,6 +53,7 @@ flowchart LR
 types only), which every runtime provides. Core copies the same declarations
 into each project's `.soundor/generated`. `create-soundor-app`
 depends on none either: it copies a template and installs the others.
+`@soundor/vst3-host` depends on no Soundor package, and none depends on it.
 
 | Area              | Package                                                                                                                                                                         | Responsibility                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -68,8 +70,10 @@ depends on none either: it copies a template and installs the others.
 | DevTools          | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                          | Browser dashboard, authenticated session backend, and shared transport contract                                   |
 | Driver            | [`@soundor/driver`](/docs/driver)                                                                                                                                               | Connected inspection of running plugins from Node.js and `soundor driver`                                         |
 | Testing           | [Vitest plugin](/docs/testing/vitest), [environment](/docs/testing/vitest-environment-soundor), [Testing Library](/docs/testing), [test runtime](/docs/contribute/test-runtime) | Per-test runtime isolation, semantic queries, interactions, and deterministic animation time                      |
+| Plugin host       | [`@soundor/vst3-host`](/docs/testing/vst3-host) ([internals](/docs/contribute/vst3-host))                                                                                       | A standalone VST3 host executable driven from Node.js: offline processing, editors, platform packages             |
 
-The engine is versioned independently of the shared package release group.
+The engine and the VST3 host are versioned independently of the shared
+package release group.
 The JUCE runtime depends on an exact engine version, and lowers the UI bundle
 with that engine's JavaScript module-lowering tool. Neither the engine nor core
 depends on the other.

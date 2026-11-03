@@ -11,9 +11,10 @@ const JOBS = {
   native: '@soundor/engine',
   juce: '@soundor/juce-runtime',
   benchmark: 'soundor-benchmark',
+  host: '@soundor/vst3-host',
 };
 const CI =
-  /^\.github\/(workflows\/(verify|release|engine-artifacts|engine-prebuilts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
+  /^\.github\/(workflows\/(verify|release|engine-artifacts|engine-prebuilts|vst3-host-artifacts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
 
 const base = process.env.BASE_SHA;
 const head = process.env.HEAD_SHA;

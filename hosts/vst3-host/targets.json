@@ -1,0 +1,33 @@
+{
+  "$comment": "The platform packages the release generates (scripts/release.ts). Each carries one executable; npm or pnpm installs the one matching `os`, `cpu` and `libc`. Not workspace packages: they are generated, versioned as @soundor/vst3-host, and never committed.",
+  "targets": [
+    {
+      "target": "linux-x64-gnu",
+      "package": "@soundor/vst3-host-linux-x64-gnu",
+      "os": ["linux"],
+      "cpu": ["x64"],
+      "libc": ["glibc"],
+      "runner": "ubuntu-24.04",
+      "architectures": ["x64"],
+      "executable": "bin/soundor-vst3-host"
+    },
+    {
+      "target": "darwin-universal",
+      "package": "@soundor/vst3-host-darwin-universal",
+      "os": ["darwin"],
+      "cpu": ["arm64", "x64"],
+      "runner": "macos-15",
+      "architectures": ["arm64", "x64"],
+      "executable": "bin/soundor-vst3-host"
+    },
+    {
+      "target": "win32-x64",
+      "package": "@soundor/vst3-host-win32-x64",
+      "os": ["win32"],
+      "cpu": ["x64"],
+      "runner": "windows-2025",
+      "architectures": ["x64"],
+      "executable": "bin/soundor-vst3-host.exe"
+    }
+  ]
+}

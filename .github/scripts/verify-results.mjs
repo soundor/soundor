@@ -5,7 +5,7 @@ export function verifyResults(needs) {
   const required = new Set(['changes', 'fast']);
   const changes = needs.changes?.outputs ?? {};
   if (
-    ['native', 'juce', 'benchmark'].some(
+    ['native', 'juce', 'benchmark', 'host'].some(
       (name) => !['true', 'false'].includes(changes[name]),
     )
   )
@@ -16,6 +16,7 @@ export function verifyResults(needs) {
   }
   if (changes.benchmark === 'true') required.add('benchmark');
   if (changes.juce === 'true') required.add('juce');
+  if (changes.host === 'true') required.add('host');
   if (changes.native === 'true' || changes.juce === 'true')
     required.add('engine-plan');
   if (

@@ -1,0 +1,159 @@
+name: VST3 host artifacts
+
+# Read-only, shared by Verify and the release: builds @soundor/vst3-host's
+# executable for every target in hosts/vst3-host/targets.json (the one
+# optimized configuration; UI and headless are runtime modes of it), stages
+# it with its provenance, tests the staged executable as a consumer runs it,
+# and keeps it as a run artifact, vst3-host-<sha>-<target>. The release
+# generates the platform packages from exactly these artifacts.
+on:
+  workflow_call:
+    inputs:
+      checks:
+        description: Also run clang-tidy and the sanitizer build (Verify)
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      # Every target's result: nothing is released unless all pass.
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64-gnu, os: ubuntu-24.04, cc: clang, cxx: clang++ }
+          - { target: darwin-universal, os: macos-15, cc: clang, cxx: clang++ }
+          - { target: win32-x64, os: windows-2025, cc: cl, cxx: cl }
+    defaults:
+      run:
+        shell: bash
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Build tools and X11 (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev xvfb
+
+      # Ninja on macOS and Linux; Visual Studio on Windows, which finds MSVC
+      # without a developer environment.
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        run: |
+          command -v ninja || brew install ninja
+          echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
+      # Universal, with the oldest macOS it supports named.
+      - name: Build and self-test
+        working-directory: hosts/vst3-host
+        env:
+          CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
+        run: set -o pipefail; cmake --workflow --preset release 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Stage
+        run: |
+          set -o pipefail
+          executable=hosts/vst3-host/build/release/bin/soundor-vst3-host
+          [ "${{ runner.os }}" = Windows ] && executable="$executable.exe"
+          node hosts/vst3-host/scripts/release.ts stage "$executable" --target ${{ matrix.target }} \
+            --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/vst3-host/${{ matrix.target }}" 2>&1 | tee "$RUNNER_TEMP/step.log"
+          staged="$RUNNER_TEMP/vst3-host/${{ matrix.target }}/bin/soundor-vst3-host"
+          [ "${{ runner.os }}" = Windows ] && staged="$staged.exe"
+          echo "STAGED=$(cygpath -m "$staged" 2>/dev/null || echo "$staged")" >> "$GITHUB_ENV"
+          echo "FIXTURES=$(cygpath -m "$GITHUB_WORKSPACE/hosts/vst3-host/build/release/fixtures" 2>/dev/null || echo "$GITHUB_WORKSPACE/hosts/vst3-host/build/release/fixtures")" >> "$GITHUB_ENV"
+
+      - name: Both architectures in the macOS executable
+        if: runner.os == 'macOS'
+        run: |
+          archs=$(lipo -archs "$STAGED")
+          echo "$archs"
+          echo " $archs " | grep -q ' arm64 ' && echo " $archs " | grep -q ' x86_64 ' ||
+            { echo "::error::The macOS executable is not universal ($archs)"; exit 1; }
+
+      # The staged executable, as a consumer runs it: headless without any
+      # display first, then the editor tests on one (Xvfb on Linux).
+      - name: Headless tests
+        working-directory: hosts/vst3-host
+        env:
+          SOUNDOR_VST3_HOST_EXECUTABLE: ${{ env.STAGED }}
+          SOUNDOR_VST3_HOST_FIXTURES: ${{ env.FIXTURES }}
+        run: |
+          set -o pipefail
+          if [ "${{ runner.os }}" = Linux ]; then unset DISPLAY; fi
+          pnpm exec vitest run --config vitest.native.config.ts 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Editor tests
+        working-directory: hosts/vst3-host
+        env:
+          SOUNDOR_VST3_HOST_EXECUTABLE: ${{ env.STAGED }}
+          SOUNDOR_VST3_HOST_FIXTURES: ${{ env.FIXTURES }}
+          SOUNDOR_VST3_HOST_REQUIRE_UI: '1'
+        run: |
+          set -o pipefail
+          if [ "${{ runner.os }}" = Linux ]; then
+            xvfb-run -a -s "-screen 0 1280x1024x24" pnpm exec vitest run --config vitest.native.config.ts tests/native/editor.test.ts
+          else
+            pnpm exec vitest run --config vitest.native.config.ts tests/native/editor.test.ts
+          fi 2>&1 | tee "$RUNNER_TEMP/step.log"
+
+      - name: Keep the artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: vst3-host-${{ github.sha }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/vst3-host/${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Report the failure
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/step.log" ] || exit 0
+          { grep -iE "error|FAIL" "$RUNNER_TEMP/step.log" | head -n 30 || true; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
+
+  checks:
+    name: Static analysis and sanitizers
+    if: inputs.checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CMAKE_GENERATOR: Ninja
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Build tools and X11
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev xvfb
+      - name: clang-tidy
+        working-directory: hosts/vst3-host
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake --workflow --preset tidy
+      - name: ASan and UBSan
+        working-directory: hosts/vst3-host
+        env:
+          CC: clang
+          CXX: clang++
+          ASAN_OPTIONS: detect_leaks=1
+          SOUNDOR_VST3_HOST_REQUIRE_UI: '1'
+        run: node scripts/native.ts test --preset sanitize
