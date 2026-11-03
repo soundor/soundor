@@ -39,8 +39,11 @@ pnpm 12 + Node 24 monorepo driven by Turborepo. The root scripts exclude
 ```sh
 pnpm install
 pnpm build            # tsc -b && tsdown in every package
-pnpm test             # vitest in every package + native tests (cmake --workflow --preset dev)
-pnpm lint             # oxlint + clang-tidy (cmake --workflow --preset tidy)
+pnpm test             # package unit tests (no native engine compilation)
+pnpm test:native      # engine source build and native tests (dev preset)
+pnpm lint             # oxlint
+pnpm lint:native      # clang-tidy (cmake --workflow --preset tidy)
+pnpm check:native     # native lint and tests
 pnpm format           # oxfmt --check + clang-format check of native/
 pnpm format:fix       # oxfmt . + clang-format --fix
 pnpm lint:fix
@@ -106,7 +109,7 @@ Its build fails on a broken internal link or anchor, or an incomplete page
 dependencies), so the root `test` runs them. `.github/workflows/website.yml` deploys it: called
 by the release workflow after npm publishing, or run by hand.
 
-Native CI jobs each test one package and run when `turbo query affected`
+Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
 Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 `soundor-benchmark`. What a job builds must therefore be a dependency of its
@@ -280,10 +283,13 @@ generated framework or the runtime package, not in `init` templates.
   every frame; nothing waits for the GPU on the CPU (no `glFinish`); all of
   a device's contexts share textures, so WebGL contexts delete their own
   when they go; Apple code adds no Objective-C classes or categories.
-- `juceRuntime({ engine: { mode } })`: `prebuilt` (default) links the release
-  named by the published engine's `artifacts/manifest.json` (written by the
-  release workflow, never committed); the workspace has none, so the
-  examples use `source`. User-facing docs: the docs' `engine.md`.
+- `juceRuntime({ engine: { mode } })`: `prebuilt` (default) compares native
+  build-input fingerprints and selects matching binaries or local sources.
+  Release metadata comes from the published engine's `artifacts/manifest.json`
+  (written by the release workflow, never committed); the workspace resolves
+  the exact published npm manifest. Examples use the default prebuilt mode.
+  Explicit CI manifests must match; download failures never select source.
+  User-facing docs: the docs' `engine.md`.
 - Prebuilt engines (`contribute/engine-reference.md`, "Prebuilt engines") are the
   same build, staged and packed per target and variant (debug, release) by
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports

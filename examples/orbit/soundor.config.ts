@@ -20,7 +20,6 @@ export default defineSoundorConfig({
   runtimes: [
     juceRuntime({
       formats: ['vst3', 'standalone'],
-      engine: { mode: 'source' },
     }),
     webRuntime(),
   ],

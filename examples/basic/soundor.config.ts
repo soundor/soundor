@@ -24,8 +24,6 @@ export default defineSoundorConfig({
   runtimes: [
     juceRuntime({
       formats: ['vst3', 'standalone'],
-      // The workspace engine: its local sources, which have no prebuilt release.
-      engine: { mode: 'source' },
     }),
     webRuntime(),
   ],

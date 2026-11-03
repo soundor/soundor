@@ -75,7 +75,10 @@ describe('buildDoctorReport', () => {
 
   it('names the prebuilt release a build downloads', async () => {
     expect(
-      await engineCheck({ engine: published, platform: 'linux', arch: 'x64' }),
+      await engineCheck(
+        { engine: published, platform: 'linux', arch: 'x64' },
+        'prebuilt',
+      ),
     ).toMatchObject({
       status: 'ok',
       detail: expect.stringContaining(
@@ -86,11 +89,10 @@ describe('buildDoctorReport', () => {
 
   it('suggests source mode where no prebuilt engine can be used', async () => {
     for (const deps of [
-      { engine: { version: '0.2.1' }, platform: 'linux' as const, arch: 'x64' },
       { engine: published, platform: 'win32' as const, arch: 'x64' },
       { engine: published, platform: 'linux' as const, arch: 'arm64' },
     ])
-      expect(await engineCheck(deps)).toMatchObject({
+      expect(await engineCheck(deps, 'prebuilt')).toMatchObject({
         status: 'fail',
         suggestion: expect.stringContaining("mode: 'source'"),
       });

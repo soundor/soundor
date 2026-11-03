@@ -7,10 +7,13 @@ description: 'Select checks, regenerate derived files and prepare a pull request
 
 ```sh
 pnpm format    # oxfmt and native clang-format checks
-pnpm lint      # oxlint and native clang-tidy
+pnpm lint      # oxlint
 pnpm build     # TypeScript checks and package bundles
-pnpm test      # Vitest and the engine's native dev workflow
+pnpm test      # package unit tests and engine tooling tests (no native compilation)
 pnpm check     # all of the above, in order
+pnpm test:native  # engine source build and native tests
+pnpm lint:native  # native source build with clang-tidy
+pnpm check:native # both native checks
 ```
 
 TypeScript uses oxfmt and oxlint. Native C++ uses clang-format 18 and clang-tidy
@@ -21,6 +24,22 @@ Root build excludes apps, examples and tools. Root tests include website unit te
 Run example and benchmark commands explicitly when changing them. Turborepo test
 tasks depend on dependency builds, so build dependencies before invoking Vitest
 directly.
+
+Native CI uses affected-package detection before allocating native runners.
+When the engine is affected, the read-only `engine-artifacts.yml` workflow
+builds and validates Debug and
+Release artifacts for Linux, macOS and Windows. JUCE jobs consume those artifacts
+from the same run and commit instead of rebuilding the engine. When it is not
+affected, JUCE uses a matching released engine. If the current version is
+unpublished or its inputs do not match the release, CI builds checkout artifacts;
+the full native test suites are enabled only when the engine is affected.
+Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
+Benchmarks retain source builds because their Release runner supports JavaScript
+source; the shipped Release engine is bytecode-only.
+
+Missing or mismatched CI artifacts fail verification; there is no fallback to an
+older engine. Release publishing waits for verification of the same main commit and reuses
+its validated engine artifacts rather than rebuilding them.
 
 ## Focus on one package
 

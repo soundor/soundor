@@ -13,7 +13,7 @@ const JOBS = {
   benchmark: 'soundor-benchmark',
 };
 const CI =
-  /^\.github\/(workflows\/verify\.yml|actions\/|scripts\/native-changes)/;
+  /^\.github\/(workflows\/(verify|release|engine-artifacts|engine-prebuilts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
 
 const base = process.env.BASE_SHA;
 const head = process.env.HEAD_SHA;

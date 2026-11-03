@@ -21,6 +21,7 @@ import {
   checkPack,
   decide,
   github,
+  localManifest,
   manifest,
   manifestText,
   pack,
@@ -45,7 +46,12 @@ function stage(target, variant, edit = (metadata) => metadata) {
   if (debug) hermes.push('hermes/lib/libhermesParser.a');
   const metadata = edit({
     format: 1,
-    engine: { version: '0.2.1', abiNamespace: 'v0_2_1', sourceCommit: commit },
+    engine: {
+      version: '0.2.1',
+      abiNamespace: 'v0_2_1',
+      sourceCommit: commit,
+      sourceFingerprint: 'f'.repeat(64),
+    },
     variant,
     configuration: debug ? 'Debug' : 'Release',
     target: {
@@ -167,6 +173,10 @@ describe('pack', () => {
       (m) => ({ ...m, engine: { ...m.engine, sourceCommit: later } }),
       /sourceCommit/,
     ],
+    'a missing input fingerprint': [
+      (m) => ({ ...m, engine: { ...m.engine, sourceFingerprint: undefined } }),
+      /sourceFingerprint/,
+    ],
     'a release engine with DevTools': [
       (m) => ({
         ...m,
@@ -234,6 +244,26 @@ async function packAll(directory, edit) {
 }
 
 describe('assemble', () => {
+  test('local manifests preserve identity and reject archives from another checkout', async () => {
+    const directory = join(work, 'local-identity');
+    const debug = await pack(stage('linux-x64', 'debug'), directory, planned);
+    const release = await pack(
+      stage('linux-x64', 'release'),
+      directory,
+      planned,
+    );
+    assert.equal(
+      localManifest(directory, commit).sourceFingerprint,
+      'f'.repeat(64),
+    );
+    assert.throws(() => localManifest(directory, later), /another commit/);
+    const path = join(directory, `${release.file}.json`);
+    const sidecar = JSON.parse(readFileSync(path, 'utf8'));
+    sidecar.engine.sourceFingerprint = 'e'.repeat(64);
+    writeFileSync(path, JSON.stringify(sidecar));
+    assert.throws(() => localManifest(directory, commit), /mixed identities/);
+    assert.equal(debug.engine.sourceFingerprint, 'f'.repeat(64));
+  });
   test('writes build-info.json, SHA256SUMS and notes from the same data', async () => {
     const directory = join(work, 'all');
     await packAll(directory);

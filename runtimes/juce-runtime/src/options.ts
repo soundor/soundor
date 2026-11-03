@@ -14,8 +14,8 @@ export type JuceFormat = 'vst3' | 'au' | 'standalone';
 
 /**
  * Where the native engine comes from:
- * - `'prebuilt'` (default): the verified libraries of the prebuilt release the
- *   installed `@soundor/engine` names, downloaded once into the Soundor cache.
+ * - `'prebuilt'` (default): CMake uses a matching released engine, downloaded
+ *   once into the Soundor cache, or compiles modified/unpublished sources.
  * - `'source'`: compiled from the installed `@soundor/engine` sources (in the
  *   pnpm workspace, the local engine), Skia, ANGLE and Hermes included.
  */

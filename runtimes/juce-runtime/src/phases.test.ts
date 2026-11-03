@@ -147,7 +147,7 @@ describe('juceDev', () => {
     const configure = calls[0]!;
     expect(configure).toContain('-DJUCE_DIR=' + join(root, 'JUCE'));
     expect(configure).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
-    // The prebuilt engine unless the project asks for the source one.
+    // Automatic engine selection unless the project selects a mode.
     expect(configure).toContain('-DSOUNDOR_ENGINE_MODE=prebuilt');
     // No UI: the cached UI directory is cleared explicitly.
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');

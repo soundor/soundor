@@ -32,8 +32,15 @@ concurrency:
 permissions: {}
 
 jobs:
+  verify:
+    name: Verify release commit
+    permissions:
+      contents: read
+    uses: ./.github/workflows/verify.yml
+
   select:
     name: Select
+    needs: verify
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -91,6 +98,7 @@ jobs:
     uses: ./.github/workflows/engine-prebuilts.yml
     with:
       mode: publish
+      reuse-artifacts: true
 
   pack:
     name: Pack
