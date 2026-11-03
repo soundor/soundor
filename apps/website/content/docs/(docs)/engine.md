@@ -43,12 +43,29 @@ clash on a symbol.
 ```ts
 import { juceRuntime } from '@soundor/juce-runtime';
 
-juceRuntime(); // prebuilt (the default)
+juceRuntime(); // prebuilt (the default); CMake selects matching binaries or local sources
 juceRuntime({ engine: { mode: 'prebuilt' } }); // the same, explicitly
 juceRuntime({ engine: { mode: 'source' } }); // compile the engine
 ```
 
-**Prebuilt** links the libraries published for the installed engine version.
+**Prebuilt mode** compares the engine's build-input fingerprint with the prebuilt for its
+exact package version. Matching inputs use the prebuilt; native edits, an
+unpublished version, or an older release without a fingerprint use local sources.
+Tests and documentation do not change the fingerprint. Native sources, headers,
+embedded JavaScript, CMake recipes, lowering scripts and installed lowering
+dependencies do. Added, deleted and uncommitted files count too.
+
+A workspace resolves the manifest from the exact published npm version, checking
+the npm archive's SHA-512 integrity, and caches it in
+`<SOUNDOR_CACHE>/engine-manifests/`. Installed packages carry their own manifest.
+Selection runs at CMake configure time, prints its reason, and reruns when engine
+inputs change in an existing build tree. Source builds reuse CMake's incremental
+build and the existing native dependency cache. Sanitizers, static analysis,
+custom compiler flags, no-GPU builds and unsupported prebuilt targets use source.
+A missing network connection or corrupt download is an error, not a reason to
+silently start a source build; explicit source mode needs no release metadata.
+
+When the inputs match, prebuilt mode links the libraries published for that version.
 The first build downloads the archive it needs (tens of megabytes) into the
 Soundor cache, verifies its SHA-256 against the manifest in the npm package,
 and reuses it from then on, offline included. Nothing heavy is compiled: a
@@ -60,8 +77,9 @@ of minutes and needs git, Python 3 and Ninja). Use it to change or debug the
 engine, or on a platform without prebuilts.
 
 Both give the plugin the same `Soundor::Engine` target and the same JUCE
-adapters. Prebuilt mode never falls back to source: when the prebuilt cannot
-be used, the configure stops and says why.
+adapters. CMake selects source for modified inputs or unpublished versions. An explicit
+CI manifest or extracted archive must match: a mismatch fails the build.
+Download and integrity errors also fail, without falling back to source.
 
 ## Debug and Release
 
@@ -124,10 +142,15 @@ published, naming each archive's URL and SHA-256.
 
 ## Developing the engine (pnpm workspace)
 
-Inside this repository `@soundor/engine` is the local package: it has no
-manifest, so the examples and the JUCE test plugin use `mode: 'source'`, and an engine edit is compiled
-into the next `soundor dev` or `soundor build` with no publishing. The native
-tests run without JUCE:
+The examples use automatic selection: unchanged engine inputs use matching
+released libraries, while engine edits compile from the checkout. Use explicit
+source mode to debug C++, force custom builds, or avoid metadata resolution.
+Reverting the edits selects the released prebuilt again if it matches.
+
+Ordinary repository checks (`pnpm check`) build and test the JavaScript tooling
+without compiling the native engine. Run `pnpm test:native` for engine tests,
+`pnpm lint:native` for static analysis, or `pnpm check:native` for both. Tests
+always exercise source builds unless a prebuilt-check preset is selected:
 
 ```sh
 cd runtimes/engine
@@ -150,16 +173,16 @@ best reproduced in the Standalone format under a debugger.
 
 ## Troubleshooting
 
-| Message                                                            | What to do                                                                                                                                      |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `has no prebuilt engine: only its published npm package names one` | A workspace or unpublished engine: use `mode: 'source'`.                                                                                        |
-| `There is no prebuilt engine for <platform>`                       | Not one of the three targets: use `mode: 'source'`.                                                                                             |
-| `Downloading the debug/release prebuilt engine failed`             | No network on the first build, a proxy or firewall in the way, or a checksum mismatch (the file is not kept). Connect once, or use source mode. |
-| `is for @soundor/engine X, not Y` / `ABI namespace`                | A stale build directory or a mixed install: reinstall, delete the build directory.                                                              |
-| `needs macOS 12 or later`                                          | Raise `CMAKE_OSX_DEPLOYMENT_TARGET`, or use source mode.                                                                                        |
-| `uses the MultiThreadedDLL C runtime`                              | The plugin uses a static C runtime: use the default (`/MD`, `/MDd`).                                                                            |
-| `Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build Release`         | A Visual Studio tree configured for Debug only: configure it for the configuration you build.                                                   |
-| `SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine`                | A build directory from an older runtime: delete it.                                                                                             |
+| Message                                                    | What to do                                                                                                                                      |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `has no prebuilt engine`                                   | The exact version has no published manifest: remove the explicit manifest or use source mode.                                                   |
+| `There is no prebuilt engine for <platform>`               | Not one of the three targets: use `mode: 'source'`.                                                                                             |
+| `Downloading the debug/release prebuilt engine failed`     | No network on the first build, a proxy or firewall in the way, or a checksum mismatch (the file is not kept). Connect once, or use source mode. |
+| `is for @soundor/engine X, not Y` / `ABI namespace`        | A stale build directory or a mixed install: reinstall, delete the build directory.                                                              |
+| `needs macOS 12 or later`                                  | Raise `CMAKE_OSX_DEPLOYMENT_TARGET`, or use source mode.                                                                                        |
+| `uses the MultiThreadedDLL C runtime`                      | The plugin uses a static C runtime: use the default (`/MD`, `/MDd`).                                                                            |
+| `Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build Release` | A Visual Studio tree configured for Debug only: configure it for the configuration you build.                                                   |
+| `SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine`        | A build directory from an older runtime: delete it.                                                                                             |
 
 ## Licenses and attribution
 

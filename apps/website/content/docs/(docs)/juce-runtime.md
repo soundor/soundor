@@ -43,15 +43,15 @@ export default defineSoundorConfig({
 All options are JUCE-specific; the plugin's identity comes from the config's
 top-level `plugin`.
 
-| Option             | Default                                                                         |
-| ------------------ | ------------------------------------------------------------------------------- |
-| `engine`           | `{ mode: 'prebuilt' }`: link the verified prebuilt engine; `'source'` builds it |
-| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                               |
-| `formats`          | `['vst3']`                                                                      |
-| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                  |
-| `pluginCode`       | a stable four-character code derived from `plugin.id`                           |
-| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`        |
-| `timeLimit`        | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none   |
+| Option             | Default                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `engine`           | `{ mode: 'prebuilt' }`: CMake uses matching binaries or builds local changes; `'source'` always compiles it |
+| `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                                                           |
+| `formats`          | `['vst3']`                                                                                                  |
+| `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                                              |
+| `pluginCode`       | a stable four-character code derived from `plugin.id`                                                       |
+| `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`                                    |
+| `timeLimit`        | `5000`: milliseconds one call into the UI's JavaScript may run; `false`: none                               |
 
 `plugin.id` becomes the bundle identifier and `plugin.name` the product name.
 Deriving the four-character codes from the id keeps two Soundor plugins from
@@ -368,7 +368,7 @@ BSD-3-Clause code): ship its notices with the plugin.
 
 `setup.cmake` adds the installed `@soundor/engine` to the plugin and links
 `Soundor::Engine`, with the JUCE adapters from this package's `native/`. By
-default the engine is its prebuilt release: the Debug or Release libraries for
+default automatic selection uses a matching prebuilt release: the Debug or Release libraries for
 the platform the plugin targets, downloaded once into Soundor's cache and
 verified by SHA-256 (see [Soundor Engine](#soundor-engine)). In source mode it
 is compiled, Skia, ANGLE and Hermes included (once per machine into the same
@@ -478,10 +478,11 @@ the existing UI tick, independent of Hermes and the audio thread.
 
 The native engine is the independently versioned `@soundor/engine` package.
 This runtime depends on its exact version and resolves it through normal
-package resolution. Both modes give the plugin the same `Soundor::Engine`:
+package resolution. All modes give the plugin the same `Soundor::Engine`:
 
 ```ts
-juceRuntime(); // { engine: { mode: 'prebuilt' } }: the published engine's prebuilt release
+juceRuntime(); // prebuilt: CMake selects matching binaries or compiles local engine changes
+juceRuntime({ engine: { mode: 'prebuilt' } }); // the default, explicitly
 juceRuntime({ engine: { mode: 'source' } }); // compile the installed engine's sources
 ```
 
@@ -489,10 +490,11 @@ juceRuntime({ engine: { mode: 'source' } }); // compile the installed engine's s
 reloading the UI's source, and DevTools. `soundor build` (Release) links the
 release engine: bytecode only, no DevTools. A prebuilt that is missing, for
 another platform or engine version, or fails its checksum stops the configure
-with the reason; it never falls back to compiling. Inside the pnpm workspace
-the engine is the local package, which has no prebuilt release, so the
-examples use `mode: 'source'` and engine edits are compiled directly. The
-engine never includes JUCE.
+with the reason. Prebuilt mode compares
+build-input fingerprints: local engine changes and unpublished versions build
+from source; matching releases use prebuilts, including in the workspace.
+An explicitly supplied CI artifact must match the checkout. The engine never
+includes JUCE.
 
 The engine version owns the inline C++ ABI namespace. Each final Apple plugin
 format compiles a small accessibility class-registration shim with a distinct

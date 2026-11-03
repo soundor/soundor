@@ -18,9 +18,17 @@ set(commit "0123456789abcdef0123456789abcdef01234567")
 file(REMOVE_RECURSE "${WORK}")
 set(package "${WORK}/package")
 file(MAKE_DIRECTORY "${package}")
-foreach(entry CMakeLists.txt package.json cmake include src)
+foreach(entry CMakeLists.txt package.json cmake include src scripts)
   file(COPY "${ENGINE}/${entry}" DESTINATION "${package}")
 endforeach()
+# This fixture does not lower JavaScript and needs no installed npm packages.
+file(READ "${package}/package.json" fixture_package)
+string(JSON fixture_package SET "${fixture_package}" dependencies "{}")
+file(WRITE "${package}/package.json" "${fixture_package}")
+find_program(node NAMES node REQUIRED)
+execute_process(COMMAND "${node}" "${package}/scripts/engine-inputs.mjs" "${package}"
+  OUTPUT_VARIABLE inputs COMMAND_ERROR_IS_FATAL ANY)
+string(JSON fingerprint GET "${inputs}" fingerprint)
 
 # The host's target, as a release names it.
 set(minimum "")
@@ -68,7 +76,7 @@ function(archive name archive_commit)
   list(JOIN libraries "\", \"" engine)
   file(WRITE "${tree}/soundor-engine.json" "{
   \"format\": 1,
-  \"engine\": { \"version\": \"${version}\", \"abiNamespace\": \"${namespace}\", \"sourceCommit\": \"${archive_commit}\" },
+  \"engine\": { \"version\": \"${version}\", \"abiNamespace\": \"${namespace}\", \"sourceCommit\": \"${archive_commit}\", \"sourceFingerprint\": \"${fingerprint}\" },
   \"variant\": \"debug\",
   \"configuration\": \"Debug\",
   \"target\": { \"name\": \"${target}\", \"os\": \"${os}\", \"architectures\": [${archs}], \"minimumOsVersion\": \"${minimum}\" },
@@ -92,7 +100,7 @@ function(manifest archive sha256 manifest_version manifest_commit)
   file(MAKE_DIRECTORY "${package}/artifacts")
   file(WRITE "${package}/artifacts/manifest.json" "{
   \"format\": 1, \"engineVersion\": \"${manifest_version}\", \"abiNamespace\": \"${namespace}\",
-  \"sourceCommit\": \"${manifest_commit}\", \"revision\": 1, \"tag\": \"engine-prebuilts-test\",
+  \"sourceCommit\": \"${manifest_commit}\", \"sourceFingerprint\": \"${fingerprint}\", \"revision\": 1, \"tag\": \"engine-prebuilts-test\",
   \"artifacts\": [{ \"file\": \"${top}.tar.gz\", \"target\": \"${target}\", \"variant\": \"debug\",
                     \"sha256\": \"${sha256}\", \"url\": \"${url}\" }]
 }
@@ -107,7 +115,7 @@ function(configure what expected)
   math(EXPR next "${run} + 1")
   set(run ${next} PARENT_SCOPE)
   execute_process(
-    COMMAND ${CMAKE_COMMAND} -E env "SOUNDOR_CACHE=${WORK}/cache"
+    COMMAND ${CMAKE_COMMAND} -E env "SOUNDOR_CACHE=${WORK}/cache" "SOUNDOR_ENGINE_MANIFEST=${package}/artifacts/manifest.json"
             ${CMAKE_COMMAND} -S "${package}" -B "${WORK}/build-${next}" -G "${GENERATOR}"
             -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=OFF -DSOUNDOR_ENGINE_MODE=prebuilt
     RESULT_VARIABLE status
@@ -133,7 +141,7 @@ function(configure what expected)
   endif()
 endfunction()
 
-configure("Without a manifest" "Build the engine from source instead")
+configure("Without the explicit manifest" "Engine selection failed")
 
 archive(good "${commit}")
 file(SHA256 "${WORK}/good.tar.gz" good)
@@ -173,7 +181,7 @@ if(EXISTS "${WORK}/cache/engine-prebuilts/${zeros}.tar.gz")
 endif()
 
 manifest("${WORK}/good.tar.gz" "${good}" "9.9.9" "${commit}")
-configure("Another version's manifest" "is not the manifest of @soundor/engine ${version}")
+configure("Another version's manifest" "Invalid prebuilt manifest for @soundor/engine ${version}")
 
 archive(other "fedcba9876543210fedcba9876543210fedcba98")
 file(SHA256 "${WORK}/other.tar.gz" other)

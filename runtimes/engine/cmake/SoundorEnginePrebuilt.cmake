@@ -15,6 +15,7 @@
 include_guard(GLOBAL)
 
 include(SoundorDependencies)
+include(SoundorEngineInputs)
 
 set(SOUNDOR_ENGINE_PREBUILT ON)
 
@@ -107,6 +108,9 @@ function(soundor_prebuilt_read variant)
   soundor_prebuilt_get(version engine version)
   soundor_prebuilt_expect("@soundor/engine" "${version}" "${SOUNDOR_ENGINE_VERSION}"
          "Use the prebuilt release of the installed engine version.")
+  soundor_prebuilt_get(fingerprint engine sourceFingerprint)
+  soundor_prebuilt_expect("engine inputs" "${fingerprint}" "${SOUNDOR_ENGINE_FINGERPRINT}"
+    "The checkout differs from this archive; remove the explicit artifact or use source mode.")
   soundor_prebuilt_get(abi engine abiNamespace)
   soundor_prebuilt_expect("ABI namespace" "${abi}" "${SOUNDOR_ABI_NAMESPACE}")
   soundor_prebuilt_get(actual variant)

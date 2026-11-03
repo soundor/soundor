@@ -11,6 +11,7 @@
 # Included by CMakeLists.txt after SoundorEngineSource.cmake.
 
 include_guard(GLOBAL)
+include(SoundorEngineInputs)
 
 set(SOUNDOR_ENGINE_STAGE_DIR "" CACHE PATH "Where soundor_engine_stage lays this build out as a prebuilt engine")
 set(SOUNDOR_ENGINE_SOURCE_COMMIT "" CACHE STRING "The full source commit a staged prebuilt engine records")
@@ -228,7 +229,8 @@ set(soundor_stage_metadata [=[{
   "engine": {
     "version": "@SOUNDOR_ENGINE_VERSION@",
     "abiNamespace": "@SOUNDOR_ABI_NAMESPACE@",
-    "sourceCommit": "@SOUNDOR_ENGINE_SOURCE_COMMIT@"
+    "sourceCommit": "@SOUNDOR_ENGINE_SOURCE_COMMIT@",
+    "sourceFingerprint": "@SOUNDOR_ENGINE_FINGERPRINT@"
   },
   "variant": "@soundor_stage_variant@",
   "configuration": "@soundor_stage_config@",

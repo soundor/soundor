@@ -20,7 +20,7 @@ describe('resolveJuceOptions', () => {
     });
   });
 
-  it('links the prebuilt engine unless the source engine is asked for', () => {
+  it('uses prebuilt selection unless source compilation is requested', () => {
     expect(resolveJuceOptions({}, plugin).engineMode).toBe('prebuilt');
     expect(
       resolveJuceOptions({ engine: { mode: 'prebuilt' } }, plugin).engineMode,

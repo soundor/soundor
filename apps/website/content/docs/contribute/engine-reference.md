@@ -1475,10 +1475,11 @@ information in Release).
 From the repository root:
 
 ```sh
-pnpm test      # includes the native tests (the `dev` preset)
-pnpm lint      # includes clang-tidy (the `tidy` preset)
+pnpm test:native # native tests (the `dev` preset)
+pnpm lint:native # clang-tidy (the `tidy` preset)
 pnpm format    # includes clang-format 18 over these sources
-pnpm check     # format + lint + build + test
+pnpm check     # package checks without native compilation
+pnpm check:native # native lint and tests
 ```
 
 Or directly, from `runtimes/engine/`:
@@ -1565,17 +1566,20 @@ where the archive's target runs (a universal binary on macOS).
 
 ### Using one
 
-`-DSOUNDOR_ENGINE_MODE=prebuilt` (what `juceRuntime()` passes by default) uses
-the release this package names in `artifacts/manifest.json`, which only the
-published npm package has: `cmake/SoundorEngineResolve.cmake` picks the
+`juceRuntime()` passes `-DSOUNDOR_ENGINE_MODE=prebuilt` by default. It compares
+build-input fingerprints before selecting a released prebuilt or local source
+build (see [Soundor Engine](/docs/engine)). A matching engine uses the release this package names in
+`artifacts/manifest.json`; workspaces can resolve that manifest from the exact
+published npm version: `cmake/SoundorEngineResolve.cmake` picks the
 archive for the build's target and configuration (Debug: debug; any other:
 release; a multi-configuration generator: what `CMAKE_BUILD_TYPE` names, else
 both), downloads it into `<SOUNDOR_CACHE>/engine-prebuilts/<sha256>.tar.gz`,
 verifies its SHA-256, extracts it once and checks it was built from the
 commit the manifest names. A cached, verified archive is reused offline; a
 corrupt or interrupted one is downloaded again; parallel configures wait for
-each other. Without a manifest, for an unsupported target, or when a download
-fails, the configure stops and names source mode; it never compiles instead
+each other. Modified inputs, unpublished versions and unsupported targets select
+source. Explicit manifests and extracted archives must match the checkout;
+download and checksum failures stop configuration without selecting source
 (`tests/prebuilt/Resolve.cmake`).
 
 Extracted archives can also be given directly, and the engine's CMake imports
@@ -1623,7 +1627,8 @@ DevTools code, ABI rejection).
 
 ### Releases
 
-`.github/workflows/engine-prebuilts.yml` builds all six archives on GitHub's
+`.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
+read-only `engine-artifacts.yml` workflow to build all six archives on GitHub's
 runners, tests each extracted (the JUCE adapters and the DevTools bridge
 included), and releases them as one set, named after the engine version, the
 commit and a build revision:
@@ -1637,8 +1642,12 @@ engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
 ```
 
 The release notes are generated from the same data. Pull requests that change
-the prebuilt tooling run it in `validate` mode: archives as run artifacts, no
-release. From `main` only, `stage` uploads them to a draft release, verifies
+the engine or prebuilt tooling run it through Verify in `validate` mode:
+archives as run artifacts, no release. JUCE integration jobs download these
+same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
+manifest. New archives and manifests record `sourceFingerprint`, computed from
+the native inputs and the installed lowering dependency graph. Imports reject
+a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` uploads them to a draft release, verifies
 the draft and deletes it (the whole release path, published nowhere), and
 `publish` publishes the release (never as the repository's latest) and then
 downloads every asset anonymously to check it against `build-info.json`.
@@ -1658,11 +1667,14 @@ engine's own npm release and its Changesets GitHub release.
 
 `.github/workflows/release.yml` publishes it when a Changesets publish plan
 includes `@soundor/engine` (calling `engine-prebuilts.yml` in `publish` mode,
-which reuses the commit's release if it exists), then writes
+which reuses the commit's release if it exists, or publishes the engine
+artifacts that Verify already validated), then writes
 `artifacts/manifest.json` from the release, downloaded anonymously and checked
 archive by archive, packs the packages and checks that the packed engine
 carries exactly that manifest, and only then publishes to npm. The manifest
-is never committed. Releases of other packages build nothing native.
+is never committed. Publishing waits for Verify on the same commit. If a matching released engine
+is available and the engine is unaffected, other package releases need no
+engine artifact build.
 
 ### Licenses
 

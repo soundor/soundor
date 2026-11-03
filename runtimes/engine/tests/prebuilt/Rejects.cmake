@@ -27,6 +27,7 @@ set(cases
   "valid|-|-|-"
   "format|reads format 1|format|2"
   "version|is for @soundor/engine 9.9.9|engine.version|\"9.9.9\""
+  "fingerprint|is for engine inputs stale|engine.sourceFingerprint|\"stale\""
   "namespace|is for ABI namespace v9_9_9|engine.abiNamespace|\"v9_9_9\""
   "variant|is for the variant ${other}|variant|\"${other}\""
   "hermes|is for Hermes 0000|hermes.revision|\"0000\""

@@ -12,6 +12,9 @@
       "binaryDir": "${sourceDir}/build/dev",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "SOUNDOR_ENGINE_MODE": "source",
+        "SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR": "",
+        "SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR": "",
         "SOUNDOR_BUILD_TESTS": "ON",
         "SOUNDOR_ENABLE_DEVTOOLS": "ON",
         "SOUNDOR_WARNINGS_AS_ERRORS": "ON"

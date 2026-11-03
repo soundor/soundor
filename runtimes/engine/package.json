@@ -32,6 +32,7 @@
     "format:native": "node ../../scripts/clang-format.mjs --check include src tests",
     "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests",
     "lint:native": "cmake --workflow --preset tidy",
+    "test": "node --test tests/tooling/*.test.mjs",
     "test:native": "cmake --workflow --preset dev",
     "build": "tsc -p tsconfig.node.json && tsdown --clean"
   },

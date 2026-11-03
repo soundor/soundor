@@ -1,0 +1,26 @@
+name: Engine consumer dependencies
+description: Build tools and system libraries for consumers, without restoring engine source dependency builds
+runs:
+  using: composite
+  steps:
+    - name: Linux build and runtime libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends lld-18 ninja-build libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers libvulkan1
+    - name: macOS build tools
+      if: runner.os == 'macOS'
+      shell: bash
+      run: command -v ninja || brew install ninja
+    - name: Configure archive cache
+      shell: bash
+      run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
+    - name: Restore downloaded engine archives
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/soundor-cache/engine-prebuilts
+          ${{ runner.temp }}/soundor-cache/engine-manifests
+        key: engine-consumer-${{ runner.os }}-${{ hashFiles('runtimes/engine/package.json') }}-${{ github.sha }}
+        restore-keys: engine-consumer-${{ runner.os }}-${{ hashFiles('runtimes/engine/package.json') }}-

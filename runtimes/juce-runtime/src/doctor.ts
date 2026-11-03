@@ -19,7 +19,7 @@ import {
   type FileSystemHost,
 } from '@soundor/runtime-sdk';
 
-import type { JuceOptions } from './options';
+import type { EngineMode, JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 
 /** Minimum CMake JUCE's CMake API requires. */
@@ -108,7 +108,7 @@ export function prebuiltTarget(
 }
 
 function checkEngine(
-  mode: 'prebuilt' | 'source',
+  mode: EngineMode,
   engine: InstalledEngine,
   target: string | undefined,
 ): DoctorCheck {
@@ -124,9 +124,8 @@ function checkEngine(
   if (engine.manifest === undefined)
     return {
       label,
-      status: 'fail',
-      detail: `@soundor/engine ${engine.version} names no prebuilt release (a workspace or unpublished package).`,
-      suggestion: useSource,
+      status: 'ok',
+      detail: `Prebuilt mode: CMake compares @soundor/engine ${engine.version}'s inputs with its exact npm version at configure time; modified or unpublished engines build from source.`,
     };
   const variants = engine.manifest.artifacts
     .filter((artifact) => artifact.target === target)

@@ -17,14 +17,17 @@ include_guard(GLOBAL)
 
 include(SoundorDependencies)
 
-set(soundor_resolve_manifest "${SoundorEngine_SOURCE_DIR}/artifacts/manifest.json")
+set(soundor_resolve_manifest "${SOUNDOR_ENGINE_MANIFEST}")
+if(NOT soundor_resolve_manifest)
+  set(soundor_resolve_manifest "${SoundorEngine_SOURCE_DIR}/artifacts/manifest.json")
+endif()
 set(soundor_resolve_source_hint
     "Build the engine from source instead: juceRuntime({ engine: { mode: 'source' } }) "
     "(-DSOUNDOR_ENGINE_MODE=source).")
 string(CONCAT soundor_resolve_source_hint ${soundor_resolve_source_hint})
 if(NOT EXISTS "${soundor_resolve_manifest}")
-  message(FATAL_ERROR "This @soundor/engine (${SoundorEngine_SOURCE_DIR}) has no prebuilt engine: only its published "
-                      "npm package names one (artifacts/manifest.json), not a workspace or an unpublished copy. "
+  message(FATAL_ERROR "This @soundor/engine (${SoundorEngine_SOURCE_DIR}) has no prebuilt engine: its exact published "
+                      "npm version must name one (artifacts/manifest.json); this version is unpublished or has no manifest. "
                       "${soundor_resolve_source_hint}")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${soundor_resolve_manifest}")

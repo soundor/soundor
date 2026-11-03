@@ -1,5 +1,4 @@
-// The plugin the JUCE integration job builds, with the engine compiled from
-// the workspace's sources.
+// The plugin the JUCE integration job builds, using its selected engine.
 import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
 
@@ -21,7 +20,7 @@ export default defineSoundorConfig({
   runtimes: [
     juceRuntime({
       formats: ['vst3', 'standalone'],
-      engine: { mode: 'source' },
+      engine: { mode: 'prebuilt' },
     }),
   ],
   parameters,

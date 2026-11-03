@@ -158,6 +158,27 @@ const cases = [
   ['.clang-tidy', append('.clang-tidy'), true, true, true],
   ['.nvmrc', append('.nvmrc'), true, true, true],
   ['verify workflow', append('.github/workflows/verify.yml'), true, true, true],
+  [
+    'prebuilt workflow',
+    append('.github/workflows/engine-prebuilts.yml'),
+    true,
+    true,
+    true,
+  ],
+  [
+    'artifact workflow',
+    append('.github/workflows/engine-artifacts.yml'),
+    true,
+    true,
+    true,
+  ],
+  [
+    'release workflow',
+    append('.github/workflows/release.yml'),
+    true,
+    true,
+    true,
+  ],
 ];
 
 test('native jobs follow the affected packages they test', () => {
@@ -169,7 +190,12 @@ test('native jobs follow the affected packages they test', () => {
   });
   try {
     // The configuration being tested is the working tree's, committed or not.
-    const config = ['*turbo.json', '*package.json', '.github/scripts'];
+    const config = [
+      '*turbo.json',
+      '*package.json',
+      '.github/scripts',
+      '.github/workflows',
+    ];
     const uncommitted = [
       ['diff', '--name-only', 'HEAD', '--', ...config],
       ['ls-files', '--others', '--exclude-standard', '--', ...config],

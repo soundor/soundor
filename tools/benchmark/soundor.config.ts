@@ -12,7 +12,7 @@ export default defineSoundorConfig({
   runtimes: [
     juceRuntime({
       formats: ['vst3', 'standalone'],
-      // The workspace engine: its local sources, which have no prebuilt release.
+      // Benchmarks measure the local engine; their Release runner supports JS source.
       engine: { mode: 'source' },
     }),
     webRuntime(),

@@ -108,6 +108,10 @@ export function checkStage(stage, expected) {
       );
   };
   expect('format', metadata.format, 1);
+  if (!/^[0-9a-f]{64}$/.test(metadata.engine?.sourceFingerprint ?? ''))
+    problems.push(
+      'engine.sourceFingerprint must identify the engine build inputs',
+    );
   expect('engine.version', metadata.engine?.version, expected.engineVersion);
   expect(
     'engine.abiNamespace',
@@ -307,12 +311,19 @@ export async function assemble(directory, out, planned) {
       `The prebuilt set is incomplete or mixed: missing ${missing.join(', ') || 'nothing'}; unexpected ${extra.join(', ') || 'nothing'}`,
     );
   const artifacts = [];
+  let sourceFingerprint;
   for (const { file, target, variant } of planned.archives) {
     const sidecar = JSON.parse(
       readFileSync(join(directory, `${file}.json`), 'utf8'),
     );
     const { sha256, size } = await digest(join(directory, file));
     const problems = [];
+    sourceFingerprint ??= sidecar.engine?.sourceFingerprint;
+    if (
+      !/^[0-9a-f]{64}$/.test(sourceFingerprint ?? '') ||
+      sidecar.engine?.sourceFingerprint !== sourceFingerprint
+    )
+      problems.push('engine input fingerprints are missing or mixed');
     if (sidecar.file !== file)
       problems.push(`its sidecar names ${sidecar.file}`);
     if (sidecar.sha256 !== sha256)
@@ -357,6 +368,7 @@ export async function assemble(directory, out, planned) {
     engineVersion: planned.engineVersion,
     abiNamespace: planned.abiNamespace,
     sourceCommit: planned.sourceCommit,
+    sourceFingerprint,
     revision: planned.revision,
     tag: planned.tag,
     artifacts,
@@ -630,6 +642,7 @@ export async function manifest(client, release, planned) {
     engineVersion: info.engineVersion,
     abiNamespace: info.abiNamespace,
     sourceCommit: info.sourceCommit,
+    sourceFingerprint: info.sourceFingerprint,
     revision: info.revision,
     tag: info.tag,
     release: release.html_url,
@@ -649,18 +662,32 @@ export async function manifest(client, release, planned) {
 }
 
 /** A manifest of the archives `pack` wrote into <directory>, by file:// URL. */
-export function localManifest(directory) {
+export function localManifest(directory, commit) {
   const sidecars = readdirSync(directory)
     .filter((name) => name.endsWith('.tar.gz.json'))
     .sort()
     .map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
   if (!sidecars.length) throw new Error(`No packed archives in ${directory}`);
   const [first] = sidecars;
+  if (!/^[0-9a-f]{64}$/.test(first.engine?.sourceFingerprint ?? ''))
+    throw new Error('Local engine archives have no input fingerprint');
+  for (const sidecar of sidecars) {
+    if (
+      sidecar.engine.version !== first.engine.version ||
+      sidecar.engine.sourceCommit !== first.engine.sourceCommit ||
+      sidecar.engine.sourceFingerprint !== first.engine.sourceFingerprint ||
+      (commit && sidecar.engine.sourceCommit !== commit)
+    )
+      throw new Error(
+        'Local engine archives have mixed identities or belong to another commit',
+      );
+  }
   return {
     format: 1,
     engineVersion: first.engine.version,
     abiNamespace: first.engine.abiNamespace,
     sourceCommit: first.engine.sourceCommit,
+    sourceFingerprint: first.engine.sourceFingerprint,
     revision: 0,
     tag: 'local',
     release: null,
@@ -855,7 +882,7 @@ async function main([command, ...args]) {
       break;
     }
     case 'local-manifest': {
-      const value = localManifest(args[0]);
+      const value = localManifest(args[0], option(args, 'commit'));
       write(option(args, 'out'), manifestText(value));
       console.log(
         `${option(args, 'out')}: ${value.artifacts.length} local archives`,
