@@ -215,8 +215,9 @@ host's own, and later requests keep to it
 (`JuceEditorConstrainer::hostReplaced()`): Ardour calls `onSize()` with the
 size asked for, then, its window no narrower than its toolbar, with the
 window's, so without it a grip dragged narrower would spring back at every
-step. A resize of the host's own beyond it forgets it (`hostGave()`); the
-Standalone, which has no host, learns nothing. A fixed editor, or
+step. A resize of the host's own beyond it forgets it (`hostGave()`), and so
+does the next press, since the host's window may have room by then
+(`forgetHostLimits()`); the Standalone, which has no host, learns nothing. A fixed editor, or
 limits that allow no other size, takes no requests
 (`editorSize().resizable` is false). Hosts that refuse to resize plugin
 windows leave the editor where it is: only a VST3 host on Linux (JUCE's
@@ -320,6 +321,18 @@ should fall back. Three.js's `WebGLRenderer` runs on it unmodified, and the
 native tests check that. The GPU compositor shows WebGL as it is, without copies;
 where the UI is composited on the CPU (Linux), WebGL is read back. See
 [the engine reference](/docs/contribute/engine-reference).
+
+On the CPU presentation path, a native paint callback displays the last
+completed frame. The UI timer applies the new editor size, settles
+JavaScript updates, and renders its replacement. During a live resize, the
+previous image fills the new view until that replacement is ready; painting
+does not start a second render inside the native expose callback. A
+scale-mode editor also keeps its raster density while its size keeps
+changing: the completed image scales with the view, then returns to full pixel
+density once the size has been still for 100 ms. This avoids reallocating
+Canvas and WebGL buffers at every intermediate size. Nothing per frame makes a
+round trip on the plugin's X connection, such as asking for the pointer's
+state: an event arriving during one waits in Xlib's queue until the next event.
 
 ### Performance: what a frame costs
 

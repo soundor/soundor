@@ -81,6 +81,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             hostMost = { std::max(hostMost.x, given.x), std::max(hostMost.y, given.y) };
         }
 
+        // A new press: what the host showed held the drag that showed it. Its
+        // window may have room now (it was maximized, say), and nothing else
+        // would say so: a host with a limit shows it again, once.
+        void forgetHostLimits() noexcept
+        {
+            hostLeast = {};
+            hostMost = { INT_MAX, INT_MAX };
+        }
+
         // The size plugin code asks for (soundor:ui's requestEditorSize(),
         // whole and positive) held to the limits, and to what the host showed
         // of its own (hostReplaced()): each side within them, or

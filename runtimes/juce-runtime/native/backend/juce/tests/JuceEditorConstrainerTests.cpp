@@ -94,6 +94,16 @@ TEST_SUITE("JUCE editor constrainer")
         }
     }
 
+    TEST_CASE("what the host showed holds until the next press")
+    {
+        backend::JuceEditorConstrainer constrainer(false);
+        constrainer.setSizeLimits(300, 200, 1200, 800);
+        constrainer.hostReplaced({ 1100, 700 }, { 800, 600 });
+        CHECK(constrainer.constrainRequest({ 1100, 700 }) == juce::Point<int>(800, 600));
+        constrainer.forgetHostLimits();
+        CHECK(constrainer.constrainRequest({ 1100, 700 }) == juce::Point<int>(1100, 700));
+    }
+
     TEST_CASE("a size the host gave in place of one asked for holds later requests")
     {
         backend::JuceEditorConstrainer constrainer(false);
