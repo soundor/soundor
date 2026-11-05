@@ -15,6 +15,7 @@ export type Vst3HostErrorCode =
   | 'no-editor'
   | 'no-display'
   | 'headless'
+  | 'audio-unavailable'
   | 'invalid-request'
   | 'invalid-state'
   | 'unknown-method'

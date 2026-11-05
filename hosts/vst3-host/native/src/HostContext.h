@@ -38,6 +38,8 @@ namespace soundor::vst3host
 
         EventLoop& loop_;
         std::multimap<Linux::IEventHandler*, EventLoop::Id> handlers_;
+        /** The timers that ask handlers of X connections to look again. */
+        std::multimap<Linux::IEventHandler*, EventLoop::Id> rechecks_;
         std::multimap<Linux::ITimerHandler*, EventLoop::Id> timers_;
     };
 #endif

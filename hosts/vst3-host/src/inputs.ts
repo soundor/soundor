@@ -15,6 +15,7 @@ const INPUTS = [
   'protocol.json',
   'cmake',
   'native/src',
+  'native/tools',
 ];
 const TEXT = /\.(?:cmake|cpp|c|h|hpp|mm|m|in|json|txt)$/;
 const IGNORED = /(?:^\.|~$|\.(?:swp|tmp|orig|rej)$)/;

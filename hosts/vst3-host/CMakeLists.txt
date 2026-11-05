@@ -136,28 +136,38 @@ configure_file(native/src/Version.h.in "${CMAKE_BINARY_DIR}/generated/Version.h"
 add_executable(soundor-vst3-host
   native/src/Bundle.cpp
   native/src/HostContext.cpp
+  native/src/HostInterface.cpp
+  native/src/HostWindow.cpp
   native/src/Ipc.cpp
   native/src/Json.cpp
+  native/src/LiveAudio.cpp
   native/src/Main.cpp
   native/src/Plugin.cpp
-  native/src/Session.cpp)
+  native/src/Session.cpp
+  native/src/Settings.cpp
+  "${SOUNDOR_VST3_HOST_FONTS_SOURCE}")
 if(WIN32)
-  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopWindows.cpp native/src/EditorWindowWindows.cpp)
+  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopWindows.cpp native/src/EditorWindowWindows.cpp
+                                           native/src/EditorAreaWindows.cpp)
   target_link_libraries(soundor-vst3-host PRIVATE user32 gdi32)
 elseif(APPLE)
-  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopMac.mm native/src/EditorWindowMac.mm)
+  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopMac.mm native/src/EditorWindowMac.mm
+                                           native/src/EditorAreaMac.mm)
   target_link_libraries(soundor-vst3-host PRIVATE "-framework Cocoa")
 else()
-  # Xlib's headers only: the library is loaded in UI mode (EditorWindowX11.cpp).
+  # Xlib's headers only: the library is loaded in UI mode (X11Library.cpp).
   find_path(SOUNDOR_X11_INCLUDE_DIR X11/Xlib.h REQUIRED)
   target_include_directories(soundor-vst3-host SYSTEM PRIVATE "${SOUNDOR_X11_INCLUDE_DIR}")
-  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopLinux.cpp native/src/EditorWindowX11.cpp)
+  target_sources(soundor-vst3-host PRIVATE native/src/EventLoopLinux.cpp native/src/EditorAreaX11.cpp
+                                           native/src/X11Library.cpp)
   # The C++ runtime inside the executable: it runs on distributions with
   # an older libstdc++ than the build machine's.
   target_link_options(soundor-vst3-host PRIVATE -static-libstdc++ -static-libgcc)
 endif()
 target_include_directories(soundor-vst3-host PRIVATE native/src "${CMAKE_BINARY_DIR}/generated")
-target_link_libraries(soundor-vst3-host PRIVATE soundor_vst3_sdk_hosting)
+target_link_libraries(soundor-vst3-host PRIVATE soundor_vst3_sdk_hosting soundor_imgui SDL3::SDL3-static)
+# A large generated array: nothing to lint.
+set_source_files_properties("${SOUNDOR_VST3_HOST_FONTS_SOURCE}" PROPERTIES SKIP_LINTING ON)
 soundor_vst3_host_warnings(soundor-vst3-host)
 soundor_vst3_host_output(soundor-vst3-host RUNTIME "${CMAKE_BINARY_DIR}/bin")
 

@@ -4,8 +4,11 @@
 #pragma once
 
 #include "EventLoop.h"
+#include "HostInterface.h"
 #include "Ipc.h"
+#include "LiveAudio.h"
 #include "Plugin.h"
+#include "Settings.h"
 
 #include <condition_variable>
 #include <deque>
@@ -57,11 +60,20 @@ namespace soundor::vst3host
                           const Json& details = {});
         void emit(const std::string& event, Json params);
         void finish(int code);
+        std::unique_ptr<EditorWindow> createWindow(const std::string& title, int width, int height,
+                                                   EditorWindow::Callbacks callbacks, std::string& error);
+        Json openEditor(const Json& params, const std::string& where);
+        void applyAudio(const Json& params, const std::string& where);
 
         EventLoop& loop_;
         FrameWriter& writer_;
         bool ui_;
+        Settings settings_;
+        /** The presentation of the next editor: "editor" or "host". */
+        std::string presentation_;
         Plugin plugin_;
+        LiveAudio audio_;
+        HostModel model_;
         AudioWorker worker_;
         std::deque<Frame> queue_;
         bool closing_ = false;

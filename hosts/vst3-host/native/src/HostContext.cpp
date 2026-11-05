@@ -2,9 +2,34 @@
 
 #include "pluginterfaces/base/ustring.h"
 
+#if defined(__linux__)
+    #include <sys/socket.h>
+    #include <sys/un.h>
+
+    #include <cstddef>
+    #include <string_view>
+#endif
+
 namespace soundor::vst3host
 {
 #if defined(__linux__)
+    namespace
+    {
+        constexpr unsigned xRecheckMilliseconds = 16;
+
+        bool isXConnection(int fd)
+        {
+            sockaddr_un address {};
+            socklen_t size = sizeof address;
+            if (getpeername(fd, reinterpret_cast<sockaddr*>(&address), &size) != 0 || address.sun_family != AF_UNIX
+                || size <= offsetof(sockaddr_un, sun_path))
+                return false;
+            // Abstract sockets start with a NUL.
+            const std::string_view path(address.sun_path, size - offsetof(sockaddr_un, sun_path));
+            return path.find("/.X11-unix/") != std::string_view::npos;
+        }
+    } // namespace
+
     tresult PLUGIN_API RunLoop::registerEventHandler(Linux::IEventHandler* handler, Linux::FileDescriptor fd)
     {
         if (handler == nullptr)
@@ -12,6 +37,14 @@ namespace soundor::vst3host
         handler->addRef();
         const auto id = loop_.addFd(fd, [handler, fd] { handler->onFDIsSet(fd); });
         handlers_.emplace(handler, id);
+        // Xlib reads whatever is on its connection during any round trip into a
+        // queue of its own, and then the connection has nothing to read: an
+        // event that arrived during one (a click) would wait for the next. So
+        // an X connection's handler is asked to look again, every frame. Only
+        // those: they must drain that queue anyway, and do not block with
+        // nothing there, as a handler of any other descriptor might.
+        if (isXConnection(fd))
+            rechecks_.emplace(handler, loop_.addTimer(xRecheckMilliseconds, [handler, fd] { handler->onFDIsSet(fd); }));
         return kResultTrue;
     }
 
@@ -20,6 +53,10 @@ namespace soundor::vst3host
         const auto [first, last] = handlers_.equal_range(handler);
         if (first == last)
             return kInvalidArgument;
+        const auto [recheck, lastRecheck] = rechecks_.equal_range(handler);
+        for (auto it = recheck; it != lastRecheck; ++it)
+            loop_.removeTimer(it->second);
+        rechecks_.erase(recheck, lastRecheck);
         for (auto it = first; it != last; ++it)
         {
             loop_.removeFd(it->second);
@@ -61,6 +98,9 @@ namespace soundor::vst3host
     void RunLoop::clear()
     {
         // The module is about to go: release now, not on a later turn.
+        for (const auto& [handler, id] : rechecks_)
+            loop_.removeTimer(id);
+        rechecks_.clear();
         for (const auto& [handler, id] : handlers_)
         {
             loop_.removeFd(id);

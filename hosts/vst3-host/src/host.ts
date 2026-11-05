@@ -23,7 +23,21 @@ import type {
   ProcessResult,
   ProcessingSetup,
   RequestOptions,
+  AudioSettings,
+  AudioStatus,
+  Presentation,
+  Transport,
+  TransportUpdate,
 } from './types.ts';
+
+function audioParams(settings: AudioSettings): AudioSettings {
+  return {
+    input: settings.input,
+    file: settings.file,
+    muted: settings.muted,
+    volume: settings.volume,
+  };
+}
 
 export interface LaunchOptions extends ProcessingSetup {
   /** The .vst3 bundle to load, by path; it need not be installed. */
@@ -36,6 +50,11 @@ export interface LaunchOptions extends ProcessingSetup {
   editor?: boolean;
   /** The editor's content scale (Windows, Linux). Default: the window's. */
   scale?: number;
+  /** How the editor is shown (with `editor: true`): `editor` (the default),
+      a window that is the editor alone, or `host`, with the host interface.
+      `null`: as the user's host settings say (`host` unless they turned the
+      interface off), what the `open` command does. */
+  presentation?: Presentation | null;
   /** The executable. Default: resolveHost(). */
   executable?: string;
   /** Added to (or, with inheritEnv: false, instead of) process.env.
@@ -322,6 +341,10 @@ export class Vst3Host {
         outputs: options.outputs,
         openEditor: options.editor === true,
         scale: options.scale,
+        presentation:
+          options.presentation === undefined
+            ? 'editor'
+            : (options.presentation ?? undefined),
       },
       undefined,
       { timeout, signal },
@@ -521,13 +544,18 @@ export class Vst3Host {
     return this.#info;
   }
 
+  /** Opens the editor, or shows an open one in another presentation (it
+      opens again there, at the same size). */
   async openEditor(
-    options: RequestOptions & { scale?: number } = {},
+    options: RequestOptions & {
+      scale?: number;
+      presentation?: Presentation;
+    } = {},
   ): Promise<EditorInfo> {
     return (
       await this.#request(
         'openEditor',
-        { scale: options.scale },
+        { scale: options.scale, presentation: options.presentation },
         undefined,
         options,
       )
@@ -552,6 +580,63 @@ export class Vst3Host {
   async getEditor(options?: RequestOptions): Promise<EditorInfo> {
     return (await this.#request('getEditor', {}, undefined, options))
       .result as EditorInfo;
+  }
+
+  /** Starts live audio through the default output device, with `settings`
+      applied first. Fails with `audio-unavailable` without a device.
+      While it runs, `process` fails: the plugin is processing live. */
+  async startAudio(
+    settings: AudioSettings & RequestOptions = {},
+  ): Promise<AudioStatus> {
+    return (
+      await this.#request(
+        'startAudio',
+        audioParams(settings),
+        undefined,
+        settings,
+      )
+    ).result as AudioStatus;
+  }
+
+  async stopAudio(options?: RequestOptions): Promise<AudioStatus> {
+    return (await this.#request('stopAudio', {}, undefined, options))
+      .result as AudioStatus;
+  }
+
+  /** Changes live audio's input, volume or muting, running or not. */
+  async setAudio(
+    settings: AudioSettings & RequestOptions,
+  ): Promise<AudioStatus> {
+    return (
+      await this.#request(
+        'setAudio',
+        audioParams(settings),
+        undefined,
+        settings,
+      )
+    ).result as AudioStatus;
+  }
+
+  async getAudio(options?: RequestOptions): Promise<AudioStatus> {
+    return (await this.#request('getAudio', {}, undefined, options))
+      .result as AudioStatus;
+  }
+
+  /** The host's transport, which live audio advances while it plays. */
+  async getTransport(options?: RequestOptions): Promise<Transport> {
+    return (await this.#request('getTransport', {}, undefined, options))
+      .result as Transport;
+  }
+
+  /** Changes the transport, as `process({ transport })` does, without
+      processing: play and stop live audio's transport, or set its tempo. */
+  async setTransport(
+    update: TransportUpdate,
+    options?: RequestOptions,
+  ): Promise<Transport> {
+    return (
+      await this.#request('setTransport', { ...update }, undefined, options)
+    ).result as Transport;
   }
 
   /** Unloads the plugin and ends the process: politely, then by force.

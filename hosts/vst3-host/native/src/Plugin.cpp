@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <map>
@@ -106,6 +107,7 @@ namespace soundor::vst3host
     void Plugin::load(const std::string& path, const std::string& className, const std::string& classId,
                       const Setup& setup)
     {
+        const std::scoped_lock processing(processing_);
         if (module_ != nullptr)
             throw Failure("invalid-state", "a plugin is already loaded; launch another host for another plugin");
 
@@ -260,7 +262,9 @@ namespace soundor::vst3host
                 }
             }
             midiMapping_ = U::cast<IMidiMapping>(controller_);
+            parameterCount_ = controller_->getParameterCount();
         }
+        ++parameterGeneration_;
 
         if (processor_->canProcessSampleSize(kSample32) != kResultTrue)
             throw Failure("unsupported-plugin", "\"" + name + "\" cannot process 32-bit float samples");
@@ -297,11 +301,15 @@ namespace soundor::vst3host
         eventOutputs_.clear();
         const std::scoped_lock lock(pendingMutex_);
         pending_.clear();
+        pendingEvents_.clear();
         pendingRestart_ = 0;
+        parameterCount_ = 0;
+        ++parameterGeneration_;
     }
 
     void Plugin::unload()
     {
+        const std::scoped_lock processing(processing_);
         destroyInstance();
 #if defined(__linux__)
         // Handlers live in the module: release them before it goes.
@@ -313,15 +321,21 @@ namespace soundor::vst3host
 
     void Plugin::recreate()
     {
+        const std::scoped_lock processing(processing_);
         requireLoaded();
         destroyInstance();
-        transport_ = {};
+        {
+            const std::scoped_lock lock(transportMutex_);
+            transport_ = {};
+            ++transportEdits_;
+        }
         continuousSamples_ = 0;
         createInstance();
     }
 
     void Plugin::reset()
     {
+        const std::scoped_lock processing(processing_);
         requireLoaded();
         deactivate();
         continuousSamples_ = 0;
@@ -330,6 +344,7 @@ namespace soundor::vst3host
 
     void Plugin::configure(const Setup& setup)
     {
+        const std::scoped_lock processing(processing_);
         requireLoaded();
         deactivate();
         try
@@ -536,11 +551,17 @@ namespace soundor::vst3host
 
     void Plugin::applyPendingRestarts()
     {
+        const std::scoped_lock processing(processing_);
         const int32 flags = std::exchange(pendingRestart_, 0);
         if (flags == 0 || component_ == nullptr)
             return;
         // Latency, I/O and reload restarts need the plugin deactivated and
         // reactivated; they happen between process calls, never during one.
+        if ((flags & (kParamTitlesChanged | kReloadComponent)) != 0 && controller_ != nullptr)
+        {
+            parameterCount_ = controller_->getParameterCount();
+            ++parameterGeneration_;
+        }
         if ((flags & (kLatencyChanged | kIoChanged | kReloadComponent)) != 0 && active_)
         {
             deactivate();
@@ -583,7 +604,8 @@ namespace soundor::vst3host
         if (view != view_.get() || window_ == nullptr || resizing_)
             return false;
         resizing_ = true;
-        window_->setContentSize(size->getWidth(), size->getHeight());
+        keepToRoom(*size);
+        window_->constrainContentSize(size->getWidth(), size->getHeight());
         view_->onSize(size);
         resizing_ = false;
         Json params = editorInfo();
@@ -789,6 +811,7 @@ namespace soundor::vst3host
 
     std::vector<uint8_t> Plugin::getState(size_t& componentSize)
     {
+        const std::scoped_lock processing(processing_);
         requireLoaded();
         flushParameters();
         auto component = owned(new MemoryStream());
@@ -818,6 +841,7 @@ namespace soundor::vst3host
     void Plugin::setState(const uint8_t* component, size_t componentSize, const uint8_t* controller,
                           size_t controllerSize)
     {
+        const std::scoped_lock processing(processing_);
         requireLoaded();
         // MemoryStream reads the given bytes without taking ownership.
         auto componentStream =
@@ -881,6 +905,66 @@ namespace soundor::vst3host
 
         constexpr int64 maxFrames = int64 { 1 } << 31U;
     } // namespace
+
+    Transport Plugin::parseTransport(const Json& transport, const std::string& where) const
+    {
+        if (! transport.isObject())
+            throw Failure("invalid-request", where + " must be an object");
+        Transport next = this->transport();
+        if (const Json* playing = transport.find("playing"); playing != nullptr)
+        {
+            if (! playing->isBool())
+                throw Failure("invalid-request", where + ".playing must be a boolean");
+            next.playing = playing->asBool();
+        }
+        next.tempo = numberField(transport, "tempo", next.tempo, 1, 999, where);
+        if (const Json* signature = transport.find("timeSignature"); signature != nullptr)
+        {
+            if (! signature->isObject())
+                throw Failure("invalid-request", where + ".timeSignature must be { numerator, denominator }");
+            next.numerator = static_cast<int32>(
+                integerField(*signature, "numerator", next.numerator, 1, 64, where + ".timeSignature"));
+            next.denominator = static_cast<int32>(
+                integerField(*signature, "denominator", next.denominator, 1, 64, where + ".timeSignature"));
+        }
+        const bool hasSamples = transport.find("samplePosition") != nullptr;
+        const bool hasMusic = transport.find("musicalPosition") != nullptr;
+        if (hasSamples && hasMusic)
+            throw Failure("invalid-request", where + " takes samplePosition or musicalPosition, not both");
+        if (hasSamples)
+            next.samplePosition =
+                integerField(transport, "samplePosition", 0, -(int64 { 1 } << 52U), int64 { 1 } << 52U, where);
+        if (hasMusic)
+        {
+            const double quarters = numberField(transport, "musicalPosition", 0, -1e12, 1e12, where);
+            next.samplePosition = static_cast<int64>(std::llround(quarters * 60.0 / next.tempo * setup_.sampleRate));
+        }
+        return next;
+    }
+
+    Json Plugin::transportJson() const
+    {
+        const Transport now = this->transport();
+        Json transport = Json::object();
+        transport.set("playing", now.playing);
+        transport.set("tempo", now.tempo);
+        Json signature = Json::object();
+        signature.set("numerator", now.numerator);
+        signature.set("denominator", now.denominator);
+        transport.set("timeSignature", std::move(signature));
+        transport.set("samplePosition", now.samplePosition);
+        transport.set("musicalPosition",
+                      static_cast<double>(now.samplePosition) / setup_.sampleRate * now.tempo / 60.0);
+        return transport;
+    }
+
+    Json Plugin::setTransport(const Json& params)
+    {
+        requireLoaded();
+        const Transport next = parseTransport(params, "setTransport");
+        editTransport([&](Transport& transport) { transport = next; });
+        return transportJson();
+    }
 
     std::unique_ptr<ProcessJob> Plugin::prepareProcess(const Json& params, Payload&& payload)
     {
@@ -1105,42 +1189,7 @@ namespace soundor::vst3host
         }
 
         if (const Json* transport = params.find("transport"); transport != nullptr && ! transport->isNull())
-        {
-            if (! transport->isObject())
-                throw Failure("invalid-request", "process.transport must be an object");
-            Transport next = transport_;
-            const std::string where = "process.transport";
-            if (const Json* playing = transport->find("playing"); playing != nullptr)
-            {
-                if (! playing->isBool())
-                    throw Failure("invalid-request", where + ".playing must be a boolean");
-                next.playing = playing->asBool();
-            }
-            next.tempo = numberField(*transport, "tempo", next.tempo, 1, 999, where);
-            if (const Json* signature = transport->find("timeSignature"); signature != nullptr)
-            {
-                if (! signature->isObject())
-                    throw Failure("invalid-request", where + ".timeSignature must be { numerator, denominator }");
-                next.numerator = static_cast<int32>(
-                    integerField(*signature, "numerator", next.numerator, 1, 64, where + ".timeSignature"));
-                next.denominator = static_cast<int32>(
-                    integerField(*signature, "denominator", next.denominator, 1, 64, where + ".timeSignature"));
-            }
-            const bool hasSamples = transport->find("samplePosition") != nullptr;
-            const bool hasMusic = transport->find("musicalPosition") != nullptr;
-            if (hasSamples && hasMusic)
-                throw Failure("invalid-request", where + " takes samplePosition or musicalPosition, not both");
-            if (hasSamples)
-                next.samplePosition =
-                    integerField(*transport, "samplePosition", 0, -(int64 { 1 } << 52U), int64 { 1 } << 52U, where);
-            if (hasMusic)
-            {
-                const double quarters = numberField(*transport, "musicalPosition", 0, -1e12, 1e12, where);
-                next.samplePosition =
-                    static_cast<int64>(std::llround(quarters * 60.0 / next.tempo * setup_.sampleRate));
-            }
-            job->transport = next;
-        }
+            job->transport = parseTransport(*transport, "process.transport");
 
         job->warnings = std::move(warnings);
         return job;
@@ -1148,16 +1197,31 @@ namespace soundor::vst3host
 
     void Plugin::runProcess(ProcessJob& job)
     {
-        if (job.transport)
-            transport_ = *job.transport;
+        // This call's own copy of the transport, written back at the end
+        // unless something changed it meanwhile.
+        Transport transport;
+        uint64_t edits = 0;
+        {
+            const std::scoped_lock lock(transportMutex_);
+            if (job.transport)
+            {
+                transport_ = *job.transport;
+                ++transportEdits_;
+            }
+            transport = transport_;
+            edits = transportEdits_;
+        }
 
         std::vector<ParameterChange> changes;
+        std::vector<Event> events;
         {
-            // Edits made since the last call land at its first frame.
+            // Edits and notes made since the last call land at its first frame.
             const std::scoped_lock lock(pendingMutex_);
             changes.swap(pending_);
+            events.swap(pendingEvents_);
         }
         changes.insert(changes.end(), job.changes.begin(), job.changes.end());
+        events.insert(events.end(), job.events.begin(), job.events.end());
 
         const int64 block = setup_.blockSize;
         const auto inputBuses = static_cast<int32>(audioInputs_.size());
@@ -1193,8 +1257,8 @@ namespace soundor::vst3host
         }
 
         ParameterChanges inputChanges(static_cast<int32>(std::max<size_t>(changes.size(), 1)));
-        ParameterChanges outputChanges(controller_ != nullptr ? std::max(controller_->getParameterCount(), 1) : 1);
-        EventList inputEvents(static_cast<int32>(std::max<size_t>(job.events.size(), 1)));
+        ParameterChanges outputChanges(std::max(parameterCount_, 1));
+        EventList inputEvents(static_cast<int32>(std::max<size_t>(events.size(), 1)));
         EventList outputEvents(1024);
         ProcessContext context {};
 
@@ -1250,9 +1314,9 @@ namespace soundor::vst3host
                 }
             }
             inputEvents.clear();
-            while (nextEvent < job.events.size() && job.events[nextEvent].sampleOffset < start + frames)
+            while (nextEvent < events.size() && events[nextEvent].sampleOffset < start + frames)
             {
-                Event event = job.events[nextEvent++];
+                Event event = events[nextEvent++];
                 event.sampleOffset -= static_cast<int32>(start);
                 inputEvents.addEvent(event);
             }
@@ -1260,19 +1324,19 @@ namespace soundor::vst3host
             outputEvents.clear();
 
             const double quarters =
-                static_cast<double>(transport_.samplePosition) / setup_.sampleRate * transport_.tempo / 60.0;
-            const double barLength = 4.0 * transport_.numerator / transport_.denominator;
+                static_cast<double>(transport.samplePosition) / setup_.sampleRate * transport.tempo / 60.0;
+            const double barLength = 4.0 * transport.numerator / transport.denominator;
             context.state = ProcessContext::kTempoValid | ProcessContext::kTimeSigValid
                             | ProcessContext::kProjectTimeMusicValid | ProcessContext::kBarPositionValid
-                            | ProcessContext::kContTimeValid | (transport_.playing ? ProcessContext::kPlaying : 0);
+                            | ProcessContext::kContTimeValid | (transport.playing ? ProcessContext::kPlaying : 0);
             context.sampleRate = setup_.sampleRate;
-            context.projectTimeSamples = transport_.samplePosition;
+            context.projectTimeSamples = transport.samplePosition;
             context.continousTimeSamples = continuousSamples_;
             context.projectTimeMusic = quarters;
             context.barPositionMusic = std::floor(quarters / barLength) * barLength;
-            context.tempo = transport_.tempo;
-            context.timeSigNumerator = transport_.numerator;
-            context.timeSigDenominator = transport_.denominator;
+            context.tempo = transport.tempo;
+            context.timeSigNumerator = transport.numerator;
+            context.timeSigDenominator = transport.denominator;
 
             ProcessData data;
             data.processMode = setup_.processMode;
@@ -1293,7 +1357,7 @@ namespace soundor::vst3host
             {
                 job.error = "the plugin's process call failed at frame " + std::to_string(start)
                             + " (IAudioProcessor::process returned " + tresultName(result) + ")";
-                return;
+                break;
             }
 
             for (int32 index = 0; index < outputChanges.getParameterCount(); ++index)
@@ -1317,11 +1381,15 @@ namespace soundor::vst3host
                 }
             }
 
-            if (transport_.playing)
-                transport_.samplePosition += frames;
+            if (transport.playing)
+                transport.samplePosition += frames;
             continuousSamples_ += frames;
             start += frames;
         } while (start < job.frames);
+
+        const std::scoped_lock lock(transportMutex_);
+        if (transportEdits_ == edits)
+            transport_ = transport;
     }
 
     Json Plugin::finishProcess(ProcessJob& job)
@@ -1404,17 +1472,7 @@ namespace soundor::vst3host
         }
         result.set("parameterChanges", std::move(changes));
 
-        Json transport = Json::object();
-        transport.set("playing", transport_.playing);
-        transport.set("tempo", transport_.tempo);
-        Json signature = Json::object();
-        signature.set("numerator", transport_.numerator);
-        signature.set("denominator", transport_.denominator);
-        transport.set("timeSignature", std::move(signature));
-        transport.set("samplePosition", transport_.samplePosition);
-        transport.set("musicalPosition",
-                      static_cast<double>(transport_.samplePosition) / setup_.sampleRate * transport_.tempo / 60.0);
-        result.set("transport", std::move(transport));
+        result.set("transport", transportJson());
         Json warnings = Json::array();
         for (const auto& warning : job.warnings)
             warnings.push(warning);
@@ -1437,6 +1495,14 @@ namespace soundor::vst3host
         result.set("resizable", view_->canResize() == kResultTrue);
         result.set("scale", scale_);
         result.set("platformType", window_->platformType());
+        result.set("presentation", window_->presentation());
+        const auto [windowWidth, windowHeight] = window_->windowSize();
+        Json window = Json::object();
+        window.set("width", windowWidth);
+        window.set("height", windowHeight);
+        result.set("window", std::move(window));
+        if (const auto frames = window_->interfaceFrames())
+            result.set("interfaceFrames", static_cast<double>(*frames));
         return result;
     }
 
@@ -1463,11 +1529,14 @@ namespace soundor::vst3host
         {
             if (generation != editorGeneration_ || view_ == nullptr || resizing_)
                 return;
-            ViewRect size(0, 0, width, height);
-            if (view_->checkSizeConstraint(&size) == kResultTrue
-                && (size.getWidth() != width || size.getHeight() != height))
-                window_->setContentSize(size.getWidth(), size.getHeight());
+            // Constraint checks may call IPlugFrame::resizeView themselves.
+            // Guard the whole negotiation, including native window callbacks.
             resizing_ = true;
+            ViewRect size(0, 0, width, height);
+            view_->checkSizeConstraint(&size);
+            // Resize the native container before the editor paints its new
+            // size, including when no constraint correction was necessary.
+            window_->constrainContentSize(size.getWidth(), size.getHeight());
             view_->onSize(&size);
             resizing_ = false;
             callbacks_.emit("editorResized", editorInfo());
@@ -1491,11 +1560,12 @@ namespace soundor::vst3host
             scale_ = next;
             if (auto support = U::cast<IPlugViewContentScaleSupport>(view_))
                 support->setContentScaleFactor(static_cast<IPlugViewContentScaleSupport::ScaleFactor>(next));
+            tellWindowEditorLimits();
         };
 
         std::string error;
         auto window =
-            EditorWindow::create(loop_, class_.name(), rect.getWidth(), rect.getHeight(), std::move(callbacks), error);
+            callbacks_.createWindow(class_.name(), rect.getWidth(), rect.getHeight(), std::move(callbacks), error);
         if (window == nullptr)
             throw Failure("no-display", error);
         if (view->isPlatformTypeSupported(window->platformType()) != kResultTrue)
@@ -1530,6 +1600,7 @@ namespace soundor::vst3host
             throw Failure("plugin-error", "\"" + class_.name() + "\"'s editor failed to attach (attached returned "
                                               + tresultName(attached) + ")");
         }
+        tellWindowEditorLimits();
         // The size may change while attaching (scale, restored size).
         if (view_->getSize(&rect) == kResultOk && rect.getWidth() > 0 && rect.getHeight() > 0)
             window_->setContentSize(rect.getWidth(), rect.getHeight());
@@ -1549,6 +1620,106 @@ namespace soundor::vst3host
         window_.reset();
     }
 
+    void Plugin::previewEditorSize(int width, int height)
+    {
+        if (view_ == nullptr || view_->canResize() != kResultTrue || resizing_)
+            return;
+        resizing_ = true;
+        ViewRect size(0, 0, std::max(width, 1), std::max(height, 1));
+        view_->checkSizeConstraint(&size);
+        keepToRoom(size);
+        window_->constrainContentSize(size.getWidth(), size.getHeight());
+        resizing_ = false;
+    }
+
+    void Plugin::previewEditorDrag(int width, int height, int lastWidth, int lastHeight)
+    {
+        if (view_ == nullptr || view_->canResize() != kResultTrue || resizing_)
+            return;
+        resizing_ = true;
+        constexpr int rounding = 2;
+        constexpr int unlimited = 1 << 20;
+        width = std::max(width, 1);
+        height = std::max(height, 1);
+        ViewRect size(0, 0, width, height);
+        view_->checkSizeConstraint(&size);
+        if (height == lastHeight && width != lastWidth && std::abs(size.getWidth() - width) > rounding)
+        {
+            ViewRect free(0, 0, width, unlimited);
+            view_->checkSizeConstraint(&free);
+            if (std::abs(free.getWidth() - width) <= rounding)
+                size = free;
+        }
+        else if (width == lastWidth && height != lastHeight && std::abs(size.getHeight() - height) > rounding)
+        {
+            ViewRect free(0, 0, unlimited, height);
+            view_->checkSizeConstraint(&free);
+            if (std::abs(free.getHeight() - height) <= rounding)
+                size = free;
+        }
+        window_->constrainContentSize(size.getWidth(), size.getHeight());
+        resizing_ = false;
+    }
+
+    void Plugin::tellWindowEditorLimits()
+    {
+        // VST3 has no call for these: the editor's answers for sizes it cannot
+        // be.
+        resizing_ = true;
+        auto answer = [this](int width, int height)
+        {
+            ViewRect size(0, 0, width, height);
+            view_->checkSizeConstraint(&size);
+            return std::pair { std::max(size.getWidth(), 1), std::max(size.getHeight(), 1) };
+        };
+        const auto smallest = answer(1, 1);
+        const auto largest = answer(1 << 20, 1 << 20);
+        resizing_ = false;
+        window_->setEditorMinimum(smallest.first, smallest.second);
+        window_->setEditorMaximum(largest.first, largest.second);
+    }
+
+    void Plugin::keepToRoom(ViewRect& size)
+    {
+        const auto room = window_->editorRoom();
+        if (! room)
+            return;
+        if (size.getWidth() <= room->first && size.getHeight() <= room->second)
+            return;
+        auto fits = [&room](const ViewRect& rect)
+        { return rect.getWidth() <= room->first && rect.getHeight() <= room->second; };
+        // Each side on its own, if the editor's shape is free.
+        const int width = size.getWidth();
+        const int height = size.getHeight();
+        ViewRect sides(0, 0, std::min(width, room->first), std::min(height, room->second));
+        view_->checkSizeConstraint(&sides);
+        if (fits(sides))
+        {
+            size = sides;
+            return;
+        }
+        // An editor that keeps its aspect ratio asked for more: its shape.
+        const double fit =
+            std::min(static_cast<double>(room->first) / width, static_cast<double>(room->second) / height);
+        ViewRect shaped(0, 0, static_cast<int>(width * fit), static_cast<int>(height * fit));
+        view_->checkSizeConstraint(&shaped);
+        size = shaped;
+    }
+
+    Json Plugin::requestEditorSize(int width, int height)
+    {
+        if (view_ == nullptr || view_->canResize() != kResultTrue || resizing_)
+            return editorInfo();
+        resizing_ = true;
+        ViewRect size(0, 0, std::max(width, 1), std::max(height, 1));
+        view_->checkSizeConstraint(&size);
+        keepToRoom(size);
+        window_->constrainContentSize(size.getWidth(), size.getHeight());
+        view_->onSize(&size);
+        resizing_ = false;
+        return editorInfo();
+    }
+
     Json Plugin::resizeEditor(int width, int height)
     {
         if (view_ == nullptr)
@@ -1557,12 +1728,138 @@ namespace soundor::vst3host
             throw Failure("invalid-state", "\"" + class_.name() + "\"'s editor cannot be resized");
         if (width <= 0 || height <= 0)
             throw Failure("invalid-request", "an editor size is positive");
+        resizing_ = true;
         ViewRect size(0, 0, width, height);
         view_->checkSizeConstraint(&size);
-        resizing_ = true;
         window_->setContentSize(size.getWidth(), size.getHeight());
         view_->onSize(&size);
         resizing_ = false;
         return editorInfo();
+    }
+
+    // ── Live audio and the host interface ────────────────────────────────
+
+    int32 Plugin::mainInputChannels() const
+    {
+        for (const auto& bus : audioInputs_)
+            if (bus.type == kMain)
+                return bus.active ? bus.channels : 0;
+        return 0;
+    }
+
+    int32 Plugin::mainOutputChannels() const
+    {
+        for (const auto& bus : audioOutputs_)
+            if (bus.type == kMain)
+                return bus.active ? bus.channels : 0;
+        return 0;
+    }
+
+    std::vector<int32> Plugin::inputBusChannels() const
+    {
+        std::vector<int32> result;
+        result.reserve(audioInputs_.size());
+        for (const auto& bus : audioInputs_)
+            result.push_back(bus.channels);
+        return result;
+    }
+
+    std::vector<int32> Plugin::outputBusChannels() const
+    {
+        std::vector<int32> result;
+        result.reserve(audioOutputs_.size());
+        for (const auto& bus : audioOutputs_)
+            result.push_back(bus.channels);
+        return result;
+    }
+
+    uint32 Plugin::latencySamples() const
+    {
+        return processor_ != nullptr ? processor_->getLatencySamples() : 0;
+    }
+
+    std::vector<HostParameter> Plugin::hostParameters() const
+    {
+        std::vector<HostParameter> result;
+        if (controller_ == nullptr)
+            return result;
+        const int32 count = controller_->getParameterCount();
+        for (int32 index = 0; index < count; ++index)
+        {
+            ParameterInfo info {};
+            if (controller_->getParameterInfo(index, info) != kResultOk || (info.flags & ParameterInfo::kIsHidden) != 0)
+                continue;
+            HostParameter parameter;
+            parameter.id = info.id;
+            parameter.title = Steinberg::Vst::StringConvert::convert(info.title);
+            parameter.units = Steinberg::Vst::StringConvert::convert(info.units);
+            parameter.stepCount = info.stepCount;
+            parameter.defaultValue = info.defaultNormalizedValue;
+            parameter.readOnly = (info.flags & ParameterInfo::kIsReadOnly) != 0;
+            parameter.list = (info.flags & ParameterInfo::kIsList) != 0;
+            parameter.bypass = (info.flags & ParameterInfo::kIsBypass) != 0;
+            result.push_back(std::move(parameter));
+        }
+        return result;
+    }
+
+    double Plugin::normalizedValue(ParamID id) const
+    {
+        return controller_ != nullptr ? controller_->getParamNormalized(id) : 0;
+    }
+
+    std::string Plugin::valueText(ParamID id, double normalized) const
+    {
+        if (controller_ == nullptr)
+            return {};
+        String128 display {};
+        if (controller_->getParamStringByValue(id, normalized, display) != kResultOk)
+        {
+            std::ostringstream text;
+            text.precision(3);
+            text << controller_->normalizedParamToPlain(id, normalized);
+            return text.str();
+        }
+        return Steinberg::Vst::StringConvert::convert(display);
+    }
+
+    void Plugin::editParameter(ParamID id, double normalized)
+    {
+        if (controller_ == nullptr || ! std::isfinite(normalized))
+            return;
+        normalized = std::clamp(normalized, 0.0, 1.0);
+        controller_->setParamNormalized(id, normalized);
+        const std::scoped_lock lock(pendingMutex_);
+        pending_.push_back({ id, normalized, 0 });
+    }
+
+    void Plugin::queueEvent(const Event& event)
+    {
+        const std::scoped_lock lock(pendingMutex_);
+        pendingEvents_.push_back(event);
+    }
+
+    Transport Plugin::transport() const
+    {
+        const std::scoped_lock lock(transportMutex_);
+        return transport_;
+    }
+
+    void Plugin::editTransport(const std::function<void(Transport&)>& edit)
+    {
+        const std::scoped_lock lock(transportMutex_);
+        edit(transport_);
+        ++transportEdits_;
+    }
+
+    void Plugin::applyOutputChanges(const std::vector<ParameterChange>& changes)
+    {
+        if (controller_ == nullptr)
+            return;
+        std::map<ParamID, double> last;
+        for (const auto& change : changes)
+            last[change.id] = change.value;
+        for (const auto& [id, value] : last)
+            controller_->setParamNormalized(id, value);
     }
 } // namespace soundor::vst3host

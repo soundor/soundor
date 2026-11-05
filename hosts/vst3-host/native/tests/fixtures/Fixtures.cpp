@@ -266,12 +266,31 @@ namespace soundor::fixtures
             return CPluginView::onSize(size);
         }
 
-        tresult PLUGIN_API canResize() override { return kResultTrue; }
+        tresult PLUGIN_API canResize() override
+        {
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): nothing in a test sets the environment.
+            return std::getenv("SOUNDOR_FIXTURE_EDITOR_FIXED") != nullptr ? kResultFalse : kResultTrue;
+        }
 
         tresult PLUGIN_API checkSizeConstraint(ViewRect* size) override
         {
-            size->right = size->left + std::max(size->getWidth(), 200);
-            size->bottom = size->top + std::max(size->getHeight(), 150);
+            // As JUCE keeps a fixed aspect ratio: too wide takes its width from
+            // the height, and too tall its height from the width.
+            // NOLINTNEXTLINE(concurrency-mt-unsafe): nothing in a test sets the environment.
+            if (std::getenv("SOUNDOR_FIXTURE_EDITOR_KEEPS_SHAPE") != nullptr)
+            {
+                int width = std::clamp(size->getWidth(), 200, 1000);
+                int height = std::clamp(size->getHeight(), 150, 750);
+                if (width * 3 > height * 4)
+                    width = height * 4 / 3;
+                else
+                    height = width * 3 / 4;
+                size->right = size->left + width;
+                size->bottom = size->top + height;
+                return kResultTrue;
+            }
+            size->right = size->left + std::clamp(size->getWidth(), 200, 1000);
+            size->bottom = size->top + std::clamp(size->getHeight(), 150, 750);
             return kResultTrue;
         }
 
