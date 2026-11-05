@@ -21,6 +21,7 @@
     "targets.json",
     "cmake",
     "native/src",
+    "native/tools",
     "dist"
   ],
   "type": "module",

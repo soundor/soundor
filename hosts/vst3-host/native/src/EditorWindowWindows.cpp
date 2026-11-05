@@ -21,8 +21,9 @@ namespace soundor::vst3host
             return result;
         }
 
-        constexpr DWORD resizableStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
-        constexpr DWORD fixedStyle = (WS_OVERLAPPEDWINDOW & ~(WS_THICKFRAME | WS_MAXIMIZEBOX)) | WS_CLIPCHILDREN;
+        // It shows the editor at the editor's size: not maximized or minimized.
+        constexpr DWORD resizableStyle = (WS_OVERLAPPEDWINDOW & ~(WS_MINIMIZEBOX | WS_MAXIMIZEBOX)) | WS_CLIPCHILDREN;
+        constexpr DWORD fixedStyle = resizableStyle & ~WS_THICKFRAME;
 
         class WindowsEditorWindow final : public EditorWindow
         {
@@ -87,6 +88,12 @@ namespace soundor::vst3host
             }
 
             [[nodiscard]] double scale() const override { return static_cast<double>(GetDpiForWindow(window_)) / 96.0; }
+            [[nodiscard]] std::pair<int, int> windowSize() const override
+            {
+                RECT client {};
+                GetClientRect(window_, &client);
+                return { static_cast<int>(client.right - client.left), static_cast<int>(client.bottom - client.top) };
+            }
 
         private:
             static LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)

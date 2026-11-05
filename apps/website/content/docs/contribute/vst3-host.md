@@ -158,7 +158,7 @@ node scripts/native.ts test --preset sanitize  # ASan and UBSan
 ```
 
 Native builds need CMake 3.25, a C++20 compiler and, on Linux, the X11
-headers; the fixtures link libX11. Nothing else in the workspace needs them:
+headers (with Xext, Xcomposite and Xdamage's); the fixtures link libX11. Nothing else in the workspace needs them:
 `pnpm build` and `pnpm test` never compile the host.
 
 The fixtures (`native/tests/fixtures`) are three classes in one bundle, built

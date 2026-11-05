@@ -6,9 +6,12 @@
 
 #include "EventLoop.h"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 
 namespace soundor::vst3host
 {
@@ -22,13 +25,16 @@ namespace soundor::vst3host
             /** The user closed the window. */
             std::function<void()> closed;
             std::function<void(bool focused)> focusChanged;
-            /** Windows: the monitor's DPI scale changed. */
+            /** Windows and Linux: the monitor's scale changed. */
             std::function<void(double scale)> scaleChanged;
         };
 
         virtual ~EditorWindow() = default;
 
-        /** nullptr and `error` when no window can be made (no display). */
+        /** A window that is the editor alone (the `editor` presentation) on
+            macOS and Windows; nullptr and `error` when none can be made. The
+            host interface's window, and Linux's in either presentation, is a
+            HostWindow. */
         static std::unique_ptr<EditorWindow> create(EventLoop& loop, const std::string& title, int width, int height,
                                                     Callbacks callbacks, std::string& error);
 
@@ -37,10 +43,30 @@ namespace soundor::vst3host
         [[nodiscard]] virtual void* parentHandle() const = 0;
 
         virtual void setResizable(bool resizable) = 0;
-        /** Resizes the content area without calling `resized`. */
+        /** Resizes the editor's area to the editor's size, without calling
+            `resized`. */
         virtual void setContentSize(int width, int height) = 0;
+        /** The smallest size the editor keeps to: the window need not be
+            smaller than what that takes. */
+        virtual void setEditorMinimum(int width, int height) { (void)width, (void)height; }
+        /** The largest editor there is: a window that is the editor need not
+            be larger. */
+        virtual void setEditorMaximum(int width, int height) { (void)width, (void)height; }
+        /** The largest editor the window has room for, where it is not to
+            grow for one (the host presentation, as in the web host): at least
+            the editor's size. */
+        [[nodiscard]] virtual std::optional<std::pair<int, int>> editorRoom() const { return std::nullopt; }
+        /** The editor's limits corrected a size from `resized`. */
+        virtual void constrainContentSize(int width, int height) { setContentSize(width, height); }
         virtual void show() = 0;
-        /** The platform's scale for this window (1 on macOS and Linux). */
+        /** The platform's scale for this window (1 on macOS, whose views are
+            in points). */
         [[nodiscard]] virtual double scale() const = 0;
+        /** "editor" (the window is the editor) or "host" (with the host interface). */
+        [[nodiscard]] virtual const char* presentation() const { return "editor"; }
+        /** The window's content size, in the editor's coordinates. */
+        [[nodiscard]] virtual std::pair<int, int> windowSize() const = 0;
+        /** The host interface's frames presented so far; none without it. */
+        [[nodiscard]] virtual std::optional<uint64_t> interfaceFrames() const { return std::nullopt; }
     };
 } // namespace soundor::vst3host

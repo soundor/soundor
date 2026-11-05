@@ -1,6 +1,7 @@
 #include "Session.h"
 
 #include "Bundle.h"
+#include "HostWindow.h"
 #include "Version.h"
 #include "pluginterfaces/vst/vstspeaker.h"
 
@@ -246,9 +247,100 @@ namespace soundor::vst3host
         : loop_(loop),
           writer_(writer),
           ui_(ui),
+          settings_(Settings::load()),
+          presentation_(settings_.presentation),
           plugin_(loop, ui,
-                  PluginCallbacks { [this](const std::string& event, Json params) { emit(event, std::move(params)); } })
+                  PluginCallbacks { [this](const std::string& event, Json params) { emit(event, std::move(params)); },
+                                    [this](const std::string& title, int width, int height,
+                                           EditorWindow::Callbacks callbacks, std::string& error)
+                                    { return createWindow(title, width, height, std::move(callbacks), error); } }),
+          audio_(loop, plugin_),
+          model_ { plugin_, audio_, settings_,
+                   [this](const std::string& event, Json params) { emit(event, std::move(params)); } }
     {
+        audio_.setVolume(settings_.volume);
+    }
+
+    std::unique_ptr<EditorWindow> Session::createWindow(const std::string& title, int width, int height,
+                                                        EditorWindow::Callbacks callbacks, std::string& error)
+    {
+#if defined(__linux__)
+        // X11 needs the same live presentation with or without the interface.
+        return HostWindow::create(loop_, model_, title, width, height, presentation_ != "host", std::move(callbacks),
+                                  error);
+#else
+        if (presentation_ == "host")
+            return HostWindow::create(loop_, model_, title, width, height, false, std::move(callbacks), error);
+        return EditorWindow::create(loop_, title, width, height, std::move(callbacks), error);
+#endif
+    }
+
+    Json Session::openEditor(const Json& params, const std::string& where)
+    {
+        std::optional<double> scale;
+        if (const Json* value = params.find("scale"); value != nullptr && ! value->isNull())
+        {
+            if (! value->isNumber() || value->asNumber() <= 0 || value->asNumber() > 8)
+                throw Failure("invalid-request", where + ".scale must be from 0 to 8");
+            scale = value->asNumber();
+        }
+        const std::string presentation = optionalString(params, "presentation", where);
+        if (! presentation.empty() && presentation != "editor" && presentation != "host")
+            throw Failure("invalid-request", where + R"(.presentation must be "editor" or "host")");
+        // An editor already open in another presentation opens again in this
+        // one, at the same size and scale.
+        if (! presentation.empty() && presentation != presentation_)
+        {
+            presentation_ = presentation;
+            if (plugin_.editorOpen())
+            {
+                const Json before = plugin_.editorInfo();
+                if (! scale)
+                    scale = plugin_.editorScale();
+                plugin_.closeEditor();
+                plugin_.openEditor(scale);
+                if (plugin_.editorOpen())
+                {
+                    const Json* width = before.find("width");
+                    const Json* height = before.find("height");
+                    const Json after = plugin_.editorInfo();
+                    if (after.find("resizable")->asBool()
+                        && (after.find("width")->asNumber() != width->asNumber()
+                            || after.find("height")->asNumber() != height->asNumber()))
+                        plugin_.resizeEditor(static_cast<int>(width->asNumber()), static_cast<int>(height->asNumber()));
+                }
+                return plugin_.editorInfo();
+            }
+        }
+        return plugin_.openEditor(scale);
+    }
+
+    void Session::applyAudio(const Json& params, const std::string& where)
+    {
+        if (const Json* muted = params.find("muted"); muted != nullptr && ! muted->isNull())
+        {
+            if (! muted->isBool())
+                throw Failure("invalid-request", where + ".muted must be a boolean");
+            audio_.setMuted(muted->asBool());
+        }
+        if (const Json* volume = params.find("volume"); volume != nullptr && ! volume->isNull())
+        {
+            if (! volume->isNumber() || volume->asNumber() < 0 || volume->asNumber() > 1)
+                throw Failure("invalid-request", where + ".volume must be from 0 to 1");
+            audio_.setVolume(volume->asNumber());
+        }
+        const std::string input = optionalString(params, "input", where);
+        const std::string file = optionalString(params, "file", where);
+        if (! input.empty())
+        {
+            const auto parsed = parseInput(input);
+            if (! parsed)
+                throw Failure("invalid-request",
+                              where + R"(.input must be "oscillator", "file", "microphone" or "none")");
+            audio_.setInput(*parsed, file);
+        }
+        else if (! file.empty())
+            audio_.setInput(AudioInput::file, file);
     }
 
     Session::~Session() = default;
@@ -319,6 +411,7 @@ namespace soundor::vst3host
         closing_ = true;
         exitCode_ = code;
         queue_.clear();
+        audio_.stop();
         plugin_.unload();
         loop_.quit();
     }
@@ -389,14 +482,10 @@ namespace soundor::vst3host
                 const std::string classId = optionalString(params, "classId", where);
                 const Setup setup = parseSetup(params, Setup {}, where);
                 plugin_.load(path, className, classId, setup);
+                audio_.formatChanged();
                 Json result = plugin_.info();
                 if (const Json* open = params.find("openEditor"); open != nullptr && open->isBool() && open->asBool())
-                {
-                    std::optional<double> scale;
-                    if (const Json* value = params.find("scale"); value != nullptr && value->isNumber())
-                        scale = value->asNumber();
-                    result.set("editor", plugin_.openEditor(scale));
-                }
+                    result.set("editor", openEditor(params, where));
                 respond(id, std::move(result));
             }
             else if (method == "info")
@@ -424,6 +513,8 @@ namespace soundor::vst3host
                 respond(id, plugin_.latencyAndTail());
             else if (method == "process")
             {
+                if (audio_.running())
+                    throw Failure("invalid-state", "live audio is running: stop it (stopAudio) to process offline");
                 std::shared_ptr<ProcessJob> job = plugin_.prepareProcess(params, std::move(frame.payload));
                 plugin_.busy = true;
                 worker_.run(
@@ -487,25 +578,44 @@ namespace soundor::vst3host
             else if (method == "recreate")
             {
                 plugin_.recreate();
+                audio_.formatChanged();
                 respond(id, plugin_.info());
             }
             else if (method == "configure")
             {
                 // Bus requests not given keep their current arrangements.
                 plugin_.configure(parseSetup(params, plugin_.setup(), where));
+                audio_.formatChanged();
                 respond(id, plugin_.info());
             }
             else if (method == "openEditor")
+                respond(id, openEditor(params, where));
+            else if (method == "startAudio")
             {
-                std::optional<double> scale;
-                if (const Json* value = params.find("scale"); value != nullptr && ! value->isNull())
-                {
-                    if (! value->isNumber() || value->asNumber() <= 0 || value->asNumber() > 8)
-                        throw Failure("invalid-request", "openEditor.scale must be from 0 to 8");
-                    scale = value->asNumber();
-                }
-                respond(id, plugin_.openEditor(scale));
+                applyAudio(params, where);
+                audio_.start();
+                respond(id, audio_.status());
             }
+            else if (method == "stopAudio")
+            {
+                audio_.stop();
+                respond(id, audio_.status());
+            }
+            else if (method == "setAudio")
+            {
+                applyAudio(params, where);
+                respond(id, audio_.status());
+            }
+            else if (method == "getAudio")
+                respond(id, audio_.status());
+            else if (method == "getTransport")
+            {
+                if (! plugin_.loaded())
+                    throw Failure("invalid-state", "no plugin is loaded");
+                respond(id, plugin_.transportJson());
+            }
+            else if (method == "setTransport")
+                respond(id, plugin_.setTransport(params));
             else if (method == "closeEditor")
             {
                 plugin_.closeEditor();
@@ -524,6 +634,7 @@ namespace soundor::vst3host
                 respond(id, plugin_.editorInfo());
             else if (method == "shutdown")
             {
+                audio_.stop();
                 plugin_.unload();
                 respond(id, Json::object());
                 finish(0);

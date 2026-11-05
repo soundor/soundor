@@ -47,7 +47,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev xvfb
+          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev libxext-dev libxtst-dev libxcomposite-dev libxdamage-dev libxcursor-dev libxfixes-dev libxi-dev libxrandr-dev libgl-dev libegl-dev libasound2-dev libdbus-1-dev xvfb
 
       # Ninja on macOS and Linux; Visual Studio on Windows, which finds MSVC
       # without a developer environment.
@@ -142,7 +142,7 @@ jobs:
       - name: Build tools and X11
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev xvfb
+          sudo apt-get install -y --no-install-recommends ninja-build libx11-dev libxext-dev libxtst-dev libxcomposite-dev libxdamage-dev libxcursor-dev libxfixes-dev libxi-dev libxrandr-dev libgl-dev libegl-dev libasound2-dev libdbus-1-dev xvfb
       - name: clang-tidy
         working-directory: hosts/vst3-host
         env:

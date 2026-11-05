@@ -1,6 +1,8 @@
 #include "EventLoop.h"
 
+#include <algorithm>
 #include <deque>
+#include <map>
 #include <mutex>
 
 #ifndef NOMINMAX
@@ -65,14 +67,39 @@ namespace soundor::vst3host
                 PostMessageW(window_, runTasksMessage, 0, 0);
             }
 
+            Id addTimer(unsigned milliseconds, std::function<void()> fire) override
+            {
+                const Id id = ++nextId_;
+                timers_.emplace(id, std::move(fire));
+                SetTimer(window_, static_cast<UINT_PTR>(id), std::max<UINT>(USER_TIMER_MINIMUM, milliseconds), nullptr);
+                return id;
+            }
+
+            void removeTimer(Id id) override
+            {
+                KillTimer(window_, static_cast<UINT_PTR>(id));
+                timers_.erase(id);
+            }
+
         private:
             static LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
             {
+                auto* self = reinterpret_cast<WindowsEventLoop*>(GetWindowLongPtrW(window, GWLP_USERDATA));
                 if (message == runTasksMessage)
                 {
-                    auto* self = reinterpret_cast<WindowsEventLoop*>(GetWindowLongPtrW(window, GWLP_USERDATA));
                     if (self != nullptr)
                         self->runTasks();
+                    return 0;
+                }
+                if (message == WM_TIMER && self != nullptr)
+                {
+                    const auto it = self->timers_.find(static_cast<Id>(wParam));
+                    if (it != self->timers_.end())
+                    {
+                        // A copy: the callback may remove this timer.
+                        const auto fire = it->second;
+                        fire();
+                    }
                     return 0;
                 }
                 return DefWindowProcW(window, message, wParam, lParam);
@@ -93,6 +120,8 @@ namespace soundor::vst3host
             bool running_ = false;
             std::mutex mutex_;
             std::deque<std::function<void()>> tasks_;
+            std::map<Id, std::function<void()>> timers_;
+            Id nextId_ = 0;
         };
     } // namespace
 

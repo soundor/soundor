@@ -26,6 +26,23 @@ test('a headless host has no editor', async () => {
 describe.runIf(hasDisplay || process.env.SOUNDOR_VST3_HOST_REQUIRE_UI === '1')(
   'UI mode',
   () => {
+    test.runIf(process.platform === 'linux')(
+      "an event waiting in the editor's X queue is delivered with no new traffic",
+      async () => {
+        // A round trip on the plugin's connection (JUCE's XQueryPointer, its
+        // XSync) moves what arrives during it into Xlib's queue, and then the
+        // connection has nothing to read: a click waits for the next event.
+        const logs: string[] = [];
+        await launch('Fixture Gain', {
+          editor: true,
+          onLog: (line) => logs.push(line),
+        });
+        await expect
+          .poll(() => logs.join('\n'), { timeout: 3000 })
+          .toContain('fixture: queued event handled');
+      },
+    );
+
     test('opens the editor, runs its timers and keeps processing', async () => {
       const host = await launch('Fixture Gain', { editor: true, scale: 2 });
       expect(host.identity.mode).toBe('ui');

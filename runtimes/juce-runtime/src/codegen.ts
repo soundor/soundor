@@ -65,9 +65,9 @@ export function generateJuceSources(
   config: SoundorConfig,
   params: GenerateJuceParams,
 ): CodegenFile[] {
-  const parameters = [...config.parameters].sort((a, b) =>
-    a.id.localeCompare(b.id),
-  );
+  // In the config's order, which hosts list them in, as the web host does.
+  // Sessions keep their values: VST3 ids are hashes of the parameters' ids.
+  const parameters = config.parameters;
   const nativeApi = describeNativeApi(config.native);
   if (!nativeApi.ok) {
     // Config validation rejects these first; this guards direct callers.
@@ -86,7 +86,10 @@ export function generateJuceSources(
       path: 'soundor/SoundorProcessor.cpp',
       contents: renderProcessorSource(parameters),
     },
-    { path: 'soundor/SoundorEditor.h', contents: renderEditorHeader() },
+    {
+      path: 'soundor/SoundorEditor.h',
+      contents: renderEditorHeader(resolveEditor(config.editor)),
+    },
     {
       path: 'soundor/SoundorEditor.cpp',
       contents: renderEditorSource(
@@ -436,13 +439,14 @@ function renderParameterAdd(parameter: Parameter): string {
   }
 }
 
-function renderEditorHeader(): string {
+function renderEditorHeader(editor: ResolvedEditorConfig): string {
   return `${HEADER}#pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/a11y/Platform.h>
 #include <soundor/backend/JuceEditorConstrainer.h>
 #include <soundor/backend/JucePresentation.h>
+#include <soundor/backend/JuceRasterScale.h>
 #include <soundor/render/Compositor.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/DevSession.h>
@@ -523,7 +527,11 @@ namespace ${NS}
         // gives another size soon after kept to a limit of its own, which
         // later requests keep to (JuceEditorConstrainer::hostReplaced()).
         std::optional<juce::Point<int>> askedOfHost;
-        juce::uint32 askedAt = 0;
+        juce::uint32 askedAt = 0;${
+          editor.resizable && editor.resize === 'scale'
+            ? '\n        backend::JuceRasterScale rasterScale;'
+            : ''
+        }
         // What a resize says of the host: that it replaced a size asked of it,
         // or set one of its own.
         void noteHostSize();
@@ -965,8 +973,17 @@ ${renderEditorSize(editor)}
             : ''
         }
         image.setArea(area);
-        surface.setScale(static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this))
-                         * viewZoom);
+        const float wantedScale =
+            static_cast<float>(displayScale * juce::Component::getApproximateScaleFactorForComponent(this)) * viewZoom;
+${
+  editor.resizable && editor.resize === 'scale'
+    ? `        // CPU presentation scales the completed image during a resize.
+        // Rebuild its raster pixels once the size is still, rather than
+        // reallocating WebGL/Canvas buffers and redrawing the whole UI per step.
+        surface.setScale(gpu != nullptr ? wantedScale : rasterScale.update(
+            wantedScale, getWidth(), getHeight(), juce::Time::getMillisecondCounterHiRes()));`
+    : '        surface.setScale(wantedScale);'
+}
     }
 
 ${renderEditorRequest(editor)}
@@ -1040,8 +1057,9 @@ ${renderEditorArea(editor)}
     void AudioProcessorEditor::resized()
     {
         noteHostSize();
-        // On the CPU, paint() (which the resize asks for) renders at the new
-        // size. The GPU compositor presents over the view instead: present at
+        // On the CPU, paint() presents the last complete frame until the
+        // timer has settled JavaScript and rendered at the new size. The GPU
+        // compositor presents over the view instead: present at
         // the new size now, not on the next tick, so a window being dragged
         // larger does not show the last frame stretched. Not before there is
         // one: the constructor sizes the view before it is shown.
@@ -1062,7 +1080,9 @@ ${renderEditorArea(editor)}
 #else
         host->tick();
 #endif
-        // Asked for by timers, animations or async work the tick ran.
+        // At most one a frame, whatever asked for it (input included): a fast
+        // pointer's every event would resize the host's window, and take the
+        // thread from it, as a browser's next render does not.
         applyEditorSizeRequest();
         updateAccessibility();
         // A lock ends with a reloaded runtime or a drag the platform ended,
@@ -1155,7 +1175,6 @@ ${renderEditorArea(editor)}
 #endif
         runtimeHost().surface().pointer(input);
         runtimeHost().runtime().runPendingJobs();
-        applyEditorSizeRequest();
         updatePointerLock();
         updateCursor();
     }
@@ -1195,7 +1214,11 @@ ${renderEditorArea(editor)}
     }
 
     void AudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
-    {
+    {${
+      canRequestEditorSize(editor)
+        ? '\n        sizeConstrainer.forgetHostLimits();'
+        : ''
+    }
         deliver(backend::pointerInput(event, ui::PointerInput::Phase::Down));
     }
 
@@ -1243,7 +1266,6 @@ ${renderEditorArea(editor)}
                                                            .modifiers = backend::modifiersOf(key.getModifiers()) },
                                                          backend::typedText(key));
         runtimeHost().runtime().runPendingJobs();
-        applyEditorSizeRequest();
         return handled;
     }
 
@@ -1279,7 +1301,6 @@ ${renderEditorArea(editor)}
             key = heldKeys.erase(key);
         }
         runtimeHost().runtime().runPendingJobs();
-        applyEditorSizeRequest();
         return handled;
     }
 
@@ -1289,17 +1310,12 @@ ${renderEditorArea(editor)}
         // The GPU compositor presents over this view, in a layer or window of its own.
         if (gpu != nullptr)
             return;
-        // Resized since the last frame: render one at the new size first.
-        sizeSurface();
-        // The surface's pixels: its layout's size at its scale.
-        const auto size = runtimeHost().surface().size();
-        const float scale = runtimeHost().surface().scale();
-        const int width = juce::roundToInt(size.width * scale);
-        const int height = juce::roundToInt(size.height * scale);
-        if (width <= 0 || height <= 0)
-            return;
-        if (! image.matches(width, height))
-            renderFrame();
+        // Only present completed frames. Native resize/expose callbacks can
+        // arrive before JavaScript has observed the new size. Rendering here
+        // mixes that unfinished layout with the native repaint's damage clip.
+        // The timer settles JavaScript and renders; until then, fit the last
+        // complete image into the current view.
+        image.setArea(uiArea());
         image.paint(g);
     }
 } // namespace ${NS}

@@ -18,6 +18,7 @@ target_sources(soundor_juce_platform_tests
     JucePlatformTests.cpp
     JucePointerLockTests.cpp
     JucePresentationTests.cpp
+    JuceRasterScaleTests.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceCursor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceHttpClient.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceInput.cpp

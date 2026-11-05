@@ -82,7 +82,41 @@ await host.openEditor({ scale: 2 });
 editor's size, whether it can be resized, and its content scale. Sizes are in
 pixels on Windows and Linux and in points on macOS, as VST3 defines them.
 Resizes the plugin asks for itself are followed and reported as
-`editorResized`. The window adds no controls of its own.
+`editorResized`. `presentation: 'editor'` shows the editor alone, and its
+window's border resizes it through the plugin's own answers, within its limits
+and keeping any aspect ratio it keeps, and the window takes the editor's size
+once the drag stops; the window cannot be maximized or minimized. `presentation: 'host'` surrounds
+it with transport and audio controls, and its window's border changes only the
+stage around the editor, as resizing the page does in the web host: neither
+that nor maximizing changes the editor's size, whether or not the plugin can be
+resized, and the window's minimum keeps room for it. A resizable plugin has a grip just
+outside its
+bottom-right corner: drag it to resize the editor within its own limits. As
+in the web host, the editor stays centred on the stage, its corner follows
+the pointer, and it stops at the stage's room; the window does not grow for
+it. A size the plugin asks for (`requestEditorSize()`, `IPlugFrame::resizeView`)
+is held to the same room. `resizeEditor()` is yours: the window grows for it.
+While the geometry
+changes on Linux, the host draws the editor's last complete image in its own
+frames, stretched until the editor has painted the new size, and input does
+not reach the editor. This needs libXcomposite and libXdamage; without them
+the editor's X11 window stays on the screen and paints on its own time.
+Native window-manager size changes
+are asynchronous; `getEditor()` reports the currently acknowledged window
+size, which may settle after `resizeEditor()` returns.
+
+In the host presentation, start live audio with Start audio, the dock's
+speaker button, Play, or the on-screen keyboard. Stop audio closes the audio
+device; unrelated clicks leave it stopped. The dock's speaker button mutes
+or unmutes audio that is already running. Transport Stop pauses playback and
+returns the position to the beginning while leaving the audio device running.
+
+The host controls target the current monitor's reported refresh rate while
+animating, and follow changes when the window moves between displays. If the
+display does not report a rate, they use 60 Hz. This is timer-based pacing,
+subject to platform timer precision, rather than synchronization to display
+scanout. Idle controls check for changes every 100 ms and present only when
+the drawing changes. The plugin editor schedules its own rendering.
 
 ## Choosing the plugin class and setup
 

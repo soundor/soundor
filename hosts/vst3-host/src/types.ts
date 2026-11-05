@@ -269,13 +269,57 @@ export interface PluginState {
   controller: Uint8Array;
 }
 
+/**
+ * How an editor is shown: `editor`, a window that is the plugin's editor
+ * alone, or `host`, the editor with the host interface around it (a dock
+ * and a side panel). Either way the editor has the same size, and
+ * everything the interface does can be done through this API.
+ */
+export type Presentation = 'editor' | 'host';
+
 export interface EditorInfo {
   open: boolean;
+  /** The editor's size (not the window's). */
   width?: number;
   height?: number;
   resizable?: boolean;
   scale?: number;
   platformType?: string;
+  presentation?: Presentation;
+  /** The window's content size: the editor's in `editor`, more in `host`. */
+  window?: { width: number; height: number };
+  /** `host`: the frames the interface has presented. An idle window
+      presents none. */
+  interfaceFrames?: number;
+}
+
+/** Where live audio's input comes from: a 220 Hz triangle wave, a WAV
+    file (looped), the default recording device, or silence. It plays while
+    the transport does. */
+export type AudioInput = 'oscillator' | 'file' | 'microphone' | 'none';
+
+export interface AudioSettings {
+  input?: AudioInput;
+  /** A WAV file's path, for the `file` input (selects it when no input is given). */
+  file?: string;
+  muted?: boolean;
+  /** The output volume, from 0 to 1. */
+  volume?: number;
+}
+
+export interface AudioStatus {
+  /** Live audio plays through the default output device. */
+  running: boolean;
+  muted: boolean;
+  volume: number;
+  input: AudioInput;
+  file: string | null;
+  /** The output device's name while running. */
+  device: string | null;
+  /** The device or the plugin's processing failed. */
+  error: string | null;
+  /** The input could not be opened (a microphone) or read (a file). */
+  inputError: string | null;
 }
 
 export interface LatencyInfo {
@@ -295,6 +339,9 @@ export interface HostEvents {
   editorResized: EditorInfo;
   /** The user closed the editor's window. */
   editorClosed: Record<string, never>;
+  /** Live audio changed from the host interface (started, stopped, muted,
+      another input or volume). */
+  audioChanged: AudioStatus;
   /** The host process ended. */
   exit: { code: number | null; signal: NodeJS.Signals | null };
 }

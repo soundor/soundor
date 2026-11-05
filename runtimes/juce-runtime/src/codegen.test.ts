@@ -234,7 +234,6 @@ describe('generateJuceSources', () => {
     expect(table).toContain(
       '{ "voices", "Voices", parameters::Kind::Int, 1.0, 8.0, 4.0, "", {  } },',
     );
-    expect(table.indexOf('"bypass"')).toBeLessThan(table.indexOf('"gain"'));
     const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
     expect(header).toContain(
       'virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }',
@@ -253,6 +252,17 @@ describe('generateJuceSources', () => {
     expect(header).toContain(
       'static constexpr const char* pluginId = "com.acme.synth";',
     );
+  });
+
+  it('keeps native paint callbacks from advancing the runtime frame', () => {
+    const source = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    const paint = source.match(
+      /void AudioProcessorEditor::paint\(juce::Graphics& g\)[\s\S]*?\n    }/,
+    )?.[0];
+    // A native expose can run between resize and the next JavaScript tick.
+    // Advancing the surface or rendering here mixes two layout generations.
+    expect(paint).toBeDefined();
+    expect(paint).not.toMatch(/\b(?:renderFrame|sizeSurface|runtimeHost)\s*\(/);
   });
 
   it('wires HTTP, host info and the data directory into the runtime', () => {
@@ -509,15 +519,12 @@ describe('generateJuceSources', () => {
       expect(source).toMatch(
         /sizeConstrainer\.hostReplaced\(\*askedOfHost, now\);\s+else\s+sizeConstrainer\.hostGave\(now\);/,
       );
-      // After pointer and key input, and the tick's timers.
+      // Once a frame, on the tick, however many events asked for it.
       expect(source).toMatch(
-        /surface\(\)\.pointer\(input\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest\(\);/,
+        /host->tick\(\);[\s\S]{0,240}applyEditorSizeRequest\(\);/,
       );
-      expect(source).toMatch(
-        /backend::typedText\(key\)\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest\(\);/,
-      );
-      expect(source).toMatch(
-        /host->tick\(\);[\s\S]{0,120}applyEditorSizeRequest\(\);/,
+      expect(source).not.toMatch(
+        /surface\(\)\.pointer\(input\);\s+runtimeHost\(\)\.runtime\(\)\.runPendingJobs\(\);\s+applyEditorSizeRequest/,
       );
     });
 
@@ -598,12 +605,24 @@ describe('generateJuceSources', () => {
     expect(all).not.toContain('getCurrentLevel');
   });
 
-  it('is deterministic regardless of declaration order', () => {
+  it('keeps the parameters in the order the config declares', () => {
     const reversed = {
       ...config,
       parameters: [...config.parameters].reverse(),
     } as SoundorConfig;
-    expect(generateJuceSources(reversed, params)).toEqual(
+    const table = (input: SoundorConfig) => {
+      const proc = fileMap(input).get('soundor/SoundorProcessor.cpp')!;
+      return proc.slice(proc.indexOf('parameterInfos()'));
+    };
+    const positions = (source: string) =>
+      config.parameters.map((parameter) =>
+        source.indexOf(`{ "${parameter.id}", `),
+      );
+    const declared = positions(table(config));
+    const backwards = positions(table(reversed));
+    expect(declared).toEqual([...declared].sort((a, b) => a - b));
+    expect(backwards).toEqual([...backwards].sort((a, b) => b - a));
+    expect(generateJuceSources(config, params)).toEqual(
       generateJuceSources(config, params),
     );
   });

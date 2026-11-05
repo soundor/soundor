@@ -17,13 +17,16 @@ namespace soundor::vst3host
                 : loop_(loop), callbacks_(std::move(callbacks))
             {
                 const NSRect frame = NSMakeRect(0, 0, width, height);
-                window_ =
-                    [[NSWindow alloc] initWithContentRect:frame
-                                                styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable
-                                                          | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
-                                                  backing:NSBackingStoreBuffered
-                                                    defer:NO];
+                window_ = [[NSWindow alloc]
+                    initWithContentRect:frame
+                              styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
+                                backing:NSBackingStoreBuffered
+                                  defer:NO];
                 [window_ setReleasedWhenClosed:NO];
+                // It shows the editor at the editor's size: not maximized or
+                // minimized.
+                [window_ setCollectionBehavior:NSWindowCollectionBehaviorFullScreenNone];
+                [[window_ standardWindowButton:NSWindowZoomButton] setEnabled:NO];
                 [window_ setTitle:[NSString stringWithUTF8String:title.c_str()]];
                 content_ = [[NSView alloc] initWithFrame:frame];
                 [window_ setContentView:content_];
@@ -78,10 +81,13 @@ namespace soundor::vst3host
                 NSWindowStyleMask mask = [window_ styleMask];
                 mask = resizable ? (mask | NSWindowStyleMaskResizable) : (mask & ~NSWindowStyleMaskResizable);
                 [window_ setStyleMask:mask];
+                [[window_ standardWindowButton:NSWindowZoomButton] setEnabled:NO];
             }
 
             void setContentSize(int width, int height) override
             {
+                if (windowSize() == std::pair(width, height))
+                    return;
                 ignoreResize_ = true;
                 [window_ setContentSize:NSMakeSize(width, height)];
                 ignoreResize_ = false;
@@ -98,6 +104,11 @@ namespace soundor::vst3host
             }
 
             [[nodiscard]] double scale() const override { return 1.0; }
+            [[nodiscard]] std::pair<int, int> windowSize() const override
+            {
+                const NSSize size = [content_ frame].size;
+                return { static_cast<int>(size.width), static_cast<int>(size.height) };
+            }
 
         private:
             EventLoop& loop_;

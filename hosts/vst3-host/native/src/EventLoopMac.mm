@@ -2,6 +2,10 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include <algorithm>
+#include <map>
+#include <memory>
+
 namespace soundor::vst3host
 {
     namespace
@@ -31,6 +35,11 @@ namespace soundor::vst3host
 
             ~MacEventLoop() override
             {
+                for (auto& [id, timer] : timers_)
+                {
+                    CFRunLoopTimerInvalidate(timer->timer);
+                    CFRelease(timer->timer);
+                }
                 if (keepAlive_ != nullptr)
                 {
                     CFRunLoopTimerInvalidate(keepAlive_);
@@ -45,7 +54,12 @@ namespace soundor::vst3host
                 {
                     @autoreleasepool
                     {
-                        if (ui_)
+                        if (ui_ && waiter_)
+                        {
+                            const auto wait = waiter_;
+                            wait(0.25);
+                        }
+                        else if (ui_)
                         {
                             NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                                                 untilDate:[NSDate dateWithTimeIntervalSinceNow:0.25]
@@ -75,8 +89,51 @@ namespace soundor::vst3host
                 CFRunLoopWakeUp(CFRunLoopGetMain());
             }
 
+            Id addTimer(unsigned milliseconds, std::function<void()> fire) override
+            {
+                const Id id = ++nextId_;
+                auto timer = std::make_unique<Timer>();
+                timer->fire = std::move(fire);
+                const double interval = std::max(1U, milliseconds) / 1000.0;
+                CFRunLoopTimerContext context {};
+                context.info = timer.get();
+                timer->timer = CFRunLoopTimerCreate(
+                    nullptr, CFAbsoluteTimeGetCurrent() + interval, interval, 0, 0,
+                    [](CFRunLoopTimerRef, void* info)
+                    {
+                        // A copy: the callback may remove this timer.
+                        const auto fire = static_cast<Timer*>(info)->fire;
+                        fire();
+                    },
+                    &context);
+                CFRunLoopAddTimer(CFRunLoopGetMain(), timer->timer, kCFRunLoopCommonModes);
+                timers_.emplace(id, std::move(timer));
+                return id;
+            }
+
+            void removeTimer(Id id) override
+            {
+                const auto it = timers_.find(id);
+                if (it == timers_.end())
+                    return;
+                CFRunLoopTimerInvalidate(it->second->timer);
+                CFRelease(it->second->timer);
+                timers_.erase(it);
+            }
+
+            void setWaiter(std::function<void(double seconds)> wait) override { waiter_ = std::move(wait); }
+
         private:
+            struct Timer
+            {
+                CFRunLoopTimerRef timer = nullptr;
+                std::function<void()> fire;
+            };
+
             bool ui_;
+            std::function<void(double seconds)> waiter_;
+            std::map<Id, std::unique_ptr<Timer>> timers_;
+            Id nextId_ = 0;
             bool running_ = false;
             CFRunLoopTimerRef keepAlive_ = nullptr;
         };

@@ -98,9 +98,26 @@ namespace soundor::vst3host
         std::string error;
     };
 
+    /** A parameter as the host interface shows it. */
+    struct HostParameter
+    {
+        Vst::ParamID id = 0;
+        std::string title;
+        std::string units;
+        int32 stepCount = 0;
+        double defaultValue = 0;
+        bool readOnly = false;
+        bool list = false;
+        bool bypass = false;
+    };
+
     struct PluginCallbacks
     {
         std::function<void(const std::string& event, Json params)> emit;
+        /** Makes the window an editor opens in (the presentation's). */
+        std::function<std::unique_ptr<EditorWindow>(const std::string& title, int width, int height,
+                                                    EditorWindow::Callbacks callbacks, std::string& error)>
+            createWindow;
     };
 
     class Plugin final : public HostListener
@@ -140,11 +157,67 @@ namespace soundor::vst3host
         void runProcess(ProcessJob& job);
         /** Back on the main thread: results to JSON, controller in sync. */
         Json finishProcess(ProcessJob& job);
+        /** The transport as the protocol reports it. */
+        Json transportJson() const;
+        /** Changes the transport (setTransport's params); returns it. */
+        Json setTransport(const Json& params);
 
         Json openEditor(std::optional<double> scale);
         void closeEditor();
         Json resizeEditor(int width, int height);
+        /** The size the window shows the editor at, within its limits, before
+            it is asked to take it (resizeEditor). */
+        void previewEditorSize(int width, int height);
+        /** The size a window that is the editor shows it at, in a drag that
+            has just changed the window from `lastWidth`×`lastHeight`. A window
+            edge moves one side, and an editor that keeps its shape answers
+            that with the other side's size: it is asked again, with the other
+            side left to it. VST3 does not say which edge moved. */
+        void previewEditorDrag(int width, int height, int lastWidth, int lastHeight);
+        /** A size the user or the editor asks for: within the editor's limits
+            and the room the window has. resizeEditor() is the caller's: the
+            window grows for it. */
+        Json requestEditorSize(int width, int height);
         Json editorInfo() const;
+        [[nodiscard]] bool editorOpen() const { return view_ != nullptr; }
+        [[nodiscard]] double editorScale() const { return scale_; }
+
+        // ── For live audio and the host interface (main thread unless noted)
+
+        /** Held while the plugin processes, and while anything changes what
+            processing uses (activation, buses, state). Live audio only tries
+            it, and plays silence when it is taken. */
+        std::recursive_mutex& processing() { return processing_; }
+        [[nodiscard]] bool active() const { return active_; }
+        [[nodiscard]] std::string name() const { return class_.name(); }
+        [[nodiscard]] std::string vendor() const { return class_.vendor(); }
+        [[nodiscard]] std::string version() const { return class_.version(); }
+        /** Channels of the main audio input and output buses (0: none or inactive). */
+        [[nodiscard]] int32 mainInputChannels() const;
+        [[nodiscard]] int32 mainOutputChannels() const;
+        /** Each audio bus's channel count, as process() lays them out. */
+        [[nodiscard]] std::vector<int32> inputBusChannels() const;
+        [[nodiscard]] std::vector<int32> outputBusChannels() const;
+        [[nodiscard]] bool hasEventInput() const { return ! eventInputs_.empty(); }
+        [[nodiscard]] uint32 latencySamples() const;
+        /** Bumped when the plugin's parameter list or titles may have changed. */
+        [[nodiscard]] int parameterGeneration() const { return parameterGeneration_; }
+        std::vector<HostParameter> hostParameters() const;
+        [[nodiscard]] double normalizedValue(Vst::ParamID id) const;
+        std::string valueText(Vst::ParamID id, double normalized) const;
+        /** An edit from the host interface: the controller now, the processor
+            at the next process call. Ignored for an unknown or read-only id. */
+        void editParameter(Vst::ParamID id, double normalized);
+        /** A note for the next process call's first frame (the on-screen keyboard). */
+        void queueEvent(const Vst::Event& event);
+        /** The transport, any thread. */
+        [[nodiscard]] Transport transport() const;
+        /** Changes the transport; any thread. Processing in progress keeps
+            what it had for its call and does not overwrite the change. */
+        void editTransport(const std::function<void(Transport&)>& edit);
+        /** Applies output parameter values the processor reported (meters)
+            to the controller. */
+        void applyOutputChanges(const std::vector<ParameterChange>& changes);
 
         /** Runs restarts the plugin asked for while busy. */
         void applyPendingRestarts();
@@ -164,6 +237,10 @@ namespace soundor::vst3host
         bool busy = false;
 
     private:
+        /** `size`, held to the room the window has for the editor, if it keeps to one. */
+        void keepToRoom(Steinberg::ViewRect& size);
+        /** The window keeps no smaller than the editor's smallest size takes. */
+        void tellWindowEditorLimits();
         struct Bus
         {
             std::string name;
@@ -184,6 +261,7 @@ namespace soundor::vst3host
         Json busesJson() const;
         Json parameterJson(int32 index) const;
         void requireLoaded() const;
+        Transport parseTransport(const Json& transport, const std::string& where) const;
 
         EventLoop& loop_;
         bool ui_;
@@ -214,12 +292,22 @@ namespace soundor::vst3host
         std::vector<Bus> eventInputs_;
         std::vector<Bus> eventOutputs_;
 
+        // The transport, shared by offline and live processing and changed
+        // by the interface; `transportEdits_` counts its outside changes.
+        mutable std::mutex transportMutex_;
         Transport transport_;
+        uint64_t transportEdits_ = 0;
         int64 continuousSamples_ = 0;
+        int32 parameterCount_ = 0;
+        int parameterGeneration_ = 0;
 
-        // Edits from setParameter and the editor, for the next process call.
+        std::recursive_mutex processing_;
+
+        // Edits from setParameter, the editor and the interface, and notes
+        // from the interface, for the next process call.
         std::mutex pendingMutex_;
         std::vector<ParameterChange> pending_;
+        std::vector<Vst::Event> pendingEvents_;
         int32 pendingRestart_ = 0;
 
         // The editor (UI mode).
