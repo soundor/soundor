@@ -82,7 +82,8 @@ Not simulated: layout and pixels (no positions, nothing drawn; the view's
 size is only what [`testView`](/docs/testing/test-view) sets), canvas
 drawing, audio, a DAW, Hermes and the native engine, and `soundor:fs` (mock
 it with `vi.mock('soundor:fs')`). A test checks behavior; what it looks like,
-and how it sounds, needs the plugin itself.
+and how it sounds, needs the plugin itself: that is what
+[end-to-end tests](/docs/testing/e2e) are for.
 
 Without React, the root entry `@soundor/testing-library` has the same
 queries, interactions and helpers for tests of plain `soundor:ui` nodes.

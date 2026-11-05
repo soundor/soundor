@@ -106,6 +106,8 @@ async function credentials(
 }
 
 // Selection is the Driver's own; connect() selects the requested target.
+/** @internal What a Driver's locators work through (not in the public entry). */
+export let locatorHost: (driver: Driver) => LocatorHost;
 let selectTarget: (
   driver: Driver,
   candidates: DebugTarget[],
@@ -232,6 +234,7 @@ export class Driver {
   }
 
   static {
+    locatorHost = (driver) => driver.#locatorHost;
     selectTarget = (driver, candidates, wanted) =>
       driver.#select(candidates, wanted);
   }

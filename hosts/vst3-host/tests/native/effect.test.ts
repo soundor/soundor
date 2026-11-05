@@ -139,6 +139,19 @@ describe('parameters', () => {
     expect(parameters.find((p) => p.id === PEAK)?.flags.readOnly).toBe(true);
   });
 
+  test('are found by title', async () => {
+    const host = await launch('Fixture Gain');
+    const gain = host.parameter('Gain');
+    expect((await gain.get()).id).toBe(GAIN);
+    expect((await gain.set(0.25)).normalized).toBe(0.25);
+    expect((await gain.set({ normalized: 0.5 })).normalized).toBe(0.5);
+    expect((await host.getParameter(GAIN)).normalized).toBe(0.5);
+
+    const unknown = await failure(host.parameter('Nope').get());
+    expect(unknown.code).toBe('unknown-parameter');
+    expect(unknown.message).toContain('"Gain"');
+  });
+
   test('take normalized or plain values and reject others', async () => {
     const host = await launch('Fixture Gain');
     expect((await host.setParameter(GAIN, 0.25)).normalized).toBe(0.25);

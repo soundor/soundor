@@ -14,6 +14,7 @@ import { resolveHost } from './resolve.ts';
 import type {
   EditorInfo,
   HostEvents,
+  HostParameter,
   LatencyInfo,
   ParameterInfo,
   ParameterValue,
@@ -86,6 +87,29 @@ interface Pending {
   settled: boolean;
   timer?: NodeJS.Timeout;
   onAbort?: () => void;
+}
+
+/**
+ * The one parameter with this title, or `unknown-parameter`. A JUCE plugin with
+ * a Bypass of its own also has the bypass JUCE adds for hosts, with the same
+ * title and the bypass flag: the title means the plugin's own.
+ */
+export function parameterTitled(
+  parameters: readonly ParameterInfo[],
+  title: string,
+): ParameterInfo {
+  let found = parameters.filter((info) => info.title === title);
+  if (found.length > 1) {
+    const own = found.filter((info) => !info.flags.bypass);
+    if (own.length === 1) found = own;
+  }
+  if (found.length === 1) return found[0]!;
+  throw new Vst3HostError(
+    'unknown-parameter',
+    found.length === 0
+      ? `No parameter is titled "${title}"; the plugin has: ${parameters.map((info) => `"${info.title}"`).join(', ')}`
+      : `${found.length} parameters are titled "${title}"; use getParameters() and their ids`,
+  );
 }
 
 const live = new Set<ChildProcess>();
@@ -382,6 +406,18 @@ export class Vst3Host {
     return (
       await this.#request('setParameter', { id, ...values }, undefined, options)
     ).result as ParameterInfo;
+  }
+
+  /** A parameter by its title, looked up at each use (see
+      {@link parameterTitled}). */
+  parameter(title: string): HostParameter {
+    const find = async (options?: RequestOptions): Promise<ParameterInfo> =>
+      parameterTitled(await this.getParameters(options), title);
+    return {
+      get: find,
+      set: async (value, options) =>
+        this.setParameter((await find(options)).id, value, options),
+    };
   }
 
   async getLatency(options?: RequestOptions): Promise<LatencyInfo> {

@@ -23,6 +23,7 @@
       "@soundor/test-runtime",
       "@soundor/testing-library",
       "@soundor/vitest",
+      "@soundor/vitest-e2e",
       "vitest-environment-soundor"
     ]
   ],

@@ -2,14 +2,23 @@ import { startDevToolsServer } from '@soundor/devtools-server';
 import {
   launchHost,
   type EditorInfo,
+  type HostParameter,
   type LaunchOptions,
   type Presentation,
   type RequestOptions,
   type Vst3Host,
 } from '@soundor/vst3-host';
 
-import { connect, type Driver } from './driver';
+import {
+  connect,
+  locatorHost,
+  type Driver,
+  type Screenshot,
+  type ScreenshotOptions,
+} from './driver';
 import { DriverError, isDriverError } from './errors';
+import type { Keyboard, Pointer } from './input';
+import { Locator, type LocatorHost } from './locator';
 import { DESCRIPTOR_ENV } from './session';
 
 export interface Vst3LaunchOptions extends Omit<LaunchOptions, 'editor'> {
@@ -97,10 +106,33 @@ export async function launch(options: Vst3LaunchOptions): Promise<Vst3Plugin> {
   }
 }
 
+/** The locator host of whichever Driver is current when a locator is used. */
+function following(current: () => LocatorHost): LocatorHost {
+  return {
+    get pointer() {
+      return current().pointer;
+    },
+    get keyboard() {
+      return current().keyboard;
+    },
+    timeout: () => current().timeout(),
+    getTree: (options) => current().getTree(options),
+    getNode: (ref, options) => current().getNode(ref, options),
+    getLayout: (ref, options) => current().getLayout(ref, options),
+    getStyles: (ref, options) => current().getStyles(ref, options),
+    getAccessibility: (ref, options) =>
+      current().getAccessibility(ref, options),
+    hitTest: (x, y, options) => current().hitTest(x, y, options),
+    focus: (ref, options) => current().focus(ref, options),
+    capture: (ref, options) => current().capture(ref, options),
+  };
+}
+
 /** A plugin running in its own VST3 host and DevTools session. */
 export class Vst3Plugin {
   readonly #attachment: Attachment;
   readonly #closeSession: () => Promise<void>;
+  readonly #locators = following(() => locatorHost(this.#driver));
   #driver: Driver;
   // One attachment at a time, and none left behind by close().
   #opening: Promise<unknown> = Promise.resolve();
@@ -123,12 +155,52 @@ export class Vst3Plugin {
   }
 
   /**
-   * The Driver of the current editor. An editor that closes takes its
-   * Driver's target with it, and calls fail with `TARGET_DISCONNECTED`:
-   * {@link openEditor} makes the next one, so read this again after it.
+   * The Driver of the current editor, for what the plugin itself does not
+   * offer. An editor that closes takes its Driver's target with it, and calls
+   * fail with `TARGET_DISCONNECTED`: {@link openEditor} makes the next one,
+   * so read this again after it. The plugin's own locators need no such care.
    */
   get driver(): Driver {
     return this.#driver;
+  }
+
+  /** The node with this `debugId` prop, in the current editor at each use. */
+  getByDebugId(debugId: string): Locator {
+    return new Locator(this.#locators, { debugId });
+  }
+
+  /** The node exposed with this role (and name), in the current editor at
+      each use. */
+  getByRole(
+    role: string,
+    options: { name?: string; exact?: boolean } = {},
+  ): Locator {
+    return new Locator(this.#locators, { role, ...options });
+  }
+
+  /** The node showing this text, in the current editor at each use. */
+  getByText(text: string, options: { exact?: boolean } = {}): Locator {
+    return new Locator(this.#locators, { text, ...options });
+  }
+
+  /** The current editor's synthetic pointer. */
+  get pointer(): Pointer {
+    return this.#driver.pointer;
+  }
+
+  /** The current editor's synthetic keyboard. */
+  get keyboard(): Keyboard {
+    return this.#driver.keyboard;
+  }
+
+  /** Captures the current editor's view as PNG (see `Driver.screenshot()`). */
+  screenshot(options?: ScreenshotOptions): Promise<Screenshot> {
+    return this.#driver.screenshot(options);
+  }
+
+  /** A parameter by its title: `plugin.parameter('Gain').set(0.25)`. */
+  parameter(title: string): HostParameter {
+    return this.host.parameter(title);
   }
 
   /** The private session's descriptor, for `soundor driver --descriptor`. */
