@@ -30,12 +30,21 @@ namespace soundor::vst3host
         }
     } // namespace
 
+    // A handler that unregisters itself while it runs may drop the last other
+    // reference. It is released at once when it unregisters, never on a later
+    // turn: JUCE's handlers do not count references, and can be gone by then.
+    void RunLoop::fireFd(Linux::IEventHandler* handler, Linux::FileDescriptor fd)
+    {
+        const IPtr<Linux::IEventHandler> alive(handler);
+        handler->onFDIsSet(fd);
+    }
+
     tresult PLUGIN_API RunLoop::registerEventHandler(Linux::IEventHandler* handler, Linux::FileDescriptor fd)
     {
         if (handler == nullptr)
             return kInvalidArgument;
         handler->addRef();
-        const auto id = loop_.addFd(fd, [handler, fd] { handler->onFDIsSet(fd); });
+        const auto id = loop_.addFd(fd, [handler, fd] { fireFd(handler, fd); });
         handlers_.emplace(handler, id);
         // Xlib reads whatever is on its connection during any round trip into a
         // queue of its own, and then the connection has nothing to read: an
@@ -44,7 +53,7 @@ namespace soundor::vst3host
         // those: they must drain that queue anyway, and do not block with
         // nothing there, as a handler of any other descriptor might.
         if (isXConnection(fd))
-            rechecks_.emplace(handler, loop_.addTimer(xRecheckMilliseconds, [handler, fd] { handler->onFDIsSet(fd); }));
+            rechecks_.emplace(handler, loop_.addTimer(xRecheckMilliseconds, [handler, fd] { fireFd(handler, fd); }));
         return kResultTrue;
     }
 
@@ -60,7 +69,7 @@ namespace soundor::vst3host
         for (auto it = first; it != last; ++it)
         {
             loop_.removeFd(it->second);
-            releaseLater(handler);
+            handler->release();
         }
         handlers_.erase(first, last);
         return kResultTrue;
@@ -71,7 +80,12 @@ namespace soundor::vst3host
         if (handler == nullptr)
             return kInvalidArgument;
         handler->addRef();
-        const auto id = loop_.addTimer(static_cast<unsigned>(milliseconds), [handler] { handler->onTimer(); });
+        const auto id = loop_.addTimer(static_cast<unsigned>(milliseconds),
+                                       [handler]
+                                       {
+                                           const IPtr<Linux::ITimerHandler> alive(handler);
+                                           handler->onTimer();
+                                       });
         timers_.emplace(handler, id);
         return kResultTrue;
     }
@@ -84,15 +98,10 @@ namespace soundor::vst3host
         for (auto it = first; it != last; ++it)
         {
             loop_.removeTimer(it->second);
-            releaseLater(handler);
+            handler->release();
         }
         timers_.erase(first, last);
         return kResultTrue;
-    }
-
-    void RunLoop::releaseLater(FUnknown* object)
-    {
-        loop_.post([object] { object->release(); });
     }
 
     void RunLoop::clear()

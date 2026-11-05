@@ -75,6 +75,21 @@ namespace soundor::fixtures
             int unpainted_ = 0;
             int ticks_ = 0;
         };
+
+        /** A handler as JUCE's are: it counts no references, and it is gone as
+            soon as it has unregistered, whatever the host still holds. */
+        class UncountedTimer final : public Linux::ITimerHandler
+        {
+        public:
+            tresult PLUGIN_API queryInterface(const TUID, void** object) override
+            {
+                *object = nullptr;
+                return kNoInterface;
+            }
+            uint32 PLUGIN_API addRef() override { return 1000; }
+            uint32 PLUGIN_API release() override { return 1000; }
+            void PLUGIN_API onTimer() override {}
+        };
     } // namespace
 
     struct NativeChild
@@ -84,6 +99,7 @@ namespace soundor::fixtures
         IPtr<Linux::IRunLoop> runLoop;
         IPtr<Timer> timer;
         IPtr<Events> events;
+        UncountedTimer* uncounted = nullptr;
     };
 
     const char* platformType()
@@ -120,6 +136,8 @@ namespace soundor::fixtures
             }));
         runLoop->registerTimer(child->timer, 10);
         runLoop->registerEventHandler(child->events, ConnectionNumber(display));
+        child->uncounted = new UncountedTimer;
+        runLoop->registerTimer(child->uncounted, 1000);
         return child;
     }
 
@@ -133,6 +151,8 @@ namespace soundor::fixtures
     {
         child->runLoop->unregisterTimer(child->timer);
         child->runLoop->unregisterEventHandler(child->events);
+        child->runLoop->unregisterTimer(child->uncounted);
+        delete child->uncounted;
         XDestroyWindow(child->display, child->window);
         XCloseDisplay(child->display);
         delete child;

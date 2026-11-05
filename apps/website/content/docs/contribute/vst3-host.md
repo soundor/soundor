@@ -8,14 +8,16 @@ User guide: [VST3 host](/docs/testing/vst3-host).
 
 `@soundor/vst3-host` is an independently versioned package outside the
 Changesets fixed group. It depends on no other Soundor package, on no JUCE
-code and on no Soundor engine, and nothing in the workspace depends on it
-yet. Its normal `build` compiles the Node client only.
+code and on no Soundor engine. `@soundor/driver` has it as an optional peer,
+for [its `vst3` entry](/docs/driver/vst3), and nothing else depends on it. Its
+normal `build` compiles the Node client only.
 
 ## Purpose
 
 A VST3 host that tests, development tools and, later, other Soundor packages
 can drive: load a plugin from its bundle path, process audio offline, open
-its editor. The intended dependency direction, once integrations exist:
+its editor. The dependency direction, with `@soundor/juce-runtime` still to
+come:
 
 ```text
 @soundor/juce-runtime          @soundor/driver/vst3
@@ -30,9 +32,10 @@ its editor. The intended dependency direction, once integrations exist:
                    VST3 plugin
 ```
 
-Neither integration is part of the package today. A DevTools panel for host
+The host knows of neither. `@soundor/driver/vst3` starts the DevTools session
+and passes its descriptor in the host's environment. A DevTools panel for host
 controls (parameters, transport) would also sit on top of the Node API; the
-host itself creates no DevTools session and draws no UI of its own.
+host itself creates no DevTools session.
 
 ## Where the code is
 
@@ -185,7 +188,14 @@ Verify calls it when `turbo query affected` reports `@soundor/vst3-host`
 (`.github/scripts/native-changes.mjs`, job `host`): a change in the package,
 its workspace dependencies (the shared configs), turbo's global dependencies
 or CI itself. Host changes never run the engine's suites, and engine changes
-never run the host's.
+never run the host's. A change only under `hosts/vst3-host/` runs this job
+alone: the graph has it reach the JUCE and benchmark packages through
+`@soundor/driver`, but only that package's optional `vst3` entry uses the host.
+
+No CI job runs `@soundor/driver/vst3` against a real plugin, which would need
+both this executable and a Debug engine. Its unit tests use a simulated
+runtime; `packages/driver/src/vst3.plugin.test.ts` runs by hand against the
+real pieces, and its first lines say how.
 
 ## Releases
 

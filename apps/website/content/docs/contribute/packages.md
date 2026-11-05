@@ -30,6 +30,8 @@ flowchart LR
     cli --> dtclient["@soundor/devtools-client"]
     cli --> driver["@soundor/driver"]
     driver --> dtprotocol
+    driver --> dtserver
+    driver -. optional .-> host["@soundor/vst3-host"]
     dtserver --> dtprotocol["@soundor/devtools-protocol"]
     config --> core
     core --> environment["@soundor/environment"]
@@ -53,7 +55,9 @@ flowchart LR
 types only), which every runtime provides. Core copies the same declarations
 into each project's `.soundor/generated`. `create-soundor-app`
 depends on none either: it copies a template and installs the others.
-`@soundor/vst3-host` depends on no Soundor package, and none depends on it.
+`@soundor/vst3-host` depends on no Soundor package; `@soundor/driver` has it as
+an optional peer for its `vst3` entry, so that a Driver user installs no
+native executable.
 
 | Area              | Package                                                                                                                                                                         | Responsibility                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |

@@ -17,8 +17,8 @@ namespace soundor::vst3host
     using namespace Steinberg;
 
 #if defined(__linux__)
-    /** Linux::IRunLoop over the main thread's EventLoop. Handlers are
-        released on a later turn of the loop, never inside their own call. */
+    /** Linux::IRunLoop over the main thread's EventLoop. A handler is held
+        while it runs, and released as soon as it unregisters. */
     class RunLoop final : public U::Implements<U::Directly<Linux::IRunLoop>>
     {
     public:
@@ -34,7 +34,7 @@ namespace soundor::vst3host
         void clear();
 
     private:
-        void releaseLater(FUnknown* object);
+        static void fireFd(Linux::IEventHandler* handler, Linux::FileDescriptor fd);
 
         EventLoop& loop_;
         std::multimap<Linux::IEventHandler*, EventLoop::Id> handlers_;

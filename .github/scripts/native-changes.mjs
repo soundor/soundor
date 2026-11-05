@@ -2,7 +2,9 @@
 // reports, from a change to the package, a workspace package it depends on,
 // its external dependencies or turbo's global dependencies. CI's own
 // definition is not in the package graph, so a change to it runs everything,
-// as does an unknown base.
+// as does an unknown base. A change to the VST3 host alone runs its job only:
+// the others' packages reach it just through @soundor/driver's optional
+// `vst3` entry, and nothing they build or test uses that.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
@@ -16,15 +18,17 @@ const JOBS = {
 const CI =
   /^\.github\/(workflows\/(verify|release|engine-artifacts|engine-prebuilts|vst3-host-artifacts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
 
+const HOST = 'hosts/vst3-host/';
+
 const base = process.env.BASE_SHA;
 const head = process.env.HEAD_SHA;
 
-function ciChanged() {
+function changedFiles() {
   return execFileSync('git', ['diff', '--name-only', base, head], {
     encoding: 'utf8',
   })
     .split('\n')
-    .some((path) => CI.test(path));
+    .filter(Boolean);
 }
 
 function affectedPackages() {
@@ -58,8 +62,16 @@ function lockedTurbo() {
   return version;
 }
 
-const affected =
-  !base || /^0+$/.test(base) || ciChanged() ? null : affectedPackages();
+function affectedByChange() {
+  if (!base || /^0+$/.test(base)) return null;
+  const files = changedFiles();
+  if (files.some((path) => CI.test(path))) return null;
+  if (files.length > 0 && files.every((path) => path.startsWith(HOST)))
+    return new Set([JOBS.host]);
+  return affectedPackages();
+}
+
+const affected = affectedByChange();
 appendFileSync(
   process.env.GITHUB_OUTPUT,
   Object.entries(JOBS)
