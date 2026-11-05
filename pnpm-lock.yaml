@@ -1011,6 +1011,9 @@ importers:
       '@soundor/devtools-protocol':
         specifier: workspace:^
         version: link:../devtools-protocol
+      '@soundor/devtools-server':
+        specifier: workspace:^
+        version: link:../devtools-server
       ws:
         specifier: 'catalog:'
         version: 8.22.0
@@ -1018,15 +1021,15 @@ importers:
         specifier: 'catalog:'
         version: 4.6.7
     devDependencies:
-      '@soundor/devtools-server':
-        specifier: workspace:^
-        version: link:../devtools-server
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config
       '@soundor/typescript-config':
         specifier: workspace:^
         version: link:../../configs/typescript-config
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

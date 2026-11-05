@@ -194,6 +194,18 @@ const cases = [
     false,
     true,
   ],
+  // Its own change alone is its job's; with another package, the graph decides.
+  [
+    'the host and the Driver',
+    (root) => {
+      append('hosts/vst3-host/src/host.ts')(root);
+      append('packages/driver/src/vst3.ts')(root);
+    },
+    false,
+    true,
+    true,
+    true,
+  ],
   [
     'host workflow',
     append('.github/workflows/vst3-host-artifacts.yml'),

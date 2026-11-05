@@ -38,6 +38,23 @@ soundor driver click reset
 soundor driver screenshot ./after-reset.png
 ```
 
+With `@soundor/vst3-host` installed too, `@soundor/driver/vst3` runs a Debug
+build of a plugin in that host, in a DevTools session of its own, to work with
+its UI and its audio in one script:
+
+```ts
+import { launch } from '@soundor/driver/vst3';
+
+const plugin = await launch({ plugin: 'build/MyPlugin.vst3' });
+try {
+  await plugin.driver.getByDebugId('bypass').click();
+  const { outputs } = await plugin.host.process({ frames: 4800 });
+  console.log(outputs[0]![0]![4799]);
+} finally {
+  await plugin.close();
+}
+```
+
 - [Soundor Driver guide](https://soundor.dev/docs/driver)
 - [Documentation](https://soundor.dev/docs)
 

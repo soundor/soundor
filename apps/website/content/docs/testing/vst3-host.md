@@ -35,6 +35,9 @@ test('halves the level', async () => {
 });
 ```
 
+To work with a Soundor plugin's UI beside its audio, see
+[Plugins in the VST3 host](/docs/driver/vst3).
+
 ## Installation
 
 ```sh

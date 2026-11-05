@@ -18,6 +18,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./vst3": {
+      "types": "./dist/vst3.d.ts",
+      "import": "./dist/vst3.js"
     }
   },
   "scripts": {
@@ -26,18 +30,27 @@
   },
   "dependencies": {
     "@soundor/devtools-protocol": "workspace:^",
+    "@soundor/devtools-server": "workspace:^",
     "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@soundor/devtools-server": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
     "@types/node": "catalog:",
     "@types/ws": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@soundor/vst3-host": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^22.18.0 || >=24.11.0"

@@ -5,6 +5,8 @@ description: 'Sign in to a DevTools session, select an instance, and handle time
 
 `connect()` signs in to one DevTools session and returns a `Driver`. A
 session is the one [`soundor dev`](/docs/cli/dev) runs; it ends with `dev`.
+To run a plugin in a session of its own, see
+[Plugins in the VST3 host](/docs/driver/vst3).
 
 ## The session
 

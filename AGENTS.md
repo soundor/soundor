@@ -122,8 +122,8 @@ Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
 Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 `soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
-(`vst3-host-artifacts.yml`). What a job builds must therefore be a dependency of its
-package.
+(`vst3-host-artifacts.yml`; a change only under `hosts/vst3-host/` runs this job
+alone). What a job builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved
@@ -194,6 +194,8 @@ read the docs bundled with the installed package
   server, clients read it back as a short-lived authenticated resource). The
   CLI's `soundor driver`
   commands use it. Nodes get a `debugId` from the components' `debugId` prop.
+  Its `@soundor/driver/vst3` entry (`launch()`) starts a private session, the
+  VST3 host and the plugin's editor, for one script to work with UI and audio.
 - `packages/react` (`@soundor/react`) — a react-reconciler renderer over
   `soundor:ui` with React Native–style components; also Portal, Modal and
   FocusScope. Tests live in the private `packages/react/testing` workspace and use the public
@@ -216,8 +218,8 @@ read the docs bundled with the installed package
   Node API that launches it (`launchHost()`), over a framed stdin/stdout
   protocol (`protocol.json`). Independently versioned; its executables ship as
   generated platform packages (`targets.json`, `scripts/release.ts`), never
-  committed. Nothing in the workspace depends on it yet; JUCE runtime and
-  Driver integrations are future work. See `contribute/vst3-host.md`.
+  committed. `@soundor/driver` has it as an optional peer, for its `vst3` entry; a JUCE
+  runtime integration is future work. See `contribute/vst3-host.md`.
 - `configs/*` — private shared tsconfig and tsdown presets.
 - `apps/website` — soundor.dev (private, never published): Fumadocs on
   TanStack Start, prerendered to static files for GitHub Pages. Content in
