@@ -71,7 +71,7 @@ namespace soundor::vst3host
             {
                 const Id id = ++nextId_;
                 timers_.emplace(id, std::move(fire));
-                SetTimer(window_, static_cast<UINT_PTR>(id), std::max(USER_TIMER_MINIMUM, milliseconds), nullptr);
+                SetTimer(window_, static_cast<UINT_PTR>(id), std::max<UINT>(USER_TIMER_MINIMUM, milliseconds), nullptr);
                 return id;
             }
 

@@ -180,5 +180,8 @@ namespace soundor::vst3host
         std::chrono::steady_clock::time_point nextFrame_ {};
         std::chrono::steady_clock::duration frameInterval_ {};
         bool closing_ = false;
+        /** False once this window is gone. On macOS, SDL's wait for events runs
+            the main queue's work, which can close the window it is waiting for. */
+        std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
     };
 } // namespace soundor::vst3host

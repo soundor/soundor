@@ -257,10 +257,11 @@ namespace soundor::vst3host
         // it), and sends every event on to the application, the editor's
         // included.
         loop_.setWaiter(
-            [this](double seconds)
+            [this, alive = alive_](double seconds)
             {
                 SDL_WaitEventTimeout(nullptr, static_cast<Sint32>(seconds * 1000));
-                pump();
+                if (*alive)
+                    pump();
             });
 #endif
         return true;
@@ -269,6 +270,7 @@ namespace soundor::vst3host
     HostWindow::~HostWindow()
     {
         closing_ = true;
+        *alive_ = false;
 #if defined(__APPLE__)
         loop_.setWaiter(nullptr);
 #endif
@@ -633,6 +635,7 @@ namespace soundor::vst3host
         if (closing_)
             return;
         ImGui::SetCurrentContext(context_);
+        const auto alive = alive_;
         SDL_Event event;
 #if defined(_WIN32)
         // The host's message loop dispatches the window's messages; SDL's
@@ -642,10 +645,14 @@ namespace soundor::vst3host
         while (SDL_PollEvent(&event))
 #endif
         {
+            if (! *alive)
+                return;
             handle(event);
             if (closing_)
                 return;
         }
+        if (! *alive)
+            return;
         const auto now = std::chrono::steady_clock::now();
         settleWindow(now);
         // A window manager that does not resize the window as asked.
