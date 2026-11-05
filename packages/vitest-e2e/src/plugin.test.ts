@@ -2,9 +2,8 @@
 // the real VST3 host, under a display. Runs only when told where it is:
 //
 //   pnpm --filter @soundor/vst3-host build:native
-//   (cd runtimes/juce-runtime && soundor init --config tests/plugin/soundor.config.ts
-//     && soundor dev juce --config tests/plugin/soundor.config.ts) # then stop it
-//   SOUNDOR_VITEST_E2E_PLUGIN=<…/Debug/VST3/Soundor Test Plugin.vst3> \
+//   pnpm --filter @soundor/juce-runtime test:plugin:debug
+//   SOUNDOR_VITEST_E2E_PLUGIN=<runtimes/juce-runtime/tests/plugin/.soundor/debug/juce/VST3/Soundor Test Plugin.vst3> \
 //     xvfb-run -a pnpm --filter @soundor/vitest-e2e exec vitest run src/plugin.test.ts
 import { describe, expect, test } from 'vitest';
 

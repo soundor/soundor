@@ -232,7 +232,11 @@ export async function juceDev(
   }
 }
 
-/** `build` — production package: produce VST3/AU under `ctx.paths.dist`. */
+/**
+ * `build` — under `ctx.paths.dist`: the production package, or with mode `debug`
+ * a Debug build with DevTools and the UI embedded, for tests. It has build and
+ * UI directories of its own, so it never disturbs a running `soundor dev`.
+ */
 export async function juceBuild(
   config: SoundorConfig,
   ctx: Ctx,
@@ -240,44 +244,56 @@ export async function juceBuild(
 ): Promise<void> {
   const run = deps.run ?? runCommand;
   const platform = deps.platform ?? process.platform;
+  const debug = ctx.mode === 'debug';
+  const configuration = debug ? 'Debug' : 'Release';
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
   requireToolchain(deps.probe ?? probeCommand);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
-  const buildDir = join(ctx.paths.cache, 'build-release');
-  const uiDir = nativeUiDir(ctx.paths.cache, 'release');
-  if (ctx.ui !== undefined) await writeNativeUi(ctx.ui, uiDir, 'production');
+  const buildDir = join(
+    ctx.paths.cache,
+    debug ? 'build-debug-build' : 'build-release',
+  );
+  const uiDir = nativeUiDir(ctx.paths.cache, debug ? 'debug-build' : 'release');
+  if (ctx.ui !== undefined) {
+    // Development output is kept between builds, for a live UI; this one is not.
+    if (debug) await rm(uiDir, { recursive: true, force: true });
+    await writeNativeUi(ctx.ui, uiDir, debug ? 'development' : 'production');
+  }
   await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
+  const signing = debug
+    ? ({ identity: '-', source: 'default' } as const)
+    : ctx.signing.macos;
   const configureArgs = [
     '-S',
     projectDir,
     '-B',
     buildDir,
     ...generatorArgs(platform),
-    '-DCMAKE_BUILD_TYPE=Release',
+    `-DCMAKE_BUILD_TYPE=${configuration}`,
     `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
-    '-DSOUNDOR_ENABLE_DEVTOOLS=OFF',
+    `-DSOUNDOR_ENABLE_DEVTOOLS=${debug ? 'ON' : 'OFF'}`,
     '-DSOUNDOR_UI_DEV_DIR=',
     '-DSOUNDOR_UI_DEV_LOG=',
     `-DJUCE_DIR=${jucePath}`,
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui === undefined ? '' : uiDir}`,
-    ...signingArgs(platform, ctx.signing.macos),
+    ...signingArgs(platform, signing),
   ];
   if (ctx.ui === undefined) {
     ctx.logger.warn(
       'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
     );
   }
-  if (platform === 'darwin') {
+  if (platform === 'darwin' && !debug) {
     ctx.logger.info(
       ctx.signing.macos.identity === '-'
         ? 'Signing ad-hoc (set SOUNDOR_MACOS_SIGNING_IDENTITY to distribute the plugin)'
         : `Signing with '${ctx.signing.macos.identity}'`,
     );
   }
-  ctx.logger.info('Configuring release build');
+  ctx.logger.info(`Configuring ${debug ? 'debug' : 'release'} build`);
   await run({
     cmd: 'cmake',
     args: configureArgs,
@@ -287,12 +303,21 @@ export async function juceBuild(
   });
   await run({
     cmd: 'cmake',
-    args: ['--build', buildDir, '--config', 'Release', '--parallel'],
+    args: ['--build', buildDir, '--config', configuration, '--parallel'],
     cwd: projectDir,
     logger: ctx.logger,
     signal: ctx.signal,
   });
 
+  if (debug) {
+    const formats = await collectDebugFormats(buildDir, ctx.paths.dist);
+    ctx.logger.info(
+      formats.length > 0
+        ? `Debug build in ${ctx.paths.dist} (${formats.join(', ')}): for tests, not for release; it has DevTools`
+        : `Build finished; no debug formats found under ${buildDir}`,
+    );
+    return;
+  }
   const collected = await collectArtifacts(buildDir, ctx.paths.dist);
   ctx.logger.info(
     collected > 0
@@ -453,6 +478,34 @@ async function collectArtifacts(
     await cp(join(buildDir, name), join(distDir, name), { recursive: true });
   }
   return artefacts.length;
+}
+
+/**
+ * Copies each format's output from the build tree to `<distDir>/<format>/`,
+ * replacing what the build makes and nothing else: the folder is the user's.
+ */
+async function collectDebugFormats(
+  buildDir: string,
+  distDir: string,
+): Promise<string[]> {
+  const artefacts = await findArtefactsDir(buildDir);
+  if (artefacts === undefined) return [];
+  const formats = (await readdir(artefacts, { withFileTypes: true })).filter(
+    // Beside them is the shared code's static library.
+    (entry) => entry.isDirectory(),
+  );
+  for (const { name: format } of formats) {
+    for (const output of await readdir(join(artefacts, format))) {
+      const target = join(distDir, format, output);
+      await rm(target, { recursive: true, force: true });
+      // Symbolic links stay as they are: a signed bundle has them.
+      await cp(join(artefacts, format, output), target, {
+        recursive: true,
+        verbatimSymlinks: true,
+      });
+    }
+  }
+  return formats.map(({ name }) => name);
 }
 
 async function launchStandaloneBuild(

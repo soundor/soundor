@@ -76,6 +76,7 @@ SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check
 (cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
+pnpm --filter @soundor/juce-runtime test:plugin:debug  # its Debug build with DevTools, for the real-plugin suites
 ```
 
 The VST3 host (`hosts/vst3-host`; its `build` and `test` never compile it):

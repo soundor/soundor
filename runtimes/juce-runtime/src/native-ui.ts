@@ -138,6 +138,9 @@ function relocate(
 }
 
 /** The directory the native form of a UI goes to, under the runtime's cache. */
-export function nativeUiDir(cache: string, build: 'debug' | 'release'): string {
+export function nativeUiDir(
+  cache: string,
+  build: 'debug' | 'debug-build' | 'release',
+): string {
   return join(cache, `ui-${build}`);
 }

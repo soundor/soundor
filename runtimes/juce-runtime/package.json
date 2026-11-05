@@ -34,6 +34,7 @@
     "lint:native": "node ../../scripts/clang-format.mjs --check native",
     "test": "vitest run",
     "test:plugin": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --config tests/plugin/soundor.config.ts",
+    "test:plugin:debug": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --debug --config tests/plugin/soundor.config.ts",
     "test:plugin-prebuilt": "soundor init --config tests/plugin-prebuilt/soundor.config.ts && soundor build juce --config tests/plugin-prebuilt/soundor.config.ts",
     "test:watch": "vitest watch"
   },
