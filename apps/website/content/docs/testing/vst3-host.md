@@ -190,6 +190,11 @@ plugin's own units, converted by its controller). `setParameter(id, 0.5)` and
 controller to convert. Read-only parameters cannot be set; values outside 0 to
 1 are rejected.
 
+`host.parameter('Gain')` finds one by its title, with `.get()` and `.set(0.5)`.
+A JUCE plugin with a Bypass of its own also has the one JUCE adds for hosts, with
+the same title and the `bypass` flag: the title means the plugin's own. Any other
+shared title fails with `unknown-parameter`, as an unknown one does.
+
 `setParameter` changes the controller at once and reaches the processor at
 the first frame of the next `process` call. Changes in `parameterChanges`
 apply at their frame. Edits made in the editor (`performEdit` events) also

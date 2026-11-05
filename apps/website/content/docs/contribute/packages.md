@@ -46,6 +46,8 @@ flowchart LR
     vitest --> core
     vitest --> testruntime["@soundor/test-runtime"]
     env["vitest-environment-soundor"] --> testruntime
+    e2e["@soundor/vitest-e2e"] --> driver
+    e2e -. peer .-> host
     tl["@soundor/testing-library"] --> react["@soundor/react"]
     tl --> testruntime
 ```
@@ -57,7 +59,8 @@ into each project's `.soundor/generated`. `create-soundor-app`
 depends on none either: it copies a template and installs the others.
 `@soundor/vst3-host` depends on no Soundor package; `@soundor/driver` has it as
 an optional peer for its `vst3` entry, so that a Driver user installs no
-native executable.
+native executable. `@soundor/vitest-e2e` has it as a required peer, since its tests
+need it.
 
 | Area              | Package                                                                                                                                                                         | Responsibility                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -74,6 +77,7 @@ native executable.
 | DevTools          | [Client](/docs/contribute/devtools-client), [server](/docs/contribute/devtools-server), [protocol](/docs/contribute/devtools-protocol)                                          | Browser dashboard, authenticated session backend, and shared transport contract                                   |
 | Driver            | [`@soundor/driver`](/docs/driver)                                                                                                                                               | Connected inspection of running plugins from Node.js and `soundor driver`                                         |
 | Testing           | [Vitest plugin](/docs/testing/vitest), [environment](/docs/testing/vitest-environment-soundor), [Testing Library](/docs/testing), [test runtime](/docs/contribute/test-runtime) | Per-test runtime isolation, semantic queries, interactions, and deterministic animation time                      |
+| End-to-end tests  | [`@soundor/vitest-e2e`](/docs/testing/e2e)                                                                                                                                      | Vitest tests of a built VST3 plugin, UI and audio, in the VST3 host                                               |
 | Plugin host       | [`@soundor/vst3-host`](/docs/testing/vst3-host) ([internals](/docs/contribute/vst3-host))                                                                                       | A standalone VST3 host executable driven from Node.js: offline processing, editors, platform packages             |
 
 The engine and the VST3 host are versioned independently of the shared

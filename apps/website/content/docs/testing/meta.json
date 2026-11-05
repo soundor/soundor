@@ -38,6 +38,7 @@
     "---Assertions---",
     "to-have-focus",
     "---Plugin binaries---",
+    "e2e",
     "vst3-host"
   ]
 }

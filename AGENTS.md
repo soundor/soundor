@@ -205,6 +205,10 @@ read the docs bundled with the installed package
   services, parameters, and virtual animation clock.
 - `packages/vitest` and `packages/vitest-environment-soundor` — the `soundor()`
   plugin and `environment: 'soundor'`, with isolated runtime state per test.
+- `packages/vitest-e2e` — Vitest tests of a built VST3 plugin in the real VST3
+  host: the `soundor({ vst3 })` plugin (no build logic), `launchPlugin()`,
+  `launchHost()` (both closed when the test ends), and retrying locator matchers.
+  Runs in Node, with the Driver underneath; the host is a required peer.
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
@@ -332,7 +336,7 @@ generated framework or the runtime package, not in `init` templates.
   The pre-commit hook runs lint-staged.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
-- Releases are Changesets; the fifteen packages under `packages/` are a fixed version group;
+- Releases are Changesets; the sixteen packages under `packages/` are a fixed version group;
   `@soundor/engine` and `@soundor/vst3-host` are versioned on their own.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

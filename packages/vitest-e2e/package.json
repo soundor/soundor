@@ -1,0 +1,55 @@
+{
+  "name": "@soundor/vitest-e2e",
+  "version": "0.15.0",
+  "description": "End-to-end tests of built VST3 plugins in Vitest: UI and audio, in the real VST3 host",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/vitest-e2e"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "./dist/setup.mjs"
+  ],
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@soundor/driver": "workspace:^"
+  },
+  "devDependencies": {
+    "@soundor/devtools-server": "workspace:^",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@soundor/vitest": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vitest-environment-soundor": "workspace:^"
+  },
+  "peerDependencies": {
+    "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0",
+    "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": "^22.18.0 || >=24.11.0"
+  }
+}

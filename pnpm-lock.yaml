@@ -1262,6 +1262,46 @@ importers:
         specifier: workspace:^
         version: link:../vitest-environment-soundor
 
+  packages/vitest-e2e:
+    dependencies:
+      '@soundor/driver':
+        specifier: workspace:^
+        version: link:../driver
+    devDependencies:
+      '@soundor/devtools-server':
+        specifier: workspace:^
+        version: link:../devtools-server
+      '@soundor/tsdown-config':
+        specifier: workspace:^
+        version: link:../../configs/tsdown-config
+      '@soundor/typescript-config':
+        specifier: workspace:^
+        version: link:../../configs/typescript-config
+      '@soundor/vitest':
+        specifier: workspace:^
+        version: link:../vitest
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      tsdown:
+        specifier: 'catalog:'
+        version: 0.23.4(typescript@7.0.2)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
+      vitest-environment-soundor:
+        specifier: workspace:^
+        version: link:../vitest-environment-soundor
+
   packages/vitest-environment-soundor:
     dependencies:
       '@soundor/test-runtime':

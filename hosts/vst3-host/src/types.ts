@@ -99,6 +99,18 @@ export interface ParameterInfo {
 /** Either value; the other is derived by the plugin's controller. */
 export type ParameterValue = { normalized: number } | { plain: number };
 
+/** A parameter found by its title, from `Vst3Host.parameter()`. */
+export interface HostParameter {
+  /** Its current values. */
+  get(options?: RequestOptions): Promise<ParameterInfo>;
+  /** Sets the controller's value now and hands the change to the processor
+      at the first frame of the next process call. */
+  set(
+    value: ParameterValue | number,
+    options?: RequestOptions,
+  ): Promise<ParameterInfo>;
+}
+
 export interface ParameterChange {
   id: number;
   /** Normalized, 0 to 1. */

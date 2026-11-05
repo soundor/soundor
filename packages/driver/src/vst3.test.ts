@@ -233,3 +233,36 @@ it('keeps the session out of the package root', async () => {
     expect(source).not.toContain('@soundor/vst3-host');
   }
 });
+
+it('keeps its locators working across editors', async () => {
+  hostLaunches();
+  plugin = await launch({ plugin: 'Plugin.vst3' });
+  const gain = plugin.getByText('Gain');
+  const byId = plugin.getByDebugId('gain');
+  const byRole = plugin.getByRole('adjustable', { name: 'Gain' });
+  await gain.waitFor();
+
+  const first = plugin.driver;
+  await fake!.closeEditor();
+  await plugin.openEditor();
+  expect(plugin.driver).not.toBe(first);
+
+  await gain.waitFor();
+  await byId.waitFor();
+  await byRole.waitFor();
+  await gain.click();
+  expect((await plugin.screenshot()).width).toBeGreaterThan(0);
+});
+
+it('gives the current editor input and the host parameters by title', async () => {
+  hostLaunches();
+  plugin = await launch({ plugin: 'Plugin.vst3' });
+  expect(plugin.pointer).toBe(plugin.driver.pointer);
+  expect(plugin.keyboard).toBe(plugin.driver.keyboard);
+
+  const parameter = { get: vi.fn(), set: vi.fn() };
+  (fake as unknown as { parameter: unknown }).parameter = vi.fn(
+    () => parameter,
+  );
+  expect(plugin.parameter('Gain')).toBe(parameter);
+});

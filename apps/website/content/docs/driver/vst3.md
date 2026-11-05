@@ -38,8 +38,11 @@ try {
 ```
 
 `driver` is an ordinary [Driver](/docs/driver/inspecting), and `host` an
-ordinary [`Vst3Host`](/docs/testing/vst3-host). A failed UI call is a
-`DriverError`, a failed host call a `Vst3HostError`.
+ordinary [`Vst3Host`](/docs/testing/vst3-host). The plugin also has the Driver's
+`getByRole()`, `getByText()`, `getByDebugId()`, `pointer`, `keyboard` and
+`screenshot()` itself, and `parameter()` from the host. A failed UI call is a
+`DriverError`, a failed host call a `Vst3HostError`. For tests in Vitest, use
+[`@soundor/vitest-e2e`](/docs/testing/e2e).
 
 ## What it can load
 
@@ -76,14 +79,17 @@ private session's.
 A target is one editor, so one Driver works with one editor. When it closes
 (`host.closeEditor()`, `host.recreate()`, the user closing its window), that
 Driver's calls fail with `TARGET_DISCONNECTED`. `openEditor()` opens it again
-and makes a new Driver, so read `plugin.driver` afterwards, and make new
-[locators](/docs/driver/inspecting#locators) from it:
+and makes a new Driver. The plugin's own locators, input and `screenshot()` use
+whichever Driver is current, so they keep working:
 
 ```ts
+const bypass = plugin.getByDebugId('bypass');
 await plugin.host.recreate(); // A fresh instance has no editor.
 await plugin.openEditor();
-await plugin.driver.getByDebugId('bypass').click();
+await bypass.click();
 ```
+
+Read `plugin.driver` again after `openEditor()`, and make new locators from it.
 
 `openEditor({ presentation: 'host' })` on an open editor opens it again in
 that presentation, with a new Driver too. On an editor that stays as it is,
