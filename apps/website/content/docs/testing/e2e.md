@@ -235,6 +235,96 @@ give, after a crash, is left out, and saving never changes why the test failed.
 Keep `.soundor` out of version control, as a new project does, and upload the folder
 from CI to look at it there.
 
+## Audio
+
+`plugin.host.process()` and `host.process()` give audio as `Float32Array`s by bus
+and channel, which the [host's guide](/docs/testing/vst3-host#processing-audio)
+covers. These help make it and check it:
+
+```ts
+import { dominantFrequency, peak, sine } from '@soundor/vitest-e2e';
+
+const tone = sine(440, { seconds: 0.5, amplitude: 0.5 });
+const { outputs } = await host.process({ inputs: [[tone, tone]] });
+
+expect(peak(outputs[0]!)).toBeCloseTo(0.25, 2);
+expect(dominantFrequency(outputs[0]![0]!)).toBeCloseTo(440, 0);
+expect(outputs[0]).toMatchAudioSnapshot('tone');
+```
+
+### Signals
+
+Each returns a `Float32Array`. Options are `seconds` (1 by default) or `frames`,
+`sampleRate` (48 000 by default), and `amplitude` (1 by default).
+
+| Function             | Makes                                                      |
+| -------------------- | ---------------------------------------------------------- |
+| `sine(hz, options?)` | A sine wave, starting at zero                              |
+| `noise(options?)`    | White noise, the same for the same `seed`, so tests repeat |
+| `impulse(options?)`  | One sample of `amplitude` at frame `at` (0 by default)     |
+| `silence(options?)`  | Zeros                                                      |
+
+### Measuring
+
+`peak(audio)` is the largest absolute sample and `rms(audio)` the root mean square,
+of one channel or a whole bus. `dominantFrequency(channel, sampleRate?)` is the
+strongest frequency in Hz, for a steady tone, and 0 for silence.
+
+### Notes
+
+`noteOn(pitch, options?)` and `noteOff(pitch, options?)` make `events`, with a
+velocity of 0.8 by default instead of the host's 1:
+
+```ts
+await host.process({
+  frames: 4800,
+  events: [noteOn(60, { time: 10 }), noteOff(60, { time: 2400 })],
+});
+```
+
+### Blocks
+
+`render()` is `process()` as several calls, for bugs that show only at certain block
+boundaries. `blockSize` is a size or several in turn, and each call's block is that
+size, up to the host's `blockSize`. Events and parameter changes reach the call they
+fall in, and the result is put back together.
+
+```ts
+const { outputs } = await render(host, {
+  inputs: [[left, right]],
+  blockSize: [37, 512, 64, 1],
+});
+expect(outputs[0]).toBeCloseToAudio(whole.outputs[0]!);
+```
+
+### Matchers
+
+They take a channel or a bus, such as `outputs[0]`. Audio is already there when you
+check it, so these do not retry and need no `await`.
+
+| Matcher                                 | Passes when                                               |
+| --------------------------------------- | --------------------------------------------------------- |
+| `toBeSilent(options?)`                  | Nothing is above `threshold` (0.000001, about -120 dB)    |
+| `toBeCloseToAudio(expected, options?)`  | Every sample is within `tolerance` (0.0001, about -80 dB) |
+| `toMatchAudioSnapshot(name?, options?)` | As `toBeCloseToAudio`, against a saved WAV file           |
+
+Both comparing matchers also take `sampleRate`, for the files they write. A mismatch
+says where the audio first differs and how many samples do, and leaves `actual.wav`
+and `expected.wav` under `.soundor/test-results/` to listen to.
+
+`toMatchAudioSnapshot` saves `__snapshots__/<test file>/<name>.wav` beside the test
+the first time: commit it. On CI, a file that is not there fails rather than being
+written, and `-u` saves a new one, as for
+[screenshots](#screenshots). The files are 32-bit float, so keep them short: a stereo
+second is about 384 KB. A plugin's output can differ slightly across systems, which
+is what `tolerance` is for.
+
+### WAV files
+
+`readWav(path)` reads PCM of 8, 16, 24 or 32 bits or 32-bit float, as `{ sampleRate,
+channels }`. `writeWav(path, { sampleRate, channels })` writes 32-bit float, making
+its folder if needed.
+
 ## Good to know
 
 - **Parameter titles:** a title several parameters share fails, naming them,
