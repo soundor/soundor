@@ -40,7 +40,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [
     soundor({
-      vst3: '.soundor/cache/juce/build-debug/MyPlugin_artefacts/Debug/VST3/My Plugin.vst3',
+      vst3: '.soundor/debug/juce/VST3/My Plugin.vst3',
     }),
   ],
   test: { include: ['e2e/**/*.test.ts'] },
@@ -55,8 +55,7 @@ import { soundor as integration } from '@soundor/vitest';
 import { soundor as e2e } from '@soundor/vitest-e2e';
 import { defineConfig } from 'vitest/config';
 
-const vst3 =
-  '.soundor/cache/juce/build-debug/MyPlugin_artefacts/Debug/VST3/My Plugin.vst3';
+const vst3 = '.soundor/debug/juce/VST3/My Plugin.vst3';
 
 export default defineConfig({
   test: {
@@ -84,16 +83,23 @@ seconds unless the project sets its own.
 
 ## Build first
 
-Nothing here builds the plugin, and tests use the bundle as it is. A test with
-a UI needs a **Debug build of a Soundor plugin**, the only kind with DevTools:
+Vitest does not build the plugin: tests use the bundle as it is. A test with a
+UI needs a **Debug build of a Soundor plugin**, the only kind with DevTools, which
+[`soundor build juce --debug`](/docs/cli/build#debug-builds) makes:
 
-```sh
-soundor dev juce # stop it once it is ready; the build stays
-xvfb-run -a vitest run --project e2e # on Linux without a display
+```json
+{
+  "scripts": {
+    "test:e2e": "soundor build juce --debug && vitest run --project e2e"
+  }
+}
 ```
 
+On Linux without a display, run it under `xvfb-run -a`.
+
 A missing bundle fails the project once, before its tests, saying so. A bundle
-out of date is not noticed: rebuild after changing the plugin. In watch mode, a
+out of date is not noticed, so rebuild after changing the plugin, as this script
+does. In watch mode, a
 changed test runs again against the same bundle.
 
 ## launchPlugin

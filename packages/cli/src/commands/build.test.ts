@@ -68,6 +68,83 @@ describe('runBuild', () => {
     expect(module).toMatch(/from\s*["']soundor:host["']/);
   });
 
+  describe('--debug and --out', () => {
+    it('builds one runtime in debug mode, away from releases', async () => {
+      await writeConfig(root, ['alpha', 'beta'], { devtools: true });
+      await runBuild({ cwd: root, runtime: 'alpha', debug: true });
+      expect(globalThis.__soundorBuildEvents).toEqual([
+        'gen:alpha:debug',
+        'build:alpha:debug',
+      ]);
+      expect(
+        await readFile(
+          join(root, '.soundor', 'debug', 'alpha', 'artifact.txt'),
+          'utf8',
+        ),
+      ).toBe('alpha:debug\n');
+      await expect(
+        readFile(join(root, '.soundor', 'dist', 'alpha', 'artifact.txt')),
+      ).rejects.toThrow();
+    });
+
+    it('bundles the UI apart from soundor dev', async () => {
+      await writeConfig(root, ['alpha'], { devtools: true });
+      await mkdir(join(root, 'src'), { recursive: true });
+      await writeFile(
+        join(root, 'src', 'main.ts'),
+        "import { plugin } from 'soundor:host';\nconsole.info(plugin.name);\n",
+      );
+      await runBuild({ cwd: root, runtime: 'alpha', debug: true });
+      expect(globalThis.__soundorBuildUi).toEqual({
+        dir: join(root, '.soundor', 'ui', 'debug-build'),
+        module: 'bundle.mjs',
+      });
+    });
+
+    it('refuses a runtime without DevTools, building nothing', async () => {
+      await writeConfig(root, ['alpha']);
+      await expect(
+        runBuild({ cwd: root, runtime: 'alpha', debug: true }),
+      ).rejects.toThrow('The alpha runtime has no debug build');
+      expect(globalThis.__soundorBuildEvents).toEqual([]);
+    });
+
+    it('needs a runtime', async () => {
+      await writeConfig(root, ['alpha'], { devtools: true });
+      await expect(runBuild({ cwd: root, debug: true })).rejects.toThrow(
+        '--debug needs a runtime',
+      );
+      await expect(runBuild({ cwd: root, out: 'build' })).rejects.toThrow(
+        '--out needs a runtime',
+      );
+      expect(globalThis.__soundorBuildEvents).toEqual([]);
+    });
+
+    it('writes where --out says, from the working directory', async () => {
+      await writeConfig(root, ['alpha'], { devtools: true });
+      await mkdir(join(root, 'e2e'));
+      const cwd = join(root, 'e2e');
+      await runBuild({
+        cwd,
+        configPath: join(root, 'soundor.config.ts'),
+        runtime: 'alpha',
+        debug: true,
+        out: 'build',
+      });
+      expect(await readFile(join(cwd, 'build', 'artifact.txt'), 'utf8')).toBe(
+        'alpha:debug\n',
+      );
+    });
+
+    it('sends a release there too', async () => {
+      await writeConfig(root, ['alpha']);
+      await runBuild({ cwd: root, runtime: 'alpha', out: 'release' });
+      expect(
+        await readFile(join(root, 'release', 'artifact.txt'), 'utf8'),
+      ).toBe('alpha:production\n');
+    });
+  });
+
   it('passes no UI when the project has no entry', async () => {
     await writeConfig(root, ['alpha']);
     await runBuild({ cwd: root });
@@ -150,7 +227,7 @@ declare global {
 async function writeConfig(
   root: string,
   runtimeIds: readonly string[],
-  options: { fail?: string } = {},
+  options: { fail?: string; devtools?: boolean } = {},
 ): Promise<void> {
   await writeFile(
     join(root, 'soundor.config.ts'),
@@ -159,6 +236,7 @@ async function writeConfig(
 function runtime(id) {
   return {
     id,
+    ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
     async init() {},
     async gen(_config, ctx) {
       globalThis.__soundorBuildEvents.push('gen:' + id + ':' + ctx.mode);

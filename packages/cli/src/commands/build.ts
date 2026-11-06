@@ -28,6 +28,10 @@ export interface RunBuildOptions {
   cwd?: string;
   configPath?: string;
   runtime?: string;
+  /** A Debug build with DevTools, for tests, instead of a release. */
+  debug?: boolean;
+  /** Where the output goes, from `cwd`, instead of `.soundor/`. */
+  out?: string;
 }
 
 export type RunBuildRuntimeStatus = 'built' | 'failed';
@@ -65,23 +69,45 @@ export async function runBuild(
   const cwd = options.cwd ?? process.cwd();
   const configPath = resolveConfigPath(cwd, options.configPath);
   const root = rootFromConfigPath(configPath);
+  const debug = options.debug === true;
+  if (options.runtime === undefined && (debug || options.out !== undefined))
+    throw new ConfigError(
+      'validation',
+      `${debug ? '--debug' : '--out'} needs a runtime: soundor build juce ${debug ? '--debug' : '--out <dir>'}`,
+    );
   const config = await parseConfig({ path: configPath });
+  if (
+    debug &&
+    resolveRuntime(config, options.runtime!).runtime.capabilities?.devtools ===
+      undefined
+  )
+    throw new ConfigError(
+      'validation',
+      `The ${options.runtime} runtime has no debug build: --debug is for runtimes with DevTools`,
+    );
+  const mode = debug ? 'debug' : 'production';
   const runtimeEntries = options.runtime
     ? [resolveRuntime(config, options.runtime).config]
     : config.runtimes;
   const runtimeIds = runtimeEntries.map((runtime) => runtime.id);
 
-  await runGen({ cwd, configPath, mode: 'production', runtimeIds });
+  await runGen({ cwd, configPath, mode, runtimeIds });
 
   const fs = createNodeFileSystem(root);
   const logger = createConsoleLogger('soundor');
   const results: RunBuildRuntimeResult[] = [];
 
-  // One production bundle of the plugin UI, shared by every runtime.
+  // One bundle of the plugin UI, shared by every runtime. A debug build's is
+  // its own: `soundor dev` may be using the development one.
   const bundle = await bundleUi({
     root,
-    mode: 'production',
-    outDir: resolve(root, '.soundor', 'ui', 'production'),
+    mode: debug ? 'development' : 'production',
+    outDir: resolve(
+      root,
+      '.soundor',
+      'ui',
+      debug ? 'debug-build' : 'production',
+    ),
   });
   if (bundle !== undefined) {
     logger.info(
@@ -97,13 +123,20 @@ export async function runBuild(
         config: configPath,
         runtimeId: runtimeEntry.id,
       });
+      // Never beside a release: a build with DevTools is not for shipping.
+      const dist =
+        options.out === undefined
+          ? debug
+            ? resolve(root, '.soundor', 'debug', runtimeEntry.id)
+            : paths.dist
+          : resolve(cwd, options.out);
 
       await runPhase(resolved, 'build', config, {
-        paths,
+        paths: { ...paths, dist },
         fs,
         logger: logger.child(runtimeEntry.id),
         codegen: createCodegenSink(),
-        mode: 'production',
+        mode,
         ui: bundle && {
           dir: bundle.dir,
           module: bundle.module,
@@ -125,7 +158,8 @@ export async function runBuild(
 export const buildCommand = defineCommand({
   meta: {
     name: 'build',
-    description: 'Produce production-ready artifacts',
+    description:
+      'Produce production-ready artifacts, or a debug build for tests',
   },
   args: {
     runtime: {
@@ -137,6 +171,16 @@ export const buildCommand = defineCommand({
       type: 'string',
       description: 'Path to soundor.config.ts',
     },
+    debug: {
+      type: 'boolean',
+      description:
+        'A Debug build with DevTools, for tests; never ship it (needs a runtime)',
+    },
+    out: {
+      type: 'string',
+      description:
+        'Where the output goes, instead of .soundor/ (needs a runtime)',
+    },
   },
   async run({ args }) {
     const runtime =
@@ -147,6 +191,8 @@ export const buildCommand = defineCommand({
       runtime,
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
+      debug: args['debug'] === true,
+      out: typeof args['out'] === 'string' ? args['out'] : undefined,
     });
     outro(formatRunBuildResult(result));
   },

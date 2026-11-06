@@ -58,7 +58,11 @@ export interface Runtime<Options extends object = object> {
   gen(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
   /** Run the long-lived dev workflow until `ctx.signal` aborts. */
   dev(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
-  /** Produce production artifacts under `ctx.paths.dist`. */
+  /**
+   * Produce artifacts under `ctx.paths.dist`: production ones, or with `mode`
+   * `debug` (only a runtime with `capabilities.devtools` is asked) a debug
+   * build with DevTools, for tests.
+   */
   build(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
   /** Diagnose environment/toolchain readiness. */
   doctor(

@@ -4,9 +4,9 @@ import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vitest/config';
 
 export interface SoundorE2EOptions {
-  /** The `.vst3` bundle the tests load, from the project root. Nothing builds
-      it: `soundor dev juce` leaves a Debug build of a Soundor plugin in
-      `.soundor/cache/juce/build-debug/`. */
+  /** The `.vst3` bundle the tests load, from the project root. Nothing here
+      builds it: `soundor build juce --debug` makes a Debug build of a Soundor
+      plugin, in `.soundor/debug/juce/`. */
   vst3: string;
 }
 

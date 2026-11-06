@@ -343,6 +343,106 @@ describe('juceBuild', () => {
     expect(await readFile(copied, 'utf8')).toBe('binary');
   });
 
+  describe('with mode debug', () => {
+    /** A build that leaves what JUCE leaves in a Debug build's artefacts. */
+    async function building(calls: string[][]) {
+      return async (o: RunCommandOptions) => {
+        calls.push([o.cmd, ...o.args]);
+        if (o.args[0] !== '--build') return;
+        const debug = join(o.args[1]!, 'Plugin_artefacts', 'Debug');
+        const bundle = join(debug, 'VST3', 'My Plugin.vst3', 'Contents');
+        await mkdir(bundle, { recursive: true });
+        await writeFile(join(bundle, 'binary'), 'new');
+        await mkdir(join(debug, 'Standalone'), { recursive: true });
+        await writeFile(join(debug, 'Standalone', 'My Plugin'), 'app');
+        await writeFile(join(debug, 'libPlugin_SharedCode.a'), 'library');
+      };
+    }
+
+    async function debugCtx() {
+      const root = await tempProjectWithJuce();
+      return {
+        ...makeCtx({
+          root,
+          fs: createNodeFileSystem(root),
+          options: { jucePath: join(root, 'JUCE'), engine: { mode: 'source' } },
+          mode: 'debug',
+        }),
+        ui: await writeBundle(join(root, 'ui')),
+      };
+    }
+
+    it('builds Debug with DevTools and the UI embedded', async () => {
+      const ctx = await debugCtx();
+      const calls: string[][] = [];
+
+      await juceBuild(config, ctx, {
+        run: await building(calls),
+        probe: okProbe,
+      });
+
+      const uiDir = join(ctx.paths.cache, 'ui-debug-build');
+      const buildDir = join(ctx.paths.cache, 'build-debug-build');
+      expect(calls[0]).toContain(buildDir);
+      expect(calls[0]).toContain('-DCMAKE_BUILD_TYPE=Debug');
+      expect(calls[0]).toContain('-DSOUNDOR_ENABLE_DEVTOOLS=ON');
+      expect(calls[0]).toContain('-DSOUNDOR_UI_DIR=' + uiDir);
+      expect(calls[0]).toContain('-DSOUNDOR_UI_DEV_DIR=');
+      expect(calls[1]).toEqual([
+        'cmake',
+        '--build',
+        buildDir,
+        '--config',
+        'Debug',
+        '--parallel',
+      ]);
+      expect(await exists(join(uiDir, 'bundle.js'))).toBe(true);
+    });
+
+    it('puts each format directly in the output', async () => {
+      const ctx = await debugCtx();
+      await juceBuild(config, ctx, { run: await building([]), probe: okProbe });
+
+      const { dist } = ctx.paths;
+      expect(
+        await readFile(
+          join(dist, 'VST3', 'My Plugin.vst3', 'Contents', 'binary'),
+          'utf8',
+        ),
+      ).toBe('new');
+      expect(await exists(join(dist, 'Standalone', 'My Plugin'))).toBe(true);
+      expect(await exists(join(dist, 'libPlugin_SharedCode.a'))).toBe(false);
+      expect(await exists(join(dist, 'Plugin_artefacts'))).toBe(false);
+    });
+
+    it('replaces its own output and leaves the rest of the folder', async () => {
+      const ctx = await debugCtx();
+      const { dist } = ctx.paths;
+      const stale = join(dist, 'VST3', 'My Plugin.vst3', 'stale');
+      await mkdir(join(dist, 'VST3', 'My Plugin.vst3'), { recursive: true });
+      await writeFile(stale, 'old');
+      await mkdir(join(dist, 'VST3', 'Other.vst3'), { recursive: true });
+      await writeFile(join(dist, 'notes.txt'), 'mine');
+
+      await juceBuild(config, ctx, { run: await building([]), probe: okProbe });
+
+      expect(await exists(stale)).toBe(false);
+      expect(await exists(join(dist, 'VST3', 'Other.vst3'))).toBe(true);
+      expect(await exists(join(dist, 'notes.txt'))).toBe(true);
+    });
+
+    it('does not use the UI of soundor dev', async () => {
+      const ctx = await debugCtx();
+      const devUi = join(ctx.paths.cache, 'ui-debug', 'bundle.js');
+      await mkdir(join(ctx.paths.cache, 'ui-debug'), { recursive: true });
+      await writeFile(devUi, 'dev');
+
+      await juceBuild(config, ctx, { run: await building([]), probe: okProbe });
+
+      expect(await readFile(devUi, 'utf8')).toBe('dev');
+    });
+  });
+
   it("embeds the UI in the engine's form, compact", async () => {
     const root = await tempProjectWithJuce();
     const ctx = {
@@ -441,6 +541,7 @@ describe('build tree', () => {
       options: { jucePath: join(root, 'JUCE') },
       signal: controller.signal,
       signing: { macos: { identity, source: 'env', ...extra } },
+      mode: phase === 'build' ? 'production' : 'debug',
     });
     const calls: string[][] = [];
     const run = async (o: RunCommandOptions) => {
@@ -474,6 +575,24 @@ describe('build tree', () => {
         '-DSOUNDOR_MACOS_KEYCHAIN=/tmp/ci.keychain-db',
       ]),
     );
+  });
+
+  it('signs a one-shot debug build ad-hoc too', async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      signing: { macos: { identity, source: 'env' } },
+      mode: 'debug',
+    });
+    const calls: string[][] = [];
+    await juceBuild(config, ctx, {
+      run: async (o: RunCommandOptions) => void calls.push([...o.args]),
+      probe: okProbe,
+      platform: 'darwin',
+    });
+    expect(calls[0]).toContain('-DSOUNDOR_MACOS_SIGNING_IDENTITY=-');
   });
 
   it('signs debug builds ad-hoc', async () => {
