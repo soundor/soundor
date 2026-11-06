@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export function verifyResults(needs) {
-  const required = new Set(['changes', 'fast']);
+  const required = new Set(['changes', 'workspace']);
   const changes = needs.changes?.outputs ?? {};
   if (
     ['native', 'juce', 'benchmark', 'host', 'orbit'].some(
@@ -10,12 +10,11 @@ export function verifyResults(needs) {
     )
   )
     throw new Error('Native input detection did not return every decision');
-  if (changes.native === 'true') {
-    required.add('engine');
-    required.add('native');
-  }
   if (changes.benchmark === 'true') required.add('benchmark');
-  if (changes.juce === 'true') required.add('juce');
+  if (changes.juce === 'true') {
+    required.add('juce8');
+    required.add('juce9');
+  }
   if (changes.orbit === 'true') required.add('orbit');
   if (changes.host === 'true' || changes.orbit === 'true')
     required.add('host-plan');
@@ -43,8 +42,7 @@ export function verifyResults(needs) {
     needs['engine-plan']?.outputs?.build !== 'true'
   )
     throw new Error('Affected engine must use checkout artifacts');
-  if (needs['engine-plan']?.outputs?.build === 'true')
-    required.add('engine-artifacts');
+  if (needs['engine-plan']?.outputs?.build === 'true') required.add('engine');
   const failed = Object.entries(needs).filter(
     ([name, job]) =>
       ['failure', 'cancelled'].includes(job.result) ||

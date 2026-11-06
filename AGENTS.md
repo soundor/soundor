@@ -97,7 +97,7 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
-`build:juce` or `build:web`. CI's Fast checks run their tests, typecheck and web
+`build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web
 builds, and the website embeds those web builds. Orbit also has end-to-end tests
 of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
 job builds. Tests have their own fixtures, inside the package they test:
@@ -121,13 +121,15 @@ dependencies), so the root `test` runs them. `.github/workflows/website.yml` dep
 by the release workflow after npm publishing, or run by hand.
 
 Native CI jobs follow their package and run when `turbo query affected`
-reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
-Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
-`soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
-(`vst3-host-artifacts.yml`), Orbit e2e ← `orbit` (a change only under
-`hosts/vst3-host/` runs these last two alone). The host follows the engine's
-pattern: `host-plan` selects, one workflow builds, jobs consume the artifact or
-the release. What a job builds must therefore be a dependency of its package.
+reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
+workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
+(`engine.yml`; its suites ← `@soundor/engine`), JUCE 8 (juce-runtime) and JUCE 9 (juce-runtime) (`juce.yml`) ←
+`@soundor/juce-runtime`, VST3 (host) (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
+Orbit E2E (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
+only under `hosts/vst3-host/` runs VST3 (host) and Orbit E2E alone. The engine and the host
+share one pattern: `engine-plan` and `host-plan` select, one group builds and
+checks (Engine, VST3 (host)), and jobs wait for it and consume the artifact or the release. What a job
+builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved

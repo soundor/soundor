@@ -63,15 +63,14 @@ jobs:
         env:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
-        run: set -o pipefail; cmake --workflow --preset release 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: cmake --workflow --preset release
 
       - name: Stage
         run: |
-          set -o pipefail
           executable=hosts/vst3-host/build/release/bin/soundor-vst3-host
           [ "${{ runner.os }}" = Windows ] && executable="$executable.exe"
           node hosts/vst3-host/scripts/release.ts stage "$executable" --target ${{ matrix.target }} \
-            --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/vst3-host/${{ matrix.target }}" 2>&1 | tee "$RUNNER_TEMP/step.log"
+            --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/vst3-host/${{ matrix.target }}"
           staged="$RUNNER_TEMP/vst3-host/${{ matrix.target }}/bin/soundor-vst3-host"
           [ "${{ runner.os }}" = Windows ] && staged="$staged.exe"
           echo "STAGED=$(cygpath -m "$staged" 2>/dev/null || echo "$staged")" >> "$GITHUB_ENV"
@@ -93,9 +92,8 @@ jobs:
           SOUNDOR_VST3_HOST_EXECUTABLE: ${{ env.STAGED }}
           SOUNDOR_VST3_HOST_FIXTURES: ${{ env.FIXTURES }}
         run: |
-          set -o pipefail
           if [ "${{ runner.os }}" = Linux ]; then unset DISPLAY; fi
-          pnpm exec vitest run --config vitest.native.config.ts 2>&1 | tee "$RUNNER_TEMP/step.log"
+          pnpm exec vitest run --config vitest.native.config.ts
 
       - name: Editor tests
         working-directory: hosts/vst3-host
@@ -104,12 +102,11 @@ jobs:
           SOUNDOR_VST3_HOST_FIXTURES: ${{ env.FIXTURES }}
           SOUNDOR_VST3_HOST_REQUIRE_UI: '1'
         run: |
-          set -o pipefail
           if [ "${{ runner.os }}" = Linux ]; then
             xvfb-run -a -s "-screen 0 1280x1024x24" pnpm exec vitest run --config vitest.native.config.ts tests/native/editor.test.ts
           else
             pnpm exec vitest run --config vitest.native.config.ts tests/native/editor.test.ts
-          fi 2>&1 | tee "$RUNNER_TEMP/step.log"
+          fi
 
       - name: Keep the artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -118,13 +115,6 @@ jobs:
           path: ${{ runner.temp }}/vst3-host/${{ matrix.target }}
           if-no-files-found: error
           retention-days: 7
-
-      - name: Report the failure
-        if: failure()
-        run: |
-          [ -f "$RUNNER_TEMP/step.log" ] || exit 0
-          { grep -iE "error|FAIL" "$RUNNER_TEMP/step.log" | head -n 30 || true; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
-          echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
   checks:
     name: Static analysis and sanitizers

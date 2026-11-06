@@ -1,7 +1,11 @@
-name: Engine artifacts
+name: Engine
 
 # Read-only, shared by Verify and the release orchestrator. Builds and validates
-# checkout artifacts; it has no release creation or publishing permissions.
+# checkout artifacts, on every target; it has no release creation or publishing
+# permissions. With `suites` (Verify, when the engine is affected), also the
+# engine's own suites: static analysis and tests on Clang, and the GCC, sanitizer
+# and no-GPU builds. What uses the engine waits for all of it, so that it starts
+# from an engine that passed.
 on:
   workflow_call:
     inputs:
@@ -13,6 +17,10 @@ on:
         description: Run native tests against the packed engine
         type: boolean
         default: true
+      suites:
+        description: Also run the engine's suites from source (Verify)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -92,8 +100,7 @@ jobs:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
         run: |
-          set -o pipefail
-          { cmake --workflow --preset prebuilt-debug && cmake --workflow --preset prebuilt-release; } 2>&1 | tee "$RUNNER_TEMP/step.log"
+          cmake --workflow --preset prebuilt-debug && cmake --workflow --preset prebuilt-release
 
       # This private Skia suite cannot link against an imported archive. Keep
       # its platform coverage using the engine libraries we just built.
@@ -101,20 +108,16 @@ jobs:
         if: inputs.tests
         working-directory: runtimes/engine
         run: |
-          set -eo pipefail
-          {
-            cmake --preset prebuilt-debug -DSOUNDOR_BUILD_TESTS=ON
-            cmake --build build/prebuilt-debug --target soundor_svg_tests --config Debug --parallel 3
-            ctest --test-dir build/prebuilt-debug -C Debug -R '^soundor_svg_tests$' --output-on-failure
-          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+          cmake --preset prebuilt-debug -DSOUNDOR_BUILD_TESTS=ON
+          cmake --build build/prebuilt-debug --target soundor_svg_tests --config Debug --parallel 3
+          ctest --test-dir build/prebuilt-debug -C Debug -R '^soundor_svg_tests$' --output-on-failure
 
       - name: Pack
         run: |
-          set -o pipefail
           for variant in debug release; do
             node .github/scripts/engine-prebuilts.mjs pack "runtimes/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
               --commit "$GITHUB_SHA" --target ${{ matrix.target }}
-          done 2>&1 | tee "$RUNNER_TEMP/step.log"
+          done
 
       # Everything below uses the archives as a consumer gets them: extracted
       # from the packed files, outside the build that made them.
@@ -132,41 +135,37 @@ jobs:
       - name: Both architectures in every macOS library
         if: runner.os == 'macOS'
         run: |
-          set -o pipefail
-          {
-            status=0
-            for root in "$PREBUILT_DEBUG" "$PREBUILT_RELEASE"; do
-              while IFS= read -r -d '' file; do
-                archs=$(lipo -archs "$file" 2>&1)
-                echo "$archs: ${file#"$root"/}"
-                if ! echo " $archs " | grep -q ' arm64 ' || ! echo " $archs " | grep -q ' x86_64 '; then
-                  echo "error: ${file#"$root"/} is not universal ($archs)"
-                  status=1
-                fi
-              done < <(find "$root" \( -name '*.a' -o -path '*/bin/hermesc' \) -print0)
-            done
-            exit $status
-          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+          status=0
+          for root in "$PREBUILT_DEBUG" "$PREBUILT_RELEASE"; do
+            while IFS= read -r -d '' file; do
+              archs=$(lipo -archs "$file" 2>&1)
+              echo "$archs: ${file#"$root"/}"
+              if ! echo " $archs " | grep -q ' arm64 ' || ! echo " $archs " | grep -q ' x86_64 '; then
+                echo "error: ${file#"$root"/} is not universal ($archs)"
+                status=1
+              fi
+            done < <(find "$root" \( -name '*.a' -o -path '*/bin/hermesc' \) -print0)
+          done
+          exit $status
 
       - name: Native tests against the debug engine
         if: inputs.tests
         working-directory: runtimes/engine
-        run: set -o pipefail; SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset prebuilt-check-debug 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset prebuilt-check-debug
 
       - name: Bytecode-only tests against the release engine
         if: inputs.tests
         working-directory: runtimes/engine
-        run: set -o pipefail; SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset prebuilt-check-release 2>&1 | tee "$RUNNER_TEMP/step.log"
+        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset prebuilt-check-release
 
       # The universal archive links for the architecture this runner is not.
       - name: The x86_64 slice links
         if: runner.os == 'macOS'
         working-directory: runtimes/engine
         run: |
-          set -o pipefail
-          { cmake -S . -B build/prebuilt-check-x86_64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 \
+          cmake -S . -B build/prebuilt-check-x86_64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 \
               -DSOUNDOR_BUILD_TESTS=ON "-DSOUNDOR_ENGINE_PREBUILT_RELEASE_DIR=$PREBUILT_RELEASE" &&
-            cmake --build build/prebuilt-check-x86_64 --target soundor_coexist_a soundor_coexist_b; } 2>&1 | tee "$RUNNER_TEMP/step.log"
+            cmake --build build/prebuilt-check-x86_64 --target soundor_coexist_a soundor_coexist_b
 
       # CI-only checkout, outside either npm package; never distributed.
       - name: Checkout JUCE integration fixture
@@ -193,18 +192,15 @@ jobs:
       - name: JUCE adapters against the debug engine
         if: inputs.integration
         run: |
-          set -eo pipefail
-          {
-            cmake -S runtimes/juce-runtime/native -B .soundor/juce-prebuilt -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON \
-              -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce" \
-              "-DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=$PREBUILT_DEBUG"
-            cmake --build .soundor/juce-prebuilt --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
-            if [ "${{ runner.os }}" = "Linux" ]; then
-              xvfb-run -a ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-            else
-              ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-            fi
-          } 2>&1 | tee "$RUNNER_TEMP/step.log"
+          cmake -S runtimes/juce-runtime/native -B .soundor/juce-prebuilt -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON \
+            -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce" \
+            "-DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=$PREBUILT_DEBUG"
+          cmake --build .soundor/juce-prebuilt --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          else
+            ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          fi
 
       # A plugin as a project builds it by default (juceRuntime's prebuilt
       # mode), from these archives: a manifest of them by file:// URL stands
@@ -213,23 +209,23 @@ jobs:
         if: inputs.integration
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
-          # JUCE's Release LTO flags emit Clang 18 bitcode (as in verify.yml).
+          # JUCE's Release LTO flags emit Clang 18 bitcode (as in juce.yml).
           LDFLAGS: ${{ runner.os == 'Linux' && '-fuse-ld=lld-18' || '' }}
         run: |
           set -eo pipefail
           {
             node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" --out runtimes/engine/artifacts/manifest.json
             pnpm --filter @soundor/juce-runtime test:plugin-prebuilt
-          } 2>&1 | tee "$RUNNER_TEMP/step.log"
-          if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/step.log"; then
+          } 2>&1 | tee "$RUNNER_TEMP/plugin.log"
+          if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/plugin.log"; then
             echo "::error::The plugin build compiled the engine instead of linking the prebuilt one"
             exit 1
           fi
-          grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/step.log"
+          grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/plugin.log"
           # The same plugin with JUCE 9, whose image libraries have plain C
           # names, as Skia's (renamed) copies.
           JUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce9" pnpm --filter @soundor/juce-runtime test:plugin-prebuilt 2>&1 |
-            tee "$RUNNER_TEMP/step.log"
+            tee "$RUNNER_TEMP/plugin.log"
           rm runtimes/engine/artifacts/manifest.json
 
       - name: Keep the archives
@@ -241,14 +237,133 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-      # A failed step's errors and the end of its output as an annotation,
-      # readable through the API without downloading the log.
-      - name: Report the failure
-        if: failure()
-        run: |
-          [ -f "$RUNNER_TEMP/step.log" ] || exit 0
-          { grep -iE "error|FAILED" "$RUNNER_TEMP/step.log" | head -n 30 || true; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
-          echo "::error title=${{ github.job }} (${{ matrix.target }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
+        with:
+          key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
+
+  clang:
+    name: linux-clang
+    if: inputs.suites
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      CC: clang
+      CXX: clang++
+      CMAKE_GENERATOR: Ninja
+      SOUNDOR_REQUIRE_GPU: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: verify
+
+      - name: Build workspace
+        run: pnpm turbo run build --filter=@soundor/engine...
+      # clang-tidy's passes (runtimes/engine/cmake/SoundorClangTidyCache.mjs):
+      # a translation unit whose source, headers and configuration are as
+      # main last saw them is not analyzed again. Saved only on main.
+      - name: Restore clang-tidy results
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
+          restore-keys: clang-tidy-
+      - name: Native static analysis
+        env:
+          SOUNDOR_CLANG_TIDY_CACHE: ${{ runner.temp }}/clang-tidy
+        run: pnpm turbo run lint:native
+      - name: Save clang-tidy results
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
+
+      # The tests of the build clang-tidy just made (the dev preset plus
+      # clang-tidy), not a second build of the same sources.
+      - name: Native runtime tests
+        working-directory: runtimes/engine
+        run: ctest --preset tidy
+
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
+        with:
+          key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
+
+  native:
+    name: ${{ matrix.name }}
+    if: inputs.suites
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-24.04
+            preset: dev
+            cc: gcc
+            cxx: g++
+          - name: linux-sanitizers
+            os: ubuntu-24.04
+            preset: sanitize
+            cc: clang
+            cxx: clang++
+          # Without ANGLE, as on iOS: canvases have no WebGL, and nothing
+          # else may depend on the GPU.
+          - name: linux-nogpu
+            os: ubuntu-24.04
+            preset: nogpu
+            cc: clang
+            cxx: clang++
+            require-gpu: '0'
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      # GPU tests need a device (lavapipe on Linux, WARP on Windows, Metal on
+      # macOS); without one they fail, not skip. Not in the build without one.
+      SOUNDOR_REQUIRE_GPU: ${{ matrix.require-gpu || '1' }}
+    defaults:
+      run:
+        working-directory: runtimes/engine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node and the workspace's packages: the build lowers the runtime's
+      # JavaScript modules (and the tests' Three.js) with @soundor/core.
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: ${{ matrix.name }}
+
+      # Ninja, as local and plugin builds use on macOS and Linux (CMake's
+      # default there is Makefiles). Windows keeps Visual Studio, which finds
+      # MSVC without a developer environment, as plugin builds do.
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
+      - name: Build and test the native runtime
+        timeout-minutes: 60
+        shell: bash
+        run: cmake --workflow --preset ${{ matrix.preset }}
 
       - name: Save native dependencies
         if: always() && steps.deps.outputs.cache-key != ''

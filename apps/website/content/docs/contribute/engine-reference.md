@@ -1628,7 +1628,7 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-read-only `engine-artifacts.yml` workflow to build all six archives on GitHub's
+read-only `engine.yml` workflow to build all six archives on GitHub's
 runners, tests each extracted (the JUCE adapters and the DevTools bridge
 included), and releases them as one set, named after the engine version, the
 commit and a build revision:

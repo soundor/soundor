@@ -1,0 +1,113 @@
+name: JUCE
+
+# @soundor/juce-runtime on one version of JUCE, on every platform: the JUCE
+# adapters and a real plugin, linked to the engine Verify selected. Verify calls
+# it once for each version it supports.
+on:
+  workflow_call:
+    inputs:
+      juce:
+        description: The JUCE commit to build with
+        type: string
+        required: true
+      build-engine:
+        description: Use this run's engine artifacts rather than the released engine
+        type: boolean
+        required: true
+
+permissions: {}
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {
+              name: linux,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              target: linux-x64,
+            }
+          - {
+              name: macos,
+              os: macos-15,
+              cc: clang,
+              cxx: clang++,
+              target: macos-universal,
+            }
+          - {
+              name: windows,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              target: windows-x64,
+            }
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      # Match the Clang 18 bitcode emitted by JUCE's Release LTO flags.
+      LDFLAGS: ${{ matrix.name == 'linux' && '-fuse-ld=lld-18' || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup consumer dependencies
+        uses: ./.github/actions/engine-consumer
+      - name: Download this checkout's engine
+        if: inputs.build-engine
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-prebuilt-${{ github.sha }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/engine-artifacts
+      - name: Select this checkout's engine artifacts
+        if: inputs.build-engine
+        run: |
+          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/engine-artifacts" --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/engine-manifest.json"
+          manifest=$(cygpath -m "$RUNNER_TEMP/engine-manifest.json" 2>/dev/null || echo "$RUNNER_TEMP/engine-manifest.json")
+          echo "SOUNDOR_ENGINE_MANIFEST=$manifest" >> "$GITHUB_ENV"
+      # CI-only checkout, outside either npm package; never distributed.
+      - name: Checkout JUCE integration fixture
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: ${{ inputs.juce }}
+          path: .soundor/ci-juce
+      - name: JUCE platform dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+      - name: Build workspace
+        run: pnpm turbo run build --filter=@soundor/juce-runtime... --filter=@soundor/devtools-client...
+      - name: Build and test JUCE adapters
+        run: |
+          cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENGINE_MODE=prebuilt -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
+          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          else
+            ctest --test-dir .soundor/juce-tests -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
+          fi
+      - name: Build the test plugin
+        env:
+          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
+        run: pnpm --filter @soundor/juce-runtime test:plugin
+      # The test plugin's editor, hosted and resized as a DAW does (EditorResize.cpp).
+      - name: Resize the test plugin's editor
+        if: runner.os == 'Linux'
+        run: |
+          cmake --build .soundor/juce-tests --target soundor_juce_editor_resize --config Debug --parallel 3
+          plugin="$(find "$GITHUB_WORKSPACE/runtimes/juce-runtime/tests/plugin/.soundor/dist/juce" -name '*.vst3' -type d | head -1)"
+          cd "$RUNNER_TEMP"
+          xvfb-run -a -s "-screen 0 1920x1200x24" "$GITHUB_WORKSPACE/.soundor/juce-tests/backend/juce/tests/soundor_juce_editor_resize_artefacts/Debug/soundor_juce_editor_resize" "$plugin"
