@@ -180,6 +180,104 @@ describe('toHaveText', () => {
   });
 });
 
+const withStates = (states: Record<string, string | boolean>, extra = {}) => [
+  ...parent(),
+  gain({
+    debugId: 'gain',
+    accessibility: { role: 'checkbox', states },
+    ...extra,
+  }),
+];
+
+describe('toBeChecked', () => {
+  const byId = () => driver.getByDebugId('gain');
+
+  test('passes for a checked node, as the engine names it', async () => {
+    plugin.setNodes(withStates({ checked: 'true' }));
+    await expect(byId()).toBeChecked();
+  });
+
+  test('retries until it is', async () => {
+    plugin.setNodes(withStates({ checked: 'false' }));
+    later(() => plugin.setNodes(withStates({ checked: 'true' })));
+    await expect(byId()).toBeChecked();
+  });
+
+  test('fails for mixed, unchecked and unset', async () => {
+    const unchecked: Record<string, string>[] = [
+      { checked: 'mixed' },
+      { checked: 'false' },
+      {},
+    ];
+    for (const states of unchecked) {
+      plugin.setNodes(withStates(states));
+      await expect(expect(byId()).toBeChecked({ timeout: 50 })).rejects.toThrow(
+        'to be checked within 50 ms',
+      );
+    }
+  });
+
+  test('.not waits until it is not', async () => {
+    plugin.setNodes(withStates({ checked: 'true' }));
+    later(() => plugin.setNodes(withStates({ checked: 'false' })));
+    await expect(byId()).not.toBeChecked();
+  });
+});
+
+describe('toBeEnabled', () => {
+  const byId = () => driver.getByDebugId('gain');
+
+  test('passes unless disabled, and retries', async () => {
+    plugin.setNodes(withStates({ disabled: false }));
+    await expect(byId()).toBeEnabled();
+    plugin.setNodes(withStates({ disabled: true }));
+    later(() => plugin.setNodes(withStates({ disabled: false })));
+    await expect(byId()).toBeEnabled();
+  });
+
+  test('fails while disabled', async () => {
+    plugin.setNodes(withStates({ disabled: true }));
+    await expect(expect(byId()).toBeEnabled({ timeout: 50 })).rejects.toThrow(
+      'it is disabled',
+    );
+  });
+
+  test('.not waits until disabled', async () => {
+    later(() => plugin.setNodes(withStates({ disabled: true })));
+    await expect(byId()).not.toBeEnabled();
+  });
+});
+
+describe('toHaveFocus', () => {
+  const byId = () => driver.getByDebugId('gain');
+
+  test('retries until the node has focus', async () => {
+    later(() => plugin.setNodes(withStates({}, { focused: true })));
+    await expect(byId()).toHaveFocus();
+  });
+
+  test('fails without it', async () => {
+    await expect(expect(byId()).toHaveFocus({ timeout: 50 })).rejects.toThrow(
+      'it does not have focus',
+    );
+  });
+
+  test('.not waits until it moves', async () => {
+    plugin.setNodes(withStates({}, { focused: true }));
+    later(() => plugin.setNodes(withStates({}, { focused: false })));
+    await expect(byId()).not.toHaveFocus();
+  });
+});
+
+test('toMatchScreenshot wants something it can capture, and no .not', async () => {
+  await expect(expect('Gain').toMatchScreenshot()).rejects.toThrow(
+    'toMatchScreenshot expects a plugin or a locator',
+  );
+  await expect(expect(driver).not.toMatchScreenshot()).rejects.toThrow(
+    'has no .not',
+  );
+});
+
 test('a lost plugin fails at once, not at the timeout', async () => {
   await plugin.close();
   await expect

@@ -167,13 +167,18 @@ a test goes on without waiting and can pass without checking.
 | `toBeVisible(options?)`      | One node matches, and it is visible                                    |
 | `toBeHidden(options?)`       | No node matches, or one that is not visible                            |
 | `toHaveText(text, options?)` | One node matches, and its own text equals a string or matches a RegExp |
+| `toBeChecked(options?)`      | One node matches, and it is checked (not `mixed`)                      |
+| `toBeEnabled(options?)`      | One node matches, and it is not disabled                               |
+| `toHaveFocus(options?)`      | One node matches, and it has keyboard focus                            |
 
 ```ts
 await expect(plugin.getByText('Active')).toBeVisible();
 await expect(plugin.getByText('Active')).not.toBeVisible({ timeout: 1000 });
 await expect(plugin.getByDebugId('gain')).toHaveText(/^Gain: 0\.25/);
+await expect(plugin.getByRole('switch', { name: 'Bypass' })).toBeChecked();
 ```
 
+`toHaveFocus` here takes a locator; the one for the simulated runtime takes a node.
 `timeout` is 5000 ms by default. With `.not`, they wait for the opposite. A value
 from the host arrives in its own time as well, which is what Vitest's
 `expect.poll` is for:
@@ -182,6 +187,53 @@ from the host arrives in its own time as well, which is what Vitest's
 const bypass = plugin.parameter('Bypass');
 await expect.poll(async () => (await bypass.get()).normalized).toBe(1);
 ```
+
+## Screenshots
+
+`toMatchScreenshot` checks that the plugin's view, or a locator's node, looks as
+a saved image does:
+
+```ts
+await expect(plugin).toMatchScreenshot('bypassed');
+await expect(plugin.getByDebugId('meter')).toMatchScreenshot('meter', {
+  maxDiffPixels: 20,
+});
+```
+
+The first run saves the image once two captures in a row agree, in
+`__screenshots__/<test file>/<name>-<platform>.png` beside the test: commit it. On
+CI, an image that is not there fails rather than being written. After a change you
+meant, run Vitest with `-u` to save the new one. A mismatch leaves `actual.png`,
+`expected.png` and `diff.png` under `.soundor/test-results/`.
+
+| Option          | Default | Meaning                                                |
+| --------------- | ------- | ------------------------------------------------------ |
+| `timeout`       | `5000`  | Milliseconds to keep capturing before failing          |
+| `threshold`     | `0.1`   | How different one pixel may be and still match, 0 to 1 |
+| `maxDiffPixels` | `0`     | How many pixels may differ                             |
+| `maxDiffRatio`  | `0`     | What share of the pixels may differ, 0 to 1            |
+
+A different size never matches, whatever the tolerance. It has no `.not`, and
+`name` is the test's name when left out. **Images are for one machine setup:** text
+is drawn differently across systems and fonts, so the file name has the platform,
+and images saved on a laptop may not match a CI machine of the same platform.
+Save them where they will be checked, or allow for it with the options.
+
+## When a test fails
+
+A test that fails leaves what it saw in
+`.soundor/test-results/<test file>/<test name>/`, and its error says where:
+
+| File             | What                                          |
+| ---------------- | --------------------------------------------- |
+| `screenshot.png` | The view when the test ended (`launchPlugin`) |
+| `tree.json`      | The UI's node tree (`launchPlugin`)           |
+| `host.log`       | What the host and the plugin logged           |
+
+A second plugin in the test adds `-2` to its names. What the plugin can no longer
+give, after a crash, is left out, and saving never changes why the test failed.
+Keep `.soundor` out of version control, as a new project does, and upload the folder
+from CI to look at it there.
 
 ## Good to know
 

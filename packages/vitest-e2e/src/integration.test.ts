@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { expect, test } from 'vitest';
+import { afterEach, describe, expect, test } from 'vitest';
 
 const exec = promisify(execFile);
 const env = Object.fromEntries(
@@ -29,7 +30,14 @@ async function run(args: string[]) {
     try {
       const result = await exec(
         process.execPath,
-        [cli, 'run', '--reporter=json', `--outputFile=${output}`, ...args],
+        [
+          cli,
+          'run',
+          '--reporter=default',
+          '--reporter=json',
+          `--outputFile.json=${output}`,
+          ...args,
+        ],
         { cwd: fixture, env: { ...env, FORCE_COLOR: '0' }, timeout: 30_000 },
       );
       stderr = result.stderr;
@@ -45,6 +53,46 @@ async function run(args: string[]) {
     await rm(directory, { recursive: true, force: true });
   }
 }
+
+describe('a test that fails', () => {
+  const results = resolve(fixture, '.soundor');
+  afterEach(() => rm(results, { recursive: true, force: true }));
+
+  test('leaves what the plugin showed, and closes it', async () => {
+    const { code, report, stderr } = await run([
+      '--config',
+      'failing.config.ts',
+    ]);
+    expect(code).toBe(1);
+    expect(report?.['numFailedTests']).toBe(3);
+    expect(report?.['numPassedTests']).toBe(1);
+    expect(stderr).toContain('Saved from the plugin');
+
+    const saved = (test: string, file: string) =>
+      resolve(results, 'test-results', 'failing.spec.ts', test, file);
+    const answers = 'saves-what-the-plugin-showed';
+    expect([...(await readFile(saved(answers, 'screenshot.png')))]).toEqual([
+      1, 2, 3,
+    ]);
+    expect(await readFile(saved(answers, 'tree.json'), 'utf8')).toContain(
+      'View',
+    );
+    expect(await readFile(saved(answers, 'host.log'), 'utf8')).toBe(
+      'plugin said hello\n',
+    );
+    const closed = await readFile(resolve(results, 'closed.txt'), 'utf8');
+    expect(closed.trim().split('\n')).toHaveLength(4);
+
+    const silent = 'survives-a-plugin-that-cannot-answer';
+    expect(existsSync(saved(silent, 'screenshot.png'))).toBe(false);
+    expect(
+      await readFile(saved('saves-the-log-of-a-host', 'host.log'), 'utf8'),
+    ).toBe('host line\n');
+    expect(existsSync(saved('a-test-that-passes-saves-nothing', ''))).toBe(
+      false,
+    );
+  }, 35_000);
+});
 
 test('runs beside the simulated runtime, in one config', async () => {
   const { code, report, stderr } = await run([]);

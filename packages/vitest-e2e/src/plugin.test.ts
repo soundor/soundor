@@ -5,7 +5,10 @@
 //   pnpm --filter @soundor/juce-runtime test:plugin:debug
 //   SOUNDOR_VITEST_E2E_PLUGIN=<runtimes/juce-runtime/tests/plugin/.soundor/debug/juce/VST3/Soundor Test Plugin.vst3> \
 //     xvfb-run -a pnpm --filter @soundor/vitest-e2e exec vitest run src/plugin.test.ts
-import { describe, expect, test } from 'vitest';
+import { rmSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
+import { afterAll, describe, expect, test } from 'vitest';
 
 import { launchHost, launchPlugin } from './launch';
 
@@ -66,6 +69,44 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
     await expect(first.getByText('Bypassed')).toBeVisible();
     await expect(second.getByText('Active')).toBeVisible();
   }, 30_000);
+
+  test("focus is the view's, and a text node is enabled", async () => {
+    const plugin = await started();
+    const active = plugin.getByText('Active');
+    await expect(active).toBeEnabled();
+    await expect(active).not.toBeChecked({ timeout: 200 });
+    await expect(active).not.toHaveFocus({ timeout: 200 });
+    await active.focus();
+    await expect(active).toHaveFocus();
+  }, 30_000);
+
+  describe('screenshots', () => {
+    const saved = join(dirname(import.meta.filename), '__screenshots__');
+    afterAll(() => rmSync(saved, { recursive: true, force: true }));
+
+    test('are saved, match, and show a change', async () => {
+      const plugin = await started();
+      await expect(plugin).toMatchScreenshot('view');
+      await expect(plugin.getByText('Active')).toMatchScreenshot('label');
+      await expect(plugin).toMatchScreenshot('view');
+
+      await plugin.getByText('Active').click();
+      await expect(plugin.getByText('Bypassed')).toBeVisible();
+      await expect(
+        expect(plugin).toMatchScreenshot('view', { timeout: 300 }),
+      ).rejects.toThrow('pixels differ');
+      await expect(plugin).toMatchScreenshot('view', { maxDiffRatio: 0.5 });
+    }, 30_000);
+
+    test('of another size say so', async () => {
+      const plugin = await started();
+      await expect(plugin).toMatchScreenshot('view');
+      await plugin.host.resizeEditor(700, 500);
+      await expect(
+        expect(plugin).toMatchScreenshot('view', { timeout: 200 }),
+      ).rejects.toThrow('the size is 700x500, not 640x480');
+    }, 30_000);
+  });
 
   test('a host alone needs no editor', async () => {
     const host = await launchHost({ ...here, plugin: path! });
