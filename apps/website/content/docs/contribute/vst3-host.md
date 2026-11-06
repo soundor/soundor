@@ -52,14 +52,23 @@ host itself creates no DevTools session.
 | `scripts/native.ts`          | `test:native`: a CMake workflow preset, then the integration tests                  |
 | `tests/unit`, `tests/native` | Tests without and with the executable                                               |
 
-The only third-party dependency is the [VST3 SDK](https://github.com/steinbergmedia/vst3sdk)
-3.8.1 (MIT since 3.8): `pluginterfaces` and `public.sdk`'s hosting helpers in
-the executable, plus `base` for the fixtures. Its three repositories are
-fetched at configure time from exact commits, checked by SHA-256, compiled into
-private static targets, and their archives kept in the user cache
-(`SOUNDOR_CACHE`). Its license notice ships in every platform package. Windows
-are native (X11 through `libX11.so.6` loaded in UI mode only, Cocoa, Win32);
-there is no SDL or other UI library.
+The executable's third-party code:
+
+- [VST3 SDK](https://github.com/steinbergmedia/vst3sdk) 3.8.1 (MIT since 3.8):
+  `pluginterfaces` and `public.sdk`'s hosting helpers, plus `base` for the
+  fixtures. Its three repositories are fetched from exact commits.
+- [SDL](https://github.com/libsdl-org/SDL) 3 (zlib), [Dear ImGui](https://github.com/ocornut/imgui)
+  (MIT) and the [Inter](https://github.com/rsms/inter) font (OFL), for the host
+  interface.
+
+All are fetched at configure time, checked by SHA-256, compiled into private
+static targets, and their archives kept in the user cache (`SOUNDOR_CACHE`). Their
+license notices ship in every platform package. The windows editors attach to are
+native (X11 through `libX11.so.6` loaded in UI mode only, Cocoa, Win32).
+
+On Linux, every build links the C++ runtime statically, so a source build needs
+the compiler's static C++ library (Fedora, RHEL: `libstdc++-static`). Configuring
+without it stops and says so.
 
 ## How it works
 

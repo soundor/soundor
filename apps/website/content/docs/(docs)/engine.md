@@ -94,11 +94,11 @@ Release, RelWithDebInfo and MinSizeRel all link the release engine.
 
 ## Supported platforms
 
-| Target          | Architectures                 | Minimum                                      |
-| --------------- | ----------------------------- | -------------------------------------------- |
-| macOS universal | arm64 and x86_64, one archive | macOS 12                                     |
-| Linux x64       | x86_64, glibc                 | glibc and libstdc++ of Ubuntu 24.04 or newer |
-| Windows x64     | x64, MSVC                     | the DLL C runtime                            |
+| Target          | Architectures                 | Minimum                            |
+| --------------- | ----------------------------- | ---------------------------------- |
+| macOS universal | arm64 and x86_64, one archive | macOS 12                           |
+| Linux x64       | x86_64, glibc                 | glibc 2.39 (Ubuntu 24.04) or newer |
+| Windows x64     | x64, MSVC                     | the DLL C runtime                  |
 
 The archive is chosen by the platform the plugin **targets**
 (`CMAKE_OSX_ARCHITECTURES` included), not the machine it builds on. Anything
@@ -133,6 +133,29 @@ xcodebuild -downloadComponent MetalToolchain # Xcode 26 or later
 ```
 
 `soundor doctor` checks this in source mode.
+
+### Linux
+
+A plugin carries its own C++ runtime, statically linked and hidden, in every
+build, so plugins don't depend on the system's `libstdc++` or on each other's.
+What it can't carry is glibc, which a plugin shares with the host that loads it.
+So a release runs only where glibc is at least as new as on the machine that
+built it: **build the releases you ship on Ubuntu 24.04**, not on a newer desktop
+distribution. `soundor build` prints the version a release needs, and `soundor
+doctor` warns when this machine's is newer than 2.39.
+
+| Where           | Needs                                                |
+| --------------- | ---------------------------------------------------- |
+| A user's system | glibc 2.39 or newer, `libfontconfig`, `libfreetype`  |
+| A build machine | CMake, Ninja, a C++ compiler, its static C++ library |
+
+The static library comes with the compiler on most distributions. On Fedora and
+RHEL it is a separate package, and every build stops without it, before compiling
+anything:
+
+```sh
+sudo dnf install libstdc++-static
+```
 
 ## ABI versioning
 

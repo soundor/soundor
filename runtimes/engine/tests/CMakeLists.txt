@@ -344,6 +344,12 @@ foreach(plugin a:red b:blue)
   target_compile_definitions(soundor_coexist_${name} PRIVATE SOUNDOR_COEXIST_COLOR="${color}")
   soundor_embed_ui(soundor_coexist_${name} coexistUi "${CMAKE_CURRENT_BINARY_DIR}/coexist-${name}")
   soundor_configure_target(soundor_coexist_${name})
+  # As a plugin links on Linux, each with its own hidden C++ runtime, in a host
+  # that uses the shared one.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT SOUNDOR_ENABLE_SANITIZERS)
+    target_link_options(soundor_coexist_${name} PRIVATE
+      -Wl,--as-needed -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
+  endif()
 endforeach()
 
 # Each "plugin" drives the GPU through the runtime's own ANGLE, linked into it.

@@ -124,6 +124,21 @@ endif()
 if(APPLE)
   enable_language(OBJCXX)
 endif()
+# On Linux the plugin carries its C++ runtime: first of all, as nothing links
+# without one. A failed check is not kept, so installing the library is enough.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  include(CheckCXXSourceCompiles)
+  set(CMAKE_REQUIRED_LINK_OPTIONS -static-libstdc++ -static-libgcc)
+  check_cxx_source_compiles("#include <string>
+int main(int argc, char** argv) { return static_cast<int>(std::string(argv[0]).size()) + argc; }" SOUNDOR_STATIC_CXX_RUNTIME)
+  unset(CMAKE_REQUIRED_LINK_OPTIONS)
+  if(NOT SOUNDOR_STATIC_CXX_RUNTIME)
+    unset(SOUNDOR_STATIC_CXX_RUNTIME CACHE)
+    message(FATAL_ERROR "Linux builds link the C++ runtime statically, and libstdc++.a wasn't found.\n"
+                        "Fedora, RHEL: sudo dnf install libstdc++-static\n"
+                        "Elsewhere: the package with your compiler's static C++ library.")
+  endif()
+endif()
 add_subdirectory("\${JUCE_DIR}" JUCE)
 
 juce_add_plugin(\${PROJECT_NAME}
@@ -160,6 +175,14 @@ if(APPLE)
   target_link_options(\${PROJECT_NAME} INTERFACE $<$<CONFIG:Release>:-Wl,-dead_strip>)
 elseif(NOT MSVC)
   target_link_options(\${PROJECT_NAME} INTERFACE $<$<CONFIG:Release>:-Wl,--gc-sections>)
+endif()
+# Linux: the C++ runtime inside the plugin, so it loads where libstdc++ is older
+# than the build machine's, and hidden, as every static library's symbols are,
+# so that plugins in one process do not share it. Only the libraries it really
+# uses are named: JUCE asks for ones a VST3 has no use for (libasound, libatomic).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options(\${PROJECT_NAME} INTERFACE
+    -Wl,--as-needed -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
 endif()
 
 # The engine ABI identity is fixed by its exact package version.
