@@ -2,9 +2,10 @@
 // reports, from a change to the package, a workspace package it depends on,
 // its external dependencies or turbo's global dependencies. CI's own
 // definition is not in the package graph, so a change to it runs everything,
-// as does an unknown base. A change to the VST3 host alone runs its job only:
-// the others' packages reach it just through @soundor/driver's optional
-// `vst3` entry, and nothing they build or test uses that.
+// as does an unknown base. A change to the VST3 host alone runs its job and
+// Orbit's end-to-end tests, the one job that runs plugins in it: the others'
+// packages reach it just through @soundor/driver's optional `vst3` entry, and
+// nothing they build or test uses that.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
@@ -14,6 +15,7 @@ const JOBS = {
   juce: '@soundor/juce-runtime',
   benchmark: 'soundor-benchmark',
   host: '@soundor/vst3-host',
+  orbit: 'orbit',
 };
 const CI =
   /^\.github\/(workflows\/(verify|release|engine-artifacts|engine-prebuilts|vst3-host-artifacts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
@@ -67,7 +69,7 @@ function affectedByChange() {
   const files = changedFiles();
   if (files.some((path) => CI.test(path))) return null;
   if (files.length > 0 && files.every((path) => path.startsWith(HOST)))
-    return new Set([JOBS.host]);
+    return new Set([JOBS.host, JOBS.orbit]);
   return affectedPackages();
 }
 

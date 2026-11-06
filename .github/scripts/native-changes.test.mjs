@@ -58,14 +58,15 @@ const relock = (name) => (root) => {
   );
 };
 
-// [change, native, juce, benchmark, host]: the jobs testing @soundor/engine,
-// @soundor/juce-runtime, soundor-benchmark and @soundor/vst3-host, from the
-// packages they depend on.
+// [change, native, juce, benchmark, host, orbit]: the jobs testing
+// @soundor/engine, @soundor/juce-runtime, soundor-benchmark, @soundor/vst3-host
+// and the Orbit example, from the packages they depend on.
 const cases = [
   // None of them depends on these.
   [
     'a docs page',
     create('apps/website/content/docs/(docs)/guide.md'),
+    false,
     false,
     false,
     false,
@@ -78,11 +79,21 @@ const cases = [
     false,
     false,
     false,
+    false,
   ],
-  ['oxfmt.config.ts', append('oxfmt.config.ts'), false, false, false, false],
+  [
+    'oxfmt.config.ts',
+    append('oxfmt.config.ts'),
+    false,
+    false,
+    false,
+    false,
+    false,
+  ],
   [
     'lockfile comment',
     append('pnpm-lock.yaml', '#'),
+    false,
     false,
     false,
     false,
@@ -97,6 +108,7 @@ const cases = [
     false,
     true,
     false,
+    true,
   ],
   [
     'packages/react source',
@@ -105,6 +117,7 @@ const cases = [
     false,
     true,
     false,
+    true,
   ],
   // What both build plugins with: the CLI, and the codegen in core.
   [
@@ -114,8 +127,17 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
-  ['Fastify (the CLI’s DevTools)', relock('fastify'), false, true, true, false],
+  [
+    'Fastify (the CLI’s DevTools)',
+    relock('fastify'),
+    false,
+    true,
+    true,
+    false,
+    true,
+  ],
   [
     'packages/core source',
     append('packages/core/src/index.ts'),
@@ -123,6 +145,7 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
   [
     'version-only bumps (release PR)',
@@ -135,6 +158,7 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
   [
     'JUCE adapter',
@@ -143,6 +167,7 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
   [
     'the test plugin',
@@ -151,6 +176,7 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
   [
     'the benchmark',
@@ -158,6 +184,7 @@ const cases = [
     false,
     false,
     true,
+    false,
     false,
   ],
   // The engine, which everything native builds on, and what it depends on.
@@ -168,6 +195,7 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
   [
     'engine lowering',
@@ -176,6 +204,26 @@ const cases = [
     true,
     true,
     false,
+    true,
+  ],
+  // Orbit's own tests, and what runs them.
+  [
+    'Orbit e2e test',
+    create('examples/orbit/e2e/fixture.test.ts'),
+    false,
+    false,
+    false,
+    false,
+    true,
+  ],
+  [
+    'the e2e package',
+    append('packages/vitest-e2e/src/index.ts'),
+    false,
+    false,
+    false,
+    false,
+    true,
   ],
   // The VST3 host depends on no other workspace package's code.
   [
@@ -185,6 +233,7 @@ const cases = [
     false,
     false,
     true,
+    true,
   ],
   [
     'host client',
@@ -193,8 +242,9 @@ const cases = [
     false,
     false,
     true,
+    true,
   ],
-  // Its own change alone is its job's; with another package, the graph decides.
+  // Its own change alone is its job's and Orbit's; with another package, the graph decides.
   [
     'the host and the Driver',
     (root) => {
@@ -205,10 +255,12 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'host workflow',
     append('.github/workflows/vst3-host-artifacts.yml'),
+    true,
     true,
     true,
     true,
@@ -221,8 +273,17 @@ const cases = [
     true,
     true,
     false,
+    true,
   ],
-  ['Babel (the lowering)', relock('@babel/core'), true, true, true, false],
+  [
+    'Babel (the lowering)',
+    relock('@babel/core'),
+    true,
+    true,
+    true,
+    false,
+    true,
+  ],
   [
     'configs/',
     append('configs/typescript-config/node.json'),
@@ -230,13 +291,15 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   // turbo's global dependencies and CI itself.
-  ['.clang-tidy', append('.clang-tidy'), true, true, true, true],
-  ['.nvmrc', append('.nvmrc'), true, true, true, true],
+  ['.clang-tidy', append('.clang-tidy'), true, true, true, true, true],
+  ['.nvmrc', append('.nvmrc'), true, true, true, true, true],
   [
     'verify workflow',
     append('.github/workflows/verify.yml'),
+    true,
     true,
     true,
     true,
@@ -249,6 +312,7 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'artifact workflow',
@@ -257,10 +321,12 @@ const cases = [
     true,
     true,
     true,
+    true,
   ],
   [
     'release workflow',
     append('.github/workflows/release.yml'),
+    true,
     true,
     true,
     true,
@@ -310,7 +376,7 @@ test('native jobs follow the affected packages they test', () => {
       '--no-verify',
     );
     const base = git('rev-parse', 'HEAD');
-    for (const [name, change, native, juce, benchmark, host] of cases) {
+    for (const [name, change, native, juce, benchmark, host, orbit] of cases) {
       git('reset', '-q', '--hard', base);
       git('clean', '-qfd');
       change(root);
@@ -339,7 +405,7 @@ test('native jobs follow the affected packages they test', () => {
       });
       assert.equal(
         readFileSync(output, 'utf8'),
-        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\nhost=${host}\n`,
+        `native=${native}\njuce=${juce}\nbenchmark=${benchmark}\nhost=${host}\norbit=${orbit}\n`,
         name,
       );
       rmSync(output);
@@ -359,7 +425,7 @@ test('an unknown base runs every native job', () => {
     });
     assert.equal(
       readFileSync(output, 'utf8'),
-      'native=true\njuce=true\nbenchmark=true\nhost=true\n',
+      'native=true\njuce=true\nbenchmark=true\nhost=true\norbit=true\n',
     );
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -12,6 +12,7 @@ function jobs(flags = {}) {
         juce: 'false',
         benchmark: 'false',
         host: 'false',
+        orbit: 'false',
         ...flags,
       },
     },
@@ -25,6 +26,7 @@ function jobs(flags = {}) {
         'benchmark',
         'juce',
         'host',
+        'orbit',
       ].map((name) => [name, { result: 'skipped' }]),
     ),
   };
@@ -71,4 +73,12 @@ test('an affected VST3 host requires its native checks', () => {
   // Host changes alone never require the engine's suites.
   for (const name of ['engine', 'native', 'engine-artifacts', 'juce'])
     assert.equal(needs[name].result, 'skipped');
+});
+test('affected Orbit tests require their job and engine planning', () => {
+  const needs = jobs({ orbit: 'true' });
+  assert.throws(() => verifyResults(needs), /Engine planning/);
+  needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
+  assert.throws(() => verifyResults(needs), /orbit=skipped/);
+  needs.orbit.result = 'success';
+  verifyResults(needs);
 });

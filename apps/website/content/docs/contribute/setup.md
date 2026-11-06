@@ -72,7 +72,7 @@ pnpm --filter basic build:web
 The native command needs JUCE and a display to launch the Standalone. Both
 examples use source engine mode because workspace engines have no published
 manifest. The examples are real applications; native CI uses the runtime's own
-test plugin fixtures. See [Basic](/docs/examples/basic) and
+test plugin fixtures, and builds only Orbit, for its end-to-end tests. See [Basic](/docs/examples/basic) and
 [Primitives](/docs/examples/primitives).
 
 ## Run the website

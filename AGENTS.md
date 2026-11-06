@@ -97,9 +97,10 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
-`build:juce` or `build:web`. No native CI job builds them; CI's Fast checks
-run their tests, typecheck and web builds, and the website embeds those web
-builds. Tests have their own fixtures, inside the package they test:
+`build:juce` or `build:web`. CI's Fast checks run their tests, typecheck and web
+builds, and the website embeds those web builds. Orbit also has end-to-end tests
+of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
+job builds. Tests have their own fixtures, inside the package they test:
 `runtimes/juce-runtime/tests/plugin` (and `plugin-prebuilt`, the same plugin
 with a prebuilt engine, which `engine-prebuilts.yml` builds).
 
@@ -123,8 +124,8 @@ Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
 Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 `soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
-(`vst3-host-artifacts.yml`; a change only under `hosts/vst3-host/` runs this job
-alone). What a job builds must therefore be a dependency of its package.
+(`vst3-host-artifacts.yml`), Orbit e2e ← `orbit` (a change only under
+`hosts/vst3-host/` runs these last two alone). What a job builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved

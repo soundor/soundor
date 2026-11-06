@@ -124,9 +124,10 @@ Before 1.0, breaking changes use a `minor` changeset. Website-only documentation
 changes do not need a package release.
 
 Native CI jobs follow affected packages: engine tests follow `@soundor/engine`,
-JUCE integration follows `@soundor/juce-runtime`, and benchmark smoke follows
-`soundor-benchmark`, except that a change only under `hosts/vst3-host/` runs the
-host's job alone. Each build input must be a dependency of the package whose
+JUCE integration follows `@soundor/juce-runtime`, benchmark smoke follows
+`soundor-benchmark`, and Orbit's end-to-end tests follow `orbit`, on Linux, macOS
+and Windows, except that a change only under `hosts/vst3-host/` runs the host's job
+and Orbit's alone. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).
