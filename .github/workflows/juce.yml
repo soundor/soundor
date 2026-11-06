@@ -104,6 +104,12 @@ jobs:
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
         run: pnpm --filter @soundor/juce-runtime test:plugin
+      - name: The test plugin links as a release should
+        if: runner.os == 'Linux'
+        run: |
+          plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-linux/*.so' -type f | head -1)
+          [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
+          .github/scripts/linux-plugin-check.sh "$plugin"
       # The test plugin's editor, hosted and resized as a DAW does (EditorResize.cpp).
       - name: Resize the test plugin's editor
         if: runner.os == 'Linux'

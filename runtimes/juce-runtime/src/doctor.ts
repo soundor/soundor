@@ -9,7 +9,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 
 import {
   probeCommand,
@@ -25,6 +25,7 @@ import {
   loadHostModule,
   type HostModule,
 } from './dev-host';
+import { isNewerThanBaseline, LINUX_GLIBC_BASELINE } from './elf-glibc';
 import type { EngineMode, JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 
@@ -43,6 +44,8 @@ export interface DoctorDeps {
   readonly arch?: string;
   /** `@soundor/vst3-host` as the project has it. */
   readonly loadHost?: (root: string) => Promise<HostModule | undefined>;
+  /** Linux: this machine's glibc; default: the one running this process. */
+  readonly glibc?: string;
 }
 
 /** What the installed `@soundor/engine` is, and the prebuilt release it names. */
@@ -106,6 +109,12 @@ export async function buildDoctorReport(
       ...((deps.platform ?? process.platform) === 'darwin' &&
       options.engine?.mode === 'source'
         ? [checkMetalTools(probe)]
+        : []),
+      ...((deps.platform ?? process.platform) === 'linux'
+        ? [
+            ...checkStaticCxxRuntime(probe, env),
+            ...checkGlibc(deps.glibc ?? runningGlibc()),
+          ]
         : []),
     ],
   };
@@ -189,6 +198,60 @@ async function checkVst3Host(
   } catch (error) {
     return failed(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** The compiler CMake would take: `CXX`, then the first one on PATH. */
+function linuxCompiler(
+  probe: CommandProbe,
+  env: NodeJS.ProcessEnv,
+): string | undefined {
+  return env['CXX']?.trim().split(/\s+/)[0] || findCppCompiler(probe);
+}
+
+/** Linux builds cannot link without it. No compiler is another check's report. */
+function checkStaticCxxRuntime(
+  probe: CommandProbe,
+  env: NodeJS.ProcessEnv,
+): DoctorCheck[] {
+  const compiler = linuxCompiler(probe, env);
+  if (compiler === undefined) return [];
+  const label = 'Static C++ runtime';
+  // The compiler answers with the bare name when it has no such file.
+  const path = probe(compiler, ['-print-file-name=libstdc++.a']).version;
+  if (path !== undefined && isAbsolute(path))
+    return [{ label, status: 'ok', detail: path }];
+  return [
+    {
+      label,
+      status: 'fail',
+      detail:
+        "Linux builds link the C++ runtime statically, and libstdc++.a wasn't found.",
+      suggestion:
+        "Fedora, RHEL: sudo dnf install libstdc++-static. Elsewhere: the package with your compiler's static C++ library.",
+    },
+  ];
+}
+
+function runningGlibc(): string | undefined {
+  return (
+    process.report.getReport() as { header?: { glibcVersionRuntime?: string } }
+  ).header?.glibcVersionRuntime;
+}
+
+/** A build here runs only where glibc is at least this new. */
+function checkGlibc(glibc: string | undefined): DoctorCheck[] {
+  if (glibc === undefined) return [];
+  const label = 'glibc';
+  if (!isNewerThanBaseline(glibc))
+    return [{ label, status: 'ok', detail: `glibc ${glibc}.` }];
+  return [
+    {
+      label,
+      status: 'warn',
+      detail: `This machine has glibc ${glibc}, so a release built here may not load on Ubuntu 24.04 (glibc ${LINUX_GLIBC_BASELINE}) or other older systems. Fine for development.`,
+      suggestion: 'Build the releases you ship on Ubuntu 24.04.',
+    },
+  ];
 }
 
 /**

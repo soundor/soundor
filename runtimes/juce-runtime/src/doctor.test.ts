@@ -6,7 +6,12 @@ import type { HostModule } from './dev-host';
 import { buildDoctorReport, type DoctorDeps } from './doctor';
 import { memoryFs } from './testing';
 
-const ok: CommandProbe = () => ({ ok: true, version: '1.2.3' });
+const ok: CommandProbe = (_command, args) => ({
+  ok: true,
+  version: args?.[0]?.startsWith('-print-file-name=')
+    ? '/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.a'
+    : '1.2.3',
+});
 const missing: CommandProbe = () => ({ ok: false, error: 'not found' });
 
 function check(
@@ -39,6 +44,7 @@ describe('buildDoctorReport', () => {
         },
         platform: 'linux',
         arch: 'x64',
+        glibc: '2.39',
       },
     );
     expect(report.checks.map((c) => c.status)).toEqual([
@@ -48,7 +54,73 @@ describe('buildDoctorReport', () => {
       'ok',
       'ok',
       'ok',
+      'ok',
+      'ok',
     ]);
+  });
+
+  describe('on Linux', () => {
+    const report = async (
+      label: string,
+      deps: { probe?: CommandProbe; env?: NodeJS.ProcessEnv; glibc?: string },
+      platform: NodeJS.Platform = 'linux',
+    ) =>
+      (
+        await buildDoctorReport(
+          memoryFs('/proj'),
+          { formats: ['standalone'] },
+          {
+            probe: ok,
+            env: {},
+            platform,
+            arch: 'x64',
+            engine: { version: '0.2.1' },
+            glibc: '2.39',
+            ...deps,
+          },
+        )
+      ).checks.find((entry) => entry.label === label);
+    const missing: CommandProbe = (command, args) =>
+      args?.[0] === '-print-file-name=libstdc++.a'
+        ? { ok: true, version: 'libstdc++.a' }
+        : ok(command, args);
+
+    it('finds the static C++ runtime', async () => {
+      expect(await report('Static C++ runtime', {})).toMatchObject({
+        status: 'ok',
+        detail: '/usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.a',
+      });
+    });
+
+    it('fails without it, and says what to install', async () => {
+      const check = await report('Static C++ runtime', { probe: missing });
+      expect(check?.status).toBe('fail');
+      expect(check?.suggestion).toContain('dnf install libstdc++-static');
+    });
+
+    it('asks the compiler a build would use', async () => {
+      const asked: string[] = [];
+      await report('Static C++ runtime', {
+        env: { CXX: 'clang++-18 -stdlib=libstdc++' },
+        probe: (command, args) => {
+          asked.push(command);
+          return ok(command, args);
+        },
+      });
+      expect(asked).toContain('clang++-18');
+    });
+
+    it('warns of a glibc newer than the baseline', async () => {
+      expect((await report('glibc', { glibc: '2.39' }))?.status).toBe('ok');
+      const check = await report('glibc', { glibc: '2.43' });
+      expect(check?.status).toBe('warn');
+      expect(check?.detail).toContain('Ubuntu 24.04');
+    });
+
+    it('has nothing to say on other platforms', async () => {
+      expect(await report('glibc', {}, 'darwin')).toBeUndefined();
+      expect(await report('Static C++ runtime', {}, 'win32')).toBeUndefined();
+    });
   });
 
   describe('the Metal tools', () => {

@@ -39,6 +39,11 @@ import {
   type Vst3HostAvailability,
 } from './dev-host';
 import { buildDoctorReport, findCMake, findCppCompiler } from './doctor';
+import {
+  glibcRequirement,
+  isNewerThanBaseline,
+  LINUX_GLIBC_BASELINE,
+} from './elf-glibc';
 import { nativeUiDir, watchNativeUi, writeNativeUi } from './native-ui';
 import {
   resolveJuceOptions,
@@ -411,6 +416,26 @@ export async function juceBuild(
       ? `Packaged ${collected} artifact folder(s) into ${ctx.paths.dist}`
       : `Build finished; no *_artefacts found under ${buildDir}`,
   );
+  if (platform === 'linux' && collected > 0) await reportGlibc(ctx);
+}
+
+/** A release loads only where glibc is at least what it was built against. */
+async function reportGlibc(ctx: Ctx): Promise<void> {
+  const entries = await readdir(ctx.paths.dist, {
+    recursive: true,
+    withFileTypes: true,
+  });
+  const version = await glibcRequirement(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.so'))
+      .map((entry) => join(entry.parentPath, entry.name)),
+  );
+  if (version === undefined) return;
+  if (isNewerThanBaseline(version))
+    ctx.logger.warn(
+      `This release needs glibc ${version}, so it won't load on Ubuntu 24.04 (glibc ${LINUX_GLIBC_BASELINE}) or other older systems. Build releases on Ubuntu 24.04.`,
+    );
+  else ctx.logger.info(`This release needs glibc ${version} or newer.`);
 }
 
 /** `doctor` — verify CMake, a compiler, and a locatable JUCE checkout. */
