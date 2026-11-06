@@ -113,8 +113,8 @@ package, the platform package, checked against the client's version and
 protocol, the recorded SHA-256 and (Linux) the glibc it needs; in a source
 checkout, what `prepareHost()` selected, if it still matches the sources.
 
-`prepareHost({ mode })` (`pnpm --filter @soundor/vst3-host build:native`) has
-two modes:
+`prepareHost({ mode })` (`pnpm --filter @soundor/vst3-host build:native` for
+`source`) has three modes:
 
 - `prebuilt` (default): the published executable of exactly this version, if
   its native inputs match the checkout's; downloaded from npm, checked
@@ -124,6 +124,8 @@ two modes:
   locally instead. A network, registry or integrity error is an error, never
   taken for "not published". In an installed package, `prebuilt` is the
   platform package.
+- `published`: the same published executable, and otherwise an error, never a
+  build: what CI uses once `host-plan` has found that it matches.
 - `source`: always a local, incremental Release build, in
   `build/host-<toolchain>`: the directory depends on the compiler, generator
   and architecture variables, since a CMake build directory keeps the
@@ -184,18 +186,24 @@ editor tests (Xvfb on Linux), checks both slices of the macOS executable, and
 keeps `vst3-host-<sha>-<target>` for seven days. With `checks`, a Linux job
 adds clang-tidy and ASan/UBSan.
 
-Verify calls it when `turbo query affected` reports `@soundor/vst3-host`
-(`.github/scripts/native-changes.mjs`, job `host`): a change in the package,
-its workspace dependencies (the shared configs), turbo's global dependencies
-or CI itself. Host changes never run the engine's suites, and engine changes
-never run the host's. A change only under `hosts/vst3-host/` runs this job
-alone: the graph has it reach the JUCE and benchmark packages through
-`@soundor/driver`, but only that package's optional `vst3` entry uses the host.
+Verify uses it as it uses the engine's: `host-plan` decides, this workflow builds
+once for each target, and the jobs that use the host take what was decided, never
+compiling it. The plan builds the checkout when `turbo query affected` reports
+`@soundor/vst3-host` (`.github/scripts/native-changes.mjs`, job `host`): a change
+in the package, its workspace dependencies (the shared configs), turbo's global
+dependencies or CI itself. Only then do `checks` run. It also builds when the job
+that uses the host, Orbit's end-to-end tests, is affected and no release matches
+this checkout (`selectHost()`). Otherwise that job uses the release.
 
-No CI job runs `@soundor/driver/vst3` against a real plugin, which would need
-both this executable and a Debug engine. Its unit tests use a simulated
-runtime; `packages/driver/src/vst3.plugin.test.ts` runs by hand against the
-real pieces, and its first lines say how.
+Host changes never run the engine's suites, and engine changes never run the
+host's. A change only under `hosts/vst3-host/` runs this job and Orbit's alone: the
+graph has it reach the JUCE and benchmark packages through `@soundor/driver`, but
+only that package's optional `vst3` entry uses the host.
+
+Orbit's job is the one that runs `@soundor/driver/vst3` against a real plugin
+(through `@soundor/vitest-e2e`). The Driver's unit tests use a simulated runtime, and
+`packages/driver/src/vst3.plugin.test.ts` runs by hand against the real pieces; its
+first lines say how.
 
 ## Releases
 

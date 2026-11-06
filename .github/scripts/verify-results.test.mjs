@@ -12,6 +12,7 @@ function jobs(flags = {}) {
         juce: 'false',
         benchmark: 'false',
         host: 'false',
+        orbit: 'false',
         ...flags,
       },
     },
@@ -24,7 +25,9 @@ function jobs(flags = {}) {
         'native',
         'benchmark',
         'juce',
+        'host-plan',
         'host',
+        'orbit',
       ].map((name) => [name, { result: 'skipped' }]),
     ),
   };
@@ -65,10 +68,30 @@ test('failures, cancellations and detection failures always fail', () => {
 });
 test('an affected VST3 host requires its native checks', () => {
   const needs = jobs({ host: 'true' });
+  assert.throws(() => verifyResults(needs), /Host planning/);
+  needs['host-plan'] = { result: 'success', outputs: { build: 'false' } };
+  assert.throws(() => verifyResults(needs), /Affected host/);
+  needs['host-plan'].outputs.build = 'true';
   assert.throws(() => verifyResults(needs), /host=skipped/);
   needs.host.result = 'success';
   verifyResults(needs);
   // Host changes alone never require the engine's suites.
   for (const name of ['engine', 'native', 'engine-artifacts', 'juce'])
     assert.equal(needs[name].result, 'skipped');
+});
+test('affected Orbit tests require their job and what they use', () => {
+  const needs = jobs({ orbit: 'true' });
+  assert.throws(() => verifyResults(needs), /Host planning/);
+  needs['host-plan'] = { result: 'success', outputs: { build: 'true' } };
+  assert.throws(() => verifyResults(needs), /Engine planning/);
+  needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
+  assert.throws(() => verifyResults(needs), /host=skipped/);
+  needs.host.result = 'success';
+  assert.throws(() => verifyResults(needs), /orbit=skipped/);
+  needs.orbit.result = 'success';
+  verifyResults(needs);
+  // A released host that matches needs no build.
+  needs['host-plan'].outputs.build = 'false';
+  needs.host.result = 'skipped';
+  verifyResults(needs);
 });

@@ -11,6 +11,7 @@ pnpm --filter orbit dev:web
 pnpm --filter orbit typecheck
 pnpm --filter orbit test
 pnpm --filter orbit test:native
+pnpm --filter orbit test:e2e
 pnpm --filter orbit build:web
 pnpm --filter orbit build:juce
 ```
@@ -49,6 +50,12 @@ fails, a new canvas draws the echo map in 2D. No external assets or libraries
 are needed for the graphics or demo audio. Hold is a creative loop, not a
 transparent recorder; changing time changes pitch. There is no latency
 compensation or oversampling.
+
+`e2e/` tests the built VST3 in the real VST3 host, UI and audio together, with
+[`@soundor/vitest-e2e`](https://soundor.dev/docs/testing/e2e). `test:e2e` makes a
+Debug build first and needs the host's executable, which a checkout of this
+repository builds with `pnpm --filter @soundor/vst3-host build:native`. On Linux
+without a display, run it under `xvfb-run -a`. CI runs them on Linux, macOS and Windows when Orbit is affected.
 
 The homepage integration is a separate design step. This example is embedded
 at [soundor.dev/docs/examples/orbit](https://soundor.dev/docs/examples/orbit).

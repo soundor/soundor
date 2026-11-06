@@ -33,6 +33,8 @@ from the same run and commit instead of rebuilding the engine. When it is not
 affected, JUCE uses a matching released engine. If the current version is
 unpublished or its inputs do not match the release, CI builds checkout artifacts;
 the full native test suites are enabled only when the engine is affected.
+The VST3 host works the same way: `host-plan` decides, one workflow builds it, and
+the jobs that use it take that artifact or the release, never compiling it.
 Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
 Benchmarks retain source builds because their Release runner supports JavaScript
 source; the shipped Release engine is bytecode-only.
@@ -124,9 +126,10 @@ Before 1.0, breaking changes use a `minor` changeset. Website-only documentation
 changes do not need a package release.
 
 Native CI jobs follow affected packages: engine tests follow `@soundor/engine`,
-JUCE integration follows `@soundor/juce-runtime`, and benchmark smoke follows
-`soundor-benchmark`, except that a change only under `hosts/vst3-host/` runs the
-host's job alone. Each build input must be a dependency of the package whose
+JUCE integration follows `@soundor/juce-runtime`, benchmark smoke follows
+`soundor-benchmark`, and Orbit's end-to-end tests follow `orbit`, on Linux, macOS
+and Windows, except that a change only under `hosts/vst3-host/` runs the host's job
+and Orbit's alone. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).

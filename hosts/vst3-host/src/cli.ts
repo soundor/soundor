@@ -3,7 +3,7 @@
 //
 //   open <plugin.vst3> [--class <name>] [--bare | --interface]
 //        [--sample-rate <hz>] [--block-size <frames>]     open a plugin's editor until its window closes
-//   prepare [--mode prebuilt|source] [--artifact <dir>]   select or build the executable
+//   prepare [--mode prebuilt|published|source] [--artifact <dir>]   select or build the executable
 //   resolve                                               print the executable launchHost() runs
 //   inputs                                                print the native input fingerprint
 import { parseArgs } from 'node:util';
@@ -30,7 +30,7 @@ const { positionals, values } = parseArgs({
 
 const USAGE = `usage: soundor-vst3-host <command>
   open <plugin.vst3> [--class <name>] [--bare | --interface] [--sample-rate <hz>] [--block-size <frames>]
-  prepare [--mode prebuilt|source] [--artifact <dir>] [--commit <sha>]
+  prepare [--mode prebuilt|published|source] [--artifact <dir>] [--commit <sha>]
   resolve
   inputs`;
 
@@ -77,8 +77,10 @@ try {
       break;
     case 'prepare': {
       const mode = values.mode ?? 'prebuilt';
-      if (mode !== 'prebuilt' && mode !== 'source')
-        throw new Error(`--mode is "prebuilt" or "source", not "${mode}"`);
+      if (mode !== 'prebuilt' && mode !== 'published' && mode !== 'source')
+        throw new Error(
+          `--mode is "prebuilt", "published" or "source", not "${mode}"`,
+        );
       await prepareHost({
         mode: mode as BuildMode,
         artifact: values.artifact,

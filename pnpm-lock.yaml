@@ -618,6 +618,12 @@ importers:
       '@soundor/vitest':
         specifier: workspace:^
         version: link:../../packages/vitest
+      '@soundor/vitest-e2e':
+        specifier: workspace:^
+        version: link:../../packages/vitest-e2e
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2

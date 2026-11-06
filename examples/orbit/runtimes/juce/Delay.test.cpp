@@ -47,5 +47,16 @@ int main()
     const auto output = delay.tick(0.25f, -0.125f, state);
     assert(std::abs(output[0] - 0.25f) < 0.000001f);
     assert(std::abs(output[1] + 0.125f) < 0.000001f);
+    // With no Motion left, the third voice's read lands just below zero as the
+    // write position reaches its delay. Under _GLIBCXX_ASSERTIONS, reading one
+    // past the end stops here, as a Windows Debug build does.
+    orbit::Delay still;
+    still.prepare(48000);
+    orbit::Settings stillState;
+    stillState.times = { 0.375f, 0.75f, 1.125f };
+    stillState.motion = 0;
+    still.configure(stillState);
+    for (int i = 0; i < 48000 * 2; ++i)
+        still.tick(0, 0, stillState);
     std::cout << "Orbit delay: impulse timing, stereo, Hold, bypass passed\n";
 }

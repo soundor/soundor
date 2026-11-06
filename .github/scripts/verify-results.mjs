@@ -5,7 +5,7 @@ export function verifyResults(needs) {
   const required = new Set(['changes', 'fast']);
   const changes = needs.changes?.outputs ?? {};
   if (
-    ['native', 'juce', 'benchmark', 'host'].some(
+    ['native', 'juce', 'benchmark', 'host', 'orbit'].some(
       (name) => !['true', 'false'].includes(changes[name]),
     )
   )
@@ -16,8 +16,22 @@ export function verifyResults(needs) {
   }
   if (changes.benchmark === 'true') required.add('benchmark');
   if (changes.juce === 'true') required.add('juce');
-  if (changes.host === 'true') required.add('host');
-  if (changes.native === 'true' || changes.juce === 'true')
+  if (changes.orbit === 'true') required.add('orbit');
+  if (changes.host === 'true' || changes.orbit === 'true')
+    required.add('host-plan');
+  if (
+    required.has('host-plan') &&
+    !['true', 'false'].includes(needs['host-plan']?.outputs?.build)
+  )
+    throw new Error('Host planning did not return a build decision');
+  if (changes.host === 'true' && needs['host-plan']?.outputs?.build !== 'true')
+    throw new Error('Affected host must use checkout artifacts');
+  if (needs['host-plan']?.outputs?.build === 'true') required.add('host');
+  if (
+    changes.native === 'true' ||
+    changes.juce === 'true' ||
+    changes.orbit === 'true'
+  )
     required.add('engine-plan');
   if (
     required.has('engine-plan') &&

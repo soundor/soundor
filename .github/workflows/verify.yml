@@ -5,7 +5,7 @@ on:
     outputs:
       host:
         description: Whether this run built and tested the VST3 host's artifacts
-        value: ${{ jobs.changes.outputs.host }}
+        value: ${{ jobs.host-plan.outputs.build }}
   pull_request:
     # Each layer of the SVG stack must be verified against its own base.
     branches: [main, feat/svg-skia, feat/svg-image, feat/svg-scene]
@@ -27,6 +27,7 @@ jobs:
       juce: ${{ steps.detect.outputs.juce }}
       benchmark: ${{ steps.detect.outputs.benchmark }}
       host: ${{ steps.detect.outputs.host }}
+      orbit: ${{ steps.detect.outputs.orbit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,7 +41,9 @@ jobs:
   engine-plan:
     name: Select engine
     needs: changes
-    if: needs.changes.outputs.native == 'true' || needs.changes.outputs.juce == 'true'
+    if: >-
+      needs.changes.outputs.native == 'true' || needs.changes.outputs.juce == 'true' ||
+      needs.changes.outputs.orbit == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -76,6 +79,31 @@ jobs:
     with:
       integration: false
       tests: ${{ needs.changes.outputs.native == 'true' }}
+
+  host-plan:
+    name: Select VST3 host
+    needs: changes
+    if: needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.select.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - id: select
+        env:
+          HOST_AFFECTED: ${{ needs.changes.outputs.host }}
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync } from "node:fs";
+            import { selectHost } from "./hosts/vst3-host/src/prepare.ts";
+            const selection = process.env.HOST_AFFECTED === "true"
+              ? { mode: "source", reason: "host package affected" }
+              : await selectHost();
+            console.log(selection);
+            appendFileSync(process.env.GITHUB_OUTPUT, "build=" + (selection.mode === "source") + "\n");'
 
   fast:
     name: Fast checks
@@ -511,16 +539,142 @@ jobs:
           PYTHON
 
   # @soundor/vst3-host: its executable on every target, tested headless and
-  # with its editor, plus clang-tidy and sanitizers. Nothing of the engine.
+  # with its editor, for the jobs that use it. Clang-tidy and sanitizers only
+  # when the host itself is affected. Nothing of the engine.
   host:
     name: VST3 host
-    needs: changes
-    if: needs.changes.outputs.host == 'true'
+    needs: [changes, host-plan]
+    if: needs.host-plan.outputs.build == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/vst3-host-artifacts.yml
     with:
-      checks: true
+      checks: ${{ needs.changes.outputs.host == 'true' }}
+
+  # Orbit's end-to-end tests: its Debug VST3 in the real VST3 host, UI and audio,
+  # on every platform. Only the tests' reports are kept, never the built plugin.
+  orbit:
+    name: Orbit e2e (${{ matrix.name }})
+    needs: [changes, engine-plan, engine-artifacts, host-plan, host]
+    if: >-
+      always() && !cancelled() && needs.changes.result == 'success' &&
+      needs.changes.outputs.orbit == 'true' && needs.engine-plan.result == 'success' &&
+      (needs.engine-plan.outputs.build != 'true' || needs.engine-artifacts.result == 'success') &&
+      needs.host-plan.result == 'success' &&
+      (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {
+              name: linux,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              target: linux-x64,
+              host-target: linux-x64-gnu,
+            }
+          - {
+              name: macos,
+              os: macos-15,
+              cc: clang,
+              cxx: clang++,
+              target: macos-universal,
+              host-target: darwin-universal,
+            }
+          - {
+              name: windows,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              target: windows-x64,
+              host-target: win32-x64,
+            }
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      # Match the Clang 18 bitcode emitted by JUCE's flags.
+      LDFLAGS: ${{ matrix.name == 'linux' && '-fuse-ld=lld-18' || '' }}
+      JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup consumer dependencies
+        uses: ./.github/actions/engine-consumer
+      - name: Download this checkout's engine
+        if: needs.engine-plan.outputs.build == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: engine-prebuilt-${{ github.sha }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/engine-artifacts
+      - name: Select this checkout's engine artifacts
+        if: needs.engine-plan.outputs.build == 'true'
+        run: |
+          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/engine-artifacts" --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/engine-manifest.json"
+          manifest=$(cygpath -m "$RUNNER_TEMP/engine-manifest.json" 2>/dev/null || echo "$RUNNER_TEMP/engine-manifest.json")
+          echo "SOUNDOR_ENGINE_MANIFEST=$manifest" >> "$GITHUB_ENV"
+      - name: Download this checkout's VST3 host
+        if: needs.host-plan.outputs.build == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: vst3-host-${{ github.sha }}-${{ matrix.host-target }}
+          path: ${{ runner.temp }}/vst3-host
+      - name: Select this checkout's VST3 host
+        if: needs.host-plan.outputs.build == 'true'
+        run: |
+          artifact=$(cygpath -m "$RUNNER_TEMP/vst3-host" 2>/dev/null || echo "$RUNNER_TEMP/vst3-host")
+          echo "SOUNDOR_VST3_HOST_ARTIFACT=$artifact" >> "$GITHUB_ENV"
+      - name: Select the VST3 host
+        run: set -o pipefail; node hosts/vst3-host/src/cli.ts prepare --mode published 2>&1 | tee "$RUNNER_TEMP/step.log"
+      # CI-only checkout, outside either npm package; never distributed.
+      - name: Checkout JUCE
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: juce-framework/JUCE
+          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
+          path: .soundor/ci-juce
+      - name: Platform dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libxtst-dev libxcomposite-dev libxdamage-dev libxfixes-dev libgl-dev libgl1-mesa-dev xvfb
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+      - name: Build workspace
+        run: pnpm turbo run build --filter=orbit^...
+      # Linux has no display here; the macOS and Windows runners have a desktop.
+      - name: Test
+        run: |
+          set -o pipefail
+          if [ "${{ runner.os }}" = Linux ]; then
+            xvfb-run -a -s "-screen 0 1920x1200x24" pnpm --filter orbit test:e2e
+          else
+            pnpm --filter orbit test:e2e
+          fi 2>&1 | tee "$RUNNER_TEMP/step.log"
+      - name: Keep the failure reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: orbit-e2e-results-${{ matrix.name }}
+          path: examples/orbit/.soundor/test-results
+          # .soundor is hidden.
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Report the failure
+        if: failure()
+        run: |
+          [ -f "$RUNNER_TEMP/step.log" ] || exit 0
+          { grep -iE "error|FAIL" "$RUNNER_TEMP/step.log" | head -n 30 || true; echo ...; tail -n 30 "$RUNNER_TEMP/step.log"; } | tr -d '\r' | sed 's/%/%25/g' | awk 'BEGIN { ORS = "%0A" } { print }' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=Orbit e2e (${{ matrix.name }}) failed::$(cat "$RUNNER_TEMP/tail.txt")"
 
   verify:
     name: Verify
@@ -535,7 +689,9 @@ jobs:
         benchmark,
         native,
         juce,
+        host-plan,
         host,
+        orbit,
       ]
     runs-on: ubuntu-24.04
     permissions:

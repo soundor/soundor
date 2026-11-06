@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import { nativeInputs } from '../../src/inputs.ts';
-import { prepareHost } from '../../src/prepare.ts';
+import { prepareHost, selectHost } from '../../src/prepare.ts';
 import { PROVENANCE_FILE, sha256 } from '../../src/provenance.ts';
 import { resolveHost, selectionFile } from '../../src/resolve.ts';
 import { targets } from '../../src/targets.ts';
@@ -265,6 +265,40 @@ describe('prepareHost', () => {
       fetcher: () => Promise.reject(new Error('offline')),
     });
     expect(offline.executable).toBe(prepared.executable);
+  });
+
+  test('published mode never builds', async () => {
+    const root = packageCopy(undefined, '9.9.9');
+    const { build, calls } = fakeBuild(root);
+    await expect(
+      prepareHost({
+        root,
+        mode: 'published',
+        registry: registry.url,
+        cache: temporary(),
+        build,
+        log: quiet,
+      }),
+    ).rejects.toThrow(/no published VST3 host executable.*is not published/);
+    expect(calls).toEqual([]);
+  });
+
+  test('selectHost plans a build for an unpublished version', async () => {
+    const root = packageCopy(undefined, '9.9.9');
+    await expect(
+      selectHost({ root, registry: registry.url, cache: temporary() }),
+    ).resolves.toEqual({
+      mode: 'source',
+      reason: `${here.package}@9.9.9 is not published`,
+    });
+  });
+
+  test('selectHost plans on a published version that matches', async () => {
+    const root = packageCopy();
+    publish(root);
+    await expect(
+      selectHost({ root, registry: registry.url, cache: temporary() }),
+    ).resolves.toMatchObject({ mode: 'prebuilt' });
   });
 
   test('builds when the sources differ from the published version', async () => {

@@ -12,9 +12,10 @@
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
-    "test": "vitest run",
-    "test:watch": "vitest watch",
-    "test:native": "mkdir -p .soundor && clang++ -std=c++20 -Wall -Wextra -Werror runtimes/juce/Delay.test.cpp -o .soundor/delay-test && .soundor/delay-test"
+    "test": "vitest run --project integration",
+    "test:watch": "vitest watch --project integration",
+    "test:e2e": "soundor build juce --debug && vitest run --project e2e",
+    "test:native": "mkdir -p .soundor && clang++ -std=c++20 -Wall -Wextra -Werror -D_GLIBCXX_ASSERTIONS runtimes/juce/Delay.test.cpp -o .soundor/delay-test && .soundor/delay-test"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
@@ -26,6 +27,8 @@
     "@soundor/config": "workspace:*",
     "@soundor/testing-library": "workspace:^",
     "@soundor/vitest": "workspace:^",
+    "@soundor/vitest-e2e": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "soundor": "workspace:*",
