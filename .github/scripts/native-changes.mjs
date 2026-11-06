@@ -4,8 +4,9 @@
 // definition is not in the package graph, so a change to it runs everything,
 // as does an unknown base. A change to the VST3 host alone runs its job and
 // Orbit's end-to-end tests, the one job that runs plugins in it: the others'
-// packages reach it just through @soundor/driver's optional `vst3` entry, and
-// nothing they build or test uses that.
+// packages reach it just through @soundor/driver's optional `vst3` entry and
+// @soundor/juce-runtime's `soundor dev`, and nothing they build or test uses
+// those.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 

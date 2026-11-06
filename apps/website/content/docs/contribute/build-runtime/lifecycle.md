@@ -57,7 +57,7 @@ A doctor report contains `checks`, each with `label`, `status` (`ok`, `warn` or
 | `devtools`                 | Optional credentials for an active supported debug session       |
 | `signal`                   | Cancellation of long-lived operations                            |
 
-Use `ctx.paths.gen`, `cache` and `dist` rather than inventing output locations.
+Use `ctx.paths.gen`, `cache`, `dist` and `state` rather than inventing output locations.
 [Ownership](/docs/contribute/ownership) describes which files may be rewritten.
 `FileSystemHost` resolves relative paths against the project root; it also
 accepts absolute paths and is not a filesystem sandbox.

@@ -25,6 +25,7 @@
     "@soundor/config": "workspace:*",
     "@soundor/testing-library": "workspace:^",
     "@soundor/vitest": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "soundor": "workspace:*",

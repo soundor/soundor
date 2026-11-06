@@ -29,14 +29,15 @@ flowchart TD
     shared --> build
 ```
 
-| Location                            | Owner and lifetime                                       |
-| ----------------------------------- | -------------------------------------------------------- |
-| `runtimes/<id>/`                    | User-owned host files, created once by `init`            |
-| `.soundor/generated/`               | Shared declarations, regenerated from config             |
-| `.soundor/generated/runtimes/<id>/` | Runtime codegen output, exposed as `ctx.paths.gen`       |
-| `.soundor/cache/<id>/`              | Runtime scratch/build data, exposed as `ctx.paths.cache` |
-| `.soundor/dist/<id>/`               | Runtime build output, exposed as `ctx.paths.dist`        |
-| `.soundor/ui/`                      | CLI-owned UI bundles and their assets                    |
+| Location                            | Owner and lifetime                                                                        |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `runtimes/<id>/`                    | User-owned host files, created once by `init`                                             |
+| `.soundor/generated/`               | Shared declarations, regenerated from config                                              |
+| `.soundor/generated/runtimes/<id>/` | Runtime codegen output, exposed as `ctx.paths.gen`                                        |
+| `.soundor/cache/<id>/`              | Runtime scratch/build data, exposed as `ctx.paths.cache`                                  |
+| `.soundor/dist/<id>/`               | Runtime build output, exposed as `ctx.paths.dist`                                         |
+| `.soundor/state/<id>/`              | What a runtime keeps between sessions and cannot make again, exposed as `ctx.paths.state` |
+| `.soundor/ui/`                      | CLI-owned UI bundles and their assets                                                     |
 
 `init` checks whether each destination exists before writing a starter file.
 `gen` emits relative paths and contents through `ctx.codegen`; the CLI writes

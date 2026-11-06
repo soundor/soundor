@@ -19,7 +19,9 @@ import {
 } from '@soundor/runtime-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { HostModule } from './dev-host';
 import { juceBuild, juceDev, juceGen, juceInit } from './index';
+import type { JuceOptions } from './options';
 import { makeCtx } from './testing';
 
 const config = {
@@ -305,6 +307,130 @@ describe('juceDev', () => {
     expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['s']);
     await shortcuts[0]!.action();
     expect(launched).toEqual([standalone, standalone]);
+  });
+
+  describe('with the VST3 host', () => {
+    /** A build with both formats, and a host that records what it opened. */
+    async function devWith(
+      options: JuceOptions,
+      module: HostModule | undefined,
+    ) {
+      const root = await tempProjectWithJuce();
+      const controller = new AbortController();
+      controller.abort();
+      const shortcuts: DevShortcut[] = [];
+      const ready: (readonly DevSummaryRow[] | undefined)[] = [];
+      const ctx = {
+        ...makeCtx({
+          root,
+          fs: createNodeFileSystem(root),
+          options: {
+            jucePath: join(root, 'JUCE'),
+            formats: ['vst3', 'standalone'],
+            ...options,
+          },
+          signal: controller.signal,
+        }),
+        session: {
+          ready: (rows?: readonly DevSummaryRow[]) => ready.push(rows),
+          shortcut: (shortcut: DevShortcut) => shortcuts.push(shortcut),
+        },
+      };
+      const artefacts = join(
+        ctx.paths.cache,
+        'build-debug',
+        'SoundorBasic_artefacts',
+        'Debug',
+      );
+      const standalone = join(artefacts, 'Standalone', 'Soundor Basic.app');
+      const plugin = join(artefacts, 'VST3', 'Soundor Basic.vst3');
+      const run = async (o: RunCommandOptions) => {
+        if (o.args[0] !== '--build') return;
+        await mkdir(standalone, { recursive: true });
+        await mkdir(plugin, { recursive: true });
+      };
+      const launched: string[] = [];
+      await juceDev(config, ctx, {
+        run,
+        probe: okProbe,
+        platform: 'darwin',
+        launchStandalone: (target) => {
+          launched.push(target);
+          return true;
+        },
+        loadHost: async () => module,
+      });
+      return { launched, standalone, plugin, shortcuts, ready };
+    }
+
+    function fakeHostModule(): HostModule & { opened: string[] } {
+      const opened: string[] = [];
+      return {
+        opened,
+        resolveHost: () => ({
+          executable: '/host',
+          source: 'explicit',
+          reason: 'test',
+        }),
+        prepareHost: async () => {
+          throw new Error('not needed');
+        },
+        launchHost: async (options: { plugin: string }) => {
+          opened.push(options.plugin);
+          return {
+            once: () => {},
+            exited: new Promise(() => {}),
+            getState: async () => ({
+              component: new Uint8Array(),
+              controller: new Uint8Array(),
+            }),
+            setState: async () => {},
+            close: async () => ({ code: 0, signal: null }),
+          };
+        },
+      } as unknown as HostModule & { opened: string[] };
+    }
+
+    it('opens the VST3 in the host rather than the Standalone', async () => {
+      const module = fakeHostModule();
+      const { launched, plugin, shortcuts, ready } = await devWith({}, module);
+      expect(module.opened).toEqual([plugin]);
+      expect(launched).toEqual([]);
+      expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['v', 's']);
+      expect(ready[0]).toContainEqual({ label: 'VST3', value: plugin });
+    });
+
+    it('opens the Standalone without the host', async () => {
+      const { launched, standalone, shortcuts } = await devWith({}, undefined);
+      expect(launched).toEqual([standalone]);
+      expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['s']);
+    });
+
+    it('follows dev.launch, and the other stays a key away', async () => {
+      const module = fakeHostModule();
+      const { launched, standalone, plugin, shortcuts } = await devWith(
+        { dev: { launch: 'standalone' } },
+        module,
+      );
+      expect(launched).toEqual([standalone]);
+      expect(module.opened).toEqual([]);
+      await shortcuts.find((shortcut) => shortcut.key === 's')!.action();
+      expect(launched).toEqual([standalone, standalone]);
+      expect(plugin).toContain('.vst3');
+    });
+
+    it('opens nothing with dev.launch: false', async () => {
+      const module = fakeHostModule();
+      const { launched } = await devWith({ dev: { launch: false } }, module);
+      expect(launched).toEqual([]);
+      expect(module.opened).toEqual([]);
+    });
+
+    it('refuses dev.launch: "vst3" without the host, before building', async () => {
+      await expect(
+        devWith({ dev: { launch: 'vst3' } }, undefined),
+      ).rejects.toThrow(/@soundor\/vst3-host/);
+    });
   });
 });
 

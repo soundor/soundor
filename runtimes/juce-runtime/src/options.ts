@@ -21,6 +21,12 @@ export type JuceFormat = 'vst3' | 'au' | 'standalone';
  */
 export type EngineMode = 'prebuilt' | 'source';
 
+/**
+ * What `soundor dev` opens once the plugin is built: the VST3 in
+ * `@soundor/vst3-host`, the Standalone, or (`false`) nothing.
+ */
+export type DevLaunch = 'vst3' | 'standalone' | false;
+
 export interface JuceOptions {
   /** Where the native engine comes from. Defaults to `{ mode: 'prebuilt' }`. */
   readonly engine?: { readonly mode: EngineMode };
@@ -32,6 +38,14 @@ export interface JuceOptions {
   readonly jucePath?: string;
   /** Formats to build. Defaults to `['vst3']`. */
   readonly formats?: readonly JuceFormat[];
+  /**
+   * `soundor dev`. `launch` is what it opens once the plugin is built. By
+   * default: the VST3 in `@soundor/vst3-host` when `formats` has `vst3` and the
+   * project has that package installed, otherwise the Standalone when `formats`
+   * has `standalone`, otherwise nothing. A format named here must be in
+   * `formats`, and `'vst3'` needs the package.
+   */
+  readonly dev?: { readonly launch?: DevLaunch };
   /** Company name hosts show (JUCE `COMPANY_NAME`). Defaults to the vendor segment of `plugin.id`. */
   readonly companyName?: string;
   /**
@@ -63,6 +77,8 @@ export interface ResolvedJuceOptions {
   readonly engineMode: EngineMode;
   readonly jucePath?: string;
   readonly formats: readonly JuceFormat[];
+  /** Undefined: decided from the formats and whether the VST3 host is installed. */
+  readonly devLaunch?: DevLaunch;
   /** `plugin.id`, used as the bundle identifier. */
   readonly bundleId: string;
   /** `plugin.name`. */
@@ -94,11 +110,25 @@ export function resolveJuceOptions(
     options.formats && options.formats.length > 0
       ? [...options.formats]
       : [...DEFAULT_FORMATS];
+  const devLaunch = options.dev?.launch;
+  if (devLaunch !== undefined && devLaunch !== false) {
+    if (devLaunch !== 'vst3' && devLaunch !== 'standalone')
+      throw new RuntimeError(
+        `juceRuntime({ dev: { launch } }) is "vst3", "standalone" or false, not ${JSON.stringify(devLaunch)}.`,
+        { runtimeId: 'juce' },
+      );
+    if (!formats.includes(devLaunch))
+      throw new RuntimeError(
+        `juceRuntime({ dev: { launch: "${devLaunch}" } }) needs "${devLaunch}" in formats; they are ${JSON.stringify(formats)}.`,
+        { runtimeId: 'juce' },
+      );
+  }
   const vendor = vendorOf(plugin.id);
   return {
     engineMode,
     jucePath: options.jucePath,
     formats,
+    ...(devLaunch === undefined ? {} : { devLaunch }),
     bundleId: plugin.id,
     pluginName: plugin.name,
     companyName: options.companyName ?? vendor.name,

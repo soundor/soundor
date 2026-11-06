@@ -1,7 +1,9 @@
+import { createNodeFileSystem } from '@soundor/core';
 import type { CommandProbe } from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
-import { buildDoctorReport } from './doctor';
+import type { HostModule } from './dev-host';
+import { buildDoctorReport, type DoctorDeps } from './doctor';
 import { memoryFs } from './testing';
 
 const ok: CommandProbe = () => ({ ok: true, version: '1.2.3' });
@@ -45,7 +47,52 @@ describe('buildDoctorReport', () => {
       'ok',
       'ok',
       'ok',
+      'ok',
     ]);
+  });
+
+  describe('the VST3 host', () => {
+    const report = (
+      loadHost: DoctorDeps['loadHost'],
+      options: Parameters<typeof buildDoctorReport>[1] = {},
+    ) =>
+      buildDoctorReport(createNodeFileSystem(process.cwd()), options, {
+        loadHost,
+      }).then((result) =>
+        result.checks.find((check) => check.label === 'VST3 host'),
+      );
+
+    it('is fine without it', async () => {
+      expect((await report(async () => undefined))?.status).toBe('ok');
+    });
+
+    it('says where it runs from', async () => {
+      const check = await report(
+        async () =>
+          ({
+            resolveHost: () => ({ executable: '/host', source: 'package' }),
+          }) as unknown as HostModule,
+      );
+      expect(check).toMatchObject({ status: 'ok', detail: '/host (package)' });
+    });
+
+    it('warns of one that cannot run', async () => {
+      const check = await report(
+        async () =>
+          ({
+            resolveHost: () => {
+              throw new Error('no executable');
+            },
+          }) as unknown as HostModule,
+      );
+      expect(check).toMatchObject({ status: 'warn', detail: 'no executable' });
+    });
+
+    it('is not checked without the VST3 format', async () => {
+      expect(
+        await report(async () => undefined, { formats: ['standalone'] }),
+      ).toBeUndefined();
+    });
   });
 
   const published = {

@@ -58,6 +58,10 @@ export interface LaunchOptions extends ProcessingSetup {
   presentation?: Presentation | null;
   /** The executable. Default: resolveHost(). */
   executable?: string;
+  /** Runs the host in a process group of its own, so that a terminal's Ctrl+C
+      reaches only Node, which can ask the plugin for its state before calling
+      `close()`. It still ends with Node. Default false. */
+  detached?: boolean;
   /** Added to (or, with inheritEnv: false, instead of) process.env.
       SOUNDOR_DEVTOOLS_SESSION reaches the plugin this way. */
   env?: Record<string, string | undefined>;
@@ -152,6 +156,7 @@ export async function launchHost(options: LaunchOptions): Promise<Vst3Host> {
   const child = spawn(executable, args, {
     cwd: options.cwd,
     env: env as NodeJS.ProcessEnv,
+    detached: options.detached ?? false,
     stdio: ['pipe', 'pipe', 'pipe'],
     windowsHide: true,
   });

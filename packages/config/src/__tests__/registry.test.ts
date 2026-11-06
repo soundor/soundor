@@ -32,6 +32,7 @@ function dispatchInput(
       dist: '/p/.soundor/dist/x',
       gen: '/p/.soundor/gen/x',
       cache: '/p/.soundor/cache/x',
+      state: '/p/.soundor/state/x',
     },
     logger: createConsoleLogger(),
     fs: noopFs,

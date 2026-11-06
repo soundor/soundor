@@ -575,6 +575,9 @@ importers:
       '@soundor/vitest':
         specifier: workspace:^
         version: link:../../packages/vitest
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -667,6 +670,9 @@ importers:
       '@soundor/vitest':
         specifier: workspace:^
         version: link:../../packages/vitest
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -882,6 +888,9 @@ importers:
       '@soundor/typescript-config':
         specifier: workspace:^
         version: link:../../configs/typescript-config
+      '@soundor/vst3-host':
+        specifier: workspace:*
+        version: link:../../hosts/vst3-host
       '@soundor/web-runtime':
         specifier: workspace:*
         version: link:../../runtimes/web-runtime
@@ -1427,6 +1436,9 @@ importers:
       '@soundor/typescript-config':
         specifier: workspace:^
         version: link:../../configs/typescript-config
+      '@soundor/vst3-host':
+        specifier: workspace:^
+        version: link:../../hosts/vst3-host
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
