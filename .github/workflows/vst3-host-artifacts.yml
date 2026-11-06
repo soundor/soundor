@@ -57,12 +57,11 @@ jobs:
           command -v ninja || brew install ninja
           echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
-      # Universal, with the oldest macOS it supports named.
+      # Universal; its CMakeLists.txt names the oldest macOS it supports.
       - name: Build and self-test
         working-directory: hosts/vst3-host
         env:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
-          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
         run: cmake --workflow --preset release
 
       - name: Stage
@@ -75,6 +74,10 @@ jobs:
           [ "${{ runner.os }}" = Windows ] && staged="$staged.exe"
           echo "STAGED=$(cygpath -m "$staged" 2>/dev/null || echo "$staged")" >> "$GITHUB_ENV"
           echo "FIXTURES=$(cygpath -m "$GITHUB_WORKSPACE/hosts/vst3-host/build/release/fixtures" 2>/dev/null || echo "$GITHUB_WORKSPACE/hosts/vst3-host/build/release/fixtures")" >> "$GITHUB_ENV"
+
+      - name: The macOS executable names the oldest macOS it supports
+        if: runner.os == 'macOS'
+        run: .github/scripts/macos-minimum.sh 12.0 "$STAGED"
 
       - name: Both architectures in the macOS executable
         if: runner.os == 'macOS'

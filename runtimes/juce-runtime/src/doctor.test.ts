@@ -51,6 +51,48 @@ describe('buildDoctorReport', () => {
     ]);
   });
 
+  describe('the Metal tools', () => {
+    const report = (
+      platform: NodeJS.Platform,
+      mode: 'source' | 'prebuilt',
+      probe: CommandProbe = ok,
+    ) =>
+      buildDoctorReport(
+        memoryFs('/proj'),
+        { engine: { mode }, formats: ['standalone'] },
+        {
+          probe,
+          platform,
+          arch: 'arm64',
+          env: {},
+          engine: { version: '0.2.1' },
+        },
+      ).then((result) =>
+        result.checks.find((entry) => entry.label === 'Metal tools'),
+      );
+    const withoutMetal: CommandProbe = (command) =>
+      command === 'xcrun' ? { ok: false, error: 'no metal' } : ok(command, []);
+
+    it('are fine when xcrun finds them', async () => {
+      expect((await report('darwin', 'source'))?.status).toBe('ok');
+    });
+
+    it('say how to get them when building from source', async () => {
+      const check = await report('darwin', 'source', withoutMetal);
+      expect(check?.status).toBe('warn');
+      expect(check?.suggestion).toContain('xcode-select --switch');
+      expect(check?.suggestion).toContain('MetalToolchain');
+    });
+
+    it('are not needed with a prebuilt engine', async () => {
+      expect(await report('darwin', 'prebuilt', withoutMetal)).toBeUndefined();
+    });
+
+    it('are not checked outside macOS', async () => {
+      expect(await report('linux', 'source', withoutMetal)).toBeUndefined();
+    });
+  });
+
   describe('the VST3 host', () => {
     const report = (
       loadHost: DoctorDeps['loadHost'],

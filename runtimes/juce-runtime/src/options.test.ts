@@ -17,7 +17,37 @@ describe('resolveJuceOptions', () => {
       pluginCode: fourCharCode(undefined, 'com.acme.reverb'),
       manufacturerCode: fourCharCode(undefined, 'com.acme'),
       timeLimit: 5000,
+      macosDeploymentTarget: '12.0',
     });
+  });
+
+  describe('macos.deploymentTarget', () => {
+    const resolve = (deploymentTarget: string) =>
+      resolveJuceOptions({ macos: { deploymentTarget } }, plugin)
+        .macosDeploymentTarget;
+
+    it.each(['12.0', '12', '12.3', '13.0', '15.4.1', '26.0'])(
+      'takes %s',
+      (version) => {
+        expect(resolve(version)).toBe(version);
+      },
+    );
+
+    it.each(['11.0', '11.7.10', '10.15', '9'])(
+      'refuses %s, below the engine',
+      (version) => {
+        expect(() => resolve(version)).toThrow(
+          `is ${version}, but the Soundor engine needs macOS 12.0 or later`,
+        );
+      },
+    );
+
+    it.each(['', 'latest', '13.x', '13.0.0.0', 'v13'])(
+      'refuses %j, not a version',
+      (version) => {
+        expect(() => resolve(version)).toThrow('is a macOS version');
+      },
+    );
   });
 
   it('uses prebuilt selection unless source compilation is requested', () => {

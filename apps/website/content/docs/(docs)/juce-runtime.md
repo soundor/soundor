@@ -48,6 +48,7 @@ top-level `plugin`.
 | `engine`           | `{ mode: 'prebuilt' }`: CMake uses matching binaries or builds local changes; `'source'` always compiles it |
 | `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                                                           |
 | `formats`          | `['vst3']`                                                                                                  |
+| `macos`            | `{ deploymentTarget: '12.0' }`: the oldest macOS the plugin runs on; the engine needs 12.0 or later         |
 | `dev`              | `{ launch }`: what [`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens) opens; decided by default     |
 | `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                                              |
 | `pluginCode`       | a stable four-character code derived from `plugin.id`                                                       |

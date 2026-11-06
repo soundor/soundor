@@ -103,6 +103,10 @@ export async function buildDoctorReport(
       ...((options.formats ?? ['vst3']).includes('vst3')
         ? [await checkVst3Host(fs, deps.loadHost ?? loadHostModule)]
         : []),
+      ...((deps.platform ?? process.platform) === 'darwin' &&
+      options.engine?.mode === 'source'
+        ? [checkMetalTools(probe)]
+        : []),
     ],
   };
 }
@@ -185,6 +189,24 @@ async function checkVst3Host(
   } catch (error) {
     return failed(error instanceof Error ? error.message : String(error));
   }
+}
+
+/**
+ * ANGLE compiles its Metal shaders when it is built, with Xcode's tools, which
+ * Command Line Tools do not include. Only source mode builds ANGLE.
+ */
+function checkMetalTools(probe: CommandProbe): DoctorCheck {
+  const label = 'Metal tools';
+  if (probe('xcrun', ['metal', '--version']).ok)
+    return { label, status: 'ok', detail: 'xcrun finds metal.' };
+  return {
+    label,
+    status: 'warn',
+    detail:
+      "Building the engine from source compiles ANGLE's Metal shaders, and xcrun cannot run metal.",
+    suggestion:
+      'Install Xcode and select it: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer. On Xcode 26 or later, also run: xcodebuild -downloadComponent MetalToolchain.',
+  };
 }
 
 function checkCMake(probe: CommandProbe): DoctorCheck {

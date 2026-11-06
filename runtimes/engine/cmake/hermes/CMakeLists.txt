@@ -128,6 +128,9 @@ foreach(variant full lean)
 endforeach()
 
 get_property(system GLOBAL PROPERTY soundor_system)
+# By name: Hermes finds its frameworks as paths inside this machine's SDK, and
+# what this lists is linked on other machines, by a prebuilt engine's plugin.
+list(TRANSFORM system REPLACE "^.*/([^/]+)\\.framework$" "-framework \\1")
 list(REMOVE_DUPLICATES system)
 list(JOIN system "\n" system)
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/soundor-system.txt" CONTENT "${system}\n")

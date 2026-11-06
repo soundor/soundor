@@ -116,6 +116,12 @@ jobs:
           else
             pnpm --filter orbit test:e2e
           fi
+      - name: The plugin names the oldest macOS it supports
+        if: runner.os == 'macOS'
+        run: |
+          plugin=$(find examples/orbit/.soundor/debug/juce -path '*.vst3/Contents/MacOS/*' -type f | head -1)
+          [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
+          .github/scripts/macos-minimum.sh 12.0 "$plugin"
       - name: Keep the failure reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
