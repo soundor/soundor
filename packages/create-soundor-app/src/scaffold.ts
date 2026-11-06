@@ -182,6 +182,8 @@ export function projectManifest(
       (runtime) => RUNTIME_INFO[runtime].package,
     ),
   );
+  // What `soundor dev juce` runs the VST3 in.
+  if (!runtimes.includes('juce')) unused.add('@soundor/vst3-host');
   const pkg: Manifest = { ...template, name };
   for (const field of ['dependencies', 'devDependencies'] as const) {
     const dependencies = template[field];

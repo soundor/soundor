@@ -138,6 +138,7 @@ export function makeCtx(overrides: MakeCtxOptions = {}): TestCtx {
       dist: `${root}/.soundor/dist/juce`,
       gen: `${root}/.soundor/generated/runtimes/juce`,
       cache: `${root}/.soundor/cache/juce`,
+      state: `${root}/.soundor/state/juce`,
     },
     logger: silentLogger(),
     fs,

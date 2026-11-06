@@ -28,6 +28,16 @@ import {
 } from '@soundor/runtime-sdk';
 
 import { generateJuceSources } from './codegen';
+import {
+  chooseDevLaunch,
+  DevVst3Host,
+  findVst3Host,
+  HOST_PACKAGE,
+  loadHostModule,
+  prepareHostExecutable,
+  type HostModule,
+  type Vst3HostAvailability,
+} from './dev-host';
 import { buildDoctorReport, findCMake, findCppCompiler } from './doctor';
 import { nativeUiDir, watchNativeUi, writeNativeUi } from './native-ui';
 import {
@@ -38,7 +48,12 @@ import {
 import { resolveJuce } from './resolve-juce';
 import { juceScaffoldFiles } from './scaffold';
 
-export type { JuceFormat, JuceOptions, ResolvedJuceOptions } from './options';
+export type {
+  DevLaunch,
+  JuceFormat,
+  JuceOptions,
+  ResolvedJuceOptions,
+} from './options';
 export { generateNativeModuleSources } from './native-codegen';
 export { generateJuceSources } from './codegen';
 export { resolveJuce } from './resolve-juce';
@@ -59,6 +74,8 @@ export interface JucePhaseDeps {
   readonly run?: CommandRunner;
   readonly probe?: CommandProbe;
   readonly launchStandalone?: StandaloneLauncher;
+  /** `@soundor/vst3-host` as the project has it; undefined when it has not. */
+  readonly loadHost?: (root: string) => Promise<HostModule | undefined>;
   readonly platform?: NodeJS.Platform;
 }
 
@@ -118,7 +135,7 @@ export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
   );
 }
 
-/** `dev` — debug build, launching the standalone app when it is built. */
+/** `dev` — debug build, then what `chooseDevLaunch` says opens it. */
 export async function juceDev(
   config: SoundorConfig,
   ctx: Ctx,
@@ -129,8 +146,40 @@ export async function juceDev(
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
   requireToolchain(deps.probe ?? probeCommand);
+  // Before the build, which can take minutes: a host that cannot run says so.
+  const hostAvailability: Vst3HostAvailability = options.formats.includes(
+    'vst3',
+  )
+    ? await findVst3Host(ctx.fs.resolve('.'), deps.loadHost ?? loadHostModule)
+    : { status: 'absent' };
+  let devLaunch = chooseDevLaunch(options, hostAvailability);
+  if (hostAvailability.status === 'unsupported')
+    ctx.logger.warn(hostAvailability.reason);
+  else if (
+    hostAvailability.status === 'absent' &&
+    options.formats.includes('vst3') &&
+    options.devLaunch === undefined
+  )
+    ctx.logger.info(
+      `Add ${HOST_PACKAGE} to the project's devDependencies to run the VST3 here.`,
+    );
+  if (devLaunch === 'vst3' && hostAvailability.status === 'available') {
+    try {
+      await prepareHostExecutable(hostAvailability.module, (message) =>
+        ctx.logger.info(message),
+      );
+    } catch (error) {
+      // Asked for by name, it fails. Otherwise the plugin can still be developed.
+      if (options.devLaunch === 'vst3') throw error;
+      devLaunch = options.formats.includes('standalone') ? 'standalone' : false;
+      ctx.logger.warn(
+        `The VST3 host cannot run, so it stays closed; v tries again.\n${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
+  let devHost: DevVst3Host | undefined;
   const ui = ctx.ui;
   const live = ui?.live;
   // The UI in the engine's form: reloaded from disk on every build when live
@@ -199,26 +248,61 @@ export async function juceDev(
     const artefacts = await findArtefactsDir(buildDir);
     if (artefacts !== undefined)
       rows.push({ label: 'Plugins', value: artefacts });
-    if (options.formats.includes('standalone')) {
-      const relaunch = (): Promise<string | undefined> =>
-        launchStandaloneBuild(
-          buildDir,
-          ctx,
-          deps.launchStandalone ?? launchStandalone,
-          deps.platform ?? process.platform,
+    if (hostAvailability.status === 'available') {
+      const plugin =
+        artefacts === undefined ? undefined : await findVst3Bundle(artefacts);
+      if (plugin === undefined) {
+        ctx.logger.warn(
+          `VST3 build finished, but no bundle was found under ${buildDir}`,
         );
-      const target = await relaunch();
-      if (target !== undefined) {
-        rows.push({ label: 'Standalone', value: target });
+      } else {
+        devHost = new DevVst3Host({
+          module: hostAvailability.module,
+          plugin,
+          stateFile: join(ctx.paths.state, 'vst3.json'),
+          logger: ctx.logger,
+          signal: ctx.signal,
+          environment: () =>
+            hostEnvironment(
+              plugin,
+              platform,
+              ctx.logger,
+              ctx.devtools?.descriptorPath,
+            ),
+        });
+        const host = devHost;
+        rows.push({ label: 'VST3', value: plugin });
         ctx.session?.shortcut({
-          key: 's',
-          description: 'launch the Standalone again',
-          action: async () => {
-            await relaunch();
-          },
+          key: 'v',
+          description: 'launch the VST3 in the host',
+          action: () => host.launch(),
         });
       }
     }
+    if (options.formats.includes('standalone')) {
+      const target = await findStandaloneTarget(buildDir, platform);
+      if (target === undefined) {
+        ctx.logger.warn(
+          `Standalone build finished, but no app was found under ${buildDir}`,
+        );
+      } else {
+        const launch = (): void =>
+          launchStandaloneBuild(
+            target,
+            ctx,
+            deps.launchStandalone ?? launchStandalone,
+            platform,
+          );
+        if (devLaunch === 'standalone') launch();
+        rows.push({ label: 'Standalone', value: target });
+        ctx.session?.shortcut({
+          key: 's',
+          description: 'launch the Standalone',
+          action: async () => launch(),
+        });
+      }
+    }
+    if (devLaunch === 'vst3') await devHost?.launch();
 
     ctx.logger.info(
       live === undefined
@@ -228,6 +312,7 @@ export async function juceDev(
     ctx.session?.ready(rows);
     await waitForAbort(ctx.signal);
   } finally {
+    await devHost?.close();
     watcher?.close();
   }
 }
@@ -335,6 +420,7 @@ export async function juceDoctor(
   return buildDoctorReport(ctx.fs, {
     jucePath: options.jucePath,
     engine: { mode: options.engineMode },
+    formats: options.formats,
   });
 }
 
@@ -508,19 +594,12 @@ async function collectDebugFormats(
   return formats.map(({ name }) => name);
 }
 
-async function launchStandaloneBuild(
-  buildDir: string,
+function launchStandaloneBuild(
+  target: string,
   ctx: Ctx,
   launch: StandaloneLauncher,
   platform: NodeJS.Platform,
-): Promise<string | undefined> {
-  const target = await findStandaloneTarget(buildDir, platform);
-  if (target === undefined) {
-    ctx.logger.warn(
-      `Standalone build finished, but no app was found under ${buildDir}`,
-    );
-    return undefined;
-  }
+): void {
   const launched =
     ctx.devtools?.descriptorPath === undefined
       ? launch(target, platform, ctx.logger)
@@ -528,7 +607,41 @@ async function launchStandaloneBuild(
   if (launched) {
     ctx.logger.info(`Launching standalone app: ${target}`);
   }
-  return target;
+}
+
+async function findVst3Bundle(artefacts: string): Promise<string | undefined> {
+  const dir = join(artefacts, 'VST3');
+  if (!existsSync(dir)) return undefined;
+  const bundle = (await readdir(dir)).find((name) => name.endsWith('.vst3'));
+  return bundle === undefined ? undefined : join(dir, bundle);
+}
+
+/**
+ * What the VST3 host runs with, or undefined (and how to run it by hand) where
+ * it could not open a window.
+ */
+function hostEnvironment(
+  plugin: string,
+  platform: NodeJS.Platform,
+  logger: Logger,
+  descriptorPath?: string,
+): Record<string, string | undefined> | undefined {
+  const session =
+    descriptorPath === undefined
+      ? {}
+      : { SOUNDOR_DEVTOOLS_SESSION: descriptorPath };
+  if (platform === 'darwin' || platform === 'win32') return session;
+  const env = linuxDesktopEnv();
+  if (!canLaunchLinuxGui(env)) {
+    logger.warn(
+      'Skipping the VST3 host: no reachable Linux GUI display was found.',
+    );
+    logger.warn(
+      `Run manually: ${descriptorPath === undefined ? '' : `SOUNDOR_DEVTOOLS_SESSION=${shellQuote(descriptorPath)} `}npx soundor-vst3-host open ${shellQuote(plugin)}`,
+    );
+    return undefined;
+  }
+  return { ...env, ...session };
 }
 
 /** The directory JUCE puts the debug plugin formats in. */

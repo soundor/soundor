@@ -47,6 +47,7 @@
     "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
+    "@soundor/vst3-host": "workspace:^",
     "@types/node": "catalog:",
     "soundor": "workspace:^",
     "tsdown": "catalog:",
@@ -54,6 +55,12 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0"
+    "@soundor/config": "workspace:>=0.0.0 <1.0.0",
+    "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@soundor/vst3-host": {
+      "optional": true
+    }
   }
 }

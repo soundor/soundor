@@ -9,15 +9,16 @@ User guide: [VST3 host](/docs/testing/vst3-host).
 `@soundor/vst3-host` is an independently versioned package outside the
 Changesets fixed group. It depends on no other Soundor package, on no JUCE
 code and on no Soundor engine. `@soundor/driver` has it as an optional peer,
-for [its `vst3` entry](/docs/driver/vst3), and nothing else depends on it. Its
-normal `build` compiles the Node client only.
+for [its `vst3` entry](/docs/driver/vst3), and `@soundor/juce-runtime` for
+[`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens), which looks for it
+in the project and not as Node would. Its normal `build` compiles the Node
+client only.
 
 ## Purpose
 
 A VST3 host that tests, development tools and, later, other Soundor packages
 can drive: load a plugin from its bundle path, process audio offline, open
-its editor. The dependency direction, with `@soundor/juce-runtime` still to
-come:
+its editor. The dependency direction:
 
 ```text
 @soundor/juce-runtime          @soundor/driver/vst3

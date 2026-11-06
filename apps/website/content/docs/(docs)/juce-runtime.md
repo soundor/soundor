@@ -48,6 +48,7 @@ top-level `plugin`.
 | `engine`           | `{ mode: 'prebuilt' }`: CMake uses matching binaries or builds local changes; `'source'` always compiles it |
 | `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                                                           |
 | `formats`          | `['vst3']`                                                                                                  |
+| `dev`              | `{ launch }`: what [`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens) opens; decided by default     |
 | `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                                              |
 | `pluginCode`       | a stable four-character code derived from `plugin.id`                                                       |
 | `manufacturerCode` | a stable four-character code derived from the vendor part of `plugin.id`                                    |
@@ -85,14 +86,15 @@ launch; connected instances negotiate the features actually implemented.
 The Debug bridge supports inspection, accessibility, animation, performance
 diagnostics, input and capture in every plugin format.
 
-`soundor dev juce` supplies the bridge with its active `ctx.devtools` session.
-Include `standalone` in `formats` to launch a native window. The CLI passes only
+`soundor dev juce` supplies the bridge with its active `ctx.devtools` session,
+and [opens the plugin](/docs/cli/dev#what-soundor-dev-juce-opens) in the VST3
+host or the Standalone. The CLI passes only
 the protected descriptor path through `SOUNDOR_DEVTOOLS_SESSION`, including on
 macOS where it launches the bundle's executable directly to preserve that
 environment. It discovers both `Debug/Standalone` and older unconfigured
 artifact directories. There is one server per development session, not per view.
 
-To inspect a Debug VST3 or AU inside a host, launch the host with
+To inspect a Debug VST3 or AU inside another host, launch that host with
 `SOUNDOR_DEVTOOLS_SESSION` set to the session descriptor path printed by
 `soundor dev`, then load the plugin and open its editor. The bridge is compiled
 only when the engine's Debug DevTools support is enabled; Release builds do not
@@ -115,15 +117,14 @@ are not automatically transferred into another session.
 
 Production builds force `SOUNDOR_ENABLE_DEVTOOLS=OFF` and clear development
 bundle/log paths. Debug sources and interfaces are excluded at compile time;
-no listener or bridge starts in a release artifact. The generated integration
-activates only for the Standalone wrapper, never a DAW plugin. Development
+no listener or bridge starts in a release artifact. Development
 continues normally when debugging is disabled or unavailable.
 
 | Phase    | What it does                                                                                                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init`   | Scaffolds the **user-owned** host under `runtimes/juce/` (`CMakeLists.txt`, `PluginProcessor`, `PluginEditor`). Written once; idempotent.                                           |
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
-| `dev`    | Debug CMake build that loads the development UI bundle from disk; launches the standalone app when that format is enabled. Signed ad-hoc on macOS.                                  |
+| `dev`    | Debug CMake build that loads the development UI bundle from disk; opens the VST3 in the host or the Standalone. Signed ad-hoc on macOS.                                             |
 | `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
 | `doctor` | Verifies CMake, a C++ compiler, the tools Skia and ANGLE are built with (git, Python 3, Ninja), and a locatable JUCE checkout.                                                      |
 

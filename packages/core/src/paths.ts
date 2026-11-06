@@ -15,6 +15,12 @@ export interface ProjectPaths {
   readonly gen: string;
   /** Scratch/cache dir the runtime may use freely. */
   readonly cache: string;
+  /**
+   * What this runtime keeps from one session to the next and cannot make again,
+   * such as a plugin's settings: unlike {@link cache}, not for deleting to fix
+   * a build. Local to the machine and not committed, like all of `.soundor`.
+   */
+  readonly state: string;
 }
 
 /** Inputs needed to derive a {@link ProjectPaths}. */
@@ -47,6 +53,7 @@ export function createProjectPaths(
     // (alongside the portable core output), namespaced per runtime.
     gen: resolvePath(base, 'generated', 'runtimes', input.runtimeId),
     cache: resolvePath(base, 'cache', input.runtimeId),
+    state: resolvePath(base, 'state', input.runtimeId),
   };
 }
 

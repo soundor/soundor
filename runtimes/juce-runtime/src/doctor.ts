@@ -19,6 +19,12 @@ import {
   type FileSystemHost,
 } from '@soundor/runtime-sdk';
 
+import {
+  findVst3Host,
+  HOST_PACKAGE,
+  loadHostModule,
+  type HostModule,
+} from './dev-host';
 import type { EngineMode, JuceOptions } from './options';
 import { resolveJuce } from './resolve-juce';
 
@@ -35,6 +41,8 @@ export interface DoctorDeps {
   readonly engine?: InstalledEngine;
   readonly platform?: NodeJS.Platform;
   readonly arch?: string;
+  /** `@soundor/vst3-host` as the project has it. */
+  readonly loadHost?: (root: string) => Promise<HostModule | undefined>;
 }
 
 /** What the installed `@soundor/engine` is, and the prebuilt release it names. */
@@ -72,7 +80,7 @@ export function installedEngine(): InstalledEngine {
 /** Builds the JUCE toolchain diagnostic report. */
 export async function buildDoctorReport(
   fs: FileSystemHost,
-  options: Pick<JuceOptions, 'jucePath' | 'engine'>,
+  options: Pick<JuceOptions, 'jucePath' | 'engine' | 'formats'>,
   deps: DoctorDeps = {},
 ): Promise<DoctorReport> {
   const probe = deps.probe ?? probeCommand;
@@ -92,6 +100,9 @@ export async function buildDoctorReport(
           deps.arch ?? process.arch,
         ),
       ),
+      ...((options.formats ?? ['vst3']).includes('vst3')
+        ? [await checkVst3Host(fs, deps.loadHost ?? loadHostModule)]
+        : []),
     ],
   };
 }
@@ -146,6 +157,34 @@ function checkEngine(
     status: 'ok',
     detail: `Prebuilt: ${engine.manifest.tag} (${target}, debug and release; downloaded and verified on the first build).`,
   };
+}
+
+/** Optional, so its absence is fine; one that is there and cannot run is not. */
+async function checkVst3Host(
+  fs: FileSystemHost,
+  load: (root: string) => Promise<HostModule | undefined>,
+): Promise<DoctorCheck> {
+  const label = 'VST3 host';
+  const failed = (detail: string): DoctorCheck => ({
+    label,
+    status: 'warn',
+    detail,
+    suggestion: `Reinstall ${HOST_PACKAGE}, or set juceRuntime({ dev: { launch } }) to run without it.`,
+  });
+  try {
+    const found = await findVst3Host(fs.resolve('.'), load);
+    if (found.status === 'absent')
+      return {
+        label,
+        status: 'ok',
+        detail: `Not installed, which is fine: add ${HOST_PACKAGE} to run the VST3 in soundor dev.`,
+      };
+    if (found.status === 'unsupported') return failed(found.reason);
+    const { executable, source } = found.module.resolveHost();
+    return { label, status: 'ok', detail: `${executable} (${source})` };
+  } catch (error) {
+    return failed(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function checkCMake(probe: CommandProbe): DoctorCheck {

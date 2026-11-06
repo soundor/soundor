@@ -201,6 +201,16 @@ describe('closing', () => {
     ).toBe('closed');
   });
 
+  test.skipIf(process.platform === 'win32')(
+    'detached, it survives a Ctrl+C to the group that launched it',
+    async () => {
+      const host = await launch('Fixture Gain', { detached: true });
+      // Its own group exists, so a signal to the terminal's misses it.
+      expect(() => process.kill(-host.pid!, 0)).not.toThrow();
+      expect(await host.close()).toEqual({ code: 0, signal: null });
+    },
+  );
+
   test('passes the environment to the host', async () => {
     const host = await launch('Fixture Gain', {
       env: { SOUNDOR_DEVTOOLS_SESSION: 'test-session' },

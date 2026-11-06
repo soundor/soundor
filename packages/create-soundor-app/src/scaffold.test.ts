@@ -157,6 +157,20 @@ describe('projectManifest', () => {
     ).toEqual({ '@soundor/web-runtime': '1.0.0', react: '^19.0.0' });
   });
 
+  it('adds the VST3 host only to a project with the JUCE runtime', () => {
+    const manifest = {
+      ...template,
+      devDependencies: { '@soundor/vst3-host': 'workspace:*' },
+    };
+    const pinned = { ...versions, '@soundor/vst3-host': '1.0.0' };
+    expect(
+      projectManifest(manifest, 'my-app', ['juce'], pinned).devDependencies,
+    ).toEqual({ '@soundor/vst3-host': '1.0.0' });
+    expect(
+      projectManifest(manifest, 'my-app', ['web'], pinned).devDependencies,
+    ).toEqual({});
+  });
+
   it('runs dev with the first runtime and typechecks the Web host', () => {
     const pkg = projectManifest(template, 'my-app', ['juce', 'web'], versions);
     expect(pkg.name).toBe('my-app');

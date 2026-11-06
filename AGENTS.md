@@ -230,8 +230,9 @@ read the docs bundled with the installed package
   Node API that launches it (`launchHost()`), over a framed stdin/stdout
   protocol (`protocol.json`). Independently versioned; its executables ship as
   generated platform packages (`targets.json`, `scripts/release.ts`), never
-  committed. `@soundor/driver` has it as an optional peer, for its `vst3` entry; a JUCE
-  runtime integration is future work. See `contribute/vst3-host.md`.
+  committed. `@soundor/driver` has it as an optional peer, for its `vst3` entry, and
+  `@soundor/juce-runtime` for `soundor dev`, which opens the VST3 in it when the
+  project installs it. See `contribute/vst3-host.md`.
 - `configs/*` — private shared tsconfig and tsdown presets.
 - `apps/website` — soundor.dev (private, never published): Fumadocs on
   TanStack Start, prerendered to static files for GitHub Pages. Content in
