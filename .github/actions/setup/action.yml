@@ -14,6 +14,15 @@ inputs:
 runs:
   using: composite
   steps:
+    # Ubuntu's mirror can stall on one package for minutes before apt gives up on
+    # it. Give up soon and try again, for every apt-get after this.
+    - name: Don't wait on a stalled package mirror
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        printf 'Acquire::http::Timeout "15";\nAcquire::Retries "5";\n' |
+          sudo tee /etc/apt/apt.conf.d/90-soundor-ci > /dev/null
+
     - name: Setup Node.js
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:

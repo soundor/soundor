@@ -248,6 +248,7 @@ jobs:
     name: linux-clang
     if: inputs.suites
     runs-on: ubuntu-24.04
+    timeout-minutes: 180
     permissions:
       contents: read
     env:
@@ -304,6 +305,7 @@ jobs:
     name: ${{ matrix.name }}
     if: inputs.suites
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     permissions:
       contents: read
     strategy:

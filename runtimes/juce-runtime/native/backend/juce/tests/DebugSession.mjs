@@ -185,7 +185,8 @@ void finished.catch(() => {});
 let phase = 'browser connection';
 let socket;
 let messages = [];
-async function until(predicate, timeout = 10000) {
+// A debug build starting on a busy CI machine: slow, and not what this tests.
+async function until(predicate, timeout = 30000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (predicate()) return;
