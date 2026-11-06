@@ -426,6 +426,37 @@ describe('juceDev', () => {
       expect(module.opened).toEqual([]);
     });
 
+    it('goes on to the Standalone when the host cannot be made ready', async () => {
+      const module = fakeHostModule();
+      module.resolveHost = () => {
+        throw Object.assign(new Error('no executable'), {
+          code: 'executable-not-found',
+        });
+      };
+      module.prepareHost = async () => {
+        throw new Error('the link failed');
+      };
+      const { launched, standalone, shortcuts } = await devWith({}, module);
+      expect(launched).toEqual([standalone]);
+      expect(module.opened).toEqual([]);
+      expect(shortcuts.map((shortcut) => shortcut.key)).toEqual(['v', 's']);
+    });
+
+    it('fails when dev.launch: "vst3" cannot have its host', async () => {
+      const module = fakeHostModule();
+      module.resolveHost = () => {
+        throw Object.assign(new Error('no executable'), {
+          code: 'executable-not-found',
+        });
+      };
+      module.prepareHost = async () => {
+        throw new Error('the link failed');
+      };
+      await expect(
+        devWith({ dev: { launch: 'vst3' } }, module),
+      ).rejects.toThrow('the link failed');
+    });
+
     it('refuses dev.launch: "vst3" without the host, before building', async () => {
       await expect(
         devWith({ dev: { launch: 'vst3' } }, undefined),

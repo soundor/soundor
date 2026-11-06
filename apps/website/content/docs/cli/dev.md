@@ -29,6 +29,8 @@ Once the plugin is built, `dev` opens one thing, the first that applies:
 The `v` and `s` keys open either of them at any time, whichever opened first. To
 choose, set `juceRuntime({ dev: { launch: 'vst3' | 'standalone' | false } })`; a
 format named there must be in `formats`, and `'vst3'` fails without the package.
+Without that choice, a host that is installed and cannot run is a warning, and
+`dev` goes on to the next in the list.
 
 The VST3 host belongs to the session: it ends with `dev`, there is one at a time,
 and closing its window leaves `dev` running. The plugin's state (its parameters

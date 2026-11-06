@@ -152,7 +152,7 @@ export async function juceDev(
   )
     ? await findVst3Host(ctx.fs.resolve('.'), deps.loadHost ?? loadHostModule)
     : { status: 'absent' };
-  const devLaunch = chooseDevLaunch(options, hostAvailability);
+  let devLaunch = chooseDevLaunch(options, hostAvailability);
   if (hostAvailability.status === 'unsupported')
     ctx.logger.warn(hostAvailability.reason);
   else if (
@@ -163,10 +163,20 @@ export async function juceDev(
     ctx.logger.info(
       `Add ${HOST_PACKAGE} to the project's devDependencies to run the VST3 here.`,
     );
-  if (devLaunch === 'vst3' && hostAvailability.status === 'available')
-    await prepareHostExecutable(hostAvailability.module, (message) =>
-      ctx.logger.info(message),
-    );
+  if (devLaunch === 'vst3' && hostAvailability.status === 'available') {
+    try {
+      await prepareHostExecutable(hostAvailability.module, (message) =>
+        ctx.logger.info(message),
+      );
+    } catch (error) {
+      // Asked for by name, it fails. Otherwise the plugin can still be developed.
+      if (options.devLaunch === 'vst3') throw error;
+      devLaunch = options.formats.includes('standalone') ? 'standalone' : false;
+      ctx.logger.warn(
+        `The VST3 host cannot run, so it stays closed; v tries again.\n${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(ctx.paths.cache, 'build-debug');
   let devHost: DevVst3Host | undefined;

@@ -23,6 +23,7 @@ endif()
 
 option(SOUNDOR_VST3_HOST_BUILD_TESTS "Build the self-test and the fixture plugins" OFF)
 option(SOUNDOR_VST3_HOST_WARNINGS_AS_ERRORS "Treat warnings in the host's own sources as errors" OFF)
+option(SOUNDOR_VST3_HOST_STATIC_RUNTIME "Link the C++ runtime statically on Linux, for what is published" OFF)
 option(SOUNDOR_VST3_HOST_SANITIZERS "Build with AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(SOUNDOR_VST3_HOST_CLANG_TIDY "Check the host's own sources with clang-tidy" OFF)
 
@@ -160,9 +161,13 @@ else()
   target_include_directories(soundor-vst3-host SYSTEM PRIVATE "${SOUNDOR_X11_INCLUDE_DIR}")
   target_sources(soundor-vst3-host PRIVATE native/src/EventLoopLinux.cpp native/src/EditorAreaX11.cpp
                                            native/src/X11Library.cpp)
-  # The C++ runtime inside the executable: it runs on distributions with
-  # an older libstdc++ than the build machine's.
-  target_link_options(soundor-vst3-host PRIVATE -static-libstdc++ -static-libgcc)
+  # The C++ runtime inside what is published: it runs on distributions with an
+  # older libstdc++ than the build machine's. Not by default, as a local build
+  # runs where it was built, and not every distribution installs the static
+  # library with its compiler (Fedora has it in libstdc++-static).
+  if(SOUNDOR_VST3_HOST_STATIC_RUNTIME)
+    target_link_options(soundor-vst3-host PRIVATE -static-libstdc++ -static-libgcc)
+  endif()
 endif()
 target_include_directories(soundor-vst3-host PRIVATE native/src "${CMAKE_BINARY_DIR}/generated")
 target_link_libraries(soundor-vst3-host PRIVATE soundor_vst3_sdk_hosting soundor_imgui SDL3::SDL3-static)

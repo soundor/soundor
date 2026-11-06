@@ -22,6 +22,7 @@
       "binaryDir": "${sourceDir}/build/release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_VST3_HOST_STATIC_RUNTIME": "ON",
         "SOUNDOR_VST3_HOST_BUILD_TESTS": "ON",
         "SOUNDOR_VST3_HOST_WARNINGS_AS_ERRORS": "ON"
       }
