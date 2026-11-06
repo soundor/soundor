@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export function verifyResults(needs) {
-  const required = new Set(['changes', 'fast']);
+  const required = new Set(['changes', 'workspace']);
   const changes = needs.changes?.outputs ?? {};
   if (
     ['native', 'juce', 'benchmark', 'host', 'orbit'].some(

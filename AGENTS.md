@@ -97,7 +97,7 @@ tests' Three.js) are lowered with the engine's module-lowering source while buil
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
-`build:juce` or `build:web`. CI's Fast checks run their tests, typecheck and web
+`build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web
 builds, and the website embeds those web builds. Orbit also has end-to-end tests
 of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
 job builds. Tests have their own fixtures, inside the package they test:

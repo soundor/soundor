@@ -16,7 +16,7 @@ function jobs(flags = {}) {
         ...flags,
       },
     },
-    fast: { result: 'success' },
+    workspace: { result: 'success' },
     ...Object.fromEntries(
       [
         'engine-plan',
@@ -59,7 +59,7 @@ test('consumer checks require engine planning and the chosen artifacts', () => {
   verifyResults(needs);
 });
 test('failures, cancellations and detection failures always fail', () => {
-  for (const name of ['changes', 'fast', 'engine-artifacts']) {
+  for (const name of ['changes', 'workspace', 'engine-artifacts']) {
     for (const result of ['failure', 'cancelled']) {
       const needs = jobs();
       needs[name].result = result;
