@@ -95,12 +95,55 @@ UI needs a **Debug build of a Soundor plugin**, the only kind with DevTools, whi
 }
 ```
 
-On Linux without a display, run it under `xvfb-run -a`.
-
 A missing bundle fails the project once, before its tests, saying so. A bundle
 out of date is not noticed, so rebuild after changing the plugin, as this script
 does. In watch mode, a
 changed test runs again against the same bundle.
+
+## A display
+
+`launchPlugin()` opens the plugin's real editor. A VST3 editor is a native window
+the host gives it, as a DAW does, so **tests with a UI need the system's window
+API**, and there is no mode without a window. [`launchHost()`](#launchhost) opens
+none and needs no display, so tests of audio, parameters and state run anywhere.
+
+| System  | Window API | Tests with a UI need                                | Without it                                           |
+| ------- | ---------- | --------------------------------------------------- | ---------------------------------------------------- |
+| Linux   | X11        | `DISPLAY`: a desktop (XWayland on Wayland), or Xvfb | The launch fails: `no display is available`          |
+| macOS   | Cocoa      | A logged-in desktop session, not a plain SSH one    | Not reliable: run them from a session with a desktop |
+| Windows | Win32      | A desktop session, not a service's                  | Not reliable: run them from a session with a desktop |
+
+On a desktop, **windows appear while the tests run** and can take focus, one for
+each plugin started. Tests do not need them to stay on top: input goes through the
+engine rather than the system, and screenshots are drawn by the engine rather than
+read from the screen. For the same reason, a screenshot does not show what the
+system's window manager adds or changes.
+
+On Linux, Xvfb is a display with no screen. It keeps the windows out of sight on a
+desktop, and is how tests run without one:
+
+```sh
+xvfb-run -a pnpm test:e2e
+```
+
+Install it with your system's packages: `xvfb` on Debian and Ubuntu,
+`xorg-x11-server-Xvfb` on Fedora.
+
+### On CI
+
+GitHub's hosted runners have what this needs, and Soundor's own tests of
+[Orbit](https://github.com/soundor/soundor/blob/main/.github/workflows/orbit.yml)
+run on all three:
+
+| Runner  | Setup                                                       |
+| ------- | ----------------------------------------------------------- |
+| Ubuntu  | `sudo apt-get install -y xvfb`, and run under `xvfb-run -a` |
+| macOS   | None                                                        |
+| Windows | None                                                        |
+
+Building the plugin on Ubuntu also needs the packages JUCE needs, which that
+workflow lists. A self-hosted runner needs the same as any machine: one that runs as
+a background service may have no desktop session to open windows in.
 
 ## launchPlugin
 
@@ -233,7 +276,17 @@ A test that fails leaves what it saw in
 A second plugin in the test adds `-2` to its names. What the plugin can no longer
 give, after a crash, is left out, and saving never changes why the test failed.
 Keep `.soundor` out of version control, as a new project does, and upload the folder
-from CI to look at it there.
+from CI to look at it there. `upload-artifact` skips hidden folders unless told not
+to, and finds nothing otherwise:
+
+```yaml
+- uses: actions/upload-artifact@v7
+  if: failure()
+  with:
+    name: e2e-results
+    path: .soundor/test-results
+    include-hidden-files: true
+```
 
 ## Audio
 
@@ -336,5 +389,12 @@ its folder if needed.
   is not supported.
 - **`ctx.skip()`:** Vitest does not run a test's cleanup when the test skips itself,
   so a plugin started before it stays open until the test run ends. Skip first.
+- **Resizing:** the editor takes a new size in its own time, after
+  `host.resizeEditor()` returns, so wait for what you check:
+  `await expect.poll(async () => (await plugin.screenshot()).width).toBe(1600)`.
+- **A hang on Windows:** MSVC's Debug runtime reports a failed check, such as an index
+  out of range, in a dialog that nothing answers on CI. A test can then time out with
+  no error from the plugin, where other systems pass. The bug is still in the plugin:
+  look for it in the C++ the test runs.
 - **Only inside a test:** both functions fail in `beforeAll` or at the top of a
   file, where nothing would close them. Call them in the test or a helper of it.
