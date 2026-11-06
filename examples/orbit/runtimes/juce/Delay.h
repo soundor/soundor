@@ -110,9 +110,9 @@ namespace orbit
     private:
         double read(size_t voice, double position) const
         {
-            auto wrapped = std::fmod(position, capacity);
-            if (wrapped < 0)
-                wrapped += capacity;
+            // Twice, as the browser's does: a position just below zero wraps to
+            // `capacity` itself, one past the end, once added to it.
+            const auto wrapped = std::fmod(std::fmod(position, capacity) + capacity, capacity);
             const auto index = static_cast<size_t>(wrapped);
             const auto fraction = wrapped - static_cast<double>(index);
             return buffers[voice][index] * (1 - fraction)

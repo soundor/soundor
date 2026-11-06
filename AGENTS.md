@@ -125,7 +125,9 @@ reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
 Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
 `soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
 (`vst3-host-artifacts.yml`), Orbit e2e ← `orbit` (a change only under
-`hosts/vst3-host/` runs these last two alone). What a job builds must therefore be a dependency of its package.
+`hosts/vst3-host/` runs these last two alone). The host follows the engine's
+pattern: `host-plan` selects, one workflow builds, jobs consume the artifact or
+the release. What a job builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved

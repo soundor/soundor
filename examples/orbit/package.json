@@ -15,7 +15,7 @@
     "test": "vitest run --project integration",
     "test:watch": "vitest watch --project integration",
     "test:e2e": "soundor build juce --debug && vitest run --project e2e",
-    "test:native": "mkdir -p .soundor && clang++ -std=c++20 -Wall -Wextra -Werror runtimes/juce/Delay.test.cpp -o .soundor/delay-test && .soundor/delay-test"
+    "test:native": "mkdir -p .soundor && clang++ -std=c++20 -Wall -Wextra -Werror -D_GLIBCXX_ASSERTIONS runtimes/juce/Delay.test.cpp -o .soundor/delay-test && .soundor/delay-test"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",

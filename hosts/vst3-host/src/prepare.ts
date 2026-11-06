@@ -5,6 +5,8 @@
 //                       its native inputs match these sources; in a source
 //                       checkout, a local build otherwise (an unpublished
 //                       version, or modified native sources)
+//   published           the same published executable, and nothing else: an
+//                       error if there is none (CI, which planned on it)
 //   source              always a local build
 //   artifact            a CI artifact (SOUNDOR_VST3_HOST_ARTIFACT), which must
 //                       match this checkout exactly; never anything else
@@ -51,7 +53,7 @@ import {
   targetFor,
 } from './targets.ts';
 
-export type BuildMode = 'prebuilt' | 'source';
+export type BuildMode = 'prebuilt' | 'published' | 'source';
 
 export interface PrepareOptions {
   mode?: BuildMode;
@@ -164,7 +166,7 @@ export async function prepareHost(
   }
 
   const mode = options.mode ?? 'prebuilt';
-  if (mode === 'prebuilt' && !workspace) {
+  if (mode !== 'source' && !workspace) {
     // An installed package: its platform package, nothing else.
     const resolved = resolveHost({ root });
     return {
@@ -175,7 +177,7 @@ export async function prepareHost(
     };
   }
 
-  if (mode === 'prebuilt') {
+  if (mode !== 'source') {
     const cache = options.cache ?? cacheRoot();
     let published: PreparedHost | 'unpublished' | 'different';
     try {
@@ -200,11 +202,42 @@ export async function prepareHost(
       published === 'unpublished'
         ? `${target.package}@${version} is not published`
         : `the native sources differ from ${target.package}@${version}'s`;
+    if (mode === 'published')
+      throw new Vst3HostError(
+        'selection-failed',
+        `no published VST3 host executable to use: ${reason}`,
+      );
     log(`VST3 host: building from source (${reason})`);
     return select(build(`${reason}; built from source`));
   }
 
   return select(build('built from source as requested'));
+}
+
+/** What CI's planning job decides from, before anything is built: whether the
+    published executable can be used, or this checkout's must be built. */
+export async function selectHost(
+  options: Pick<PrepareOptions, 'cache' | 'registry' | 'fetcher' | 'root'> = {},
+): Promise<{ mode: 'prebuilt' | 'source'; reason: string }> {
+  const target = currentTarget();
+  const { fingerprint, version } = nativeInputs(options.root ?? packageRoot);
+  const published = await publishedExecutable({
+    target,
+    version,
+    fingerprint,
+    cache: options.cache ?? cacheRoot(),
+    registry: options.registry ?? NPM_REGISTRY,
+    fetcher: options.fetcher ?? fetch,
+  });
+  if (typeof published === 'object')
+    return { mode: 'prebuilt', reason: published.reason };
+  return {
+    mode: 'source',
+    reason:
+      published === 'unpublished'
+        ? `${target.package}@${version} is not published`
+        : `the native sources differ from ${target.package}@${version}'s`,
+  };
 }
 
 async function publishedExecutable(context: {
@@ -340,6 +373,8 @@ export function checkArtifact(
       'selection-failed',
       `the VST3 host artifact in ${directory} does not match: ${problems.join('; ')}`,
     );
+  // An uploaded artifact loses its file modes.
+  if (process.platform !== 'win32') chmodSync(executable, 0o755);
   return executable;
 }
 

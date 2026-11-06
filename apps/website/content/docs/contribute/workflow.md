@@ -33,6 +33,8 @@ from the same run and commit instead of rebuilding the engine. When it is not
 affected, JUCE uses a matching released engine. If the current version is
 unpublished or its inputs do not match the release, CI builds checkout artifacts;
 the full native test suites are enabled only when the engine is affected.
+The VST3 host works the same way: `host-plan` decides, one workflow builds it, and
+the jobs that use it take that artifact or the release, never compiling it.
 Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
 Benchmarks retain source builds because their Release runner supports JavaScript
 source; the shipped Release engine is bytecode-only.
