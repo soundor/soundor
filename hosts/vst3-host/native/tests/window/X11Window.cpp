@@ -169,7 +169,9 @@ int main(int argc, char** argv)
         // drag-probe: the editor is never missing from the window while its
         // geometry changes, and is back in its place afterwards.
         const bool probe = std::strcmp(argv[1], "drag-probe") == 0;
-        if ((std::strcmp(argv[1], "drag") == 0 || probe) && argc == 6)
+        // drag-release: the release comes with the last move, in one frame.
+        const bool releaseAtOnce = std::strcmp(argv[1], "drag-release") == 0;
+        if ((std::strcmp(argv[1], "drag") == 0 || probe || releaseAtOnce) && argc == 6)
         {
             const int dx = std::atoi(argv[4]); // NOLINT(cert-err34-c): test arguments
             const int dy = std::atoi(argv[5]); // NOLINT(cert-err34-c): test arguments
@@ -178,6 +180,8 @@ int main(int argc, char** argv)
                 XTestFakeMotionEvent(display, DefaultScreen(display), rootX + dx * step / 20, rootY + dy * step / 20,
                                      CurrentTime);
                 XFlush(display);
+                if (releaseAtOnce && step == 20)
+                    break;
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
                 if (probe)
                 {

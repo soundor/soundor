@@ -184,6 +184,23 @@ describe.runIf(process.platform === 'linux' && hasDisplay)(
         .toMatchObject({ width: 600, height: 460 });
     });
 
+    test('a grip drag ends where the pointer does, when the release comes with the last move', async () => {
+      const host = await launch('Fixture Gain', {
+        editor: true,
+        presentation: 'host',
+        env: { SOUNDOR_VST3_HOST_SETTINGS: settings() },
+      });
+      windowAction('maximize', 1000, 800);
+      await expect
+        .poll(async () => (await host.getEditor()).window)
+        .toEqual({ width: 1000, height: 800 });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      windowAction('drag-release', 707, 527, 100, 80);
+      await expect
+        .poll(() => host.getEditor())
+        .toMatchObject({ width: 600, height: 460 });
+    });
+
     for (const presentation of ['editor', 'host'] as const) {
       test(`${presentation} keeps the editor visible during repeated native resizes`, async () => {
         const host = await launch('Fixture Gain', {

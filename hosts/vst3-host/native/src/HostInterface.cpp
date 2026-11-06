@@ -324,7 +324,8 @@ namespace soundor::vst3host
             dragY_ = y - origin.y;
             dragWanted_ = { static_cast<int>(layout.editorWidth), static_cast<int>(layout.editorHeight) };
         }
-        if (active)
+        // Also on the release: it can come in one frame with the last move.
+        if (active || ImGui::IsItemDeactivated())
         {
             // The corner stays under the pointer, as the web host's handle
             // does: the editor is centred, so it grows twice as far as the
