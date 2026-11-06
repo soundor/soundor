@@ -22,9 +22,9 @@ function jobs(flags = {}) {
         'engine-plan',
         'engine-artifacts',
         'engine',
-        'native',
         'benchmark',
-        'juce',
+        'juce8',
+        'juce9',
         'host-plan',
         'host',
         'orbit',
@@ -48,7 +48,8 @@ test('missing decisions and affected engines using a release fail', () => {
 });
 test('consumer checks require engine planning and the chosen artifacts', () => {
   const needs = jobs({ juce: 'true' });
-  needs.juce.result = 'success';
+  needs.juce8.result = 'success';
+  needs.juce9.result = 'success';
   needs['engine-plan'] = { result: 'success', outputs: { build: 'true' } };
   assert.throws(() => verifyResults(needs), /engine-artifacts=skipped/);
   needs['engine-artifacts'].result = 'success';
@@ -76,7 +77,7 @@ test('an affected VST3 host requires its native checks', () => {
   needs.host.result = 'success';
   verifyResults(needs);
   // Host changes alone never require the engine's suites.
-  for (const name of ['engine', 'native', 'engine-artifacts', 'juce'])
+  for (const name of ['engine', 'engine-artifacts', 'juce8', 'juce9'])
     assert.equal(needs[name].result, 'skipped');
 });
 test('affected Orbit tests require their job and what they use', () => {
@@ -93,5 +94,15 @@ test('affected Orbit tests require their job and what they use', () => {
   // A released host that matches needs no build.
   needs['host-plan'].outputs.build = 'false';
   needs.host.result = 'skipped';
+  verifyResults(needs);
+});
+test('an affected JUCE runtime requires both versions of JUCE', () => {
+  const needs = jobs({ juce: 'true' });
+  needs['engine-plan'] = { result: 'success', outputs: { build: 'false' } };
+  needs.juce8.result = 'success';
+  assert.throws(() => verifyResults(needs), /juce9=skipped/);
+  needs.juce9.result = 'failure';
+  assert.throws(() => verifyResults(needs), /juce9=failure/);
+  needs.juce9.result = 'success';
   verifyResults(needs);
 });

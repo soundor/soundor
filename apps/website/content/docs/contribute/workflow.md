@@ -125,11 +125,20 @@ engine and runtime packages have their own versions. The source of truth is
 Before 1.0, breaking changes use a `minor` changeset. Website-only documentation
 changes do not need a package release.
 
-Native CI jobs follow affected packages: engine tests follow `@soundor/engine`,
-JUCE integration follows `@soundor/juce-runtime`, benchmark smoke follows
-`soundor-benchmark`, and Orbit's end-to-end tests follow `orbit`, on Linux, macOS
-and Windows, except that a change only under `hosts/vst3-host/` runs the host's job
-and Orbit's alone. Each build input must be a dependency of the package whose
+Native CI jobs follow affected packages, in groups that show as `<group> / <job>`,
+each a reusable workflow called from `verify.yml`:
+
+| Group            | Workflow                  | Follows                 | What it does                       |
+| ---------------- | ------------------------- | ----------------------- | ---------------------------------- |
+| Engine artifacts | `engine-artifacts.yml`    | `engine-plan`           | Builds the engine for every target |
+| Engine           | `engine.yml`              | `@soundor/engine`       | Static analysis and test suites    |
+| VST3             | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host          |
+| JUCE 8, JUCE 9   | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin         |
+| Orbit            | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin  |
+
+Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
+runs VST3 and Orbit alone. Verify is the one required check, and it runs for pull
+requests into `main`. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).

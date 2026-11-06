@@ -1,0 +1,136 @@
+name: Engine
+
+# @soundor/engine's test suites, from source: static analysis and the tests on
+# Clang, and the GCC, sanitizer and no-GPU builds. Verify calls it when the
+# engine is affected. What other jobs link is engine-artifacts.yml.
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  clang:
+    name: linux-clang
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      CC: clang
+      CXX: clang++
+      CMAKE_GENERATOR: Ninja
+      SOUNDOR_REQUIRE_GPU: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup
+        uses: ./.github/actions/setup
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: verify
+
+      - name: Build workspace
+        run: pnpm turbo run build --filter=@soundor/engine...
+      # clang-tidy's passes (runtimes/engine/cmake/SoundorClangTidyCache.mjs):
+      # a translation unit whose source, headers and configuration are as
+      # main last saw them is not analyzed again. Saved only on main.
+      - name: Restore clang-tidy results
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
+          restore-keys: clang-tidy-
+      - name: Native static analysis
+        env:
+          SOUNDOR_CLANG_TIDY_CACHE: ${{ runner.temp }}/clang-tidy
+        run: pnpm turbo run lint:native
+      - name: Save clang-tidy results
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/clang-tidy
+          key: clang-tidy-${{ github.sha }}
+
+      # The tests of the build clang-tidy just made (the dev preset plus
+      # clang-tidy), not a second build of the same sources.
+      - name: Native runtime tests
+        working-directory: runtimes/engine
+        run: ctest --preset tidy
+
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
+        with:
+          key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}
+
+  native:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-24.04
+            preset: dev
+            cc: gcc
+            cxx: g++
+          - name: linux-sanitizers
+            os: ubuntu-24.04
+            preset: sanitize
+            cc: clang
+            cxx: clang++
+          # Without ANGLE, as on iOS: canvases have no WebGL, and nothing
+          # else may depend on the GPU.
+          - name: linux-nogpu
+            os: ubuntu-24.04
+            preset: nogpu
+            cc: clang
+            cxx: clang++
+            require-gpu: '0'
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+      # GPU tests need a device (lavapipe on Linux, WARP on Windows, Metal on
+      # macOS); without one they fail, not skip. Not in the build without one.
+      SOUNDOR_REQUIRE_GPU: ${{ matrix.require-gpu || '1' }}
+    defaults:
+      run:
+        working-directory: runtimes/engine
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node and the workspace's packages: the build lowers the runtime's
+      # JavaScript modules (and the tests' Three.js) with @soundor/core.
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup native dependencies
+        id: deps
+        uses: ./.github/actions/native-deps
+        with:
+          job: ${{ matrix.name }}
+
+      # Ninja, as local and plugin builds use on macOS and Linux (CMake's
+      # default there is Makefiles). Windows keeps Visual Studio, which finds
+      # MSVC without a developer environment, as plugin builds do.
+      - name: Use Ninja
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
+      - name: Build and test the native runtime
+        timeout-minutes: 60
+        shell: bash
+        run: cmake --workflow --preset ${{ matrix.preset }}
+
+      - name: Save native dependencies
+        if: always() && steps.deps.outputs.cache-key != ''
+        uses: ./.github/actions/native-deps-save
+        with:
+          key: ${{ steps.deps.outputs.cache-key }}
+          restored: ${{ steps.deps.outputs.cache-matched-key }}

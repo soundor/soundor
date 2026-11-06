@@ -121,13 +121,15 @@ dependencies), so the root `test` runs them. `.github/workflows/website.yml` dep
 by the release workflow after npm publishing, or run by hand.
 
 Native CI jobs follow their package and run when `turbo query affected`
-reports it (`.github/scripts/native-changes.mjs`): Native ← `@soundor/engine`,
-Native JUCE integration ← `@soundor/juce-runtime`, Benchmark smoke ←
-`soundor-benchmark`, VST3 host ← `@soundor/vst3-host`
-(`vst3-host-artifacts.yml`), Orbit e2e ← `orbit` (a change only under
-`hosts/vst3-host/` runs these last two alone). The host follows the engine's
-pattern: `host-plan` selects, one workflow builds, jobs consume the artifact or
-the release. What a job builds must therefore be a dependency of its package.
+reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
+workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
+(`engine.yml`) ← `@soundor/engine`, JUCE 8 and JUCE 9 (`juce.yml`) ←
+`@soundor/juce-runtime`, VST3 (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
+Orbit (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
+only under `hosts/vst3-host/` runs VST3 and Orbit alone. The engine and the host
+share one pattern: `engine-plan` and `host-plan` select, one workflow builds
+(Engine artifacts, VST3), and jobs consume the artifact or the release. What a job
+builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved

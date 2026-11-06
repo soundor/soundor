@@ -10,12 +10,12 @@ export function verifyResults(needs) {
     )
   )
     throw new Error('Native input detection did not return every decision');
-  if (changes.native === 'true') {
-    required.add('engine');
-    required.add('native');
-  }
+  if (changes.native === 'true') required.add('engine');
   if (changes.benchmark === 'true') required.add('benchmark');
-  if (changes.juce === 'true') required.add('juce');
+  if (changes.juce === 'true') {
+    required.add('juce8');
+    required.add('juce9');
+  }
   if (changes.orbit === 'true') required.add('orbit');
   if (changes.host === 'true' || changes.orbit === 'true')
     required.add('host-plan');
