@@ -208,7 +208,8 @@ read the docs bundled with the installed package
   plugin and `environment: 'soundor'`, with isolated runtime state per test.
 - `packages/vitest-e2e` — Vitest tests of a built VST3 plugin in the real VST3
   host: the `soundor({ vst3 })` plugin (no build logic), `launchPlugin()`,
-  `launchHost()` (both closed when the test ends), and retrying locator matchers.
+  `launchHost()` (both closed when the test ends), retrying locator matchers,
+  `toMatchScreenshot`, and failure reports in `.soundor/test-results/`.
   Runs in Node, with the Driver underneath; the host is a required peer.
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.

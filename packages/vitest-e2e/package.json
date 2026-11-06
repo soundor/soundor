@@ -30,7 +30,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@soundor/driver": "workspace:^"
+    "@soundor/driver": "workspace:^",
+    "pixelmatch": "catalog:",
+    "pngjs": "catalog:"
   },
   "devDependencies": {
     "@soundor/devtools-server": "workspace:^",
@@ -39,6 +41,7 @@
     "@soundor/vitest": "workspace:^",
     "@soundor/vst3-host": "workspace:^",
     "@types/node": "catalog:",
+    "@types/pngjs": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

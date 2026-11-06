@@ -30,6 +30,7 @@ describe('launchPlugin', () => {
     expect(launch).toHaveBeenCalledWith({
       plugin: '/project/My Plugin.vst3',
       cwd: '/project',
+      onLog: expect.any(Function),
     });
   });
 
@@ -40,6 +41,7 @@ describe('launchPlugin', () => {
       plugin: '/project/Other.vst3',
       cwd: '/project',
       sampleRate: 44_100,
+      onLog: expect.any(Function),
     });
   });
 
@@ -104,6 +106,7 @@ describe('launchHost', () => {
       plugin: '/project/My Plugin.vst3',
       cwd: '/project',
       blockSize: 256,
+      onLog: expect.any(Function),
     });
     expect(closes['host']).toBe(0);
   });

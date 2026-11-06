@@ -78,6 +78,9 @@ catalog:
   # language service in the browser (TypeScript 7 is a native binary).
   typescript-6: npm:typescript@^6.0.3
   vfile: ^6.0.3
+  pixelmatch: ^7.1.0
+  pngjs: ^7.0.0
+  '@types/pngjs': ^6.0.5
   vite: ^8.3.5
   vitest: ^5.0.5
   zod: ^4.6.7
