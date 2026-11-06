@@ -16,6 +16,11 @@ string(JSON SOUNDOR_VST3_HOST_MAX_HEADER GET "${soundor_protocol}" maxHeaderByte
 string(JSON SOUNDOR_VST3_HOST_MAX_PAYLOAD GET "${soundor_protocol}" defaultMaxPayloadBytes)
 string(REGEX MATCH "^[0-9]+\\.[0-9]+\\.[0-9]+" soundor_numeric_version "${SOUNDOR_VST3_HOST_VERSION}")
 
+# The oldest macOS the host runs on, in any build. CMake wants it before project().
+if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND NOT DEFINED ENV{MACOSX_DEPLOYMENT_TARGET})
+  set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0 CACHE STRING "The oldest macOS the host runs on")
+endif()
+
 project(SoundorVst3Host VERSION ${soundor_numeric_version} LANGUAGES C CXX)
 if(APPLE)
   enable_language(OBJCXX)

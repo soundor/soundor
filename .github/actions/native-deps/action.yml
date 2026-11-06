@@ -81,13 +81,14 @@ runs:
     # is a fine start: only what changed is built again. The job saves it at
     # its end, also when tests failed, under this key and the builds it holds
     # complete (./.github/actions/native-deps-save), so a long build is never
-    # done twice. The newest entry for the same recipes is restored first.
+    # done twice. The newest entry for the same recipes is restored first. Another
+    # Xcode starts empty: its directories' keys do not tell the builds apart.
     - name: Restore Skia, ANGLE and Hermes
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/soundor-cache
-        key: native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
+        key: native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
         restore-keys: |
-          native-deps-${{ inputs.job }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
-          native-deps-${{ inputs.job }}-
+          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
+          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-

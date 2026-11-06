@@ -221,6 +221,7 @@ export async function juceDev(
       // Debug builds are signed ad-hoc: no timestamp server, and a debugger can
       // attach without the hardened runtime in the way.
       ...signingArgs(platform, { identity: '-', source: 'default' }),
+      ...deploymentTargetArgs(platform, options.macosDeploymentTarget),
     ];
 
     ctx.logger.info('Configuring debug build');
@@ -365,6 +366,7 @@ export async function juceBuild(
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui === undefined ? '' : uiDir}`,
     ...signingArgs(platform, signing),
+    ...deploymentTargetArgs(platform, options.macosDeploymentTarget),
   ];
   if (ctx.ui === undefined) {
     ctx.logger.warn(
@@ -484,6 +486,19 @@ function requireToolchain(probe: CommandProbe): void {
  */
 function generatorArgs(platform: NodeJS.Platform): string[] {
   return platform === 'win32' ? [] : ['-G', 'Ninja'];
+}
+
+/**
+ * The oldest macOS to build for: on the command line, as CMake wants it before
+ * the first `project()`, which the project's own CMakeLists.txt calls.
+ */
+function deploymentTargetArgs(
+  platform: NodeJS.Platform,
+  deploymentTarget: string,
+): string[] {
+  return platform === 'darwin'
+    ? [`-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`]
+    : [];
 }
 
 /** CMake cache variables `soundor_finalize_plugin` signs macOS bundles with. */

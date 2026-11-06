@@ -23,6 +23,19 @@ runs:
         printf 'Acquire::http::Timeout "15";\nAcquire::Retries "5";\n' |
           sudo tee /etc/apt/apt.conf.d/90-soundor-ci > /dev/null
 
+    # What a macOS job builds with, not whatever the runner image defaults to.
+    # Moving past 16.4 needs the Metal toolchain too: xcodebuild
+    # -downloadComponent MetalToolchain (it left Xcode in 26), for ANGLE.
+    - name: Select Xcode
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        xcode=16.4
+        developer="/Applications/Xcode_$xcode.app/Contents/Developer"
+        [ -d "$developer" ] || { echo "::error::This runner has no Xcode $xcode"; exit 1; }
+        echo "DEVELOPER_DIR=$developer" >> "$GITHUB_ENV"
+        echo "SOUNDOR_XCODE=$xcode" >> "$GITHUB_ENV"
+
     - name: Setup Node.js
       uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:

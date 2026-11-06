@@ -38,6 +38,14 @@ export interface JuceOptions {
   readonly jucePath?: string;
   /** Formats to build. Defaults to `['vst3']`. */
   readonly formats?: readonly JuceFormat[];
+  /** The macOS build. */
+  readonly macos?: {
+    /**
+     * The oldest macOS the plugin runs on. At least the engine's minimum, 12.0.
+     * Defaults to `'12.0'`.
+     */
+    readonly deploymentTarget?: string;
+  };
   /**
    * `soundor dev`. `launch` is what it opens once the plugin is built. By
    * default: the VST3 in `@soundor/vst3-host` when `formats` has `vst3` and the
@@ -79,6 +87,8 @@ export interface ResolvedJuceOptions {
   readonly formats: readonly JuceFormat[];
   /** Undefined: decided from the formats and whether the VST3 host is installed. */
   readonly devLaunch?: DevLaunch;
+  /** The oldest macOS the plugin runs on (`CMAKE_OSX_DEPLOYMENT_TARGET`). */
+  readonly macosDeploymentTarget: string;
   /** `plugin.id`, used as the bundle identifier. */
   readonly bundleId: string;
   /** `plugin.name`. */
@@ -92,6 +102,8 @@ export interface ResolvedJuceOptions {
 
 const DEFAULT_FORMATS: readonly JuceFormat[] = ['vst3'];
 const DEFAULT_TIME_LIMIT_MS = 5000;
+// The oldest macOS the engine's own code and dependencies are built for.
+const ENGINE_MACOS_MINIMUM = '12.0';
 // What the engine's deadline holds (a 32-bit count of milliseconds).
 const MAX_TIME_LIMIT_MS = 2 ** 32 - 1;
 
@@ -129,6 +141,9 @@ export function resolveJuceOptions(
     jucePath: options.jucePath,
     formats,
     ...(devLaunch === undefined ? {} : { devLaunch }),
+    macosDeploymentTarget: macosDeploymentTargetOf(
+      options.macos?.deploymentTarget,
+    ),
     bundleId: plugin.id,
     pluginName: plugin.name,
     companyName: options.companyName ?? vendor.name,
@@ -136,6 +151,24 @@ export function resolveJuceOptions(
     manufacturerCode: fourCharCode(options.manufacturerCode, vendor.id),
     timeLimit: timeLimitOf(options.timeLimit),
   };
+}
+
+function macosDeploymentTargetOf(value: string | undefined): string {
+  if (value === undefined) return ENGINE_MACOS_MINIMUM;
+  if (typeof value !== 'string' || !/^\d+(\.\d+){0,2}$/.test(value))
+    throw new RuntimeError(
+      `juceRuntime({ macos: { deploymentTarget } }) is a macOS version such as "13.0"; got ${JSON.stringify(value)}.`,
+      { runtimeId: 'juce' },
+    );
+  const [major = 0, minor = 0] = value.split('.').map(Number);
+  const [engineMajor = 0, engineMinor = 0] =
+    ENGINE_MACOS_MINIMUM.split('.').map(Number);
+  if (major < engineMajor || (major === engineMajor && minor < engineMinor))
+    throw new RuntimeError(
+      `juceRuntime({ macos: { deploymentTarget } }) is ${value}, but the Soundor engine needs macOS ${ENGINE_MACOS_MINIMUM} or later.`,
+      { runtimeId: 'juce' },
+    );
+  return value;
 }
 
 function timeLimitOf(value: number | false | undefined): number {

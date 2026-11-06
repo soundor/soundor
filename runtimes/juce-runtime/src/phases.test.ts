@@ -687,7 +687,7 @@ describe('build tree', () => {
   async function configureArgs(
     phase: 'dev' | 'build',
     platform: NodeJS.Platform,
-    extra: { keychain?: string } = {},
+    extra: { keychain?: string; macos?: JuceOptions['macos'] } = {},
   ): Promise<string[]> {
     const root = await tempProjectWithJuce();
     const controller = new AbortController();
@@ -695,9 +695,18 @@ describe('build tree', () => {
     const ctx = makeCtx({
       root,
       fs: createNodeFileSystem(root),
-      options: { jucePath: join(root, 'JUCE') },
+      options: {
+        jucePath: join(root, 'JUCE'),
+        ...(extra.macos === undefined ? {} : { macos: extra.macos }),
+      },
       signal: controller.signal,
-      signing: { macos: { identity, source: 'env', ...extra } },
+      signing: {
+        macos: {
+          identity,
+          source: 'env',
+          ...(extra.keychain === undefined ? {} : { keychain: extra.keychain }),
+        },
+      },
       mode: phase === 'build' ? 'production' : 'debug',
     });
     const calls: string[][] = [];
@@ -759,6 +768,38 @@ describe('build tree', () => {
         '-DSOUNDOR_MACOS_KEYCHAIN=',
       ]),
     );
+  });
+
+  describe('the macOS deployment target', () => {
+    const target = (args: readonly string[]) =>
+      args.filter((arg) => arg.startsWith('-DCMAKE_OSX_DEPLOYMENT_TARGET='));
+
+    it.each(['dev', 'build'] as const)(
+      'is 12.0 by default in %s on macOS',
+      async (phase) => {
+        expect(target(await configureArgs(phase, 'darwin'))).toEqual([
+          '-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0',
+        ]);
+      },
+    );
+
+    it.each(['dev', 'build'] as const)(
+      'follows macos.deploymentTarget in %s',
+      async (phase) => {
+        expect(
+          target(
+            await configureArgs(phase, 'darwin', {
+              macos: { deploymentTarget: '13.5' },
+            }),
+          ),
+        ).toEqual(['-DCMAKE_OSX_DEPLOYMENT_TARGET=13.5']);
+      },
+    );
+
+    it('is not passed outside macOS', async () => {
+      expect(target(await configureArgs('build', 'linux'))).toEqual([]);
+      expect(target(await configureArgs('build', 'win32'))).toEqual([]);
+    });
   });
 
   it('passes no signing settings outside macOS', async () => {

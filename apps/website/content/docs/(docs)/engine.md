@@ -104,6 +104,36 @@ The archive is chosen by the platform the plugin **targets**
 (`CMAKE_OSX_ARCHITECTURES` included), not the machine it builds on. Anything
 else builds in source mode.
 
+### macOS
+
+A plugin runs on macOS 12 or later unless you ask for a newer minimum, whatever
+macOS it is built on:
+
+```ts
+juceRuntime({ macos: { deploymentTarget: '13.0' } });
+```
+
+Anything below 12.0 is refused: it is the engine's minimum, in both modes.
+
+Every build uses Ninja, never the Xcode generator. What you install depends on
+where the engine comes from:
+
+| Engine   | Needs                                                                  |
+| -------- | ---------------------------------------------------------------------- |
+| Prebuilt | CMake, Ninja, Xcode Command Line Tools                                 |
+| Source   | CMake, Ninja, Xcode selected, and on Xcode 26 or later its Metal tools |
+
+Source mode needs Xcode because ANGLE compiles its Metal shaders when it is built,
+and Command Line Tools have no `metal`. Having Xcode installed is not enough if
+Command Line Tools are still selected:
+
+```sh
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+xcodebuild -downloadComponent MetalToolchain # Xcode 26 or later
+```
+
+`soundor doctor` checks this in source mode.
+
 ## ABI versioning
 
 The engine version is its C++ ABI: every symbol lives in
@@ -179,7 +209,7 @@ best reproduced in the Standalone format under a debugger.
 | `There is no prebuilt engine for <platform>`               | Not one of the three targets: use `mode: 'source'`.                                                                                             |
 | `Downloading the debug/release prebuilt engine failed`     | No network on the first build, a proxy or firewall in the way, or a checksum mismatch (the file is not kept). Connect once, or use source mode. |
 | `is for @soundor/engine X, not Y` / `ABI namespace`        | A stale build directory or a mixed install: reinstall, delete the build directory.                                                              |
-| `needs macOS 12 or later`                                  | Raise `CMAKE_OSX_DEPLOYMENT_TARGET`, or use source mode.                                                                                        |
+| `needs macOS 12 or later`                                  | Set `juceRuntime({ macos: { deploymentTarget } })` to 12.0 or later.                                                                            |
 | `uses the MultiThreadedDLL C runtime`                      | The plugin uses a static C runtime: use the default (`/MD`, `/MDd`).                                                                            |
 | `Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build Release` | A Visual Studio tree configured for Debug only: configure it for the configuration you build.                                                   |
 | `SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine`        | A build directory from an older runtime: delete it.                                                                                             |
