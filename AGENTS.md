@@ -123,12 +123,12 @@ by the release workflow after npm publishing, or run by hand.
 Native CI jobs follow their package and run when `turbo query affected`
 reports it (`.github/scripts/native-changes.mjs`). Each group is a reusable
 workflow called from `verify.yml`, so its jobs show as `<group> / <job>`: Engine
-(`engine.yml`) ← `@soundor/engine`, JUCE 8 and JUCE 9 (`juce.yml`) ←
+(`engine.yml`; its suites ← `@soundor/engine`), JUCE 8 and JUCE 9 (`juce.yml`) ←
 `@soundor/juce-runtime`, VST3 (`vst3-host-artifacts.yml`) ← `@soundor/vst3-host`,
 Orbit (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`. A change
 only under `hosts/vst3-host/` runs VST3 and Orbit alone. The engine and the host
-share one pattern: `engine-plan` and `host-plan` select, one workflow builds
-(Engine artifacts, VST3), and jobs consume the artifact or the release. What a job
+share one pattern: `engine-plan` and `host-plan` select, one group builds and
+checks (Engine, VST3), and jobs wait for it and consume the artifact or the release. What a job
 builds must therefore be a dependency of its package.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and

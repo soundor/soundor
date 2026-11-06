@@ -10,7 +10,6 @@ export function verifyResults(needs) {
     )
   )
     throw new Error('Native input detection did not return every decision');
-  if (changes.native === 'true') required.add('engine');
   if (changes.benchmark === 'true') required.add('benchmark');
   if (changes.juce === 'true') {
     required.add('juce8');
@@ -43,8 +42,7 @@ export function verifyResults(needs) {
     needs['engine-plan']?.outputs?.build !== 'true'
   )
     throw new Error('Affected engine must use checkout artifacts');
-  if (needs['engine-plan']?.outputs?.build === 'true')
-    required.add('engine-artifacts');
+  if (needs['engine-plan']?.outputs?.build === 'true') required.add('engine');
   const failed = Object.entries(needs).filter(
     ([name, job]) =>
       ['failure', 'cancelled'].includes(job.result) ||

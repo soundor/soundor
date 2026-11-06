@@ -315,15 +315,6 @@ const cases = [
     true,
   ],
   [
-    'artifact workflow',
-    append('.github/workflows/engine-artifacts.yml'),
-    true,
-    true,
-    true,
-    true,
-    true,
-  ],
-  [
     'engine workflow',
     append('.github/workflows/engine.yml'),
     true,

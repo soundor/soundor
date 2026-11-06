@@ -26,7 +26,7 @@ tasks depend on dependency builds, so build dependencies before invoking Vitest
 directly.
 
 Native CI uses affected-package detection before allocating native runners.
-When the engine is affected, the read-only `engine-artifacts.yml` workflow
+When the engine is affected, the read-only `engine.yml` workflow
 builds and validates Debug and
 Release artifacts for Linux, macOS and Windows. JUCE jobs consume those artifacts
 from the same run and commit instead of rebuilding the engine. When it is not
@@ -128,15 +128,15 @@ changes do not need a package release.
 Native CI jobs follow affected packages, in groups that show as `<group> / <job>`,
 each a reusable workflow called from `verify.yml`:
 
-| Group            | Workflow                  | Follows                 | What it does                       |
-| ---------------- | ------------------------- | ----------------------- | ---------------------------------- |
-| Engine artifacts | `engine-artifacts.yml`    | `engine-plan`           | Builds the engine for every target |
-| Engine           | `engine.yml`              | `@soundor/engine`       | Static analysis and test suites    |
-| VST3             | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host          |
-| JUCE 8, JUCE 9   | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin         |
-| Orbit            | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin  |
+| Group          | Workflow                  | Follows                 | What it does                                                                                     |
+| -------------- | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Engine         | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
+| VST3           | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
+| JUCE 8, JUCE 9 | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin                                                                       |
+| Orbit          | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
 
-Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
+What uses the engine or the host waits for its whole group, so it starts from one that
+passed. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
 runs VST3 and Orbit alone. Verify is the one required check, and it runs for pull
 requests into `main`. Each build input must be a dependency of the package whose
 job consumes it. See

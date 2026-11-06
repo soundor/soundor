@@ -128,7 +128,7 @@ jobs:
       !inputs.reuse-artifacts
     permissions:
       contents: read
-    uses: ./.github/workflows/engine-artifacts.yml
+    uses: ./.github/workflows/engine.yml
     with:
       tests: ${{ inputs.mode != 'validate' || inputs.tests != false }}
       integration: ${{ inputs.mode != 'validate' || inputs.integration != false }}

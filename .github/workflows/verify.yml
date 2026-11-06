@@ -68,16 +68,17 @@ jobs:
             console.log(selection);
             appendFileSync(process.env.GITHUB_OUTPUT, "build=" + (selection.mode === "source") + "\n");'
 
-  engine-artifacts:
-    name: Engine artifacts
+  engine:
+    name: Engine
     needs: [changes, engine-plan]
     if: needs.engine-plan.outputs.build == 'true'
     permissions:
       contents: read
-    uses: ./.github/workflows/engine-artifacts.yml
+    uses: ./.github/workflows/engine.yml
     with:
       integration: false
       tests: ${{ needs.changes.outputs.native == 'true' }}
+      suites: ${{ needs.changes.outputs.native == 'true' }}
 
   host-plan:
     name: Select VST3 host
@@ -184,22 +185,13 @@ jobs:
       - name: Animation benchmark driver tests
         run: pnpm --filter soundor-benchmark test
 
-  # The engine's test suites.
-  engine:
-    name: Engine
-    needs: changes
-    if: needs.changes.outputs.native == 'true'
-    permissions:
-      contents: read
-    uses: ./.github/workflows/engine.yml
-
   juce8:
     name: JUCE 8
-    needs: [changes, engine-plan, engine-artifacts]
+    needs: [changes, engine-plan, engine]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine-artifacts.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
     permissions:
       contents: read
     uses: ./.github/workflows/juce.yml
@@ -211,11 +203,11 @@ jobs:
   # copies.
   juce9:
     name: JUCE 9
-    needs: [changes, engine-plan, engine-artifacts]
+    needs: [changes, engine-plan, engine]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine-artifacts.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
     permissions:
       contents: read
     uses: ./.github/workflows/juce.yml
@@ -284,11 +276,11 @@ jobs:
 
   orbit:
     name: Orbit
-    needs: [changes, engine-plan, engine-artifacts, host-plan, host]
+    needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.orbit == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine-artifacts.result == 'success') &&
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
       needs.host-plan.result == 'success' &&
       (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
@@ -306,7 +298,6 @@ jobs:
         changes,
         workspace,
         engine-plan,
-        engine-artifacts,
         engine,
         benchmark,
         juce8,

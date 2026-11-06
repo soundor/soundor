@@ -18,7 +18,7 @@ const JOBS = {
   orbit: 'orbit',
 };
 const CI =
-  /^\.github\/(workflows\/(verify|release|engine|engine-artifacts|engine-prebuilts|juce|orbit|vst3-host-artifacts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
+  /^\.github\/(workflows\/(verify|release|engine|engine-prebuilts|juce|orbit|vst3-host-artifacts)\.yml|actions\/|scripts\/(native-changes|engine-prebuilts|verify-results))/;
 
 const HOST = 'hosts/vst3-host/';
 
