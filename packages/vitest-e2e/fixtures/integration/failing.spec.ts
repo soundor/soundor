@@ -52,3 +52,7 @@ test('a test that passes saves nothing', async () => {
   vi.mocked(launch).mockResolvedValue({ close } as never);
   await launchPlugin();
 });
+
+test('audio that differs is kept to listen to', () => {
+  expect(Float32Array.of(0.5, 0.5)).toBeCloseToAudio(Float32Array.of(0, 0));
+});

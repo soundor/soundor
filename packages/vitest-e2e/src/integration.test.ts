@@ -64,7 +64,7 @@ describe('a test that fails', () => {
       'failing.config.ts',
     ]);
     expect(code).toBe(1);
-    expect(report?.['numFailedTests']).toBe(3);
+    expect(report?.['numFailedTests']).toBe(4);
     expect(report?.['numPassedTests']).toBe(1);
     expect(stderr).toContain('Saved from the plugin');
 
@@ -82,6 +82,14 @@ describe('a test that fails', () => {
     );
     const closed = await readFile(resolve(results, 'closed.txt'), 'utf8');
     expect(closed.trim().split('\n')).toHaveLength(4);
+
+    expect(stderr).toContain('Listen to both');
+    for (const file of ['actual.wav', 'expected.wav'])
+      expect(
+        existsSync(
+          saved('audio-that-differs-is-kept-to-listen-to', `audio/${file}`),
+        ),
+      ).toBe(true);
 
     const silent = 'survives-a-plugin-that-cannot-answer';
     expect(existsSync(saved(silent, 'screenshot.png'))).toBe(false);
