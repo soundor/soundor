@@ -128,16 +128,16 @@ changes do not need a package release.
 Native CI jobs follow affected packages, in groups that show as `<group> / <job>`,
 each a reusable workflow called from `verify.yml`:
 
-| Group          | Workflow                  | Follows                 | What it does                                                                                     |
-| -------------- | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
-| Engine         | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
-| VST3           | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
-| JUCE 8, JUCE 9 | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin                                                                       |
-| Orbit          | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
+| Group                                        | Workflow                  | Follows                 | What it does                                                                                     |
+| -------------------------------------------- | ------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| Engine                                       | `engine.yml`              | `engine-plan`           | Builds the engine for every target and, when it is affected, its static analysis and test suites |
+| VST3 (host)                                  | `vst3-host-artifacts.yml` | `host-plan`             | Builds and tests the host                                                                        |
+| JUCE 8 (juce-runtime), JUCE 9 (juce-runtime) | `juce.yml`                | `@soundor/juce-runtime` | Adapters and a real plugin                                                                       |
+| Orbit E2E                                    | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
 
 What uses the engine or the host waits for its whole group, so it starts from one that
 passed. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
-runs VST3 and Orbit alone. Verify is the one required check, and it runs for pull
+runs VST3 (host) and Orbit E2E alone. Verify is the one required check, and it runs for pull
 requests into `main`. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)

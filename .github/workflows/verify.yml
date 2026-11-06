@@ -186,7 +186,7 @@ jobs:
         run: pnpm --filter soundor-benchmark test
 
   juce8:
-    name: JUCE 8
+    name: JUCE 8 (juce-runtime)
     needs: [changes, engine-plan, engine]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
@@ -202,7 +202,7 @@ jobs:
   # JUCE 9 compiles its image libraries with plain C names, as Skia's (renamed)
   # copies.
   juce9:
-    name: JUCE 9
+    name: JUCE 9 (juce-runtime)
     needs: [changes, engine-plan, engine]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
@@ -265,7 +265,7 @@ jobs:
   # with its editor, for the jobs that use it. Clang-tidy and sanitizers only
   # when the host itself is affected. Nothing of the engine.
   host:
-    name: VST3
+    name: VST3 (host)
     needs: [changes, host-plan]
     if: needs.host-plan.outputs.build == 'true'
     permissions:
@@ -275,7 +275,7 @@ jobs:
       checks: ${{ needs.changes.outputs.host == 'true' }}
 
   orbit:
-    name: Orbit
+    name: Orbit E2E
     needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
