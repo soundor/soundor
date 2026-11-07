@@ -109,6 +109,23 @@ const YOGA_LTR = 1;
 /** Yoga leaves NaN in some boxes, which `left` and the like would ignore. */
 const finite = (value: number): number => (Number.isFinite(value) ? value : 0);
 
+/** A scroll indicator's far edge from the box's (3 thick, 2 in), and its least. */
+const INDICATOR_INSET = 5;
+const INDICATOR_MIN_LENGTH = 16;
+
+/** What places a scroll view's indicators, in Yoga's frame of its border box. */
+interface ScrollBox {
+  readonly contentWidth: number;
+  readonly contentHeight: number;
+  /** Its content box. */
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly borderLeft: number;
+  readonly borderTop: number;
+}
+
 /** The CSS of an element's padding, for what draws in it (text, an image). */
 const PADDINGS = [
   ['padding-left', Edge.Left],
@@ -209,6 +226,9 @@ export class UiNode extends TreeEventTarget {
   #scrollExtent: HTMLElement | null = null;
   #extentWidth = 0;
   #extentHeight = 0;
+  /** A scroll view's indicators, and what places them, as last laid out. */
+  #indicators: readonly [HTMLElement, HTMLElement] | null = null;
+  #scrollBox: ScrollBox | null = null;
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(
@@ -265,7 +285,17 @@ export class UiNode extends TreeEventTarget {
     if (type === 'scroll') {
       this.#scrollExtent = view.rootElement.ownerDocument.createElement('div');
       this.#scrollExtent.className = 'sd-scroll-extent';
-      this.#element.append(this.#scrollExtent);
+      const document = view.rootElement.ownerDocument;
+      const indicator = (): HTMLElement => {
+        const element = document.createElement('div');
+        element.className = 'sd-scroll-indicator';
+        return element;
+      };
+      this.#indicators = [indicator(), indicator()];
+      this.#element.append(this.#scrollExtent, ...this.#indicators);
+      this.#element.addEventListener('scroll', () => this.#placeIndicators(), {
+        passive: true,
+      });
     }
     nodes.set(this.#element, this);
     if (this.#root) this.#connect();
@@ -668,6 +698,7 @@ export class UiNode extends TreeEventTarget {
           };
     element.scrollLeft = Number(target.x) || 0;
     element.scrollTop = Number(target.y) || 0;
+    this.#placeIndicators();
   }
 
   scrollBy(
@@ -1103,6 +1134,71 @@ export class UiNode extends TreeEventTarget {
       this.#extentHeight = extentHeight;
       style.height = `${extentHeight}px`;
     }
+    const borderLeft = yoga.YGNodeLayoutGetBorder(node, Edge.Left);
+    const borderTop = yoga.YGNodeLayoutGetBorder(node, Edge.Top);
+    const left = borderLeft + yoga.YGNodeLayoutGetPadding(node, Edge.Left);
+    const top = borderTop + yoga.YGNodeLayoutGetPadding(node, Edge.Top);
+    this.#scrollBox = {
+      contentWidth: width,
+      contentHeight: height,
+      x: left,
+      y: top,
+      width: Math.max(
+        0,
+        yoga.YGNodeLayoutGetWidth(node) -
+          left -
+          yoga.YGNodeLayoutGetPadding(node, Edge.Right) -
+          yoga.YGNodeLayoutGetBorder(node, Edge.Right),
+      ),
+      height: Math.max(
+        0,
+        yoga.YGNodeLayoutGetHeight(node) -
+          top -
+          yoga.YGNodeLayoutGetPadding(node, Edge.Bottom) -
+          yoga.YGNodeLayoutGetBorder(node, Edge.Bottom),
+      ),
+      borderLeft,
+      borderTop,
+    };
+    this.#placeIndicators();
+  }
+
+  /**
+   * The engine's `drawScrollIndicators()`: a thin bar for each axis with more
+   * content than room, as far along as the content is scrolled. They are in the
+   * element, which scrolls them too, so they are put back by what it scrolled.
+   */
+  #placeIndicators(): void {
+    const box = this.#scrollBox;
+    if (box === null || this.#indicators === null) return;
+    const { scrollLeft, scrollTop } = this.#element;
+    const [vertical, horizontal] = this.#indicators;
+    if (box.contentHeight > box.height + 0.5 && box.height > 0) {
+      const length = Math.max(
+        INDICATOR_MIN_LENGTH,
+        (box.height * box.height) / box.contentHeight,
+      );
+      const at =
+        box.y +
+        ((box.height - length) * scrollTop) / (box.contentHeight - box.height);
+      vertical.style.display = 'block';
+      vertical.style.height = `${length}px`;
+      vertical.style.left = `${box.x + box.width - INDICATOR_INSET - box.borderLeft + scrollLeft}px`;
+      vertical.style.top = `${at - box.borderTop + scrollTop}px`;
+    } else vertical.style.display = 'none';
+    if (box.contentWidth > box.width + 0.5 && box.width > 0) {
+      const length = Math.max(
+        INDICATOR_MIN_LENGTH,
+        (box.width * box.width) / box.contentWidth,
+      );
+      const at =
+        box.x +
+        ((box.width - length) * scrollLeft) / (box.contentWidth - box.width);
+      horizontal.style.display = 'block';
+      horizontal.style.width = `${length}px`;
+      horizontal.style.left = `${at - box.borderLeft + scrollLeft}px`;
+      horizontal.style.top = `${box.y + box.height - INDICATOR_INSET - box.borderTop + scrollTop}px`;
+    } else horizontal.style.display = 'none';
   }
 
   // ── Coordinates ────────────────────────────────────────────────────────────

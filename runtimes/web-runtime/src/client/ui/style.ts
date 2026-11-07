@@ -36,13 +36,19 @@ export const STYLESHEET = `
 }
 .sd-text { white-space: pre; }
 .sd-image { object-fit: cover; object-position: center; }
-/* Takes no room and shows nothing, as natively. */
+/* The browser's scrollbar takes room and looks its own: a scroll view draws
+   the JUCE runtime's indicators instead (UiNode). */
 .sd-scroll { overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
 .sd-scroll::-webkit-scrollbar { display: none; }
 /* What a scroll view scrolls: as far as the engine's contentSize() goes. */
 .sd-scroll-extent {
   position: absolute; left: 0; top: 0; width: 0; height: 0;
   visibility: hidden; pointer-events: none;
+}
+.sd-scroll-indicator {
+  position: absolute; left: 0; top: 0; display: none; width: 3px; height: 3px;
+  border-radius: 1.5px; background: rgba(128, 128, 128, 0.376);
+  pointer-events: none; z-index: 2147483647;
 }
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
 .sd-surface {

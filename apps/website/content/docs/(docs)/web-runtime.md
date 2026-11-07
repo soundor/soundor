@@ -237,8 +237,9 @@ the browser itself decides:
   a few pixels. Bundled fonts narrow this; they do not remove it. It wraps by the
   JUCE runtime's rules in both: only at spaces and line breaks, never inside a
   word, at a hyphen or between CJK characters.
-- **Scroll views** show no scrollbar in either runtime, and they scroll as far.
-  What moves them is the browser's here, so its momentum on a trackpad is its own.
+- **Scroll views** scroll as far in both, and draw the same thin indicators, not
+  the browser's scrollbar. What moves them is the browser's here, so its momentum
+  on a trackpad is its own.
 
 ## Native API in TypeScript
 

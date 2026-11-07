@@ -443,6 +443,43 @@ describe('UiNode layout', () => {
     expect(UiNode.elementOf(child).parentElement).toBe(el(scroll));
   });
 
+  it("draws the engine's scroll indicators, not the browser's scrollbar", () => {
+    const { root } = sized();
+    const scroll = view.createNode('scroll');
+    const child = view.createNode('view');
+    scroll.style = { width: 100, height: 100 };
+    child.style = { width: 50, height: 400, flexShrink: 0 };
+    root.appendChild(scroll);
+    scroll.appendChild(child);
+    view.flushLayout();
+    const [vertical, horizontal] = el(scroll).querySelectorAll<HTMLElement>(
+      '.sd-scroll-indicator',
+    );
+    // 100 of 400 shown: a quarter of the box long, at its right edge.
+    expect(vertical!.style.display).toBe('block');
+    expect(vertical!.style.height).toBe('25px');
+    expect(vertical!.style.left).toBe('95px');
+    expect(vertical!.style.top).toBe('0px');
+    // Nothing overflows across.
+    expect(horizontal!.style.display).toBe('none');
+    // All the way down: at the bottom of the box, however far that scrolled it.
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      value: 300,
+      configurable: true,
+    });
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(vertical!.style.top).toBe(`${100 - 25 + 300}px`);
+    // At least 16 long, however much there is to scroll.
+    child.style = { width: 50, height: 4000, flexShrink: 0 };
+    view.flushLayout();
+    expect(vertical!.style.height).toBe('16px');
+    // No indicator once it all fits.
+    child.style = { width: 50, height: 50 };
+    view.flushLayout();
+    expect(vertical!.style.display).toBe('none');
+    expect(STYLESHEET).toMatch(/\.sd-scroll \{[^}]*scrollbar-width: none;/);
+  });
+
   it('frees what leaves the view, and lays it out anew when it returns', () => {
     const { root } = setup();
     const parent = view.createNode('view');
