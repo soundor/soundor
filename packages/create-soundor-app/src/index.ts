@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { cp, readdir, rename } from 'node:fs/promises';
+import { cp, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,14 +25,22 @@ import {
   runScript,
 } from './pm';
 import {
+  installArguments,
+  lockfileName,
+  resolveProjectDependencies,
+} from './resolve';
+import {
   type Runtime,
   RUNTIME_INFO,
   RUNTIMES,
   applyTokens,
   clearDirectory,
   devScripts,
+  projectManifest,
+  type Manifest,
   resolveProjectTarget,
 } from './scaffold';
+import { TEMPLATE_VERSIONS } from './versions';
 
 const main = defineCommand({
   meta: {
@@ -67,7 +75,7 @@ const main = defineCommand({
       if (entries.length > 0) {
         const answer = await confirm({
           message:
-            'Current directory is not empty. Remove all files and continue?',
+            'Current directory is not empty. Remove files (keeping package-manager configuration) and continue?',
           initialValue: false,
         });
         if (isCancel(answer) || !answer) {
@@ -112,12 +120,51 @@ const main = defineCommand({
       pm = answer;
     }
 
-    // --- Scaffold ---
+    // --- Resolve before changing any destination files ---
     const s = spinner();
-    s.start('Scaffolding project');
+    s.start('Finding installable dependency versions');
     const templateDir = fileURLToPath(
       new URL('../templates/base', import.meta.url),
     );
+    const template = JSON.parse(
+      await readFile(join(templateDir, 'package.json'), 'utf-8'),
+    ) as Manifest;
+    const manifest = projectManifest(template, target.packageName, runtimes);
+    const golden = Object.fromEntries(
+      Object.entries({ ...template.dependencies, ...template.devDependencies })
+        .filter(
+          ([name, specifier]) =>
+            specifier === 'workspace:*' &&
+            (name in (manifest.dependencies ?? {}) ||
+              name in (manifest.devDependencies ?? {})),
+        )
+        .map(([name]) => [name, TEMPLATE_VERSIONS[name]!]),
+    );
+    let resolution;
+    try {
+      resolution = await resolveProjectDependencies({
+        pm,
+        targetDir: target.targetDir,
+        currentDirectory: target.isCurrentDirectory,
+        manifest,
+        golden,
+      });
+    } catch (error) {
+      s.stop('Dependency resolution failed');
+      cancel(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+    const changed = Object.entries(resolution.versions)
+      .filter(([name, version]) => version !== golden[name])
+      .map(([name, version]) => `${name}@${version} (tested: ${golden[name]})`);
+    s.stop(
+      changed.length > 0
+        ? `Using older compatible packages: ${changed.join(', ')}`
+        : 'Tested dependency versions are ready',
+    );
+
+    // --- Scaffold ---
+    s.start('Scaffolding project');
     if (target.isCurrentDirectory) {
       await clearDirectory(target.targetDir);
     }
@@ -131,16 +178,27 @@ const main = defineCommand({
       join(target.targetDir, '_gitignore'),
       join(target.targetDir, '.gitignore'),
     );
-    await applyTokens(target.targetDir, target.packageName, runtimes);
+    await applyTokens(target.targetDir, target.packageName, runtimes, {
+      ...TEMPLATE_VERSIONS,
+      ...resolution.versions,
+    });
+    await writeFile(
+      join(target.targetDir, lockfileName(pm)),
+      resolution.lockfile,
+    );
     s.stop('Project scaffolded');
 
     // --- Install ---
     s.start('Installing dependencies');
-    const installResult = spawnSync(pm, ['install'], {
-      cwd: target.targetDir,
-      stdio: 'inherit',
-      shell: false,
-    });
+    const installResult = spawnSync(
+      pm,
+      pm === 'npm' ? ['ci'] : [...installArguments(pm), '--frozen-lockfile'],
+      {
+        cwd: target.targetDir,
+        stdio: 'inherit',
+        shell: process.platform === 'win32',
+      },
+    );
     if (installResult.status !== 0) {
       cancel('Dependency installation failed');
       process.exit(1);
@@ -153,7 +211,7 @@ const main = defineCommand({
     const initResult = spawnSync(execArgs[0]!, execArgs.slice(1), {
       cwd: target.targetDir,
       stdio: 'inherit',
-      shell: false,
+      shell: process.platform === 'win32',
     });
     if (initResult.status !== 0) {
       cancel('soundor init failed');
