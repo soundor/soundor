@@ -35,6 +35,8 @@ export const STYLESHEET = `
   text-align: left; line-height: 16.8px;
 }
 .sd-text { white-space: pre; }
+/* Moved by what puts its baselines where the engine does (TextMeasurer). */
+.sd-text-lines { position: relative; display: block; }
 .sd-image { object-fit: cover; object-position: center; }
 /* The browser's scrollbar takes room and looks its own: a scroll view draws
    the JUCE runtime's indicators instead (UiNode). */

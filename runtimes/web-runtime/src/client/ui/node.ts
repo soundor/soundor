@@ -57,6 +57,8 @@ export interface ViewLink {
   /** The Yoga config every node of the view is made with. */
   readonly yogaConfig: number;
   readonly textMeasurer: TextMeasurer;
+  /** Device pixels per logical pixel, as the view is laid out. */
+  pixelScale(): number;
   /** Something Yoga decides has changed: lay out before the next paint. */
   layoutChanged(): void;
   /** Lays the view out now, if anything changed. */
@@ -220,6 +222,8 @@ export class UiNode extends TreeEventTarget {
   #forgetMeasure: (() => void) | null = null;
   /** Where it was last placed, in CSS; kept when its style replaces its CSS. */
   #placement = '';
+  /** What shows a text's lines, in the element. */
+  readonly #textLines: HTMLElement | null = null;
   /** The width its text's lines were set for; NaN: to be set again. */
   #textWidth = NaN;
   /** The element showing how far a scroll view scrolls. */
@@ -281,6 +285,11 @@ export class UiNode extends TreeEventTarget {
       this.#focusable = true;
       // What is typed sizes it too, as natively.
       input.addEventListener('input', () => this.#contentChanged());
+    }
+    if (type === 'text') {
+      this.#textLines = view.rootElement.ownerDocument.createElement('div');
+      this.#textLines.className = 'sd-text-lines';
+      this.#element.append(this.#textLines);
     }
     if (type === 'scroll') {
       this.#scrollExtent = view.rootElement.ownerDocument.createElement('div');
@@ -441,7 +450,7 @@ export class UiNode extends TreeEventTarget {
     }
     const text = String(value);
     if (this.#type === 'input') this.#input().value = text;
-    else this.#element.textContent = text;
+    else this.#textLines!.textContent = text;
     const changed = text !== this.#text;
     this.#text = text;
     if (changed) this.#contentChanged();
@@ -1040,7 +1049,7 @@ export class UiNode extends TreeEventTarget {
     yoga.YGNodeStyleSetHeight(node, height);
     if (yoga.YGNodeIsDirty(node) === 0) return;
     yoga.YGNodeCalculateLayout(node, width, height, YOGA_LTR);
-    root.#place(0, 0);
+    root.#place(0, 0, 0);
   }
 
   /**
@@ -1048,20 +1057,28 @@ export class UiNode extends TreeEventTarget {
    * parent's padding box, Yoga's from its border box. Writes only what moved,
    * since a write costs the browser a layout of its own.
    */
-  #place(parentLeft: number, parentTop: number): void {
+  #place(parentLeft: number, parentTop: number, parentY: number): void {
     const yoga = this.#view.yoga;
     const node = this.#yoga;
     if (this.#style.display === 'none') return;
+    const y = finite(yoga.YGNodeLayoutGetTop(node));
+    const viewY = parentY + y;
     if (!this.#root) {
       const x = finite(yoga.YGNodeLayoutGetLeft(node));
-      const y = finite(yoga.YGNodeLayoutGetTop(node));
       const width = finite(yoga.YGNodeLayoutGetWidth(node));
       const height = finite(yoga.YGNodeLayoutGetHeight(node));
       let placement = `left:${x - parentLeft}px;top:${y - parentTop}px;width:${width}px;height:${height}px;`;
       // Children are placed by Yoga; only what draws in its box needs padding.
-      if (this.#type !== 'view' && this.#type !== 'scroll')
-        for (const [property, side] of PADDINGS)
-          placement += `${property}:${finite(yoga.YGNodeLayoutGetPadding(node, side))}px;`;
+      if (this.#type !== 'view' && this.#type !== 'scroll') {
+        const shift = this.#type === 'input' ? this.#inputShift(viewY) : 0;
+        for (const [property, side] of PADDINGS) {
+          let padding = finite(yoga.YGNodeLayoutGetPadding(node, side));
+          // Its text is centred in what padding leaves: twice, to move it once.
+          if (side === Edge.Top) padding += Math.max(shift, 0) * 2;
+          if (side === Edge.Bottom) padding += Math.max(-shift, 0) * 2;
+          placement += `${property}:${padding}px;`;
+        }
+      }
       if (placement !== this.#placement) {
         this.#placement = placement;
         const { style } = this.#element;
@@ -1075,17 +1092,22 @@ export class UiNode extends TreeEventTarget {
         }
       }
     }
-    if (this.#type === 'text') this.#placeText();
+    if (this.#type === 'text') this.#placeText(viewY);
     const left = finite(yoga.YGNodeLayoutGetBorder(node, Edge.Left));
     const top = finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top));
-    for (const child of this.#children) child.#place(left, top);
+    for (const child of this.#children) child.#place(left, top, viewY);
     if (this.#scrollExtent !== null) this.#placeScrollExtent();
   }
 
   /** Shows the lines its text was wrapped into at the width it has. */
-  #placeText(): void {
+  #placeText(viewY: number): void {
     const yoga = this.#view.yoga;
     const node = this.#yoga;
+    this.#placeBaseline(
+      viewY +
+        finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top)) +
+        finite(yoga.YGNodeLayoutGetPadding(node, Edge.Top)),
+    );
     const width = Math.max(
       0,
       finite(yoga.YGNodeLayoutGetWidth(node)) -
@@ -1104,7 +1126,59 @@ export class UiNode extends TreeEventTarget {
       width + 0.01,
     );
     const shown = lines.join('\n');
-    if (this.#element.textContent !== shown) this.#element.textContent = shown;
+    const lineElement = this.#textLines!;
+    if (lineElement.textContent !== shown) lineElement.textContent = shown;
+  }
+
+  /**
+   * The device pixel the engine's baseline falls on, in the view, given where
+   * its line starts. The browser is then told that very pixel rather than a
+   * fraction of one, for it rounds its own way: at 2x, 156.49 is 156 in the
+   * engine and 157 in Chromium.
+   */
+  #snappedBaseline(lineTop: number, engine: number): number {
+    const scale = this.#view.pixelScale();
+    return Math.round((lineTop + engine) * scale) / scale;
+  }
+
+  /** Puts a text's first baseline on the engine's pixel. */
+  #placeBaseline(contentTop: number): void {
+    const baselines = this.#view.textMeasurer.baselines(this.#style);
+    if (baselines === null) return;
+    const top =
+      this.#snappedBaseline(contentTop, baselines.engine) -
+      contentTop -
+      baselines.browser;
+    const value = `${top}px`;
+    const { style } = this.#textLines!;
+    if (style.top !== value) style.top = value;
+  }
+
+  /**
+   * How far to move an input's text for its baseline to be on the engine's
+   * pixel (`Renderer::drawInput`: the line centred in the content box). An input
+   * shows its text in a box of its own, which nothing can reach but its padding.
+   */
+  #inputShift(viewY: number): number {
+    const baselines = this.#view.textMeasurer.baselines(this.#style);
+    if (baselines === null) return 0;
+    const yoga = this.#view.yoga;
+    const node = this.#yoga;
+    const contentTop =
+      finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top)) +
+      finite(yoga.YGNodeLayoutGetPadding(node, Edge.Top));
+    const contentHeight =
+      finite(yoga.YGNodeLayoutGetHeight(node)) -
+      contentTop -
+      finite(yoga.YGNodeLayoutGetBorder(node, Edge.Bottom)) -
+      finite(yoga.YGNodeLayoutGetPadding(node, Edge.Bottom));
+    const lineTop =
+      viewY + contentTop + (contentHeight - lineHeightOf(this.#style)) / 2;
+    return (
+      this.#snappedBaseline(lineTop, baselines.engine) -
+      lineTop -
+      baselines.browser
+    );
   }
 
   /**

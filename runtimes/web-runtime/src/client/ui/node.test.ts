@@ -411,6 +411,71 @@ describe('UiNode layout', () => {
     expect(text.layout.height).toBe(36);
   });
 
+  describe('baselines', () => {
+    /** A browser that puts a baseline a pixel above the engine, at 2x. */
+    function atTwice() {
+      vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
+      const set = sized();
+      vi.spyOn(view.textMeasurer, 'baselines').mockReturnValue({
+        engine: 13.245,
+        browser: 12,
+      });
+      return set;
+    }
+
+    it('puts a text on the device pixel the engine does', () => {
+      const { root } = atTwice();
+      const text = view.createNode('text');
+      text.style = { position: 'absolute', top: 65, left: 0, width: 100 };
+      text.text = 'Label';
+      root.appendChild(text);
+      view.flushLayout();
+      const lines = el(text).firstElementChild as HTMLElement;
+      // 78.245 is 156.49 device pixels, which is 156 in the engine: 78, and
+      // the browser's own baseline is at 65 + 12.
+      expect(lines.style.top).toBe('1px');
+      // It follows the box, though only the box moved.
+      text.style = { position: 'absolute', top: 66, left: 0, width: 100 };
+      view.flushLayout();
+      expect(lines.style.top).toBe('1px');
+      text.style = { position: 'absolute', top: 65.5, left: 0, width: 100 };
+      view.flushLayout();
+      // (65.5 + 13.245) x 2 = 157.49, so 78.5: 1 from 65.5 + 12.
+      expect(lines.style.top).toBe('1px');
+    });
+
+    it('moves an input by what its padding leaves', () => {
+      const { root } = atTwice();
+      const input = view.createNode('input');
+      input.style = {
+        position: 'absolute',
+        top: 10,
+        left: 0,
+        width: 100,
+        height: 34,
+        paddingTop: 2,
+        paddingBottom: 2,
+        lineHeight: 16,
+      };
+      root.appendChild(input);
+      view.flushLayout();
+      // The line is at 10 + 2 + (30 - 16) / 2 = 19. The engine's baseline is
+      // then 32.245, on the device pixel of 32 and the browser's at 31: 1 down,
+      // which centring in what padding leaves takes 2 of padding to do.
+      expect(el(input).style.paddingTop).toBe('4px');
+      expect(el(input).style.paddingBottom).toBe('2px');
+    });
+
+    it('leaves text alone where nothing can measure it', () => {
+      const { root } = sized();
+      const text = view.createNode('text');
+      text.text = 'Label';
+      root.appendChild(text);
+      view.flushLayout();
+      expect((el(text).firstElementChild as HTMLElement).style.top).toBe('');
+    });
+  });
+
   it('sizes an empty canvas by its drawing buffer, as an image is', () => {
     const { root } = sized();
     const canvas = view.createNode('canvas');

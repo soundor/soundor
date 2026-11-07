@@ -176,6 +176,10 @@ export class UiView implements ViewLink {
     });
   }
 
+  pixelScale(): number {
+    return this.#layoutSize.scale > 0 ? this.#layoutSize.scale : 1;
+  }
+
   layoutChanged(): void {
     this.#layoutChanged = true;
     if (this.#layoutQueued || this.#disposed) return;

@@ -5,6 +5,7 @@ import { layoutText, type TextMeasurer } from './text-layout';
 /** Every character 10 wide: the wrapping alone is what is under test. */
 const measurer: TextMeasurer = {
   advance: (text) => text.length * 10,
+  baselines: () => null,
   reset() {},
 };
 const lines = (text: string, width: number, style = {}) =>

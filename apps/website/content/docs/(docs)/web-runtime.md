@@ -236,7 +236,10 @@ the browser itself decides:
   platform's fonts in each, so a text's width, and where it wraps, can differ by
   a few pixels. Bundled fonts narrow this; they do not remove it. It wraps by the
   JUCE runtime's rules in both: only at spaces and line breaks, never inside a
-  word, at a hyphen or between CJK characters.
+  word, at a hyphen or between CJK characters. Baselines are the JUCE runtime's
+  too, in text and in inputs, on the device pixel it would use: the browser's
+  rounding of a font's metrics, which moves text by a pixel between 1x and 2x, is
+  corrected for. Glyphs still differ by what each renderer hints.
 - **Scroll views** scroll as far in both, and draw the same thin indicators, not
   the browser's scrollbar. What moves them is the browser's here, so its momentum
   on a trackpad is its own.
