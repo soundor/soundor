@@ -82,6 +82,9 @@ jobs:
     if: needs.engine-plan.outputs.build == 'true'
     permissions:
       contents: read
+      actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/engine.yml
     with:
       integration: false
@@ -155,7 +158,9 @@ jobs:
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Engine prebuilt release tooling tests
-        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/native-artifacts.test.mjs
+        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/verified-deps.test.mjs
+      - name: Verified dependency archive tests
+        run: python3 -m unittest discover -s .github/scripts -p 'verified_deps_test.py'
 
       - name: Run formatter
         run: pnpm run format

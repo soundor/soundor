@@ -2,6 +2,10 @@ name: Native dependencies
 description: Installs what building Skia, ANGLE and Hermes needs, a software GPU on Linux, and keeps their builds across runs
 
 inputs:
+  cache:
+    description: Restore ordinary compiled dependency and compiler caches (false for release-producing builds)
+    required: false
+    default: 'true'
   job:
     description: A name for the cache, unique per toolchain
     required: true
@@ -70,7 +74,7 @@ runs:
     # (./.github/actions/native-deps-save): pull requests start from main's,
     # and one entry per pull request commit would fill the repository's cache.
     - name: Enable compiler cache
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' && inputs.cache == 'true'
       shell: bash
       run: |
         echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> "$GITHUB_ENV"
@@ -81,7 +85,7 @@ runs:
         echo "SOUNDOR_CCACHE_KEY=ccache-${{ inputs.job }}-${{ github.job }}-${{ github.sha }}" >> "$GITHUB_ENV"
 
     - name: Restore compiler cache
-      if: runner.os != 'Windows'
+      if: runner.os != 'Windows' && inputs.cache == 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/ccache
@@ -96,6 +100,7 @@ runs:
     # done twice. The newest entry for the same recipes is restored first. Another
     # Xcode starts empty: its directories' keys do not tell the builds apart.
     - name: Restore Skia, ANGLE and Hermes
+      if: inputs.cache == 'true'
       id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:

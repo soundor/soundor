@@ -333,6 +333,15 @@ const cases = [
   // turbo's global dependencies and CI itself.
   ['.clang-tidy', append('.clang-tidy'), true, true, true, true, true],
   [
+    'verified dependencies',
+    append('.github/scripts/verified-deps.mjs'),
+    true,
+    true,
+    true,
+    true,
+    true,
+  ],
+  [
     'native artifact lookup',
     append('.github/scripts/native-artifacts.mjs'),
     true,

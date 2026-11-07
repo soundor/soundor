@@ -44,6 +44,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/verify.yml
 
   select:
@@ -110,6 +112,9 @@ jobs:
     if: needs.select.outputs.mode == 'publish' && needs.select.outputs.engine == 'true'
     permissions:
       contents: write
+      actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/engine-prebuilts.yml
     with:
       mode: publish

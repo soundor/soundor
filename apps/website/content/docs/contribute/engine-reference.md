@@ -1176,6 +1176,33 @@ before Yoga sees them (`Surface.cpp`), since a parent sized by its content
 counted the unclamped size. What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
+### Verified dependencies in CI
+
+Release-producing engine jobs on `main` bypass ordinary native and compiler
+caches. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
+the recipes (including patches and symbol prefixes), runtime family, detected
+compiler and SDK settings, CMake flags and hosted runner image. It looks for a
+matching seven-day artifact from a successful main release workflow. A miss
+compiles cleanly from pinned sources; no existing unsigned cache is promoted.
+
+Before restoring a snapshot, the job verifies the transport digest, then uses
+`gh attestation verify` to bind the archive to this repository's `engine.yml`
+signer, `refs/heads/main`, the original source and signer commits, and a hosted
+runner. Signature verification precedes native archive extraction. The archive
+reader rejects path traversal, links, devices, duplicate paths and unexpected
+identities. The engine itself still compiles from the current checkout.
+
+After all engine build jobs succeed, `attest-dependencies` runs separately on
+`main`. It receives signing permissions, installs no packages, and executes no
+producer tools. GitHub's pinned `actions/attest` signs the snapshot digest, and
+the archive and bundle are retained together for seven days. The initial main
+run and changes to recipes or toolchain/image settings require a cold dependency
+build. This authenticates the builder and exact bytes; it does not establish
+that the reviewed source or compiler is free of malicious behavior.
+
+PR builds continue using ordinary caches for speed. The separate sanitizer,
+GCC, no-GPU and lint suites do not supply release dependency snapshots.
+
 ### Skia
 
 Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
@@ -1632,7 +1659,7 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-read-only `engine.yml` workflow to build all eight archives on GitHub's
+`engine.yml` workflow to build all eight archives on GitHub's
 runners. The Windows dynamic and static C runtime families build on separate
 runners with separate dependency caches. It tests the extracted archives (the
 JUCE adapters and the DevTools bridge included), and releases them as one set,

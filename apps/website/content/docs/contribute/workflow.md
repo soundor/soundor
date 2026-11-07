@@ -26,7 +26,7 @@ tasks depend on dependency builds, so build dependencies before invoking Vitest
 directly.
 
 Native CI uses affected-package detection before allocating native runners.
-When the engine is affected, the read-only `engine.yml` workflow
+When the engine is affected, the `engine.yml` workflow
 builds and validates Debug and
 Release artifacts for Linux, macOS and Windows. Windows uses two runners in
 parallel: one for the dynamic C runtime (`/MD`, `/MDd`), the other for the static
@@ -49,6 +49,19 @@ reused PR artifacts retain the original build's commit and provenance.
 Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
 Benchmarks retain source builds because their Release runner supports JavaScript
 source; the shipped Release engine is bytecode-only.
+
+Release-producing engine jobs on `main` do not restore ordinary compiled native
+or compiler caches. They restore dependency snapshots only after checking the
+transport digest and GitHub's signed build attestation against this repository,
+the `engine.yml` signer, `main`, and the original commit. The snapshot identity
+also includes dependency recipes, compiler/SDK settings and the runner image.
+An absent or expired snapshot builds dependencies from clean sources. Invalid
+signatures, identities or archive paths fail before the dependencies are used.
+
+After the engine builds pass, an isolated main-only job attests the dependency
+snapshot and retains it for seven days. It installs no packages and runs no
+producer executables; only this job receives signing permissions. PRs keep their
+ordinary caches, and the source test suites keep their own configurations.
 
 Missing or mismatched CI artifacts fail verification; there is no fallback to an
 older engine. Release publishing waits for verification of the same main commit and reuses

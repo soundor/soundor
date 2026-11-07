@@ -8,6 +8,8 @@ const recipes = {
   engine: [
     '.github/workflows/engine.yml',
     '.github/scripts/engine-prebuilts.mjs',
+    '.github/scripts/verified-deps.mjs',
+    '.github/scripts/verified-deps.py',
     '.github/actions/native-deps/action.yml',
     '.github/actions/native-deps-save/action.yml',
   ],
