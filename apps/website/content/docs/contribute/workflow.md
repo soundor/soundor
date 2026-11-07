@@ -28,8 +28,11 @@ directly.
 Native CI uses affected-package detection before allocating native runners.
 When the engine is affected, the read-only `engine.yml` workflow
 builds and validates Debug and
-Release artifacts for Linux, macOS and Windows. JUCE jobs consume those artifacts
-from the same run and commit instead of rebuilding the engine. When it is not
+Release artifacts for Linux, macOS and Windows. Windows uses two runners in
+parallel: one for the dynamic C runtime (`/MD`, `/MDd`), the other for the static
+C runtime (`/MT`, `/MTd`), each with its own dependency cache. Consumers merge
+the two Windows artifacts before selecting an engine. JUCE jobs consume those
+artifacts from the same run and commit instead of rebuilding the engine. When it is not
 affected, JUCE uses a matching released engine. If the current version is
 unpublished or its inputs do not match the release, CI builds checkout artifacts;
 the full native test suites are enabled only when the engine is affected.

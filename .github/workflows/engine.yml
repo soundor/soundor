@@ -26,7 +26,7 @@ permissions: {}
 
 jobs:
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.name || matrix.target }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 240
     permissions:
@@ -54,11 +54,21 @@ jobs:
               cache: macos-universal,
             }
           - {
+              name: windows-x64-dynamic,
               target: windows-x64,
               os: windows-2025,
               cc: cl,
               cxx: cl,
               cache: windows,
+            }
+          - {
+              name: windows-x64-static,
+              target: windows-x64,
+              os: windows-2025,
+              cc: cl,
+              cxx: cl,
+              cache: windows-static,
+              static: true,
             }
     defaults:
       run:
@@ -67,8 +77,11 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       SOUNDOR_ENGINE_SOURCE_COMMIT: ${{ github.sha }}
-      # Windows also has archives with the static C runtime.
-      STATIC_VARIANTS: ${{ matrix.target == 'windows-x64' && 'debug-static release-static' || '' }}
+      # Each Windows runner builds one C runtime family, sharing its dependencies
+      # between Debug and Release. The two families run in parallel.
+      VARIANTS: ${{ matrix.static && 'debug-static release-static' || 'debug release' }}
+      DEBUG_VARIANT: ${{ matrix.static && 'debug-static' || 'debug' }}
+      RELEASE_VARIANT: ${{ matrix.static && 'release-static' || 'release' }}
       SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,14 +115,14 @@ jobs:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
         run: |
-          for variant in debug release $STATIC_VARIANTS; do
+          for variant in $VARIANTS; do
             cmake --workflow --preset "prebuilt-$variant" || exit 1
           done
 
       # This private Skia suite cannot link against an imported archive. Keep
       # its platform coverage using the engine libraries we just built.
       - name: Private SVG tests against the source build
-        if: inputs.tests
+        if: inputs.tests && !matrix.static
         working-directory: runtimes/engine
         run: |
           cmake --preset prebuilt-debug -DSOUNDOR_BUILD_TESTS=ON
@@ -118,7 +131,7 @@ jobs:
 
       - name: Pack
         run: |
-          for variant in debug release $STATIC_VARIANTS; do
+          for variant in $VARIANTS; do
             node .github/scripts/engine-prebuilts.mjs pack "runtimes/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
               --commit "$GITHUB_SHA" --target ${{ matrix.target }}
           done
@@ -130,10 +143,11 @@ jobs:
           version=$(node -p "require('./runtimes/engine/package.json').version")
           # Forward slashes on Windows too: these paths go to CMake.
           temp=$(cygpath -m "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")
-          for variant in debug release $STATIC_VARIANTS; do
+          for variant in $VARIANTS; do
             mkdir -p "$temp/extracted"
             cmake -E chdir "$temp/extracted" cmake -E tar xf "$temp/prebuilts/soundor-engine-$version-${{ matrix.target }}-$variant.tar.gz"
-            echo "PREBUILT_$(echo $variant | tr a-z- A-Z_)=$temp/extracted/soundor-engine-$version-${{ matrix.target }}-$variant" >> "$GITHUB_ENV"
+            if [[ "$variant" == debug* ]]; then configuration=DEBUG; else configuration=RELEASE; fi
+            echo "PREBUILT_$configuration=$temp/extracted/soundor-engine-$version-${{ matrix.target }}-$variant" >> "$GITHUB_ENV"
           done
 
       - name: Both architectures in every macOS library
@@ -152,23 +166,22 @@ jobs:
           done
           exit $status
 
-      - name: Native tests against the debug engine
+      - name: Native tests against the debug engine (${{ env.DEBUG_VARIANT }})
         if: inputs.tests
         working-directory: runtimes/engine
-        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset prebuilt-check-debug
+        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset "prebuilt-check-$DEBUG_VARIANT"
 
-      - name: Bytecode-only tests against the release engine
+      - name: Bytecode-only tests against the release engine (${{ env.RELEASE_VARIANT }})
         if: inputs.tests
         working-directory: runtimes/engine
-        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset prebuilt-check-release
+        run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset "prebuilt-check-$RELEASE_VARIANT"
 
-      - name: Native tests against the static C runtime's engines
-        if: inputs.tests && runner.os == 'Windows'
+      - name: Static C runtime coexistence reports FLS usage
+        if: inputs.tests && matrix.static
         working-directory: runtimes/engine
         run: |
-          SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG_STATIC" cmake --workflow --preset prebuilt-check-debug-static &&
-            SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE_STATIC" cmake --workflow --preset prebuilt-check-release-static &&
-            ctest --test-dir build/prebuilt-check-release-static -C Release -R '^soundor_coexistence$' -V | grep 'FLS slot'
+          set -eo pipefail
+          ctest --test-dir build/prebuilt-check-release-static -C Release -R '^soundor_coexistence$' -V | grep 'FLS slot'
 
       # The universal archive links for the architecture this runner is not.
       - name: The x86_64 slice links
@@ -200,9 +213,10 @@ jobs:
         if: inputs.integration && runner.os == 'Linux'
         run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
 
-      # The JUCE adapters and the DevTools bridge, linked to the debug engine.
+      # The JUCE adapters and DevTools bridge use the DLL runtime on Windows;
+      # the plugin below uses JUCE's default static runtime on the other runner.
       - name: JUCE adapters against the debug engine
-        if: inputs.integration
+        if: inputs.integration && !matrix.static
         run: |
           cmake -S runtimes/juce-runtime/native -B .soundor/juce-prebuilt -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON \
             -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce" \
@@ -218,7 +232,7 @@ jobs:
       # mode), from these archives: a manifest of them by file:// URL stands
       # in for the release the published package names.
       - name: A plugin with the prebuilt engine
-        if: inputs.integration
+        if: inputs.integration && (runner.os != 'Windows' || matrix.static)
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
           # JUCE's Release LTO flags emit Clang 18 bitcode (as in juce.yml).
@@ -243,7 +257,7 @@ jobs:
       - name: Keep the archives
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: engine-prebuilt-${{ github.sha }}-${{ matrix.target }}
+          name: engine-prebuilt-${{ github.sha }}-${{ matrix.target }}${{ matrix.static && '-static' || '' }}
           path: ${{ runner.temp }}/prebuilts
           if-no-files-found: error
           retention-days: 7

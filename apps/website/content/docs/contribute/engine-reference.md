@@ -1632,14 +1632,15 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-read-only `engine.yml` workflow to build all six archives on GitHub's
-runners, tests each extracted (the JUCE adapters and the DevTools bridge
-included), and releases them as one set, named after the engine version, the
-commit and a build revision:
+read-only `engine.yml` workflow to build all eight archives on GitHub's
+runners. The Windows dynamic and static C runtime families build on separate
+runners with separate dependency caches. It tests the extracted archives (the
+JUCE adapters and the DevTools bridge included), and releases them as one set,
+named after the engine version, the commit and a build revision:
 
 ```text
 engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
-  soundor-engine-<version>-<target>-<variant>.tar.gz   ×6
+  soundor-engine-<version>-<target>-<variant>.tar.gz   ×8
   build-info.json   per archive: target, variant, toolchain, SHA-256...; the
                     engine version, ABI namespace, full source commit, revision
   SHA256SUMS        the same checksums, for sha256sum -c
