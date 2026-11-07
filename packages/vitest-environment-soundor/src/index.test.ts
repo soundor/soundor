@@ -2,6 +2,7 @@ import {
   getTestRuntime,
   initializeTestContext,
   disposeTestContext,
+  TestResizeObserver,
 } from '@soundor/test-runtime';
 import { expect, test, vi } from 'vitest';
 
@@ -79,4 +80,16 @@ test('restores frame globals and exposes a read-only simulated pixel ratio', asy
   expect(sandbox.requestAnimationFrame).toBeUndefined();
   expect(sandbox.cancelAnimationFrame).toBeUndefined();
   expect(sandbox.devicePixelRatio).toBeUndefined();
+});
+
+test('installs a ResizeObserver that observes nodes and, with no layout, never tells', async () => {
+  const sandbox: { ResizeObserver?: typeof TestResizeObserver } = {};
+  const lifecycle = environment.setup(sandbox, {
+    soundor: { configured: true, runtime: {} },
+  });
+  expect(sandbox.ResizeObserver).toBe(TestResizeObserver);
+  const observer = new TestResizeObserver(() => {});
+  expect(() => observer.observe({})).toThrow('not a UiNode');
+  await lifecycle.teardown();
+  expect(sandbox.ResizeObserver).toBeUndefined();
 });

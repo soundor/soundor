@@ -102,6 +102,7 @@ export class UiView implements ViewLink {
   /** The frame hover is to be refreshed in, if any. */
   #hoverFrame: number | null = null;
   #resizes: ResizeObserver | null = null;
+  readonly #layoutListeners = new Set<() => void>();
   /** The latest size(); replaced (never changed) when the size changes. */
   #size: ViewSize = Object.freeze({
     width: 0,
@@ -204,6 +205,13 @@ export class UiView implements ViewLink {
     this.#layoutAll = false;
     UiNode.layOut(this.root, width, height, force);
     UiNode.layOut(this.overlay, width, height, force);
+    for (const listener of [...this.#layoutListeners]) listener();
+  }
+
+  /** Calls `listener` after each layout; returns what stops it. */
+  onLayout(listener: () => void): () => void {
+    this.#layoutListeners.add(listener);
+    return () => this.#layoutListeners.delete(listener);
   }
 
   /** Shows the view in `container` (the host's plugin viewport). */
@@ -1136,7 +1144,8 @@ export class UiView implements ViewLink {
       const before = { x: node.scrollLeft, y: node.scrollTop };
       node.scrollTo(before.x + deltaX, before.y + deltaY);
       if (node.scrollLeft === before.x && node.scrollTop === before.y) continue;
-      node.dispatchEvent(new Event('scroll', { composed: true }));
+      // Told at once, and not again by the browser's own event.
+      UiNode.scrolled(node);
       return true;
     }
     return false;

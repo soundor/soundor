@@ -40,5 +40,6 @@ return (
   the other bar. **`minThumbLength`** is 16 by default.
 - **`visible`, `hovered` and `pressed`** render when they change, and scrolling
   does not.
-- **Cost:** it reads the scroll view's sizes each frame while mounted, as its
-  content can change size with no event to say so.
+- **Cost:** none while nothing changes. A `ResizeObserver` tells it when the
+  scroll view, what it scrolls or the track changes size, and its `scroll`
+  events tell it of scrolling.

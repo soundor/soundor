@@ -64,6 +64,8 @@ export interface ViewLink {
   layoutChanged(): void;
   /** Lays the view out now, if anything changed. */
   flushLayout(): void;
+  /** Calls `listener` after each layout; returns what stops it. */
+  onLayout(listener: () => void): () => void;
   /** CSS pixels per logical pixel (the host may scale the view). */
   scale(): number;
   focusedNode(): UiNode | null;
@@ -76,6 +78,19 @@ export interface ViewLink {
    * tree), may have changed.
    */
   semanticsChanged(): void;
+}
+
+/** What ResizeObserver measures of a node, in logical pixels. */
+export interface ResizeBoxes {
+  readonly borderWidth: number;
+  readonly borderHeight: number;
+  /** Where the content box starts, inside the border and padding. */
+  readonly contentX: number;
+  readonly contentY: number;
+  readonly contentWidth: number;
+  readonly contentHeight: number;
+  /** Device pixels per logical pixel, as laid out. */
+  readonly scale: number;
 }
 
 const CONSTRUCTING = Symbol('constructing');
@@ -279,7 +294,16 @@ export class UiNode extends TreeEventTarget {
       this.#scrollExtent = view.rootElement.ownerDocument.createElement('div');
       this.#scrollExtent.className = 'sd-scroll-extent';
       this.#element.append(this.#scrollExtent);
-      this.#indicators = new ScrollIndicators(this.#element as HTMLElement);
+      // A drag of its bar scrolls as the wheel does: told at once.
+      this.#indicators = new ScrollIndicators(
+        this.#element as HTMLElement,
+        () => this.#announceScroll(),
+      );
+      // Scrolling from code is told by the browser's own event, as natively
+      // on the next frame, before its requestAnimationFrame callbacks.
+      this.#element.addEventListener('scroll', () => this.#announceScroll(), {
+        passive: true,
+      });
     }
     nodes.set(this.#element, this);
     if (this.#root) this.#connect();
@@ -705,6 +729,29 @@ export class UiNode extends TreeEventTarget {
       );
     }
     return { width, height };
+  }
+
+  /** Where the node last told of being scrolled to. */
+  #announcedLeft = 0;
+  #announcedTop = 0;
+
+  /**
+   * Fires `scroll` if the node is somewhere it has not said: once, whichever
+   * comes first of the wheel's or a drag's at once, and the browser's event
+   * on the next frame.
+   */
+  #announceScroll(): void {
+    const { scrollLeft, scrollTop } = this.#element;
+    if (scrollLeft === this.#announcedLeft && scrollTop === this.#announcedTop)
+      return;
+    this.#announcedLeft = scrollLeft;
+    this.#announcedTop = scrollTop;
+    this.dispatchEvent(new Event('scroll', { composed: true }));
+  }
+
+  /** @internal The wheel scrolled it: tells it at once, as natively. */
+  static scrolled(node: UiNode): void {
+    node.#announceScroll();
   }
 
   /** scrollTo({ top, left }) or scrollTo(left, top); clamped to the content. */
@@ -1369,6 +1416,53 @@ export class UiNode extends TreeEventTarget {
   /** For the view: the element that draws `node`. */
   static elementOf(node: UiNode): UiElement {
     return node.#element;
+  }
+
+  /**
+   * For ResizeObserver: the node's border and content boxes as laid out, as
+   * the engine measures them; null when it is not in the view.
+   */
+  static resizeBoxes(node: UiNode): ResizeBoxes | null {
+    if (node.#yoga === 0 || !node.isConnected) return null;
+    node.#view.flushLayout();
+    const yoga = node.#view.yoga;
+    const box = node.#yoga;
+    const left =
+      yoga.YGNodeLayoutGetBorder(box, Edge.Left) +
+      yoga.YGNodeLayoutGetPadding(box, Edge.Left);
+    const top =
+      yoga.YGNodeLayoutGetBorder(box, Edge.Top) +
+      yoga.YGNodeLayoutGetPadding(box, Edge.Top);
+    const right =
+      yoga.YGNodeLayoutGetBorder(box, Edge.Right) +
+      yoga.YGNodeLayoutGetPadding(box, Edge.Right);
+    const bottom =
+      yoga.YGNodeLayoutGetBorder(box, Edge.Bottom) +
+      yoga.YGNodeLayoutGetPadding(box, Edge.Bottom);
+    const width = yoga.YGNodeLayoutGetWidth(box);
+    const height = yoga.YGNodeLayoutGetHeight(box);
+    return {
+      borderWidth: width,
+      borderHeight: height,
+      contentX: left,
+      contentY: top,
+      contentWidth: Math.max(0, width - left - right),
+      contentHeight: Math.max(0, height - top - bottom),
+      scale: node.#view.pixelScale(),
+    };
+  }
+
+  /** For ResizeObserver: the node's depth in its tree, its root's 1. */
+  static depthOf(node: UiNode): number {
+    let depth = 1;
+    for (let parent = node.#parent; parent !== null; parent = parent.#parent)
+      ++depth;
+    return depth;
+  }
+
+  /** For ResizeObserver: the view the node belongs to. */
+  static viewOf(node: UiNode): ViewLink {
+    return node.#view;
   }
 
   /** For the view: what plugin code said about `node`, checked. */

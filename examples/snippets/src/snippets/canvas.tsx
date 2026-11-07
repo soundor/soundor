@@ -1,8 +1,8 @@
 import {
   Canvas,
   useAnimationFrame,
+  useCanvasSize,
   useParameter,
-  useViewSize,
 } from '@soundor/react';
 import { useRef } from 'react';
 import { parameters } from 'soundor:parameters';
@@ -15,13 +15,14 @@ const HEIGHT = 120;
 export default function Wave() {
   const canvas = useRef<UiNode>(null);
   const gain = useParameter(parameters.gain);
-  // Device pixels per logical pixel: a buffer that size stays sharp.
-  const { scale } = useViewSize();
+  // The buffer is exactly the device pixels the box covers: it stays sharp.
+  const size = useCanvasSize(canvas);
 
   useAnimationFrame((time) => {
     const context = canvas.current?.getContext('2d');
-    if (!context) return;
-    context.setTransform(scale, 0, 0, scale, 0, 0);
+    if (!context || size.width === 0) return;
+    // Draw in the box's own units.
+    context.setTransform(size.scaleX, 0, 0, size.scaleY, 0, 0);
     context.fillStyle = '#17181c';
     context.fillRect(0, 0, WIDTH, HEIGHT);
     context.strokeStyle = '#3a7bfd';
@@ -39,8 +40,6 @@ export default function Wave() {
   return (
     <Canvas
       ref={canvas}
-      width={Math.round(WIDTH * scale)}
-      height={Math.round(HEIGHT * scale)}
       style={{ width: WIDTH, height: HEIGHT, borderRadius: 8 }}
     />
   );

@@ -61,6 +61,7 @@ export {
   type PressableState,
   type UsePressableOptions,
 } from './pressable';
+export { useCanvasSize, type CanvasSize } from './canvas-size';
 export { createRoot, flushSync, render, type Root } from './root';
 export {
   useScrollbar,

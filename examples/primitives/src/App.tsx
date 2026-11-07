@@ -17,7 +17,8 @@ import {
   View,
   usePressable,
   useScrollbar,
-  useViewSize,
+  useCanvasSize,
+  type CanvasSize,
   type StyleProp,
 } from '@soundor/react';
 import {
@@ -617,8 +618,8 @@ const CANVAS_WIDTH = 240;
 const CANVAS_HEIGHT = 120;
 
 /** The same drawing in a browser's canvas and Soundor's (Skia). */
-function draw(context: CanvasRenderingContext2D, scale: number) {
-  context.setTransform(scale, 0, 0, scale, 0, 0);
+function draw(context: CanvasRenderingContext2D, size: CanvasSize) {
+  context.setTransform(size.scaleX, 0, 0, size.scaleY, 0, 0);
   const background = context.createLinearGradient(0, 0, CANVAS_WIDTH, 0);
   background.addColorStop(0, '#1f2a44');
   background.addColorStop(1, '#3b2f5c');
@@ -649,20 +650,18 @@ function draw(context: CanvasRenderingContext2D, scale: number) {
 
 function CanvasDemo() {
   const canvas = useRef<UiNode>(null);
-  // Device pixels per logical pixel, everything that scales the view included:
-  // a buffer of exactly that many is not resampled, so it stays sharp.
-  const { scale } = useViewSize();
+  // The buffer is exactly the device pixels the box covers, at any scale:
+  // not resampled, so it stays sharp.
+  const size = useCanvasSize(canvas);
   // Before the frame is shown: a buffer just resized is blank until then.
   useLayoutEffect(() => {
     const context = canvas.current?.getContext('2d');
-    if (context) draw(context, scale);
-  }, [scale]);
+    if (context && size.width > 0) draw(context, size);
+  }, [size]);
   return (
     <Card title="Canvas 2D">
       <Canvas
         ref={canvas}
-        width={Math.round(CANVAS_WIDTH * scale)}
-        height={Math.round(CANVAS_HEIGHT * scale)}
         style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
         accessibilityLabel="A circle, a dashed curve and the words Canvas 2D"
       />
@@ -726,18 +725,16 @@ function drawTriangle(gl: WebGL2RenderingContext) {
 function WebGLDemo() {
   const canvas = useRef<UiNode>(null);
   const [available, setAvailable] = useState(true);
-  const { scale } = useViewSize();
+  const size = useCanvasSize(canvas);
   useLayoutEffect(() => {
     const gl = canvas.current?.getContext('webgl2') ?? null;
     setAvailable(gl !== null);
-    if (gl) drawTriangle(gl);
-  }, [scale]);
+    if (gl && size.width > 0) drawTriangle(gl);
+  }, [size]);
   return (
     <Card title="WebGL 2">
       <Canvas
         ref={canvas}
-        width={Math.round(CANVAS_WIDTH * scale)}
-        height={Math.round(CANVAS_HEIGHT * scale)}
         style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
         accessibilityLabel="A triangle shaded red, green and blue"
       />

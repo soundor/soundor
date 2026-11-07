@@ -51,6 +51,70 @@ declare function cancelAnimationFrame(id: number): void;
 /** Device pixels per logical pixel: for sizing a canvas's drawing buffer to its box. */
 declare var devicePixelRatio: number;
 
+// ── ResizeObserver ───────────────────────────────────────────────────────────
+// As on the Web, observing nodes: told after a frame's requestAnimationFrame
+// callbacks and its layout, before it is drawn, of the nodes whose box
+// changed size; first once a node is laid out to more than 0×0.
+
+/** Which box an observation compares: the content box by default. */
+type ResizeObserverBoxOptions =
+  | 'content-box'
+  | 'border-box'
+  | 'device-pixel-content-box';
+
+interface ResizeObserverOptions {
+  box?: ResizeObserverBoxOptions;
+}
+
+/** A box's size: inline is the width, block the height. */
+interface ResizeObserverSize {
+  readonly inlineSize: number;
+  readonly blockSize: number;
+}
+declare var ResizeObserverSize: { readonly prototype: ResizeObserverSize };
+
+interface ResizeObserverEntry {
+  readonly target: import('soundor:ui').UiNode;
+  /** The content box; x and y are where it starts, inside border and padding. */
+  readonly contentRect: {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+    readonly top: number;
+    readonly left: number;
+    readonly right: number;
+    readonly bottom: number;
+  };
+  readonly contentBoxSize: readonly ResizeObserverSize[];
+  readonly borderBoxSize: readonly ResizeObserverSize[];
+  /**
+   * The content box in device pixels, whole: the size to give a canvas's
+   * drawing buffer to draw it sharp, at any display scale.
+   */
+  readonly devicePixelContentBoxSize: readonly ResizeObserverSize[];
+}
+declare var ResizeObserverEntry: { readonly prototype: ResizeObserverEntry };
+
+type ResizeObserverCallback = (
+  entries: ResizeObserverEntry[],
+  observer: ResizeObserver,
+) => void;
+
+interface ResizeObserver {
+  /** Tells of `target`'s box, from the next frame; again with another box starts over. */
+  observe(
+    target: import('soundor:ui').UiNode,
+    options?: ResizeObserverOptions,
+  ): void;
+  unobserve(target: import('soundor:ui').UiNode): void;
+  disconnect(): void;
+}
+declare var ResizeObserver: {
+  readonly prototype: ResizeObserver;
+  new (callback: ResizeObserverCallback): ResizeObserver;
+};
+
 // ── Canvas 2D ────────────────────────────────────────────────────────────────
 // What Soundor's 2D context draws (with Skia, on the CPU). Shadows, filters,
 // Path2D and DOMMatrix are not there; setting a shadow or filter throws.

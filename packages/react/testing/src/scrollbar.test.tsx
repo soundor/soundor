@@ -1,5 +1,5 @@
 import { ScrollView, useScrollbar, View, type Scrollbar } from '@soundor/react';
-import { act, render } from '@soundor/testing-library/react';
+import { act, advanceTime, render } from '@soundor/testing-library/react';
 import { useRef } from 'react';
 import { PointerEvent, type UiNode } from 'soundor:ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -50,15 +50,39 @@ function laidOut(client: number, content: number, room: number, origin = 0) {
   });
 }
 
-/** The frames, by hand: a test says when the next one is. */
-let frames = new Map<number, (time: number) => void>();
-let lastFrame = 0;
+/**
+ * The simulated runtime lays out nothing, so its ResizeObserver never tells:
+ * this one does when a test says sizes changed, telling of all it observes.
+ */
+let observers: FakeResizeObserver[] = [];
 
+class FakeResizeObserver {
+  readonly observed = new Set<UiNode>();
+
+  constructor(readonly callback: (entries: unknown[]) => void) {
+    observers.push(this);
+  }
+
+  observe(node: UiNode) {
+    this.observed.add(node);
+  }
+
+  unobserve(node: UiNode) {
+    this.observed.delete(node);
+  }
+
+  disconnect() {
+    this.observed.clear();
+  }
+}
+
+/** A frame: what scrolled is told, then what was resized. */
 async function frame() {
-  const due = [...frames.values()];
-  frames = new Map();
+  await advanceTime(16);
   await act(async () => {
-    for (const callback of due) callback(0);
+    for (const observer of observers)
+      if (observer.observed.size > 0)
+        observer.callback([...observer.observed].map((target) => ({ target })));
   });
 }
 
@@ -85,15 +109,8 @@ async function press(
 
 describe('useScrollbar', () => {
   beforeEach(() => {
-    frames = new Map();
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      (callback: (time: number) => void) => {
-        frames.set(++lastFrame, callback);
-        return lastFrame;
-      },
-    );
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    observers = [];
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   });
 
   afterEach(() => {
@@ -121,10 +138,35 @@ describe('useScrollbar', () => {
     scroll.scrollTop = 300;
     await frame();
     expect(thumb.style.transform).toEqual([{ translateY: 75 }]);
-    // The content grew, with no event to say so.
+    // The content grew: its ResizeObserver says so.
     laidOut(100, 10000, 100);
     await frame();
     expect(thumb.style.height).toBe(16);
+  });
+
+  it('observes the scroll view, what it scrolls and the track, until it goes', async () => {
+    const result = await render(<Bar />);
+    const [observer] = observers.filter((o) => o.observed.size > 0);
+    expect([...observer!.observed]).toEqual([
+      scroll,
+      scroll.firstChild,
+      bar.trackProps.ref.current,
+    ]);
+    await result.unmount();
+    expect(observer!.observed.size).toBe(0);
+  });
+
+  it('moves the thumb on scroll, with nothing resized', async () => {
+    await render(<Bar />);
+    laidOut(100, 400, 100);
+    await frame();
+    const thumb = bar.thumbProps.ref.current!;
+    scroll.scrollTop = 300;
+    // Only the scroll event: no ResizeObserver tells anything.
+    await act(async () => {
+      await advanceTime(16);
+    });
+    expect(thumb.style.transform).toEqual([{ translateY: 75 }]);
   });
 
   it('keeps what it set through a render that sets the style', async () => {

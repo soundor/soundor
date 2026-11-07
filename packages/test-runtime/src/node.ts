@@ -105,7 +105,27 @@ export class TestEvent {
   }
 }
 
+/**
+ * Marks a node of the simulated runtime, whichever copy of this package made
+ * it: a test and its environment may load different copies, where
+ * `instanceof` says no.
+ */
+export const TEST_NODE = Symbol.for('soundor.test-node.v1');
+
+/** Whether `value` is a node of the simulated runtime, from any copy. */
+export function isTestNode(value: unknown): value is TestNode {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { [TEST_NODE]?: unknown })[TEST_NODE] === true
+  );
+}
+
 export class TestNode {
+  /** On the prototype, so nodes print and spread as before. */
+  get [TEST_NODE](): true {
+    return true;
+  }
   readonly id: number;
   get animations(): readonly TestAnimation[] {
     return this.runtime.animationsFor(this);
