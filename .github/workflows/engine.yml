@@ -9,6 +9,10 @@ name: Engine
 on:
   workflow_call:
     inputs:
+      release-build:
+        description: Use verified dependencies and attest snapshots for independently built release artifacts
+        type: boolean
+        default: false
       integration:
         description: Run JUCE consumer checks here (Verify runs them downstream)
         type: boolean
@@ -95,9 +99,9 @@ jobs:
         uses: ./.github/actions/native-deps
         with:
           job: ${{ matrix.cache }}
-          # PRs retain ordinary caches. Release-producing main builds never
+          # Verify retains ordinary caches on PRs and main. Release builds never
           # restore compiler objects or unauthenticated native installs.
-          cache: ${{ github.ref == 'refs/heads/main' && 'false' || 'true' }}
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       # The archives carry these notices (runtimes/engine/licenses).
       - name: AccessKit's crate notices match its Cargo.lock
@@ -109,10 +113,10 @@ jobs:
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
       - name: Identify verified dependencies
-        if: github.ref == 'refs/heads/main'
+        if: inputs.release-build
         run: node .github/scripts/verified-deps.mjs identify ${{ matrix.cache }} ${{ matrix.target }}
       - name: Restore verified dependencies
-        if: github.ref == 'refs/heads/main'
+        if: inputs.release-build
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .github/scripts/verified-deps.mjs restore
@@ -268,10 +272,10 @@ jobs:
           rm runtimes/engine/artifacts/manifest.json
 
       - name: Package dependency signing candidate
-        if: github.ref == 'refs/heads/main'
+        if: inputs.release-build && github.ref == 'refs/heads/main'
         run: node .github/scripts/verified-deps.mjs package
       - name: Keep dependency signing candidate
-        if: github.ref == 'refs/heads/main'
+        if: inputs.release-build && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dependency-candidate-${{ github.sha }}-${{ matrix.cache }}
@@ -301,7 +305,7 @@ jobs:
     needs: build
     # PR code never receives signing credentials. The producer used clean
     # sources or already-verified dependencies; no ordinary compiled caches.
-    if: github.ref == 'refs/heads/main'
+    if: inputs.release-build && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

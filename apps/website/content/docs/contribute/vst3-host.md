@@ -230,8 +230,8 @@ version. Changesets versions and changelogs `@soundor/vst3-host` alone.
 
 When the release plan publishes `@soundor/vst3-host`, `.github/workflows/release.yml`:
 
-1. builds the executables (or reuses those Verify built and tested in the
-   same run);
+1. builds and tests its own executables in the release run, independently of
+   the standalone Verify workflow;
 2. in `pack`, generates one platform package per target from them
    (`release.ts generate`: one version, one commit, one fingerprint across
    all), packs and checks every tarball (`release.ts pack`: names, versions,

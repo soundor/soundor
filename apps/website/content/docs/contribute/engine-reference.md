@@ -1178,8 +1178,9 @@ counted the unclamped size. What still differs from the web runtime is in
 
 ### Verified dependencies in CI
 
-Release-producing engine jobs on `main` bypass ordinary native and compiler
-caches. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
+Release engine jobs (`engine.yml`, `release-build: true`) bypass ordinary native
+and compiler caches. Standalone Verify uses `release-build: false`, including on
+main, to check changes and populate ordinary CI caches and artifacts. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
 the recipes (including patches and symbol prefixes), runtime family, detected
 compiler and SDK settings, CMake flags and hosted runner image. It looks for a
 matching fourteen-day artifact from a successful main release workflow. A miss
@@ -1192,8 +1193,8 @@ runner. Signature verification precedes native archive extraction. The archive
 reader rejects path traversal, links, devices, duplicate paths and unexpected
 identities. The engine itself still compiles from the current checkout.
 
-After all engine build jobs succeed, `attest-dependencies` runs separately on
-`main`. It receives signing permissions, installs no packages, and executes no
+After all release engine build jobs succeed, `attest-dependencies` runs separately
+on `main`. Verify does not run this signing job. It receives signing permissions, installs no packages, and executes no
 producer tools. GitHub's pinned `actions/attest` signs the snapshot digest, and
 the archive and bundle are retained together for fourteen days. The initial main
 run and changes to recipes or toolchain/image settings require a cold dependency
@@ -1704,14 +1705,15 @@ engine's own npm release and its Changesets GitHub release.
 
 `.github/workflows/release.yml` publishes it when a Changesets publish plan
 includes `@soundor/engine` (calling `engine-prebuilts.yml` in `publish` mode,
-which reuses the commit's release if it exists, or publishes the engine
-artifacts that Verify already validated), then writes
+which verifies and reuses the commit's published release if it exists, or
+builds and tests its own engine artifacts before publishing), then writes
 `artifacts/manifest.json` from the release, downloaded anonymously and checked
 archive by archive, packs the packages and checks that the packed engine
 carries exactly that manifest, and only then publishes to npm. The manifest
-is never committed. Publishing waits for Verify on the same commit. If a matching released engine
-is available and the engine is unaffected, other package releases need no
-engine artifact build.
+is never committed. The release pipeline validates its own package build and
+native outputs; it does not call or wait for standalone Verify, which runs
+independently on PRs and main pushes. Releases that do not publish the engine
+need no engine artifact build.
 
 ### Licenses
 
