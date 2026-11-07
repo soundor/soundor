@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   View,
+  useScrollbar,
   useViewSize,
   type StyleProp,
 } from '@soundor/react';
@@ -253,6 +254,180 @@ function Dropdown() {
         </Portal>
       )}
     </>
+  );
+}
+
+// ── A scrollbar of your own ──────────────────────────────────────────────────
+
+function CustomScrollbarDemo() {
+  const list = useRef<UiNode>(null);
+  const bar = useScrollbar(list);
+  const strip = useRef<UiNode>(null);
+  const across = useScrollbar(strip, { axis: 'horizontal' });
+  return (
+    <Card title="Custom scrollbar">
+      <View style={styles.customList}>
+        <ScrollView
+          ref={list}
+          debugId="custom-list"
+          scrollIndicators={false}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: 6, padding: 8 }}
+        >
+          {Array.from({ length: 24 }, (_, n) => (
+            <View key={n} style={styles.customRow}>
+              <Text style={styles.caption}>Preset {n + 1}</Text>
+            </View>
+          ))}
+        </ScrollView>
+        {/* Beside the list, with room of its own. */}
+        <View
+          {...bar.trackProps}
+          debugId="custom-track"
+          style={styles.customTrack}
+        >
+          {bar.visible && (
+            <View
+              {...bar.thumbProps}
+              debugId="custom-thumb"
+              style={[
+                styles.customThumb,
+                bar.hovered && { backgroundColor: '#a78bfa' },
+                bar.pressed && { backgroundColor: '#ddd6fe' },
+              ]}
+            />
+          )}
+        </View>
+      </View>
+      <View style={styles.customStrip}>
+        <ScrollView
+          ref={strip}
+          debugId="custom-strip"
+          scrollIndicators={false}
+          contentContainerStyle={{
+            alignSelf: 'flex-start',
+            flexDirection: 'row',
+            gap: 6,
+            padding: 8,
+          }}
+        >
+          {Array.from({ length: 16 }, (_, n) => (
+            <View key={n} style={styles.customTile}>
+              <Text style={styles.caption}>{n + 1}</Text>
+            </View>
+          ))}
+        </ScrollView>
+        {/* Over the content, as the built-in ones are. */}
+        {across.visible && (
+          <View
+            {...across.trackProps}
+            debugId="custom-strip-track"
+            style={styles.customOverlayTrack}
+          >
+            <View
+              {...across.thumbProps}
+              debugId="custom-strip-thumb"
+              style={[
+                styles.customOverlayThumb,
+                across.pressed && { backgroundColor: '#fbbf24' },
+              ]}
+            />
+          </View>
+        )}
+      </View>
+    </Card>
+  );
+}
+
+// ── Both axes at once: the built-in scrollbars, and a pair of your own ───────
+
+/** Wider and taller than its scroll view; `alignSelf` lets it be wider. */
+const gridContainer: StyleProp = {
+  alignSelf: 'flex-start',
+  width: 420,
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 6,
+  padding: 8,
+};
+
+function GridCells() {
+  return Array.from({ length: 49 }, (_, n) => (
+    <View key={n} style={styles.gridCell}>
+      <Text style={styles.caption}>
+        {n % 7},{Math.floor(n / 7)}
+      </Text>
+    </View>
+  ));
+}
+
+function BothAxesDemo() {
+  const box = useRef<UiNode>(null);
+  const down = useScrollbar(box);
+  const across = useScrollbar(box, { axis: 'horizontal' });
+  return (
+    <Card title="Scrollbars on both axes">
+      <View style={styles.bothAxes}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={styles.caption}>Default</Text>
+          <ScrollView
+            debugId="both-default"
+            style={styles.bothBox}
+            contentContainerStyle={gridContainer}
+          >
+            <GridCells />
+          </ScrollView>
+        </View>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={styles.caption}>Custom</Text>
+          <View style={styles.bothBox}>
+            <ScrollView
+              ref={box}
+              debugId="both-custom"
+              scrollIndicators={false}
+              style={{ flex: 1 }}
+              contentContainerStyle={gridContainer}
+            >
+              <GridCells />
+            </ScrollView>
+            {/* Each stops short of the corner, for the two not to cross. */}
+            {down.visible && (
+              <View
+                {...down.trackProps}
+                debugId="both-track-y"
+                style={styles.bothTrackY}
+              >
+                <View
+                  {...down.thumbProps}
+                  debugId="both-thumb-y"
+                  style={[
+                    styles.bothThumbY,
+                    (down.hovered || down.pressed) && styles.bothThumbActive,
+                  ]}
+                />
+              </View>
+            )}
+            {across.visible && (
+              <View
+                {...across.trackProps}
+                debugId="both-track-x"
+                style={styles.bothTrackX}
+              >
+                <View
+                  {...across.thumbProps}
+                  debugId="both-thumb-x"
+                  style={[
+                    styles.bothThumbX,
+                    (across.hovered || across.pressed) &&
+                      styles.bothThumbActive,
+                  ]}
+                />
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+    </Card>
   );
 }
 
@@ -666,7 +841,11 @@ function SvgImageDemo() {
 
 export function App() {
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <ScrollView
+      debugId="primitives"
+      style={styles.root}
+      contentContainerStyle={styles.content}
+    >
       <Text style={styles.title}>Soundor UI primitives</Text>
       <View style={styles.grid}>
         <AnimationDemo />
@@ -680,6 +859,8 @@ export function App() {
         <ContextMenuDemo />
         <PressDemo />
         <ScrollDemo />
+        <CustomScrollbarDemo />
+        <BothAxesDemo />
         <HostDemo />
         <ModalDemo />
         <ScopeDemo />
@@ -775,6 +956,91 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#2b2e35',
     overflow: 'hidden',
+  },
+  bothAxes: { flexDirection: 'row', gap: 10 },
+  bothBox: {
+    height: 170,
+    borderRadius: 6,
+    backgroundColor: '#2b2e35',
+    overflow: 'hidden',
+  },
+  gridCell: {
+    width: 50,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+    backgroundColor: '#3a3d46',
+  },
+  bothTrackY: {
+    position: 'absolute',
+    top: 2,
+    bottom: 12,
+    right: 2,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  bothThumbY: { width: 8, borderRadius: 4, backgroundColor: '#22d3ee' },
+  bothTrackX: {
+    position: 'absolute',
+    left: 2,
+    right: 12,
+    bottom: 2,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  bothThumbX: { height: 8, borderRadius: 4, backgroundColor: '#22d3ee' },
+  bothThumbActive: { backgroundColor: '#a5f3fc' },
+  customList: {
+    height: 140,
+    flexDirection: 'row',
+    borderRadius: 6,
+    backgroundColor: '#2b2e35',
+    overflow: 'hidden',
+  },
+  customRow: {
+    padding: 6,
+    borderRadius: 4,
+    backgroundColor: '#3a3d46',
+  },
+  customTrack: {
+    width: 18,
+    padding: 3,
+    backgroundColor: '#1e1b2e',
+  },
+  customThumb: {
+    borderRadius: 6,
+    backgroundColor: '#7c3aed',
+  },
+  customStrip: {
+    marginTop: 8,
+    borderRadius: 6,
+    backgroundColor: '#2b2e35',
+    overflow: 'hidden',
+  },
+  customTile: {
+    width: 56,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 4,
+    backgroundColor: '#3a3d46',
+  },
+  customOverlayTrack: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  customOverlayThumb: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#f59e0b',
   },
   scrollRow: {
     flexDirection: 'row',
