@@ -62,7 +62,7 @@ pnpm --filter soundor test                            # the CLI package is named
 `test` depends on `^build` in turbo, so filtered vitest runs need the
 dependencies built first (`pnpm build` or `pnpm turbo run build --filter=<pkg>...`).
 
-Native runtime (`runtimes/engine`, from that directory):
+Native runtime (`engines/engine`, from that directory):
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build/dev
@@ -73,7 +73,7 @@ cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → b
 cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
                                             # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
-(cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
+(cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
 pnpm --filter @soundor/juce-runtime test:plugin:debug  # its Debug build with DevTools, for the real-plugin suites
@@ -220,7 +220,7 @@ read the docs bundled with the installed package
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
-- `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `engines/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
@@ -276,7 +276,7 @@ overwrites them. `gen` regenerates `.soundor/generated/` (deterministic,
 `soundor gen --check`). Code that belongs to every plugin goes in the
 generated framework or the runtime package, not in `init` templates.
 
-### Native runtime invariants (`runtimes/engine`)
+### Native runtime invariants (`engines/engine`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
   adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
@@ -294,7 +294,7 @@ generated framework or the runtime package, not in `init` templates.
   function, lowered for Hermes by the engine's `toNativeModule()`,
   `scripts/native-module.ts`): the plugin's `bundle.js` (the JUCE runtime
   lowers the CLI's `bundle.mjs`), and the runtime's own modules, lowered from
-  `runtimes/engine/src/**/*.js` while building (so native builds need Node and the
+  `engines/engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
@@ -328,7 +328,7 @@ generated framework or the runtime package, not in `init` templates.
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
   targets a source build defines, after checking them. A new linked
-  dependency needs its license notice in the archive (`runtimes/engine/licenses/`).
+  dependency needs its license notice in the archive (`engines/engine/licenses/`).
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).

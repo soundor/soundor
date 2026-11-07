@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - packages/react/testing
+  - engines/*
   - runtimes/*
   - hosts/*
   - configs/*

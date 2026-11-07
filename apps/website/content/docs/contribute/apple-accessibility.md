@@ -3,7 +3,7 @@ title: 'Apple accessibility'
 description: 'macOS bridge attachment, plugin safety, lifetimes, coordinates, and manual checks.'
 ---
 
-Source: [`runtimes/engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/runtimes/engine/src/a11y/apple).
+Source: [`engines/engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/engines/engine/src/a11y/apple).
 
 On macOS, VoiceOver perceives a Soundor view through virtual
 `NSAccessibilityElement`s that Soundor creates from its own semantic tree

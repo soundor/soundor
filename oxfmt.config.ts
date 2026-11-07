@@ -10,10 +10,10 @@ export default defineConfig({
   ignorePatterns: [
     'packages/environment/webgl.d.ts',
     'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
-    'runtimes/engine/src/gpu/webgl/generated/**',
+    'engines/engine/src/gpu/webgl/generated/**',
     // C++ (included into Hermes's hermes.cpp), not JavaScript.
-    'runtimes/engine/cmake/hermes/*.inc',
+    'engines/engine/cmake/hermes/*.inc',
     // Third-party license texts, verbatim, and generated crate notices.
-    'runtimes/engine/licenses/**',
+    'engines/engine/licenses/**',
   ],
 });

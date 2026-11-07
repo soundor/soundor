@@ -63,7 +63,7 @@ runs:
       run: echo "CMAKE_BUILD_PARALLEL_LEVEL=$NUMBER_OF_PROCESSORS" >> "$GITHUB_ENV"
 
     # Soundor builds Skia, ANGLE and Hermes once per machine into SOUNDOR_CACHE
-    # (see runtimes/engine/cmake/SoundorSkia.cmake,
+    # (see engines/engine/cmake/SoundorSkia.cmake,
     # SoundorAngle.cmake, SoundorHermes.cmake).
     - name: Use the native dependency cache
       shell: bash
@@ -105,7 +105,7 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/soundor-cache
-        key: native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
+        key: native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('engines/engine/cmake/SoundorSkia*.cmake', 'engines/engine/cmake/SoundorAngle*.cmake', 'engines/engine/cmake/angle/**', 'engines/engine/cmake/SoundorHermes*.cmake', 'engines/engine/cmake/hermes/**', 'engines/engine/cmake/SoundorDependencies.cmake') }}
         restore-keys: |
-          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
+          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('engines/engine/cmake/SoundorSkia*.cmake', 'engines/engine/cmake/SoundorAngle*.cmake', 'engines/engine/cmake/angle/**', 'engines/engine/cmake/SoundorHermes*.cmake', 'engines/engine/cmake/hermes/**', 'engines/engine/cmake/SoundorDependencies.cmake') }}-
           native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-

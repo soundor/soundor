@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const project = fileURLToPath(new URL('../', import.meta.url));
-const engine = resolve(project, '../../runtimes/engine');
+const engine = resolve(project, '../../engines/engine');
 function run(command, args, cwd = project) {
   const result = spawnSync(command, args, {
     cwd,

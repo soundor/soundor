@@ -56,7 +56,7 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/soundor-cache/engine-manifests
-          key: engine-manifests-${{ hashFiles('runtimes/engine/package.json') }}
+          key: engine-manifests-${{ hashFiles('engines/engine/package.json') }}
       - id: select
         env:
           NATIVE_AFFECTED: ${{ needs.changes.outputs.native }}

@@ -16,7 +16,7 @@ lifetime are observable too.
 | -------------------------------- | ---------------------------------------------------------------- |
 | Contract declarations            | `packages/environment/`, `packages/core/src/*-dts.ts`            |
 | React mapping                    | `packages/react/src/`                                            |
-| Native implementation            | `runtimes/engine/src/`, JUCE host adapters                       |
+| Native implementation            | `engines/engine/src/`, JUCE host adapters                        |
 | Browser implementation           | `runtimes/web-runtime/src/client/`                               |
 | Simulated implementation         | `packages/test-runtime/src/`                                     |
 | Application-facing specification | [API](/docs/api), [React](/docs/react), [testing](/docs/testing) |

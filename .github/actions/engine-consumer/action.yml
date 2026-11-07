@@ -22,5 +22,5 @@ runs:
         path: |
           ${{ runner.temp }}/soundor-cache/engine-prebuilts
           ${{ runner.temp }}/soundor-cache/engine-manifests
-        key: engine-consumer-${{ runner.os }}-${{ hashFiles('runtimes/engine/package.json') }}-${{ github.sha }}
-        restore-keys: engine-consumer-${{ runner.os }}-${{ hashFiles('runtimes/engine/package.json') }}-
+        key: engine-consumer-${{ runner.os }}-${{ hashFiles('engines/engine/package.json') }}-${{ github.sha }}
+        restore-keys: engine-consumer-${{ runner.os }}-${{ hashFiles('engines/engine/package.json') }}-

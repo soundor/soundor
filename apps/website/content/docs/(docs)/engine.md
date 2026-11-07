@@ -34,7 +34,7 @@ plugin (JUCE)                     your processor, editor, DSP
             └─ AccessKit           accessibility on Windows and Linux (own bridges on macOS)
 ```
 
-Every dependency is pinned (`runtimes/engine/cmake/SoundorDependencies.cmake`),
+Every dependency is pinned (`engines/engine/cmake/SoundorDependencies.cmake`),
 linked statically and hidden: two Soundor plugins in one host never share or
 clash on a symbol.
 
@@ -230,7 +230,7 @@ without compiling the native engine. Run `pnpm test:native` for engine tests,
 always exercise source builds unless a prebuilt-check preset is selected:
 
 ```sh
-cd runtimes/engine
+cd engines/engine
 cmake --workflow --preset dev          # Debug engine and its tests
 cmake --workflow --preset sanitize     # with ASan/UBSan
 ```
@@ -266,7 +266,7 @@ The engine is MIT licensed. Its dependencies are permissive (BSD, MIT,
 Apache-2.0, zlib, IJG and similar) but require their notices to accompany
 binaries: every prebuilt archive carries all of them in `licenses/`, and the
 npm package the ones the dependencies' own builds leave out
-(`runtimes/engine/licenses`, see its README). **A plugin you distribute
+(`engines/engine/licenses`, see its README). **A plugin you distribute
 contains the engine**, so distribute those notices with it, whichever mode
 built it. JUCE is never part of the engine; its license is between you and
 JUCE.

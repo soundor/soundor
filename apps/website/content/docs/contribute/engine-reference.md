@@ -3,7 +3,7 @@ title: 'Engine reference'
 description: 'Embedding API, JavaScript language support, modules, graphics, accessibility, dependencies, symbol isolation, builds, and animation contracts.'
 ---
 
-Source: [`runtimes/engine/`](https://github.com/soundor/soundor/tree/main/runtimes/engine).
+Source: [`engines/engine/`](https://github.com/soundor/soundor/tree/main/engines/engine).
 
 The independently versioned C++ engine owns the native UI runtime, its public
 headers, embedded resources and dependency recipes. JUCE integration lives in
@@ -139,7 +139,7 @@ The normal test workflow has no browser dependency and downloads no browser.
 ## Layout
 
 ```text
-runtimes/engine/
+engines/engine/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
     a11y/                 accessibility semantics and the semantic tree
@@ -165,7 +165,7 @@ runtimes/engine/
     runtime/              RuntimeHost
     ui/                   the Surface (Yoga layout, input routing)
     web/                  the Web-compatible globals (C++ + embedded JavaScript)
-  # JUCE adapters are in ../juce-runtime/native/backend/juce
+  # JUCE adapters are in ../../runtimes/juce-runtime/native/backend/juce
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
   cmake/                  pinned dependencies, compiler policy, JS embedding,
@@ -1510,14 +1510,14 @@ pnpm check     # package checks without native compilation
 pnpm check:native # native lint and tests
 ```
 
-Or directly, from `runtimes/engine/`:
+Or directly, from `engines/engine/`:
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, tests
 cmake --workflow --preset sanitize   # + AddressSanitizer / UBSan / LeakSanitizer
 cmake --workflow --preset tidy       # + clang-tidy (build only)
 cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
-cd ../juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
+cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
 The JUCE adapter tests need a JUCE checkout. JUCE is never part of either

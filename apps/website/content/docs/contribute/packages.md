@@ -6,7 +6,7 @@ description: 'Every package in the repository, what it is responsible for, and h
 ## Purpose
 
 The repository is a pnpm workspace: published packages under `packages/`,
-the runtimes and the engine under `runtimes/`, standalone hosts under `hosts/`
+the runtimes under `runtimes/`, the engine under `engines/`, standalone hosts under `hosts/`
 (the VST3 host), private shared configs under
 `configs/`, the examples under `examples/` and the website under
 `apps/website`.

@@ -5,7 +5,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/soundor/soundor.git",
-    "directory": "runtimes/engine"
+    "directory": "engines/engine"
   },
   "files": [
     "CMakeLists.txt",

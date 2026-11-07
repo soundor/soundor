@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import type { SiteValues } from '../src/lib/placeholders.ts';
 
 const ROOT = new URL('../../../', import.meta.url);
-const PACKAGE_DIRS = ['packages', 'runtimes', 'configs'];
+const PACKAGE_DIRS = ['packages', 'engines', 'runtimes', 'configs'];
 
 type Manifest = {
   name: string;

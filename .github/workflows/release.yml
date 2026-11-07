@@ -179,7 +179,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prebuilts.outputs.tag }}
-        run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out runtimes/engine/artifacts/manifest.json
+        run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out engines/engine/artifacts/manifest.json
 
       # Every target's validated executable of this commit, from this run.
       - name: Download the VST3 host's executables
@@ -227,7 +227,7 @@ jobs:
 
       - name: The packed engine carries the manifest
         if: needs.select.outputs.engine == 'true'
-        run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" runtimes/engine/artifacts/manifest.json
+        run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" engines/engine/artifacts/manifest.json
 
       - name: The packed VST3 host pins its platform packages
         if: needs.select.outputs.host == 'true'
