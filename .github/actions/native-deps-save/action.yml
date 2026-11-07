@@ -32,7 +32,7 @@ runs:
           const root = process.env.SOUNDOR_CACHE;
           // What marks each build complete (SoundorSkia/Angle/Hermes/AccessKit.cmake).
           const complete = (name) =>
-            ['defines.txt', 'libs.txt', 'include/accesskit.h', 'release/hermes.txt', 'md/hermes.txt', 'mdd/hermes.txt']
+            ['defines.txt', 'libs.txt', 'include/accesskit.h', 'release/hermes.txt', 'md/hermes.txt', 'mdd/hermes.txt', 'mt/hermes.txt', 'mtd/hermes.txt']
               .filter((marker) => existsSync(join(root, name, marker)))
               .map((marker) => name + '/' + marker);
           const builds = existsSync(root) ? readdirSync(root).sort().flatMap(complete) : [];

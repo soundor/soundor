@@ -295,6 +295,24 @@ const cases = [
   ],
   // turbo's global dependencies and CI itself.
   ['.clang-tidy', append('.clang-tidy'), true, true, true, true, true],
+  [
+    'native artifact lookup',
+    append('.github/scripts/native-artifacts.mjs'),
+    true,
+    true,
+    true,
+    true,
+    true,
+  ],
+  [
+    'native artifact planning',
+    append('.github/scripts/native-plan.mjs'),
+    true,
+    true,
+    true,
+    true,
+    true,
+  ],
   ['.nvmrc', append('.nvmrc'), true, true, true, true, true],
   [
     'verify workflow',

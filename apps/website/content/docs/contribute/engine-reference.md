@@ -1632,14 +1632,15 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-read-only `engine.yml` workflow to build all six archives on GitHub's
-runners, tests each extracted (the JUCE adapters and the DevTools bridge
-included), and releases them as one set, named after the engine version, the
-commit and a build revision:
+read-only `engine.yml` workflow to build all eight archives on GitHub's
+runners. The Windows dynamic and static C runtime families build on separate
+runners with separate dependency caches. It tests the extracted archives (the
+JUCE adapters and the DevTools bridge included), and releases them as one set,
+named after the engine version, the commit and a build revision:
 
 ```text
 engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
-  soundor-engine-<version>-<target>-<variant>.tar.gz   ×6
+  soundor-engine-<version>-<target>-<variant>.tar.gz   ×8
   build-info.json   per archive: target, variant, toolchain, SHA-256...; the
                     engine version, ABI namespace, full source commit, revision
   SHA256SUMS        the same checksums, for sha256sum -c
@@ -1649,7 +1650,12 @@ The release notes are generated from the same data. Pull requests that change
 the engine or prebuilt tooling run it through Verify in `validate` mode:
 archives as run artifacts, no release. JUCE integration jobs download these
 same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
-manifest. New archives and manifests record `sourceFingerprint`, computed from
+manifest. When the engine is unchanged and no published engine matches, PR
+consumers can instead download complete artifacts from a successful `main` push
+within the seven-day retention period. The planner matches native inputs and
+build recipes, and consumers validate the original commit and archive integrity.
+Missing or expired artifacts select a source build; engine changes still build
+and run native checks. Releases continue using same-commit artifacts. New archives and manifests record `sourceFingerprint`, computed from
 the native inputs and the installed lowering dependency graph. Imports reject
 a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` uploads them to a draft release, verifies
 the draft and deletes it (the whole release path, published nowhere), and
