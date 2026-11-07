@@ -9,3 +9,6 @@ public/playground
 # Playwright
 test-results/
 playwright-report/
+
+# Generated from package changelogs when Vite starts.
+content/docs/changelog/

@@ -11,6 +11,21 @@ html > body[data-scroll-locked] {
   --removed-body-scroll-bar-size: 0px !important;
 }
 
+.release-breaking {
+  display: inline-block;
+  margin-inline-start: 0.4em;
+  color: #b45309;
+  vertical-align: -0.1em;
+}
+
+.dark .release-breaking {
+  color: #fcd34d;
+}
+
+.prose tr:has(.release-breaking) {
+  background: #f59e0b14;
+}
+
 /* Use the same theme tokens as the documentation in both color modes. */
 .soundor-home {
   color: var(--color-fd-foreground);

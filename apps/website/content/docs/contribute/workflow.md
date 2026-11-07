@@ -220,3 +220,19 @@ requests into `main` and main pushes. Each build input must be a dependency of t
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).
+
+## Website changelog
+
+The website generates `/changelog` from the published package `CHANGELOG.md`
+files when Vite starts for development or a build. Shared notes appear once per
+release, with their affected packages; dependency-only bumps are omitted. The
+engine, Yoga WASM, JUCE runtime, web runtime and VST3 host each have their own release history and
+version numbers. Each history is a collapsible sidebar section, with one page
+per version, grouped under Packages, Runtimes, Engines and Hosts. Update release
+notes through Changesets. Overview pages show totals and category counts: minor
+notes count as features/improvements, patch notes as fixes/maintenance, and major
+notes or explicit breaking notices as breaking changes. Releases with breaking changes have a highlighted table row and a warning icon, also
+shown in their page titles. The icons have a tooltip and an accessible name. Each note counts once;
+dependency-only bumps are excluded;
+`apps/website/scripts/changelog.ts` owns the generated pages, which are ignored
+by Git.
