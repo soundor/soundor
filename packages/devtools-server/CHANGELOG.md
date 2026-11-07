@@ -1,5 +1,12 @@
 # @soundor/devtools-server
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/devtools-protocol@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

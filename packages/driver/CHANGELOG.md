@@ -1,5 +1,19 @@
 # @soundor/driver
 
+## 0.16.0
+
+### Minor Changes
+
+- [#213](https://github.com/soundor/soundor/pull/213) [`c6a011f`](https://github.com/soundor/soundor/commit/c6a011f5fcbe805ff4c9def2b1d3ddc50dadf89b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `@soundor/driver/vst3`: `launch()` runs a Debug build of a Soundor plugin in the VST3 host, in a private DevTools session, and gives a Driver for its UI beside the host for its audio. `@soundor/vst3-host` is an optional peer, and `@soundor/devtools-server` is now a dependency of the Driver. In the host, a handler that a plugin unregisters from Linux's run loop is released at once rather than on a later turn, which crashed `recreate()` on JUCE plugins, whose handlers can be gone by then.
+
+- [#214](https://github.com/soundor/soundor/pull/214) [`cdbebe4`](https://github.com/soundor/soundor/commit/cdbebe4624eeb57c7d7be6840d10e2a0e92b2cf7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `@soundor/vitest-e2e`: Vitest tests of a built VST3 plugin in the real host, with `launchPlugin()`, `launchHost()`, the `soundor({ vst3 })` plugin and the `toBeVisible`, `toBeHidden` and `toHaveText` matchers. `Vst3Plugin` from `@soundor/driver/vst3` gains locators that survive a reopened editor, `pointer`, `keyboard`, `screenshot()` and `parameter()`. `Vst3Host` gains `parameter(title)`.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/devtools-protocol@0.16.0
+  - @soundor/devtools-server@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

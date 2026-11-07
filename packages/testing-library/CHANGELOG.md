@@ -1,5 +1,13 @@
 # @soundor/testing-library
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/test-runtime@0.16.0
+  - @soundor/react@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
