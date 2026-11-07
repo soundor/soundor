@@ -1706,6 +1706,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         event.modifiers = input.modifiers;
         if (dispatch(event))
             return true;
+        // With Control it is a zoom, as browsers take it (where a trackpad's
+        // pinch arrives as one): never a scroll. Plugin code may take it.
+        if ((input.modifiers & Modifier::Control) != 0)
+            return false;
         // The default action: scroll the nearest scroll node that can.
         const float scale = input.unit == WheelInput::Unit::Line ? pixelsPerLine : 1;
         float deltaX = input.deltaX * scale;

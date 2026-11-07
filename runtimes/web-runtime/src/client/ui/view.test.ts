@@ -754,6 +754,49 @@ describe('wheel', () => {
     expect(wheel(-50)).toBe(true);
     expect(top).toBe(100);
   });
+
+  it('with Control is the browser’s zoom, a pinch too: plugin code sees it, nothing scrolls', () => {
+    setup();
+    const scroll = view.createNode('scroll');
+    const content = view.createNode('view');
+    view.root.appendChild(scroll);
+    scroll.appendChild(content);
+    vi.mocked(document.elementFromPoint).mockReturnValue(el(content));
+    let top = 0;
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      get: () => top,
+      set: (value: number) => {
+        top = Math.max(0, Math.min(value, 100));
+      },
+    });
+    const seen: string[] = [];
+    content.addEventListener('wheel', (event) =>
+      seen.push(
+        `${(event as WheelEvent).ctrlKey} ${(event as WheelEvent).deltaY}`,
+      ),
+    );
+    // What a trackpad's pinch sends a page.
+    const pinch = () => {
+      const event = new window.WheelEvent('wheel', {
+        deltaY: 40,
+        bubbles: true,
+        cancelable: true,
+      });
+      // happy-dom's WheelEvent has no modifier keys; a browser's has.
+      Object.defineProperty(event, 'ctrlKey', { value: true });
+      view.rootElement.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    // Left to the browser, which zooms.
+    expect(pinch()).toBe(false);
+    expect(top).toBe(0);
+    expect(seen).toEqual(['true 40']);
+    // Plugin code that takes it, to zoom something of its own, keeps it.
+    content.addEventListener('wheel', (event) => event.preventDefault());
+    expect(pinch()).toBe(true);
+    expect(top).toBe(0);
+  });
 });
 
 describe('text inputs', () => {

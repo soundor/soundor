@@ -176,7 +176,9 @@ UiNodes.
   leave along the tree, a click to the deepest node holding both press and
   release, focus on press, Tab cycling, `focusVisible` (by the JUCE
   runtime's rules, not the browser's `:focus-visible`), and the wheel
-  scrolling the nearest scroll view. All four `pointerEvents` modes work, and the cursor is the
+  scrolling the nearest scroll view. With Control, the wheel, a trackpad's
+  pinch included, scrolls nothing and is left to the browser's zoom unless
+  plugin code prevents it. All four `pointerEvents` modes work, and the cursor is the
   JUCE runtime's: the view resolves `cursor` along the Soundor tree and
   shows it on its element, which every node inherits. Hover follows what
   changes under a pointer that did not move (the tree, a style, a scroll, a

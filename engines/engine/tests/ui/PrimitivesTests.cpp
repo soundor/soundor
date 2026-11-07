@@ -227,6 +227,28 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         CHECK(f.host.surface().hitTest({ 10, 10 }) != f.host.surface().root().id());
     }
 
+    TEST_CASE("the wheel with Control is a zoom: plugin code gets it, and nothing scrolls")
+    {
+        WebFixture f(approximateText());
+        f.host.surface().setSize({ 100, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.scroller = createScrollView({ height: 50 });
+            scroller.appendChild(createView({ height: 200 }));
+            root.appendChild(scroller);
+            scroller.addEventListener('wheel', (e) => log.push('wheel ' + e.ctrlKey + ' ' + e.deltaY));
+        )");
+        const ui::WheelInput pinch { .position = { 10, 10 }, .deltaY = 40, .modifiers = ui::Modifier::Control };
+        // Not handled: the host may have it.
+        CHECK_FALSE(f.host.surface().wheel(pinch));
+        CHECK(f.eval("log.join()").asString() == "wheel true 40");
+        CHECK(f.eval("scroller.scrollTop").asNumber() == 0);
+        // Plugin code that takes it, to zoom something of its own, says so.
+        f.run(std::string(imports) + "scroller.addEventListener('wheel', (e) => e.preventDefault());");
+        CHECK(f.host.surface().wheel(pinch));
+        CHECK(f.eval("scroller.scrollTop").asNumber() == 0);
+    }
+
     TEST_CASE("scrolling from code fires scroll on the next tick, once, before the frame's callbacks")
     {
         WebFixture f(approximateText());
