@@ -227,6 +227,42 @@ const cases = [
   ],
   // The VST3 host depends on no other workspace package's code.
   [
+    'a changeset alone',
+    create('.changeset/native-input-fixture.md'),
+    false,
+    false,
+    false,
+    false,
+    false,
+  ],
+  [
+    'host CMake and a changeset',
+    (root) => {
+      append('hosts/vst3-host/cmake/Vst3HostDependencies.cmake', '#')(root);
+      create('.changeset/native-input-fixture.md')(root);
+    },
+    false,
+    false,
+    false,
+    true,
+    true,
+  ],
+  [
+    'host source and changeset configuration',
+    (root) => {
+      append('hosts/vst3-host/src/host.ts')(root);
+      const file = join(root, '.changeset/config.json');
+      const config = JSON.parse(readFileSync(file, 'utf8'));
+      config.commit = !config.commit;
+      writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+    },
+    false,
+    true,
+    true,
+    true,
+    true,
+  ],
+  [
     'host native source',
     append('hosts/vst3-host/native/src/Plugin.cpp'),
     false,
@@ -246,10 +282,11 @@ const cases = [
   ],
   // Its own change alone is its job's and Orbit's; with another package, the graph decides.
   [
-    'the host and the Driver',
+    'the host, the Driver and a changeset',
     (root) => {
       append('hosts/vst3-host/src/host.ts')(root);
       append('packages/driver/src/vst3.ts')(root);
+      create('.changeset/native-input-fixture.md')(root);
     },
     false,
     true,

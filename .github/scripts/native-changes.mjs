@@ -6,7 +6,7 @@
 // Orbit's end-to-end tests, the one job that runs plugins in it: the others'
 // packages reach it just through @soundor/driver's optional `vst3` entry and
 // @soundor/juce-runtime's `soundor dev`, and nothing they build or test uses
-// those.
+// those. Changeset release notes do not affect this host-only decision.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 
@@ -69,7 +69,10 @@ function affectedByChange() {
   if (!base || /^0+$/.test(base)) return null;
   const files = changedFiles();
   if (files.some((path) => CI.test(path))) return null;
-  if (files.length > 0 && files.every((path) => path.startsWith(HOST)))
+  // Release notes accompany package changes but do not change native inputs.
+  // Keep .changeset/config.json and other configuration in the decision.
+  const inputs = files.filter((path) => !/^\.changeset\/[^/]+\.md$/.test(path));
+  if (inputs.length > 0 && inputs.every((path) => path.startsWith(HOST)))
     return new Set([JOBS.host, JOBS.orbit]);
   return affectedPackages();
 }
