@@ -61,8 +61,12 @@ export function planCleanup({
     related.every((p) => p.state === 'closed') &&
     (pr === null || related.some((p) => p.number === pr));
   const busyPR = (number) =>
-    active.some((run) =>
-      relatedPulls(run, pulls, repository).some((p) => p.number === number),
+    active.some(
+      (run) =>
+        // The PR-close cleanup is itself an active run associated with this PR.
+        // It consumes no build outputs and must not block its own deletion plan.
+        run.path !== '.github/workflows/cleanup.yml' &&
+        relatedPulls(run, pulls, repository).some((p) => p.number === number),
     );
   const eligiblePR = (related) =>
     closed(related) && related.every((p) => !busyPR(p.number));
