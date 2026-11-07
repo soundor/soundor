@@ -1,5 +1,4 @@
-import { createGetUrl } from 'fumadocs-core/source';
-
+import { getContentMarkdownUrl } from './content-urls';
 import { siteValues } from './site-values';
 
 export const appName = 'Soundor';
@@ -15,17 +14,8 @@ export const repository = {
 /** The current Soundor release: the `soundor` CLI's version. */
 export const soundorVersion = siteValues.versions['soundor']!;
 
-const getDocsUrl = createGetUrl(docsRoute);
-
 export function getPageMarkdownUrl(page: { slugs: string[]; locale?: string }) {
-  const segments = [...page.slugs];
-  if (segments.length === 0) {
-    segments.push('index.md');
-  } else {
-    segments[segments.length - 1] += '.md';
-  }
-
-  return { segments, url: getDocsUrl(segments, page.locale) };
+  return getContentMarkdownUrl(page.slugs);
 }
 
 /** @returns page slugs */

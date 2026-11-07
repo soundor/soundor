@@ -27,7 +27,7 @@ export function baseOptions(): BaseLayoutProps {
     links: [
       { text: 'Docs', url: '/docs', active: 'url' },
       { text: 'Components', url: '/docs/components', active: 'nested-url' },
-      { text: 'Changelog', url: '/docs/changelog', active: 'nested-url' },
+      { text: 'Changelog', url: '/changelog', active: 'nested-url' },
       { text: 'Examples', url: '/docs/examples/orbit', active: 'nested-url' },
     ],
   };

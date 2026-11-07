@@ -121,11 +121,11 @@ function writeSection(
   const versions = newestFirst(releases.keys());
   const index = [
     '---',
-    `title: ${title}`,
+    `title: ${title} release history`,
     `description: Release history for ${title}.`,
     '---',
     '',
-    '[All release histories](/docs/changelog)',
+    '[All release histories](/changelog)',
     '',
   ];
   if (!versions.length) index.push('No published release notes yet.', '');
@@ -140,7 +140,7 @@ function writeSection(
     const changes = releases.get(version)!;
     const counts = summarizeChanges(changes);
     index.push(
-      `| [${version}](/docs/changelog/${slug}/${version}) | ${counts.total} | ${counts.features} | ${counts.fixes} | ${counts.breaking} | ${counts.other} |`,
+      `| [${version}](/changelog/${slug}/${version}) | ${counts.total} | ${counts.features} | ${counts.fixes} | ${counts.breaking} | ${counts.other} |`,
     );
     const page = [
       '---',
@@ -148,7 +148,7 @@ function writeSection(
       `description: Release notes for ${title} ${version}.`,
       '---',
       '',
-      `[All ${title} releases](/docs/changelog/${slug})`,
+      `[All ${title} releases](/changelog/${slug})`,
       '',
       summaryText(changes),
       '',
@@ -282,8 +282,8 @@ export function generateChangelog(
       const latest = newestFirst(releases.keys())[0];
       index.push(
         latest
-          ? `- [${title}](/docs/changelog/${slug}) · [${latest}](/docs/changelog/${slug}/${latest}): ${summaryText(releases.get(latest)!)}`
-          : `- [${title}](/docs/changelog/${slug}) — No published release notes yet.`,
+          ? `- [${title}](/changelog/${slug}) · [${latest}](/changelog/${slug}/${latest}): ${summaryText(releases.get(latest)!)}`
+          : `- [${title}](/changelog/${slug}) — No published release notes yet.`,
       );
     }
     index.push('');

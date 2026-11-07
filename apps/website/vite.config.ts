@@ -19,6 +19,10 @@ import { siteValues } from './plugins/values.ts';
 import { generateChangelog } from './scripts/changelog.ts';
 import { snippetFiles } from './scripts/examples.ts';
 import { serveFile } from './scripts/static.ts';
+import {
+  getContentUrl,
+  getContentMarkdownUrl,
+} from './src/lib/content-urls.ts';
 
 generateChangelog();
 
@@ -46,11 +50,8 @@ const pages = [
 ];
 for await (const file of glob('**/*.{md,mdx}', { cwd: 'content/docs' })) {
   const slugs = getSlugs(file);
-  const url = ['/docs', ...slugs].join('/');
-  pages.push(
-    { path: url },
-    { path: `${slugs.length === 0 ? '/docs/index' : url}.md` },
-  );
+  const url = getContentUrl(slugs);
+  pages.push({ path: url }, { path: getContentMarkdownUrl(slugs).url });
 }
 
 export default defineConfig({

@@ -146,7 +146,7 @@ describe('generateChangelog', () => {
         pages: ['index', '1.0.0'],
       });
       expect(readFileSync(join(out, 'web-runtime/index.md'), 'utf8')).toContain(
-        '/docs/changelog/web-runtime/1.0.0',
+        '/changelog/web-runtime/1.0.0',
       );
       expect(
         JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).pages,
@@ -164,16 +164,16 @@ describe('generateChangelog', () => {
         'vst3-host',
       ]);
       const index = readFileSync(join(out, 'index.md'), 'utf8');
-      expect(index).toContain('/docs/changelog/web-runtime');
+      expect(index).toContain('/changelog/web-runtime');
       expect(index).toContain(
-        '[1.0.0](/docs/changelog/soundor/1.0.0): **1 change** — 1 feature',
+        '[1.0.0](/changelog/soundor/1.0.0): **1 change** — 1 feature',
       );
       expect(readFileSync(join(out, 'soundor/index.md'), 'utf8')).toContain(
-        '| [1.0.0](/docs/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 | 0 |',
+        '| [1.0.0](/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 | 0 |',
       );
-      expect(index).toContain('/docs/changelog/juce-runtime');
-      expect(index).toContain('/docs/changelog/yoga-wasm');
-      expect(index).toContain('/docs/changelog/vst3-host');
+      expect(index).toContain('/changelog/juce-runtime');
+      expect(index).toContain('/changelog/yoga-wasm');
+      expect(index).toContain('/changelog/vst3-host');
       rmSync(join(root, 'engines/yoga-wasm/CHANGELOG.md'));
       rmSync(join(root, 'hosts/vst3-host/CHANGELOG.md'));
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
