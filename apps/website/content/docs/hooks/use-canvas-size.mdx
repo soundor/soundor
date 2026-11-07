@@ -1,0 +1,47 @@
+---
+title: useCanvasSize
+description: A canvas's drawing buffer, exactly the device pixels its box covers.
+---
+
+`useCanvasSize` keeps a [`Canvas`](/docs/components/canvas)'s drawing buffer
+exactly the device pixels its box covers, so what you draw is never resampled
+and stays sharp. Give the canvas a size by its style or by flexbox, and leave
+out `width` and `height`: the hook sets them.
+
+```tsx
+function Meter() {
+  const canvas = useRef<UiNode>(null);
+  const size = useCanvasSize(canvas);
+
+  useLayoutEffect(() => {
+    const context = canvas.current?.getContext('2d');
+    if (!context || size.width === 0) return;
+    // Draw in the box's own units, exactly over it.
+    context.setTransform(size.scaleX, 0, 0, size.scaleY, 0, 0);
+    drawMeter(context);
+  }, [size]);
+
+  return <Canvas ref={canvas} style={{ flex: 1, height: 80 }} />;
+}
+```
+
+- **What it returns:** `width` and `height`, the buffer's size in device
+  pixels, and `scaleX` and `scaleY`, buffer pixels per logical pixel. The
+  scales are the display's density times any scaling by the host or an
+  editor's zoom, adjusted for where the box's edges land on the pixel grid,
+  so they can differ slightly from each other. All are 0 (the scales 1) until
+  the canvas is laid out.
+- **Why not `width × scale`:** at a fractional scale, such as 1.25, a box 101
+  pixels wide is 126.25 device pixels by arithmetic, but it covers a whole
+  number of them, 126 or 127 depending on where it starts. The hook asks a
+  [`ResizeObserver`](/docs/api/ui#observing-sizes) for the box's
+  `device-pixel-content-box`, which is the number it covers.
+- **When it re-renders:** when the box, the scale or both change the buffer's
+  size, which also covers a canvas whose box flexbox resizes. Resizing a
+  buffer clears it, so that render happens at once, inside the observer's
+  callback: draw in a layout effect, as above, and the frame never shows it
+  blank. Canvases you draw every frame with `useAnimationFrame` only need to
+  read `size` in their drawing code.
+- **WebGL** is the same: the buffer's size is `gl.drawingBufferWidth` and
+  `gl.drawingBufferHeight`, so set the viewport from them after a resize.
+- **In tests** the simulated runtime lays nothing out, so the size stays 0.

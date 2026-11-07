@@ -1,12 +1,13 @@
 {
   "title": "Hooks",
-  "description": "React hooks for parameters, frames, the view size, scrollbars and presses",
+  "description": "React hooks for parameters, frames, the view size, canvases, scrollbars and presses",
   "root": true,
   "pages": [
     "index",
     "use-parameter",
     "use-animation-frame",
     "use-view-size",
+    "use-canvas-size",
     "use-scrollbar",
     "use-pressable"
   ]

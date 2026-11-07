@@ -121,7 +121,8 @@ observer.observe(canvas, { box: 'device-pixel-content-box' });
 
 Give such a canvas a size by its style (or by flexbox): unstyled, its box is
 its buffer's size, so resizing the buffer from the callback would resize the
-box again.
+box again. In React, [`useCanvasSize`](/docs/hooks/use-canvas-size) does all
+of this.
 
 - **Boxes:** `observe(node, { box })` compares the `'content-box'` (the
   default: inside border and padding), the `'border-box'` (the node's
