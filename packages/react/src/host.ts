@@ -440,6 +440,8 @@ function applyProps(
     instance.animation = node.animate(explicit, transition);
   }
 
+  if (next['scrollIndicators'] !== previous?.['scrollIndicators'])
+    node.scrollIndicators = next['scrollIndicators'] !== false;
   if (next['debugId'] !== previous?.['debugId'])
     node.debugId = String(next['debugId'] ?? '');
 

@@ -48,10 +48,21 @@ export const STYLESHEET = `
   visibility: hidden; pointer-events: none;
 }
 .sd-scroll-indicator {
-  position: absolute; left: 0; top: 0; display: none; width: 3px; height: 3px;
+  position: absolute; left: 0; top: 0; display: none;
   border-radius: 1.5px; background: rgba(128, 128, 128, 0.376);
   pointer-events: none; z-index: 2147483647;
 }
+/* Near a mouse: big enough to take hold of, over what takes the press. */
+.sd-scroll-indicator-grown { border-radius: 4px; background: rgba(128, 128, 128, 0.6); }
+.sd-scroll-indicator-pressed { background: rgba(128, 128, 128, 0.9); }
+.sd-scroll-track {
+  position: absolute; left: 0; top: 0; display: none;
+  background: rgba(128, 128, 128, 0.12);
+  cursor: default; user-select: none; z-index: 2147483647;
+}
+/* After touch, as mobile browsers show theirs: only while it scrolls. */
+.sd-scroll-indicator-touch { opacity: 0; transition: opacity 300ms; }
+.sd-scroll-indicator-showing { opacity: 1; transition: none; }
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
 .sd-surface {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%;

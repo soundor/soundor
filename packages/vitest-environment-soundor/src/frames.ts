@@ -1,7 +1,5 @@
 import type { initializeTestContext } from '@soundor/test-runtime';
 
-const framesPerSecond = 60;
-
 /** Native frames.js snapshots the batch before calling it: cancellation only affects future batches. */
 export function createFrames(
   context: ReturnType<typeof initializeTestContext>,
@@ -28,11 +26,6 @@ export function createFrames(
       const id = nextId++;
       callbacks.set(id, callback);
       if (frame === undefined) {
-        const nextFrame =
-          ((Math.floor((runtime.clock.now * framesPerSecond) / 1000 + 1e-9) +
-            1) *
-            1000) /
-          framesPerSecond;
         frame = runtime.clock.setTimeout(() => {
           frame = undefined;
           const due = callbacks;
@@ -45,7 +38,7 @@ export function createFrames(
               reportError(error);
             }
           }
-        }, nextFrame - runtime.clock.now);
+        }, runtime.clock.untilNextFrame());
       }
       return id;
     },

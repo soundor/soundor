@@ -664,6 +664,14 @@ declare module 'soundor:ui' {
     scrollLeft: number;
     readonly scrollWidth: number;
     readonly scrollHeight: number;
+    /** How much of `scrollWidth` and `scrollHeight` shows: its content box. */
+    readonly clientWidth: number;
+    readonly clientHeight: number;
+    /**
+     * Whether a scroll view draws its own indicators; true by default. Without
+     * them it scrolls just the same, and nothing is in the way at its edges.
+     */
+    scrollIndicators: boolean;
     scrollTo(options: { top?: number; left?: number }): void;
     scrollTo(left: number, top: number): void;
     scrollBy(options: { top?: number; left?: number }): void;

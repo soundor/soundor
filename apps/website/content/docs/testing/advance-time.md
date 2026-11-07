@@ -22,6 +22,8 @@ expect(screen.getByText('Preset loaded').presentation.opacity).toBe(0);
 
 - **Time does not move on its own** in a test: an animation stays at its
   start until `advanceTime`.
+- **Scrolling from code** fires `scroll` at the next frame, as in a plugin, so
+  `advanceTime` is what delivers it.
 - **Check where an animation is with `node.presentation`**: the style is the
   target, the presentation what shows now.
 - **Vitest's fake timers** move with it, when they are on.
