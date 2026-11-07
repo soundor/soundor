@@ -1,0 +1,46 @@
+name: Storage cleanup
+
+on:
+  pull_request_target:
+    types: [closed]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Delete selected entries (otherwise report only)
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: storage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write
+      pull-requests: read
+    steps:
+      # pull_request_target is privileged: ALWAYS use main's code, never the
+      # event's head/base SHA, PR files, package installs or downloaded artifacts.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Prune storage
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLEANUP_PR: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.number || '' }}
+          CLEANUP_APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          CLEANUP_LOCK_HASH: ${{ hashFiles('pnpm-lock.yaml') }}
+        run: node .github/scripts/cleanup-storage.mjs

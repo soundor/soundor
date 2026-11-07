@@ -160,6 +160,9 @@ jobs:
       - name: Verified dependency archive tests
         run: python3 -m unittest discover -s .github/scripts -p 'verified_deps_test.py'
 
+      - name: Storage cleanup policy tests
+        run: node --test .github/scripts/cleanup-storage.test.mjs
+
       - name: Run formatter
         run: pnpm run format
 
