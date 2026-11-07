@@ -18,6 +18,15 @@
       "dependsOn": ["^build"],
       "outputs": ["dist"]
     },
+    "@soundor/yoga-wasm#build": {
+      "dependsOn": ["^build"],
+      "env": ["SOUNDOR_YOGA_WASM"],
+      "passThroughEnv": ["SOUNDOR_CACHE", "XDG_CACHE_HOME", "LOCALAPPDATA"],
+      "outputs": ["dist", "generated"]
+    },
+    "@soundor/yoga-wasm#test": {
+      "dependsOn": ["build", "^test", "^build"]
+    },
     "build:web": {
       "dependsOn": ["^build"],
       "outputs": [".soundor/dist/web/**", ".soundor/generated/**"]

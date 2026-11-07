@@ -11,9 +11,11 @@ export default defineConfig({
     'packages/environment/webgl.d.ts',
     'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
     'engines/engine/src/gpu/webgl/generated/**',
+    'engines/yoga-wasm/generated/**',
     // C++ (included into Hermes's hermes.cpp), not JavaScript.
     'engines/engine/cmake/hermes/*.inc',
     // Third-party license texts, verbatim, and generated crate notices.
     'engines/engine/licenses/**',
+    'engines/yoga-wasm/licenses/**',
   ],
 });
