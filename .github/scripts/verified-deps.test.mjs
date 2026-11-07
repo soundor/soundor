@@ -92,6 +92,17 @@ test('only successful main release workflows with unexpired matching artifact di
     commit,
     digest: artifact.digest,
   });
+  assert.deepEqual(
+    await find({
+      artifacts: [
+        {
+          ...artifact,
+          created_at: new Date(now - 13 * 86400000).toISOString(),
+        },
+      ],
+    }),
+    { id: artifact.id, commit, digest: artifact.digest },
+  );
   for (const patch of [
     { event: 'pull_request' },
     { head_branch: 'feature' },
@@ -107,7 +118,7 @@ test('only successful main release workflows with unexpired matching artifact di
     { expired: true },
     { digest: null },
     { expires_at: new Date(now).toISOString() },
-    { created_at: new Date(now - 8 * 86400000).toISOString() },
+    { created_at: new Date(now - 15 * 86400000).toISOString() },
   ])
     assert.equal(await find({ artifacts: [{ ...artifact, ...patch }] }), null);
 });

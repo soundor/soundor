@@ -105,7 +105,7 @@ export async function findDependencies(
         artifact.name !== key ||
         artifact.expired ||
         !(Date.parse(artifact.expires_at) > now) ||
-        Date.parse(artifact.created_at) < now - 7 * 86400000
+        Date.parse(artifact.created_at) < now - 14 * 86400000
       )
         continue;
       const id = artifact.workflow_run?.id;

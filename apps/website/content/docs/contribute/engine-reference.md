@@ -1182,7 +1182,7 @@ Release-producing engine jobs on `main` bypass ordinary native and compiler
 caches. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
 the recipes (including patches and symbol prefixes), runtime family, detected
 compiler and SDK settings, CMake flags and hosted runner image. It looks for a
-matching seven-day artifact from a successful main release workflow. A miss
+matching fourteen-day artifact from a successful main release workflow. A miss
 compiles cleanly from pinned sources; no existing unsigned cache is promoted.
 
 Before restoring a snapshot, the job verifies the transport digest, then uses
@@ -1195,7 +1195,7 @@ identities. The engine itself still compiles from the current checkout.
 After all engine build jobs succeed, `attest-dependencies` runs separately on
 `main`. It receives signing permissions, installs no packages, and executes no
 producer tools. GitHub's pinned `actions/attest` signs the snapshot digest, and
-the archive and bundle are retained together for seven days. The initial main
+the archive and bundle are retained together for fourteen days. The initial main
 run and changes to recipes or toolchain/image settings require a cold dependency
 build. This authenticates the builder and exact bytes; it does not establish
 that the reviewed source or compiler is free of malicious behavior.

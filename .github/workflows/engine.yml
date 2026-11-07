@@ -337,7 +337,7 @@ jobs:
           name: ${{ steps.identity.outputs.key }}
           path: ${{ runner.temp }}/dependency-candidate
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
           compression-level: 0
 
   clang:

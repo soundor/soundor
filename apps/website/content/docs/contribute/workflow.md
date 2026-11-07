@@ -59,7 +59,7 @@ An absent or expired snapshot builds dependencies from clean sources. Invalid
 signatures, identities or archive paths fail before the dependencies are used.
 
 After the engine builds pass, an isolated main-only job attests the dependency
-snapshot and retains it for seven days. It installs no packages and runs no
+snapshot and retains it for fourteen days. It installs no packages and runs no
 producer executables; only this job receives signing permissions. PRs keep their
 ordinary caches, and the source test suites keep their own configurations.
 
