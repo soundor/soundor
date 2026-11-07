@@ -73,6 +73,8 @@ else()
   set(soundor_resolve_variants debug release)
 endif()
 
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
+
 soundor_cache_root(soundor_resolve_cache)
 set(soundor_resolve_cache "${soundor_resolve_cache}/engine-prebuilts")
 file(MAKE_DIRECTORY "${soundor_resolve_cache}")
@@ -85,14 +87,14 @@ foreach(soundor_resolve_variant IN LISTS soundor_resolve_variants)
   foreach(index RANGE ${last})
     string(JSON target GET "${soundor_resolve_json}" artifacts ${index} target)
     string(JSON variant GET "${soundor_resolve_json}" artifacts ${index} variant)
-    if(target STREQUAL soundor_resolve_target AND variant STREQUAL soundor_resolve_variant)
+    if(target STREQUAL soundor_resolve_target AND variant STREQUAL "${soundor_resolve_variant}${SOUNDOR_WINDOWS_CRT_SUFFIX}")
       string(JSON url GET "${soundor_resolve_json}" artifacts ${index} url)
       string(JSON sha256 GET "${soundor_resolve_json}" artifacts ${index} sha256)
       string(JSON file GET "${soundor_resolve_json}" artifacts ${index} file)
     endif()
   endforeach()
   if(NOT sha256 MATCHES "^[0-9a-f]+$" OR NOT url)
-    message(FATAL_ERROR "The prebuilt release ${soundor_resolve_tag} has no ${soundor_resolve_variant} engine for "
+    message(FATAL_ERROR "The prebuilt release ${soundor_resolve_tag} has no ${soundor_resolve_variant}${SOUNDOR_WINDOWS_CRT_SUFFIX} engine for "
                         "${soundor_resolve_target}. ${soundor_resolve_source_hint}")
   endif()
 

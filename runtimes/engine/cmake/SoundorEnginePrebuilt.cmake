@@ -16,6 +16,7 @@ include_guard(GLOBAL)
 
 include(SoundorDependencies)
 include(SoundorEngineInputs)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 
 set(SOUNDOR_ENGINE_PREBUILT ON)
 
@@ -114,7 +115,8 @@ function(soundor_prebuilt_read variant)
   soundor_prebuilt_get(abi engine abiNamespace)
   soundor_prebuilt_expect("ABI namespace" "${abi}" "${SOUNDOR_ABI_NAMESPACE}")
   soundor_prebuilt_get(actual variant)
-  soundor_prebuilt_expect("the variant" "${actual}" "${variant}")
+  soundor_prebuilt_expect("the variant" "${actual}" "${variant}${SOUNDOR_WINDOWS_CRT_SUFFIX}"
+    "On Windows, the static C runtime (/MT, /MTd) links the -static archives, and the DLL one (/MD, /MDd) the others.")
   soundor_prebuilt_get(revision hermes revision)
   soundor_prebuilt_expect("Hermes" "${revision}" "${SOUNDOR_HERMES_REVISION}")
   soundor_prebuilt_get(os target os)
@@ -143,16 +145,17 @@ function(soundor_prebuilt_read variant)
     endif()
   endif()
   if(WIN32)
-    soundor_prebuilt_get(runtime toolchain msvcRuntime)
     if(NOT MSVC)
       message(FATAL_ERROR "${where} is built with MSVC; build with MSVC too")
     endif()
-    # CMake's default is MultiThreaded$<$<CONFIG:Debug>:Debug>DLL: /MDd for
-    # Debug, /MD otherwise, as the archives are. A static C runtime cannot
-    # link them.
-    if(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
-      message(FATAL_ERROR "${where} uses the ${runtime} C runtime; this build sets CMAKE_MSVC_RUNTIME_LIBRARY to "
-                          "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+    # A linker reads what its own version or an older one compiled, and no newer.
+    soundor_prebuilt_get(compiler_version toolchain compilerVersion)
+    string(REGEX MATCH "^[0-9]+\\.[0-9]+" needed_msvc "${compiler_version}")
+    string(REGEX MATCH "^[0-9]+\\.[0-9]+" this_msvc "${CMAKE_CXX_COMPILER_VERSION}")
+    if(this_msvc VERSION_LESS needed_msvc)
+      message(FATAL_ERROR "${where} needs MSVC ${needed_msvc} or newer, and this build uses ${this_msvc}: "
+                          "update Visual Studio, or build the engine from source "
+                          "(juceRuntime({ engine: { mode: 'source' } }))")
     endif()
   endif()
 

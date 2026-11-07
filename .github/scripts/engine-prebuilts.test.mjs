@@ -29,7 +29,7 @@ import {
   plannedEngine,
   release,
   targets,
-  variants,
+  variantsOf,
 } from './engine-prebuilts.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'engine-prebuilts-'));
@@ -41,7 +41,8 @@ const planned = plan({ version: '0.2.1', commit, revision: 1 });
 /** A small staged engine, as soundor_engine_stage lays one out. */
 function stage(target, variant, edit = (metadata) => metadata) {
   const directory = mkdtempSync(join(work, 'stage-'));
-  const debug = variant === 'debug';
+  const debug = variant.startsWith('debug');
+  const staticCrt = variant.endsWith('-static');
   const hermes = ['hermes/lib/libhermesVMRuntime.a', 'hermes/lib/libjsi.a'];
   if (debug) hermes.push('hermes/lib/libhermesParser.a');
   const metadata = edit({
@@ -65,9 +66,7 @@ function stage(target, variant, edit = (metadata) => metadata) {
       compilerVersion: '18.1.3',
       msvcRuntime:
         target === 'windows-x64'
-          ? debug
-            ? 'MultiThreadedDebugDLL'
-            : 'MultiThreadedDLL'
+          ? `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`
           : '',
     },
     features: { devtools: debug, jsSource: debug, gpu: true, accessKit: false },
@@ -114,9 +113,28 @@ describe('naming', () => {
     assert.throws(() => abiNamespace('1.0'));
   });
 
+  test('only Windows has archives for the static C runtime', () => {
+    assert.deepEqual(variantsOf('linux-x64'), ['debug', 'release']);
+    assert.deepEqual(variantsOf('macos-universal'), ['debug', 'release']);
+    assert.deepEqual(variantsOf('windows-x64'), [
+      'debug',
+      'release',
+      'debug-static',
+      'release-static',
+    ]);
+    assert.ok(
+      planned.assets.includes(
+        'soundor-engine-0.2.1-windows-x64-release-static.tar.gz',
+      ),
+    );
+  });
+
   test('a plan names the release, its archives and its revision', () => {
     assert.equal(planned.tag, 'engine-prebuilts-v0.2.1-a3f91c2d-r1');
-    assert.equal(planned.archives.length, targets.length * variants.length);
+    assert.equal(
+      planned.archives.length,
+      targets.flatMap((target) => variantsOf(target)).length,
+    );
     assert.ok(
       planned.assets.includes(
         'soundor-engine-0.2.1-macos-universal-release.tar.gz',
@@ -236,7 +254,7 @@ describe('pack', () => {
 
 async function packAll(directory, edit) {
   for (const target of targets)
-    for (const variant of variants)
+    for (const variant of variantsOf(target))
       await pack(stage(target, variant, edit), directory, {
         ...planned,
         target,
@@ -268,7 +286,7 @@ describe('assemble', () => {
     const directory = join(work, 'all');
     await packAll(directory);
     const info = await assemble(directory, join(work, 'assets'), planned);
-    assert.equal(info.artifacts.length, 6);
+    assert.equal(info.artifacts.length, 8);
     assert.equal(info.sourceCommit, commit);
     assert.equal(info.abiNamespace, 'v0_2_1');
     const sums = readFileSync(join(work, 'assets', 'SHA256SUMS'), 'utf8');
@@ -587,7 +605,7 @@ describe('the npm release', async () => {
       const value = await manifest(gh.client, published, planned);
       assert.equal(value.sourceCommit, commit);
       assert.equal(value.tag, planned.tag);
-      assert.equal(value.artifacts.length, 6);
+      assert.equal(value.artifacts.length, 8);
       for (const artifact of value.artifacts) {
         const response = await fetch(artifact.url);
         const bytes = Buffer.from(await response.arrayBuffer());

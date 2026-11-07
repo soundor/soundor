@@ -323,7 +323,8 @@ generated framework or the runtime package, not in `init` templates.
   Explicit CI manifests must match; download failures never select source.
   User-facing docs: the docs' `engine.md`.
 - Prebuilt engines (`contribute/engine-reference.md`, "Prebuilt engines") are the
-  same build, staged and packed per target and variant (debug, release) by
+  same build, staged and packed per target and variant (debug, release, and on Windows
+  debug-static and release-static for the static C runtime) by
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
   targets a source build defines, after checking them. A new linked

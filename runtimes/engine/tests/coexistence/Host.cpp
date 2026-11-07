@@ -87,6 +87,19 @@ namespace
         }
     }
 
+    // The next free fiber local storage slot. Each plugin with the static C
+    // runtime takes some: a process has about 4000 since Windows 10 1903, and 128
+    // before. Printed to keep an eye on what a plugin costs.
+    void reportFlsSlots([[maybe_unused]] const char* when)
+    {
+#if defined(_WIN32)
+        const DWORD slot = FlsAlloc(nullptr);
+        if (slot != FLS_OUT_OF_INDEXES)
+            FlsFree(slot);
+        std::printf("Next free FLS slot %s: %lu\n", when, static_cast<unsigned long>(slot));
+#endif
+    }
+
     constexpr std::uint32_t red = 0xFFFF0000;
     constexpr std::uint32_t blue = 0xFF0000FF;
 
@@ -110,8 +123,10 @@ namespace
     void run(const char* pathA, const char* pathB, int round)
     {
         const std::string at = " (round " + std::to_string(round) + ")";
+        reportFlsSlots("before loading the plugins");
         Plugin a(pathA);
         Plugin b(pathB);
+        reportFlsSlots("with both plugins loaded");
         expect(a.loaded() && b.loaded(), "both plugins load" + at);
         if (! a.loaded() || ! b.loaded())
             return;

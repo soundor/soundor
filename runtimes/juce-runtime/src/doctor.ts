@@ -26,7 +26,7 @@ import {
   type HostModule,
 } from './dev-host';
 import { isNewerThanBaseline, LINUX_GLIBC_BASELINE } from './elf-glibc';
-import type { EngineMode, JuceOptions } from './options';
+import type { EngineMode, JuceOptions, WindowsCrt } from './options';
 import { resolveJuce } from './resolve-juce';
 
 /** Minimum CMake JUCE's CMake API requires. */
@@ -83,7 +83,7 @@ export function installedEngine(): InstalledEngine {
 /** Builds the JUCE toolchain diagnostic report. */
 export async function buildDoctorReport(
   fs: FileSystemHost,
-  options: Pick<JuceOptions, 'jucePath' | 'engine' | 'formats'>,
+  options: Pick<JuceOptions, 'jucePath' | 'engine' | 'formats' | 'windows'>,
   deps: DoctorDeps = {},
 ): Promise<DoctorReport> {
   const probe = deps.probe ?? probeCommand;
@@ -102,6 +102,7 @@ export async function buildDoctorReport(
           deps.platform ?? process.platform,
           deps.arch ?? process.arch,
         ),
+        options.windows?.crt,
       ),
       ...((options.formats ?? ['vst3']).includes('vst3')
         ? [await checkVst3Host(fs, deps.loadHost ?? loadHostModule)]
@@ -135,6 +136,7 @@ function checkEngine(
   mode: EngineMode,
   engine: InstalledEngine,
   target: string | undefined,
+  windowsCrt: WindowsCrt | undefined,
 ): DoctorCheck {
   const label = 'Soundor Engine';
   const useSource =
@@ -151,13 +153,16 @@ function checkEngine(
       status: 'ok',
       detail: `Prebuilt mode: CMake compares @soundor/engine ${engine.version}'s inputs with its exact npm version at configure time; modified or unpublished engines build from source.`,
     };
+  // Windows has archives per C runtime (SoundorWindowsCrt.cmake).
+  const suffix =
+    target === 'windows-x64' && windowsCrt !== 'MD' ? '-static' : '';
   const variants = engine.manifest.artifacts
     .filter((artifact) => artifact.target === target)
     .map((artifact) => artifact.variant);
   if (
     target === undefined ||
-    !variants.includes('debug') ||
-    !variants.includes('release')
+    !variants.includes(`debug${suffix}`) ||
+    !variants.includes(`release${suffix}`)
   )
     return {
       label,

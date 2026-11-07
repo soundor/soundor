@@ -1195,7 +1195,7 @@ has no GPU backends, PDF, ICU or HarfBuzz.
 - **Prerequisites:** git, Python 3 and ninja. `soundor doctor` checks them.
 - **Using your own build:** set `SOUNDOR_SKIA_DIR` to a Skia install made by
   that script.
-- **Flavours:** Windows gets one library per C runtime (`/MD` and `/MDd`).
+- **Flavours:** Windows gets one library per C runtime: `/MD` and `/MDd`, or `/MT` and `/MTd` (`SoundorWindowsCrt.cmake`), built with the project's MSVC.
   macOS universal builds get one per architecture, merged with `lipo`.
 - **Hiding symbols:** Skia's own symbols are hidden. libwebp exports its API
   unless `WEBP_EXTERN` is redefined, which the build does; the symbol test
@@ -1322,7 +1322,7 @@ compositor and WebGL (see "The GPU").
   (`gn gen --ide=json`), and `cmake/angle/targets.py` turns that into a CMake
   project that Soundor compiles with its own compiler, not Chromium's: Clang
   (the project's, or the one on PATH) on Linux and macOS, MSVC on Windows. So
-  ANGLE gets the plugin's C runtime (`/MD` and `/MDd` on Windows) and hidden
+  ANGLE gets the plugin's C runtime on Windows (`SoundorWindowsCrt.cmake`) and hidden
   visibility like everything else. gn itself is the version ANGLE's `DEPS`
   pins, downloaded from CIPD and checked against a SHA-256 per host platform.
   `cmake/SoundorAngleBuild.cmake` does all this during the first configure on
@@ -1529,16 +1529,20 @@ as a GitHub release, so that a plugin build links them instead of compiling
 Hermes, Skia and ANGLE. A release has six archives: three targets, two
 variants each.
 
-| Target            | Architectures    | Toolchain                |
-| ----------------- | ---------------- | ------------------------ |
-| `macos-universal` | arm64 and x86_64 | Apple Clang, macOS 12.0+ |
-| `linux-x64`       | x86_64 (glibc)   | Clang 18 (Ubuntu 24.04)  |
-| `windows-x64`     | x64              | MSVC, DLL C runtime      |
+| Target            | Architectures    | Toolchain                                   |
+| ----------------- | ---------------- | ------------------------------------------- |
+| `macos-universal` | arm64 and x86_64 | Apple Clang, macOS 12.0+                    |
+| `linux-x64`       | x86_64 (glibc)   | Clang 18 (Ubuntu 24.04)                     |
+| `windows-x64`     | x64              | MSVC 19.44 (VS 2022 17.14), both C runtimes |
 
 | Variant   | Configuration                             | Hermes                         | DevTools | Windows C runtime |
 | --------- | ----------------------------------------- | ------------------------------ | -------- | ----------------- |
 | `debug`   | Debug                                     | with its compiler (source too) | yes      | `/MDd`            |
 | `release` | Release (also RelWithDebInfo, MinSizeRel) | bytecode only                  | no       | `/MD`             |
+
+Windows has each variant twice: `debug` and `release` with the DLL C runtime, and
+`debug-static` and `release-static` (`/MTd`, `/MT`) with the static one, which
+is what a plugin links by default.
 
 Skia, ANGLE and Hermes are always optimized builds; on Windows each is built
 per C runtime, so the debug archive links the debug one. The C++ ABI identity

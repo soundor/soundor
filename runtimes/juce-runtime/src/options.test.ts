@@ -18,6 +18,20 @@ describe('resolveJuceOptions', () => {
       manufacturerCode: fourCharCode(undefined, 'com.acme'),
       timeLimit: 5000,
       macosDeploymentTarget: '12.0',
+      windowsCrt: 'MT',
+    });
+  });
+
+  describe('windows.crt', () => {
+    const resolve = (crt: unknown) =>
+      resolveJuceOptions({ windows: { crt: crt as 'MT' } }, plugin).windowsCrt;
+
+    it.each(['MT', 'MD'])('takes %s', (crt) => {
+      expect(resolve(crt)).toBe(crt);
+    });
+
+    it.each(['MTd', 'MDd', 'mt', 'static', 'dll', ''])('refuses %j', (crt) => {
+      expect(() => resolve(crt)).toThrow('is "MT" or "MD"');
     });
   });
 

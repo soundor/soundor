@@ -140,7 +140,7 @@ jobs:
             turbo-${{ runner.os }}-
 
       - name: Native input detection regression tests
-        run: node --test .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
+        run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Engine prebuilt release tooling tests
         run: node --test .github/scripts/engine-prebuilts.test.mjs
@@ -201,6 +201,8 @@ jobs:
     uses: ./.github/workflows/juce.yml
     with:
       juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64 # 8.0.14
+      # An author on Visual Studio 2022, as the JUCE 9 group is one on 2026.
+      msvc-toolset: v143,version=14.44
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' }}
 
   # JUCE 9 compiles its image libraries with plain C names, as Skia's (renamed)

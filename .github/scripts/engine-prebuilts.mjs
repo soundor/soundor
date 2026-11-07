@@ -39,6 +39,12 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 
 export const targets = ['macos-universal', 'linux-x64', 'windows-x64'];
 export const variants = ['debug', 'release'];
+// Windows has both for each C runtime: `-static` is /MTd and /MT.
+export function variantsOf(target) {
+  return target === 'windows-x64'
+    ? [...variants, 'debug-static', 'release-static']
+    : variants;
+}
 // Hermes's compiler: only the debug engine links it.
 const compilerLibraries =
   /hermes(Parser|Frontend|AST|Optimizer|Backend|SourceMap)\b/;
@@ -70,7 +76,7 @@ export function plan({ version, commit, revision }) {
       `The build revision is a positive integer, not "${revision}"`,
     );
   const archives = targets.flatMap((target) =>
-    variants.map((variant) => ({
+    variantsOf(target).map((variant) => ({
       file: archiveName(version, target, variant),
       target,
       variant,
@@ -127,9 +133,10 @@ export function checkStage(stage, expected) {
     expect('target.name', metadata.target?.name, expected.target);
   if (!targets.includes(metadata.target?.name))
     problems.push(`target ${metadata.target?.name} is not a prebuilt target`);
-  if (!variants.includes(metadata.variant))
+  if (!variantsOf(metadata.target?.name).includes(metadata.variant))
     problems.push(`variant ${metadata.variant} is not a prebuilt variant`);
-  const debug = metadata.variant === 'debug';
+  const debug = metadata.variant?.startsWith('debug') ?? false;
+  const staticCrt = metadata.variant?.endsWith('-static') ?? false;
   expect('configuration', metadata.configuration, debug ? 'Debug' : 'Release');
   expect('features.devtools', metadata.features?.devtools, debug);
   expect('features.jsSource', metadata.features?.jsSource, debug);
@@ -143,7 +150,7 @@ export function checkStage(stage, expected) {
     expect(
       'toolchain.msvcRuntime',
       metadata.toolchain?.msvcRuntime,
-      debug ? 'MultiThreadedDebugDLL' : 'MultiThreadedDLL',
+      `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`,
     );
   const link = metadata.link ?? {};
   for (const group of ['engine', 'hermes', 'skia', 'angle', 'accessKit'])

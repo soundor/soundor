@@ -27,6 +27,9 @@ export type EngineMode = 'prebuilt' | 'source';
  */
 export type DevLaunch = 'vst3' | 'standalone' | false;
 
+/** How a Windows plugin links the C runtime. */
+export type WindowsCrt = 'MT' | 'MD';
+
 export interface JuceOptions {
   /** Where the native engine comes from. Defaults to `{ mode: 'prebuilt' }`. */
   readonly engine?: { readonly mode: EngineMode };
@@ -45,6 +48,17 @@ export interface JuceOptions {
      * Defaults to `'12.0'`.
      */
     readonly deploymentTarget?: string;
+  };
+  /** The Windows build. */
+  readonly windows?: {
+    /**
+     * How the C runtime (CRT) is linked. `'MT'`, the default, puts it inside the
+     * plugin (/MT, and /MTd in Debug), so users need no Visual C++ Redistributable
+     * and an older runtime loaded by a host cannot crash it. `'MD'` (/MD, /MDd)
+     * uses the DLLs on the user's machine, for a library that only comes built
+     * that way.
+     */
+    readonly crt?: WindowsCrt;
   };
   /**
    * `soundor dev`. `launch` is what it opens once the plugin is built. By
@@ -89,6 +103,8 @@ export interface ResolvedJuceOptions {
   readonly devLaunch?: DevLaunch;
   /** The oldest macOS the plugin runs on (`CMAKE_OSX_DEPLOYMENT_TARGET`). */
   readonly macosDeploymentTarget: string;
+  /** How a Windows build links the C runtime. */
+  readonly windowsCrt: WindowsCrt;
   /** `plugin.id`, used as the bundle identifier. */
   readonly bundleId: string;
   /** `plugin.name`. */
@@ -144,6 +160,7 @@ export function resolveJuceOptions(
     macosDeploymentTarget: macosDeploymentTargetOf(
       options.macos?.deploymentTarget,
     ),
+    windowsCrt: windowsCrtOf(options.windows?.crt),
     bundleId: plugin.id,
     pluginName: plugin.name,
     companyName: options.companyName ?? vendor.name,
@@ -151,6 +168,16 @@ export function resolveJuceOptions(
     manufacturerCode: fourCharCode(options.manufacturerCode, vendor.id),
     timeLimit: timeLimitOf(options.timeLimit),
   };
+}
+
+function windowsCrtOf(value: WindowsCrt | undefined): WindowsCrt {
+  if (value === undefined) return 'MT';
+  if (value !== 'MT' && value !== 'MD')
+    throw new RuntimeError(
+      `juceRuntime({ windows: { crt } }) is "MT" or "MD", and Debug builds follow it with /MTd or /MDd; got ${JSON.stringify(value)}.`,
+      { runtimeId: 'juce' },
+    );
+  return value;
 }
 
 function macosDeploymentTargetOf(value: string | undefined): string {

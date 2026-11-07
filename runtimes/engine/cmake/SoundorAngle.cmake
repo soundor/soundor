@@ -19,6 +19,7 @@ include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorSkia.cmake)
 
 option(SOUNDOR_ENABLE_GPU "Build the GPU renderer (ANGLE); OFF renders on the CPU only" ON)
@@ -32,7 +33,7 @@ set(SOUNDOR_HAS_GPU ON)
 
 if(WIN32)
   set(soundor_angle_os win)
-  set(soundor_angle_flavors md mdd)
+  set(soundor_angle_flavors ${SOUNDOR_WINDOWS_CRT_RELEASE} ${SOUNDOR_WINDOWS_CRT_DEBUG})
 elseif(APPLE)
   set(soundor_angle_os mac)
   set(soundor_angle_flavors release)
@@ -125,6 +126,9 @@ if(NOT SOUNDOR_ANGLE_DIR)
   get_filename_component(angle_cxx_name "${angle_cxx}" NAME)
   string(SHA256 key
     "${SOUNDOR_ANGLE_REVISION};${dependencies};${build_hash};${patch_hash};${project_hash};${targets_hash};${deps_hash};${zlib_hashes};${angle_cxx_name}")
+  if(WIN32)
+    string(SHA256 key "${key};${CMAKE_CXX_COMPILER_VERSION};${SOUNDOR_WINDOWS_CRT_RELEASE}")
+  endif()
   string(SUBSTRING "${key}" 0 12 key)
   string(SUBSTRING "${SOUNDOR_ANGLE_REVISION}" 0 10 short_revision)
   list(JOIN soundor_angle_cpus "-" cpu_names)
@@ -170,9 +174,9 @@ add_library(soundor_angle STATIC IMPORTED GLOBAL)
 if(WIN32)
   set_target_properties(soundor_angle PROPERTIES
     IMPORTED_CONFIGURATIONS "RELEASE;DEBUG"
-    IMPORTED_LOCATION "${SOUNDOR_ANGLE_DIR}/lib/md/angle.lib"
-    IMPORTED_LOCATION_RELEASE "${SOUNDOR_ANGLE_DIR}/lib/md/angle.lib"
-    IMPORTED_LOCATION_DEBUG "${SOUNDOR_ANGLE_DIR}/lib/mdd/angle.lib"
+    IMPORTED_LOCATION "${SOUNDOR_ANGLE_DIR}/lib/${SOUNDOR_WINDOWS_CRT_RELEASE}/angle.lib"
+    IMPORTED_LOCATION_RELEASE "${SOUNDOR_ANGLE_DIR}/lib/${SOUNDOR_WINDOWS_CRT_RELEASE}/angle.lib"
+    IMPORTED_LOCATION_DEBUG "${SOUNDOR_ANGLE_DIR}/lib/${SOUNDOR_WINDOWS_CRT_DEBUG}/angle.lib"
     MAP_IMPORTED_CONFIG_MINSIZEREL RELEASE
     MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE)
 else()
