@@ -60,7 +60,6 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
-      CMAKE_GENERATOR_TOOLSET: ${{ matrix.name == 'windows' && inputs.msvc-toolset || '' }}
       # Match the Clang 18 bitcode emitted by JUCE's Release LTO flags.
       LDFLAGS: ${{ matrix.name == 'linux' && '-fuse-ld=lld-18' || '' }}
     steps:
@@ -92,6 +91,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
+      - name: Use the MSVC toolset asked for
+        if: runner.os == 'Windows' && inputs.msvc-toolset != ''
+        run: |
+          # CMake reads the toolset from the environment only with a generator there.
+          echo "CMAKE_GENERATOR=Visual Studio 18 2026" >> "$GITHUB_ENV"
+          echo "CMAKE_GENERATOR_TOOLSET=${{ inputs.msvc-toolset }}" >> "$GITHUB_ENV"
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"

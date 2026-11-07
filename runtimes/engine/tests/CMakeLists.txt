@@ -35,6 +35,13 @@ if(NOT SOUNDOR_ENGINE_PREBUILT)
   set_tests_properties(soundor_svg_tests PROPERTIES TIMEOUT 30)
 endif()
 
+# Nested builds use this build's C runtime. Only when it is set: an empty value
+# would leave them with no runtime flag at all.
+set(soundor_tests_crt "")
+if(CMAKE_MSVC_RUNTIME_LIBRARY)
+  set(soundor_tests_crt "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}")
+endif()
+
 # Everything below up to the coexistence test evaluates JavaScript source:
 # not for an engine without Hermes's compiler (a release prebuilt), which the
 # coexistence and ABI tests check.
@@ -171,6 +178,7 @@ if(SOUNDOR_JS_SOURCE)
             --build-options -DSOUNDOR_NATIVE_DIR=${SoundorEngine_SOURCE_DIR}
                             -DFETCHCONTENT_BASE_DIR=${FETCHCONTENT_BASE_DIR}
                             -DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=${SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR}
+                            ${soundor_tests_crt}
                             -DCMAKE_BUILD_TYPE=Debug)
 endif()
 
@@ -476,6 +484,7 @@ if(SOUNDOR_ENGINE_PREBUILT)
       add_test(NAME soundor_prebuilt_rejects_${variant}
         COMMAND ${CMAKE_COMMAND} -DENGINE=${SoundorEngine_SOURCE_DIR}
                 -DARCHIVE=${SOUNDOR_ENGINE_PREBUILT_${upper}_DIR} -DVARIANT=${variant}
+                ${soundor_tests_crt}
                 -DGENERATOR=${CMAKE_GENERATOR} -DWORK=${CMAKE_CURRENT_BINARY_DIR}/prebuilt-rejects-${variant}
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/prebuilt/Rejects.cmake)
       set_tests_properties(soundor_prebuilt_rejects_${variant} PROPERTIES TIMEOUT 600)
@@ -488,6 +497,7 @@ if(NOT SOUNDOR_ENABLE_SANITIZERS)
     COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/abi -B ${CMAKE_CURRENT_BINARY_DIR}/abi
       -G ${CMAKE_GENERATOR}
       -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+      ${soundor_tests_crt}
       -DENGINE_ARCHIVE=$<TARGET_FILE:soundor_runtime>
       -DENGINE_ABI_HEADER=${CMAKE_CURRENT_BINARY_DIR}/../generated/soundor/Abi.h
       -DENGINE_CONFIG=$<IF:$<CONFIG:Debug>,Debug,Release>

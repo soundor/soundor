@@ -1,5 +1,6 @@
 # cmake -DENGINE=<engine package> -DARCHIVE=<extracted prebuilt> -DVARIANT=<debug|release>
-#       -DGENERATOR=<generator> -DWORK=<scratch directory> -P Rejects.cmake
+#       [-DCMAKE_MSVC_RUNTIME_LIBRARY=<runtime>] -DGENERATOR=<generator> -DWORK=<scratch directory>
+#       -P Rejects.cmake
 #
 # A prebuilt engine is checked before anything links it: a copy of ARCHIVE's
 # soundor-engine.json, with its libraries as empty files (configuring only
@@ -20,6 +21,11 @@ if(os STREQUAL "linux")
   set(wrong_os windows)
 else()
   set(wrong_os linux)
+endif()
+
+set(crt "")
+if(CMAKE_MSVC_RUNTIME_LIBRARY)
+  set(crt "-DCMAKE_MSVC_RUNTIME_LIBRARY=${CMAKE_MSVC_RUNTIME_LIBRARY}")
 endif()
 
 # <name>|<expected message, - for success>|<member path, dot separated>|<JSON value>
@@ -78,6 +84,7 @@ foreach(case IN LISTS cases)
     COMMAND ${CMAKE_COMMAND} -S "${ENGINE}" -B "${WORK}/${name}/build" -G "${GENERATOR}"
             -DCMAKE_BUILD_TYPE=${config} -DSOUNDOR_BUILD_TESTS=OFF
             "-DSOUNDOR_ENGINE_PREBUILT_${upper}_DIR=${fake}"
+            ${crt}
     RESULT_VARIABLE status
     OUTPUT_VARIABLE output
     ERROR_VARIABLE output)

@@ -167,7 +167,8 @@ jobs:
         working-directory: runtimes/engine
         run: |
           SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG_STATIC" cmake --workflow --preset prebuilt-check-debug-static &&
-            SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE_STATIC" cmake --workflow --preset prebuilt-check-release-static
+            SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE_STATIC" cmake --workflow --preset prebuilt-check-release-static &&
+            ctest --test-dir build/prebuilt-check-release-static -C Release -R '^soundor_coexistence$' -V | grep 'FLS slot'
 
       # The universal archive links for the architecture this runner is not.
       - name: The x86_64 slice links
