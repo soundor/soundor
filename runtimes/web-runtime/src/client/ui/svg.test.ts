@@ -61,7 +61,7 @@ describe('retained SVG browser representation', () => {
       transform: [{ scale: 1.5 }],
     };
     expect(element.style.overflow).toBe('hidden');
-    expect(element.style.width).toBe('200px');
+    expect(svg.layout).toMatchObject({ width: 200, height: 100 });
     expect(viewport.getAttribute('viewBox')).toBe('10 20 100 100');
     expect(spy.mock.calls.some(([name]) => name === 'd')).toBe(false);
   });

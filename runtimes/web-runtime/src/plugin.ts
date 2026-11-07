@@ -29,8 +29,13 @@ export const PLUGIN_NAME = 'soundor:web';
 
 const PACKAGE = '@soundor/web-runtime';
 const CLIENT_ID = `${PACKAGE}/client`;
-/** What the client imports from npm: the host UI's Preact. */
-const CLIENT_DEPENDENCIES = ['preact', 'preact/hooks', 'preact/jsx-runtime'];
+/** What the client imports from npm: its Yoga, and the host UI's Preact. */
+const CLIENT_DEPENDENCIES = [
+  '@soundor/yoga-wasm',
+  'preact',
+  'preact/hooks',
+  'preact/jsx-runtime',
+];
 
 export interface SoundorWebPluginOptions {
   /** The Web host project: `runtimes/<id>/`. */

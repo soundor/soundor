@@ -1484,6 +1484,9 @@ importers:
       '@soundor/core':
         specifier: workspace:^
         version: link:../../packages/core
+      '@soundor/yoga-wasm':
+        specifier: workspace:*
+        version: link:../../engines/yoga-wasm
       preact:
         specifier: 'catalog:'
         version: 11.1.0

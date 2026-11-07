@@ -1,9 +1,7 @@
 /**
- * Soundor styles as CSS. Soundor lays out with Yoga, as React Native does,
- * which differs from CSS's defaults: every box is a flex column that does
- * not shrink, sizes count borders and padding, and text takes no style from
- * its ancestors. The stylesheet below sets those defaults on every node, so
- * a node's inline CSS only carries what its own style says.
+ * Soundor styles as CSS: how a node looks. Where it is, and how large, is
+ * Yoga's (`layout.ts`), as in the JUCE runtime: every node's element is placed
+ * absolutely where Yoga says (`UiNode`), and nothing here decides a size.
  */
 
 import { transformCss } from './animation';
@@ -12,16 +10,17 @@ import type { NodeType, Style } from './types';
 /** The class every node's element has, and one per node type. */
 export const NODE_CLASS = 'sd-node';
 
+/** The platform's UI font, as text is set in by default. */
+export const UI_FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+
 /**
- * Defaults that make the DOM lay out like Yoga, and text like the JUCE
- * runtime's text engine (14px, black, the platform UI font, lines 1.2× the
- * font size, wrapped at spaces).
+ * Defaults that make text like the JUCE runtime's text engine (14px, black,
+ * the platform UI font, lines 1.2× the font size, on the lines it wrapped).
  */
 export const STYLESHEET = `
 .sd-node {
-  box-sizing: border-box; display: flex; flex-direction: column;
-  flex-shrink: 0; align-items: stretch; align-content: flex-start;
-  position: relative; min-width: 0; min-height: 0; margin: 0; padding: 0;
+  box-sizing: border-box; display: block; position: absolute;
+  left: 0; top: 0; margin: 0; padding: 0;
   border: 0 solid #000; outline: none; pointer-events: auto;
   /* The view shows its own cursor (UiView.cursor()), on the surface. */
   cursor: inherit;
@@ -31,14 +30,20 @@ export const STYLESHEET = `
   z-index: 0;
 }
 .sd-text, .sd-input {
-  color: #000; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #000; font-family: ${UI_FONT};
   font-size: 14px; font-weight: 400; font-style: normal; letter-spacing: 0;
   text-align: left; line-height: 16.8px;
 }
-.sd-text { display: block; white-space: pre-wrap; overflow-wrap: normal; }
-.sd-image { display: block; object-fit: cover; object-position: center; }
-.sd-canvas { display: block; }
-.sd-scroll { overflow: auto; scrollbar-width: thin; overscroll-behavior: contain; }
+.sd-text { white-space: pre; }
+.sd-image { object-fit: cover; object-position: center; }
+/* Takes no room and shows nothing, as natively. */
+.sd-scroll { overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
+.sd-scroll::-webkit-scrollbar { display: none; }
+/* What a scroll view scrolls: as far as the engine's contentSize() goes. */
+.sd-scroll-extent {
+  position: absolute; left: 0; top: 0; width: 0; height: 0;
+  visibility: hidden; pointer-events: none;
+}
 .sd-input { background: transparent; appearance: none; text-overflow: clip; }
 .sd-surface {
   position: absolute; left: 0; top: 0; width: 100%; height: 100%;
@@ -55,11 +60,6 @@ export const STYLESHEET = `
 .sd-pe-none, .sd-pe-none * { pointer-events: none !important; }
 .sd-pe-box-none { pointer-events: none !important; }
 .sd-pe-box-only * { pointer-events: none !important; }
-/* Where CSS sizes a box differently from Yoga (see layoutClass). */
-.sd-stretch > .sd-ratio { align-self: flex-start; }
-.sd-row > .sd-ratio-both { height: auto !important; }
-:not(.sd-row) > .sd-ratio-both { width: auto !important; }
-.sd-row > .sd-basis { contain: inline-size; }
 `;
 
 const POINTER_CLASSES = {
@@ -74,80 +74,9 @@ export function pointerClass(style: Style): string {
   return POINTER_CLASSES[style.pointerEvents ?? 'auto'] ?? '';
 }
 
-/** The flex basis a style resolves to, `flex` included. */
-function flexBasis(style: Style): Style['flexBasis'] {
-  return (
-    style.flexBasis ??
-    (style.flex !== undefined && style.flex > 0 ? 0 : undefined)
-  );
-}
-
-const given = (value: Style['width']): boolean =>
-  value !== undefined && value !== 'auto';
-
-/**
- * Whether a box with an aspect ratio takes its cross size from it rather
- * than being stretched: in Yoga a stretched box with an aspect ratio follows
- * its main size, where CSS stretches it. Only where the main size does not
- * come from the stretch itself (a size given, or a fixed flex basis), which
- * CSS then reaches by not stretching the box.
- */
-function ratioOverStretch(style: Style): boolean {
-  return (
-    style.aspectRatio !== undefined &&
-    (given(style.width) ||
-      given(style.height) ||
-      typeof flexBasis(style) === 'number')
-  );
-}
-
-/**
- * The classes that lay a node out as Yoga does where its own CSS cannot,
- * since the difference depends on its parent: the parent's direction and
- * alignment (`sd-row`, `sd-stretch`), and what the child needs of them.
- *
- * - `sd-basis`: a box with a fixed flex basis adds only that basis to a row
- *   sized by its content, as in Yoga (CSS counts its content), so `flex: 1`
- *   in such a row is as narrow as its padding and border.
- * - `sd-ratio`: a box with an aspect ratio is not stretched across
- *   (see ratioOverStretch).
- * - `sd-ratio-both`: a box with an aspect ratio and both sizes keeps the
- *   one along its parent's direction, and the ratio gives the other, as in
- *   Yoga (CSS ignores the ratio).
- */
-export function layoutClass(style: Style): string {
-  const classes: string[] = [];
-  if (style.flexDirection === 'row' || style.flexDirection === 'row-reverse')
-    classes.push('sd-row');
-  if (
-    style.alignItems === undefined ||
-    style.alignItems === 'stretch' ||
-    style.alignItems === 'auto'
-  )
-    classes.push('sd-stretch');
-  if (typeof flexBasis(style) === 'number') classes.push('sd-basis');
-  if (
-    ratioOverStretch(style) &&
-    (style.alignSelf === undefined || style.alignSelf === 'auto')
-  )
-    classes.push('sd-ratio');
-  if (
-    style.aspectRatio !== undefined &&
-    given(style.width) &&
-    given(style.height)
-  )
-    classes.push('sd-ratio-both');
-  return classes.join(' ');
-}
-
 type Css = Record<string, string>;
 
 const px = (value: number): string => `${value}px`;
-
-/** A Soundor length: logical pixels, a percentage, or 'auto'. */
-function length(value: number | string): string {
-  return typeof value === 'number' ? px(value) : value;
-}
 
 /** The first defined value, most specific first (React Native's rule). */
 function pick<T>(...values: (T | undefined)[]): T | undefined {
@@ -164,7 +93,7 @@ const RESIZE: Readonly<Record<string, string>> = {
 };
 
 /** A font weight from 1 to 1000; 'normal' is 400 and 'bold' 700. */
-function weight(value: number | string): number {
+export function fontWeight(value: number | string): number {
   if (value === 'normal') return 400;
   if (value === 'bold') return 700;
   return Number(value);
@@ -343,7 +272,7 @@ export function readStyle(value: unknown): Style {
     const raw = style['fontWeight'];
     const value =
       typeof raw === 'number' || typeof raw === 'string'
-        ? weight(raw)
+        ? fontWeight(raw)
         : Number.NaN;
     if (!(value >= 1 && value <= 1000)) {
       fail('fontWeight', "a weight from 1 to 1000, 'normal' or 'bold'");
@@ -374,78 +303,6 @@ export function cssFor(style: Style, type: NodeType): Css {
   };
 
   if (style.display === 'none') css['display'] = 'none';
-  set('position', style.position);
-  set('flex-direction', style.flexDirection);
-  set('flex-wrap', style.flexWrap);
-  set('justify-content', style.justifyContent);
-  set(
-    'align-items',
-    style.alignItems === 'auto' ? 'stretch' : style.alignItems,
-  );
-  set(
-    'align-self',
-    style.alignSelf === 'stretch' && ratioOverStretch(style)
-      ? 'flex-start'
-      : style.alignSelf,
-  );
-  set('align-content', style.alignContent);
-
-  // `flex` as in React Native: n > 0 grows by n, shrinks, from zero; a
-  // negative n only shrinks. The longhands win over it.
-  if (style.flex !== undefined && style.flex > 0) {
-    css['flex-grow'] = String(style.flex);
-    css['flex-shrink'] = '1';
-    css['flex-basis'] = '0px';
-  } else if (style.flex !== undefined && style.flex < 0) {
-    css['flex-shrink'] = '1';
-  }
-  if (style.flexGrow !== undefined) css['flex-grow'] = String(style.flexGrow);
-  if (style.flexShrink !== undefined)
-    css['flex-shrink'] = String(style.flexShrink);
-  if (style.flexBasis !== undefined)
-    css['flex-basis'] = length(style.flexBasis);
-
-  for (const [property, key] of [
-    ['width', 'width'],
-    ['height', 'height'],
-    ['min-width', 'minWidth'],
-    ['min-height', 'minHeight'],
-    ['max-width', 'maxWidth'],
-    ['max-height', 'maxHeight'],
-  ] as const) {
-    const value = style[key];
-    if (value !== undefined) css[property] = length(value);
-  }
-  if (style.aspectRatio !== undefined)
-    css['aspect-ratio'] = String(style.aspectRatio);
-  set('box-sizing', style.boxSizing);
-
-  edges(
-    css,
-    'margin',
-    style.margin,
-    style.marginHorizontal,
-    style.marginVertical,
-    {
-      top: style.marginTop,
-      right: style.marginRight,
-      bottom: style.marginBottom,
-      left: style.marginLeft,
-    },
-  );
-  edges(
-    css,
-    'padding',
-    style.padding,
-    style.paddingHorizontal,
-    style.paddingVertical,
-    {
-      top: style.paddingTop,
-      right: style.paddingRight,
-      bottom: style.paddingBottom,
-      left: style.paddingLeft,
-    },
-  );
   const borders = {
     top: pick(
       style.borderTopWidth,
@@ -471,14 +328,6 @@ export function cssFor(style: Style, type: NodeType): Css {
   for (const [edge, value] of Object.entries(borders)) {
     if (value !== undefined) css[`border-${edge}-width`] = px(value);
   }
-  for (const edge of ['top', 'right', 'bottom', 'left'] as const) {
-    const value = pick(style[edge], style.inset);
-    if (value !== undefined) css[edge] = length(value);
-  }
-  const rowGap = pick(style.rowGap, style.gap);
-  const columnGap = pick(style.columnGap, style.gap);
-  if (rowGap !== undefined) css['row-gap'] = px(rowGap);
-  if (columnGap !== undefined) css['column-gap'] = px(columnGap);
 
   // Scroll views always scroll; elsewhere 'scroll' clips, as in Yoga.
   if (style.overflow !== undefined && type !== 'scroll') {
@@ -534,22 +383,24 @@ const GENERIC_FAMILIES = new Set([
  * A family name as CSS: one name, as natively, quoted unless it is generic
  * (so a name with digits or punctuation, 'Inter 18pt', still works).
  */
-function family(name: string): string {
-  if (GENERIC_FAMILIES.has(name.toLowerCase())) return name;
-  return `"${name.replace(/["\\]/g, '\\$&')}"`;
+export function fontFamilyCss(name: string): string {
+  const quoted = GENERIC_FAMILIES.has(name.toLowerCase())
+    ? name
+    : `"${name.replace(/["\\]/g, '\\$&')}"`;
+  return `${quoted}, system-ui, sans-serif`;
 }
 
 /** Text properties; only text and input nodes are set in text. */
 function text(css: Css, style: Style, type: NodeType): void {
   // '' is the platform's UI font, as natively: the default.
   if (style.fontFamily !== undefined && style.fontFamily !== '')
-    css['font-family'] = `${family(style.fontFamily)}, system-ui, sans-serif`;
+    css['font-family'] = fontFamilyCss(style.fontFamily);
   // A size that is not positive is ignored, as in the JUCE runtime.
   const fontSize =
     style.fontSize !== undefined && style.fontSize > 0 ? style.fontSize : 14;
   if (fontSize !== 14) css['font-size'] = px(fontSize);
   if (style.fontWeight !== undefined)
-    css['font-weight'] = String(weight(style.fontWeight));
+    css['font-weight'] = String(fontWeight(style.fontWeight));
   if (style.fontStyle !== undefined) css['font-style'] = style.fontStyle;
   // Lines are lineHeight tall, or 1.2 × the font size ("normal").
   const lineHeight =
@@ -562,31 +413,9 @@ function text(css: Css, style: Style, type: NodeType): void {
   if (style.textAlign !== undefined)
     css['text-align'] = style.textAlign === 'auto' ? 'left' : style.textAlign;
   if (style.color !== undefined) css['color'] = style.color;
-  const lines = Math.trunc(style.numberOfLines ?? 0);
-  if (type === 'text' && lines > 0) {
-    // At most that many lines, cut (not ellipsized), as in the JUCE runtime.
-    css['max-height'] = px(lines * lineHeight);
+  // At most that many lines, cut (not ellipsized), as in the JUCE runtime.
+  if (type === 'text' && Math.trunc(style.numberOfLines ?? 0) > 0)
     css['overflow'] = 'hidden';
-  }
-}
-
-/** Margins or paddings: one edge, then horizontal/vertical, then all. */
-function edges(
-  css: Css,
-  property: 'margin' | 'padding',
-  all: number | string | undefined,
-  horizontal: number | string | undefined,
-  vertical: number | string | undefined,
-  each: Record<
-    'top' | 'right' | 'bottom' | 'left',
-    number | string | undefined
-  >,
-): void {
-  for (const edge of ['top', 'right', 'bottom', 'left'] as const) {
-    const axis = edge === 'top' || edge === 'bottom' ? vertical : horizontal;
-    const value = pick(each[edge], axis, all);
-    if (value !== undefined) css[`${property}-${edge}`] = length(value);
-  }
 }
 
 /** Serializes CSS declarations for `element.style.cssText`. */

@@ -1,5 +1,3 @@
-import type { LayoutRect } from './types';
-
 export type Matrix = readonly [number, number, number, number, number, number];
 export const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0];
 export function multiply(x: Matrix, y: Matrix): Matrix {
@@ -79,43 +77,4 @@ export function computedTransform(element: HTMLElement | SVGElement): Matrix {
     result = multiply(result, next);
   }
   return result;
-}
-
-function origin(
-  element: HTMLElement,
-  viewport: HTMLElement,
-): { x: number; y: number } {
-  let x = 0,
-    y = 0;
-  for (
-    let current: HTMLElement | null = element;
-    current && current !== viewport;
-    current = current.offsetParent as HTMLElement | null
-  ) {
-    x += current.offsetLeft;
-    y += current.offsetTop;
-    const parent = current.offsetParent as HTMLElement | null;
-    if (parent && parent !== viewport) {
-      x += parent.clientLeft;
-      y += parent.clientTop;
-    }
-  }
-  return { x, y };
-}
-
-/** Layout metrics never include presentation transforms or scrolling. */
-export function logicalLayout(
-  element: HTMLElement,
-  parent: HTMLElement | null,
-  viewport: HTMLElement,
-): LayoutRect {
-  const at = origin(element, viewport),
-    from = parent ? origin(parent, viewport) : { x: 0, y: 0 };
-  const style = element.ownerDocument.defaultView!.getComputedStyle(element);
-  return {
-    x: at.x - from.x,
-    y: at.y - from.y,
-    width: Number.parseFloat(style.width) || element.offsetWidth,
-    height: Number.parseFloat(style.height) || element.offsetHeight,
-  };
 }

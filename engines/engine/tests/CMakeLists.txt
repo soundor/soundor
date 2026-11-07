@@ -72,6 +72,7 @@ if(SOUNDOR_JS_SOURCE)
     ui/PrimitivesTests.cpp
     ui/RendererTests.cpp
     ui/CanvasTests.cpp
+    ui/LayoutCorpusTests.cpp
     ui/UiModuleTests.cpp
     ui/SvgTests.cpp
     web/FetchTests.cpp
@@ -82,6 +83,8 @@ if(SOUNDOR_JS_SOURCE)
     # Golden output of the soundor:native generator (see src/native-codegen.test.ts).
     generated/soundor/native/SoundorNative.cpp)
   target_include_directories(soundor_runtime_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/generated)
+  target_compile_definitions(soundor_runtime_tests PRIVATE
+    SOUNDOR_LAYOUT_CORPUS="${CMAKE_CURRENT_SOURCE_DIR}/layout/corpus.json")
   # Tests exercise internal seams (native modules), so they may see Hermes.
   target_link_libraries(soundor_runtime_tests PRIVATE Soundor::Engine soundor_hermes soundor_doctest)
   if(NOT SOUNDOR_ENGINE_PREBUILT)

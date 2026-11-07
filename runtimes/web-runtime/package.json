@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@soundor/core": "workspace:^",
+    "@soundor/yoga-wasm": "workspace:*",
     "preact": "catalog:",
     "vite": "catalog:"
   },
