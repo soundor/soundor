@@ -16,8 +16,11 @@ import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
 import { remarkSnippets } from './plugins/remark-snippets.ts';
 import { typeTableGenerator, typeTableOptions } from './plugins/type-tables.ts';
 import { siteValues } from './plugins/values.ts';
+import { generateChangelog } from './scripts/changelog.ts';
 import { snippetFiles } from './scripts/examples.ts';
 import { serveFile } from './scripts/static.ts';
+
+generateChangelog();
 
 const values = siteValues();
 const typeTables = await typeTableGenerator();

@@ -220,3 +220,13 @@ requests into `main` and main pushes. Each build input must be a dependency of t
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).
+
+## Website changelog
+
+The website generates `/docs/changelog` from the published package `CHANGELOG.md`
+files when Vite starts for development or a build. Shared notes appear once per
+release, with their affected packages; dependency-only bumps are omitted. The
+engine, JUCE runtime and web runtime each have their own release history and
+version numbers. Update release notes through Changesets;
+`apps/website/scripts/changelog.ts` owns the generated pages, which are ignored
+by Git.
