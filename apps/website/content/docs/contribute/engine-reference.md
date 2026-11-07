@@ -1173,7 +1173,10 @@ check), failing the build where Yoga's code no longer matches:
 
 The engine also clamps a fixed `width`/`height` to its minimum and maximum
 before Yoga sees them (`Surface.cpp`), since a parent sized by its content
-counted the unclamped size. What still differs from the web runtime is in
+counted the unclamped size. Yoga is compiled with `-ffp-contract=off`: clang fuses
+multiply-adds by default on arm64, whose rounding differs, and a layout near zero
+free space could then differ by whole boxes from x86's and from the web runtime's.
+What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
 ### Verified dependencies in CI

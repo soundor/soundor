@@ -33,7 +33,7 @@ packages right, but changesets does not release a package for a dev dependency.
 
 Whether they really lay out alike is tested against the engine itself.
 `engines/engine/tests/layout/corpus.json` holds generated trees and the frames the
-engine gives them, through its `soundor:ui`. The web runtime's
+engine gives them, through its `soundor:ui`, the same on every platform. The web runtime's
 `layout-corpus.test.ts` has to match them to the last bit. To change the trees, or
 after a change that is meant to change layout:
 

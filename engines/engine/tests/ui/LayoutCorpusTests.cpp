@@ -5,6 +5,7 @@
 #include "../support/Modules.h"
 #include "../web/WebTestSupport.h"
 
+#include <cstddef>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
@@ -15,6 +16,21 @@ using test::WebFixture;
 
 namespace
 {
+    // Whether to write the frames, rather than check them.
+    bool updatingGolden()
+    {
+#if defined(_MSC_VER)
+        char* value = nullptr;
+        std::size_t size = 0;
+        const bool set = _dupenv_s(&value, &size, "UPDATE_GOLDEN") == 0 && value != nullptr;
+        std::free(value);
+        return set;
+#else
+        // Read before any thread is started.
+        return std::getenv("UPDATE_GOLDEN") != nullptr; // NOLINT(concurrency-mt-unsafe)
+#endif
+    }
+
     RuntimeHost::Options approximateText()
     {
         RuntimeHost::Options options;
@@ -54,6 +70,7 @@ TEST_SUITE("layout corpus")
             globalThis.layOut = (scale) => {
               let differing = 0;
               let first = '';
+              const framesOf = (list) => list.map((frame) => JSON.stringify(frame));
               corpus.entries.forEach((entry, index) => {
                 const node = make(entry.tree);
                 root.appendChild(node);
@@ -63,7 +80,10 @@ TEST_SUITE("layout corpus")
                 const want = entry.frames[scale];
                 if (JSON.stringify(got) !== JSON.stringify(want)) {
                   differing++;
-                  first ||= `tree ${index} at scale ${scale}`;
+                  const has = framesOf(got);
+                  const had = framesOf(want);
+                  const at = has.findIndex((frame, i) => frame !== had[i]);
+                  first ||= `tree ${index} at scale ${scale}, node ${at}: ${has[at]}, not ${had[at]}`;
                 }
                 entry.frames[scale] = got;
               });
@@ -71,7 +91,7 @@ TEST_SUITE("layout corpus")
             };
         )");
 
-        const bool update = std::getenv("UPDATE_GOLDEN") != nullptr;
+        const bool update = updatingGolden();
         const auto scales = static_cast<int>(f.eval("corpus.scales.length").asNumber());
         for (int i = 0; i < scales; ++i)
         {
