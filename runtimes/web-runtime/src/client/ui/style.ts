@@ -39,8 +39,9 @@ export const STYLESHEET = `
 .sd-text-lines { position: relative; display: block; }
 .sd-image { object-fit: cover; object-position: center; }
 /* The browser's scrollbar takes room and looks its own: a scroll view draws
-   the JUCE runtime's indicators instead (UiNode). */
-.sd-scroll { overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
+   the JUCE runtime's indicators instead (UiNode). A wheel no scroll view can
+   use goes on to the page, as natively to the host: no overscroll-behavior. */
+.sd-scroll { overflow: auto; scrollbar-width: none; }
 .sd-scroll::-webkit-scrollbar { display: none; }
 /* What a scroll view scrolls: as far as the engine's contentSize() goes. */
 .sd-scroll-extent {
