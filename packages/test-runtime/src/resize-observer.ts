@@ -1,4 +1,4 @@
-import { TestNode } from './node';
+import { isTestNode, type TestNode } from './node';
 
 type Box = 'content-box' | 'border-box' | 'device-pixel-content-box';
 const BOXES: readonly string[] = [
@@ -28,7 +28,7 @@ export class TestResizeObserver {
   }
 
   observe(target: unknown, options: { box?: Box } = {}): void {
-    if (!(target instanceof TestNode)) {
+    if (!isTestNode(target)) {
       throw new TypeError(
         "Failed to execute 'observe' on 'ResizeObserver': parameter 1 is not a UiNode",
       );
@@ -43,7 +43,7 @@ export class TestResizeObserver {
   }
 
   unobserve(target: unknown): void {
-    if (!(target instanceof TestNode)) {
+    if (!isTestNode(target)) {
       throw new TypeError(
         "Failed to execute 'unobserve' on 'ResizeObserver': parameter 1 is not a UiNode",
       );

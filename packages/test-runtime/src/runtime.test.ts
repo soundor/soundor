@@ -3,10 +3,39 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createTestRuntime,
   createUiModule,
+  isTestNode,
   TestEvent,
+  TestResizeObserver,
   print,
   VirtualClock,
 } from './index';
+
+describe('ResizeObserver', () => {
+  it('observes nodes from any copy of this package, and nothing else', () => {
+    const runtime = createTestRuntime();
+    const node = runtime.create('view');
+    const observer = new TestResizeObserver(() => {});
+    observer.observe(node, { box: 'border-box' });
+    expect([...observer.observed]).toEqual([[node, 'border-box']]);
+    // Another copy's node: its own class, the same brand.
+    const elsewhere = Object.create({
+      get [Symbol.for('soundor.test-node.v1')]() {
+        return true;
+      },
+    }) as never;
+    expect(isTestNode(elsewhere)).toBe(true);
+    expect(() => observer.observe(elsewhere)).not.toThrow();
+    expect(() => observer.observe({})).toThrow('not a UiNode');
+    expect(() => observer.observe(node, { box: 'padding' as never })).toThrow(
+      'not a valid box',
+    );
+    // Not an own property: nodes print and spread as before.
+    expect(Object.getOwnPropertySymbols(node)).toEqual([]);
+    observer.disconnect();
+    expect(observer.observed.size).toBe(0);
+    runtime.dispose();
+  });
+});
 
 describe('isolated lifecycle and trees', () => {
   it('owns ids, roots, focus, pointers, clock and cleanup independently', () => {
