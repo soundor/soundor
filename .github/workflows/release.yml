@@ -43,6 +43,7 @@ jobs:
     name: Verify release commit
     permissions:
       contents: read
+      actions: read
     uses: ./.github/workflows/verify.yml
 
   select:

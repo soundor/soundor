@@ -16,9 +16,17 @@ on:
         required: false
         default: ''
       build-engine:
-        description: Use this run's engine artifacts rather than the released engine
+        description: Use CI engine artifacts rather than the released engine
         type: boolean
         required: true
+      engine-run-id:
+        description: Successful main run to reuse (empty for this run)
+        type: string
+        default: ''
+      engine-commit:
+        description: Original source commit of the reused engine
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -57,6 +65,7 @@ jobs:
         shell: bash
     permissions:
       contents: read
+      actions: read
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
@@ -73,13 +82,17 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           # Windows has separate artifacts for the dynamic and static C runtimes.
-          pattern: engine-prebuilt-${{ github.sha }}-${{ matrix.target }}*
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.engine-run-id || github.run_id }}
+          pattern: engine-prebuilt-${{ inputs.engine-commit || github.sha }}-${{ matrix.target }}*
           merge-multiple: true
           path: ${{ runner.temp }}/engine-artifacts
       - name: Select this checkout's engine artifacts
         if: inputs.build-engine
+        env:
+          ENGINE_COMMIT: ${{ inputs.engine-commit || github.sha }}
         run: |
-          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/engine-artifacts" --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/engine-manifest.json"
+          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/engine-artifacts" --commit "$ENGINE_COMMIT" --out "$RUNNER_TEMP/engine-manifest.json"
           manifest=$(cygpath -m "$RUNNER_TEMP/engine-manifest.json" 2>/dev/null || echo "$RUNNER_TEMP/engine-manifest.json")
           echo "SOUNDOR_ENGINE_MANIFEST=$manifest" >> "$GITHUB_ENV"
       # CI-only checkout, outside either npm package; never distributed.

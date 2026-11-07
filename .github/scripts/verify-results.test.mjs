@@ -105,3 +105,23 @@ test('an affected JUCE runtime requires both versions of JUCE', () => {
   needs.juce9.result = 'success';
   verifyResults(needs);
 });
+
+test('unchanged native packages can use validated main artifacts with their build jobs skipped', () => {
+  const needs = jobs({ orbit: 'true' });
+  needs.orbit.result = 'success';
+  for (const kind of ['engine', 'host'])
+    needs[`${kind}-plan`] = {
+      result: 'success',
+      outputs: {
+        build: 'false',
+        'artifact-run': '123',
+        'artifact-commit': 'a'.repeat(40),
+      },
+    };
+  verifyResults(needs);
+  needs['host-plan'].outputs['artifact-commit'] = '';
+  assert.throws(() => verifyResults(needs), /Invalid host artifact/);
+  needs['host-plan'].outputs['artifact-commit'] = 'a'.repeat(40);
+  needs['engine-plan'].outputs.build = 'true';
+  assert.throws(() => verifyResults(needs), /Invalid engine artifact/);
+});

@@ -34,10 +34,18 @@ C runtime (`/MT`, `/MTd`), each with its own dependency cache. Consumers merge
 the two Windows artifacts before selecting an engine. JUCE jobs consume those
 artifacts from the same run and commit instead of rebuilding the engine. When it is not
 affected, JUCE uses a matching released engine. If the current version is
-unpublished or its inputs do not match the release, CI builds checkout artifacts;
-the full native test suites are enabled only when the engine is affected.
-The VST3 host works the same way: `host-plan` decides, one workflow builds it, and
-the jobs that use it take that artifact or the release, never compiling it.
+unpublished or its inputs do not match the release, an unchanged package in a
+pull request can instead use complete artifacts from a successful `main` push.
+CI matches the native input fingerprint and the build recipe, including the
+pinned toolchain setup, and requires all platform artifacts to remain available.
+These artifacts and their lookup indexes are retained for seven days. A miss
+builds checkout artifacts; an API or integrity failure fails the job.
+
+The VST3 host uses the same selection: a matching published binary, then matching
+`main` artifacts for unchanged packages in pull requests, then a source build.
+The jobs that use it never compile it themselves. Engine and host changes still
+run their native checks. `main` builds same-commit artifacts for release publishing;
+reused PR artifacts retain the original build's commit and provenance.
 Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
 Benchmarks retain source builds because their Release runner supports JavaScript
 source; the shipped Release engine is bytecode-only.

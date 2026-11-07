@@ -48,8 +48,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read
     outputs:
       build: ${{ steps.select.outputs.build }}
+      artifact-run: ${{ steps.select.outputs.artifact-run }}
+      artifact-commit: ${{ steps.select.outputs.artifact-commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
@@ -59,16 +62,19 @@ jobs:
           key: engine-manifests-${{ hashFiles('runtimes/engine/package.json') }}
       - id: select
         env:
-          ENGINE_AFFECTED: ${{ needs.changes.outputs.native }}
-        run: |
-          node --input-type=module -e '
-            import { appendFileSync } from "node:fs";
-            import { selectEngine } from "./runtimes/engine/scripts/engine-selection.mjs";
-            const selection = process.env.ENGINE_AFFECTED === "true"
-              ? { mode: "source", reason: "engine package affected" }
-              : await selectEngine("runtimes/engine", process.env.RUNNER_TEMP + "/soundor-cache");
-            console.log(selection);
-            appendFileSync(process.env.GITHUB_OUTPUT, "build=" + (selection.mode === "source") + "\n");'
+          NATIVE_AFFECTED: ${{ needs.changes.outputs.native }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/native-plan.mjs engine
+      # Indexed before building, but lookup accepts only completed successful
+      # main runs that still contain every binary artifact.
+      - name: Index main's engine build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.select.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.select.outputs.artifact-key }}
+          path: ${{ runner.temp }}/native-engine-index
+          if-no-files-found: error
+          retention-days: 7
 
   engine:
     name: Engine
@@ -90,23 +96,29 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read
     outputs:
       build: ${{ steps.select.outputs.build }}
+      artifact-run: ${{ steps.select.outputs.artifact-run }}
+      artifact-commit: ${{ steps.select.outputs.artifact-commit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
       - id: select
         env:
-          HOST_AFFECTED: ${{ needs.changes.outputs.host }}
-        run: |
-          node --input-type=module -e '
-            import { appendFileSync } from "node:fs";
-            import { selectHost } from "./hosts/vst3-host/src/prepare.ts";
-            const selection = process.env.HOST_AFFECTED === "true"
-              ? { mode: "source", reason: "host package affected" }
-              : await selectHost();
-            console.log(selection);
-            appendFileSync(process.env.GITHUB_OUTPUT, "build=" + (selection.mode === "source") + "\n");'
+          NATIVE_AFFECTED: ${{ needs.changes.outputs.host }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/native-plan.mjs host
+      # Indexed before building, but lookup accepts only completed successful
+      # main runs that still contain every binary artifact.
+      - name: Index main's host build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.select.outputs.build == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.select.outputs.artifact-key }}
+          path: ${{ runner.temp }}/native-host-index
+          if-no-files-found: error
+          retention-days: 7
 
   workspace:
     name: Workspace
@@ -143,7 +155,7 @@ jobs:
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Engine prebuilt release tooling tests
-        run: node --test .github/scripts/engine-prebuilts.test.mjs
+        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/native-artifacts.test.mjs
 
       - name: Run formatter
         run: pnpm run format
@@ -198,12 +210,15 @@ jobs:
       (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
     permissions:
       contents: read
+      actions: read
     uses: ./.github/workflows/juce.yml
     with:
       juce: 2cdfca8feb300fb424002ba2c2751569e5bacb64 # 8.0.14
       # An author on Visual Studio 2022, as the JUCE 9 group is one on 2026.
       msvc-toolset: v143,version=14.44
-      build-engine: ${{ needs.engine-plan.outputs.build == 'true' }}
+      build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
+      engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
+      engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
 
   # JUCE 9 compiles its image libraries with plain C names, as Skia's (renamed)
   # copies.
@@ -216,10 +231,13 @@ jobs:
       (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
     permissions:
       contents: read
+      actions: read
     uses: ./.github/workflows/juce.yml
     with:
       juce: 3fb5cbc0340758596dac39f7c8de47d562b4896e # 9.0.4
-      build-engine: ${{ needs.engine-plan.outputs.build == 'true' }}
+      build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
+      engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
+      engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
 
   benchmark:
     name: Benchmark smoke
@@ -292,10 +310,15 @@ jobs:
       (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
+      actions: read
     uses: ./.github/workflows/orbit.yml
     with:
-      build-engine: ${{ needs.engine-plan.outputs.build == 'true' }}
-      build-host: ${{ needs.host-plan.outputs.build == 'true' }}
+      build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
+      engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
+      engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
+      build-host: ${{ needs.host-plan.outputs.build == 'true' || needs.host-plan.outputs.artifact-run != '' }}
+      host-run-id: ${{ needs.host-plan.outputs.artifact-run }}
+      host-commit: ${{ needs.host-plan.outputs.artifact-commit }}
 
   verify:
     name: Verify

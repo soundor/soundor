@@ -1650,7 +1650,12 @@ The release notes are generated from the same data. Pull requests that change
 the engine or prebuilt tooling run it through Verify in `validate` mode:
 archives as run artifacts, no release. JUCE integration jobs download these
 same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
-manifest. New archives and manifests record `sourceFingerprint`, computed from
+manifest. When the engine is unchanged and no published engine matches, PR
+consumers can instead download complete artifacts from a successful `main` push
+within the seven-day retention period. The planner matches native inputs and
+build recipes, and consumers validate the original commit and archive integrity.
+Missing or expired artifacts select a source build; engine changes still build
+and run native checks. Releases continue using same-commit artifacts. New archives and manifests record `sourceFingerprint`, computed from
 the native inputs and the installed lowering dependency graph. Imports reject
 a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` uploads them to a draft release, verifies
 the draft and deletes it (the whole release path, published nowhere), and

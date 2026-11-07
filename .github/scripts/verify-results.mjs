@@ -4,6 +4,18 @@ import { fileURLToPath } from 'node:url';
 export function verifyResults(needs) {
   const required = new Set(['changes', 'workspace']);
   const changes = needs.changes?.outputs ?? {};
+  for (const kind of ['engine', 'host']) {
+    const outputs = needs[`${kind}-plan`]?.outputs ?? {};
+    const run = outputs['artifact-run'] || '';
+    const commit = outputs['artifact-commit'] || '';
+    if (
+      (run || commit) &&
+      (!/^[1-9][0-9]*$/.test(run) ||
+        !/^[a-f0-9]{40}$/.test(commit) ||
+        outputs.build !== 'false')
+    )
+      throw new Error(`Invalid ${kind} artifact reuse decision`);
+  }
   if (
     ['native', 'juce', 'benchmark', 'host', 'orbit'].some(
       (name) => !['true', 'false'].includes(changes[name]),

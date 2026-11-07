@@ -203,7 +203,12 @@ compiling it. The plan builds the checkout when `turbo query affected` reports
 in the package, its workspace dependencies (the shared configs), turbo's global
 dependencies or CI itself. Only then do `checks` run. It also builds when the job
 that uses the host, Orbit's end-to-end tests, is affected and no release matches
-this checkout (`selectHost()`). Otherwise that job uses the release.
+this checkout (`selectHost()`). For an unchanged host in a pull request, the
+planner first looks for complete artifacts from a successful `main` push with
+the same native fingerprint and build recipe. These expire after seven days;
+a miss builds from source. Reuse keeps the original source commit and validates
+the executable's provenance and SHA-256. `main` builds same-commit artifacts for
+release publishing. A matching published release takes priority over CI reuse.
 
 Host changes never run the engine's suites, and engine changes never run the
 host's. A change only under `hosts/vst3-host/` runs this job and Orbit's alone: the
