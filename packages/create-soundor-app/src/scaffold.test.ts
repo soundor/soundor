@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -80,17 +87,28 @@ describe('resolveProjectTarget', () => {
 });
 
 describe('clearDirectory', () => {
-  it('removes every direct entry in a directory', async () => {
+  it('removes project files while preserving package-manager configuration', async () => {
     const root = await mkdtemp(join(tmpdir(), 'soundor-scaffold-'));
     try {
       await mkdir(join(root, 'src'));
       await writeFile(join(root, 'src', 'App.tsx'), 'export default null;\n');
       await writeFile(join(root, '.gitignore'), 'dist\n');
       await writeFile(join(root, 'package.json'), '{}\n');
+      await writeFile(join(root, '.npmrc'), 'registry=https://example.test\n');
+      await writeFile(
+        join(root, 'pnpm-workspace.yaml'),
+        'minimumReleaseAge: 2880\n',
+      );
 
       await clearDirectory(root);
 
-      await expect(readdir(root)).resolves.toEqual([]);
+      expect((await readdir(root)).sort()).toEqual([
+        '.npmrc',
+        'pnpm-workspace.yaml',
+      ]);
+      expect(await readFile(join(root, '.npmrc'), 'utf-8')).toBe(
+        'registry=https://example.test\n',
+      );
     } finally {
       await rm(root, { force: true, recursive: true });
     }

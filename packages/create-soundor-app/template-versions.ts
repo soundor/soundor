@@ -15,6 +15,8 @@ import { readFileSync } from 'node:fs';
 
 import { parse } from 'yaml';
 
+import { activeReleaseGroups } from './src/template-support.ts';
+
 const TEMPLATE = new URL('./templates/base/package.json', import.meta.url);
 const WORKSPACE = new URL('../../pnpm-workspace.yaml', import.meta.url);
 
@@ -48,6 +50,19 @@ export function templateVersions(): Record<string, string> {
         throw new Error(`The template's ${name} is not in the catalog`);
       }
       versions[name] = range;
+    }
+  }
+  const soundor = Object.fromEntries(
+    Object.entries({ ...template.dependencies, ...template.devDependencies })
+      .filter(([, specifier]) => specifier === 'workspace:*')
+      .map(([name]) => [name, versions[name]!]),
+  );
+  const groups = activeReleaseGroups(soundor);
+  for (const name of Object.keys(soundor)) {
+    if (!groups.some((group) => group.packages.includes(name))) {
+      throw new Error(
+        `The template's ${name} needs a minimum supported version`,
+      );
     }
   }
   return versions;

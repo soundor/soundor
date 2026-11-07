@@ -25,12 +25,14 @@ export function resolveProjectTarget(name: string, cwd: string): ProjectTarget {
   };
 }
 
+export const PACKAGE_MANAGER_FILES = ['.npmrc', 'pnpm-workspace.yaml'];
+
 export async function clearDirectory(dir: string): Promise<void> {
   const entries = await readdir(dir);
   await Promise.all(
-    entries.map((entry) =>
-      rm(join(dir, entry), { force: true, recursive: true }),
-    ),
+    entries
+      .filter((entry) => !PACKAGE_MANAGER_FILES.includes(entry))
+      .map((entry) => rm(join(dir, entry), { force: true, recursive: true })),
   );
 }
 
@@ -141,7 +143,7 @@ export function devScripts(
   );
 }
 
-type Manifest = Record<string, unknown> & {
+export type Manifest = Record<string, unknown> & {
   dependencies?: Dependencies;
   devDependencies?: Dependencies;
   scripts?: Record<string, string>;
@@ -218,10 +220,11 @@ export async function applyTokens(
   dir: string,
   name: string,
   runtimes: readonly Runtime[],
+  versions?: Readonly<Record<string, string>>,
 ): Promise<void> {
   const pkgPath = join(dir, 'package.json');
   const template = JSON.parse(await readFile(pkgPath, 'utf-8')) as Manifest;
-  const pkg = projectManifest(template, name, runtimes);
+  const pkg = projectManifest(template, name, runtimes, versions);
   await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
   for (const rel of ['soundor.config.ts']) {
