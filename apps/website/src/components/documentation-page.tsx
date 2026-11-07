@@ -13,6 +13,7 @@ import {
 } from 'fumadocs-ui/layouts/docs/page';
 import { Suspense, use } from 'react';
 
+import { BreakingChangeIcon } from '@/components/breaking-change-icon';
 import { useMDXComponents } from '@/components/mdx';
 import { baseOptions } from '@/lib/layout.shared';
 import { getPageMarkdownUrl, repository } from '@/lib/shared';
@@ -66,7 +67,15 @@ function Content({ path, markdownUrl }: { path: string; markdownUrl: string }) {
 
   return (
     <DocsPage toc={toc}>
-      <DocsTitle>{page.title}</DocsTitle>
+      <DocsTitle>
+        {page.title.endsWith(' ⚠') ? (
+          <>
+            {page.title.slice(0, -2)} <BreakingChangeIcon />
+          </>
+        ) : (
+          page.title
+        )}
+      </DocsTitle>
       <DocsDescription>{page.description}</DocsDescription>
       <div className="flex flex-row gap-2 items-center border-b -mt-4 pb-6">
         <MarkdownCopyButton markdownUrl={markdownUrl} />

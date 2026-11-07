@@ -1,4 +1,5 @@
 import {
+  appendFileSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -76,13 +77,12 @@ describe('summarizeChanges', () => {
           markdown: '- A non-breaking fix with `Breaking: code`.',
         },
       ]),
-    ).toEqual({ total: 7, features: 1, fixes: 2, breaking: 3, other: 1 });
+    ).toEqual({ total: 7, features: 1, fixes: 2, breaking: 3 });
     expect(summarizeChanges([])).toEqual({
       total: 0,
       features: 0,
       fixes: 0,
       breaking: 0,
-      other: 0,
     });
   });
 });
@@ -113,11 +113,22 @@ describe('generateChangelog', () => {
           `# ${name}\n\n## 1.0.0\n\n### Minor Changes\n\n- ${note}\n`,
         );
       }
+      appendFileSync(
+        join(root, 'packages/cli/CHANGELOG.md'),
+        '\n## 0.9.0\n\n### Minor Changes\n\n- **Breaking:** Replace an API.\n',
+      );
       mkdirSync(out);
       writeFileSync(join(out, '0.9.0.md'), 'Obsolete generated page');
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
       const shared = readFileSync(join(out, 'soundor/1.0.0.md'), 'utf8');
       expect(shared).toContain('CLI change');
+      expect(shared).not.toContain(' ⚠');
+      expect(readFileSync(join(out, 'soundor/0.9.0.md'), 'utf8')).toContain(
+        'title: Soundor 0.9.0 ⚠',
+      );
+      expect(readFileSync(join(out, 'soundor/index.mdx'), 'utf8')).toContain(
+        '[0.9.0](/changelog/soundor/0.9.0) <BreakingChangeIcon /> | 1 | 0 | 0 | 1 |',
+      );
       expect(shared).toContain('**1 change** — 1 feature');
       expect(shared).toContain('`@soundor/core`, `soundor`');
       expect(shared).not.toContain('runtime change');
@@ -145,9 +156,9 @@ describe('generateChangelog', () => {
         defaultOpen: false,
         pages: ['index', '1.0.0'],
       });
-      expect(readFileSync(join(out, 'web-runtime/index.md'), 'utf8')).toContain(
-        '/changelog/web-runtime/1.0.0',
-      );
+      expect(
+        readFileSync(join(out, 'web-runtime/index.mdx'), 'utf8'),
+      ).toContain('/changelog/web-runtime/1.0.0');
       expect(
         JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).pages,
       ).toEqual([
@@ -168,8 +179,8 @@ describe('generateChangelog', () => {
       expect(index).toContain(
         '[1.0.0](/changelog/soundor/1.0.0): **1 change** — 1 feature',
       );
-      expect(readFileSync(join(out, 'soundor/index.md'), 'utf8')).toContain(
-        '| [1.0.0](/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 | 0 |',
+      expect(readFileSync(join(out, 'soundor/index.mdx'), 'utf8')).toContain(
+        '| [1.0.0](/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 |',
       );
       expect(index).toContain('/changelog/juce-runtime');
       expect(index).toContain('/changelog/yoga-wasm');
@@ -177,10 +188,10 @@ describe('generateChangelog', () => {
       rmSync(join(root, 'engines/yoga-wasm/CHANGELOG.md'));
       rmSync(join(root, 'hosts/vst3-host/CHANGELOG.md'));
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
-      expect(readFileSync(join(out, 'yoga-wasm/index.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'yoga-wasm/index.mdx'), 'utf8')).toContain(
         'No published release notes yet.',
       );
-      expect(readFileSync(join(out, 'vst3-host/index.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'vst3-host/index.mdx'), 'utf8')).toContain(
         'No published release notes yet.',
       );
       expect(readdirSync(out)).not.toContain('0.9.0.md');

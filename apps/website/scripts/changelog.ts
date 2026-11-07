@@ -60,7 +60,6 @@ export function summarizeChanges(changes: Change[]) {
     features: 0,
     fixes: 0,
     breaking: 0,
-    other: 0,
   };
   for (const { kind, markdown } of changes) {
     const prose = markdown.replace(/```[\s\S]*?```|`[^`]*`/g, '');
@@ -73,7 +72,6 @@ export function summarizeChanges(changes: Change[]) {
       counts.breaking++;
     } else if (kind === 'Minor Changes') counts.features++;
     else if (kind === 'Patch Changes') counts.fixes++;
-    else counts.other++;
   }
   return counts;
 }
@@ -87,19 +85,20 @@ function summaryText(changes: Change[]): string {
     [counts.features, 'feature', 'features'],
     [counts.fixes, 'fix', 'fixes'],
     [counts.breaking, 'breaking change', 'breaking changes'],
-    [counts.other, 'other change', 'other changes'],
   ] as const;
+  const breakdown = parts
+    .filter(([count]) => count > 0)
+    .map(
+      ([count, singular, plural]) =>
+        `${count} ${count === 1 ? singular : plural}`,
+    )
+    .join(', ');
   return (
     `**${counts.total} ${counts.total === 1 ? 'change' : 'changes'}**` +
     (counts.total
-      ? ' — ' +
-        parts
-          .filter(([count]) => count > 0)
-          .map(
-            ([count, singular, plural]) =>
-              `${count} ${count === 1 ? singular : plural}`,
-          )
-          .join(', ')
+      ? breakdown
+        ? ` — ${breakdown}`
+        : ''
       : ' (dependency updates only)')
   );
 }
@@ -133,18 +132,19 @@ function writeSection(
     index.push(
       COUNT_GUIDE,
       '',
-      '| Version | Changes | Features | Fixes | Breaking | Other |',
-      '| --- | ---: | ---: | ---: | ---: | ---: |',
+      '| Version | Changes | Features | Fixes | Breaking |',
+      '| --- | ---: | ---: | ---: | ---: |',
     );
   for (const version of versions) {
     const changes = releases.get(version)!;
     const counts = summarizeChanges(changes);
+    const breakingBadge = counts.breaking ? ' <BreakingChangeIcon />' : '';
     index.push(
-      `| [${version}](/changelog/${slug}/${version}) | ${counts.total} | ${counts.features} | ${counts.fixes} | ${counts.breaking} | ${counts.other} |`,
+      `| [${version}](/changelog/${slug}/${version})${breakingBadge} | ${counts.total} | ${counts.features} | ${counts.fixes} | ${counts.breaking} |`,
     );
     const page = [
       '---',
-      `title: ${title} ${version}`,
+      `title: ${title} ${version}${counts.breaking ? ' ⚠' : ''}`,
       `description: Release notes for ${title} ${version}.`,
       '---',
       '',
@@ -170,7 +170,7 @@ function writeSection(
     }
     writeFileSync(new URL(`${version}.md`, dir), page.join('\n'));
   }
-  writeFileSync(new URL('index.md', dir), index.join('\n'));
+  writeFileSync(new URL('index.mdx', dir), index.join('\n'));
   writeFileSync(
     new URL('meta.json', dir),
     JSON.stringify(

@@ -23,7 +23,7 @@ export const source = loader({
     transformers: [
       {
         file(node, path) {
-          if (path && /^changelog\/[^/]+\/index\.md$/.test(path))
+          if (path && /^changelog\/[^/]+\/index\.mdx?$/.test(path))
             return { ...node, name: 'Overview' };
           return node;
         },
