@@ -155,6 +155,7 @@ if(NOT SOUNDOR_ANGLE_DIR)
           "-DCC=${angle_cc}"
           "-DCXX=${angle_cxx}"
           "-DGENERATOR=${CMAKE_GENERATOR}"
+          "-DTOOLSET=${CMAKE_GENERATOR_TOOLSET}"
           -P "${CMAKE_CURRENT_LIST_DIR}/SoundorAngleBuild.cmake"
         RESULT_VARIABLE status)
       if(NOT status EQUAL 0)
