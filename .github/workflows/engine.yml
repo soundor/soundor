@@ -93,6 +93,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       - name: Setup native dependencies
         id: deps
@@ -360,6 +362,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps
@@ -447,6 +451,8 @@ jobs:
       # JavaScript modules (and the tests' Three.js) with @soundor/core.
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       - name: Setup native dependencies
         id: deps

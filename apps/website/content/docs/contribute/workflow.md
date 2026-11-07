@@ -58,6 +58,8 @@ or `none` without waiting for Verify. Version mode maintains the release PR.
 Publish mode runs its own package checks, builds and tests the engine/host
 binaries being published, validates the packed packages, and publishes them.
 It neither calls Verify nor consumes its required results or binary artifacts.
+Release disables pnpm store caching throughout its jobs, reusable engine/host
+builds, and website deployment. Verify retains pnpm caching.
 
 Release engine builds (`engine.yml`, `release-build: true`) do not restore
 ordinary compiled native or compiler caches. They restore dependency snapshots only after checking the

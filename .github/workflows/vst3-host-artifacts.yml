@@ -9,6 +9,10 @@ name: VST3 host artifacts
 on:
   workflow_call:
     inputs:
+      cache:
+        description: Cache the pnpm store (disabled by Release)
+        type: boolean
+        default: true
       checks:
         description: Also run clang-tidy and the sanitizer build (Verify)
         type: boolean
@@ -42,6 +46,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.cache }}
 
       - name: Build tools and X11 (Linux)
         if: runner.os == 'Linux'
@@ -132,6 +138,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.cache }}
       - name: Build tools and X11
         run: |
           sudo apt-get update

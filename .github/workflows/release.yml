@@ -56,6 +56,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Select the mode
         id: mode
@@ -89,6 +91,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Create or update the release pull request
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -112,6 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
+        with:
+          cache: false
       - name: Format, lint, build and test
         run: pnpm run check
 
@@ -137,6 +143,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/vst3-host-artifacts.yml
     with:
+      cache: false
       checks: false
 
   pack:
@@ -159,6 +166,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Build
         run: pnpm build
@@ -281,4 +290,5 @@ jobs:
       id-token: write
     uses: ./.github/workflows/website.yml
     with:
+      cache: false
       ref: ${{ github.sha }}

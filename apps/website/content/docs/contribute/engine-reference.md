@@ -1179,7 +1179,7 @@ counted the unclamped size. What still differs from the web runtime is in
 ### Verified dependencies in CI
 
 Release engine jobs (`engine.yml`, `release-build: true`) bypass ordinary native
-and compiler caches. Standalone Verify uses `release-build: false`, including on
+and compiler caches, including the pnpm store cache. Standalone Verify uses `release-build: false`, including on
 main, to check changes and populate ordinary CI caches and artifacts. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
 the recipes (including patches and symbol prefixes), runtime family, detected
 compiler and SDK settings, CMake flags and hosted runner image. It looks for a
