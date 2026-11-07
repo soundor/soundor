@@ -62,30 +62,37 @@ export function readTarball(tarball, names) {
   return files;
 }
 
-/**
- * The published module if its inputs are `fingerprint`, or null: not published
- * yet, or built from other inputs.
- */
-export async function publishedModule(fingerprint, fetcher = fetch) {
-  const request = async (url) => {
-    const response = await fetcher(url, {
-      signal: AbortSignal.timeout(60_000),
-    });
-    if (!response.ok && response.status !== 404)
-      throw new Error(`HTTP ${response.status}: ${url}`);
-    return response;
-  };
+async function request(url, fetcher) {
+  const response = await fetcher(url, { signal: AbortSignal.timeout(60_000) });
+  if (!response.ok && response.status !== 404)
+    throw new Error(`HTTP ${response.status}: ${url}`);
+  return response;
+}
+
+/** What npm has as the package's latest version, or null: not published yet. */
+export async function latestPackage(fetcher = fetch) {
   const metadata = await request(
     `${REGISTRY}${encodeURIComponent(PACKAGE)}/latest`,
+    fetcher,
   );
   if (metadata.status === 404) return null;
   const pkg = await metadata.json();
   if (pkg.name !== PACKAGE || !pkg.dist?.integrity?.startsWith('sha512-'))
     throw new Error(`${PACKAGE}'s npm metadata has no SHA-512 integrity`);
+  return pkg;
+}
+
+/**
+ * The published module if its inputs are `fingerprint`, or null: not published
+ * yet, or built from other inputs.
+ */
+export async function publishedModule(fingerprint, fetcher = fetch) {
+  const pkg = await latestPackage(fetcher);
+  if (pkg === null) return null;
   const url = new URL(pkg.dist.tarball);
   if (url.href.startsWith(REGISTRY) === false)
     throw new Error(`${PACKAGE}'s archive must come from ${REGISTRY}`);
-  const archive = await request(url.href);
+  const archive = await request(url.href, fetcher);
   if (!archive.ok) throw new Error(`${PACKAGE}'s archive is missing: ${url}`);
   const bytes = Buffer.from(await archive.arrayBuffer());
   const expected = Buffer.from(pkg.dist.integrity.slice(7), 'base64');

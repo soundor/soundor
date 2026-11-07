@@ -80,6 +80,9 @@ need it.
 | End-to-end tests  | [`@soundor/vitest-e2e`](/docs/testing/e2e)                                                                                                                                      | Vitest tests of a built VST3 plugin, UI and audio, in the VST3 host                                               |
 | Plugin host       | [`@soundor/vst3-host`](/docs/testing/vst3-host) ([internals](/docs/contribute/vst3-host))                                                                                       | A standalone VST3 host executable driven from Node.js: offline processing, editors, platform packages             |
 
+`@soundor/yoga-wasm`, [the engine's Yoga as WebAssembly](/docs/contribute/yoga-wasm),
+lives beside it in `engines/`, and the web runtime depends on an exact version.
+
 The engine and the VST3 host are versioned independently of the shared
 package release group.
 The JUCE runtime depends on an exact engine version, and lowers the UI bundle

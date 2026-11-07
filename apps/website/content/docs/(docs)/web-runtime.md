@@ -24,9 +24,12 @@ same: the same `src/main.tsx`, the same `@soundor/react` components, the same
                  src/main.tsx (@soundor/react)
 ```
 
-This is not the JUCE plugin compiled for the Web. Nothing native runs in the
-browser: no WebAssembly, Hermes, Yoga or Skia. The browser's own engine runs
-the plugin UI, and your own TypeScript provides the native API and the audio.
+This is not the JUCE plugin compiled for the Web. The browser's own engine runs
+the plugin UI's JavaScript and draws it, without Hermes or Skia, and your own
+TypeScript provides the native API and the audio. Only the layout is the
+engine's: the Yoga it links, compiled to WebAssembly, so a UI gets the same
+boxes in both runtimes. A page with a strict Content Security Policy has to
+allow it, with `wasm-unsafe-eval`.
 
 ## Usage
 
@@ -159,11 +162,10 @@ editor's size, scaled down when the page is smaller; see
 `@soundor/react`'s own; there is no ReactDOM. Plugin code only ever sees
 UiNodes.
 
-- **Layout.** A stylesheet gives the DOM Yoga's defaults: flex columns that do
-  not shrink, border-box sizes, no automatic minimum sizes, and text that
-  inherits nothing. `flex` is read as React Native reads it, and invalid
-  styles fail with the JUCE runtime's messages. Where CSS still sizes a box
-  differently, see [Where layout differs](#where-layout-differs).
+- **Layout.** Yoga decides every box, as in the JUCE runtime, and each element
+  is placed absolutely where it says: CSS only draws. `flex` is read as React
+  Native reads it, and invalid styles fail with the JUCE runtime's messages. What
+  still differs is listed in [Where layout differs](#where-layout-differs).
 - **Events.** Events capture and bubble along the Soundor tree, and input
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
@@ -226,38 +228,17 @@ UiNodes.
 
 ### Where layout differs
 
-The JUCE runtime lays out with Yoga and this one with the browser's CSS
-flexbox. They agree on almost every style, but size a box differently in
-these cases. Each is easy to avoid, and worth checking in both runtimes when
-a layout depends on it:
+Both runtimes lay out with the same Yoga, told the same things, so a box is the
+same in both to the last bit, given the same text sizes. What remains is what
+the browser itself decides:
 
-- **Percentages inside a parent sized by its content**, for `width`,
-  `height` and `flexBasis`: Yoga takes them of the room the
-  parent was offered; CSS reads a size as `auto` and a basis as 0. Give the
-  parent a size, or use `flex`.
-- **Growing boxes where one reaches its `minWidth` or `maxWidth`** (or the
-  heights): CSS gives the room it leaves to the others (50, 200 and 50 in
-  300 for three `flex: 1` boxes with `maxWidth: 50`, `minWidth: 200` and
-  neither), Yoga not always (33, 234 and 33).
-- **`aspectRatio` with a minimum or maximum size**, or on a box sized by its
-  content: Yoga takes the other size from the unclamped one (a stretched
-  `aspectRatio: 1, maxWidth: 100` box is 100×400 in a 400-wide column), CSS
-  from the clamped one.
-- **`flexWrap` in a column sized by its content** wraps at the height its
-  parent offers in Yoga, and never in CSS.
-- **A box sized by its content with less room across than it needs**, when
-  it is not stretched (an `alignItems` other than `'stretch'`): Yoga makes it
-  at most the room its parent has and squeezes what is in it, CSS keeps its
-  content's size and lets it overflow. A 21-high button in a row of
-  `height: 22` with `paddingTop: 10` is 11 high natively, its label spilling
-  out, and 21 here. Give a box with a fixed `height` (or `width`) room for
-  its content, or leave the size out so that it fits it.
-- **Rounding.** Yoga puts every edge on a device pixel, the browser keeps
-  fractions: three `flex: 1` boxes in 100 are 33, 34 and 33 natively and
-  33.33 each here, so edges can be a fraction of a pixel apart.
 - **Text** is measured by Skia natively and by the browser here, with the
-  platform's fonts in each, so a text's width, and where it wraps, can
-  differ by a few pixels.
+  platform's fonts in each, so a text's width, and where it wraps, can differ by
+  a few pixels. Bundled fonts narrow this; they do not remove it. It wraps by the
+  JUCE runtime's rules in both: only at spaces and line breaks, never inside a
+  word, at a hyphen or between CJK characters.
+- **Scroll views** show no scrollbar in either runtime, and they scroll as far.
+  What moves them is the browser's here, so its momentum on a trackpad is its own.
 
 ## Native API in TypeScript
 

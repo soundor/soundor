@@ -19,7 +19,8 @@ same lifecycle phases. Two runtimes exist:
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
-  Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
+  Audio, without Hermes or Skia. It lays out with the engine's Yoga, compiled to
+  WebAssembly (`@soundor/yoga-wasm`), and CSS only draws.
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
@@ -149,6 +150,9 @@ Regenerating checked-in generated files:
 - `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
   `soundor:native` C++ output in `native/tests/generated`, compiled by the
   native tests.
+- `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
+  (from `engines/engine`, after a dev build) — the engine's frames in
+  `tests/layout/corpus.json`, for a change meant to change layout.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
@@ -221,6 +225,11 @@ read the docs bundled with the installed package
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
 - `engines/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `engines/yoga-wasm` (`@soundor/yoga-wasm`) — the engine's Yoga (its revision
+  and patches, read from its recipes) compiled to WebAssembly by a pinned
+  wasi-sdk, called through its C API. Independently versioned. Its `build` takes
+  the published module when its inputs are unchanged, and compiles otherwise.
+  See `contribute/yoga-wasm.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
@@ -254,9 +263,12 @@ read the docs bundled with the installed package
 `soundor.config.ts` → generated contract → each runtime implements the same
 `soundor:*` modules (`parameters`, `host`, `ui`, `native`, `storage`, `fs`)
 and the same subset of Web globals. The web runtime deliberately reproduces
-the JUCE runtime's semantics (parameter clamping/gestures, event routing,
-Yoga layout defaults, error messages), so a behavior change in one runtime
-usually needs the matching change in the other.
+the JUCE runtime's semantics (parameter clamping/gestures, event routing, error
+messages), so a behavior change in one runtime usually needs the matching change
+in the other. Layout is the same Yoga in both: a style's mapping to it is
+`src/client/ui/layout.ts` here and `UiModule.cpp` with `Surface.cpp` there, and
+`engines/engine/tests/layout/corpus.json` holds the engine's frames, which the
+web runtime's tests must match exactly.
 
 ### Accessibility
 
@@ -347,6 +359,8 @@ generated framework or the runtime package, not in `init` templates.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the sixteen packages under `packages/` are a fixed version group;
-  `@soundor/engine` and `@soundor/vst3-host` are versioned on their own.
+  `@soundor/engine`, `@soundor/yoga-wasm` and `@soundor/vst3-host` are versioned on
+  their own. A change to the engine's Yoga also needs a `@soundor/yoga-wasm`
+  changeset, which Verify checks.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

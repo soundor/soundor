@@ -98,7 +98,8 @@ See [Symbol isolation](/docs/contribute/engine-reference#symbol-isolation) and
 ## Browser rendering and services
 
 The same React renderer produces Soundor nodes backed by DOM elements. The web
-runtime provides Yoga-like layout defaults, Soundor event routing and focus
+runtime lays out with the engine's Yoga, compiled to WebAssembly, and provides
+Soundor event routing and focus
 behavior, and root/overlay stacking inside the plugin viewport.
 
 One page or iframe owns one host context. The UI, `native.ts`, `audio.ts`, and
