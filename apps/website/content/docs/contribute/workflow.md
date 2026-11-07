@@ -80,6 +80,43 @@ older engine. Release can opportunistically use verified dependency snapshots
 from earlier release builds; their absence triggers a clean build and creates
 no dependency on the standalone Verify workflow.
 
+## Clean up CI storage
+
+`cleanup.yml` runs when a pull request closes and daily. Manual dispatch defaults
+to a dry run; enable `apply` to delete the selected entries. The job summary and
+logs list each selection, its reason, and the total storage size. Cleanup deletes
+individual cache/artifact IDs, never workflow runs, logs, release assets or npm
+packages. It runs main's script without installing packages or executing PR code
+or downloaded artifacts, including for fork PRs.
+
+PR-close cleanup removes caches under that PR's merge ref and artifacts from its
+completed runs. Open PRs and active PR runs are protected; the daily sweep catches
+uploads that finish after closure. Ambiguous PR associations are preserved.
+
+Main cleanup pauses while Verify, Release or manual engine release workflows are
+queued or active, and uses a 24-hour grace period:
+
+- Engine/host artifacts retain two mature successful complete sets per fingerprint
+  and recipe identity, plus any younger sets. Superseded sets lose their lookup
+  index first, then all platform archives. Different identities expire normally
+  after seven days; failed or incomplete sets never replace working sets.
+- Signed dependency snapshots retain two mature copies per exact identity, plus
+  younger copies, within their existing fourteen-day retention.
+- Compiler, clang-tidy and engine-consumer caches retain two mature snapshots per
+  key family and cache version. Native dependencies retain two mature recipe
+  generations per configuration, including every completion variant in those
+  generations. Younger entries are retained too.
+- pnpm caches for older lockfiles are removed only when that platform has a
+  current-main lockfile cache at least 24 hours old.
+- Release intermediates older than 24 hours are removed only after the entire
+  producing workflow succeeds. Signed snapshots are excluded. Failed releases
+  keep retry inputs until their normal artifact expiry.
+
+Cleanup refreshes PR and workflow state before deletion. Unknown keys, incomplete
+native sets and failed main runs are left to normal retention. No deletion API
+can atomically prevent a concurrent rerun or PR reopening; the grace period,
+active-run checks and daily retry limit that race.
+
 ## Focus on one package
 
 ```sh
