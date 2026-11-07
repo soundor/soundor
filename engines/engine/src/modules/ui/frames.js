@@ -1,9 +1,11 @@
 // requestAnimationFrame / cancelAnimationFrame: callbacks run once, on the
 // plugin view's next frame, before it is drawn, with that frame's time (as
-// performance.now()). Installed with soundor:ui.
+// performance.now()); ResizeObserver callbacks follow them. Installed with
+// soundor:ui.
 
 import { now } from 'soundor:internal/platform';
 import { setFrameListener, size } from 'soundor:internal/ui';
+import { deliverResizes } from 'soundor:internal/ui/resize';
 import { reportError } from 'soundor:internal/web/console';
 
 let callbacks = new Map();
@@ -23,18 +25,21 @@ function cancelAnimationFrame(id) {
 }
 
 setFrameListener(() => {
-  if (callbacks.size === 0) return;
-  // Callbacks requested during this frame run on the next one.
-  const due = callbacks;
-  callbacks = new Map();
-  const time = now();
-  for (const callback of due.values()) {
-    try {
-      callback(time);
-    } catch (error) {
-      reportError(error);
+  if (callbacks.size !== 0) {
+    // Callbacks requested during this frame run on the next one.
+    const due = callbacks;
+    callbacks = new Map();
+    const time = now();
+    for (const callback of due.values()) {
+      try {
+        callback(time);
+      } catch (error) {
+        reportError(error);
+      }
     }
   }
+  // Then, as in browsers, the layout those callbacks made is observed.
+  deliverResizes();
 });
 
 for (const [name, value] of Object.entries({

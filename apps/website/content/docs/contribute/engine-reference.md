@@ -681,6 +681,12 @@ Beyond views and text there are the primitives a plugin UI is made of:
   reports pressed, hovered, focused and focus-visible state.
 - **`requestAnimationFrame()`:** global, as on the Web. Callbacks run once on
   the view's next frame, before it is drawn.
+- **`ResizeObserver`:** global, as on the Web, observing nodes
+  (`src/modules/ui/resize.js`). The frame listener delivers it after the
+  frame's `requestAnimationFrame` callbacks. It compares `Surface::revision()`
+  first, so a frame with no change to the tree, a style or the size measures
+  no node. Otherwise it reads each observed node's frame and content box
+  (`resizeBoxes`), and loops by depth as the Web's does.
 
 ### Rendering
 

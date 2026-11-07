@@ -1024,6 +1024,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        // What a ResizeObserver measures of a node: null when it is not in
+        // the tree, or [border width, border height, content x, content y,
+        // content width, content height], laid out.
+        jsi::Value resizeBoxes(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "resizeBoxes", count, 1,
+                        [&](Surface& surface) -> jsi::Value
+                        {
+                            const NodeId id = readId(args[0]);
+                            if (! surface.isConnected(id))
+                                return jsi::Value::null();
+                            surface.layout();
+                            const Node* node = surface.find(id);
+                            const Rect frame = node->frame();
+                            const Rect content = node->contentBox();
+                            jsi::Array boxes(context.rt, 6);
+                            const std::array<float, 6> values { frame.width, frame.height,  content.x,
+                                                                content.y,   content.width, content.height };
+                            for (std::size_t i = 0; i < values.size(); ++i)
+                                boxes.setValueAtIndex(context.rt, i, jsi::Value(double(values[i])));
+                            return boxes;
+                        });
+        }
+
+        // Counts every change that could move a layout; equal means none did.
+        jsi::Value revision(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "revision", count, 0,
+                        [&](Surface& surface) -> jsi::Value { return { double(surface.revision()) }; });
+        }
+
         jsi::Value readClipboard(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return call(context, "readText", count, 0,
@@ -1492,6 +1523,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "scrollOffset", scrollOffset, 1 },
             { "contentSize", contentSize, 1 },
             { "clientSize", clientSize, 1 },
+            { "resizeBoxes", resizeBoxes, 1 },
+            { "revision", revision, 0 },
             { "focus", focus, 1 },
             { "focused", focused, 0 },
             { "focusVisible", focusVisible, 0 },
@@ -1555,6 +1588,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // WebGL on a device of its own until the host offers one.
         gpu::installWebGL(context, nullptr, false);
         js::registerNativeModule(context, "soundor:internal/ui", { initializeInternalModule, {}, {} });
+        js::registerNativeModule(context, "soundor:internal/ui/resize",
+                                 { {}, embedded::uiResizeModule.text(), embedded::uiResizeModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/frames",
                                  { {}, embedded::uiFramesModule.text(), embedded::uiFramesModule.bytecode });
         js::registerNativeModule(context, "soundor:internal/ui/canvas",
@@ -1566,8 +1601,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                  { {}, embedded::uiWebGLModule.text(), embedded::uiWebGLModule.bytecode });
         js::registerNativeModule(context, "soundor:ui", { {}, embedded::uiModule.text(), embedded::uiModule.bytecode });
 
-        // requestAnimationFrame(), devicePixelRatio and the canvas and WebGL
-        // classes are global, like on the Web.
+        // requestAnimationFrame(), ResizeObserver, devicePixelRatio and the
+        // canvas and WebGL classes are global, like on the Web.
         for (const char* module :
              { "soundor:internal/ui/frames", "soundor:internal/ui/canvas", "soundor:internal/ui/webgl" })
             if (auto loaded = context.importModule(module); ! loaded)

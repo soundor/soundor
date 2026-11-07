@@ -19,6 +19,7 @@ import {
   resetContext,
   setSourceResolver,
 } from 'soundor:internal/ui/canvas';
+import { setNodeResolver } from 'soundor:internal/ui/resize';
 import { createWebGL2, resizeWebGL } from 'soundor:internal/ui/webgl';
 import { reportError } from 'soundor:internal/web/console';
 import {
@@ -1017,6 +1018,14 @@ export class UiNode extends EventTarget {
   }
 
   static {
+    // ResizeObserver: a node's id, and its depth for the order it tells in.
+    setNodeResolver((value) => {
+      if (!(value instanceof UiNode)) return null;
+      let depth = 1;
+      for (let node = value.#parent; node !== null; node = node.#parent)
+        ++depth;
+      return { id: value.#id, depth };
+    });
     setSourceResolver((value) => {
       if (!(value instanceof UiNode)) return null;
       if (value.#type === 'canvas')

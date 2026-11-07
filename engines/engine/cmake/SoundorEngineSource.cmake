@@ -128,6 +128,7 @@ soundor_embed_module(soundor_runtime formDataModule src/web/js/form-data.js soun
 soundor_embed_module(soundor_runtime domExceptionModule src/web/js/dom-exception.js
                      soundor:internal/web/dom-exception)
 soundor_embed_module(soundor_runtime uiFramesModule src/modules/ui/frames.js soundor:internal/ui/frames)
+soundor_embed_module(soundor_runtime uiResizeModule src/modules/ui/resize.js soundor:internal/ui/resize)
 soundor_embed_module(soundor_runtime uiCanvasModule src/modules/ui/canvas.js soundor:internal/ui/canvas)
 soundor_embed_module(soundor_runtime uiWebGLModule src/gpu/webgl/webgl.js soundor:internal/ui/webgl)
 soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/generated/webgl-generated.js

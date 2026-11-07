@@ -405,6 +405,150 @@ TEST_SUITE("soundor:ui pressable")
     }
 }
 
+TEST_SUITE("ResizeObserver")
+{
+    // Entries as `width×height` of each box, with the content box's origin.
+    constexpr const char* describeEntries = R"(
+        globalThis.describe = (entries) => entries.map((e) => [
+          e.target.debugId,
+          e.contentRect.x + ',' + e.contentRect.y + ' ' + e.contentRect.width + 'x' + e.contentRect.height,
+          e.borderBoxSize[0].inlineSize + 'x' + e.borderBoxSize[0].blockSize,
+          e.devicePixelContentBoxSize[0].inlineSize + 'x' + e.devicePixelContentBoxSize[0].blockSize,
+        ].join(' ')).join('; ');
+    )";
+
+    TEST_CASE("tells each box's size after the frame's callbacks, and only what changed")
+    {
+        WebFixture f;
+        f.host.surface().setSize({ 200, 200 });
+        f.host.surface().setScale(1.5F);
+        f.run(std::string(imports) + describeEntries + R"(
+            globalThis.log = [];
+            globalThis.box = createView({ width: 100, height: 40, padding: 10, borderWidth: 2 });
+            box.debugId = 'box';
+            globalThis.empty = createView({ width: 0, height: 0 });
+            empty.debugId = 'empty';
+            root.style = { alignItems: 'flex-start' };
+            root.appendChild(box);
+            root.appendChild(empty);
+            globalThis.observer = new ResizeObserver((entries, which) => {
+              log.push(describe(entries) + (which === observer ? '' : ' (another observer)'));
+            });
+            observer.observe(box);
+            observer.observe(empty);
+            requestAnimationFrame(() => log.push('frame'));
+        )");
+        CHECK(f.eval("log.length").asNumber() == 0);
+        f.host.tick();
+        // A node laid out to 0×0 is not told of at first, as in browsers.
+        CHECK(f.eval("log.splice(0).join(' | ')").asString() == "frame | box 12,12 76x16 100x40 114x24");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+        f.run("box.style = { ...box.style, width: 120 }; empty.style = { width: 4, height: 4 };");
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join(' | ')").asString() == "box 12,12 96x16 120x40 144x24; empty 0,0 4x4 4x4 6x6");
+        // A move is not a resize.
+        f.run(std::string(imports) + "root.style = { alignItems: 'center' };");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+        // Taken out of the tree, it has no box.
+        f.run("empty.remove();");
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join(' | ')").asString() == "empty 0,0 0x0 0x0 0x0");
+        f.run("observer.unobserve(box); box.style = { width: 10, height: 10 };");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 0);
+        CHECK(f.logs.empty());
+    }
+
+    TEST_CASE("observes the box it is asked for, and a scale change in device pixels")
+    {
+        WebFixture f;
+        f.host.surface().setSize({ 200, 200 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.box = createView({ width: 100, height: 40, padding: 10 });
+            root.style = { alignItems: 'flex-start' };
+            root.appendChild(box);
+            const told = (name) => new ResizeObserver(() => log.push(name));
+            told('content').observe(box);
+            told('border').observe(box, { box: 'border-box' });
+            told('device').observe(box, { box: 'device-pixel-content-box' });
+        )");
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join()").asString() == "content,border,device");
+        // Padding moves the content box, not the border box.
+        f.run("box.style = { width: 100, height: 40, padding: 5 };");
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join()").asString() == "content,device");
+        f.host.surface().setScale(2.0F);
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join()").asString() == "device");
+    }
+
+    TEST_CASE("tells deeper nodes a callback resized in the same frame, and shallower ones on the next")
+    {
+        WebFixture f;
+        f.host.surface().setSize({ 200, 200 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.outer = createView({ width: 100, height: 100 });
+            globalThis.inner = createView({ width: 50, height: 50 });
+            outer.debugId = 'outer';
+            inner.debugId = 'inner';
+            root.style = { alignItems: 'flex-start' };
+            outer.appendChild(inner);
+            root.appendChild(outer);
+            globalThis.observer = new ResizeObserver((entries) => {
+              for (const { target, contentRect } of entries) {
+                log.push(target.debugId + ' ' + contentRect.width);
+                // Each resizes the other: inner is deeper, outer is not.
+                if (target === outer && contentRect.width === 100) inner.style = { width: 60, height: 50 };
+                if (target === inner && contentRect.width === 60) outer.style = { width: 110, height: 100 };
+              }
+            });
+            observer.observe(outer);
+            observer.observe(inner);
+        )");
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join()").asString() == "outer 100,inner 50,inner 60");
+        // Outer changed after the loop reached deeper: it waits, with an error.
+        REQUIRE(f.logs.size() == 1);
+        CHECK(f.logs[0].second.find("ResizeObserver loop completed with undelivered notifications.")
+              != std::string::npos);
+        f.host.tick();
+        CHECK(f.eval("log.splice(0).join()").asString() == "outer 110");
+    }
+
+    TEST_CASE("disconnect stops it, a callback's errors are reported, and arguments are checked")
+    {
+        WebFixture f;
+        f.host.surface().setSize({ 200, 200 });
+        f.run(std::string(imports) + R"(
+            globalThis.calls = 0;
+            globalThis.box = createView({ width: 10, height: 10 });
+            root.appendChild(box);
+            globalThis.failing = new ResizeObserver(() => { ++calls; throw new Error('observer failed'); });
+            failing.observe(box);
+            failing.observe(box); // again: still one observation
+        )");
+        f.host.tick();
+        CHECK(f.eval("calls").asNumber() == 1);
+        REQUIRE(f.logs.size() == 1);
+        CHECK(f.logs[0].second.find("observer failed") != std::string::npos);
+        f.run("failing.disconnect(); box.style = { width: 20, height: 20 };");
+        f.host.tick();
+        CHECK(f.eval("calls").asNumber() == 1);
+        CHECK(f.error("new ResizeObserver(1);").find("TypeError") != std::string::npos);
+        CHECK(f.error("new ResizeObserver(() => {}).observe({});").find("not a UiNode") != std::string::npos);
+        CHECK(f.error(std::string(imports) + "new ResizeObserver(() => {}).observe(root, { box: 'padding-box' });")
+                  .find("not a valid box")
+              != std::string::npos);
+        CHECK(f.eval("typeof ResizeObserverEntry + typeof ResizeObserverSize").asString() == "functionfunction");
+        CHECK_FALSE(f.eval("Object.keys(globalThis).includes('ResizeObserver')").asBoolean());
+    }
+}
+
 TEST_SUITE("CSS colors")
 {
     TEST_CASE("hex, rgb(), hsl(), names and transparent")
