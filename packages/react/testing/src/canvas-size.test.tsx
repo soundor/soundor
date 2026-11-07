@@ -56,10 +56,11 @@ const drawn: string[] = [];
 
 function Meter() {
   const node = useRef<UiNode>(null);
-  size = useCanvasSize(node);
+  const measured = useCanvasSize(node);
   useLayoutEffect(() => {
-    if (size.width > 0) drawn.push(`${size.width}x${size.height}`);
-  }, []);
+    size = measured;
+    if (measured.width > 0) drawn.push(`${measured.width}x${measured.height}`);
+  }, [measured]);
   return (
     <Canvas
       ref={(value) => {
