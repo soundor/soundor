@@ -25,8 +25,11 @@ Run example and benchmark commands explicitly when changing them. Turborepo test
 tasks depend on dependency builds, so build dependencies before invoking Vitest
 directly.
 
-Native CI uses affected-package detection before allocating native runners.
-When the engine is affected, the read-only `engine.yml` workflow
+Verify runs independently on pull requests into `main` and pushes to `main`.
+It checks the workspace, uses ordinary test caches, and produces native CI
+artifacts when needed. Native CI uses affected-package detection before
+allocating native runners.
+When the engine is affected, the `engine.yml` workflow
 builds and validates Debug and
 Release artifacts for Linux, macOS and Windows. Windows uses two runners in
 parallel: one for the dynamic C runtime (`/MD`, `/MDd`), the other for the static
@@ -44,15 +47,38 @@ builds checkout artifacts; an API or integrity failure fails the job.
 The VST3 host uses the same selection: a matching published binary, then matching
 `main` artifacts for unchanged packages in pull requests, then a source build.
 The jobs that use it never compile it themselves. Engine and host changes still
-run their native checks. `main` builds same-commit artifacts for release publishing;
+run their native checks. Main Verify builds artifacts for later CI consumers;
 reused PR artifacts retain the original build's commit and provenance.
 Sanitizers, GCC, no-GPU builds and static analysis keep their own configurations.
 Benchmarks retain source builds because their Release runner supports JavaScript
 source; the shipped Release engine is bytecode-only.
 
+Release is a separate pipeline on main pushes. It selects `version`, `publish`
+or `none` without waiting for Verify. Version mode maintains the release PR.
+Publish mode runs its own package checks, builds and tests the engine/host
+binaries being published, validates the packed packages, and publishes them.
+It neither calls Verify nor consumes its required results or binary artifacts.
+Release disables pnpm store caching throughout its jobs, reusable engine/host
+builds, and website deployment. Verify retains pnpm caching.
+
+Release engine builds (`engine.yml`, `release-build: true`) do not restore
+ordinary compiled native or compiler caches. They restore dependency snapshots only after checking the
+transport digest and GitHub's signed build attestation against this repository,
+the `engine.yml` signer, `main`, and the original commit. The snapshot identity
+also includes dependency recipes, compiler/SDK settings and the runner image.
+An absent or expired snapshot builds dependencies from clean sources. Invalid
+signatures, identities or archive paths fail before the dependencies are used.
+
+After the engine builds pass, an isolated main-only job attests the dependency
+snapshot and retains it for fourteen days. It installs no packages and runs no
+producer executables; only this job receives signing permissions. Verify uses
+`release-build: false` on both PRs and main, keeps ordinary caches, and does not
+sign dependency snapshots. The source test suites keep their own configurations.
+
 Missing or mismatched CI artifacts fail verification; there is no fallback to an
-older engine. Release publishing waits for verification of the same main commit and reuses
-its validated engine artifacts rather than rebuilding them.
+older engine. Release can opportunistically use verified dependency snapshots
+from earlier release builds; their absence triggers a clean build and creates
+no dependency on the standalone Verify workflow.
 
 ## Focus on one package
 
@@ -149,7 +175,7 @@ each a reusable workflow called from `verify.yml`:
 What uses the engine or the host waits for its whole group, so it starts from one that
 passed. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
 runs VST3 (host) and Orbit E2E alone. Verify is the one required check, and it runs for pull
-requests into `main`. Each build input must be a dependency of the package whose
+requests into `main` and main pushes. Each build input must be a dependency of the package whose
 job consumes it. See
 [native-changes.mjs](https://github.com/soundor/soundor/blob/main/.github/scripts/native-changes.mjs)
 and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/verify.yml).

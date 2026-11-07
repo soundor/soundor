@@ -1,14 +1,18 @@
 name: Engine
 
-# Read-only, shared by Verify and the release orchestrator. Builds and validates
-# checkout artifacts, on every target; it has no release creation or publishing
-# permissions. With `suites` (Verify, when the engine is affected), also the
+# Shared by Verify and the release orchestrator. Builds and validates checkout
+# artifacts on every target. Only the isolated main signing job can attest
+# dependency snapshots; no job creates or publishes releases. With `suites` (Verify, when the engine is affected), also the
 # engine's own suites: static analysis and tests on Clang, and the GCC, sanitizer
 # and no-GPU builds. What uses the engine waits for all of it, so that it starts
 # from an engine that passed.
 on:
   workflow_call:
     inputs:
+      release-build:
+        description: Use verified dependencies and attest snapshots for independently built release artifacts
+        type: boolean
+        default: false
       integration:
         description: Run JUCE consumer checks here (Verify runs them downstream)
         type: boolean
@@ -31,6 +35,7 @@ jobs:
     timeout-minutes: 240
     permissions:
       contents: read
+      actions: read
     strategy:
       # Every target's result, even when one fails: nothing is released
       # unless all of them pass (the release job).
@@ -88,12 +93,17 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps
         with:
           job: ${{ matrix.cache }}
+          # Verify retains ordinary caches on PRs and main. Release builds never
+          # restore compiler objects or unauthenticated native installs.
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       # The archives carry these notices (runtimes/engine/licenses).
       - name: AccessKit's crate notices match its Cargo.lock
@@ -103,6 +113,15 @@ jobs:
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+
+      - name: Identify verified dependencies
+        if: inputs.release-build
+        run: node .github/scripts/verified-deps.mjs identify ${{ matrix.cache }} ${{ matrix.target }}
+      - name: Restore verified dependencies
+        if: inputs.release-build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/verified-deps.mjs restore
 
       # The DevTools session test serves the DevTools client.
       - name: Build workspace
@@ -254,6 +273,19 @@ jobs:
             tee "$RUNNER_TEMP/plugin.log"
           rm runtimes/engine/artifacts/manifest.json
 
+      - name: Package dependency signing candidate
+        if: inputs.release-build && github.ref == 'refs/heads/main'
+        run: node .github/scripts/verified-deps.mjs package
+      - name: Keep dependency signing candidate
+        if: inputs.release-build && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-candidate-${{ github.sha }}-${{ matrix.cache }}
+          path: ${{ runner.temp }}/dependency-candidate
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
       - name: Keep the archives
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -269,6 +301,50 @@ jobs:
         with:
           key: ${{ steps.deps.outputs.cache-key }}
           restored: ${{ steps.deps.outputs.cache-matched-key }}
+
+  attest-dependencies:
+    name: Attest dependencies (${{ matrix.family }})
+    needs: build
+    # PR code never receives signing credentials. The producer used clean
+    # sources or already-verified dependencies; no ordinary compiled caches.
+    if: inputs.release-build && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        family: [linux-clang, macos-universal, windows, windows-static]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download signing candidate as data
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/verified-deps.mjs candidate ${{ matrix.family }}
+      # No dependency install, build scripts, or producer executables run in
+      # this job. The archive is data passed to the pinned attestation action.
+      - id: identity
+        run: node .github/scripts/verified-deps.mjs inspect
+      - id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ runner.temp }}/dependency-candidate/dependencies.tar.gz
+      - name: Keep verification bundle
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" "$RUNNER_TEMP/dependency-candidate/bundle.jsonl"
+      - name: Keep verified dependencies
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.identity.outputs.key }}
+          path: ${{ runner.temp }}/dependency-candidate
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
 
   clang:
     name: linux-clang
@@ -286,6 +362,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps
@@ -373,6 +451,8 @@ jobs:
       # JavaScript modules (and the tests' Three.js) with @soundor/core.
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
       - name: Setup native dependencies
         id: deps

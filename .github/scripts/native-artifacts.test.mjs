@@ -26,7 +26,7 @@ const run = {
   conclusion: 'success',
   event: 'push',
   head_branch: 'main',
-  path: '.github/workflows/release.yml',
+  path: '.github/workflows/verify.yml',
   head_repository: { full_name: repository },
   head_sha: commit,
 };
@@ -117,6 +117,7 @@ test('rejects failed, incomplete, PR, fork and other-workflow runs', async () =>
     { event: 'workflow_dispatch' },
     { head_branch: 'feature' },
     { path: '.github/workflows/other.yml' },
+    { path: '.github/workflows/release.yml' },
     { head_repository: { full_name: 'fork/soundor' } },
     { head_sha: 'c'.repeat(40) },
     { head_sha: 'malformed' },

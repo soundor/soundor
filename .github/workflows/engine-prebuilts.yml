@@ -37,16 +37,12 @@ on:
         default: ''
   workflow_call:
     inputs:
-      reuse-artifacts:
-        description: Publish the same-commit engine artifacts already validated by Verify
-        type: boolean
-        default: false
       integration:
-        description: Run JUCE consumer checks here (Verify runs them downstream)
+        description: Run JUCE consumer checks
         type: boolean
         default: true
       tests:
-        description: Run native tests (Verify selects these when the engine is affected)
+        description: Run native tests against packed engines
         type: boolean
         default: true
       mode:
@@ -124,12 +120,15 @@ jobs:
     needs: [plan-validate, plan-release]
     if: >-
       always() && !cancelled() && !contains(needs.*.result, 'failure') &&
-      (needs.plan-validate.outputs.action || needs.plan-release.outputs.action) == 'build' &&
-      !inputs.reuse-artifacts
+      (needs.plan-validate.outputs.action || needs.plan-release.outputs.action) == 'build'
     permissions:
       contents: read
+      actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/engine.yml
     with:
+      release-build: true
       tests: ${{ inputs.mode != 'validate' || inputs.tests != false }}
       integration: ${{ inputs.mode != 'validate' || inputs.integration != false }}
 
@@ -141,7 +140,7 @@ jobs:
     if: >-
       always() && !cancelled() && needs.plan-release.result == 'success' &&
       needs.plan-release.outputs.action == 'build' &&
-      (needs.build.result == 'success' || (inputs.reuse-artifacts && needs.build.result == 'skipped'))
+      needs.build.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write

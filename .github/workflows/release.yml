@@ -4,12 +4,13 @@ name: Release
 #
 #   select    version (changesets pending), publish (versions not on npm) or none
 #   version   create or update the release pull request
+#   validate  this publishing commit's package format, lint, build and unit tests
 #   prebuilts when @soundor/engine is to be published: its prebuilt release
 #             for this commit, built and published if missing, verified if not
 #             (engine-prebuilts.yml); nothing native otherwise
 #   host-artifacts  when @soundor/vst3-host is to be published: its executables
-#             for this commit (vst3-host-artifacts.yml), unless Verify built
-#             and tested them in this run already
+#             for this commit, built and tested by this release pipeline
+#             (vst3-host-artifacts.yml)
 #   pack      build, write the engine's artifacts/manifest.json from the
 #             verified public release, generate and pack the VST3 host's
 #             platform packages from those executables and pin them in the
@@ -39,16 +40,8 @@ concurrency:
 permissions: {}
 
 jobs:
-  verify:
-    name: Verify release commit
-    permissions:
-      contents: read
-      actions: read
-    uses: ./.github/workflows/verify.yml
-
   select:
     name: Select
-    needs: verify
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -63,6 +56,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Select the mode
         id: mode
@@ -96,6 +91,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Create or update the release pull request
         uses: changesets/action/version@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
@@ -104,38 +101,59 @@ jobs:
           pr-title: 'chore: release packages'
           commit-message: 'chore: release packages'
 
+  validate:
+    name: Validate release packages
+    needs: select
+    if: needs.select.outputs.mode == 'publish'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CC: clang
+      CXX: clang++
+      CMAKE_GENERATOR: Ninja
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          cache: false
+      - name: Format, lint, build and test
+        run: pnpm run check
+
   prebuilts:
     name: Engine prebuilts
-    needs: select
+    needs: [select, validate]
     if: needs.select.outputs.mode == 'publish' && needs.select.outputs.engine == 'true'
     permissions:
       contents: write
+      actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/engine-prebuilts.yml
     with:
       mode: publish
-      reuse-artifacts: true
 
-  # The executables Verify did not already build and test in this run.
+  # This pipeline builds and validates every native executable it publishes.
   host-artifacts:
     name: VST3 host artifacts
-    needs: [verify, select]
-    if: >-
-      needs.select.outputs.mode == 'publish' && needs.select.outputs.host == 'true' &&
-      needs.verify.outputs.host != 'true'
+    needs: [select, validate]
+    if: needs.select.outputs.mode == 'publish' && needs.select.outputs.host == 'true'
     permissions:
       contents: read
     uses: ./.github/workflows/vst3-host-artifacts.yml
     with:
+      cache: false
       checks: false
 
   pack:
     name: Pack
-    needs: [verify, select, prebuilts, host-artifacts]
+    needs: [select, validate, prebuilts, host-artifacts]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
+      needs.validate.result == 'success' &&
       (needs.select.outputs.engine != 'true' || needs.prebuilts.result == 'success') &&
-      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success' ||
-       (needs.host-artifacts.result == 'skipped' && needs.verify.outputs.host == 'true'))
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -148,6 +166,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: false
 
       - name: Build
         run: pnpm build
@@ -270,4 +290,5 @@ jobs:
       id-token: write
     uses: ./.github/workflows/website.yml
     with:
+      cache: false
       ref: ${{ github.sha }}

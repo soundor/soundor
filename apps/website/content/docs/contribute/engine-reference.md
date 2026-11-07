@@ -1176,6 +1176,34 @@ before Yoga sees them (`Surface.cpp`), since a parent sized by its content
 counted the unclamped size. What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
+### Verified dependencies in CI
+
+Release engine jobs (`engine.yml`, `release-build: true`) bypass ordinary native
+and compiler caches, including the pnpm store cache. Standalone Verify uses `release-build: false`, including on
+main, to check changes and populate ordinary CI caches and artifacts. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
+the recipes (including patches and symbol prefixes), runtime family, detected
+compiler and SDK settings, CMake flags and hosted runner image. It looks for a
+matching fourteen-day artifact from a successful main release workflow. A miss
+compiles cleanly from pinned sources; no existing unsigned cache is promoted.
+
+Before restoring a snapshot, the job verifies the transport digest, then uses
+`gh attestation verify` to bind the archive to this repository's `engine.yml`
+signer, `refs/heads/main`, the original source and signer commits, and a hosted
+runner. Signature verification precedes native archive extraction. The archive
+reader rejects path traversal, links, devices, duplicate paths and unexpected
+identities. The engine itself still compiles from the current checkout.
+
+After all release engine build jobs succeed, `attest-dependencies` runs separately
+on `main`. Verify does not run this signing job. It receives signing permissions, installs no packages, and executes no
+producer tools. GitHub's pinned `actions/attest` signs the snapshot digest, and
+the archive and bundle are retained together for fourteen days. The initial main
+run and changes to recipes or toolchain/image settings require a cold dependency
+build. This authenticates the builder and exact bytes; it does not establish
+that the reviewed source or compiler is free of malicious behavior.
+
+PR builds continue using ordinary caches for speed. The separate sanitizer,
+GCC, no-GPU and lint suites do not supply release dependency snapshots.
+
 ### Skia
 
 Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
@@ -1632,7 +1660,7 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-read-only `engine.yml` workflow to build all eight archives on GitHub's
+`engine.yml` workflow to build all eight archives on GitHub's
 runners. The Windows dynamic and static C runtime families build on separate
 runners with separate dependency caches. It tests the extracted archives (the
 JUCE adapters and the DevTools bridge included), and releases them as one set,
@@ -1677,14 +1705,15 @@ engine's own npm release and its Changesets GitHub release.
 
 `.github/workflows/release.yml` publishes it when a Changesets publish plan
 includes `@soundor/engine` (calling `engine-prebuilts.yml` in `publish` mode,
-which reuses the commit's release if it exists, or publishes the engine
-artifacts that Verify already validated), then writes
+which verifies and reuses the commit's published release if it exists, or
+builds and tests its own engine artifacts before publishing), then writes
 `artifacts/manifest.json` from the release, downloaded anonymously and checked
 archive by archive, packs the packages and checks that the packed engine
 carries exactly that manifest, and only then publishes to npm. The manifest
-is never committed. Publishing waits for Verify on the same commit. If a matching released engine
-is available and the engine is unaffected, other package releases need no
-engine artifact build.
+is never committed. The release pipeline validates its own package build and
+native outputs; it does not call or wait for standalone Verify, which runs
+independently on PRs and main pushes. Releases that do not publish the engine
+need no engine artifact build.
 
 ### Licenses
 

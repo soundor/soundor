@@ -1,11 +1,8 @@
 name: Verify
 
 on:
-  workflow_call:
-    outputs:
-      host:
-        description: Whether this run built and tested the VST3 host's artifacts
-        value: ${{ jobs.host-plan.outputs.build }}
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -82,8 +79,12 @@ jobs:
     if: needs.engine-plan.outputs.build == 'true'
     permissions:
       contents: read
+      actions: read
+      id-token: write
+      attestations: write
     uses: ./.github/workflows/engine.yml
     with:
+      release-build: false
       integration: false
       tests: ${{ needs.changes.outputs.native == 'true' }}
       suites: ${{ needs.changes.outputs.native == 'true' }}
@@ -155,7 +156,9 @@ jobs:
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
       - name: Engine prebuilt release tooling tests
-        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/native-artifacts.test.mjs
+        run: node --test .github/scripts/engine-prebuilts.test.mjs .github/scripts/native-artifacts.test.mjs .github/scripts/verified-deps.test.mjs
+      - name: Verified dependency archive tests
+        run: python3 -m unittest discover -s .github/scripts -p 'verified_deps_test.py'
 
       - name: Run formatter
         run: pnpm run format

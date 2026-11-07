@@ -12,12 +12,20 @@ name: Website
 on:
   workflow_call:
     inputs:
+      cache:
+        description: Cache the pnpm store (disabled by Release)
+        type: boolean
+        default: true
       ref:
         description: The commit to build the site from
         type: string
         required: true
   workflow_dispatch:
     inputs:
+      cache:
+        description: Cache the pnpm store (disabled by Release)
+        type: boolean
+        default: true
       ref:
         description: Branch, tag or commit to deploy
         type: string
@@ -44,6 +52,8 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.cache }}
 
       # The packages, the examples' web builds (never their native builds),
       # then the site; it fails on a broken link or an incomplete page.

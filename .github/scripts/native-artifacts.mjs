@@ -8,6 +8,8 @@ const recipes = {
   engine: [
     '.github/workflows/engine.yml',
     '.github/scripts/engine-prebuilts.mjs',
+    '.github/scripts/verified-deps.mjs',
+    '.github/scripts/verified-deps.py',
     '.github/actions/native-deps/action.yml',
     '.github/actions/native-deps-save/action.yml',
   ],
@@ -99,7 +101,7 @@ export async function findMainArtifacts({
         run.conclusion !== 'success' ||
         run.event !== 'push' ||
         run.head_branch !== 'main' ||
-        run.path !== '.github/workflows/release.yml' ||
+        run.path !== '.github/workflows/verify.yml' ||
         run.head_repository?.full_name !== repository ||
         !/^[a-f0-9]{40}$/.test(run.head_sha) ||
         marker.workflow_run.head_sha !== run.head_sha
