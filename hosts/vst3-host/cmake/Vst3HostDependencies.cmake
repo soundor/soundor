@@ -64,11 +64,10 @@ function(soundor_vst3_sdk_part name repository directory revision sha256)
     DOWNLOAD_NAME "${repository}-${revision}.tar.gz"
     DOWNLOAD_DIR "${soundor_downloads}"
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    SOURCE_DIR "${SOUNDOR_VST3_SDK_DIR}/${directory}")
-  FetchContent_GetProperties(${name})
-  if(NOT ${name}_POPULATED)
-    FetchContent_Populate(${name})
-  endif()
+    SOURCE_DIR "${SOUNDOR_VST3_SDK_DIR}/${directory}"
+    # Populate only: the host defines its own SDK targets.
+    SOURCE_SUBDIR "soundor-populate-only")
+  FetchContent_MakeAvailable(${name})
 endfunction()
 
 soundor_vst3_sdk_part(soundor_vst3_pluginterfaces vst3_pluginterfaces pluginterfaces
@@ -100,11 +99,10 @@ function(soundor_vst3_host_archive name url sha256 download_name out)
     URL_HASH "SHA256=${sha256}"
     DOWNLOAD_NAME "${download_name}"
     DOWNLOAD_DIR "${soundor_downloads}"
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-  FetchContent_GetProperties(${name})
-  if(NOT ${name}_POPULATED)
-    FetchContent_Populate(${name})
-  endif()
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    # Populate only: SDL is configured below; the other targets are ours.
+    SOURCE_SUBDIR "soundor-populate-only")
+  FetchContent_MakeAvailable(${name})
   set(${out} "${${name}_SOURCE_DIR}" PARENT_SCOPE)
 endfunction()
 
