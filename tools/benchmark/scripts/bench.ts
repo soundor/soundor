@@ -42,7 +42,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 const benchmark = path.resolve(import.meta.dirname, '..');
-const native = path.resolve(benchmark, '../../runtimes/engine');
+const native = path.resolve(benchmark, '../../engines/engine');
 
 const { values: options } = parseArgs({
   options: {

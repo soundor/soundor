@@ -22,7 +22,7 @@ describe('siteValues', () => {
       ['@soundor/react', 'packages/react'],
       ['@soundor/juce-runtime', 'runtimes/juce-runtime'],
       ['@soundor/web-runtime', 'runtimes/web-runtime'],
-      ['@soundor/engine', 'runtimes/engine'],
+      ['@soundor/engine', 'engines/engine'],
     ]) {
       expect({ [name!]: values.versions[name!] }).toEqual({
         [name!]: manifest(path!).version,

@@ -111,6 +111,7 @@ jobs:
       CC: clang
       CXX: clang++
       CMAKE_GENERATOR: Ninja
+      SOUNDOR_YOGA_WASM: release
     permissions:
       contents: read
     steps:
@@ -120,6 +121,11 @@ jobs:
           cache: false
       - name: Format, lint, build and test
         run: pnpm run check
+
+      # Release does not wait for Verify: the engine's Yoga is released on its
+      # own, and the web runtime's must follow.
+      - name: The web runtime's Yoga is the engine's
+        run: node engines/yoga-wasm/scripts/check-release.mjs
 
   prebuilts:
     name: Engine prebuilts
@@ -170,7 +176,12 @@ jobs:
           cache: false
 
       - name: Build
+        env:
+          SOUNDOR_YOGA_WASM: release
         run: pnpm build
+
+      - name: The packed Yoga was compiled for this release
+        run: node engines/yoga-wasm/scripts/check-release.mjs --built
 
       # Never committed: written from the release, which is downloaded
       # anonymously and checked against build-info.json first.
@@ -179,7 +190,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prebuilts.outputs.tag }}
-        run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out runtimes/engine/artifacts/manifest.json
+        run: node .github/scripts/engine-prebuilts.mjs manifest --tag "$TAG" --commit "$GITHUB_SHA" --out engines/engine/artifacts/manifest.json
 
       # Every target's validated executable of this commit, from this run.
       - name: Download the VST3 host's executables
@@ -227,7 +238,7 @@ jobs:
 
       - name: The packed engine carries the manifest
         if: needs.select.outputs.engine == 'true'
-        run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" runtimes/engine/artifacts/manifest.json
+        run: node .github/scripts/engine-prebuilts.mjs check-pack "$RUNNER_TEMP/packed" engines/engine/artifacts/manifest.json
 
       - name: The packed VST3 host pins its platform packages
         if: needs.select.outputs.host == 'true'

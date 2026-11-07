@@ -12,6 +12,8 @@
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
+import type { Yoga } from '@soundor/yoga-wasm';
+
 import { Listeners } from '../listeners';
 import { AnimationController } from './animation';
 import {
@@ -22,6 +24,7 @@ import {
   PointerEvent,
   WheelEvent,
 } from './events';
+import { pageYoga } from './layout';
 import {
   createNode,
   nodeOf,
@@ -31,6 +34,7 @@ import {
 } from './node';
 import { updateSemantics } from './semantics';
 import { STYLESHEET } from './style';
+import { canvasMeasurer, type TextMeasurer } from './text-layout';
 import type {
   Cursor,
   EditorSize,
@@ -127,8 +131,24 @@ export class UiView implements ViewLink {
       } | null)
     | null = null;
 
+  readonly yoga: Yoga;
+  readonly yogaConfig: number;
+  readonly textMeasurer: TextMeasurer;
+  /** A layout is to run before the next paint. */
+  #layoutQueued = false;
+  /** Something Yoga decides has changed since the last layout. */
+  #layoutChanged = true;
+  /** Lay out everything, whatever Yoga has cached. */
+  #layoutAll = false;
+  /** The size and scale the view is laid out at, as last measured. */
+  #layoutSize: ViewSize = this.#size;
+  #disposed = false;
+
   constructor(document: Document = globalThis.document) {
     this.animations = new AnimationController(document.defaultView);
+    this.yoga = pageYoga();
+    this.yogaConfig = this.yoga.YGConfigNew();
+    this.textMeasurer = canvasMeasurer(document);
     if (document.getElementById(STYLE_ID) === null) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -148,11 +168,48 @@ export class UiView implements ViewLink {
     );
     this.rootElement.append(elementOf(this.root), elementOf(this.overlay));
     this.#listen();
+    // A font arriving changes what text measures.
+    document.fonts?.addEventListener('loadingdone', () => {
+      this.textMeasurer.reset();
+      UiNode.fontsChanged(this.root);
+      UiNode.fontsChanged(this.overlay);
+    });
+  }
+
+  pixelScale(): number {
+    return this.#layoutSize.scale > 0 ? this.#layoutSize.scale : 1;
+  }
+
+  layoutChanged(): void {
+    this.#layoutChanged = true;
+    if (this.#layoutQueued || this.#disposed) return;
+    this.#layoutQueued = true;
+    // After what the plugin is doing now, and always before a paint.
+    queueMicrotask(() => {
+      this.#layoutQueued = false;
+      this.flushLayout();
+    });
+  }
+
+  /**
+   * Lays the view out with Yoga, if anything changed, and places its elements:
+   * what `layout` and the like read. Each root fills the view, on its own: the
+   * overlay is not in the content's flow.
+   */
+  flushLayout(): void {
+    if (!this.#layoutChanged || this.#disposed) return;
+    this.#layoutChanged = false;
+    const { width, height } = this.#layoutSize;
+    const force = this.#layoutAll;
+    this.#layoutAll = false;
+    UiNode.layOut(this.root, width, height, force);
+    UiNode.layOut(this.overlay, width, height, force);
   }
 
   /** Shows the view in `container` (the host's plugin viewport). */
   mount(container: HTMLElement): void {
     container.append(this.rootElement);
+    this.measure();
   }
 
   /** Detaches the view and its input listeners. */
@@ -167,6 +224,10 @@ export class UiView implements ViewLink {
       );
     this.#controller.abort();
     this.rootElement.remove();
+    this.#disposed = true;
+    UiNode.free(this.root);
+    UiNode.free(this.overlay);
+    this.yoga.YGConfigFree(this.yogaConfig);
   }
 
   createNode(type: NodeType): UiNode {
@@ -304,6 +365,18 @@ export class UiView implements ViewLink {
    */
   measure(): void {
     const size = this.size();
+    if (size !== this.#layoutSize) {
+      if (size.scale !== this.#layoutSize.scale) {
+        // Edges are on device pixels: all of them move.
+        this.yoga.YGConfigSetPointScaleFactor(
+          this.yogaConfig,
+          size.scale > 0 ? size.scale : 1,
+        );
+        this.#layoutAll = true;
+      }
+      this.#layoutSize = size;
+      this.layoutChanged();
+    }
     if (size === this.#notifiedSize) return;
     this.#notifiedSize = size;
     this.#sizeListeners.notify(size);

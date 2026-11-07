@@ -1,5 +1,5 @@
 # clang-tidy for Soundor-owned native code (the `tidy` preset of
-# runtimes/engine). Checks are chosen to find real defects; purely
+# engines/engine). Checks are chosen to find real defects; purely
 # stylistic or noisy ones are disabled with a reason.
 ---
 Checks: >
@@ -40,5 +40,5 @@ Checks: >
 # modernize-use-trailing-return-type / avoid-c-arrays: style, not defects.
 WarningsAsErrors: '*'
 # Generated headers (tests/generated) are excluded.
-HeaderFilterRegex: '.*/runtimes/(engine/(include|src|tests/(js|native|symbols))|juce-runtime/native/backend)/.*'
+HeaderFilterRegex: '.*/(engines/engine/(include|src|tests/(js|native|symbols))|runtimes/juce-runtime/native/backend)/.*'
 FormatStyle: file

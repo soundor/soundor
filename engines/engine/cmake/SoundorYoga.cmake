@@ -30,5 +30,8 @@ set_target_properties(soundor_yoga PROPERTIES
 if(MSVC)
   target_compile_options(soundor_yoga PRIVATE /W0 /utf-8)
 else()
-  target_compile_options(soundor_yoga PRIVATE -w)
+  # Without fused multiply-add, which clang uses by default on arm64 and whose
+  # rounding differs: a layout near zero free space could differ by whole boxes
+  # between architectures, and from @soundor/yoga-wasm's.
+  target_compile_options(soundor_yoga PRIVATE -w -ffp-contract=off)
 endif()

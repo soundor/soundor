@@ -63,15 +63,17 @@ portable engine targeting web layout standards. Its flex layout model fits
 Soundor's React component and style API, and native code can calculate layout
 without implementing that algorithm in JavaScript.
 
-The web runtime reproduces Yoga's layout defaults on DOM elements so shared
-React code has consistent behavior. See
+The web runtime lays out with the same Yoga, compiled to WebAssembly, and places
+DOM elements where it says. It once reproduced Yoga in CSS, which it could not
+wherever the result depends on the parent: a box's content overflowing it instead
+of being squeezed, for one. See [Yoga for the Web](/docs/contribute/yoga-wasm), the
 [UI implementation](/docs/contribute/engine-reference#soundorui) and the
 [web implementation](/docs/web-runtime#vite-and-the-plugin-ui).
 
-The tradeoff is a deliberate layout subset and defaults to maintain across both
-implementations. A browser's CSS defaults are not automatically Soundor's
-defaults; a new style property needs declarations, native mapping, browser
-mapping and corresponding tests.
+The tradeoff is a WebAssembly module in every page, about 37 KB gzipped, and a
+new style property needs declarations, native mapping, the web runtime's mapping
+to Yoga and corresponding tests. Measuring text with the browser's fonts, and
+wrapping it by the engine's rules, is what keeps the DOM drawing what Yoga sized.
 
 ## Soundor owns accessibility semantics
 

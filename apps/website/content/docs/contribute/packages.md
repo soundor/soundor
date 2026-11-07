@@ -6,7 +6,7 @@ description: 'Every package in the repository, what it is responsible for, and h
 ## Purpose
 
 The repository is a pnpm workspace: published packages under `packages/`,
-the runtimes and the engine under `runtimes/`, standalone hosts under `hosts/`
+the runtimes under `runtimes/`, the engine under `engines/`, standalone hosts under `hosts/`
 (the VST3 host), private shared configs under
 `configs/`, the examples under `examples/` and the website under
 `apps/website`.
@@ -79,6 +79,9 @@ need it.
 | Testing           | [Vitest plugin](/docs/testing/vitest), [environment](/docs/testing/vitest-environment-soundor), [Testing Library](/docs/testing), [test runtime](/docs/contribute/test-runtime) | Per-test runtime isolation, semantic queries, interactions, and deterministic animation time                      |
 | End-to-end tests  | [`@soundor/vitest-e2e`](/docs/testing/e2e)                                                                                                                                      | Vitest tests of a built VST3 plugin, UI and audio, in the VST3 host                                               |
 | Plugin host       | [`@soundor/vst3-host`](/docs/testing/vst3-host) ([internals](/docs/contribute/vst3-host))                                                                                       | A standalone VST3 host executable driven from Node.js: offline processing, editors, platform packages             |
+
+`@soundor/yoga-wasm`, [the engine's Yoga as WebAssembly](/docs/contribute/yoga-wasm),
+lives beside it in `engines/`, and the web runtime depends on an exact version.
 
 The engine and the VST3 host are versioned independently of the shared
 package release group.

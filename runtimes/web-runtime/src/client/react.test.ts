@@ -61,9 +61,11 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     const [box] = root.children;
     expect(box?.type).toBe('view');
     const html = element(box!);
-    expect(html.style.flexDirection).toBe('row');
-    expect(html.style.paddingTop).toBe('8px');
+    expect(html.style.color).toBe('');
     const [text] = box!.children;
+    // Its padding and direction, laid out.
+    expect(text!.layout.x).toBe(8);
+    expect(text!.layout.y).toBe(8);
     expect(text?.text).toBe('Gain 0.5');
     expect(element(text!).style.color).toBe('red');
     expect(element(text!).style.lineHeight).toBe('24px');
@@ -185,7 +187,7 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     expect((element(image) as HTMLImageElement).src).toContain(
       'soundor-assets/0123456789abcdef.png',
     );
-    expect(element(image).style.width).toBe('32px');
+    expect(image.layout.width).toBe(32);
     flushSync(() => reactRoot.unmount());
   });
 
@@ -345,8 +347,7 @@ describe('@soundor/react on the DOM soundor:ui', () => {
       flushSync(() => view.rootElement.dispatchEvent(native));
       expect(native.defaultPrevented).toBe(true);
       const menu = overlayRoot.children[0]!.children[0]!;
-      expect(element(menu).style.left).toBe('120px');
-      expect(element(menu).style.top).toBe('45px');
+      expect(menu.layout).toMatchObject({ x: 120, y: 45 });
       flushSync(() => reactRoot.unmount());
     });
 
@@ -398,8 +399,7 @@ describe('@soundor/react on the DOM soundor:ui', () => {
       flushSync(() => pointer('pointerdown', 1));
       flushSync(() => pointer('pointerup', 0));
       const dropdown = overlayRoot.children[0]!.children[0]!;
-      expect(element(dropdown).style.left).toBe('30px');
-      expect(element(dropdown).style.top).toBe('60px');
+      expect(dropdown.layout).toMatchObject({ x: 30, y: 60 });
       // Out of the clipping view and the scroll view.
       expect(element(root).contains(element(dropdown))).toBe(false);
       flushSync(() => reactRoot.unmount());

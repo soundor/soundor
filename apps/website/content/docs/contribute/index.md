@@ -18,7 +18,7 @@ flowchart TD
     toolchain --> contract["Generated contract and UI bundle"]
     contract --> juce["runtimes/juce-runtime: native host"]
     contract --> web["runtimes/web-runtime: browser host"]
-    juce --> engine["runtimes/engine: C++ engine"]
+    juce --> engine["engines/engine: C++ engine"]
     react["packages/react: UI renderer"] --> contract
     tests["packages/: simulated runtime and testing tools"] --> react
     examples["examples/: plugins and snippets"] --> site["apps/website: docs and playground"]
@@ -36,7 +36,7 @@ ownership. `configs/` contains private TypeScript and bundler presets;
 | A CLI command or dev session          | [Pipeline](/docs/contribute/pipeline), [Runtime SDK](/docs/contribute/runtime-sdk)                                                     | `packages/cli/src/`                                                    |
 | A new runtime                         | [Build a runtime](/docs/contribute/build-runtime)                                                                                      | `packages/config/src/runtime.ts`, `packages/runtime-sdk/src/`          |
 | A shared UI or service behavior       | [Cross-runtime contract](/docs/contribute/contract)                                                                                    | Engine, web runtime, test runtime and React                            |
-| Native layout, painting or JavaScript | [Engine reference](/docs/contribute/engine-reference)                                                                                  | `runtimes/engine/include/`, `runtimes/engine/src/`                     |
+| Native layout, painting or JavaScript | [Engine reference](/docs/contribute/engine-reference)                                                                                  | `engines/engine/include/`, `engines/engine/src/`                       |
 | Native host integration               | [Embedding API](/docs/contribute/engine-reference#embedding-api)                                                                       | `runtimes/juce-runtime/native/backend/juce/`                           |
 | Accessibility                         | [Contract](/docs/contribute/contract), [Apple bridges](/docs/contribute/apple-accessibility)                                           | Engine `src/a11y/`, web client `ui/semantics.ts`                       |
 | React or application tests            | [React tests](/docs/contribute/react-tests), [test runtime](/docs/contribute/test-runtime)                                             | `packages/react/`, `packages/react/testing/`, `packages/test-runtime/` |

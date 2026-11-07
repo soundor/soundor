@@ -1,4 +1,4 @@
-// Engine prebuilt releases (runtimes/engine/README.md, "Prebuilt engines"),
+// Engine prebuilt releases (engines/engine/README.md, "Prebuilt engines"),
 // for .github/workflows/engine-prebuilts.yml:
 //
 //   plan [--revision <n>]            what to build, or the release to reuse
@@ -95,7 +95,7 @@ export function plan({ version, commit, revision }) {
 
 export function engineVersion() {
   return JSON.parse(
-    readFileSync(join(root, 'runtimes/engine/package.json'), 'utf8'),
+    readFileSync(join(root, 'engines/engine/package.json'), 'utf8'),
   ).version;
 }
 

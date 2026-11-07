@@ -21,7 +21,7 @@ function run(command, args, cwd) {
 }
 try {
   const packages = [
-    'runtimes/engine',
+    'engines/engine',
     'packages/core',
     'packages/environment',
     'packages/config',

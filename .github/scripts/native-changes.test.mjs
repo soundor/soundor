@@ -190,7 +190,7 @@ const cases = [
   // The engine, which everything native builds on, and what it depends on.
   [
     'engine source',
-    append('runtimes/engine/src/js/Bindings.h'),
+    append('engines/engine/src/js/Bindings.h'),
     true,
     true,
     true,
@@ -199,7 +199,7 @@ const cases = [
   ],
   [
     'engine lowering',
-    append('runtimes/engine/scripts/native-module.ts'),
+    append('engines/engine/scripts/native-module.ts'),
     true,
     true,
     true,
@@ -305,7 +305,7 @@ const cases = [
   ],
   [
     'engine NOTICE.md',
-    append('runtimes/engine/NOTICE.md'),
+    append('engines/engine/NOTICE.md'),
     true,
     true,
     true,

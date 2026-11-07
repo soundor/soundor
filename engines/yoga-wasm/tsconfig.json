@@ -1,0 +1,13 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    // Runs in the browser and in Node: WebAssembly and atob, from the DOM's.
+    "lib": ["es2023", "DOM"],
+    "types": [],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo"
+  },
+  "include": ["src", "generated/yoga-wasm.ts"],
+  "exclude": ["src/**/*.test.ts"]
+}

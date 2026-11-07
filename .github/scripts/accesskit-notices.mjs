@@ -1,4 +1,4 @@
-// Writes runtimes/engine/licenses/accesskit/crates-<target>.md: the Rust crates
+// Writes engines/engine/licenses/accesskit/crates-<target>.md: the Rust crates
 // compiled into the pinned accesskit-c static library for each prebuilt
 // target, with their license texts. The release archive carries no notices
 // for them. Needs cargo and network access to GitHub and crates.io.
@@ -18,7 +18,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const engine = join(root, 'runtimes/engine');
+const engine = join(root, 'engines/engine');
 const pins = readFileSync(
   join(engine, 'cmake/SoundorDependencies.cmake'),
   'utf8',

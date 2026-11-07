@@ -3,7 +3,7 @@ title: 'iOS accessibility'
 description: 'Bridge implementation and device validation still needed; no iOS plugin runtime yet.'
 ---
 
-Source: [`runtimes/engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/runtimes/engine/src/a11y/apple).
+Source: [`engines/engine/src/a11y/apple/`](https://github.com/soundor/soundor/tree/main/engines/engine/src/a11y/apple).
 
 `IosPlatform.mm` presents the semantic tree to VoiceOver on iOS as virtual
 `UIAccessibilityElement`s. It follows the [macOS bridge's rules](/docs/contribute/apple-accessibility):

@@ -1,7 +1,7 @@
 name: Engine prebuilts
 
 # The native libraries of @soundor/engine as a GitHub release,
-# engine-prebuilts-v<version>-<short sha>-r<revision> (runtimes/engine/README.md,
+# engine-prebuilts-v<version>-<short sha>-r<revision> (engines/engine/README.md,
 # "Prebuilt engines"). Modes:
 #
 #   validate  build, test and pack every archive; keep them as run artifacts

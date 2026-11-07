@@ -17,6 +17,7 @@
     "---Engine---",
     "engine-reference",
     "webgl-codegen",
+    "yoga-wasm",
     "benchmark",
     "---Accessibility---",
     "apple-accessibility",

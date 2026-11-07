@@ -19,7 +19,8 @@ same lifecycle phases. Two runtimes exist:
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
-  Audio. Nothing native runs there (no WASM, Hermes, Yoga or Skia).
+  Audio, without Hermes or Skia. It lays out with the engine's Yoga, compiled to
+  WebAssembly (`@soundor/yoga-wasm`), and CSS only draws.
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
@@ -62,7 +63,7 @@ pnpm --filter soundor test                            # the CLI package is named
 `test` depends on `^build` in turbo, so filtered vitest runs need the
 dependencies built first (`pnpm build` or `pnpm turbo run build --filter=<pkg>...`).
 
-Native runtime (`runtimes/engine`, from that directory):
+Native runtime (`engines/engine`, from that directory):
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, doctest suites  → build/dev
@@ -73,7 +74,7 @@ cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → b
 cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
                                             # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
-(cd ../juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
+(cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
 pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
 pnpm --filter @soundor/juce-runtime test:plugin:debug  # its Debug build with DevTools, for the real-plugin suites
@@ -149,6 +150,9 @@ Regenerating checked-in generated files:
 - `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
   `soundor:native` C++ output in `native/tests/generated`, compiled by the
   native tests.
+- `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
+  (from `engines/engine`, after a dev build) — the engine's frames in
+  `tests/layout/corpus.json`, for a change meant to change layout.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
@@ -220,7 +224,12 @@ read the docs bundled with the installed package
 - `packages/testing-library` — semantic queries and stateful user interactions;
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
-- `runtimes/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `engines/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
+- `engines/yoga-wasm` (`@soundor/yoga-wasm`) — the engine's Yoga (its revision
+  and patches, read from its recipes) compiled to WebAssembly by a pinned
+  wasi-sdk, called through its C API. Independently versioned. Its `build` takes
+  the published module when its inputs are unchanged, and compiles otherwise.
+  See `contribute/yoga-wasm.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
   and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
@@ -254,9 +263,12 @@ read the docs bundled with the installed package
 `soundor.config.ts` → generated contract → each runtime implements the same
 `soundor:*` modules (`parameters`, `host`, `ui`, `native`, `storage`, `fs`)
 and the same subset of Web globals. The web runtime deliberately reproduces
-the JUCE runtime's semantics (parameter clamping/gestures, event routing,
-Yoga layout defaults, error messages), so a behavior change in one runtime
-usually needs the matching change in the other.
+the JUCE runtime's semantics (parameter clamping/gestures, event routing, error
+messages), so a behavior change in one runtime usually needs the matching change
+in the other. Layout is the same Yoga in both: a style's mapping to it is
+`src/client/ui/layout.ts` here and `UiModule.cpp` with `Surface.cpp` there, and
+`engines/engine/tests/layout/corpus.json` holds the engine's frames, which the
+web runtime's tests must match exactly.
 
 ### Accessibility
 
@@ -276,7 +288,7 @@ overwrites them. `gen` regenerates `.soundor/generated/` (deterministic,
 `soundor gen --check`). Code that belongs to every plugin goes in the
 generated framework or the runtime package, not in `init` templates.
 
-### Native runtime invariants (`runtimes/engine`)
+### Native runtime invariants (`engines/engine`)
 
 - The core library is backend-independent and never includes JUCE; JUCE
   adapters live in `backend/juce/`. A third-party header (Hermes, Yoga, Skia,
@@ -294,7 +306,7 @@ generated framework or the runtime package, not in `init` templates.
   function, lowered for Hermes by the engine's `toNativeModule()`,
   `scripts/native-module.ts`): the plugin's `bundle.js` (the JUCE runtime
   lowers the CLI's `bundle.mjs`), and the runtime's own modules, lowered from
-  `runtimes/engine/src/**/*.js` while building (so native builds need Node and the
+  `engines/engine/src/**/*.js` while building (so native builds need Node and the
   installed dependencies). Production builds compile it with `hermesc` and
   link the VM without its compiler.
 - Symbol isolation: several Soundor plugins share a host process, so
@@ -328,7 +340,7 @@ generated framework or the runtime package, not in `init` templates.
   `.github/workflows/engine-prebuilts.yml`; the engine's CMake imports
   extracted archives (`SOUNDOR_ENGINE_PREBUILT_{DEBUG,RELEASE}_DIR`) as the
   targets a source build defines, after checking them. A new linked
-  dependency needs its license notice in the archive (`runtimes/engine/licenses/`).
+  dependency needs its license notice in the archive (`engines/engine/licenses/`).
 - Reload (dev) means destroying the `RuntimeHost` and creating a fresh one;
   teardown with pending jobs must be clean (debug builds assert that no JSI
   value outlives its context).
@@ -347,6 +359,8 @@ generated framework or the runtime package, not in `init` templates.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the sixteen packages under `packages/` are a fixed version group;
-  `@soundor/engine` and `@soundor/vst3-host` are versioned on their own.
+  `@soundor/engine`, `@soundor/yoga-wasm` and `@soundor/vst3-host` are versioned on
+  their own. A change to the engine's Yoga also needs a `@soundor/yoga-wasm`
+  changeset, which Verify checks.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

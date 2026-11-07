@@ -62,7 +62,7 @@ code; `only` lists groups or scenario ids.
 
 `pnpm bench` measures the JUCE runtime headless, without building the
 plugin: it builds the UI bundle and `soundor_run_ui` (a Release build, the
-`bench` preset of `runtimes/engine`), runs the scenarios for 600 measured frames after 30 warmup frames, 5 times
+`bench` preset of `engines/engine`), runs the scenarios for 600 measured frames after 30 warmup frames, 5 times
 and prints the median of each measure with its spread across runs, in two
 tables.
 
@@ -133,9 +133,9 @@ scenario in `globalThis.soundorRunUiPhase`):
 ```sh
 pnpm build:web   # also bundles the UI into .soundor/ui/production
 # Lowers it into the engine's module form, as the JUCE runtime does.
-node ../../runtimes/engine/cmake/SoundorLowerJs.mjs \
+node ../../engines/engine/cmake/SoundorLowerJs.mjs \
   .soundor/ui/production/bundle.mjs .soundor/ui/production/bundle.js
-../../runtimes/engine/build/bench/tests/soundor_run_ui \
+../../engines/engine/build/bench/tests/soundor_run_ui \
   .soundor/ui/production --size 700x520 --eval 'soundorBenchmark.run()' \
   --time-native-calls --json report.json
 ```

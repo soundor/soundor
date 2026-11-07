@@ -10,7 +10,7 @@ another platform. The JUCE and web runtimes show these two approaches.
 
 ## Where the code is
 
-The engine's public API is under `runtimes/engine/include/soundor/`, especially
+The engine's public API is under `engines/engine/include/soundor/`, especially
 `runtime/RuntimeHost.h`, `ui/Surface.h`, `platform/Platform.h` and the compositor
 headers. JUCE adapters live in
 `runtimes/juce-runtime/native/backend/juce/`. The independent browser

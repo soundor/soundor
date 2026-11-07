@@ -25,6 +25,9 @@ it('keeps logical layout and inverses nested presentation transforms for pointer
   const parent = view.createNode('view');
   const child = view.createNode('view');
   parent.style = {
+    position: 'absolute',
+    left: 20,
+    top: 20,
     width: 40,
     height: 20,
     transform: [{ translateX: 20 }, { scale: 2 }],
@@ -32,16 +35,6 @@ it('keeps logical layout and inverses nested presentation transforms for pointer
   child.style = { width: 40, height: 20, transform: [{ rotate: 0.25 }] };
   root.appendChild(parent);
   parent.appendChild(child);
-  Object.defineProperties(el(parent), {
-    offsetLeft: { value: 20 },
-    offsetTop: { value: 20 },
-    offsetParent: { value: el(root) },
-  });
-  Object.defineProperties(el(child), {
-    offsetLeft: { value: 0 },
-    offsetTop: { value: 0 },
-    offsetParent: { value: el(parent) },
-  });
   expect(parent.layout).toEqual({ x: 20, y: 20, width: 40, height: 20 });
   const local = UiNode.localPoint(child, 60, 30);
   expect(local.x).toBeCloseTo(20);
@@ -155,18 +148,21 @@ describe('UiNode content', () => {
       backgroundColor: 'red',
       pointerEvents: 'box-none',
     };
-    expect(el(box).style.width).toBe('40px');
+    expect(box.layout.width).toBe(40);
     expect(el(box).style.backgroundColor).toBe('red');
     expect(el(box).classList.contains('sd-pe-box-none')).toBe(true);
+    // Placed where Yoga says, before anything is painted.
+    view.flushLayout();
+    expect(el(box).style.width).toBe('40px');
     // Writing one property restyles the node, as on the Web.
     box.style.width = '30px';
     expect(box.style.width).toBe(30);
-    expect(el(box).style.width).toBe('30px');
+    expect(box.layout.width).toBe(30);
     delete box.style.width;
     expect('width' in box.style).toBe(false);
 
     box.style = { display: 'none' };
-    expect(el(box).style.width).toBe('');
+    expect(el(box).style.backgroundColor).toBe('');
     expect(el(box).style.display).toBe('none');
     expect(el(box).classList.contains('sd-pe-box-none')).toBe(false);
     expect(() => {
@@ -188,7 +184,7 @@ describe('UiNode content', () => {
     expect(view.rootElement.className).toBe('sd-surface');
     overlay.style = { pointerEvents: 'auto', zIndex: -5 };
     // Its layer and pass-through stay, whatever its style says.
-    expect(el(overlay).className).toBe('sd-node sd-root sd-overlay sd-stretch');
+    expect(el(overlay).className).toBe('sd-node sd-root sd-overlay');
     expect(STYLESHEET).toMatch(
       /\.sd-overlay \{ z-index: 1 !important; pointer-events: none !important; \}/,
     );
@@ -319,19 +315,24 @@ describe('UiNode layout', () => {
     const { root } = setup();
     const parent = view.createNode('scroll');
     const child = view.createNode('view');
+    parent.style = { position: 'absolute', left: 10, top: 20, width: 300 };
+    child.style = { marginLeft: 10, marginTop: 20, width: 50, height: 40 };
     root.appendChild(parent);
     parent.appendChild(child);
     boxes(
       new Map([
         [view.rootElement, new DOMRect(100, 50, 800, 600)],
-        [el(root), new DOMRect(100, 50, 800, 600)],
-        [el(parent), new DOMRect(110, 70, 300, 200)],
         [el(child), new DOMRect(120, 60, 50, 40)],
       ]),
     );
-    Object.defineProperty(view.rootElement, 'offsetWidth', { value: 800 });
+    Object.defineProperties(view.rootElement, {
+      offsetWidth: { value: 800 },
+      offsetHeight: { value: 600 },
+    });
+    view.measure();
     Object.defineProperty(el(parent), 'scrollTop', { value: 30 });
 
+    // As shown, scrolled.
     expect(child.getBoundingClientRect()).toEqual({
       x: 20,
       y: 10,
@@ -341,6 +342,241 @@ describe('UiNode layout', () => {
     // Relative to the parent's box, as if it were not scrolled.
     expect(child.layout).toEqual({ x: 10, y: 20, width: 50, height: 40 });
     expect(root.layout).toEqual({ x: 0, y: 0, width: 800, height: 600 });
+  });
+
+  it('places an element from the padding box of its parent', () => {
+    const { root } = setup();
+    const parent = view.createNode('view');
+    const child = view.createNode('view');
+    parent.style = { borderWidth: 3, padding: 2, width: 100, height: 100 };
+    child.style = { width: 10, height: 10 };
+    root.appendChild(parent);
+    parent.appendChild(child);
+    // Yoga's box starts at the parent's border box, an element's after it.
+    expect(child.layout.x).toBe(5);
+    view.flushLayout();
+    expect(el(child).style.left).toBe('2px');
+    expect(el(child).style.top).toBe('2px');
+    expect(el(parent).style.borderTopWidth).toBe('3px');
+  });
+
+  it('keeps a place across a new style, and moves it with the next layout', () => {
+    const { root } = setup();
+    const box = view.createNode('view');
+    box.style = { width: 10, height: 10 };
+    root.appendChild(box);
+    view.flushLayout();
+    box.style = { width: 10, height: 10, backgroundColor: 'red' };
+    expect(el(box).style.width).toBe('10px');
+    box.style = { width: 20, height: 10 };
+    view.flushLayout();
+    expect(el(box).style.width).toBe('20px');
+  });
+
+  it('lays out on its own before the next paint', async () => {
+    const { root } = setup();
+    const box = view.createNode('view');
+    box.style = { width: 10, height: 10 };
+    root.appendChild(box);
+    expect(el(box).style.width).toBe('');
+    await Promise.resolve();
+    expect(el(box).style.width).toBe('10px');
+  });
+
+  /** A view with room: in none, Yoga rightly squeezes what is in it to nothing. */
+  function sized() {
+    const set = setup();
+    Object.defineProperties(view.rootElement, {
+      offsetWidth: { value: 800 },
+      offsetHeight: { value: 600 },
+    });
+    view.measure();
+    return set;
+  }
+
+  it('wraps the text it shows, at the width it was given', () => {
+    const { root } = sized();
+    const text = view.createNode('text');
+    text.style = { width: 60, fontSize: 10 };
+    text.text = 'aaaa bbbb cc';
+    root.appendChild(text);
+    view.flushLayout();
+    // 5.5 a character (happy-dom has no canvas): the approximate engine's.
+    expect(el(text).textContent).toBe('aaaa bbbb\ncc');
+    expect(text.layout.height).toBe(24);
+    expect(text.text).toBe('aaaa bbbb cc');
+    text.style = { width: 30, fontSize: 10 };
+    view.flushLayout();
+    expect(el(text).textContent).toBe('aaaa\nbbbb\ncc');
+    expect(text.layout.height).toBe(36);
+  });
+
+  describe('baselines', () => {
+    /** A browser that puts a baseline a pixel above the engine, at 2x. */
+    function atTwice() {
+      vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
+      const set = sized();
+      vi.spyOn(view.textMeasurer, 'baselines').mockReturnValue({
+        engine: 13.245,
+        browser: 12,
+      });
+      return set;
+    }
+
+    it('puts a text on the device pixel the engine does', () => {
+      const { root } = atTwice();
+      const text = view.createNode('text');
+      text.style = { position: 'absolute', top: 65, left: 0, width: 100 };
+      text.text = 'Label';
+      root.appendChild(text);
+      view.flushLayout();
+      const lines = el(text).firstElementChild as HTMLElement;
+      // 78.245 is 156.49 device pixels, which is 156 in the engine: 78, and
+      // the browser's own baseline is at 65 + 12.
+      expect(lines.style.top).toBe('1px');
+      // It follows the box, though only the box moved.
+      text.style = { position: 'absolute', top: 66, left: 0, width: 100 };
+      view.flushLayout();
+      expect(lines.style.top).toBe('1px');
+      text.style = { position: 'absolute', top: 65.5, left: 0, width: 100 };
+      view.flushLayout();
+      // (65.5 + 13.245) x 2 = 157.49, so 78.5: 1 from 65.5 + 12.
+      expect(lines.style.top).toBe('1px');
+    });
+
+    it('moves an input by what its padding leaves', () => {
+      const { root } = atTwice();
+      const input = view.createNode('input');
+      input.style = {
+        position: 'absolute',
+        top: 10,
+        left: 0,
+        width: 100,
+        height: 34,
+        paddingTop: 2,
+        paddingBottom: 2,
+        lineHeight: 16,
+      };
+      root.appendChild(input);
+      view.flushLayout();
+      // The line is at 10 + 2 + (30 - 16) / 2 = 19. The engine's baseline is
+      // then 32.245, on the device pixel of 32 and the browser's at 31: 1 down,
+      // which centring in what padding leaves takes 2 of padding to do.
+      expect(el(input).style.paddingTop).toBe('4px');
+      expect(el(input).style.paddingBottom).toBe('2px');
+    });
+
+    it('leaves text alone where nothing can measure it', () => {
+      const { root } = sized();
+      const text = view.createNode('text');
+      text.text = 'Label';
+      root.appendChild(text);
+      view.flushLayout();
+      expect((el(text).firstElementChild as HTMLElement).style.top).toBe('');
+    });
+  });
+
+  it('sizes an empty canvas by its drawing buffer, as an image is', () => {
+    const { root } = sized();
+    const canvas = view.createNode('canvas');
+    canvas.style = { alignSelf: 'flex-start' };
+    root.appendChild(canvas);
+    expect(canvas.layout).toMatchObject({ width: 300, height: 150 });
+    canvas.width = 100;
+    canvas.height = 40;
+    expect(canvas.layout).toMatchObject({ width: 100, height: 40 });
+    canvas.style = { alignSelf: 'flex-start', width: 50 };
+    expect(canvas.layout).toMatchObject({ width: 50, height: 20 });
+  });
+
+  it('scrolls as far as the engine does: to what its content needs', () => {
+    const { root } = setup();
+    const scroll = view.createNode('scroll');
+    const child = view.createNode('view');
+    scroll.style = { width: 100, height: 100, padding: 9 };
+    child.style = { width: 400, height: 300, marginBottom: 5, flexShrink: 0 };
+    root.appendChild(scroll);
+    scroll.appendChild(child);
+    // The children's far edge, its margin and the far padding, from the content.
+    expect(scroll.scrollHeight).toBe(9 + 300 + 5 + 9 - 9);
+    expect(scroll.scrollWidth).toBe(9 + 400 + 9 - 9);
+    view.flushLayout();
+    const extent = el(scroll).querySelector('.sd-scroll-extent') as HTMLElement;
+    expect(extent.style.height).toBe(`${scroll.scrollHeight + 18}px`);
+    // Nothing of it in the tree.
+    expect(scroll.children).toEqual([child]);
+    expect(UiNode.elementOf(child).parentElement).toBe(el(scroll));
+  });
+
+  it("draws the engine's scroll indicators, not the browser's scrollbar", () => {
+    const { root } = sized();
+    const scroll = view.createNode('scroll');
+    const child = view.createNode('view');
+    scroll.style = { width: 100, height: 100 };
+    child.style = { width: 50, height: 400, flexShrink: 0 };
+    root.appendChild(scroll);
+    scroll.appendChild(child);
+    view.flushLayout();
+    const [vertical, horizontal] = el(scroll).querySelectorAll<HTMLElement>(
+      '.sd-scroll-indicator',
+    );
+    // 100 of 400 shown: a quarter of the box long, at its right edge.
+    expect(vertical!.style.display).toBe('block');
+    expect(vertical!.style.height).toBe('25px');
+    expect(vertical!.style.left).toBe('95px');
+    expect(vertical!.style.top).toBe('0px');
+    // Nothing overflows across.
+    expect(horizontal!.style.display).toBe('none');
+    // All the way down: at the bottom of the box, however far that scrolled it.
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      value: 300,
+      configurable: true,
+    });
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(vertical!.style.top).toBe(`${100 - 25 + 300}px`);
+    // At least 16 long, however much there is to scroll.
+    child.style = { width: 50, height: 4000, flexShrink: 0 };
+    view.flushLayout();
+    expect(vertical!.style.height).toBe('16px');
+    // No indicator once it all fits.
+    child.style = { width: 50, height: 50 };
+    view.flushLayout();
+    expect(vertical!.style.display).toBe('none');
+    expect(STYLESHEET).toMatch(/\.sd-scroll \{[^}]*scrollbar-width: none;/);
+  });
+
+  it('frees what leaves the view, and lays it out anew when it returns', () => {
+    const { root } = setup();
+    const parent = view.createNode('view');
+    const child = view.createNode('view');
+    parent.style = { width: 100 };
+    child.style = { height: 20 };
+    parent.appendChild(child);
+    // Not in the view: no box, and it can still be built up.
+    expect(parent.layout).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+    root.appendChild(parent);
+    expect(child.layout).toEqual({ x: 0, y: 0, width: 100, height: 20 });
+    root.removeChild(parent);
+    expect(child.layout).toEqual({ x: 0, y: 0, width: 0, height: 0 });
+    parent.style = { width: 50 };
+    root.appendChild(parent);
+    expect(child.layout).toEqual({ x: 0, y: 0, width: 50, height: 20 });
+  });
+
+  it('moves a node between parents, keeping its order', () => {
+    const { root } = setup();
+    root.style = { flexDirection: 'row' };
+    const [a, b, c] = ['view', 'view', 'view'].map((type) => {
+      const node = view.createNode(type as 'view');
+      node.style = { width: 10, height: 10 };
+      root.appendChild(node);
+      return node as UiNode;
+    }) as [UiNode, UiNode, UiNode];
+    root.insertBefore(c, a);
+    expect([c.layout.x, a.layout.x, b.layout.x]).toEqual([0, 10, 20]);
+    a.appendChild(b);
+    expect([c.layout.x, a.layout.x, b.layout.x]).toEqual([0, 10, 0]);
+    expect(root.children).toEqual([c, a]);
   });
 
   it('divides by the scale the host shows the view at', () => {

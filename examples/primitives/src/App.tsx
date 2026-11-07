@@ -15,9 +15,16 @@ import {
   Text,
   TextInput,
   View,
+  useViewSize,
   type StyleProp,
 } from '@soundor/react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import type { LayoutRect, PointerEvent, UiNode } from 'soundor:ui';
 
 import landscape from './assets/landscape.svg';
@@ -465,8 +472,11 @@ function draw(context: CanvasRenderingContext2D, scale: number) {
 
 function CanvasDemo() {
   const canvas = useRef<UiNode>(null);
-  const scale = Math.max(1, Math.round(devicePixelRatio));
-  useEffect(() => {
+  // Device pixels per logical pixel, everything that scales the view included:
+  // a buffer of exactly that many is not resampled, so it stays sharp.
+  const { scale } = useViewSize();
+  // Before the frame is shown: a buffer just resized is blank until then.
+  useLayoutEffect(() => {
     const context = canvas.current?.getContext('2d');
     if (context) draw(context, scale);
   }, [scale]);
@@ -474,8 +484,8 @@ function CanvasDemo() {
     <Card title="Canvas 2D">
       <Canvas
         ref={canvas}
-        width={CANVAS_WIDTH * scale}
-        height={CANVAS_HEIGHT * scale}
+        width={Math.round(CANVAS_WIDTH * scale)}
+        height={Math.round(CANVAS_HEIGHT * scale)}
         style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
         accessibilityLabel="A circle, a dashed curve and the words Canvas 2D"
       />
@@ -502,6 +512,8 @@ void main() { fragColor = vec4(shade, 1.0); }`;
 
 /** One triangle, its corners red, green and blue: raw WebGL 2, no library. */
 function drawTriangle(gl: WebGL2RenderingContext) {
+  // A context keeps its viewport when its buffer is resized.
+  gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
   const compile = (type: number, source: string) => {
     const shader = gl.createShader(type)!;
     gl.shaderSource(shader, source);
@@ -537,8 +549,8 @@ function drawTriangle(gl: WebGL2RenderingContext) {
 function WebGLDemo() {
   const canvas = useRef<UiNode>(null);
   const [available, setAvailable] = useState(true);
-  const scale = Math.max(1, Math.round(devicePixelRatio));
-  useEffect(() => {
+  const { scale } = useViewSize();
+  useLayoutEffect(() => {
     const gl = canvas.current?.getContext('webgl2') ?? null;
     setAvailable(gl !== null);
     if (gl) drawTriangle(gl);
@@ -547,8 +559,8 @@ function WebGLDemo() {
     <Card title="WebGL 2">
       <Canvas
         ref={canvas}
-        width={CANVAS_WIDTH * scale}
-        height={CANVAS_HEIGHT * scale}
+        width={Math.round(CANVAS_WIDTH * scale)}
+        height={Math.round(CANVAS_HEIGHT * scale)}
         style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderRadius: 6 }}
         accessibilityLabel="A triangle shaded red, green and blue"
       />

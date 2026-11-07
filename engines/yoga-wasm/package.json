@@ -1,0 +1,43 @@
+{
+  "name": "@soundor/yoga-wasm",
+  "version": "0.0.0",
+  "description": "Soundor Engine's Yoga, compiled to WebAssembly: the same layout in the browser as in a plugin.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "engines/yoga-wasm"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "NOTICE.md",
+    "licenses",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/prepare.mjs && tsc -b && tsdown --clean",
+    "test": "vitest run && node --test scripts/*.test.mjs"
+  },
+  "devDependencies": {
+    "@soundor/engine": "workspace:*",
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

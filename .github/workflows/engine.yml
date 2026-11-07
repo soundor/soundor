@@ -105,7 +105,7 @@ jobs:
           # restore compiler objects or unauthenticated native installs.
           cache: ${{ inputs.release-build && 'false' || 'true' }}
 
-      # The archives carry these notices (runtimes/engine/licenses).
+      # The archives carry these notices (engines/engine/licenses).
       - name: AccessKit's crate notices match its Cargo.lock
         if: runner.os == 'Linux'
         run: node .github/scripts/accesskit-notices.mjs --check
@@ -129,7 +129,7 @@ jobs:
 
       # Universal, with the oldest macOS it supports named.
       - name: Stage the engine
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         env:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
@@ -142,7 +142,7 @@ jobs:
       # its platform coverage using the engine libraries we just built.
       - name: Private SVG tests against the source build
         if: inputs.tests && !matrix.static
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: |
           cmake --preset prebuilt-debug -DSOUNDOR_BUILD_TESTS=ON
           cmake --build build/prebuilt-debug --target soundor_svg_tests --config Debug --parallel 3
@@ -151,7 +151,7 @@ jobs:
       - name: Pack
         run: |
           for variant in $VARIANTS; do
-            node .github/scripts/engine-prebuilts.mjs pack "runtimes/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
+            node .github/scripts/engine-prebuilts.mjs pack "engines/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
               --commit "$GITHUB_SHA" --target ${{ matrix.target }}
           done
 
@@ -159,7 +159,7 @@ jobs:
       # from the packed files, outside the build that made them.
       - name: Extract
         run: |
-          version=$(node -p "require('./runtimes/engine/package.json').version")
+          version=$(node -p "require('./engines/engine/package.json').version")
           # Forward slashes on Windows too: these paths go to CMake.
           temp=$(cygpath -m "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")
           for variant in $VARIANTS; do
@@ -187,17 +187,17 @@ jobs:
 
       - name: Native tests against the debug engine (${{ env.DEBUG_VARIANT }})
         if: inputs.tests
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG" cmake --workflow --preset "prebuilt-check-$DEBUG_VARIANT"
 
       - name: Bytecode-only tests against the release engine (${{ env.RELEASE_VARIANT }})
         if: inputs.tests
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset "prebuilt-check-$RELEASE_VARIANT"
 
       - name: Static C runtime coexistence reports FLS usage
         if: inputs.tests && matrix.static
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: |
           set -eo pipefail
           ctest --test-dir build/prebuilt-check-release-static -C Release -R '^soundor_coexistence$' -V | grep 'FLS slot'
@@ -205,7 +205,7 @@ jobs:
       # The universal archive links for the architecture this runner is not.
       - name: The x86_64 slice links
         if: runner.os == 'macOS'
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: |
           cmake -S . -B build/prebuilt-check-x86_64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 \
               -DSOUNDOR_BUILD_TESTS=ON "-DSOUNDOR_ENGINE_PREBUILT_RELEASE_DIR=$PREBUILT_RELEASE" &&
@@ -259,7 +259,7 @@ jobs:
         run: |
           set -eo pipefail
           {
-            node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" --out runtimes/engine/artifacts/manifest.json
+            node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" --out engines/engine/artifacts/manifest.json
             pnpm --filter @soundor/juce-runtime test:plugin-prebuilt
           } 2>&1 | tee "$RUNNER_TEMP/plugin.log"
           if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/plugin.log"; then
@@ -271,7 +271,7 @@ jobs:
           # names, as Skia's (renamed) copies.
           JUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce9" pnpm --filter @soundor/juce-runtime test:plugin-prebuilt 2>&1 |
             tee "$RUNNER_TEMP/plugin.log"
-          rm runtimes/engine/artifacts/manifest.json
+          rm engines/engine/artifacts/manifest.json
 
       - name: Package dependency signing candidate
         if: inputs.release-build && github.ref == 'refs/heads/main'
@@ -372,7 +372,7 @@ jobs:
 
       - name: Build workspace
         run: pnpm turbo run build --filter=@soundor/engine...
-      # clang-tidy's passes (runtimes/engine/cmake/SoundorClangTidyCache.mjs):
+      # clang-tidy's passes (engines/engine/cmake/SoundorClangTidyCache.mjs):
       # a translation unit whose source, headers and configuration are as
       # main last saw them is not analyzed again. Saved only on main.
       - name: Restore clang-tidy results
@@ -395,7 +395,7 @@ jobs:
       # The tests of the build clang-tidy just made (the dev preset plus
       # clang-tidy), not a second build of the same sources.
       - name: Native runtime tests
-        working-directory: runtimes/engine
+        working-directory: engines/engine
         run: ctest --preset tidy
 
       - name: Save native dependencies
@@ -442,7 +442,7 @@ jobs:
       SOUNDOR_REQUIRE_GPU: ${{ matrix.require-gpu || '1' }}
     defaults:
       run:
-        working-directory: runtimes/engine
+        working-directory: engines/engine
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

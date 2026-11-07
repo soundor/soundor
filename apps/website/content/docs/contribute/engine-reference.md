@@ -3,7 +3,7 @@ title: 'Engine reference'
 description: 'Embedding API, JavaScript language support, modules, graphics, accessibility, dependencies, symbol isolation, builds, and animation contracts.'
 ---
 
-Source: [`runtimes/engine/`](https://github.com/soundor/soundor/tree/main/runtimes/engine).
+Source: [`engines/engine/`](https://github.com/soundor/soundor/tree/main/engines/engine).
 
 The independently versioned C++ engine owns the native UI runtime, its public
 headers, embedded resources and dependency recipes. JUCE integration lives in
@@ -139,7 +139,7 @@ The normal test workflow has no browser dependency and downloads no browser.
 ## Layout
 
 ```text
-runtimes/engine/
+engines/engine/
   include/soundor/        public headers: plain C++, no engine types
     Config.h              the ABI namespace (see "Symbol isolation")
     a11y/                 accessibility semantics and the semantic tree
@@ -165,7 +165,7 @@ runtimes/engine/
     runtime/              RuntimeHost
     ui/                   the Surface (Yoga layout, input routing)
     web/                  the Web-compatible globals (C++ + embedded JavaScript)
-  # JUCE adapters are in ../juce-runtime/native/backend/juce
+  # JUCE adapters are in ../../runtimes/juce-runtime/native/backend/juce
   tests/                  doctest suites + the exported-symbol check
     generated/            golden soundor:native output, compiled by the tests
   cmake/                  pinned dependencies, compiler policy, JS embedding,
@@ -646,8 +646,8 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Size:** `width` and `height` are the drawing buffer's (300 by 150 to
     begin with); setting either clears it and resets its context, even to the
     same value. The node's box is that size in logical pixels unless styled,
-    and the pixels are stretched over it; size the buffer by
-    `devicePixelRatio` (a global) for crisp lines.
+    and the pixels are stretched over it; size the buffer by `viewSize().scale`
+    for crisp lines (`devicePixelRatio` does not count the host's scaling).
   - **`getContext('2d')`:** a `CanvasRenderingContext2D` drawn with Skia on
     the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
     types give null, as on the Web for a canvas that already has a
@@ -1173,7 +1173,10 @@ check), failing the build where Yoga's code no longer matches:
 
 The engine also clamps a fixed `width`/`height` to its minimum and maximum
 before Yoga sees them (`Surface.cpp`), since a parent sized by its content
-counted the unclamped size. What still differs from the web runtime is in
+counted the unclamped size. Yoga is compiled with `-ffp-contract=off`: clang fuses
+multiply-adds by default on arm64, whose rounding differs, and a layout near zero
+free space could then differ by whole boxes from x86's and from the web runtime's.
+What still differs from the web runtime is in
 [Where layout differs](/docs/web-runtime#where-layout-differs).
 
 ### Verified dependencies in CI
@@ -1510,14 +1513,14 @@ pnpm check     # package checks without native compilation
 pnpm check:native # native lint and tests
 ```
 
-Or directly, from `runtimes/engine/`:
+Or directly, from `engines/engine/`:
 
 ```sh
 cmake --workflow --preset dev        # Debug, -Werror, tests
 cmake --workflow --preset sanitize   # + AddressSanitizer / UBSan / LeakSanitizer
 cmake --workflow --preset tidy       # + clang-tidy (build only)
 cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
-cd ../juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
+cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
 The JUCE adapter tests need a JUCE checkout. JUCE is never part of either

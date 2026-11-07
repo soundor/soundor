@@ -1,64 +1,34 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  cssFor,
-  cssText,
-  layoutClass,
-  pointerClass,
-  readStyle,
-  STYLESHEET,
-} from './style';
+import { cssFor, cssText, pointerClass, readStyle, STYLESHEET } from './style';
 
 describe('cssFor', () => {
-  it('writes nothing for an empty style: the stylesheet has Yoga defaults', () => {
+  it('writes nothing for an empty style', () => {
     expect(cssFor({}, 'view')).toEqual({});
   });
 
-  it('maps numbers to pixels, keeps percentages and auto', () => {
+  it('leaves where a node is and how large to Yoga', () => {
     expect(
       cssFor(
-        { width: 100, height: '50%', flexBasis: 'auto', minWidth: 10 },
+        {
+          width: 100,
+          height: '50%',
+          flex: 1,
+          flexDirection: 'row',
+          margin: 4,
+          padding: 4,
+          inset: 0,
+          gap: 4,
+          position: 'absolute',
+          aspectRatio: 2,
+          boxSizing: 'content-box',
+        },
         'view',
       ),
-    ).toEqual({
-      width: '100px',
-      height: '50%',
-      'flex-basis': 'auto',
-      'min-width': '10px',
-    });
+    ).toEqual({});
   });
 
-  it('reads flex as React Native does, with the longhands winning', () => {
-    expect(cssFor({ flex: 2 }, 'view')).toEqual({
-      'flex-grow': '2',
-      'flex-shrink': '1',
-      'flex-basis': '0px',
-    });
-    expect(cssFor({ flex: -1 }, 'view')).toEqual({ 'flex-shrink': '1' });
-    expect(cssFor({ flex: 0 }, 'view')).toEqual({});
-    expect(cssFor({ flex: 1, flexShrink: 0, flexBasis: 20 }, 'view')).toEqual({
-      'flex-grow': '1',
-      'flex-shrink': '0',
-      'flex-basis': '20px',
-    });
-  });
-
-  it('resolves edges: one side, then the axis, then all', () => {
-    expect(
-      cssFor(
-        { margin: 1, marginHorizontal: 2, marginLeft: 3, padding: '5%' },
-        'view',
-      ),
-    ).toEqual({
-      'margin-top': '1px',
-      'margin-right': '2px',
-      'margin-bottom': '1px',
-      'margin-left': '3px',
-      'padding-top': '5%',
-      'padding-right': '5%',
-      'padding-bottom': '5%',
-      'padding-left': '5%',
-    });
+  it('draws borders: one side, then the axis, then all', () => {
     expect(
       cssFor(
         { borderWidth: 1, borderVerticalWidth: 2, borderLeftWidth: 4 },
@@ -69,14 +39,6 @@ describe('cssFor', () => {
       'border-right-width': '1px',
       'border-bottom-width': '2px',
       'border-left-width': '4px',
-    });
-    expect(cssFor({ inset: 0, left: 10, gap: 4, rowGap: 8 }, 'view')).toEqual({
-      top: '0px',
-      right: '0px',
-      bottom: '0px',
-      left: '10px',
-      'row-gap': '8px',
-      'column-gap': '4px',
     });
   });
 
@@ -116,13 +78,10 @@ describe('cssFor', () => {
   });
 
   it('cuts text at numberOfLines', () => {
-    expect(cssFor({ numberOfLines: 2, lineHeight: 10 }, 'text')).toMatchObject({
-      'max-height': '20px',
+    expect(cssFor({ numberOfLines: 2 }, 'text')).toMatchObject({
       overflow: 'hidden',
     });
-    expect(cssFor({ numberOfLines: 0 }, 'text')).not.toHaveProperty(
-      'max-height',
-    );
+    expect(cssFor({ numberOfLines: 0 }, 'text')).not.toHaveProperty('overflow');
   });
 
   it('maps visuals: colors, radii, clamped opacity and resize modes', () => {
@@ -177,8 +136,8 @@ describe('cssFor', () => {
   });
 
   it('hides with display none and serializes', () => {
-    const css = cssFor({ display: 'none', position: 'absolute' }, 'view');
-    expect(cssText(css)).toBe('display:none;position:absolute;');
+    const css = cssFor({ display: 'none', zIndex: 2 }, 'view');
+    expect(cssText(css)).toBe('display:none;z-index:2;');
   });
 });
 
@@ -208,63 +167,6 @@ describe('pointerClass', () => {
     expect(pointerClass({ pointerEvents: 'none' })).toBe('sd-pe-none');
     expect(pointerClass({ pointerEvents: 'box-none' })).toBe('sd-pe-box-none');
     expect(pointerClass({ pointerEvents: 'box-only' })).toBe('sd-pe-box-only');
-  });
-});
-
-describe('layoutClass', () => {
-  it("names a parent's direction and whether it stretches", () => {
-    expect(layoutClass({})).toBe('sd-stretch');
-    expect(
-      layoutClass({ flexDirection: 'row-reverse', alignItems: 'center' }),
-    ).toBe('sd-row');
-    expect(layoutClass({ flexDirection: 'row', alignItems: 'auto' })).toBe(
-      'sd-row sd-stretch',
-    );
-  });
-
-  it('marks a fixed flex basis, which adds only itself to a row', () => {
-    expect(layoutClass({ flex: 1, alignItems: 'center' })).toBe('sd-basis');
-    expect(layoutClass({ flexBasis: 30, alignItems: 'center' })).toBe(
-      'sd-basis',
-    );
-    expect(
-      layoutClass({ flex: 1, flexBasis: 'auto', alignItems: 'center' }),
-    ).toBe('');
-    expect(layoutClass({ flexBasis: '50%', alignItems: 'center' })).toBe('');
-    expect(STYLESHEET).toContain(
-      '.sd-row > .sd-basis { contain: inline-size; }',
-    );
-  });
-
-  it('keeps an aspect ratio over the stretch when a size is given', () => {
-    const items = { alignItems: 'center' } as const;
-    expect(layoutClass({ ...items, aspectRatio: 2 })).toBe('');
-    expect(layoutClass({ ...items, aspectRatio: 2, height: 40 })).toBe(
-      'sd-ratio',
-    );
-    expect(layoutClass({ ...items, aspectRatio: 2, flex: 1 })).toBe(
-      'sd-basis sd-ratio',
-    );
-    expect(
-      layoutClass({
-        ...items,
-        aspectRatio: 2,
-        height: 40,
-        alignSelf: 'center',
-      }),
-    ).toBe('');
-    expect(
-      layoutClass({ ...items, aspectRatio: 2, width: 20, height: 90 }),
-    ).toBe('sd-ratio sd-ratio-both');
-    // A stretch the box asks for itself is undone inline.
-    expect(
-      cssFor({ aspectRatio: 2, height: 40, alignSelf: 'stretch' }, 'view')[
-        'align-self'
-      ],
-    ).toBe('flex-start');
-    expect(
-      cssFor({ aspectRatio: 2, alignSelf: 'stretch' }, 'view')['align-self'],
-    ).toBe('stretch');
   });
 });
 
