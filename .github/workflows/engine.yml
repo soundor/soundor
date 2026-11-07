@@ -68,7 +68,7 @@ jobs:
       CXX: ${{ matrix.cxx }}
       SOUNDOR_ENGINE_SOURCE_COMMIT: ${{ github.sha }}
       # Windows also has archives with the static C runtime.
-      STATIC_VARIANTS: ${{ runner.os == 'Windows' && 'debug-static release-static' || '' }}
+      STATIC_VARIANTS: ${{ matrix.target == 'windows-x64' && 'debug-static release-static' || '' }}
       SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
