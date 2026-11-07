@@ -53,6 +53,57 @@ function mdxSafe(markdown: string): string {
 
 type ReleaseChange = Change & { packages?: string[] };
 
+/** Each note counts once; explicit breaking notices take precedence before 1.0 too. */
+export function summarizeChanges(changes: Change[]) {
+  const counts = {
+    total: changes.length,
+    features: 0,
+    fixes: 0,
+    breaking: 0,
+    other: 0,
+  };
+  for (const { kind, markdown } of changes) {
+    const prose = markdown.replace(/```[\s\S]*?```|`[^`]*`/g, '');
+    if (
+      kind === 'Major Changes' ||
+      /(?:^|\n| - )\s*(?:-\s*)?(?:\*\*)?Breaking(?: changes?)?(?:\*\*)?:(?:\*\*)?/i.test(
+        prose,
+      )
+    ) {
+      counts.breaking++;
+    } else if (kind === 'Minor Changes') counts.features++;
+    else if (kind === 'Patch Changes') counts.fixes++;
+    else counts.other++;
+  }
+  return counts;
+}
+
+const COUNT_GUIDE =
+  'Features include improvements; fixes include maintenance. Counts follow the release note categories, with explicitly marked breaking changes counted separately. Dependency-only bumps are excluded.';
+
+function summaryText(changes: Change[]): string {
+  const counts = summarizeChanges(changes);
+  const parts = [
+    [counts.features, 'feature', 'features'],
+    [counts.fixes, 'fix', 'fixes'],
+    [counts.breaking, 'breaking change', 'breaking changes'],
+    [counts.other, 'other change', 'other changes'],
+  ] as const;
+  return (
+    `**${counts.total} ${counts.total === 1 ? 'change' : 'changes'}**` +
+    (counts.total
+      ? ' — ' +
+        parts
+          .filter(([count]) => count > 0)
+          .map(
+            ([count, singular, plural]) =>
+              `${count} ${count === 1 ? singular : plural}`,
+          )
+          .join(', ')
+      : ' (dependency updates only)')
+  );
+}
+
 function newestFirst(versions: Iterable<string>): string[] {
   return [...versions].sort((a, b) =>
     b.localeCompare(a, 'en', { numeric: true }),
@@ -78,9 +129,19 @@ function writeSection(
     '',
   ];
   if (!versions.length) index.push('No published release notes yet.', '');
+  else
+    index.push(
+      COUNT_GUIDE,
+      '',
+      '| Version | Changes | Features | Fixes | Breaking | Other |',
+      '| --- | ---: | ---: | ---: | ---: | ---: |',
+    );
   for (const version of versions) {
-    index.push(`- [${version}](/docs/changelog/${slug}/${version})`, '');
     const changes = releases.get(version)!;
+    const counts = summarizeChanges(changes);
+    index.push(
+      `| [${version}](/docs/changelog/${slug}/${version}) | ${counts.total} | ${counts.features} | ${counts.fixes} | ${counts.breaking} | ${counts.other} |`,
+    );
     const page = [
       '---',
       `title: ${title} ${version}`,
@@ -89,8 +150,9 @@ function writeSection(
       '',
       `[All ${title} releases](/docs/changelog/${slug})`,
       '',
+      summaryText(changes),
+      '',
     ];
-    if (!changes.length) page.push('Dependency updates only.', '');
     for (const kind of [...new Set(changes.map((change) => change.kind))]) {
       page.push(`## ${kind || 'Changes'}`, '');
       for (const change of changes.filter((entry) => entry.kind === kind)) {
@@ -205,6 +267,8 @@ export function generateChangelog(
     '',
     'Browse release notes by category and package, then choose a version. The runtimes, engines and VST3 host have their own version numbers.',
     '',
+    COUNT_GUIDE,
+    '',
   ];
   const pages = ['index'];
   for (const category of ['Packages', 'Runtimes', 'Engines', 'Hosts']) {
@@ -215,7 +279,12 @@ export function generateChangelog(
     for (const { slug, title, releases } of members) {
       writeSection(out, slug, title, releases);
       pages.push(slug);
-      index.push(`- [${title}](/docs/changelog/${slug})`);
+      const latest = newestFirst(releases.keys())[0];
+      index.push(
+        latest
+          ? `- [${title}](/docs/changelog/${slug}) · [${latest}](/docs/changelog/${slug}/${latest}): ${summaryText(releases.get(latest)!)}`
+          : `- [${title}](/docs/changelog/${slug}) — No published release notes yet.`,
+      );
     }
     index.push('');
   }

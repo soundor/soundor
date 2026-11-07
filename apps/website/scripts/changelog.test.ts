@@ -12,7 +12,11 @@ import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { generateChangelog, parseChangelog } from './changelog.ts';
+import {
+  generateChangelog,
+  parseChangelog,
+  summarizeChanges,
+} from './changelog.ts';
 
 describe('parseChangelog', () => {
   it('keeps multiline notes and omits dependency-only updates', () => {
@@ -54,6 +58,35 @@ describe('parseChangelog', () => {
   });
 });
 
+describe('summarizeChanges', () => {
+  it('counts categories without double-counting pre-1.0 breaking features', () => {
+    expect(
+      summarizeChanges([
+        { kind: 'Minor Changes', markdown: '- Add a feature.' },
+        { kind: 'Patch Changes', markdown: '- Fix a bug.' },
+        { kind: 'Major Changes', markdown: '- Remove an API.' },
+        { kind: 'Minor Changes', markdown: '- **Breaking:** Replace an API.' },
+        {
+          kind: 'Minor Changes',
+          markdown: '- New protocol.\n\n  Breaking: old clients must update.',
+        },
+        { kind: '', markdown: '- Another change.' },
+        {
+          kind: 'Patch Changes',
+          markdown: '- A non-breaking fix with `Breaking: code`.',
+        },
+      ]),
+    ).toEqual({ total: 7, features: 1, fixes: 2, breaking: 3, other: 1 });
+    expect(summarizeChanges([])).toEqual({
+      total: 0,
+      features: 0,
+      fixes: 0,
+      breaking: 0,
+      other: 0,
+    });
+  });
+});
+
 describe('generateChangelog', () => {
   it('keeps independently versioned runtimes out of shared Soundor releases', () => {
     const root = mkdtempSync(join(tmpdir(), 'soundor-changelog-'));
@@ -61,6 +94,7 @@ describe('generateChangelog', () => {
     try {
       for (const [path, name, note] of [
         ['packages/cli', 'soundor', 'CLI change'],
+        ['packages/core', '@soundor/core', 'CLI change'],
         ['runtimes/web-runtime', '@soundor/web-runtime', 'Web runtime change'],
         [
           'runtimes/juce-runtime',
@@ -84,6 +118,8 @@ describe('generateChangelog', () => {
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
       const shared = readFileSync(join(out, 'soundor/1.0.0.md'), 'utf8');
       expect(shared).toContain('CLI change');
+      expect(shared).toContain('**1 change** — 1 feature');
+      expect(shared).toContain('`@soundor/core`, `soundor`');
       expect(shared).not.toContain('runtime change');
       expect(shared).not.toContain('Engine change');
       expect(shared).not.toContain('Yoga WASM change');
@@ -129,6 +165,12 @@ describe('generateChangelog', () => {
       ]);
       const index = readFileSync(join(out, 'index.md'), 'utf8');
       expect(index).toContain('/docs/changelog/web-runtime');
+      expect(index).toContain(
+        '[1.0.0](/docs/changelog/soundor/1.0.0): **1 change** — 1 feature',
+      );
+      expect(readFileSync(join(out, 'soundor/index.md'), 'utf8')).toContain(
+        '| [1.0.0](/docs/changelog/soundor/1.0.0) | 1 | 1 | 0 | 0 | 0 |',
+      );
       expect(index).toContain('/docs/changelog/juce-runtime');
       expect(index).toContain('/docs/changelog/yoga-wasm');
       expect(index).toContain('/docs/changelog/vst3-host');

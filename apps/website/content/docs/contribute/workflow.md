@@ -229,6 +229,9 @@ release, with their affected packages; dependency-only bumps are omitted. The
 engine, Yoga WASM, JUCE runtime, web runtime and VST3 host each have their own release history and
 version numbers. Each history is a collapsible sidebar section, with one page
 per version, grouped under Packages, Runtimes, Engines and Hosts. Update release
-notes through Changesets;
+notes through Changesets. Overview pages show totals and category counts: minor
+notes count as features/improvements, patch notes as fixes/maintenance, and major
+notes or explicit breaking notices as breaking changes. Each note counts once;
+dependency-only bumps are excluded;
 `apps/website/scripts/changelog.ts` owns the generated pages, which are ignored
 by Git.
