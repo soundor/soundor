@@ -242,7 +242,7 @@ the browser itself decides:
   corrected for. Glyphs still differ by what each renderer hints.
 - **Scroll views** scroll as far in both, and draw the same thin indicators, not
   the browser's scrollbar. What moves them is the browser's here, so its momentum
-  on a trackpad is its own.
+  on a trackpad is its own, and after touch the bars show only while scrolling.
 
 ## Native API in TypeScript
 

@@ -48,6 +48,7 @@ export class TestRuntime {
   private focusShown = false;
   private keyboardModality = true;
   private disposed = false;
+  private readonly pendingScrolls = new Set<TestNode>();
   private reducedMotion = false;
   private hostState: HostSnapshot;
   private hostListeners = new Listeners<HostSnapshot>();
@@ -317,6 +318,25 @@ export class TestRuntime {
     (this.focusedNode() ?? this.root).dispatchEvent(event);
     return event;
   }
+  /**
+   * Fires `scroll` at a node moved from code, once, at the next frame and ahead
+   * of its callbacks, as the runtimes do: not during the call.
+   */
+  scrolled(node: TestNode) {
+    this.pendingScrolls.add(node);
+    if (this.pendingScrolls.size > 1) return;
+    this.clock.setTimeout(
+      () => {
+        const moved = [...this.pendingScrolls];
+        this.pendingScrolls.clear();
+        for (const each of moved)
+          if (each.isConnected) this.fire(each, 'scroll');
+      },
+      this.clock.untilNextFrame(),
+      true,
+    );
+  }
+
   fire(node: TestNode, type: string, init: Record<string, unknown> = {}) {
     this.assertNode(node);
     // Assistive technology moves focus as the keyboard does: shown.

@@ -252,8 +252,24 @@ export class TestNode {
   getContext(): null {
     return null;
   }
-  scrollTop = 0;
-  scrollLeft = 0;
+  #scrollTop = 0;
+  #scrollLeft = 0;
+  get scrollTop(): number {
+    return this.#scrollTop;
+  }
+  set scrollTop(value: number) {
+    this.scrollTo({ top: value });
+  }
+  get scrollLeft(): number {
+    return this.#scrollLeft;
+  }
+  set scrollLeft(value: number) {
+    this.scrollTo({ left: value });
+  }
+  /** Nothing is laid out here, so nothing shows, without asking what it would be. */
+  readonly clientWidth: number = 0;
+  readonly clientHeight: number = 0;
+  scrollIndicators = true;
   get scrollWidth(): never {
     throw new Error('Layout is unavailable in the simulated Soundor runtime');
   }
@@ -262,9 +278,14 @@ export class TestNode {
   }
   scrollTo(options: { top?: number; left?: number } | number, top?: number) {
     const next = typeof options === 'number' ? { left: options, top } : options;
-    if (next.left !== undefined) this.scrollLeft = Math.max(0, next.left);
-    if (next.top !== undefined) this.scrollTop = Math.max(0, next.top);
-    this.runtime.fire(this, 'scroll');
+    const nextLeft =
+      next.left === undefined ? this.#scrollLeft : Math.max(0, next.left);
+    const nextTop =
+      next.top === undefined ? this.#scrollTop : Math.max(0, next.top);
+    if (nextLeft === this.#scrollLeft && nextTop === this.#scrollTop) return;
+    this.#scrollLeft = nextLeft;
+    this.#scrollTop = nextTop;
+    this.runtime.scrolled(this);
   }
   scrollBy(options: { top?: number; left?: number } | number, top?: number) {
     const next = typeof options === 'number' ? { left: options, top } : options;

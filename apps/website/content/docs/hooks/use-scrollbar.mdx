@@ -1,0 +1,44 @@
+---
+title: useScrollbar
+description: A scrollbar of your own, drawn however you like.
+---
+
+`useScrollbar` gives a track and a thumb of your own what a scrollbar does: the
+thumb shows what is in view and drags, and a press on the track jumps there.
+They are ordinary nodes, so they look like whatever you draw, wherever you put
+them, in every runtime.
+
+```tsx
+const scroll = useRef<UiNode>(null);
+const bar = useScrollbar(scroll);
+
+return (
+  <View style={{ flex: 1 }}>
+    <ScrollView ref={scroll} scrollIndicators={false} style={{ flex: 1 }}>
+      {children}
+    </ScrollView>
+    {bar.visible && (
+      <View {...bar.trackProps} style={styles.track}>
+        <View
+          {...bar.thumbProps}
+          style={[styles.thumb, bar.pressed && styles.thumbPressed]}
+        />
+      </View>
+    )}
+  </View>
+);
+```
+
+- **Where it goes:** beside the `ScrollView`, not in it, where it would scroll
+  away. Position it absolutely to draw over the content, as the built-in
+  indicators do, or give it its own room in a row. To keep that room when there
+  is nothing to scroll, render the track always and only the thumb by
+  `bar.visible`.
+- **The thumb** is the track's first child, at its start. The hook sets its
+  length and its `transform` without rendering, so leave those out of its style.
+- **`axis`** is `'vertical'` by default; a second call with `'horizontal'` gives
+  the other bar. **`minThumbLength`** is 16 by default.
+- **`visible`, `hovered` and `pressed`** render when they change, and scrolling
+  does not.
+- **Cost:** it reads the scroll view's sizes each frame while mounted, as its
+  content can change size with no event to say so.

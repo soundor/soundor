@@ -1007,3 +1007,34 @@ describe('requestEditorSize', () => {
     expect(() => ui.requestEditorSize(1000, 700)).toThrow('disposed');
   });
 });
+
+it('scrolling from code fires scroll at the next frame, once, before its callbacks', () => {
+  const runtime = createTestRuntime();
+  const scroll = runtime.create('scroll');
+  runtime.root.appendChild(scroll);
+  const log: string[] = [];
+  scroll.addEventListener('scroll', () =>
+    log.push(`scroll ${scroll.scrollTop}`),
+  );
+  // Set before the scrolling, and still after it.
+  runtime.clock.setTimeout(
+    () => log.push('frame'),
+    runtime.clock.untilNextFrame(),
+  );
+  scroll.scrollTop = 20;
+  scroll.scrollTo({ top: 30 });
+  scroll.scrollBy({ top: 10 });
+  expect(scroll.scrollTop).toBe(40);
+  expect(log).toEqual([]);
+  runtime.advanceTime(17);
+  expect(log).toEqual(['scroll 40', 'frame']);
+  // Where it already is: it did not move.
+  scroll.scrollTop = 40;
+  runtime.advanceTime(17);
+  expect(log).toHaveLength(2);
+  // Taken away before it could be told.
+  scroll.scrollTop = 0;
+  scroll.remove();
+  runtime.advanceTime(17);
+  expect(log).toHaveLength(2);
+});

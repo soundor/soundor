@@ -12,17 +12,25 @@ draws thin scroll indicators.
 - **Two boxes:** `style` is the scrolling box, which needs a size (or a
   `flex` that gives it one); `contentContainerStyle` is the box inside that
   holds the children and scrolls.
-- **`onScroll`** fires as it scrolls; read the node's `scrollTop` and
-  `scrollLeft`.
+- **`onScroll`** fires as it scrolls, by any means; read the node's `scrollTop`
+  and `scrollLeft`. Scrolled from code, it fires once on the next frame, not
+  during the call.
 - **To assistive technology** a scroll view is not an element itself; what
   it contains is.
+- **Its indicators** are drawn over the content, taking no space, so nothing
+  moves when it starts to overflow. A mouse near the edge shows a track under a
+  grown bar: the bar drags, and a press on the track jumps there. That 12 pixel
+  strip takes the mouse from what is under it, so leave room with padding in
+  `contentContainerStyle` if something important is at that edge.
+- **`scrollIndicators={false}`** leaves them out. It scrolls the same; for a
+  scrollbar of your own, see [`useScrollbar`](/docs/hooks/use-scrollbar).
 
 ## Props
 
 <auto-type-table
   path="packages/react/src/components.tsx"
   name="ScrollViewOwnProps"
-  type="Pick<ScrollViewProps, 'contentContainerStyle' | 'onScroll' | 'style' | 'ref' | 'children'>"
+  type="Pick<ScrollViewProps, 'contentContainerStyle' | 'onScroll' | 'scrollIndicators' | 'style' | 'ref' | 'children'>"
 />
 
 `ScrollView` also takes a [`View`](/docs/components/view)'s props, the

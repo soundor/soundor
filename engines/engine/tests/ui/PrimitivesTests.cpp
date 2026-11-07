@@ -227,6 +227,37 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         CHECK(f.host.surface().hitTest({ 10, 10 }) != f.host.surface().root().id());
     }
 
+    TEST_CASE("scrolling from code fires scroll on the next tick, once, before the frame's callbacks")
+    {
+        WebFixture f(approximateText());
+        f.host.surface().setSize({ 100, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.scroller = createScrollView({ height: 50 });
+            scroller.appendChild(createView({ height: 200 }));
+            root.appendChild(scroller);
+            scroller.addEventListener('scroll', () => log.push('scroll ' + scroller.scrollTop));
+            requestAnimationFrame(() => log.push('frame'));
+            scroller.scrollTop = 20;
+            scroller.scrollTo({ top: 30 });
+            scroller.scrollBy({ top: 10 });
+            log.push('after');
+        )");
+        CHECK(f.eval("log.join()").asString() == "after");
+        f.host.tick();
+        CHECK(f.eval("log.join()").asString() == "after,scroll 40,frame");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 3);
+        // Where it already is: it did not move.
+        f.run(std::string(imports) + "scroller.scrollTop = 40;");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 3);
+        // Taken away before it could be told.
+        f.run(std::string(imports) + "scroller.scrollTop = 0; scroller.remove();");
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 3);
+    }
+
     TEST_CASE("requestAnimationFrame runs once per frame, before drawing")
     {
         WebFixture f;

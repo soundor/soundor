@@ -56,4 +56,9 @@ export {
   type PortalProps,
 } from './portal';
 export { createRoot, flushSync, render, type Root } from './root';
+export {
+  useScrollbar,
+  type Scrollbar,
+  type ScrollbarOptions,
+} from './scrollbar';
 export { StyleSheet, flattenStyle, type StyleProp } from './style';

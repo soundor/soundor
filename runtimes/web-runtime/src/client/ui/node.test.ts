@@ -545,6 +545,32 @@ describe('UiNode layout', () => {
     expect(STYLESHEET).toMatch(/\.sd-scroll \{[^}]*scrollbar-width: none;/);
   });
 
+  it('says how much of what it scrolls shows, and can draw no indicators', () => {
+    const { root } = sized();
+    const scroll = view.createNode('scroll');
+    const child = view.createNode('view');
+    scroll.style = { width: 100, height: 100, padding: 5, borderWidth: 2 };
+    child.style = { width: 50, height: 400, flexShrink: 0 };
+    root.appendChild(scroll);
+    scroll.appendChild(child);
+    expect(scroll.clientWidth).toBe(86);
+    expect(scroll.clientHeight).toBe(86);
+    const [vertical] = el(scroll).querySelectorAll<HTMLElement>(
+      '.sd-scroll-indicator',
+    );
+    view.flushLayout();
+    expect(scroll.scrollIndicators).toBe(true);
+    expect(vertical!.style.display).toBe('block');
+    scroll.scrollIndicators = false;
+    expect(vertical!.style.display).toBe('none');
+    // Still none after a layout, and back when asked.
+    child.style = { width: 50, height: 500, flexShrink: 0 };
+    view.flushLayout();
+    expect(vertical!.style.display).toBe('none');
+    scroll.scrollIndicators = true;
+    expect(vertical!.style.display).toBe('block');
+  });
+
   it('frees what leaves the view, and lays it out anew when it returns', () => {
     const { root } = setup();
     const parent = view.createNode('view');

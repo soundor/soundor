@@ -206,6 +206,11 @@ export interface ScrollViewProps extends ViewProps {
   contentContainerStyle?: StyleProp;
   /** It scrolled; read the node's `scrollTop`/`scrollLeft`. */
   onScroll?: (event: Event) => void;
+  /**
+   * Whether it draws its own scroll indicators; true by default. Without them it
+   * scrolls just the same: for no bar at all, or your own with `useScrollbar`.
+   */
+  scrollIndicators?: boolean;
 }
 
 /** A view whose content scrolls (wheel, or the node's scrollTo()). */

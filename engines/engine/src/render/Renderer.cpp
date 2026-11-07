@@ -378,7 +378,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 drawNode(canvas, *child);
             canvas.restore();
         }
-        if (node.type() == NodeType::Scroll && painting())
+        if (node.type() == NodeType::Scroll && node.scrollIndicators() && painting())
             drawScrollIndicators(canvas, node);
 
         if (bordered && painting())
@@ -531,28 +531,51 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Size content = surface->contentSize(node.id());
         const Rect box = node.contentBox();
         const Point scroll = node.scrollOffset();
-        SkPaint paint(SkColor4f::FromColor(SkColorSetARGB(96, 128, 128, 128)));
-        paint.setAntiAlias(true);
-        constexpr float thickness = 3;
-        if (content.height > box.height + 0.5f && box.height > 0)
+        const auto colored = [](unsigned alpha)
         {
-            const float length = std::max(16.0f, box.height * box.height / content.height);
+            SkPaint paint(SkColor4f::FromColor(SkColorSetARGB(alpha, 128, 128, 128)));
+            paint.setAntiAlias(true);
+            return paint;
+        };
+        const SkPaint track = colored(31);
+        const auto bar = [&](bool vertical) {
+            return colored(node.scrollbarPressed(vertical) ? 230 : node.scrollbarGrown(vertical) ? 153 : 96);
+        };
+        const auto thick = [&](bool vertical)
+        { return node.scrollbarGrown(vertical) ? scrollbar::grownThickness : scrollbar::thickness; };
+        // Tracks first, for neither to draw over the other's bar.
+        const bool down = content.height > box.height + 0.5f && box.height > 0;
+        const bool across = content.width > box.width + 0.5f && box.width > 0;
+        if (down && node.scrollbarGrown(true))
+            canvas.drawRect(SkRect::MakeXYWH(box.x + box.width - scrollbar::trackThickness, box.y,
+                                             scrollbar::trackThickness, box.height),
+                            track);
+        if (across && node.scrollbarGrown(false))
+            canvas.drawRect(SkRect::MakeXYWH(box.x, box.y + box.height - scrollbar::trackThickness, box.width,
+                                             scrollbar::trackThickness),
+                            track);
+        if (down)
+        {
+            const float thickness = thick(true);
+            const float length = std::max(scrollbar::minLength, box.height * box.height / content.height);
             const float travel = box.height - length;
             const float at = box.y + travel * scroll.y / (content.height - box.height);
-            canvas.drawRRect(
-                SkRRect::MakeRectXY(SkRect::MakeXYWH(box.x + box.width - thickness - 2, at, thickness, length),
-                                    thickness / 2, thickness / 2),
-                paint);
+            canvas.drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(box.x + box.width - thickness - scrollbar::edgeGap,
+                                                                  at, thickness, length),
+                                                 thickness / 2, thickness / 2),
+                             bar(true));
         }
-        if (content.width > box.width + 0.5f && box.width > 0)
+        if (across)
         {
-            const float length = std::max(16.0f, box.width * box.width / content.width);
+            const float thickness = thick(false);
+            const float length = std::max(scrollbar::minLength, box.width * box.width / content.width);
             const float travel = box.width - length;
             const float at = box.x + travel * scroll.x / (content.width - box.width);
             canvas.drawRRect(
-                SkRRect::MakeRectXY(SkRect::MakeXYWH(at, box.y + box.height - thickness - 2, length, thickness),
-                                    thickness / 2, thickness / 2),
-                paint);
+                SkRRect::MakeRectXY(
+                    SkRect::MakeXYWH(at, box.y + box.height - thickness - scrollbar::edgeGap, length, thickness),
+                    thickness / 2, thickness / 2),
+                bar(false));
         }
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui

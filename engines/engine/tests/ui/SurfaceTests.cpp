@@ -14,6 +14,48 @@ using namespace soundor::ui;
 
 namespace
 {
+    // A 100 by 100 scroll view of 400 down, at the top left, with the mouse.
+    struct ScrollbarFixture
+    {
+        ScrollbarFixture()
+        {
+            surface.setSize({ 200, 200 });
+            surface.setStyle(scroller, sized(100, 100));
+            surface.insertChild(surface.root().id(), scroller);
+            surface.setStyle(content, sized(100, 400));
+            surface.insertChild(scroller, content);
+        }
+
+        static Style sized(float width, float height)
+        {
+            Style style;
+            style.width = Length::points(width);
+            style.height = Length::points(height);
+            style.flexShrink = 0;
+            return style;
+        }
+
+        bool mouse(PointerInput::Phase phase, float x, float y, int button = -1, unsigned buttons = 0)
+        {
+            PointerInput input;
+            input.phase = phase;
+            input.position = { x, y };
+            input.button = button;
+            input.buttons = buttons;
+            return surface.pointer(input);
+        }
+        void hover(float x, float y) { mouse(PointerInput::Phase::Move, x, y); }
+        bool press(float x, float y) { return mouse(PointerInput::Phase::Down, x, y, 0, 1); }
+        void drag(float x, float y) { mouse(PointerInput::Phase::Move, x, y, -1, 1); }
+        void release(float x, float y) { mouse(PointerInput::Phase::Up, x, y, 0, 0); }
+
+        [[nodiscard]] const Node& node() { return *surface.find(scroller); }
+
+        Surface surface;
+        NodeId scroller = surface.createNode(NodeType::Scroll);
+        NodeId content = surface.createNode(NodeType::View);
+    };
+
     Style sized(float width, float height)
     {
         Style style;
@@ -1085,4 +1127,120 @@ TEST_SUITE("ui::Surface input")
         CHECK(r.last.deltaUnit == WheelInput::Unit::Line);
         CHECK_FALSE(f.surface.wheel({ .position = { 500, 10 } }));
     }
+}
+
+TEST_CASE("a mouse near a scroll view's edge grows its bar over a track")
+{
+    ScrollbarFixture f;
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+    f.hover(87, 50);
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+    f.hover(88, 50);
+    CHECK(f.node().scrollbarGrown(true));
+    // Nothing to scroll across: no track there.
+    f.hover(50, 95);
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+    CHECK_FALSE(f.node().scrollbarGrown(false));
+    f.hover(95, 50);
+    CHECK(f.node().scrollbarGrown(true));
+    f.mouse(PointerInput::Phase::Leave, 300, 50);
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+}
+
+TEST_CASE("a scroll view's bar drags, wherever the pointer goes, and keeps it from the plugin")
+{
+    ScrollbarFixture f;
+    f.surface.setFocusable(f.content, true);
+    f.surface.focus(f.content);
+    f.hover(95, 10);
+    std::vector<int> events;
+    f.surface.setEventSink(
+        [&](const Event& event)
+        {
+            events.push_back(static_cast<int>(event.type));
+            return false;
+        });
+    CHECK(f.press(95, 10));
+    CHECK(f.node().scrollbarPressed(true));
+    // Pressed on it: it stays. 75 to travel for 300 to scroll.
+    CHECK(f.node().scrollOffset().y == 0);
+    f.drag(95, 20);
+    CHECK(f.node().scrollOffset().y == 40);
+    CHECK(f.node().scrollbarGrown(true));
+    f.drag(500, 30);
+    CHECK(f.node().scrollOffset().y == 80);
+    CHECK(f.node().scrollbarGrown(true));
+    f.release(500, 30);
+    CHECK_FALSE(f.node().scrollbarPressed(true));
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+    // Only the scrolling, of what happened; focus is where it was.
+    CHECK(events.size() == 2);
+    CHECK(std::ranges::all_of(events, [](int type) { return type == static_cast<int>(Event::Type::Scroll); }));
+    CHECK(f.surface.focused() == f.content);
+    f.hover(95, 90);
+    CHECK(f.node().scrollOffset().y == 80);
+}
+
+TEST_CASE("a press on a scroll view's track jumps there, and drags from there")
+{
+    ScrollbarFixture f;
+    f.hover(95, 60);
+    CHECK(f.press(95, 60));
+    // The middle of the 25 long bar at 60: 47.5 of its 75 to travel.
+    CHECK(f.node().scrollOffset().y == 190);
+    f.drag(95, 70);
+    CHECK(f.node().scrollOffset().y == 230);
+    // Past the end, and back: under the pointer again only from there.
+    f.drag(95, 500);
+    CHECK(f.node().scrollOffset().y == 300);
+    f.drag(95, 95);
+    CHECK(f.node().scrollOffset().y == 300);
+    f.drag(95, 80);
+    CHECK(f.node().scrollOffset().y == doctest::Approx(270));
+    f.release(95, 80);
+}
+
+TEST_CASE("only the primary button of a mouse takes a scroll view's track")
+{
+    ScrollbarFixture f;
+    f.hover(95, 60);
+    f.mouse(PointerInput::Phase::Down, 95, 60, 2, 2);
+    CHECK(f.node().scrollOffset().y == 0);
+    CHECK_FALSE(f.node().scrollbarPressed(true));
+    f.mouse(PointerInput::Phase::Up, 95, 60, 2, 0);
+
+    ScrollbarFixture touched;
+    PointerInput touch;
+    touch.type = PointerType::Touch;
+    touch.position = { 95, 60 };
+    touch.phase = PointerInput::Phase::Down;
+    touch.button = 0;
+    touch.buttons = 1;
+    touched.surface.pointer(touch);
+    CHECK_FALSE(touched.node().scrollbarGrown(true));
+    CHECK(touched.node().scrollOffset().y == 0);
+}
+
+TEST_CASE("a scroll view without indicators leaves its edge to its content")
+{
+    ScrollbarFixture f;
+    f.surface.setScrollIndicators(f.scroller, false);
+    f.hover(95, 60);
+    CHECK_FALSE(f.node().scrollbarGrown(true));
+    f.press(95, 60);
+    CHECK(f.node().scrollOffset().y == 0);
+    f.release(95, 60);
+    CHECK(f.surface.hitTest({ 95, 60 }) == f.content);
+}
+
+TEST_CASE("a scroll view let go of mid-drag forgets it")
+{
+    ScrollbarFixture f;
+    f.hover(95, 10);
+    f.press(95, 10);
+    f.surface.removeChild(f.surface.root().id(), f.scroller);
+    f.drag(95, 40);
+    f.release(95, 40);
+    CHECK(f.node().scrollOffset().y == 0);
+    CHECK_FALSE(f.node().scrollbarPressed(true));
 }
