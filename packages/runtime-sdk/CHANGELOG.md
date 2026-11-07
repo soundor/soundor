@@ -1,5 +1,12 @@
 # @soundor/runtime-sdk
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies [[`7fb3f13`](https://github.com/soundor/soundor/commit/7fb3f13f2e3435764e0c5c84ba0b2c44ef805430)]:
+  - @soundor/core@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

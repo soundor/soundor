@@ -1,5 +1,23 @@
 # @soundor/vitest
 
+## 0.16.0
+
+### Minor Changes
+
+- [#208](https://github.com/soundor/soundor/pull/208) [`01bf473`](https://github.com/soundor/soundor/commit/01bf473f0fe1d09678b8e34073d7642fbbbb95e7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Enable the `soundor` package condition when bundling plugin UIs and running
+  Soundor Vitest tests, including external dependencies. Libraries can expose
+  Soundor and DOM implementations through the same import, with the Soundor
+  entry selected for both JUCE and the web runtime. New projects include
+  `customConditions: ["soundor"]` in their UI tsconfig; existing and manually
+  created projects should add it to select matching TypeScript declarations.
+
+### Patch Changes
+
+- Updated dependencies [[`7fb3f13`](https://github.com/soundor/soundor/commit/7fb3f13f2e3435764e0c5c84ba0b2c44ef805430)]:
+  - @soundor/core@0.16.0
+  - @soundor/config@0.16.0
+  - @soundor/test-runtime@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

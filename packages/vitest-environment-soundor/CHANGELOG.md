@@ -1,5 +1,12 @@
 # vitest-environment-soundor
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @soundor/test-runtime@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes
