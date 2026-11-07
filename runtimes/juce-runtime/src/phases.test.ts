@@ -687,7 +687,11 @@ describe('build tree', () => {
   async function configureArgs(
     phase: 'dev' | 'build',
     platform: NodeJS.Platform,
-    extra: { keychain?: string; macos?: JuceOptions['macos'] } = {},
+    extra: {
+      keychain?: string;
+      macos?: JuceOptions['macos'];
+      windows?: JuceOptions['windows'];
+    } = {},
   ): Promise<string[]> {
     const root = await tempProjectWithJuce();
     const controller = new AbortController();
@@ -698,6 +702,7 @@ describe('build tree', () => {
       options: {
         jucePath: join(root, 'JUCE'),
         ...(extra.macos === undefined ? {} : { macos: extra.macos }),
+        ...(extra.windows === undefined ? {} : { windows: extra.windows }),
       },
       signal: controller.signal,
       signing: {
@@ -768,6 +773,32 @@ describe('build tree', () => {
         '-DSOUNDOR_MACOS_KEYCHAIN=',
       ]),
     );
+  });
+
+  describe('the Windows C runtime', () => {
+    const crt = (args: readonly string[]) =>
+      args.filter((arg) => arg.startsWith('-DCMAKE_MSVC_RUNTIME_LIBRARY='));
+
+    it.each([
+      ['dev', undefined, 'MultiThreadedDebug'],
+      ['build', undefined, 'MultiThreaded'],
+      ['dev', 'MT', 'MultiThreadedDebug'],
+      ['build', 'MT', 'MultiThreaded'],
+      ['dev', 'MD', 'MultiThreadedDebugDLL'],
+      ['build', 'MD', 'MultiThreadedDLL'],
+    ] as const)('%s with %s links %s', async (phase, value, library) => {
+      const args = await configureArgs(
+        phase,
+        'win32',
+        value === undefined ? {} : { windows: { crt: value } },
+      );
+      expect(crt(args)).toEqual([`-DCMAKE_MSVC_RUNTIME_LIBRARY=${library}`]);
+    });
+
+    it('is not passed outside Windows', async () => {
+      expect(crt(await configureArgs('build', 'linux'))).toEqual([]);
+      expect(crt(await configureArgs('dev', 'darwin'))).toEqual([]);
+    });
   });
 
   describe('the macOS deployment target', () => {

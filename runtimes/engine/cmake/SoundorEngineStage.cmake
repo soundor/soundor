@@ -8,10 +8,14 @@
 #   debug    Debug, DevTools, Hermes with its compiler (evaluates source)
 #   release  Release, no DevTools, the bytecode-only Hermes VM
 #
+# Windows has each for both C runtimes: debug and release with the DLL one,
+# debug-static and release-static with the static one (SoundorWindowsCrt.cmake).
+#
 # Included by CMakeLists.txt after SoundorEngineSource.cmake.
 
 include_guard(GLOBAL)
 include(SoundorEngineInputs)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 
 set(SOUNDOR_ENGINE_STAGE_DIR "" CACHE PATH "Where soundor_engine_stage lays this build out as a prebuilt engine")
 set(SOUNDOR_ENGINE_SOURCE_COMMIT "" CACHE STRING "The full source commit a staged prebuilt engine records")
@@ -80,20 +84,21 @@ else()
   set(soundor_stage_target "${soundor_stage_os}-${soundor_stage_cpus}")
 endif()
 
-# One build of each dependency per C runtime on Windows (md/mdd); elsewhere one.
+# One build of each dependency per C runtime on Windows; elsewhere one.
 set(soundor_stage_flavor release)
 set(soundor_stage_crt "")
 if(WIN32)
   if(soundor_stage_variant STREQUAL "debug")
-    set(soundor_stage_flavor mdd)
+    set(soundor_stage_flavor ${SOUNDOR_WINDOWS_CRT_DEBUG})
     set(soundor_stage_crt MultiThreadedDebugDLL)
   else()
-    set(soundor_stage_flavor md)
+    set(soundor_stage_flavor ${SOUNDOR_WINDOWS_CRT_RELEASE})
     set(soundor_stage_crt MultiThreadedDLL)
   endif()
-  if(CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
-    message(FATAL_ERROR "A Windows prebuilt engine uses the DLL C runtime (/MD, /MDd)")
+  if(SOUNDOR_WINDOWS_STATIC_CRT)
+    string(REPLACE "DLL" "" soundor_stage_crt "${soundor_stage_crt}")
   endif()
+  string(APPEND soundor_stage_variant "${SOUNDOR_WINDOWS_CRT_SUFFIX}")
 endif()
 
 # Everything copied: <from>|<to>, files (`copies`) or directories (`trees`).

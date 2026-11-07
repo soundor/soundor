@@ -157,6 +157,30 @@ anything:
 sudo dnf install libstdc++-static
 ```
 
+### Windows
+
+A plugin includes the C runtime by default (`/MT`, and `/MTd` in Debug), so it
+needs no Visual C++ Redistributable, and an older runtime a host has loaded can't
+crash it. This used to limit how many plugins a host could load, through a limit
+on fiber local storage slots, but Windows 10 1903 raised that limit far beyond a
+real session. JUCE and Microsoft still default to the DLL runtime, and you can too:
+
+```ts
+juceRuntime({ windows: { crt: 'MD' } }); // /MD, and /MDd in Debug
+```
+
+Use it for a library that only comes built with the DLL runtime, or if your users
+hit that limit. You then need to ship the Redistributable, and a host's older
+runtime can crash the plugin.
+
+Everything linked into a plugin has to use the same runtime, so with `MT` a
+precompiled library needs both an `MT` and an `MTd` build. A mismatch fails to link
+with `LNK2038`.
+
+Prebuilt engines are built with MSVC 19.44, so linking one needs Visual Studio 2022
+17.14 or newer. An older one stops with a message saying so; source mode has no such
+limit.
+
 ## ABI versioning
 
 The engine version is its C++ ABI: every symbol lives in
@@ -233,7 +257,6 @@ best reproduced in the Standalone format under a debugger.
 | `Downloading the debug/release prebuilt engine failed`     | No network on the first build, a proxy or firewall in the way, or a checksum mismatch (the file is not kept). Connect once, or use source mode. |
 | `is for @soundor/engine X, not Y` / `ABI namespace`        | A stale build directory or a mixed install: reinstall, delete the build directory.                                                              |
 | `needs macOS 12 or later`                                  | Set `juceRuntime({ macos: { deploymentTarget } })` to 12.0 or later.                                                                            |
-| `uses the MultiThreadedDLL C runtime`                      | The plugin uses a static C runtime: use the default (`/MD`, `/MDd`).                                                                            |
 | `Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build Release` | A Visual Studio tree configured for Debug only: configure it for the configuration you build.                                                   |
 | `SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine`        | A build directory from an older runtime: delete it.                                                                                             |
 

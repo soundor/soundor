@@ -208,8 +208,12 @@ TEST_SUITE("fileLogSink")
         for (std::string line; std::getline(in, line);)
             lines.push_back(line);
         REQUIRE(lines.size() == 3);
-        CHECK(lines[0] == R"({"level":"info","source":"Soundor \"Basic\"","message":"hello"})");
-        CHECK(lines[1] == R"({"level":"error","source":"Soundor \"Basic\"","message":"line 1\nline 2\t\\ \u0001"})");
+        // Outside CHECK: MSVC 19.44 cannot stringize a raw string with \" in it.
+        const std::string info = R"({"level":"info","source":"Soundor \"Basic\"","message":"hello"})";
+        const std::string error =
+            R"({"level":"error","source":"Soundor \"Basic\"","message":"line 1\nline 2\t\\ \u0001"})";
+        CHECK(lines[0] == info);
+        CHECK(lines[1] == error);
         CHECK(lines[2] == R"({"level":"warn","source":"other","message":"appended"})");
     }
 }

@@ -10,6 +10,11 @@ on:
         description: The JUCE commit to build with
         type: string
         required: true
+      msvc-toolset:
+        description: The MSVC toolset to build with on Windows; empty for the runner's newest
+        type: string
+        required: false
+        default: ''
       build-engine:
         description: Use this run's engine artifacts rather than the released engine
         type: boolean
@@ -86,6 +91,12 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
+      - name: Use the MSVC toolset asked for
+        if: runner.os == 'Windows' && inputs.msvc-toolset != ''
+        run: |
+          # CMake reads the toolset from the environment only with a generator there.
+          echo "CMAKE_GENERATOR=Visual Studio 18 2026" >> "$GITHUB_ENV"
+          echo "CMAKE_GENERATOR_TOOLSET=${{ inputs.msvc-toolset }}" >> "$GITHUB_ENV"
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
@@ -110,6 +121,12 @@ jobs:
           plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-linux/*.so' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
           .github/scripts/linux-plugin-check.sh "$plugin"
+      - name: The test plugin needs no C or C++ runtime DLL
+        if: runner.os == 'Windows'
+        run: |
+          plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-win/*.vst3' -type f | head -1)
+          [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
+          node .github/scripts/windows-plugin-check.mjs "$plugin"
       # The test plugin's editor, hosted and resized as a DAW does (EditorResize.cpp).
       - name: Resize the test plugin's editor
         if: runner.os == 'Linux'

@@ -14,7 +14,7 @@
 #
 #   include/            Skia's public headers (and modules/skcms/, which they use)
 #   lib/<flavor>/       the static library, one per FLAVORS entry (Windows
-#                       needs one per C runtime: "md" and "mdd")
+#                       needs one per C runtime: "md" and "mdd", or "mt" and "mtd")
 #   zlib/               the headers of the zlib inside the library, which ANGLE
 #                       compiles against and links instead of its own copy
 #   defines.txt         the defines Skia's public headers expect
@@ -167,11 +167,20 @@ foreach(flavor IN LISTS FLAVORS)
     set(name "${flavor}-${cpu}")
     set(args "${common_args}target_os = \"${TARGET_OS}\"\ntarget_cpu = \"${cpu}\"\n")
     if(TARGET_OS STREQUAL "win")
-      # The C runtime has to match the plugin's: /MD, or /MDd in Debug.
+      # The C runtime has to match the plugin's: /MD and /MDd, or /MT and /MTd.
       if(flavor STREQUAL "mdd")
-        string(APPEND args "extra_cflags = [ \"/MDd\", \"/FI${prefix_header}\" ]\n")
+        set(crt /MDd)
+      elseif(flavor STREQUAL "mt")
+        set(crt /MT)
+      elseif(flavor STREQUAL "mtd")
+        set(crt /MTd)
       else()
-        string(APPEND args "extra_cflags = [ \"/MD\", \"/FI${prefix_header}\" ]\n")
+        set(crt /MD)
+      endif()
+      string(APPEND args "extra_cflags = [ \"${crt}\", \"/FI${prefix_header}\" ]\n")
+      # The project's MSVC, and not the newest one installed.
+      if(DEFINED WIN_VC AND NOT WIN_VC STREQUAL "")
+        string(APPEND args "win_vc = \"${WIN_VC}\"\nwin_toolchain_version = \"${WIN_TOOLCHAIN}\"\n")
       endif()
       # RTTI like the rest of the plugin (and UBSan's vptr checks) expect.
       string(APPEND args "extra_cflags_cc = [ \"/GR\" ]\n")

@@ -4,7 +4,8 @@
 #   cmake -DOUT=<dir> -DREVISION=<sha> -DREPOSITORY=<url> -DDEPENDENCIES=<a;b=sparse,dirs>
 #         -DTARGET_OS=<linux|mac|win> -DCPUS=<x64;arm64> -DFLAVORS=<release|md;mdd>
 #         -DGN_URL=<url> -DGN_SHA256=<sha> -DZLIB=<dir> [-DCC=<c compiler> -DCXX=<c++ compiler>]
-#         [-DGENERATOR=<the project's CMake generator>] -P SoundorAngleBuild.cmake
+#         [-DGENERATOR=<the project's CMake generator>] [-DTOOLSET=<and its toolset>]
+#         -P SoundorAngleBuild.cmake
 #
 # ANGLE is fetched at REVISION and its third-party code only for DEPENDENCIES,
 # each at the commit ANGLE's own DEPS file pins; SoundorAnglePatch.cmake makes
@@ -179,13 +180,21 @@ foreach(cpu IN LISTS CPUS)
       else()
         list(APPEND options -G "${GENERATOR}" -A x64)
       endif()
+      # The project's compiler: with -G, CMake ignores a toolset in the environment.
+      if(DEFINED TOOLSET AND NOT TOOLSET STREQUAL "")
+        list(APPEND options -T "${TOOLSET}")
+      endif()
     else()
       list(APPEND options -G Ninja -DCMAKE_BUILD_TYPE=Release)
     endif()
     if(TARGET_OS STREQUAL "win")
-      # The C runtime has to match the plugin's: /MD, or /MDd in Debug.
+      # The C runtime has to match the plugin's: /MD and /MDd, or /MT and /MTd.
       if(flavor STREQUAL "mdd")
         list(APPEND options -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL)
+      elseif(flavor STREQUAL "mt")
+        list(APPEND options -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded)
+      elseif(flavor STREQUAL "mtd")
+        list(APPEND options -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug)
       else()
         list(APPEND options -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL)
       endif()

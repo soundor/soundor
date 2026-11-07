@@ -67,6 +67,8 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
       SOUNDOR_ENGINE_SOURCE_COMMIT: ${{ github.sha }}
+      # Windows also has archives with the static C runtime.
+      STATIC_VARIANTS: ${{ matrix.target == 'windows-x64' && 'debug-static release-static' || '' }}
       SOUNDOR_REQUIRE_GPU: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,7 +102,9 @@ jobs:
           CMAKE_OSX_ARCHITECTURES: ${{ runner.os == 'macOS' && 'arm64;x86_64' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '12.0' || '' }}
         run: |
-          cmake --workflow --preset prebuilt-debug && cmake --workflow --preset prebuilt-release
+          for variant in debug release $STATIC_VARIANTS; do
+            cmake --workflow --preset "prebuilt-$variant" || exit 1
+          done
 
       # This private Skia suite cannot link against an imported archive. Keep
       # its platform coverage using the engine libraries we just built.
@@ -114,7 +118,7 @@ jobs:
 
       - name: Pack
         run: |
-          for variant in debug release; do
+          for variant in debug release $STATIC_VARIANTS; do
             node .github/scripts/engine-prebuilts.mjs pack "runtimes/engine/build/prebuilt-$variant/stage" "$RUNNER_TEMP/prebuilts" \
               --commit "$GITHUB_SHA" --target ${{ matrix.target }}
           done
@@ -126,10 +130,10 @@ jobs:
           version=$(node -p "require('./runtimes/engine/package.json').version")
           # Forward slashes on Windows too: these paths go to CMake.
           temp=$(cygpath -m "$RUNNER_TEMP" 2>/dev/null || echo "$RUNNER_TEMP")
-          for variant in debug release; do
+          for variant in debug release $STATIC_VARIANTS; do
             mkdir -p "$temp/extracted"
             cmake -E chdir "$temp/extracted" cmake -E tar xf "$temp/prebuilts/soundor-engine-$version-${{ matrix.target }}-$variant.tar.gz"
-            echo "PREBUILT_$(echo $variant | tr a-z A-Z)=$temp/extracted/soundor-engine-$version-${{ matrix.target }}-$variant" >> "$GITHUB_ENV"
+            echo "PREBUILT_$(echo $variant | tr a-z- A-Z_)=$temp/extracted/soundor-engine-$version-${{ matrix.target }}-$variant" >> "$GITHUB_ENV"
           done
 
       - name: Both architectures in every macOS library
@@ -157,6 +161,14 @@ jobs:
         if: inputs.tests
         working-directory: runtimes/engine
         run: SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE" cmake --workflow --preset prebuilt-check-release
+
+      - name: Native tests against the static C runtime's engines
+        if: inputs.tests && runner.os == 'Windows'
+        working-directory: runtimes/engine
+        run: |
+          SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_DEBUG_STATIC" cmake --workflow --preset prebuilt-check-debug-static &&
+            SOUNDOR_ENGINE_PREBUILT_DIR="$PREBUILT_RELEASE_STATIC" cmake --workflow --preset prebuilt-check-release-static &&
+            ctest --test-dir build/prebuilt-check-release-static -C Release -R '^soundor_coexistence$' -V | grep 'FLS slot'
 
       # The universal archive links for the architecture this runner is not.
       - name: The x86_64 slice links

@@ -123,6 +123,48 @@ describe('buildDoctorReport', () => {
     });
   });
 
+  describe('a prebuilt engine on Windows', () => {
+    const artifacts = (...variants: string[]) =>
+      variants.map((variant) => ({ target: 'windows-x64', variant }));
+    const status = async (
+      crt: 'MT' | 'MD' | undefined,
+      variants: readonly string[],
+    ) =>
+      check(
+        await buildDoctorReport(
+          memoryFs('/proj'),
+          {
+            windows: crt === undefined ? {} : { crt },
+            formats: ['standalone'],
+          },
+          {
+            probe: ok,
+            env: {},
+            platform: 'win32',
+            arch: 'x64',
+            engine: {
+              version: '0.2.1',
+              manifest: { tag: 'r1', artifacts: artifacts(...variants) },
+            },
+          },
+        ),
+        'Soundor Engine',
+      ).status;
+
+    it('needs the archives of the C runtime in use', async () => {
+      const dll = ['debug', 'release'];
+      const both = [...dll, 'debug-static', 'release-static'];
+      expect(await status(undefined, both)).toBe('ok');
+      expect(await status('MT', both)).toBe('ok');
+      expect(await status('MD', dll)).toBe('ok');
+      expect(await status(undefined, dll)).toBe('fail');
+      expect(await status('MT', dll)).toBe('fail');
+      expect(await status('MD', ['debug-static', 'release-static'])).toBe(
+        'fail',
+      );
+    });
+  });
+
   describe('the Metal tools', () => {
     const report = (
       platform: NodeJS.Platform,

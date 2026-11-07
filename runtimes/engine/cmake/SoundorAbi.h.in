@@ -24,7 +24,9 @@
 #if defined(_LIBCPP_ABI_VERSION)
 #define SOUNDOR_ABI_STDLIB (1000 + _LIBCPP_ABI_VERSION)
 #elif defined(_MSVC_STL_VERSION)
-#define SOUNDOR_ABI_STDLIB (2000 + _MSVC_STL_VERSION)
+// The toolset family, not the toolset: v141 to v145 share one ABI, which is what
+// lets Visual Studio 2026 link an engine built with 2022's.
+#define SOUNDOR_ABI_STDLIB (2000 + _MSVC_STL_VERSION / 10)
 #elif defined(_GLIBCXX_USE_CXX11_ABI)
 #define SOUNDOR_ABI_STDLIB (10 + _GLIBCXX_USE_CXX11_ABI)
 #else

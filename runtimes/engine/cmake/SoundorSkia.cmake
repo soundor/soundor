@@ -17,12 +17,13 @@ include_guard(GLOBAL)
 
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 
 set(SOUNDOR_SKIA_DIR "" CACHE PATH "A Skia install made by SoundorSkiaBuild.cmake; empty: build one into the Soundor cache")
 
 if(WIN32)
   set(soundor_skia_os win)
-  set(soundor_skia_flavors md mdd)
+  set(soundor_skia_flavors ${SOUNDOR_WINDOWS_CRT_RELEASE} ${SOUNDOR_WINDOWS_CRT_DEBUG})
 elseif(APPLE)
   set(soundor_skia_os mac)
   set(soundor_skia_flavors release)
@@ -77,7 +78,14 @@ if(NOT SOUNDOR_SKIA_DIR)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/SoundorSkiaBuild.cmake" script_hash)
   file(SHA256 "${CMAKE_CURRENT_LIST_DIR}/skia/SoundorSkiaPrefix.h" prefix_hash)
   get_filename_component(skia_cxx_name "${skia_cxx}" NAME)
-  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name}")
+  # On Windows, with the project's MSVC: gn would take the newest installed.
+  set(skia_win_vc "")
+  set(skia_win_toolchain "")
+  if(WIN32 AND CMAKE_CXX_COMPILER MATCHES "^(.*/VC)/Tools/MSVC/([^/]+)/bin/")
+    set(skia_win_vc "${CMAKE_MATCH_1}")
+    set(skia_win_toolchain "${CMAKE_MATCH_2}")
+  endif()
+  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name};${skia_win_toolchain};${SOUNDOR_WINDOWS_CRT_RELEASE}")
   if(SOUNDOR_ENABLE_SANITIZERS)
     # ASan adds state to Skia's inline containers. A non-ASan archive has a
     # different SVG node layout and cannot be read through these headers.
@@ -103,6 +111,8 @@ if(NOT SOUNDOR_SKIA_DIR)
           "-DTARGET_OS=${soundor_skia_os}"
           "-DCPUS=${soundor_skia_cpus}"
           "-DFLAVORS=${soundor_skia_flavors}"
+          "-DWIN_VC=${skia_win_vc}"
+          "-DWIN_TOOLCHAIN=${skia_win_toolchain}"
           "-DCC=${skia_cc}"
           "-DCXX=${skia_cxx}"
           "-DADDRESS_SANITIZER=${SOUNDOR_ENABLE_SANITIZERS}"
@@ -124,9 +134,9 @@ add_library(soundor_skia STATIC IMPORTED GLOBAL)
 if(WIN32)
   set_target_properties(soundor_skia PROPERTIES
     IMPORTED_CONFIGURATIONS "RELEASE;DEBUG"
-    IMPORTED_LOCATION "${SOUNDOR_SKIA_DIR}/lib/md/skia.lib"
-    IMPORTED_LOCATION_RELEASE "${SOUNDOR_SKIA_DIR}/lib/md/skia.lib"
-    IMPORTED_LOCATION_DEBUG "${SOUNDOR_SKIA_DIR}/lib/mdd/skia.lib"
+    IMPORTED_LOCATION "${SOUNDOR_SKIA_DIR}/lib/${SOUNDOR_WINDOWS_CRT_RELEASE}/skia.lib"
+    IMPORTED_LOCATION_RELEASE "${SOUNDOR_SKIA_DIR}/lib/${SOUNDOR_WINDOWS_CRT_RELEASE}/skia.lib"
+    IMPORTED_LOCATION_DEBUG "${SOUNDOR_SKIA_DIR}/lib/${SOUNDOR_WINDOWS_CRT_DEBUG}/skia.lib"
     MAP_IMPORTED_CONFIG_MINSIZEREL RELEASE
     MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE)
 else()

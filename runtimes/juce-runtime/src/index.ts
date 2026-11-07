@@ -49,6 +49,7 @@ import {
   resolveJuceOptions,
   type JuceFormat,
   type JuceOptions,
+  type WindowsCrt,
 } from './options';
 import { resolveJuce } from './resolve-juce';
 import { juceScaffoldFiles } from './scaffold';
@@ -58,6 +59,7 @@ export type {
   JuceFormat,
   JuceOptions,
   ResolvedJuceOptions,
+  WindowsCrt,
 } from './options';
 export { generateNativeModuleSources } from './native-codegen';
 export { generateJuceSources } from './codegen';
@@ -227,6 +229,7 @@ export async function juceDev(
       // attach without the hardened runtime in the way.
       ...signingArgs(platform, { identity: '-', source: 'default' }),
       ...deploymentTargetArgs(platform, options.macosDeploymentTarget),
+      ...crtArgs(platform, options.windowsCrt, true),
     ];
 
     ctx.logger.info('Configuring debug build');
@@ -372,6 +375,7 @@ export async function juceBuild(
     `-DSOUNDOR_UI_DIR=${ctx.ui === undefined ? '' : uiDir}`,
     ...signingArgs(platform, signing),
     ...deploymentTargetArgs(platform, options.macosDeploymentTarget),
+    ...crtArgs(platform, options.windowsCrt, debug),
   ];
   if (ctx.ui === undefined) {
     ctx.logger.warn(
@@ -448,6 +452,7 @@ export async function juceDoctor(
     jucePath: options.jucePath,
     engine: { mode: options.engineMode },
     formats: options.formats,
+    windows: { crt: options.windowsCrt },
   });
 }
 
@@ -524,6 +529,20 @@ function deploymentTargetArgs(
   return platform === 'darwin'
     ? [`-DCMAKE_OSX_DEPLOYMENT_TARGET=${deploymentTarget}`]
     : [];
+}
+
+/**
+ * The C runtime a Windows build links, on the command line for the same reason.
+ * One value, as each build directory builds one configuration.
+ */
+function crtArgs(
+  platform: NodeJS.Platform,
+  crt: WindowsCrt,
+  debug: boolean,
+): string[] {
+  if (platform !== 'win32') return [];
+  const library = `MultiThreaded${debug ? 'Debug' : ''}${crt === 'MD' ? 'DLL' : ''}`;
+  return [`-DCMAKE_MSVC_RUNTIME_LIBRARY=${library}`];
 }
 
 /** CMake cache variables `soundor_finalize_plugin` signs macOS bundles with. */

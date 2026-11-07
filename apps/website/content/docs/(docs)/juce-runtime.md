@@ -49,6 +49,7 @@ top-level `plugin`.
 | `jucePath`         | `JUCE_DIR`, then well-known locations (see below)                                                           |
 | `formats`          | `['vst3']`                                                                                                  |
 | `macos`            | `{ deploymentTarget: '12.0' }`: the oldest macOS the plugin runs on; the engine needs 12.0 or later         |
+| `windows`          | `{ crt: 'MT' }`: how a Windows plugin links the C runtime, `'MT'` or `'MD'`                                 |
 | `dev`              | `{ launch }`: what [`soundor dev`](/docs/cli/dev#what-soundor-dev-juce-opens) opens; decided by default     |
 | `companyName`      | the vendor segment of `plugin.id` (`com.acme.reverb` → `acme`)                                              |
 | `pluginCode`       | a stable four-character code derived from `plugin.id`                                                       |

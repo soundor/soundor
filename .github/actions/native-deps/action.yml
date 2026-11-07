@@ -38,6 +38,18 @@ runs:
       shell: bash
       run: command -v ninja || choco install ninja -y --no-progress
 
+    # What the engine is built with, not the runner's newest: a linker reads what
+    # its own version or an older one compiled, so this is the oldest Visual Studio
+    # that can link a prebuilt engine (2022 17.14).
+    - name: Select the MSVC toolset (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        # CMake reads the toolset from the environment only with a generator there.
+        echo "CMAKE_GENERATOR=Visual Studio 18 2026" >> "$GITHUB_ENV"
+        echo "CMAKE_GENERATOR_TOOLSET=v143,version=14.44" >> "$GITHUB_ENV"
+        echo "SOUNDOR_MSVC_TOOLSET=v143-14.44" >> "$GITHUB_ENV"
+
     # Visual Studio builds one project at a time unless told otherwise; every
     # cmake --build reads this (sources within a project: /MP, which the
     # engine's CMake and JUCE's flags set).
@@ -88,7 +100,7 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ runner.temp }}/soundor-cache
-        key: native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
+        key: native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}
         restore-keys: |
-          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
-          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || '' }}-
+          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-${{ hashFiles('runtimes/engine/cmake/SoundorSkia*.cmake', 'runtimes/engine/cmake/SoundorAngle*.cmake', 'runtimes/engine/cmake/angle/**', 'runtimes/engine/cmake/SoundorHermes*.cmake', 'runtimes/engine/cmake/hermes/**', 'runtimes/engine/cmake/SoundorDependencies.cmake') }}-
+          native-deps-${{ inputs.job }}${{ env.SOUNDOR_XCODE && format('-xcode{0}', env.SOUNDOR_XCODE) || env.SOUNDOR_MSVC_TOOLSET && format('-msvc{0}', env.SOUNDOR_MSVC_TOOLSET) || '' }}-
