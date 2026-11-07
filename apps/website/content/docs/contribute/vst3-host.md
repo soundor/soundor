@@ -211,7 +211,9 @@ the executable's provenance and SHA-256. `main` builds same-commit artifacts for
 release publishing. A matching published release takes priority over CI reuse.
 
 Host changes never run the engine's suites, and engine changes never run the
-host's. A change only under `hosts/vst3-host/` runs this job and Orbit's alone: the
+host's. A change only under `hosts/vst3-host/`, optionally accompanied by
+`.changeset/*.md` release notes, runs this job and Orbit's alone. Changeset
+configuration is still considered. The package
 graph has it reach the JUCE and benchmark packages through `@soundor/driver`, but
 only that package's optional `vst3` entry uses the host.
 
