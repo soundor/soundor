@@ -3,9 +3,9 @@ title: Hooks
 description: The React hooks @soundor/react adds, for parameters, frames and the view's size.
 ---
 
-`@soundor/react` adds four hooks to React's own: one connects a component to
+`@soundor/react` adds five hooks to React's own: one connects a component to
 a plugin parameter, one runs code before every frame, one follows the view's
-size, and one makes a scrollbar of your own. React's hooks (`useState`, `useEffect`, `useRef`, …) work as
+size, one makes a scrollbar of your own, and one makes any view pressable. React's hooks (`useState`, `useEffect`, `useRef`, …) work as
 everywhere else.
 
 | Hook                                                   | What it is for                                                     |
@@ -13,6 +13,7 @@ everywhere else.
 | [`useParameter`](/docs/hooks/use-parameter)            | A parameter's value, re-rendering when it changes.                 |
 | [`useAnimationFrame`](/docs/hooks/use-animation-frame) | A callback before every frame, to draw a canvas or follow a value. |
 | [`useViewSize`](/docs/hooks/use-view-size)             | The view's size, re-rendering when the editor is resized.          |
-| [`useScrollbar`](/docs/hooks/use-scrollbar)            | A scrollbar of your own, drawn however you like                    |
+| [`useScrollbar`](/docs/hooks/use-scrollbar)            | A scrollbar of your own, drawn however you like.                   |
+| [`usePressable`](/docs/hooks/use-pressable)            | What `Pressable` does, for a component of your own.                |
 
 <Snippet name="gain" height={200} />

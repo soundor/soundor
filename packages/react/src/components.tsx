@@ -7,7 +7,6 @@ import {
   type Ref,
 } from 'react';
 import {
-  pressable,
   type FocusEvent,
   type InputEvent,
   type KeyboardEvent,
@@ -21,15 +20,15 @@ import {
   type Asset,
 } from 'soundor:ui';
 
-import {
-  withActions,
-  type AccessibilityActionEvent,
-  type AccessibilityActionInfo,
-  type AccessibilityProps,
-} from './accessibility';
+import { type AccessibilityProps } from './accessibility';
 import { ScopeContext } from './focus';
 import { TRANSITION_PROP, ANIMATION_PROP } from './host';
-import { HostTypes, prioritized, SCOPE_PROP } from './host';
+import { HostTypes, SCOPE_PROP } from './host';
+import {
+  usePressable,
+  type PressableOptions,
+  type PressableState,
+} from './pressable';
 import type { StyleProp } from './style';
 
 /** Event props every component takes; `…Capture` runs in the capture phase. */
@@ -258,53 +257,8 @@ export function TextInput(props: TextInputProps) {
   return createElement(HostTypes.TextInput, useHostProps(props));
 }
 
-/** What a Pressable's `style` and `children` functions are given. */
-export interface PressableState {
-  /** A press is under way: down, and not yet released or moved away. */
-  readonly pressed: boolean;
-  /** The pointer is over it. */
-  readonly hovered: boolean;
-  /** It has keyboard focus. */
-  readonly focused: boolean;
-  /**
-   * It has focus and should show it, as CSS's `:focus-visible`: not when a
-   * press gave it focus, until a key is pressed. Draw a focus ring for this.
-   */
-  readonly focusVisible: boolean;
-}
-
-const RESTING: PressableState = Object.freeze({
-  pressed: false,
-  hovered: false,
-  focused: false,
-  focusVisible: false,
-});
-
-export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
-  /**
-   * A press (a click, Enter or Space, or assistive technology's 'activate');
-   * not after a long press, when onLongPress is given.
-   */
-  onPress?: (
-    event: PointerEvent | KeyboardEvent | AccessibilityActionEvent,
-  ) => void;
-  /**
-   * Held down `delayLongPress` ms without moving away, or assistive
-   * technology's 'longpress'.
-   */
-  onLongPress?: (event: PointerEvent | AccessibilityActionEvent) => void;
-  /** Milliseconds before a press is a long press: 500 by default. */
-  delayLongPress?: number;
-  /** A press started: the pointer went down on it. */
-  onPressIn?: (event: PointerEvent) => void;
-  /** A press ended: released, or moved away. */
-  onPressOut?: (event: PointerEvent) => void;
-  /** The pointer came over it. */
-  onHoverIn?: (event: PointerEvent) => void;
-  /** The pointer left it. */
-  onHoverOut?: (event: PointerEvent) => void;
-  /** Not pressable, nor focusable; assistive technology is told it is disabled. */
-  disabled?: boolean;
+export interface PressableProps
+  extends Omit<ViewProps, 'style' | 'children'>, PressableOptions {
   /**
    * A style, or a function of its state: pressed, hovered, focused,
    * focusVisible.
@@ -317,13 +271,11 @@ export interface PressableProps extends Omit<ViewProps, 'style' | 'children'> {
   children?: ReactNode | ((state: PressableState) => ReactNode);
 }
 
-const ACTIVATE: AccessibilityActionInfo = { name: 'activate' };
-const LONG_PRESS: AccessibilityActionInfo = { name: 'longpress' };
-
 /**
  * A view that responds to presses: a click, or Enter/Space while focused,
  * and long presses. `style` and `children` may depend on whether it is
  * pressed, hovered or focused, and whether it shows its focus.
+ * `usePressable` does the same for a component of your own.
  *
  * To assistive technology it is one element, a button unless given another
  * role, labelled by its text; it offers 'activate' (onPress) and, with
@@ -337,7 +289,7 @@ export function Pressable({
   onPressOut,
   onHoverIn,
   onHoverOut,
-  disabled = false,
+  disabled,
   style,
   children,
   ref,
@@ -347,74 +299,26 @@ export function Pressable({
   accessibilityActions,
   ...props
 }: PressableProps) {
-  const [node, setNode] = useState<UiNode | null>(null);
-  const [state, setState] = useState<PressableState>(RESTING);
-  // The latest handlers, read by listeners installed once per node.
-  const [handlers] = useState(() => ({ current: {} as PressableProps }));
-  handlers.current = {
+  const { pressableProps, ...state } = usePressable({
     onPress,
     onLongPress,
+    delayLongPress,
     onPressIn,
     onPressOut,
     onHoverIn,
     onHoverOut,
-  };
-  const longPresses = onLongPress !== undefined;
-
-  useEffect(() => {
-    if (node === null || disabled) return undefined;
-    // Updates from presses render as promptly as those of event props.
-    const call =
-      <E extends Event>(name: keyof typeof handlers.current) =>
-      (event: E) =>
-        prioritized(event.type, () =>
-          (handlers.current[name] as ((event: E) => void) | undefined)?.(event),
-        );
-    const undo = pressable(node, {
-      onPress: call('onPress'),
-      ...(longPresses && {
-        onLongPress: call<PointerEvent | AccessibilityActionEvent>(
-          'onLongPress',
-        ),
-        delayLongPress,
-      }),
-      onPressIn: call('onPressIn'),
-      onPressOut: call('onPressOut'),
-      onHoverIn: call('onHoverIn'),
-      onHoverOut: call('onHoverOut'),
-      onStateChange: (next) => prioritized('press', () => setState(next)),
-    });
-    return () => {
-      undo();
-      setState(RESTING);
-    };
-  }, [node, disabled, handlers, longPresses, delayLongPress]);
-
-  const attach = (value: UiNode | null) => {
-    setNode(value);
-    if (typeof ref === 'function') ref(value);
-    else if (ref) ref.current = value;
-  };
-  const scope = useContext(ScopeContext);
+    disabled,
+    accessibilityState,
+    accessibilityActions,
+    ref,
+  });
   return createElement(
     HostTypes.View,
     {
-      ...props,
-      [SCOPE_PROP]: scope,
-      ref: attach,
+      ...useHostProps(props),
+      ...pressableProps,
       accessible,
       accessibilityRole,
-      accessibilityState:
-        disabled && accessibilityState?.disabled === undefined
-          ? { ...accessibilityState, disabled: true }
-          : accessibilityState,
-      accessibilityActions: disabled
-        ? accessibilityActions
-        : withActions(
-            longPresses ? [ACTIVATE, LONG_PRESS] : [ACTIVATE],
-            accessibilityActions,
-          ),
-      focusable: !disabled,
       style: typeof style === 'function' ? style(state) : style,
     },
     typeof children === 'function' ? children(state) : children,

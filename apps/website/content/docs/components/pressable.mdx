@@ -6,7 +6,9 @@ description: A view that responds to presses, with its state for styling.
 `Pressable` is a view that responds to presses: a click, Enter or Space while
 it has focus, or a screen reader's "activate". Its `style` and `children` may
 be functions of its state (pressed, hovered, focused, focusVisible), so a
-button is drawn from the same state the runtime tracks.
+button is drawn from the same state the runtime tracks. For a component of
+your own, [`usePressable`](/docs/hooks/use-pressable) gives any view the same
+presses and state.
 
 <Snippet name="pressable" height={200} />
 
@@ -37,7 +39,7 @@ button is drawn from the same state the runtime tracks.
 `style` and `children` take a function of its state:
 
 <auto-type-table
-  path="packages/react/src/components.tsx"
+  path="packages/react/src/pressable.ts"
   name="PressableState"
 />
 

@@ -15,6 +15,7 @@ import {
   Text,
   TextInput,
   View,
+  usePressable,
   useScrollbar,
   useViewSize,
   type StyleProp,
@@ -44,20 +45,21 @@ function Button({
   onLongPress?: () => void;
   style?: StyleProp;
 }) {
+  // A button of its own, from the hook Pressable is made with.
+  const press = usePressable({ onPress, onLongPress });
   return (
-    <Pressable
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={({ pressed, hovered, focused }) => [
+    <View
+      {...press.pressableProps}
+      style={[
         styles.button,
-        hovered && styles.buttonHovered,
-        pressed && styles.buttonPressed,
-        focused && styles.focusRing,
+        press.hovered && styles.buttonHovered,
+        press.pressed && styles.buttonPressed,
+        press.focused && styles.focusRing,
         style,
       ]}
     >
       <Text style={styles.buttonLabel}>{label}</Text>
-    </Pressable>
+    </View>
   );
 }
 
