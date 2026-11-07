@@ -20,6 +20,12 @@ context from its node, in an effect or on every frame.
   display's density, the host's scaling and an editor's zoom
   (`resize: 'scale'`), and re-renders when it changes. (The web runtime's
   `devicePixelRatio` is the page's, without the host's scaling.)
+- **Exactly sharp, at any size:** at a fractional scale, such as 1.25, a box
+  ends on whole device pixels, but its width times the scale may not be the
+  number it covers. A `ResizeObserver` with `box: 'device-pixel-content-box'`
+  gives the buffer size the box really has, and tells you again when the box
+  or the scale changes. It also covers a canvas sized by flexbox rather than a
+  fixed width ([Observing sizes](/docs/api/ui#observing-sizes)).
 - **Every frame:** `useAnimationFrame` calls your drawing code before each
   frame, while the component is mounted ([hooks](/docs/hooks)).
 - **What 2D draws:** paths, rectangles, text, gradients, patterns, images,

@@ -11,6 +11,7 @@ import type {
 } from '../ui/events';
 import { registerFont as register, type FontDescriptors } from '../ui/fonts';
 import { UiNode } from '../ui/node';
+import { installResizeObserver } from '../ui/resize-observer';
 import type {
   Style,
   AnimationDescription,
@@ -35,6 +36,9 @@ export function animate(
 }
 
 const view = uiView();
+
+// ResizeObserver observes nodes, as in the engine; DOM elements as before.
+installResizeObserver();
 
 /** The view's root node; it always fills the view. */
 export const root = view.root;

@@ -152,7 +152,12 @@ and the host UI. Nothing is serialized and there is no RPC.
 | `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.       |
 
 The Web globals Soundor declares (`fetch`, timers, `URL`, `TextEncoder`,
-`crypto`, `requestAnimationFrame`, …) are the browser's own.
+`crypto`, `requestAnimationFrame`, …) are the browser's own, except
+`ResizeObserver`. A browser's observes DOM elements only, so Soundor's takes
+its place and observes nodes. The browser still decides when it reports, through
+its own `ResizeObserver` on each node's element. What an entry says is measured
+from Yoga, as in the JUCE runtime. DOM elements are passed through to the
+browser's, so the host page's own code works as before.
 
 ### `soundor:ui` on the DOM
 

@@ -1,6 +1,7 @@
 import {
   initializeTestContext,
   disposeTestContext,
+  TestResizeObserver,
   type RuntimeOptions,
 } from '@soundor/test-runtime';
 import type { Environment } from 'vitest/runtime';
@@ -50,6 +51,9 @@ export default {
     }
     if (typeof global.devicePixelRatio !== 'number')
       install('devicePixelRatio', 1, false);
+    // Nothing is laid out here: it observes nodes, and never tells.
+    if (typeof global.ResizeObserver !== 'function')
+      install('ResizeObserver', TestResizeObserver);
 
     return {
       async teardown() {

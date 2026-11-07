@@ -45,6 +45,7 @@ const scaleOf = (shown: number, laidOut: number): number =>
  */
 export class ScrollIndicators {
   readonly #element: HTMLElement;
+  readonly #onScroll: () => void;
   readonly #vertical: HTMLElement;
   readonly #horizontal: HTMLElement;
   readonly #verticalTrack: HTMLElement;
@@ -55,8 +56,13 @@ export class ScrollIndicators {
   #enabled = true;
   #fade: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(element: HTMLElement) {
+  /**
+   * `onScroll` is called when a press or a drag of a bar scrolled the view:
+   * for its node to tell of it at once, as the wheel does.
+   */
+  constructor(element: HTMLElement, onScroll: () => void = () => {}) {
     this.#element = element;
+    this.#onScroll = onScroll;
     const document = element.ownerDocument;
     const bar = (axis: string): HTMLElement => {
       const created = document.createElement('div');
@@ -219,6 +225,7 @@ export class ScrollIndicators {
     if (vertical) element.scrollTop = target;
     else element.scrollLeft = target;
     this.place();
+    this.#onScroll();
     return target;
   }
 
@@ -252,8 +259,9 @@ export class ScrollIndicators {
       element.scrollLeft =
         drag.scroll + (moved * (box.contentWidth - box.width)) / travel;
     }
-    // The browser's scroll event comes with the next frame; the bar follows now.
+    // The bar follows now, and the node tells of it now, as natively.
     this.place();
+    this.#onScroll();
   }
 
   /** The track shows exactly where a press would take it: its own strip. */

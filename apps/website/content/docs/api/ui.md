@@ -101,6 +101,46 @@ has the details.
 `requestAnimationFrame()` is a global, as on the Web: its callback runs once,
 before the view's next frame.
 
+## Observing sizes
+
+`ResizeObserver` is a global too, as on the Web, observing nodes: after a
+frame's `requestAnimationFrame` callbacks and its layout, before the frame is
+drawn, its callback gets an entry for each observed node whose box changed
+size since it was last told.
+
+```ts
+const observer = new ResizeObserver((entries) => {
+  for (const entry of entries) {
+    const [{ inlineSize, blockSize }] = entry.devicePixelContentBoxSize;
+    entry.target.width = inlineSize; // a canvas's buffer, exactly its box
+    entry.target.height = blockSize;
+  }
+});
+observer.observe(canvas, { box: 'device-pixel-content-box' });
+```
+
+Give such a canvas a size by its style (or by flexbox): unstyled, its box is
+its buffer's size, so resizing the buffer from the callback would resize the
+box again.
+
+- **Boxes:** `observe(node, { box })` compares the `'content-box'` (the
+  default: inside border and padding), the `'border-box'` (the node's
+  `layout` size), or the `'device-pixel-content-box'` (the content box in
+  whole device pixels, which changes with the display's scale too). Each entry
+  has all three, as `contentBoxSize`, `borderBoxSize` and
+  `devicePixelContentBoxSize`, and `contentRect`, the content box with where it
+  starts.
+- **When:** first on the frame after `observe()`, once the node is laid out
+  to more than 0×0; then whenever the observed box's size changes. A move is
+  not a change. A node taken out of the tree is told of as 0×0.
+- **What a callback resizes** is measured again on the same frame, for nodes
+  deeper in the tree than those just told of. A node at the same depth or
+  above waits for the next frame, and the error "ResizeObserver loop completed
+  with undelivered notifications." is reported, as in browsers.
+- **Cost:** a frame where nothing changed costs one comparison, with no node
+  measured. `unobserve(node)` and `disconnect()` stop it. An observer and the
+  nodes it observes are let go together once nothing else holds them.
+
 ## The view's size
 
 ```ts

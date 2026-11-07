@@ -117,6 +117,10 @@ Node timers and `performance.now()` remain on Node's clock. Vitest fake timers
 can control Node timers independently; they do not advance native presentation.
 Select `toFake` explicitly to keep the simulated frame functions when using
 Vitest timers. `devicePixelRatio` defaults to 1; no pixels are rendered.
+`ResizeObserver` observes nodes and checks its arguments, but never calls back,
+since nothing is laid out and every node stays 0×0. To test what a component
+does with sizes, stub it (`vi.stubGlobal('ResizeObserver', …)`) with one that
+calls back.
 
 ## Simulation limits
 

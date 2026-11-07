@@ -24,7 +24,8 @@ config: `parameters.gain` exists because the config declares `gain`.
 
 Besides them, a plugin UI has a subset of the Web's globals: `console`,
 timers, `fetch`, `URL`, `TextEncoder`, `crypto.getRandomValues()`,
-`structuredClone`, `AbortController`, `requestAnimationFrame` and others.
+`structuredClone`, `AbortController`, `requestAnimationFrame`,
+`ResizeObserver` (observing nodes) and others.
 There is no `window` or `document`: see the
 [Web platform layer](/docs/contribute/engine-reference#the-web-platform-layer).
 

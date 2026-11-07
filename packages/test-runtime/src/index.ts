@@ -2,6 +2,7 @@ export { createTestRuntime, TestRuntime } from './runtime';
 export { TestNode, TestEvent, fire, print } from './node';
 export { TestAnimation } from './animation';
 export { VirtualClock } from './clock';
+export { TestResizeObserver } from './resize-observer';
 export {
   semanticTree,
   semanticSnapshot,

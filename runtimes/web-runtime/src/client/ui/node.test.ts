@@ -677,6 +677,35 @@ describe('UiNode layout', () => {
 });
 
 describe('UiNode events', () => {
+  it('tells of scrolling from code by the browser’s event, once, and of the wheel at once', () => {
+    const { root } = setup();
+    const scroll = view.createNode('scroll');
+    root.appendChild(scroll);
+    let scrolled = 0;
+    scroll.addEventListener('scroll', () => ++scrolled);
+    // happy-dom lays nothing out: the element scrolls where it is told.
+    let top = 0;
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      get: () => top,
+      set: (value: number) => (top = value),
+      configurable: true,
+    });
+    scroll.scrollTop = 30;
+    // Not inside the call: the browser's own event says it, on its frame.
+    expect(scrolled).toBe(0);
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(scrolled).toBe(1);
+    // Another for the same place says nothing new.
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(scrolled).toBe(1);
+    // The wheel's is told at once, and the browser's after it is not.
+    scroll.scrollTop = 60;
+    UiNode.scrolled(scroll);
+    expect(scrolled).toBe(2);
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(scrolled).toBe(2);
+  });
+
   it('capture, target and bubble along the Soundor tree', () => {
     const { root } = setup();
     const parent = view.createNode('view');

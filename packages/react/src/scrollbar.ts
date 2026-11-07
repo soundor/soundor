@@ -1,7 +1,20 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import type { PointerEvent, UiNode } from 'soundor:ui';
 
-import { useAnimationFrame } from './hooks';
+/** What the hook watches, and what tells it. */
+interface Watching {
+  observer: ResizeObserver | null;
+  /** The scroll view, what it scrolls, and the track. */
+  sized: readonly (UiNode | null)[];
+  /** The scroll view whose `scroll` events it listens to. */
+  scrolled: UiNode | null;
+}
 
 export interface ScrollbarOptions {
   /** Which way it scrolls; `'vertical'` by default. */
@@ -119,10 +132,46 @@ export function useScrollbar(
     };
   };
 
-  // Each frame: its content can grow or shrink with no event to say so.
-  useAnimationFrame(sync);
-  // A style set by a render replaces what this hook put in it.
-  useLayoutEffect(sync);
+  // What changes the bar: the scroll view's size, its content's and the
+  // track's, which a ResizeObserver tells, and scrolling. The nodes come and
+  // go with renders, so each render checks that it watches the ones there are.
+  const latest = useRef(sync);
+  latest.current = sync;
+  const [onChange] = useState(() => () => latest.current());
+  const watching = useRef<Watching>({
+    observer: null,
+    sized: [],
+    scrolled: null,
+  });
+  useLayoutEffect(() => {
+    const watched = watching.current;
+    const node = scroll.current;
+    const sized = [node, node?.firstChild ?? null, track.current];
+    if (sized.some((value, i) => value !== watched.sized[i])) {
+      watched.observer ??= new ResizeObserver(onChange);
+      watched.observer.disconnect();
+      for (const value of sized)
+        if (value !== null) watched.observer.observe(value);
+      watched.sized = sized;
+    }
+    if (watched.scrolled !== node) {
+      watched.scrolled?.removeEventListener('scroll', onChange);
+      node?.addEventListener('scroll', onChange);
+      watched.scrolled = node;
+    }
+    // A style set by a render replaces what this hook put in it.
+    sync();
+  });
+  useEffect(
+    () => () => {
+      const watched = watching.current;
+      watched.observer?.disconnect();
+      watched.scrolled?.removeEventListener('scroll', onChange);
+      watched.sized = [];
+      watched.scrolled = null;
+    },
+    [onChange],
+  );
 
   const position = (event: PointerEvent) =>
     vertical ? event.clientY : event.clientX;
