@@ -33,7 +33,6 @@ export {
   type CanvasProps,
   type ImageProps,
   type PressableProps,
-  type PressableState,
   type ScrollViewProps,
   type Style,
   type TextInputProps,
@@ -55,6 +54,13 @@ export {
   type PortalHostProps,
   type PortalProps,
 } from './portal';
+export {
+  usePressable,
+  type PressableHandle,
+  type PressableOptions,
+  type PressableState,
+  type UsePressableOptions,
+} from './pressable';
 export { createRoot, flushSync, render, type Root } from './root';
 export {
   useScrollbar,

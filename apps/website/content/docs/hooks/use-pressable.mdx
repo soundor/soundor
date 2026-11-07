@@ -1,0 +1,41 @@
+---
+title: usePressable
+description: What Pressable does, for a component of your own.
+---
+
+`usePressable` is what [`Pressable`](/docs/components/pressable) is made with:
+presses, long presses, and whether it is pressed, hovered or focused. Spread
+its `pressableProps` on a view, and draw it from the state it returns.
+
+```tsx
+function Button({ label, onPress }: { label: string; onPress: () => void }) {
+  const press = usePressable({ onPress });
+  return (
+    <View
+      {...press.pressableProps}
+      style={[
+        styles.button,
+        press.hovered && styles.hovered,
+        press.pressed && styles.pressed,
+        press.focusVisible && styles.focusRing,
+      ]}
+    >
+      <Text>{label}</Text>
+    </View>
+  );
+}
+```
+
+- **Options** are `Pressable`'s: `onPress`, `onLongPress` and
+  `delayLongPress`, `onPressIn` and `onPressOut`, `onHoverIn` and
+  `onHoverOut`, and `disabled`. The latest ones are called, so they need no
+  `useCallback`.
+- **State:** `pressed`, `hovered`, `focused` and `focusVisible`, as
+  `Pressable`'s style function is given. They render when they change.
+- **`pressableProps`** make the view focusable, and to assistive technology a
+  `button` that offers `activate` and, with `onLongPress`, `longpress`. Props
+  after the spread override them, such as another `accessibilityRole`. Give
+  your own `accessibilityState` and `accessibilityActions` to the hook rather
+  than the view, so `disabled` and its actions are added to them.
+- **A ref:** `pressableProps` takes the view's ref, so pass one of your own as
+  the `ref` option.
