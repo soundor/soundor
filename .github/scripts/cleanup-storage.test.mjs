@@ -83,6 +83,34 @@ test('closed PR scope removes only completed PR artifacts and exact merge-ref ca
   });
   assert.deepEqual(ids(result).sort(), [1, 3]);
 });
+test('PR-close cleanup does not block itself, but still protects active consumers', () => {
+  const prRun = run(1, {
+    event: 'pull_request',
+    head_branch: 'branch-1',
+    pull_requests: [{ number: 1 }],
+  });
+  const cleanupRun = run(2, {
+    event: 'pull_request_target',
+    path: '.github/workflows/cleanup.yml',
+    head_branch: 'branch-1',
+    status: 'in_progress',
+  });
+  const input = {
+    pr: 1,
+    runs: [prRun],
+    pulls: [pull(1)],
+    artifacts: [artifact(1, 1, 'test')],
+    caches: [cache(2, 'key', 3, 'refs/pull/1/merge')],
+    active: [cleanupRun],
+  };
+  assert.deepEqual(ids(plan(input)).sort(), [1, 2]);
+  assert.equal(
+    plan({ ...input, active: [cleanupRun, { ...prRun, status: 'queued' }] })
+      .length,
+    0,
+  );
+});
+
 test('open, unknown, running, and branch-reused PRs are preserved', () => {
   const prRun = run(1, { event: 'pull_request', head_branch: 'branch-1' });
   const input = {
