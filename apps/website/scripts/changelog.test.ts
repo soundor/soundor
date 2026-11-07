@@ -82,23 +82,35 @@ describe('generateChangelog', () => {
       mkdirSync(out);
       writeFileSync(join(out, '0.9.0.md'), 'Obsolete generated page');
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
-      const shared = readFileSync(join(out, '1.0.0.md'), 'utf8');
+      const shared = readFileSync(join(out, 'soundor/1.0.0.md'), 'utf8');
       expect(shared).toContain('CLI change');
       expect(shared).not.toContain('runtime change');
       expect(shared).not.toContain('Engine change');
       expect(shared).not.toContain('Yoga WASM change');
       expect(shared).not.toContain('VST3 Host change');
-      expect(readFileSync(join(out, 'vst3-host.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'vst3-host/1.0.0.md'), 'utf8')).toContain(
         'VST3 Host 1.0.0',
       );
-      expect(readFileSync(join(out, 'yoga-wasm.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'yoga-wasm/1.0.0.md'), 'utf8')).toContain(
         'Yoga WASM 1.0.0',
       );
-      expect(readFileSync(join(out, 'web-runtime.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'web-runtime/1.0.0.md'), 'utf8')).toContain(
         'Web Runtime 1.0.0',
       );
-      expect(readFileSync(join(out, 'juce-runtime.md'), 'utf8')).toContain(
-        'JUCE Runtime 1.0.0',
+      expect(
+        readFileSync(join(out, 'juce-runtime/1.0.0.md'), 'utf8'),
+      ).toContain('JUCE Runtime 1.0.0');
+      const sidebar = JSON.parse(
+        readFileSync(join(out, 'web-runtime/meta.json'), 'utf8'),
+      );
+      expect(sidebar).toMatchObject({
+        title: 'Web Runtime',
+        collapsible: true,
+        defaultOpen: false,
+        pages: ['index', '1.0.0'],
+      });
+      expect(readFileSync(join(out, 'web-runtime/index.md'), 'utf8')).toContain(
+        '/docs/changelog/web-runtime/1.0.0',
       );
       const index = readFileSync(join(out, 'index.md'), 'utf8');
       expect(index).toContain('/docs/changelog/web-runtime');
@@ -108,10 +120,10 @@ describe('generateChangelog', () => {
       rmSync(join(root, 'engines/yoga-wasm/CHANGELOG.md'));
       rmSync(join(root, 'hosts/vst3-host/CHANGELOG.md'));
       generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
-      expect(readFileSync(join(out, 'yoga-wasm.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'yoga-wasm/index.md'), 'utf8')).toContain(
         'No published release notes yet.',
       );
-      expect(readFileSync(join(out, 'vst3-host.md'), 'utf8')).toContain(
+      expect(readFileSync(join(out, 'vst3-host/index.md'), 'utf8')).toContain(
         'No published release notes yet.',
       );
       expect(readdirSync(out)).not.toContain('0.9.0.md');

@@ -51,19 +51,92 @@ function mdxSafe(markdown: string): string {
     .join('');
 }
 
+type ReleaseChange = Change & { packages?: string[] };
+
+function newestFirst(versions: Iterable<string>): string[] {
+  return [...versions].sort((a, b) =>
+    b.localeCompare(a, 'en', { numeric: true }),
+  );
+}
+
+function writeSection(
+  out: URL,
+  slug: string,
+  title: string,
+  releases: Map<string, ReleaseChange[]>,
+): void {
+  const dir = new URL(`${slug}/`, out);
+  mkdirSync(dir, { recursive: true });
+  const versions = newestFirst(releases.keys());
+  const index = [
+    '---',
+    `title: ${title}`,
+    `description: Release history for ${title}.`,
+    '---',
+    '',
+    '[All release histories](/docs/changelog)',
+    '',
+  ];
+  if (!versions.length) index.push('No published release notes yet.', '');
+  for (const version of versions) {
+    index.push(`- [${version}](/docs/changelog/${slug}/${version})`, '');
+    const changes = releases.get(version)!;
+    const page = [
+      '---',
+      `title: ${title} ${version}`,
+      `description: Release notes for ${title} ${version}.`,
+      '---',
+      '',
+      `[All ${title} releases](/docs/changelog/${slug})`,
+      '',
+    ];
+    if (!changes.length) page.push('Dependency updates only.', '');
+    for (const kind of [...new Set(changes.map((change) => change.kind))]) {
+      page.push(`## ${kind || 'Changes'}`, '');
+      for (const change of changes.filter((entry) => entry.kind === kind)) {
+        page.push(mdxSafe(change.markdown), '');
+        if (change.packages) {
+          page.push(
+            `  **Packages:** ${[...change.packages]
+              .sort()
+              .map((name) => `\`${name}\``)
+              .join(', ')}.`,
+            '',
+          );
+        }
+      }
+    }
+    writeFileSync(new URL(`${version}.md`, dir), page.join('\n'));
+  }
+  writeFileSync(new URL('index.md', dir), index.join('\n'));
+  writeFileSync(
+    new URL('meta.json', dir),
+    JSON.stringify(
+      {
+        title,
+        collapsible: true,
+        defaultOpen: false,
+        pages: ['index', ...versions],
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+}
+
 export function generateChangelog(
   root = new URL('../../../', import.meta.url),
   out = new URL('../content/docs/changelog/', import.meta.url),
 ): void {
-  const groups = new Map<
+  const groups = new Map<string, Map<string, ReleaseChange>>();
+  const independent = new Map<
     string,
-    Map<string, { kind: string; packages: string[] }>
+    { title: string; releases: Map<string, Change[]> }
   >();
-  const independent = new Map<string, { title: string; history: string }>();
   const titles: Record<string, string> = {
-    '@soundor/engine': 'Engine',
-    '@soundor/web-runtime': 'Web Runtime',
     '@soundor/juce-runtime': 'JUCE Runtime',
+    '@soundor/web-runtime': 'Web Runtime',
+    '@soundor/engine': 'Engine',
     '@soundor/yoga-wasm': 'Yoga WASM',
     '@soundor/vst3-host': 'VST3 Host',
   };
@@ -81,23 +154,19 @@ export function generateChangelog(
       ) as { name: string };
       const history = existsSync(file) ? readFileSync(file, 'utf8') : '';
       if (!history && !titles[name]) continue;
+      const releases = parseChangelog(history);
       const title = titles[name];
       if (title) {
-        independent.set(name.replace('@soundor/', ''), {
-          title,
-          history: history
-            .replace(/^# .*\n/, '')
-            .replace(/^## /gm, `## ${title} `),
-        });
+        independent.set(name.replace('@soundor/', ''), { title, releases });
         continue;
       }
-      for (const [version, changes] of parseChangelog(history)) {
+      for (const [version, changes] of releases) {
         let release = groups.get(version);
         if (!release) groups.set(version, (release = new Map()));
         for (const { kind, markdown } of changes) {
           const existing = release.get(markdown);
-          if (existing) existing.packages.push(name);
-          else release.set(markdown, { kind, packages: [name] });
+          if (existing) existing.packages!.push(name);
+          else release.set(markdown, { kind, markdown, packages: [name] });
         }
       }
     }
@@ -105,81 +174,42 @@ export function generateChangelog(
   // This directory contains only generated pages, including obsolete versions.
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  const versions = [...groups.keys()].sort((a, b) =>
-    b.localeCompare(a, 'en', { numeric: true }),
-  );
+  const sections = [
+    {
+      slug: 'soundor',
+      title: 'Soundor',
+      releases: new Map(
+        [...groups].map(([version, changes]) => [
+          version,
+          [...changes.values()],
+        ]),
+      ),
+    },
+    ...Object.keys(titles).flatMap((name) => {
+      const slug = name.replace('@soundor/', '');
+      const section = independent.get(slug);
+      return section ? [{ slug, ...section }] : [];
+    }),
+  ];
   const index = [
     '---',
     'title: Changelog',
     'description: New features, improvements, and fixes in Soundor.',
     '---',
     '',
-    'Release notes from the published package changelogs. Changes shared by several packages appear once, with the affected packages listed.',
-    '',
-    'The runtimes, engines and VST3 host are versioned independently. Browse their release histories:',
-    '',
-    ...[...independent].map(
-      ([slug, { title }]) => `- [${title} releases](/docs/changelog/${slug})`,
-    ),
+    'Browse release notes by package, then choose a version. The runtimes, engines and VST3 host have their own version numbers.',
     '',
   ];
-  for (const version of versions) {
+  for (const { slug, title, releases } of sections) {
+    writeSection(out, slug, title, releases);
     index.push(
-      `## Soundor ${version}`,
+      `## ${title}`,
       '',
-      `${groups.get(version)!.size} changes across the Soundor packages. [Read release notes](/docs/changelog/${version}).`,
+      `[Browse releases](/docs/changelog/${slug})`,
       '',
     );
-    const page = [
-      '---',
-      `title: Soundor ${version}`,
-      `description: Release notes for Soundor ${version}.`,
-      '---',
-      '',
-      '[All releases](/docs/changelog)',
-      '',
-    ];
-    for (const kind of [
-      'Major Changes',
-      'Minor Changes',
-      'Patch Changes',
-      '',
-    ]) {
-      const entries = [...groups.get(version)!].filter(
-        ([, entry]) => entry.kind === kind,
-      );
-      if (!entries.length) continue;
-      page.push(`## ${kind || 'Changes'}`, '');
-      for (const [markdown, entry] of entries) {
-        page.push(
-          mdxSafe(markdown),
-          '',
-          `  **Packages:** ${entry.packages
-            .sort()
-            .map((name) => `\`${name}\``)
-            .join(', ')}.`,
-          '',
-        );
-      }
-    }
-    writeFileSync(new URL(`${version}.md`, out), page.join('\n'));
   }
   writeFileSync(new URL('index.md', out), index.join('\n'));
-  for (const [slug, { title, history }] of independent) {
-    writeFileSync(
-      new URL(`${slug}.md`, out),
-      [
-        '---',
-        `title: ${title} releases`,
-        `description: Release notes for the independently versioned Soundor ${title}.`,
-        '---',
-        '',
-        '[All Soundor releases](/docs/changelog)',
-        '',
-        history ? mdxSafe(history) : 'No published release notes yet.',
-      ].join('\n'),
-    );
-  }
   writeFileSync(
     new URL('meta.json', out),
     JSON.stringify(
@@ -187,7 +217,7 @@ export function generateChangelog(
         title: 'Changelog',
         description: 'What’s new in Soundor',
         root: true,
-        pages: ['index', ...independent.keys(), ...versions],
+        pages: ['index', ...sections.map((section) => section.slug)],
       },
       null,
       2,
