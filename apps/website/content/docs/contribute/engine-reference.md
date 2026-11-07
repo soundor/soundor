@@ -646,8 +646,8 @@ Beyond views and text there are the primitives a plugin UI is made of:
   - **Size:** `width` and `height` are the drawing buffer's (300 by 150 to
     begin with); setting either clears it and resets its context, even to the
     same value. The node's box is that size in logical pixels unless styled,
-    and the pixels are stretched over it; size the buffer by
-    `devicePixelRatio` (a global) for crisp lines.
+    and the pixels are stretched over it; size the buffer by `viewSize().scale`
+    for crisp lines (`devicePixelRatio` does not count the host's scaling).
   - **`getContext('2d')`:** a `CanvasRenderingContext2D` drawn with Skia on
     the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
     types give null, as on the Web for a canvas that already has a
