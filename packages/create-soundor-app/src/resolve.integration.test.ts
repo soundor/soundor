@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { resolveProjectDependencies } from './resolve';
+
+const { packageManager } = JSON.parse(
+  await readFile(new URL('../../../package.json', import.meta.url), 'utf-8'),
+) as { packageManager: string };
 
 // Exercise real npm and pnpm resolvers, with no public registry access. The
 // tree has a missing transitive engine version, then an available fallback.
@@ -118,6 +122,10 @@ describe('package-manager resolution', () => {
             name: 'test-plugin',
             version: '0.0.0',
             private: true,
+            // Reuse the toolchain installed by CI. Outside the repository,
+            // Corepack otherwise selects its default pnpm and may try to
+            // bootstrap a newer version through this fixture's registry.
+            ...(pm === 'pnpm' ? { packageManager } : {}),
             dependencies: { '@soundor/juce-runtime': '0.15.0' },
           },
           golden: { '@soundor/juce-runtime': '0.15.0' },
