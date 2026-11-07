@@ -178,6 +178,7 @@ export function generateChangelog(
     {
       slug: 'soundor',
       title: 'Soundor',
+      category: 'Packages',
       releases: new Map(
         [...groups].map(([version, changes]) => [
           version,
@@ -188,7 +189,12 @@ export function generateChangelog(
     ...Object.keys(titles).flatMap((name) => {
       const slug = name.replace('@soundor/', '');
       const section = independent.get(slug);
-      return section ? [{ slug, ...section }] : [];
+      const category = slug.endsWith('-runtime')
+        ? 'Runtimes'
+        : slug === 'vst3-host'
+          ? 'Hosts'
+          : 'Engines';
+      return section ? [{ slug, category, ...section }] : [];
     }),
   ];
   const index = [
@@ -197,17 +203,21 @@ export function generateChangelog(
     'description: New features, improvements, and fixes in Soundor.',
     '---',
     '',
-    'Browse release notes by package, then choose a version. The runtimes, engines and VST3 host have their own version numbers.',
+    'Browse release notes by category and package, then choose a version. The runtimes, engines and VST3 host have their own version numbers.',
     '',
   ];
-  for (const { slug, title, releases } of sections) {
-    writeSection(out, slug, title, releases);
-    index.push(
-      `## ${title}`,
-      '',
-      `[Browse releases](/docs/changelog/${slug})`,
-      '',
-    );
+  const pages = ['index'];
+  for (const category of ['Packages', 'Runtimes', 'Engines', 'Hosts']) {
+    const members = sections.filter((section) => section.category === category);
+    if (!members.length) continue;
+    pages.push(`---${category}---`);
+    index.push(`## ${category}`, '');
+    for (const { slug, title, releases } of members) {
+      writeSection(out, slug, title, releases);
+      pages.push(slug);
+      index.push(`- [${title}](/docs/changelog/${slug})`);
+    }
+    index.push('');
   }
   writeFileSync(new URL('index.md', out), index.join('\n'));
   writeFileSync(
@@ -217,7 +227,7 @@ export function generateChangelog(
         title: 'Changelog',
         description: 'What’s new in Soundor',
         root: true,
-        pages: ['index', ...sections.map((section) => section.slug)],
+        pages,
       },
       null,
       2,

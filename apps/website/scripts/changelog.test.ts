@@ -112,6 +112,21 @@ describe('generateChangelog', () => {
       expect(readFileSync(join(out, 'web-runtime/index.md'), 'utf8')).toContain(
         '/docs/changelog/web-runtime/1.0.0',
       );
+      expect(
+        JSON.parse(readFileSync(join(out, 'meta.json'), 'utf8')).pages,
+      ).toEqual([
+        'index',
+        '---Packages---',
+        'soundor',
+        '---Runtimes---',
+        'juce-runtime',
+        'web-runtime',
+        '---Engines---',
+        'engine',
+        'yoga-wasm',
+        '---Hosts---',
+        'vst3-host',
+      ]);
       const index = readFileSync(join(out, 'index.md'), 'utf8');
       expect(index).toContain('/docs/changelog/web-runtime');
       expect(index).toContain('/docs/changelog/juce-runtime');
