@@ -52,6 +52,10 @@ if(soundor_accesskit_platform)
     soundor_cache_root(cache_root)
     string(REPLACE "/" "-" platform_name "${soundor_accesskit_platform}")
     set(SOUNDOR_ACCESSKIT_DIR "${cache_root}/accesskit-c-${SOUNDOR_ACCESSKIT_VERSION}-${platform_name}")
+    # Named apart from a directory an earlier version extracted unstripped.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      string(APPEND SOUNDOR_ACCESSKIT_DIR "-nodebug")
+    endif()
     if(NOT EXISTS "${SOUNDOR_ACCESSKIT_DIR}/include/accesskit.h")
       file(MAKE_DIRECTORY "${cache_root}")
       file(LOCK "${SOUNDOR_ACCESSKIT_DIR}.lock" GUARD PROCESS TIMEOUT 1800)
@@ -80,6 +84,19 @@ if(soundor_accesskit_platform)
         file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${staging}"
           PATTERNS "${root}/include/*" "${root}/lib/${soundor_accesskit_platform}/static/*"
                    "${root}/LICENSE-MIT" "${root}/LICENSE-APACHE" "${root}/LICENSE.chromium")
+        # Linux: the library carries debug info for its Rust code and standard
+        # library, 39 of its 47 MB, which would otherwise end up in every plugin.
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+          if(NOT CMAKE_STRIP)
+            message(FATAL_ERROR "Removing AccessKit's debug info needs strip, which CMake did not find (CMAKE_STRIP)")
+          endif()
+          execute_process(
+            COMMAND "${CMAKE_STRIP}" --strip-debug "${staging}/${root}/lib/${soundor_accesskit_platform}/static/libaccesskit.a"
+            RESULT_VARIABLE status)
+          if(NOT status EQUAL 0)
+            message(FATAL_ERROR "Removing AccessKit's debug info failed: ${CMAKE_STRIP} exited with ${status}")
+          endif()
+        endif()
         file(REMOVE_RECURSE "${SOUNDOR_ACCESSKIT_DIR}")
         file(RENAME "${staging}/${root}" "${SOUNDOR_ACCESSKIT_DIR}")
         file(REMOVE_RECURSE "${staging}")

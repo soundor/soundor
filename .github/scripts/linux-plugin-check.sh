@@ -33,5 +33,11 @@ if [ -n "$strong" ]; then
   status=1
 fi
 
+debug=$(readelf -SW "$binary" | grep -c '\.debug_' || true)
+if [ "$debug" -ne 0 ]; then
+  echo "::error::$binary has debug sections: a library it links is not stripped of them"
+  status=1
+fi
+
 [ "$status" -eq 0 ] && echo "$binary: glibc $glibc, its own C++ runtime, only its entry points"
 exit "$status"
