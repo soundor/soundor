@@ -226,7 +226,7 @@ and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/
 The website generates `/docs/changelog` from the published package `CHANGELOG.md`
 files when Vite starts for development or a build. Shared notes appear once per
 release, with their affected packages; dependency-only bumps are omitted. The
-engine, JUCE runtime and web runtime each have their own release history and
+engine, Yoga WASM, JUCE runtime, web runtime and VST3 host each have their own release history and
 version numbers. Update release notes through Changesets;
 `apps/website/scripts/changelog.ts` owns the generated pages, which are ignored
 by Git.

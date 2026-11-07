@@ -67,7 +67,9 @@ describe('generateChangelog', () => {
           '@soundor/juce-runtime',
           'JUCE runtime change',
         ],
-        ['runtimes/engine', '@soundor/engine', 'Engine change'],
+        ['engines/engine', '@soundor/engine', 'Engine change'],
+        ['engines/yoga-wasm', '@soundor/yoga-wasm', 'Yoga WASM change'],
+        ['hosts/vst3-host', '@soundor/vst3-host', 'VST3 Host change'],
       ]) {
         const dir = join(root, path!);
         mkdirSync(dir, { recursive: true });
@@ -84,6 +86,14 @@ describe('generateChangelog', () => {
       expect(shared).toContain('CLI change');
       expect(shared).not.toContain('runtime change');
       expect(shared).not.toContain('Engine change');
+      expect(shared).not.toContain('Yoga WASM change');
+      expect(shared).not.toContain('VST3 Host change');
+      expect(readFileSync(join(out, 'vst3-host.md'), 'utf8')).toContain(
+        'VST3 Host 1.0.0',
+      );
+      expect(readFileSync(join(out, 'yoga-wasm.md'), 'utf8')).toContain(
+        'Yoga WASM 1.0.0',
+      );
       expect(readFileSync(join(out, 'web-runtime.md'), 'utf8')).toContain(
         'Web Runtime 1.0.0',
       );
@@ -93,6 +103,17 @@ describe('generateChangelog', () => {
       const index = readFileSync(join(out, 'index.md'), 'utf8');
       expect(index).toContain('/docs/changelog/web-runtime');
       expect(index).toContain('/docs/changelog/juce-runtime');
+      expect(index).toContain('/docs/changelog/yoga-wasm');
+      expect(index).toContain('/docs/changelog/vst3-host');
+      rmSync(join(root, 'engines/yoga-wasm/CHANGELOG.md'));
+      rmSync(join(root, 'hosts/vst3-host/CHANGELOG.md'));
+      generateChangelog(pathToFileURL(root + '/'), pathToFileURL(out + '/'));
+      expect(readFileSync(join(out, 'yoga-wasm.md'), 'utf8')).toContain(
+        'No published release notes yet.',
+      );
+      expect(readFileSync(join(out, 'vst3-host.md'), 'utf8')).toContain(
+        'No published release notes yet.',
+      );
       expect(readdirSync(out)).not.toContain('0.9.0.md');
     } finally {
       rmSync(root, { recursive: true, force: true });

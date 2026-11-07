@@ -64,19 +64,23 @@ export function generateChangelog(
     '@soundor/engine': 'Engine',
     '@soundor/web-runtime': 'Web Runtime',
     '@soundor/juce-runtime': 'JUCE Runtime',
+    '@soundor/yoga-wasm': 'Yoga WASM',
+    '@soundor/vst3-host': 'VST3 Host',
   };
-  for (const parent of ['packages', 'runtimes']) {
+  for (const parent of ['packages', 'runtimes', 'engines', 'hosts']) {
+    if (!existsSync(new URL(`${parent}/`, root))) continue;
     for (const dir of readdirSync(new URL(`${parent}/`, root), {
       withFileTypes: true,
     })) {
       if (!dir.isDirectory()) continue;
       const path = `${parent}/${dir.name}/`;
       const file = new URL(`${path}CHANGELOG.md`, root);
-      if (!existsSync(file)) continue;
+      if (!existsSync(new URL(`${path}package.json`, root))) continue;
       const { name } = JSON.parse(
         readFileSync(new URL(`${path}package.json`, root), 'utf8'),
       ) as { name: string };
-      const history = readFileSync(file, 'utf8');
+      const history = existsSync(file) ? readFileSync(file, 'utf8') : '';
+      if (!history && !titles[name]) continue;
       const title = titles[name];
       if (title) {
         independent.set(name.replace('@soundor/', ''), {
@@ -112,7 +116,7 @@ export function generateChangelog(
     '',
     'Release notes from the published package changelogs. Changes shared by several packages appear once, with the affected packages listed.',
     '',
-    'The runtimes and engine are versioned independently. Browse their release histories:',
+    'The runtimes, engines and VST3 host are versioned independently. Browse their release histories:',
     '',
     ...[...independent].map(
       ([slug, { title }]) => `- [${title} releases](/docs/changelog/${slug})`,
@@ -172,7 +176,7 @@ export function generateChangelog(
         '',
         '[All Soundor releases](/docs/changelog)',
         '',
-        mdxSafe(history),
+        history ? mdxSafe(history) : 'No published release notes yet.',
       ].join('\n'),
     );
   }
