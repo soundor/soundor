@@ -1,5 +1,6 @@
 // The test plugin with a prebuilt engine, as a project builds it by default:
 // engine-prebuilts.yml builds it against the archives it has just made.
+// Temporary CI probe: a JUCE-only change should reuse main's engine artifacts.
 import { defineSoundorConfig } from '@soundor/config';
 import { juceRuntime } from '@soundor/juce-runtime';
 
