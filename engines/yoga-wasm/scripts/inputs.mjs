@@ -4,11 +4,17 @@
 // version with the same inputs reuses the published module.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-export const engineCmake = join(packageRoot, '../engine/cmake');
+export const engineCmake = join(
+  dirname(
+    createRequire(import.meta.url).resolve('@soundor/engine/package.json'),
+  ),
+  'cmake',
+);
 
 /** The Yoga that `@soundor/engine` pins. */
 export function yogaPin(

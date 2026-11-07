@@ -26,8 +26,10 @@ one imported function dispatches (`native/shim.cpp`).
 
 The revision and the patches are the engine's, read from its recipes
 (`scripts/inputs.mjs`) and never repeated. So a change to them is a change to
-this package too, and Verify fails until it has a changeset
-(`scripts/check-release.mjs`): the two would otherwise ship different layouts.
+this package too, and both Verify and Release's `validate` fail until it has a
+changeset (`scripts/check-release.mjs`): the two would otherwise ship different
+layouts. The engine is a dev dependency, which keeps the build order and affected
+packages right, but changesets does not release a package for a dev dependency.
 
 Whether they really lay out alike is tested against the engine itself.
 `engines/engine/tests/layout/corpus.json` holds generated trees and the frames the
@@ -60,6 +62,26 @@ the module. So you only compile when you change one of those.
 
 A failure to reach npm is an error, not a reason to compile. To work offline, set
 `SOUNDOR_YOGA_WASM=source`, which compiles without asking npm.
+
+## In a release
+
+A release trusts no cache ([workflow](/docs/contribute/workflow)), and this module
+needs no signed snapshot to be fast: a cold compile, downloads included, takes
+well under a minute. So with `SOUNDOR_YOGA_WASM=release`, which Release sets
+wherever it builds the module (`validate`, `pack` and the website), a build reads
+and writes no cache and takes nothing from npm. It downloads the pinned wasi-sdk and
+Yoga into a directory of its own, checks their SHA-256 and compiles.
+
+Two checks then hold it to that:
+
+- If the latest published module has the same inputs, it must be these very bytes,
+  or the build fails. The build is reproducible, so a difference means one of them
+  is not what its inputs make.
+- Before packing, `check-release.mjs --built` requires `dist/build.json` to say it
+  was compiled this way, from this checkout's inputs.
+
+An unknown `SOUNDOR_YOGA_WASM` is an error, so a typo in a workflow cannot fall back
+to the cache. Verify keeps the ordinary path, as it does for other caches.
 
 ## Compiling
 

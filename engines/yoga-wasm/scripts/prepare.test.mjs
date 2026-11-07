@@ -4,7 +4,13 @@ import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 
 import { yogaPin } from './inputs.mjs';
-import { publishedModule, readTarball, soundorCache } from './prepare.mjs';
+import {
+  moduleMode,
+  publishedModule,
+  publishedProblem,
+  readTarball,
+  soundorCache,
+} from './prepare.mjs';
 
 function tar(files) {
   const blocks = [];
@@ -94,6 +100,25 @@ test("reads the engine's Yoga pin", () => {
   );
   assert.match(yogaPin().revision, /^[0-9a-f]{40}$/);
   assert.throws(() => yogaPin('nothing'), /SOUNDOR_YOGA_VERSION/);
+});
+
+test('knows the ways to find a module, and refuses any other', () => {
+  assert.equal(moduleMode({}), 'default');
+  assert.equal(moduleMode({ SOUNDOR_YOGA_WASM: '' }), 'default');
+  assert.equal(moduleMode({ SOUNDOR_YOGA_WASM: 'source' }), 'source');
+  assert.equal(moduleMode({ SOUNDOR_YOGA_WASM: 'release' }), 'release');
+  // A typo in a workflow must not silently fall back to the cache.
+  assert.throws(() => moduleMode({ SOUNDOR_YOGA_WASM: 'relase' }), /Unknown/);
+});
+
+test('a release stops when the published module has other bytes', () => {
+  const compiled = Buffer.from('the module');
+  assert.equal(publishedProblem(compiled, null), null);
+  assert.equal(publishedProblem(compiled, Buffer.from('the module')), null);
+  assert.match(
+    publishedProblem(compiled, Buffer.from('another')),
+    /other bytes/,
+  );
 });
 
 test('finds the cache as the engine does', () => {

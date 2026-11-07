@@ -176,6 +176,7 @@ jobs:
         run: pnpm turbo run test --filter=!./examples/* --filter=!@soundor/react-tests
 
       # The engine's Yoga is released on its own: the web runtime's must follow.
+      # Release checks this too, as it does not wait for this workflow.
       - name: The web runtime's Yoga is the engine's
         run: node engines/yoga-wasm/scripts/check-release.mjs
 

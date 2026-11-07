@@ -1,7 +1,10 @@
-// Fails when this checkout's module differs from the published one and nothing
-// will publish it. The engine's Yoga is an input, and the engine releases on its
-// own: without this, a patch there would ship in the JUCE runtime and not in the
-// web runtime, and they would no longer lay out alike.
+// What a release has to be sure of about the module:
+// - By default: fails when this checkout's module differs from the published one
+//   and nothing will publish it. The engine's Yoga is an input, and the engine
+//   releases on its own: without this, a patch there would ship in the JUCE
+//   runtime and not in the web runtime, and they would no longer lay out alike.
+// - With --built: fails unless what was just built, and is about to be packed,
+//   was compiled for a release from these inputs. No cache reached it.
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +20,15 @@ const repository = resolve(packageRoot, '../..');
 export function namesPackage(changeset) {
   const frontMatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(changeset)?.[1] ?? '';
   return new RegExp(`^['"]?${PACKAGE}['"]?\\s*:`, 'm').test(frontMatter);
+}
+
+/** What is wrong with a build that is about to be packed, or null. */
+export function builtProblem(build, fingerprint) {
+  if (build.source !== 'release')
+    return `${PACKAGE}'s build came from ${build.source}: a release builds with SOUNDOR_YOGA_WASM=release.`;
+  if (build.fingerprint !== fingerprint)
+    return `${PACKAGE}'s build is of other inputs than this checkout's.`;
+  return null;
 }
 
 /**
@@ -35,21 +47,31 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   const { fingerprint } = yogaInputs();
-  const directory = join(repository, '.changeset');
-  const changeset = readdirSync(directory)
-    .filter((name) => name.endsWith('.md') && name !== 'README.md')
-    .some((name) => namesPackage(readFileSync(join(directory, name), 'utf8')));
-  const { version } = JSON.parse(
-    readFileSync(join(packageRoot, 'package.json'), 'utf8'),
-  );
-  const published = await latestPackage();
-  const problem = releaseProblem({
-    sameInputs:
-      published !== null && (await publishedModule(fingerprint)) !== null,
-    published: published?.version ?? null,
-    version,
-    changeset,
-  });
+  let problem;
+  if (process.argv.includes('--built')) {
+    problem = builtProblem(
+      JSON.parse(readFileSync(join(packageRoot, 'dist/build.json'), 'utf8')),
+      fingerprint,
+    );
+  } else {
+    const directory = join(repository, '.changeset');
+    const changeset = readdirSync(directory)
+      .filter((name) => name.endsWith('.md') && name !== 'README.md')
+      .some((name) =>
+        namesPackage(readFileSync(join(directory, name), 'utf8')),
+      );
+    const { version } = JSON.parse(
+      readFileSync(join(packageRoot, 'package.json'), 'utf8'),
+    );
+    const published = await latestPackage();
+    problem = releaseProblem({
+      sameInputs:
+        published !== null && (await publishedModule(fingerprint)) !== null,
+      published: published?.version ?? null,
+      version,
+      changeset,
+    });
+  }
   if (problem !== null) {
     console.error(problem);
     process.exitCode = 1;

@@ -75,6 +75,10 @@ producer executables; only this job receives signing permissions. Verify uses
 `release-build: false` on both PRs and main, keeps ordinary caches, and does not
 sign dependency snapshots. The source test suites keep their own configurations.
 
+`@soundor/yoga-wasm` needs no snapshot: Release compiles it from its pinned
+downloads wherever it builds it (`SOUNDOR_YOGA_WASM=release`), which takes under a
+minute. See [Yoga for the Web](/docs/contribute/yoga-wasm#in-a-release).
+
 Missing or mismatched CI artifacts fail verification; there is no fallback to an
 older engine. Release can opportunistically use verified dependency snapshots
 from earlier release builds; their absence triggers a clean build and creates

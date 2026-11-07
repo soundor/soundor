@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { namesPackage, releaseProblem } from './check-release.mjs';
+import {
+  builtProblem,
+  namesPackage,
+  releaseProblem,
+} from './check-release.mjs';
 
 const state = {
   sameInputs: false,
@@ -31,6 +35,17 @@ test('fails with nothing published and nothing to publish it', () => {
     releaseProblem({ ...state, published: null }),
     /add a changeset/,
   );
+});
+
+test('packs only what was compiled for a release, from these inputs', () => {
+  const build = { source: 'release', fingerprint: 'a' };
+  assert.equal(builtProblem(build, 'a'), null);
+  assert.match(
+    builtProblem({ ...build, source: 'cache' }, 'a'),
+    /came from cache/,
+  );
+  assert.match(builtProblem({ ...build, source: 'npm' }, 'a'), /came from npm/);
+  assert.match(builtProblem(build, 'b'), /other inputs/);
 });
 
 test('reads only a changeset front matter', () => {

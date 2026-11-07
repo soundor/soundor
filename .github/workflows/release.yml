@@ -111,6 +111,7 @@ jobs:
       CC: clang
       CXX: clang++
       CMAKE_GENERATOR: Ninja
+      SOUNDOR_YOGA_WASM: release
     permissions:
       contents: read
     steps:
@@ -120,6 +121,11 @@ jobs:
           cache: false
       - name: Format, lint, build and test
         run: pnpm run check
+
+      # Release does not wait for Verify: the engine's Yoga is released on its
+      # own, and the web runtime's must follow.
+      - name: The web runtime's Yoga is the engine's
+        run: node engines/yoga-wasm/scripts/check-release.mjs
 
   prebuilts:
     name: Engine prebuilts
@@ -170,7 +176,12 @@ jobs:
           cache: false
 
       - name: Build
+        env:
+          SOUNDOR_YOGA_WASM: release
         run: pnpm build
+
+      - name: The packed Yoga was compiled for this release
+        run: node engines/yoga-wasm/scripts/check-release.mjs --built
 
       # Never committed: written from the release, which is downloaded
       # anonymously and checked against build-info.json first.
