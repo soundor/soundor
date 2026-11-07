@@ -427,6 +427,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 state.captured = noNode;
             std::erase(state.hovered, id);
         }
+        if (scrollbarDrag && scrollbarDrag->node == id)
+            scrollbarDrag.reset();
+        std::erase(grownScrollbars, id);
+        std::erase(pendingScrolls, id);
         if (focusedNode == id)
             focusedNode = noNode;
         if (node.nodeType == NodeType::Canvas)
@@ -651,19 +655,47 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return size;
     }
 
+    Size Surface::clientSize(NodeId id)
+    {
+        layout();
+        const Rect box = get(id).contentBox();
+        return { box.width, box.height };
+    }
+
     void Surface::scrollTo(NodeId id, Point offset)
     {
         Node& node = get(id);
         if (node.nodeType != NodeType::Scroll)
             throw std::invalid_argument("only scroll nodes scroll");
-        const Size content = contentSize(id);
+        if (moveScroll(node, offset) && std::ranges::find(pendingScrolls, id) == pendingScrolls.end())
+            pendingScrolls.push_back(id);
+    }
+
+    void Surface::deliverScrolls()
+    {
+        // What the listeners scroll is told the next time.
+        for (const NodeId id : std::exchange(pendingScrolls, {}))
+        {
+            if (! isConnected(id))
+                continue;
+            Event event;
+            event.type = Event::Type::Scroll;
+            event.target = id;
+            dispatch(event);
+        }
+    }
+
+    bool Surface::moveScroll(Node& node, Point offset)
+    {
+        const Size content = contentSize(node.nodeId);
         const Rect box = node.contentBox();
         const Point clamped { std::clamp(offset.x, 0.0f, std::max(0.0f, content.width - box.width)),
                               std::clamp(offset.y, 0.0f, std::max(0.0f, content.height - box.height)) };
         if (clamped.x == node.scroll.x && clamped.y == node.scroll.y)
-            return;
+            return false;
         node.scroll = clamped;
         markChanged(node);
+        return true;
     }
 
     void Surface::setCanvasSize(NodeId id, int width, int height)
@@ -765,6 +797,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         node.debugName = std::move(debugId);
         // Nothing to draw, but what developer tools find changed.
         ++changes;
+    }
+
+    void Surface::setScrollIndicators(NodeId id, bool shown)
+    {
+        Node& node = get(id);
+        if (node.drawsScrollIndicators == shown)
+            return;
+        node.drawsScrollIndicators = shown;
+        if (! shown)
+        {
+            if (scrollbarDrag && scrollbarDrag->node == id)
+                endScrollbarDrag();
+            node.verticalBarGrown = false;
+            node.horizontalBarGrown = false;
+            std::erase(grownScrollbars, id);
+        }
+        markChanged(node);
     }
 
     void Surface::setAccessibility(NodeId id, a11y::Properties properties)
@@ -1379,7 +1428,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (state.captured != noNode && ! isConnected(state.captured))
             state.captured = noNode;
         state.inside = input.phase != PointerInput::Phase::Leave && input.phase != PointerInput::Phase::Cancel;
-        const NodeId hit = input.phase == PointerInput::Phase::Leave ? noNode : hitTest(input.position);
+        if (scrollbarDrag && ! isConnected(scrollbarDrag->node))
+            endScrollbarDrag();
+        if (scrollbarDrag && scrollbarDrag->pointerId == input.pointerId)
+            return routeScrollbarDrag(input);
+        NodeId hit = input.phase == PointerInput::Phase::Leave ? noNode : hitTest(input.position);
+        // Near a mouse, a track is over what is in the scroll view, as anything
+        // on top of it would be. Touch scrolls, and has no use for one.
+        if (state.captured == noNode && input.type != PointerType::Touch)
+        {
+            updateScrollbars(input.phase == PointerInput::Phase::Cancel ? noNode : hit, input.position);
+            if (const auto bar = scrollbarAt(hit))
+            {
+                if (input.phase == PointerInput::Phase::Down && input.button == 0)
+                {
+                    pressScrollbar(input, bar->first, bar->second);
+                    return true;
+                }
+                hit = bar->first;
+            }
+        }
 
         switch (input.phase)
         {
@@ -1469,6 +1537,158 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return false;
     }
 
+    Surface::ScrollbarGeometry Surface::scrollbarGeometry(const Node& node, bool vertical)
+    {
+        const Size content = contentSize(node.nodeId);
+        const Rect box = node.contentBox();
+        const float room = vertical ? box.height : box.width;
+        const float extent = vertical ? content.height : content.width;
+        if (extent <= room + 0.5f || room <= 0)
+            return {};
+        const float length = std::max(scrollbar::minLength, room * room / extent);
+        return { room, extent - room, length, room - length };
+    }
+
+    void Surface::updateScrollbars(NodeId hit, Point point)
+    {
+        std::vector<NodeId> grown;
+        for (const NodeId id : pathTo(hit))
+        {
+            Node& node = get(id);
+            if (node.nodeType != NodeType::Scroll || ! node.drawsScrollIndicators)
+                continue;
+            const Point at = localPoint(id, point);
+            const Rect box = node.contentBox();
+            const float right = box.x + box.width;
+            const float bottom = box.y + box.height;
+            const bool inside = at.x >= box.x && at.y >= box.y && at.x <= right && at.y <= bottom;
+            const bool vertical =
+                inside && at.x >= right - scrollbar::trackThickness && scrollbarGeometry(node, true).room > 0;
+            const bool horizontal =
+                inside && at.y >= bottom - scrollbar::trackThickness && scrollbarGeometry(node, false).room > 0;
+            if (vertical != node.verticalBarGrown || horizontal != node.horizontalBarGrown)
+            {
+                node.verticalBarGrown = vertical;
+                node.horizontalBarGrown = horizontal;
+                markChanged(node);
+            }
+            if (vertical || horizontal)
+                grown.push_back(id);
+        }
+        for (const NodeId id : grownScrollbars)
+        {
+            if (std::ranges::find(grown, id) != grown.end())
+                continue;
+            if (Node* node = find(id))
+            {
+                node->verticalBarGrown = false;
+                node->horizontalBarGrown = false;
+                markChanged(*node);
+            }
+        }
+        grownScrollbars = std::move(grown);
+    }
+
+    std::optional<std::pair<NodeId, bool>> Surface::scrollbarAt(NodeId hit)
+    {
+        // The deepest is on top, and where two tracks cross, the horizontal.
+        for (const Node* node = find(hit); node != nullptr; node = node->parentNode)
+        {
+            if (node->horizontalBarGrown)
+                return std::pair { node->nodeId, false };
+            if (node->verticalBarGrown)
+                return std::pair { node->nodeId, true };
+        }
+        return std::nullopt;
+    }
+
+    void Surface::scrollAlong(Node& node, bool vertical, float position)
+    {
+        const Point before = node.scroll;
+        if (! moveScroll(node, vertical ? Point { before.x, position } : Point { position, before.y }))
+            return;
+        Event event;
+        event.type = Event::Type::Scroll;
+        event.target = node.nodeId;
+        dispatch(event);
+    }
+
+    void Surface::pressScrollbar(const PointerInput& input, NodeId id, bool vertical)
+    {
+        Node& node = get(id);
+        const ScrollbarGeometry bar = scrollbarGeometry(node, vertical);
+        const Point at = localPoint(id, input.position);
+        const Rect box = node.contentBox();
+        const float along = vertical ? at.y : at.x;
+        const float scrolled = vertical ? node.scroll.y : node.scroll.x;
+        float start = scrolled;
+        // Beside the bar, it jumps to bring its middle there; on it, it stays.
+        if (bar.travel > 0)
+        {
+            const float pressed = along - (vertical ? box.y : box.x);
+            const float thumb = bar.travel * scrolled / bar.range;
+            if (pressed < thumb || pressed > thumb + bar.length)
+                start = (pressed - bar.length / 2) * bar.range / bar.travel;
+        }
+        scrollbarDrag = ScrollbarDrag { input.pointerId, id, vertical, along, start };
+        (vertical ? node.verticalBarPressed : node.horizontalBarPressed) = true;
+        markChanged(node);
+        if (start != scrolled)
+            scrollAlong(node, vertical, start);
+    }
+
+    bool Surface::routeScrollbarDrag(const PointerInput& input)
+    {
+        if (! scrollbarDrag)
+            return false;
+        const ScrollbarDrag drag = *scrollbarDrag;
+        switch (input.phase)
+        {
+            case PointerInput::Phase::Move:
+            case PointerInput::Phase::Down:
+            {
+                Node& node = get(drag.node);
+                const ScrollbarGeometry bar = scrollbarGeometry(node, drag.vertical);
+                if (bar.travel > 0)
+                {
+                    const Point at = localPoint(drag.node, input.position);
+                    const float along = drag.vertical ? at.y : at.x;
+                    scrollAlong(node, drag.vertical, drag.scroll + (along - drag.from) * bar.range / bar.travel);
+                }
+                return true;
+            }
+            case PointerInput::Phase::Up:
+                if (input.button == 0 || input.buttons == 0)
+                {
+                    endScrollbarDrag();
+                    updateScrollbars(hitTest(input.position), input.position);
+                }
+                return true;
+            case PointerInput::Phase::Leave:
+                // Held: it goes on when the pointer comes back, or is let go of.
+                return false;
+            case PointerInput::Phase::Cancel:
+                endScrollbarDrag();
+                updateScrollbars(noNode, input.position);
+                pointers.erase(input.pointerId);
+                return true;
+        }
+        return false;
+    }
+
+    void Surface::endScrollbarDrag()
+    {
+        if (! scrollbarDrag)
+            return;
+        const ScrollbarDrag drag = *scrollbarDrag;
+        scrollbarDrag.reset();
+        if (Node* node = find(drag.node))
+        {
+            (drag.vertical ? node->verticalBarPressed : node->horizontalBarPressed) = false;
+            markChanged(*node);
+        }
+    }
+
     bool Surface::wheel(const WheelInput& input)
     {
         const NodeId target = hitTest(input.position);
@@ -1502,8 +1722,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             if (node->nodeType != NodeType::Scroll || node->nodeStyle.display == Display::None)
                 continue;
             const Point before = node->scroll;
-            scrollTo(node->nodeId, { before.x + deltaX, before.y + deltaY });
-            if (node->scroll.x == before.x && node->scroll.y == before.y)
+            if (! moveScroll(*node, { before.x + deltaX, before.y + deltaY }))
                 continue;
             Event event;
             event.type = Event::Type::Scroll;

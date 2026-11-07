@@ -118,6 +118,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     class Renderer;
 
     // A node of a Surface's tree. Read-only outside the Surface.
+    // A scroll view's scrollbar: at rest, near a mouse, and the track under it.
+    namespace scrollbar
+    {
+        inline constexpr float thickness = 3;
+        inline constexpr float grownThickness = 8;
+        inline constexpr float trackThickness = 12;
+        inline constexpr float edgeGap = 2;
+        inline constexpr float minLength = 16;
+    } // namespace scrollbar
+
     class Node
     {
     public:
@@ -162,6 +172,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
         // Scroll: how far the content is scrolled; Input: how far its text is.
         [[nodiscard]] Point scrollOffset() const noexcept { return scroll; }
+        // Scroll: whether it draws its own indicators, and how a mouse has them:
+        // near (the bar grown over its track), and pressed.
+        [[nodiscard]] bool scrollIndicators() const noexcept { return drawsScrollIndicators; }
+        [[nodiscard]] bool scrollbarGrown(bool vertical) const noexcept
+        {
+            return vertical ? verticalBarGrown : horizontalBarGrown;
+        }
+        [[nodiscard]] bool scrollbarPressed(bool vertical) const noexcept
+        {
+            return vertical ? verticalBarPressed : horizontalBarPressed;
+        }
         // What plugin code says the node is to assistive technology.
         [[nodiscard]] const a11y::Properties& accessibility() const noexcept { return semantics; }
         // Where assistive technology reads the node, in place of its parent
@@ -199,6 +220,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         NodeId semanticParent = noNode;
         std::string debugName;
         bool canFocus = false;
+        bool drawsScrollIndicators = true;
+        bool verticalBarGrown = false;
+        bool horizontalBarGrown = false;
+        bool verticalBarPressed = false;
+        bool horizontalBarPressed = false;
         // The last layout of the text, by the width it was made for.
         float layoutWidth = -1;
         TextLayout textLayoutCache;
@@ -325,6 +351,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void setText(NodeId id, std::string text);
         void setFocusable(NodeId id, bool focusable);
         void setDebugId(NodeId id, std::string debugId);
+        void setScrollIndicators(NodeId id, bool shown);
         // Image nodes.
         void setSource(NodeId id, std::string source);
         // Validates/compiles before replacing the scene; invalid input leaves
@@ -343,6 +370,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void scrollTo(NodeId id, Point offset);
         // Scroll nodes: the size of what they scroll.
         [[nodiscard]] Size contentSize(NodeId id);
+        // The size of its content box: how much of contentSize() shows.
+        [[nodiscard]] Size clientSize(NodeId id);
         // Images became available or changed: lays image nodes out again.
         void imagesChanged();
         // Registers a font file with the text engine (TextEngine::addFont)
@@ -493,6 +522,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // (no pointermove). The runtime calls it every tick.
         void refreshHover();
 
+        // Fires `scroll` at each scroll view scrollTo() moved since the last call,
+        // once, as a browser does on its next frame: code that scrolls is not
+        // re-entered by its own listeners. The runtime calls it every tick.
+        void deliverScrolls();
+
         // A node holding a pointer's input for the press in progress: hidden by
         // the backend, not stopped by the screen's edges, its events at the
         // position the lock began with only `movement` changing.
@@ -575,6 +609,33 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] NodeId hitTest(Node& node, Point point, Point origin);
         [[nodiscard]] std::vector<NodeId> pathTo(NodeId id);
         void updateHover(PointerState& state, const PointerInput& input, NodeId target);
+        // A scroll view's own scrollbar: what a mouse does to it is the view's,
+        // and goes no further.
+        struct ScrollbarDrag
+        {
+            int pointerId = 0;
+            NodeId node = noNode;
+            bool vertical = true;
+            float from = 0;   // where along the axis it was pressed, in the node
+            float scroll = 0; // where that scrolled to; may be past either end
+        };
+        struct ScrollbarGeometry
+        {
+            float room = 0;
+            float range = 0;
+            float length = 0;
+            float travel = 0;
+        };
+        [[nodiscard]] ScrollbarGeometry scrollbarGeometry(const Node& node, bool vertical);
+        // Which scroll views have the point on their tracks, and grows their bars.
+        void updateScrollbars(NodeId hit, Point point);
+        [[nodiscard]] std::optional<std::pair<NodeId, bool>> scrollbarAt(NodeId hit);
+        void pressScrollbar(const PointerInput& input, NodeId id, bool vertical);
+        bool routeScrollbarDrag(const PointerInput& input);
+        void scrollAlong(Node& node, bool vertical, float position);
+        // Clamped to its content; whether it moved. Whoever moves it says so.
+        bool moveScroll(Node& node, Point offset);
+        void endScrollbarDrag();
         void collectFocusable(Node& node, std::vector<NodeId>& out);
         bool moveFocus(bool backwards);
         bool dispatch(const Event& event);
@@ -613,6 +674,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::vector<NodeId> canvasNodes;
         EventSink sink;
         std::map<int, PointerState> pointers;
+        std::optional<ScrollbarDrag> scrollbarDrag;
+        std::vector<NodeId> grownScrollbars;
+        // Moved by scrollTo(), and not yet told.
+        std::vector<NodeId> pendingScrolls;
         NodeId focusedNode = noNode;
         // Whether the focused node shows its focus, and whether the last
         // input was the keyboard's (or assistive technology's) rather than a

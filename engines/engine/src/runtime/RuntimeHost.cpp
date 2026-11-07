@@ -103,6 +103,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             parameters::dispatchChanges(*jsContext);
             lap(ticked.parameters);
         }
+        // What code scrolled since the last tick, before the frame's callbacks.
+        uiSurface->deliverScrolls();
         // The size the backend gave the surface (and its editor) since the
         // last tick, before the frame laid out at it.
         ui::notifyViewSize(*jsContext);

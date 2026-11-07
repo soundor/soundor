@@ -538,6 +538,78 @@ TEST_SUITE("ui::Renderer")
               == "50,100");
     }
 
+    TEST_CASE("a scroll view says how much shows, and can leave out its indicators")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            const scroller = createScrollView({ position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
+            scroller.appendChild(createView({ height: 400, flexShrink: 0 }));
+            root.appendChild(scroller);
+            globalThis.scroller = scroller;
+        )");
+        CHECK(f.run(std::string(imports)
+                    + "globalThis.result = [scroller.clientWidth, scroller.clientHeight, "
+                      "scroller.scrollHeight].join();")
+                  .asString()
+              == "100,100,400");
+        const auto indicator = [&] { return ! isClear(f.at(96, 20)); };
+        f.render();
+        CHECK(indicator());
+        CHECK(f.run(std::string(imports)
+                    + "scroller.scrollIndicators = false; globalThis.result = String(scroller.scrollIndicators);")
+                  .asString()
+              == "false");
+        f.render();
+        CHECK_FALSE(indicator());
+        // It scrolls the same.
+        CHECK(f.run(std::string(imports) + "scroller.scrollTop = 50; globalThis.result = String(scroller.scrollTop);")
+                  .asString()
+              == "50");
+        f.run(std::string(imports) + "scroller.scrollIndicators = true;");
+        f.render();
+        CHECK(indicator());
+    }
+
+    TEST_CASE("a mouse near a scroll view's edge shows a track, and a bar grown and pressed")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            const scroller = createScrollView({ position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
+            scroller.appendChild(createView({ height: 400, flexShrink: 0 }));
+            root.appendChild(scroller);
+        )");
+        ui::Surface& surface = f.host.surface();
+        const auto alpha = [&](int x, int y) { return f.at(x, y).a; };
+        ui::PointerInput input;
+        input.position = { 95, 60 };
+        f.render();
+        // At rest: a 3 thick bar, no track, nothing at the bar's grown width.
+        const auto rest = alpha(96, 10);
+        CHECK(rest > 0);
+        CHECK(alpha(91, 10) == 0);
+        CHECK(alpha(90, 60) == 0);
+        surface.pointer(input);
+        f.render();
+        const auto grown = alpha(96, 10);
+        CHECK(grown > rest);
+        CHECK(alpha(91, 10) > 0);  // the bar, 8 thick
+        CHECK(alpha(90, 60) > 0);  // the track, 12 thick, beside and below the bar
+        CHECK(alpha(87, 60) == 0); // and no more
+        CHECK(alpha(90, 60) < grown);
+        input.position = { 95, 10 };
+        input.phase = ui::PointerInput::Phase::Down;
+        input.button = 0;
+        input.buttons = 1;
+        surface.pointer(input);
+        f.render();
+        CHECK(alpha(96, 10) > grown);
+        input.phase = ui::PointerInput::Phase::Up;
+        input.buttons = 0;
+        surface.pointer(input);
+        f.render();
+        CHECK(alpha(96, 10) == grown);
+    }
+
     TEST_CASE("an input given its value before layout still shows it")
     {
         RenderFixture f(200, 40);

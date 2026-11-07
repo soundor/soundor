@@ -716,6 +716,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         });
         }
 
+        jsi::Value setScrollIndicators(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                       std::size_t count)
+        {
+            return call(context, "setScrollIndicators", count, 2,
+                        [&](Surface& surface)
+                        {
+                            surface.setScrollIndicators(readId(args[0]), bind::toBoolean(context, args[1]));
+                            return jsi::Value::undefined();
+                        });
+        }
+
         jsi::Value focus(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             return call(context, "focus", count, 1,
@@ -993,6 +1004,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         [&](Surface& surface)
                         {
                             const Size size = surface.contentSize(readId(args[0]));
+                            bind::ObjectBuilder object(context);
+                            object.set("width", jsi::Value(double(size.width)));
+                            object.set("height", jsi::Value(double(size.height)));
+                            return object.release();
+                        });
+        }
+
+        jsi::Value clientSize(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "clientSize", count, 1,
+                        [&](Surface& surface)
+                        {
+                            const Size size = surface.clientSize(readId(args[0]));
                             bind::ObjectBuilder object(context);
                             object.set("width", jsi::Value(double(size.width)));
                             object.set("height", jsi::Value(double(size.height)));
@@ -1454,6 +1478,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setText", setText, 2 },
             { "setFocusable", setFocusable, 2 },
             { "setDebugId", setDebugId, 2 },
+            { "setScrollIndicators", setScrollIndicators, 2 },
             { "setAccessibility", setAccessibility, 2 },
             { "setAccessibilityParent", setAccessibilityParent, 2 },
             { "setSource", setSource, 2 },
@@ -1466,6 +1491,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "scrollTo", scrollTo, 3 },
             { "scrollOffset", scrollOffset, 1 },
             { "contentSize", contentSize, 1 },
+            { "clientSize", clientSize, 1 },
             { "focus", focus, 1 },
             { "focused", focused, 0 },
             { "focusVisible", focusVisible, 0 },

@@ -504,6 +504,7 @@ export class UiNode extends EventTarget {
   #styleView = null;
   #text = '';
   #focusable = false;
+  #scrollIndicators = true;
   #source = '';
   #placeholder = '';
   #accessibility = Object.freeze({});
@@ -804,6 +805,25 @@ export class UiNode extends EventTarget {
 
   get scrollHeight() {
     return native.contentSize(this.#id).height;
+  }
+
+  /** How much of that shows: the size of its content box. */
+  get clientWidth() {
+    return native.clientSize(this.#id).width;
+  }
+
+  get clientHeight() {
+    return native.clientSize(this.#id).height;
+  }
+
+  /** Whether a scroll view draws its own indicators. */
+  get scrollIndicators() {
+    return this.#scrollIndicators;
+  }
+
+  set scrollIndicators(value) {
+    this.#scrollIndicators = Boolean(value);
+    native.setScrollIndicators(this.#id, this.#scrollIndicators);
   }
 
   /** scrollTo({ top, left }) or scrollTo(left, top); clamped to the content. */
