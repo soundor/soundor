@@ -28,6 +28,10 @@ def package(cache, output, identity):
     for path in sorted(cache.iterdir()):
         if not ROOT.fullmatch(path.name) or path.name.endswith((".partial", ".lock")):
             continue
+        # CMake keeps the AccessKit download beside extracted installations.
+        if (path.name.startswith("accesskit-c-") and path.name.endswith(".zip")
+                and not path.is_symlink() and path.is_file()):
+            continue
         if path.is_symlink() or not path.is_dir():
             raise ValueError("Dependency install must be a directory")
         for child in path.rglob("*"):
