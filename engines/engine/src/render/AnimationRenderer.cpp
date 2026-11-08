@@ -43,8 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         bool isolated(const ui::Node& node, const gpu::Device* device)
         {
             const ui::Style& style = node.presentedStyle();
-            return node.hasCompositorPresentation() || style.transform.count != 0 || style.opacity < 1
-                   || style.overflow != ui::Overflow::Visible || node.type() == ui::NodeType::Scroll
+            return node.hasCompositorPresentation() || style.transform.count != 0 || style.opacity < 1 || style.clips()
                    || gpuCanvas(node, device);
         }
         bool ancestorOf(ui::Surface& surface, ui::NodeId ancestor, const ui::Node& node)
@@ -163,8 +162,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const bool bordered = style.borderColor.visible()
                                   && (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0);
             if (style.backgroundColor.visible() || style.outlined()
-                || (node.type() != ui::NodeType::View && node.type() != ui::NodeType::Scroll
-                    && ! gpuCanvas(node, device)))
+                || (node.type() != ui::NodeType::View && ! gpuCanvas(node, device)))
                 painting.back() = painting.back().united(own);
             const auto found = group.layout.find(node.id());
             if (found == group.layout.end() || found->second.first != box)
@@ -183,7 +181,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const Transform children = local * Transform::translate(-scroll.x, -scroll.y);
             for (const ui::Node* child : node.stackedChildren())
                 self(self, *child, children, false);
-            if (bordered || style.outlined() || node.type() == ui::NodeType::Scroll)
+            if (bordered || style.outlined() || node.scrolls())
                 painting.back() = painting.back().united(own);
         };
         walk(walk, root, {}, true);
@@ -292,7 +290,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 layer.opacity = node.presentedStyle().opacity;
                 layer.content = GroupContent { &child.frame };
                 const auto& style = root.presentedStyle();
-                if (style.overflow != ui::Overflow::Visible || root.type() == ui::NodeType::Scroll)
+                if (style.clips())
                 {
                     const auto& border = style.borderWidth;
                     layer.clip = Clip {

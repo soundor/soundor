@@ -98,13 +98,6 @@ export const ImageData = globalThis.ImageData;
 export const TextMetrics = globalThis.TextMetrics;
 export const WebGL2RenderingContext = globalThis.WebGL2RenderingContext;
 
-/** A new, detached view whose children scroll (by wheel, or scrollTo()). */
-export function createScrollView(style?: Style): UiNode {
-  const node = view.createNode('scroll');
-  if (style !== undefined) node.style = style;
-  return node;
-}
-
 /** A new, detached single-line text input. It is focusable. */
 export function createTextInput(
   options: { value?: string; placeholder?: string; style?: Style } = {},

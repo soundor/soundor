@@ -1,4 +1,4 @@
-import { TestAnimation } from './animation';
+import { ease, TestAnimation } from './animation';
 import type { TestRuntime } from './runtime';
 /**
  * soundor:ui for tests in Node: the same tree semantics, kept in JavaScript,
@@ -112,6 +112,19 @@ export class TestEvent {
  */
 export const TEST_NODE = Symbol.for('soundor.test-node.v1');
 
+/** How long a smooth scroll takes in the runtimes. */
+export const SMOOTH_SCROLL_MS = 300;
+
+/** Whether a scroll `behavior` is smooth: 'auto' and 'instant' are not. */
+function scrollBehavior(value: unknown): boolean {
+  if (value === undefined || value === 'auto' || value === 'instant')
+    return false;
+  if (value === 'smooth') return true;
+  throw new TypeError(
+    `The provided value '${String(value)}' is not a valid enum value of type ScrollBehavior.`,
+  );
+}
+
 /** Whether `value` is a node of the simulated runtime, from any copy. */
 export function isTestNode(value: unknown): value is TestNode {
   return (
@@ -142,7 +155,22 @@ export class TestNode {
   }
   parent: TestNode | null = null;
   readonly kids: TestNode[] = [];
-  style: Record<string, unknown> = {};
+  #style: Record<string, unknown> = {};
+  /** Replacing it starts or stops scrolling, as the runtimes do. */
+  get style(): Record<string, unknown> {
+    return this.#style;
+  }
+  set style(value: Record<string, unknown>) {
+    this.#style = value;
+    // What no longer scrolls goes back to its start, and says so.
+    const left = this.#scrolls('x') ? this.#scrollLeft : 0;
+    const top = this.#scrolls('y') ? this.#scrollTop : 0;
+    if (left === this.#scrollLeft && top === this.#scrollTop) return;
+    this.#smooth = null;
+    this.#scrollLeft = left;
+    this.#scrollTop = top;
+    this.runtime.scrolled(this);
+  }
   text = '';
   placeholder = '';
   source = '';
@@ -296,23 +324,119 @@ export class TestNode {
   get scrollHeight(): never {
     throw new Error('Layout is unavailable in the simulated Soundor runtime');
   }
-  scrollTo(options: { top?: number; left?: number } | number, top?: number) {
-    const next = typeof options === 'number' ? { left: options, top } : options;
-    const nextLeft =
-      next.left === undefined ? this.#scrollLeft : Math.max(0, next.left);
-    const nextTop =
-      next.top === undefined ? this.#scrollTop : Math.max(0, next.top);
-    if (nextLeft === this.#scrollLeft && nextTop === this.#scrollTop) return;
-    this.#scrollLeft = nextLeft;
-    this.#scrollTop = nextTop;
+  /** Whether a view's style scrolls that axis (`overflowX`/`Y` over `overflow`). */
+  #scrolls(axis: 'x' | 'y'): boolean {
+    if (this.type !== 'view') return false;
+    const own = axis === 'x' ? this.#style.overflowX : this.#style.overflowY;
+    return (own ?? this.#style.overflow) === 'scroll';
+  }
+  /** A smooth scroll on its way: from, to, and when it started. */
+  #smooth: {
+    from: { left: number; top: number };
+    to: { left: number; top: number };
+    started: number;
+  } | null = null;
+  #moveTo(left: number, top: number) {
+    if (left === this.#scrollLeft && top === this.#scrollTop) return;
+    this.#scrollLeft = left;
+    this.#scrollTop = top;
     this.runtime.scrolled(this);
   }
-  scrollBy(options: { top?: number; left?: number } | number, top?: number) {
-    const next = typeof options === 'number' ? { left: options, top } : options;
+  /**
+   * Along the axes its style scrolls; nothing on a node that does not, as in
+   * the runtimes. Nothing is laid out here, so nothing clamps it but 0.
+   * 'smooth' takes the runtimes' 300 ms on the virtual clock, eased in and
+   * out, a step each frame.
+   */
+  scrollTo(
+    options:
+      | { top?: number; left?: number; behavior?: string }
+      | number
+      | undefined,
+    top?: number,
+  ) {
+    const next =
+      typeof options === 'object' && options !== null
+        ? options
+        : { left: options, top };
+    const smooth = scrollBehavior((next as { behavior?: unknown }).behavior);
+    const left = this.#scrolls('x')
+      ? Math.max(0, Number(next.left ?? this.#scrollLeft) || 0)
+      : 0;
+    const down = this.#scrolls('y')
+      ? Math.max(0, Number(next.top ?? this.#scrollTop) || 0)
+      : 0;
+    this.#smooth = null;
+    if (!smooth || this.runtime.prefersReducedMotion()) {
+      this.#moveTo(left, down);
+      return;
+    }
+    if (left === this.#scrollLeft && down === this.#scrollTop) return;
+    const scroll = {
+      from: { left: this.#scrollLeft, top: this.#scrollTop },
+      to: { left, top: down },
+      started: this.runtime.clock.now,
+    };
+    this.#smooth = scroll;
+    const step = () => {
+      if (this.#smooth !== scroll) return;
+      const progress = Math.min(
+        1,
+        (this.runtime.clock.now - scroll.started) / SMOOTH_SCROLL_MS,
+      );
+      const eased = ease('ease-in-out', progress);
+      this.#moveTo(
+        scroll.from.left + (scroll.to.left - scroll.from.left) * eased,
+        scroll.from.top + (scroll.to.top - scroll.from.top) * eased,
+      );
+      if (progress >= 1) this.#smooth = null;
+      else
+        this.runtime.clock.setTimeout(
+          step,
+          this.runtime.clock.untilNextFrame(),
+          true,
+        );
+    };
+    this.runtime.clock.setTimeout(
+      step,
+      this.runtime.clock.untilNextFrame(),
+      true,
+    );
+  }
+  scrollBy(
+    options:
+      | { top?: number; left?: number; behavior?: string }
+      | number
+      | undefined,
+    top?: number,
+  ) {
+    const next =
+      typeof options === 'object' && options !== null
+        ? options
+        : { left: options, top };
     this.scrollTo({
-      left: this.scrollLeft + (next.left ?? 0),
-      top: this.scrollTop + (next.top ?? 0),
+      left: this.scrollLeft + (Number(next.left ?? 0) || 0),
+      top: this.scrollTop + (Number(next.top ?? 0) || 0),
+      behavior: (next as { behavior?: string }).behavior,
     });
+  }
+  /**
+   * Nothing is laid out here, so nothing knows where it is: checks what it is
+   * given, as the runtimes do, and moves nothing.
+   */
+  scrollIntoView(
+    arg?: boolean | { block?: string; inline?: string; behavior?: string },
+  ) {
+    if (typeof arg !== 'object' || arg === null) return;
+    for (const alignment of [arg.block, arg.inline])
+      if (
+        alignment !== undefined &&
+        !['start', 'center', 'end', 'nearest'].includes(alignment)
+      )
+        throw new TypeError(
+          `The provided value '${String(alignment)}' is not a valid enum value of type ScrollLogicalPosition.`,
+        );
+    scrollBehavior(arg.behavior);
   }
 
   appendChild(child: TestNode) {

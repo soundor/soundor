@@ -10,7 +10,7 @@ using test::WebFixture;
 namespace
 {
     constexpr const char* imports =
-        "import { root, createView, createTextInput, createScrollView, pressable, clipboard } from 'soundor:ui';\n";
+        "import { root, createView, createTextInput, pressable, clipboard } from 'soundor:ui';\n";
 
     RuntimeHost::Options approximateText()
     {
@@ -208,7 +208,7 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         f.host.surface().setSize({ 100, 100 });
         f.run(std::string(imports) + R"(
             globalThis.log = [];
-            globalThis.scroller = createScrollView({ height: 50 });
+            globalThis.scroller = createView({ overflow: 'scroll', height: 50 });
             const inner = createView({ height: 200 });
             scroller.appendChild(inner);
             root.appendChild(scroller);
@@ -233,7 +233,7 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         f.host.surface().setSize({ 100, 100 });
         f.run(std::string(imports) + R"(
             globalThis.log = [];
-            globalThis.scroller = createScrollView({ height: 50 });
+            globalThis.scroller = createView({ overflow: 'scroll', height: 50 });
             scroller.appendChild(createView({ height: 200 }));
             root.appendChild(scroller);
             scroller.addEventListener('wheel', (e) => log.push('wheel ' + e.ctrlKey + ' ' + e.deltaY));
@@ -255,7 +255,7 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         f.host.surface().setSize({ 100, 100 });
         f.run(std::string(imports) + R"(
             globalThis.log = [];
-            globalThis.scroller = createScrollView({ height: 50 });
+            globalThis.scroller = createView({ overflow: 'scroll', height: 50 });
             scroller.appendChild(createView({ height: 200 }));
             root.appendChild(scroller);
             scroller.addEventListener('scroll', () => log.push('scroll ' + scroller.scrollTop));
@@ -278,6 +278,168 @@ TEST_SUITE("soundor:ui scrolling, frames and presses")
         f.run(std::string(imports) + "scroller.scrollTop = 0; scroller.remove();");
         f.host.tick();
         CHECK(f.eval("log.length").asNumber() == 3);
+    }
+
+    TEST_CASE("a view scrolls the axes its style says, and nothing else does")
+    {
+        WebFixture f(approximateText());
+        f.host.surface().setSize({ 100, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.list = createView({ overflowY: 'scroll', height: 50, width: 50 });
+            list.appendChild(createView({ height: 200, width: 300, flexShrink: 0 }));
+            root.appendChild(list);
+            list.addEventListener('scroll', () => log.push('scroll ' + list.scrollLeft + ' ' + list.scrollTop));
+            list.scrollTo({ left: 50, top: 30 });
+        )");
+        CHECK(f.eval("list.scrollLeft").asNumber() == 0);
+        CHECK(f.eval("list.scrollTop").asNumber() == 30);
+        // Sideways it does not scroll, so the host may have that wheel.
+        CHECK_FALSE(f.host.surface().wheel({ .position = { 10, 10 }, .deltaX = 20 }));
+        CHECK(f.host.surface().wheel({ .position = { 10, 10 }, .deltaY = 20 }));
+        CHECK(f.eval("list.scrollTop").asNumber() == 50);
+        // The axis over the shorthand, whatever the order.
+        f.run(std::string(imports)
+              + "list.style = { overflowX: 'hidden', overflow: 'scroll', height: 50, width: 50 };"
+                "list.scrollTo({ left: 50 });");
+        CHECK(f.eval("list.scrollLeft").asNumber() == 0);
+        // A view that does not scroll, and a node that cannot: nothing moves,
+        // nothing throws, as in browsers.
+        f.run(std::string(imports) + R"(
+            globalThis.plain = createView({ height: 50 });
+            plain.appendChild(createView({ height: 200 }));
+            root.appendChild(plain);
+            plain.scrollTo(0, 40);
+            plain.scrollTop = 40;
+            globalThis.input = createTextInput({ style: { overflow: 'scroll' } });
+            input.scrollTo(0, 40);
+        )");
+        CHECK(f.eval("plain.scrollTop").asNumber() == 0);
+        CHECK(f.eval("input.scrollTop").asNumber() == 0);
+    }
+
+    TEST_CASE("a view that stops scrolling goes back to its start, and says so")
+    {
+        WebFixture f(approximateText());
+        f.host.surface().setSize({ 100, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.list = createView({ overflow: 'scroll', height: 50 });
+            list.appendChild(createView({ height: 200 }));
+            root.appendChild(list);
+            list.scrollTop = 40;
+            list.addEventListener('scroll', () => log.push('scroll ' + list.scrollTop));
+        )");
+        f.host.tick();
+        CHECK(f.eval("log.join()").asString() == "scroll 40");
+        f.run(std::string(imports) + "list.style = { overflow: 'hidden', height: 50 };");
+        CHECK(f.eval("list.scrollTop").asNumber() == 0);
+        f.host.tick();
+        CHECK(f.eval("log.join()").asString() == "scroll 40,scroll 0");
+        // And it scrolls again from there.
+        f.run(std::string(imports) + "list.style = { overflow: 'scroll', height: 50 }; list.scrollTop = 10;");
+        CHECK(f.eval("list.scrollTop").asNumber() == 10);
+    }
+
+    TEST_CASE("a smooth scroll moves frame by frame, and a wheel stops it")
+    {
+        WebFixture f(approximateText());
+        double time = 0;
+        f.host.surface().animations().setClock([&time] { return time; });
+        f.host.surface().setSize({ 100, 100 });
+        f.run(std::string(imports) + R"(
+            globalThis.log = [];
+            globalThis.list = createView({ overflow: 'scroll', height: 50 });
+            list.appendChild(createView({ height: 400 }));
+            root.appendChild(list);
+            list.addEventListener('scroll', () => log.push(Math.round(list.scrollTop)));
+            list.scrollTo({ top: 200, behavior: 'smooth' });
+        )");
+        // Not yet: it starts on the next frame.
+        CHECK(f.eval("list.scrollTop").asNumber() == 0);
+        time = ui::smoothScrollMilliseconds / 2;
+        f.host.tick();
+        // Eased in and out: halfway at half the time.
+        CHECK(f.eval("list.scrollTop").asNumber() == doctest::Approx(100));
+        time = ui::smoothScrollMilliseconds;
+        f.host.tick();
+        CHECK(f.eval("list.scrollTop").asNumber() == 200);
+        CHECK(f.eval("log.join()").asString() == "100,200");
+        time += 100;
+        f.host.tick();
+        CHECK(f.eval("log.length").asNumber() == 2);
+
+        // scrollBy goes from where it is; a wheel stops it there.
+        f.run(std::string(imports) + "list.scrollBy({ top: 100, behavior: 'smooth' });");
+        time += ui::smoothScrollMilliseconds / 2;
+        f.host.tick();
+        CHECK(f.eval("list.scrollTop").asNumber() == doctest::Approx(250));
+        CHECK(f.host.surface().wheel({ .position = { 10, 10 }, .deltaY = 10 }));
+        time += ui::smoothScrollMilliseconds;
+        f.host.tick();
+        CHECK(f.eval("list.scrollTop").asNumber() == doctest::Approx(260));
+
+        // An instant scroll stops it too.
+        f.run(std::string(imports) + "list.scrollTo({ top: 0, behavior: 'smooth' }); list.scrollTop = 300;");
+        time += ui::smoothScrollMilliseconds;
+        f.host.tick();
+        CHECK(f.eval("list.scrollTop").asNumber() == 300);
+
+        // With reduced motion asked for, it is there at once.
+        f.host.surface().animations().setReducedMotion(true);
+        f.run(std::string(imports) + "list.scrollTo({ top: 10, behavior: 'smooth' });");
+        CHECK(f.eval("list.scrollTop").asNumber() == 10);
+        f.host.surface().animations().setReducedMotion(false);
+
+        CHECK(f.eval(R"((() => { try { list.scrollTo({ top: 0, behavior: 'fast' }); return 'none'; }
+                                 catch (e) { return e.constructor.name; } })())")
+                  .asString()
+              == "TypeError");
+    }
+
+    TEST_CASE("scrollIntoView aligns a node in each view around it that scrolls")
+    {
+        WebFixture f(approximateText());
+        f.host.surface().setSize({ 200, 200 });
+        f.run(std::string(imports) + R"(
+            globalThis.list = createView({ overflowY: 'scroll', height: 50, padding: 5 });
+            globalThis.items = [];
+            for (let i = 0; i < 10; ++i) {
+              const item = createView({ height: 20, flexShrink: 0 });
+              items.push(item);
+              list.appendChild(item);
+            }
+            root.appendChild(list);
+            globalThis.at = (call) => { call(); return list.scrollTop; };
+        )");
+        // The item at 100 (105 with the padding) in a view 40 high inside it.
+        CHECK(f.eval("at(() => items[5].scrollIntoView())").asNumber() == 100);
+        CHECK(f.eval("at(() => items[5].scrollIntoView(false))").asNumber() == 80);
+        CHECK(f.eval("at(() => items[5].scrollIntoView({ block: 'center' }))").asNumber() == 90);
+        // Nearest: already showing, it stays; above, to the start; below, to the end.
+        CHECK(f.eval("at(() => items[5].scrollIntoView({ block: 'nearest' }))").asNumber() == 90);
+        CHECK(f.eval("at(() => items[1].scrollIntoView({ block: 'nearest' }))").asNumber() == 20);
+        CHECK(f.eval("at(() => items[8].scrollIntoView({ block: 'nearest' }))").asNumber() == 140);
+        // Clamped to the content: 200 and the padding below it, 40 showing.
+        CHECK(f.eval("at(() => items[9].scrollIntoView())").asNumber() == 165);
+        CHECK(f.eval("at(() => items[0].scrollIntoView())").asNumber() == 0);
+
+        // Nested: the outer view brings in where the inner one put it.
+        f.run(std::string(imports) + R"(
+            globalThis.outer = createView({ overflowY: 'scroll', height: 100 });
+            outer.appendChild(createView({ height: 300, flexShrink: 0 }));
+            list.remove();
+            outer.appendChild(list);
+            root.appendChild(outer);
+            items[9].scrollIntoView({ block: 'end' });
+        )");
+        CHECK(f.eval("list.scrollTop").asNumber() == 160);
+        // There the item ends 345 down the outer view's content.
+        CHECK(f.eval("outer.scrollTop").asNumber() == 245);
+        CHECK(f.eval(R"((() => { try { items[0].scrollIntoView({ block: 'top' }); return 'none'; }
+                                 catch (e) { return e.constructor.name; } })())")
+                  .asString()
+              == "TypeError");
     }
 
     TEST_CASE("requestAnimationFrame runs once per frame, before drawing")

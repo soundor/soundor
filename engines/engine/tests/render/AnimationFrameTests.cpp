@@ -50,7 +50,7 @@ namespace
             style.width = ui::Length::points(40);
             style.height = ui::Length::points(40);
             style.backgroundColor = { 255, 0, 0, 255 };
-            style.overflow = ui::Overflow::Hidden;
+            style.overflowX = style.overflowY = ui::Overflow::Hidden;
             style.borderRadius = { 6, 6, 6, 6 };
             surface.setStyle(panel, style);
             surface.insertChild(surface.root().id(), panel);
@@ -59,7 +59,7 @@ namespace
             style.width = ui::Length::points(40);
             style.height = ui::Length::points(40);
             style.backgroundColor = { 0, 255, 0, 255 };
-            style.overflow = ui::Overflow::Visible;
+            style.overflowX = style.overflowY = ui::Overflow::Visible;
             style.borderRadius = {};
             surface.setStyle(child, style);
             surface.insertChild(panel, child);

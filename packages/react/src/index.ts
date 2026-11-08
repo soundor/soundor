@@ -67,5 +67,6 @@ export {
   useScrollbar,
   type Scrollbar,
   type ScrollbarOptions,
+  type Scrollbars,
 } from './scrollbar';
 export { StyleSheet, flattenStyle, type StyleProp } from './style';

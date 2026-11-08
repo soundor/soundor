@@ -142,6 +142,19 @@ namespace
 
 TEST_SUITE("a11y semantics")
 {
+    TEST_CASE("a view is a scroll view while its style scrolls")
+    {
+        A11yFixture f;
+        f.build(R"(
+            globalThis.list = createView({ overflowY: 'scroll', height: 20 });
+            list.accessibility = { label: 'Presets' };
+            root.appendChild(list);
+        )");
+        CHECK(f.tree() == R"(view [scrollview "Presets"])");
+        f.build("list.style = { overflow: 'hidden', height: 20 };");
+        CHECK(f.tree() == R"(view [group "Presets"])");
+    }
+
     TEST_CASE("names roles and actions as plugin code does")
     {
         CHECK(a11y::roleFromName("adjustable") == a11y::Role::Adjustable);

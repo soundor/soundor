@@ -68,7 +68,7 @@ namespace
     };
 
     constexpr const char* scene = R"(
-        import { root, overlayRoot, createView, createText, createImage, createScrollView, createTextInput }
+        import { root, overlayRoot, createView, createText, createImage, createTextInput }
             from 'soundor:ui';
         const g = globalThis;
         g.panel = createView({ flexDirection: 'row', padding: 4, backgroundColor: '#eee',
@@ -80,7 +80,7 @@ namespace
         g.panel.appendChild(g.b);
         g.panel.appendChild(g.label);
         root.appendChild(g.panel);
-        g.list = createScrollView({ height: 30, overflow: 'hidden', backgroundColor: 'white' });
+        g.list = createView({ overflow: 'scroll', height: 30, backgroundColor: 'white' });
         for (let i = 0; i < 6; i++)
             g.list.appendChild(createView({ height: 10, backgroundColor: i % 2 ? 'green' : 'yellow' }));
         root.appendChild(g.list);

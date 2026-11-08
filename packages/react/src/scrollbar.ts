@@ -10,21 +10,28 @@ import type { PointerEvent, UiNode } from 'soundor:ui';
 /** What the hook watches, and what tells it. */
 interface Watching {
   observer: ResizeObserver | null;
-  /** The scroll view, what it scrolls, and the track. */
+  /** The view, what it scrolls (its children), and the track. */
   sized: readonly (UiNode | null)[];
   /** The scroll view whose `scroll` events it listens to. */
   scrolled: UiNode | null;
 }
 
 export interface ScrollbarOptions {
-  /** Which way it scrolls; `'vertical'` by default. */
-  axis?: 'vertical' | 'horizontal';
-  /** The thumb's least length, however much there is to scroll; 16 by default. */
+  /** The thumbs' least length, however much there is to scroll; 16 by default. */
   minThumbLength?: number;
 }
 
+/** A scrollbar of each axis: draw the ones you need. */
+export interface Scrollbars {
+  vertical: Scrollbar;
+  horizontal: Scrollbar;
+}
+
 export interface Scrollbar {
-  /** Whether there is anything to scroll on this axis. */
+  /**
+   * Whether there is anything to scroll on this axis: the view's style
+   * scrolls it, and its content is longer than it.
+   */
   visible: boolean;
   /** Whether the pointer is over the track. */
   hovered: boolean;
@@ -48,26 +55,47 @@ export interface Scrollbar {
 }
 
 /**
- * What a scrollbar of your own needs: draw a track and a thumb however you like,
- * anywhere, and they scroll the scroll view. Give the `ScrollView`
- * `scrollIndicators={false}` to replace its own.
+ * What scrollbars of your own need: draw a track and a thumb however you like,
+ * anywhere, and they scroll the view, any view whose style scrolls
+ * (`overflow: 'scroll'`, a `ScrollView`). Give it `scrollIndicators={false}`
+ * to replace its own. One bar for each axis; draw the ones you need.
  *
- *   const scroll = useRef<UiNode>(null);
- *   const bar = useScrollbar(scroll);
+ *   const list = useRef<UiNode>(null);
+ *   const { vertical } = useScrollbar(list);
  *
- *   <ScrollView ref={scroll} scrollIndicators={false}>…</ScrollView>
- *   {bar.visible && (
- *     <View {...bar.trackProps} style={styles.track}>
- *       <View {...bar.thumbProps} style={styles.thumb} />
+ *   <View ref={list} scrollIndicators={false} style={{ overflowY: 'scroll' }}>…</View>
+ *   {vertical.visible && (
+ *     <View {...vertical.trackProps} style={styles.track}>
+ *       <View {...vertical.thumbProps} style={styles.thumb} />
  *     </View>
  *   )}
  */
 export function useScrollbar(
   scroll: RefObject<UiNode | null>,
   options: ScrollbarOptions = {},
-): Scrollbar {
-  const vertical = (options.axis ?? 'vertical') === 'vertical';
+): Scrollbars {
   const minLength = options.minThumbLength ?? 16;
+  return {
+    vertical: useBar(scroll, true, minLength),
+    horizontal: useBar(scroll, false, minLength),
+  };
+}
+
+/** Whether the view's style scrolls that axis: `overflowX`/`Y` over `overflow`. */
+function scrolls(node: UiNode, vertical: boolean): boolean {
+  const style = node.style;
+  return (
+    ((vertical ? style.overflowY : style.overflowX) ?? style.overflow) ===
+    'scroll'
+  );
+}
+
+/** One axis's bar. */
+function useBar(
+  scroll: RefObject<UiNode | null>,
+  vertical: boolean,
+  minLength: number,
+): Scrollbar {
   const [visible, setVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -78,7 +106,7 @@ export function useScrollbar(
   /** What there is to scroll, and how the thumb shows it; null for nothing. */
   const measure = () => {
     const node = scroll.current;
-    if (node === null) return null;
+    if (node === null || !scrolls(node, vertical)) return null;
     const client = vertical ? node.clientHeight : node.clientWidth;
     // Not laid out, or laid out to nothing: nothing can be asked of it.
     if (client <= 0) return null;
@@ -132,9 +160,9 @@ export function useScrollbar(
     };
   };
 
-  // What changes the bar: the scroll view's size, its content's and the
-  // track's, which a ResizeObserver tells, and scrolling. The nodes come and
-  // go with renders, so each render checks that it watches the ones there are.
+  // What changes the bar: the view's size, its children's and the track's,
+  // which a ResizeObserver tells, and scrolling. The nodes come and go with
+  // renders, so each render checks that it watches the ones there are.
   const latest = useRef(sync);
   latest.current = sync;
   const [onChange] = useState(() => () => latest.current());
@@ -146,8 +174,11 @@ export function useScrollbar(
   useLayoutEffect(() => {
     const watched = watching.current;
     const node = scroll.current;
-    const sized = [node, node?.firstChild ?? null, track.current];
-    if (sized.some((value, i) => value !== watched.sized[i])) {
+    const sized = [node, ...(node?.children ?? []), track.current];
+    if (
+      sized.length !== watched.sized.length ||
+      sized.some((value, i) => value !== watched.sized[i])
+    ) {
       watched.observer ??= new ResizeObserver(onChange);
       watched.observer.disconnect();
       for (const value of sized)

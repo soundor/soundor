@@ -344,7 +344,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.alignItems, choice<Align>("alignItems", aligns));
                 assign(out.alignSelf, choice<Align>("alignSelf", aligns));
                 assign(out.alignContent, choice<Align>("alignContent", aligns));
-                assign(out.overflow, choice<Overflow>("overflow", overflows));
+                // `overflow` sets both axes; `overflowX`/`overflowY` win over it.
+                if (const auto both = choice<Overflow>("overflow", overflows))
+                    out.overflowX = out.overflowY = *both;
+                assign(out.overflowX, choice<Overflow>("overflowX", overflows));
+                assign(out.overflowY, choice<Overflow>("overflowY", overflows));
                 assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
                 assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
                 assign(out.cursor, choice<Cursor>("cursor", cursors));
@@ -974,11 +978,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         jsi::Value scrollTo(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
-            return call(context, "scrollTo", count, 3,
+            return call(context, "scrollTo", count, 4,
                         [&](Surface& surface)
                         {
-                            surface.scrollTo(readId(args[0]), { static_cast<float>(readNumber(context, args[1])),
-                                                                static_cast<float>(readNumber(context, args[2])) });
+                            surface.scrollTo(readId(args[0]),
+                                             { static_cast<float>(readNumber(context, args[1])),
+                                               static_cast<float>(readNumber(context, args[2])) },
+                                             bind::toBoolean(context, args[3]) ? ScrollBehavior::Smooth
+                                                                               : ScrollBehavior::Instant);
+                            return jsi::Value::undefined();
+                        });
+        }
+
+        // scrollIntoView(id, block, inline, smooth): the alignments as
+        // ScrollAlignment's values, which ui.js has checked.
+        jsi::Value scrollIntoView(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            return call(context, "scrollIntoView", count, 4,
+                        [&](Surface& surface)
+                        {
+                            const auto alignment = [&](const jsi::Value& value)
+                            {
+                                const double index = readNumber(context, value);
+                                if (index < 0 || index > 3 || std::trunc(index) != index)
+                                    throw std::invalid_argument("no such alignment");
+                                return static_cast<ScrollAlignment>(index);
+                            };
+                            surface.scrollIntoView(readId(args[0]), alignment(args[1]), alignment(args[2]),
+                                                   bind::toBoolean(context, args[3]) ? ScrollBehavior::Smooth
+                                                                                     : ScrollBehavior::Instant);
                             return jsi::Value::undefined();
                         });
         }
@@ -1519,7 +1547,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "setSelection", setSelection, 3 },
             { "selection", selection, 1 },
             { "offsetAt", offsetAt, 3 },
-            { "scrollTo", scrollTo, 3 },
+            { "scrollTo", scrollTo, 4 },
+            { "scrollIntoView", scrollIntoView, 4 },
             { "scrollOffset", scrollOffset, 1 },
             { "contentSize", contentSize, 1 },
             { "clientSize", clientSize, 1 },

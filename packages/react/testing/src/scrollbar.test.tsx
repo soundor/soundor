@@ -1,4 +1,11 @@
-import { ScrollView, useScrollbar, View, type Scrollbar } from '@soundor/react';
+import {
+  Animated,
+  ScrollView,
+  useScrollbar,
+  View,
+  type Scrollbar,
+  type Scrollbars,
+} from '@soundor/react';
 import { act, advanceTime, render } from '@soundor/testing-library/react';
 import { useRef } from 'react';
 import { PointerEvent, type UiNode } from 'soundor:ui';
@@ -9,7 +16,7 @@ let scroll: UiNode;
 
 function Bar({ axis }: { axis?: 'vertical' | 'horizontal' }) {
   const node = useRef<UiNode>(null);
-  bar = useScrollbar(node, { axis });
+  bar = useScrollbar(node)[axis ?? 'vertical'];
   return (
     <View>
       <ScrollView
@@ -229,6 +236,37 @@ describe('useScrollbar', () => {
     await press(track, 'pointerdown', 60);
     expect(scroll.scrollLeft).toBe(190);
     expect(scroll.scrollTop).toBe(0);
+  });
+
+  it('has a bar only for the axes the style scrolls, on any view, an animated one too', async () => {
+    let bars: Scrollbars | undefined;
+    function List() {
+      const node = useRef<UiNode>(null);
+      bars = useScrollbar(node);
+      return (
+        <Animated.View
+          ref={(value) => {
+            node.current = value;
+            if (value !== null) scroll = value;
+          }}
+          scrollIndicators={false}
+          style={{ overflowY: 'scroll' }}
+        >
+          <View />
+          <View {...bars.vertical.trackProps}>
+            <View {...bars.vertical.thumbProps} />
+          </View>
+        </Animated.View>
+      );
+    }
+    await render(<List />);
+    bar = bars!.vertical;
+    laidOut(100, 400, 100);
+    await frame();
+    expect(bars!.vertical.visible).toBe(true);
+    // Wider than it too, but it does not scroll that way.
+    expect(bars!.horizontal.visible).toBe(false);
+    expect(scroll.scrollIndicators).toBe(false);
   });
 
   it('says when the pointer is over the track', async () => {

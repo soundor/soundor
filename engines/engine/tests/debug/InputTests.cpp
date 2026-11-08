@@ -13,7 +13,7 @@ namespace
     // a "reset" button with a "label" inside, a text input, a scroll view,
     // and a floating overlay node over the bottom-right corner.
     constexpr const char* plugin = R"(
-        import { root, overlayRoot, createView, createTextInput, createScrollView } from 'soundor:ui';
+        import { root, overlayRoot, createView, createTextInput } from 'soundor:ui';
         globalThis.log = [];
         const record = (name) => (event) => globalThis.log.push(
             name + ':' + event.type + (event.shiftKey ? '+shift' : '') + (event.key ? '=' + event.key : ''));
@@ -29,7 +29,7 @@ namespace
         input.addEventListener('keydown', record('input'));
         input.addEventListener('keyup', record('input'));
         root.appendChild(input);
-        const scroll = createScrollView({ position: 'absolute', left: 0, top: 70, width: 50, height: 20 });
+        const scroll = createView({ overflow: 'scroll', position: 'absolute', left: 0, top: 70, width: 50, height: 20 });
         scroll.appendChild(createView({ width: 50, height: 200 }));
         root.appendChild(scroll);
         const cover = createView({ position: 'absolute', left: 80, top: 0, width: 40, height: 100 });

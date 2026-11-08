@@ -236,7 +236,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float rowGap = 0;
         float columnGap = 0;
 
-        Overflow overflow = Overflow::Visible;
+        // Each axis's own (`overflowX`, `overflowY`, else `overflow`). A box
+        // clips both axes or neither: one 'visible' next to a clipping axis
+        // means 'hidden', as in CSS (see clips()).
+        Overflow overflowX = Overflow::Visible;
+        Overflow overflowY = Overflow::Visible;
         PointerEvents pointerEvents = PointerEvents::Auto;
         Cursor cursor = Cursor::Auto;
         // Stacks the node among its siblings: higher is drawn over and hit
@@ -258,6 +262,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         ResizeMode resizeMode = ResizeMode::Cover;
 
         TextStyle text;
+
+        // Whether what is inside is cut to the padding box: either axis is not
+        // 'visible'.
+        [[nodiscard]] bool clips() const noexcept
+        {
+            return overflowX != Overflow::Visible || overflowY != Overflow::Visible;
+        }
+        // Whether a view's children scroll along that axis (a wheel, a
+        // scrollbar, scrollTo()). Other nodes clip and never scroll.
+        [[nodiscard]] bool scrollsX() const noexcept { return overflowX == Overflow::Scroll; }
+        [[nodiscard]] bool scrollsY() const noexcept { return overflowY == Overflow::Scroll; }
+        [[nodiscard]] bool scrolls() const noexcept { return scrollsX() || scrollsY(); }
+        // The one value Yoga has: 'scroll' when either axis scrolls.
+        [[nodiscard]] Overflow layoutOverflow() const noexcept
+        {
+            return scrolls() ? Overflow::Scroll : clips() ? Overflow::Hidden : Overflow::Visible;
+        }
 
         [[nodiscard]] bool outlined() const noexcept { return outlineWidth > 0 && outlineColor.visible(); }
         // How far the outline reaches outside the box: 0 without one.

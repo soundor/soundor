@@ -33,7 +33,6 @@ A component's `ref` is its node: `ref.current.animate(…)`,
 | `createView(style?)`           | A box.                                                                           |
 | `createText(text?, style?)`    | A run of text.                                                                   |
 | `createImage(source?, style?)` | A bundled image.                                                                 |
-| `createScrollView(style?)`     | A box whose children scroll.                                                     |
 | `createTextInput(options?)`    | A single-line input that edits itself.                                           |
 | `createSvg(style?)`            | A retained vector scene; only its root participates in layout.                   |
 | `createCanvas(style?)`         | A canvas, with a 2D or WebGL 2 context.                                          |
@@ -52,9 +51,13 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
   [Soundor Driver](/docs/driver) finds the node by;
 - `accessibility`, what it is to assistive technology;
 - `animate(keyframes, options)`, which returns a `UiAnimation`;
+- scrolling, for a view whose style scrolls
+  ([Overflow](/docs/components/style#overflow)): `scrollTop`, `scrollLeft`,
+  `scrollWidth`, `scrollHeight`, `scrollIndicators`, `scrollTo()` and
+  `scrollBy()` with `behavior: 'smooth'`, and `scrollIntoView()` on any node
+  inside it ([Scrolling from code](/docs/components/scroll-view#scrolling-from-code));
 - per kind: `text`; `value`, `placeholder` and the selection; `source`;
-  `width`, `height` and `getContext()`; `scrollTop`, `scrollLeft`,
-  `scrollTo()` and `scrollBy()`.
+  `width`, `height` and `getContext()`.
 
 ## Vector scenes
 

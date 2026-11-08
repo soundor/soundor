@@ -3,25 +3,30 @@ title: useScrollbar
 description: A scrollbar of your own, drawn however you like.
 ---
 
-`useScrollbar` gives a track and a thumb of your own what a scrollbar does: the
-thumb shows what is in view and drags, and a press on the track jumps there.
+`useScrollbar` gives tracks and thumbs of your own what scrollbars do: a
+thumb shows what is in view and drags, and a press on its track jumps there.
 They are ordinary nodes, so they look like whatever you draw, wherever you put
-them, in every runtime.
+them, in every runtime. They scroll any view whose style scrolls: a
+`ScrollView`, or a `View` or `Animated.View` with `overflow: 'scroll'`.
 
 ```tsx
-const scroll = useRef<UiNode>(null);
-const bar = useScrollbar(scroll);
+const list = useRef<UiNode>(null);
+const { vertical } = useScrollbar(list);
 
 return (
   <View style={{ flex: 1 }}>
-    <ScrollView ref={scroll} scrollIndicators={false} style={{ flex: 1 }}>
+    <View
+      ref={list}
+      scrollIndicators={false}
+      style={{ flex: 1, overflowY: 'scroll' }}
+    >
       {children}
-    </ScrollView>
-    {bar.visible && (
-      <View {...bar.trackProps} style={styles.track}>
+    </View>
+    {vertical.visible && (
+      <View {...vertical.trackProps} style={styles.track}>
         <View
-          {...bar.thumbProps}
-          style={[styles.thumb, bar.pressed && styles.thumbPressed]}
+          {...vertical.thumbProps}
+          style={[styles.thumb, vertical.pressed && styles.thumbPressed]}
         />
       </View>
     )}
@@ -29,17 +34,23 @@ return (
 );
 ```
 
-- **Where it goes:** beside the `ScrollView`, not in it, where it would scroll
-  away. Position it absolutely to draw over the content, as the built-in
-  indicators do, or give it its own room in a row. To keep that room when there
-  is nothing to scroll, render the track always and only the thumb by
-  `bar.visible`.
+- **Both axes:** it returns `{ vertical, horizontal }`, a bar for each; draw
+  the ones you need. Each has its own `visible`, `hovered`, `pressed`,
+  `trackProps` and `thumbProps`. Where both show, each `visible` says whether to
+  leave the corner to the other.
+- **Where they go:** beside the view, not in it, where they would scroll
+  away. Position them absolutely to draw over the content, as the built-in
+  indicators do, or give them their own room in a row. To keep that room when
+  there is nothing to scroll, render the track always and only the thumb by
+  `visible`.
 - **The thumb** is the track's first child, at its start. The hook sets its
   length and its `transform` without rendering, so leave those out of its style.
-- **`axis`** is `'vertical'` by default; a second call with `'horizontal'` gives
-  the other bar. **`minThumbLength`** is 16 by default.
+- **`visible`** is true where the view's style scrolls that axis and its
+  content is longer than it. **`minThumbLength`** is 16 by default.
+- **The nodes** are yours to reach too: `trackProps.ref.current`, to animate a
+  track say.
 - **`visible`, `hovered` and `pressed`** render when they change, and scrolling
   does not.
 - **Cost:** none while nothing changes. A `ResizeObserver` tells it when the
-  scroll view, what it scrolls or the track changes size, and its `scroll`
-  events tell it of scrolling.
+  view, its children or a track change size, and its `scroll` events tell it
+  of scrolling.

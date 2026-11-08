@@ -418,7 +418,7 @@ TEST_SUITE("native animations")
         style.position = Position::Absolute;
         style.inset.left = Length::points(20);
         style.inset.top = Length::points(20);
-        style.overflow = Overflow::Hidden;
+        style.overflowX = style.overflowY = Overflow::Hidden;
         style.borderRadius = { 10, 10, 10, 10 };
         style.transform.order[0] = AnimatedProperty::TranslateX;
         style.transform.order[1] = AnimatedProperty::Scale;

@@ -343,8 +343,9 @@ TEST_SUITE("Native DevTools inspector")
     {
         Fixture f;
         auto& surface = f.host.surface();
-        const auto scroll = surface.createNode(ui::NodeType::Scroll);
+        const auto scroll = surface.createNode(ui::NodeType::View);
         ui::Style box;
+        box.overflowX = box.overflowY = ui::Overflow::Scroll;
         box.width = ui::Length::points(30);
         box.height = ui::Length::points(30);
         surface.setStyle(scroll, box);

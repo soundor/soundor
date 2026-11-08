@@ -157,6 +157,8 @@ export interface Style {
   columnGap?: number;
 
   overflow?: 'visible' | 'hidden' | 'scroll';
+  overflowX?: 'visible' | 'hidden' | 'scroll';
+  overflowY?: 'visible' | 'hidden' | 'scroll';
   /** 'box-none': not the node, but its children; 'box-only': the reverse. */
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
   /** The pointer's shape over the node; 'auto' takes the parent's. */
@@ -214,14 +216,7 @@ export interface LayoutRect {
   readonly height: number;
 }
 
-export type NodeType =
-  | 'view'
-  | 'text'
-  | 'image'
-  | 'scroll'
-  | 'input'
-  | 'canvas'
-  | 'svg';
+export type NodeType = 'view' | 'text' | 'image' | 'input' | 'canvas' | 'svg';
 
 export type AccessibilityRole =
   | 'none'

@@ -39,10 +39,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     enum class NodeType : std::uint8_t
     {
-        View,
+        View, // a box; its children scroll when its style says (Style::scrolls())
         Text,
         Image,  // a bundled image, by asset id
-        Scroll, // a view whose content scrolls
         Input,  // an editable line of text
         Canvas, // pixels drawn by code (a 2D context)
         Svg,    // one layout leaf containing a retained vector scene
@@ -117,6 +116,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     class Surface;
     class Renderer;
 
+    // How scrollTo() and scrollIntoView() move: at once, or over a moment.
+    enum class ScrollBehavior : std::uint8_t
+    {
+        Instant,
+        Smooth,
+    };
+
+    // Where scrollIntoView() puts the node in a view: as CSS's `start`,
+    // `center`, `end`, and `nearest` (no more than it takes to show it).
+    enum class ScrollAlignment : std::uint8_t
+    {
+        Start,
+        Center,
+        End,
+        Nearest,
+    };
+
+    // How long a smooth scroll takes, eased in and out.
+    inline constexpr double smoothScrollMilliseconds = 300;
+
     // A node of a Surface's tree. Read-only outside the Surface.
     // A scroll view's scrollbar: at rest, near a mouse, and the track under it.
     namespace scrollbar
@@ -138,6 +157,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] NodeId id() const noexcept { return nodeId; }
         [[nodiscard]] NodeType type() const noexcept { return nodeType; }
         [[nodiscard]] Node* parent() const noexcept { return parentNode; }
+        // A view whose style scrolls an axis: its children move by scrollOffset().
+        [[nodiscard]] bool scrolls() const noexcept { return nodeType == NodeType::View && nodeStyle.scrolls(); }
         [[nodiscard]] std::span<Node* const> children() const noexcept { return childNodes; }
         // The children bottom to top, as drawn: by zIndex, then tree order.
         // Hit testing goes through them top to bottom.
@@ -170,9 +191,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Input: shown while the text is empty.
         [[nodiscard]] const std::string& placeholder() const noexcept { return placeholderText; }
         [[nodiscard]] const Selection& selection() const noexcept { return textSelection; }
-        // Scroll: how far the content is scrolled; Input: how far its text is.
+        // A view that scrolls: how far its children are; Input: how far its text is.
         [[nodiscard]] Point scrollOffset() const noexcept { return scroll; }
-        // Scroll: whether it draws its own indicators, and how a mouse has them:
+        // A view that scrolls: whether it draws its own indicators, and how a mouse has them:
         // near (the bar grown over its track), and pressed.
         [[nodiscard]] bool scrollIndicators() const noexcept { return drawsScrollIndicators; }
         [[nodiscard]] bool scrollbarGrown(bool vertical) const noexcept
@@ -366,9 +387,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Reads `id` as a child of `parent` (noNode: of its own parent), as for
         // content a portal shows elsewhere than where it belongs.
         void setAccessibilityParent(NodeId id, NodeId parent);
-        // Scroll nodes: clamped to the content.
-        void scrollTo(NodeId id, Point offset);
-        // Scroll nodes: the size of what they scroll.
+        // Views that scroll (Node::scrolls()), along the axes they scroll,
+        // clamped to the content; nothing for any other node. Smooth: there in
+        // smoothScrollMilliseconds, frame by frame (deliverScrolls()), unless
+        // reduced motion is asked for; a wheel, a scrollbar, or scrolling the
+        // node again stops it where it is.
+        void scrollTo(NodeId id, Point offset, ScrollBehavior behavior = ScrollBehavior::Instant);
+        // Scrolls each view around `id` that scrolls, innermost first, to
+        // bring it into view as Element.scrollIntoView() does: `block` on the
+        // vertical axis, `inline` on the horizontal. By layout boxes: a
+        // transform does not move what it scrolls to.
+        void scrollIntoView(NodeId id, ScrollAlignment block, ScrollAlignment inlineAxis, ScrollBehavior behavior);
+        // The size of the children's extent, plus the padding at the far ends.
         [[nodiscard]] Size contentSize(NodeId id);
         // The size of its content box: how much of contentSize() shows.
         [[nodiscard]] Size clientSize(NodeId id);
@@ -522,9 +552,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // (no pointermove). The runtime calls it every tick.
         void refreshHover();
 
-        // Fires `scroll` at each scroll view scrollTo() moved since the last call,
-        // once, as a browser does on its next frame: code that scrolls is not
-        // re-entered by its own listeners. The runtime calls it every tick.
+        // Moves smooth scrolls on to where they are by now, then fires `scroll`
+        // at each view scrollTo() moved since the last call, once, as a
+        // browser does on its next frame: code that scrolls is not re-entered
+        // by its own listeners. The runtime calls it every tick.
         void deliverScrolls();
 
         // A node holding a pointer's input for the press in progress: hidden by
@@ -633,8 +664,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void pressScrollbar(const PointerInput& input, NodeId id, bool vertical);
         bool routeScrollbarDrag(const PointerInput& input);
         void scrollAlong(Node& node, bool vertical, float position);
+        // Within its content, on the axes it scrolls (0 on the others).
+        [[nodiscard]] Point clampScroll(const Node& node, Point offset);
         // Clamped to its content; whether it moved. Whoever moves it says so.
-        bool moveScroll(Node& node, Point offset);
+        // Ends a smooth scroll of it unless `smooth` is that scroll moving it.
+        bool moveScroll(Node& node, Point offset, bool smooth = false);
+        // What its style no longer scrolls goes back to 0, its scrollbar too.
+        void scrollingChanged(Node& node);
         void endScrollbarDrag();
         void collectFocusable(Node& node, std::vector<NodeId>& out);
         bool moveFocus(bool backwards);
@@ -678,6 +714,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         std::vector<NodeId> grownScrollbars;
         // Moved by scrollTo(), and not yet told.
         std::vector<NodeId> pendingScrolls;
+        struct SmoothScroll
+        {
+            NodeId node = noNode;
+            Point from;
+            Point to;
+            double started = 0;
+        };
+        std::vector<SmoothScroll> smoothScrolls;
         NodeId focusedNode = noNode;
         // Whether the focused node shows its focus, and whether the last
         // input was the keyboard's (or assistive technology's) rather than a

@@ -219,8 +219,23 @@ declare module 'soundor:ui' {
     rowGap?: number;
     columnGap?: number;
 
-    /** 'hidden' clips the children to the box; 'visible' by default. */
+    /**
+     * What happens to children that reach past the box, on both axes:
+     * 'visible' (the default) shows them, 'hidden' clips them to the box,
+     * and 'scroll' clips them and scrolls them (a wheel, a scrollbar,
+     * `scrollTo()`). Only a view's children scroll: on other nodes 'scroll'
+     * clips, as 'hidden'.
+     */
     overflow?: 'visible' | 'hidden' | 'scroll';
+    /**
+     * `overflow` along one axis, over `overflow` whatever the order. A box
+     * clips both axes or neither: 'visible' next to a clipping axis clips
+     * too, as 'hidden'. `{ overflowX: 'scroll' }` is a strip that scrolls
+     * sideways.
+     */
+    overflowX?: 'visible' | 'hidden' | 'scroll';
+    /** `overflow` along the vertical axis: see `overflowX`. */
+    overflowY?: 'visible' | 'hidden' | 'scroll';
     /** 'box-none': not the node, but its children; 'box-only': the reverse. */
     pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
     /**
@@ -539,6 +554,23 @@ declare module 'soundor:ui' {
     readonly children: readonly SvgShape[];
   }
 
+  /** 'smooth' scrolls over a moment; 'auto' and 'instant', at once. */
+  export type ScrollBehavior = 'auto' | 'instant' | 'smooth';
+  export interface ScrollToOptions {
+    top?: number;
+    left?: number;
+    /** 'auto' by default: at once. */
+    behavior?: ScrollBehavior;
+  }
+  /** Where in a view: its start, its middle, its end, or no further than it takes. */
+  export type ScrollLogicalPosition = 'start' | 'center' | 'end' | 'nearest';
+  export interface ScrollIntoViewOptions {
+    /** Along the vertical axis; 'start' by default. */
+    block?: ScrollLogicalPosition;
+    /** Along the horizontal axis; 'nearest' by default. */
+    inline?: ScrollLogicalPosition;
+    behavior?: ScrollBehavior;
+  }
   /**
    * A node of the view: a flexbox box ('view'), text, an image, a scroll view,
    * a text input, a canvas or an SVG viewport. Events capture and bubble along the tree as in
@@ -546,14 +578,7 @@ declare module 'soundor:ui' {
    */
   export class UiNode extends EventTarget {
     private constructor();
-    readonly type:
-      | 'view'
-      | 'text'
-      | 'image'
-      | 'scroll'
-      | 'input'
-      | 'canvas'
-      | 'svg';
+    readonly type: 'view' | 'text' | 'image' | 'input' | 'canvas' | 'svg';
     readonly parent: UiNode | null;
     readonly children: readonly UiNode[];
     readonly firstChild: UiNode | null;
@@ -659,7 +684,10 @@ declare module 'soundor:ui' {
     ): WebGL2RenderingContext | null;
     getContext(type: string, options?: unknown): null;
 
-    /** Scroll views: how far the content is scrolled, and its size. */
+    /**
+     * How far a view that scrolls has its children scrolled (0 on an axis it
+     * does not scroll), and their extent. Setting them scrolls at once.
+     */
     scrollTop: number;
     scrollLeft: number;
     readonly scrollWidth: number;
@@ -668,14 +696,28 @@ declare module 'soundor:ui' {
     readonly clientWidth: number;
     readonly clientHeight: number;
     /**
-     * Whether a scroll view draws its own indicators; true by default. Without
-     * them it scrolls just the same, and nothing is in the way at its edges.
+     * Whether a view that scrolls draws its own indicators; true by default.
+     * Without them it scrolls just the same, and nothing is in the way at its
+     * edges.
      */
     scrollIndicators: boolean;
-    scrollTo(options: { top?: number; left?: number }): void;
+    /**
+     * Scrolls along the axes its style scrolls, clamped to the content;
+     * nothing on a node that does not scroll. `behavior: 'smooth'` takes a
+     * moment (unless reduced motion is asked for), and a wheel, a scrollbar
+     * or scrolling it again stops it where it is.
+     */
+    scrollTo(options: ScrollToOptions): void;
     scrollTo(left: number, top: number): void;
-    scrollBy(options: { top?: number; left?: number }): void;
+    /** As `scrollTo()`, by an amount from where it is. */
+    scrollBy(options: ScrollToOptions): void;
     scrollBy(left: number, top: number): void;
+    /**
+     * Scrolls each view around it that scrolls to show it, innermost first:
+     * `true` (the default) puts it at their start, `false` at their end.
+     * By layout boxes: a transform does not move what it scrolls to.
+     */
+    scrollIntoView(arg?: boolean | ScrollIntoViewOptions): void;
     addEventListener<K extends keyof UiEventMap>(
       type: K,
       listener: (this: UiNode, event: UiEventMap[K]) => void,
@@ -712,8 +754,6 @@ declare module 'soundor:ui' {
   export function createText(text?: string, style?: Style): UiNode;
   /** An image showing a bundled asset (`import logo from './logo.png'`). */
   export function createImage(source?: Asset, style?: Style): UiNode;
-  /** A view whose children scroll (by wheel, or scrollTo()). */
-  export function createScrollView(style?: Style): UiNode;
   /** A single-line text input; it is focusable and edits itself. */
   export function createTextInput(options?: {
     value?: string;

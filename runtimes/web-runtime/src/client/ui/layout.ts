@@ -22,6 +22,7 @@ import {
   type YogaNode,
 } from '@soundor/yoga-wasm';
 
+import { overflowOf } from './style';
 import type { Style } from './types';
 
 type StyleLength = number | string | undefined;
@@ -297,7 +298,14 @@ export function applyYogaStyle(
     Gutter.Column,
     style.columnGap ?? style.gap ?? 0,
   );
-  yoga.YGNodeStyleSetOverflow(node, OVERFLOW[style.overflow ?? 'visible']!);
+  // The one value Yoga has: 'scroll' when either axis scrolls.
+  const overflow = overflowOf(style);
+  yoga.YGNodeStyleSetOverflow(
+    node,
+    OVERFLOW[
+      overflow.scrolls ? 'scroll' : overflow.clips ? 'hidden' : 'visible'
+    ]!,
+  );
 }
 
 /** Applies a measure mode to a natural size. */

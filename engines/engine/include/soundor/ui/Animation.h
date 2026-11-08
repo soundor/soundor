@@ -235,6 +235,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Explicit setup/reporting query; excludes allocator and hash-node overhead.
         [[nodiscard]] std::size_t storageBytes() const noexcept;
         void setClock(Clock provided);
+        // The clock's time, never going back: what animations are sampled at.
+        [[nodiscard]] double time() { return now(); }
         void setReducedMotion(bool reduced);
         [[nodiscard]] bool reducedMotion() const noexcept { return reduceMotion; }
 

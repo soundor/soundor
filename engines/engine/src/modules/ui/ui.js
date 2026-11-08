@@ -79,8 +79,30 @@ function withProperty(style, key, value) {
   else next[key] = value;
   return next;
 }
+/** Whether a scroll `behavior` is smooth: 'auto' and 'instant' are not. */
+function scrollBehavior(value) {
+  if (value === undefined || value === 'auto' || value === 'instant')
+    return false;
+  if (value === 'smooth') return true;
+  throw new TypeError(
+    `The provided value '${String(value)}' is not a valid enum value of type ScrollBehavior.`,
+  );
+}
+
+const SCROLL_ALIGNMENTS = ['start', 'center', 'end', 'nearest'];
+
+/** A ScrollLogicalPosition's index, as the native side takes it. */
+function scrollAlignment(value) {
+  const index = SCROLL_ALIGNMENTS.indexOf(value);
+  if (index === -1)
+    throw new TypeError(
+      `The provided value '${String(value)}' is not a valid enum value of type ScrollLogicalPosition.`,
+    );
+  return index;
+}
+
 /** The native node types, by name. */
-const TYPES = ['view', 'text', 'image', 'scroll', 'input', 'canvas', 'svg'];
+const TYPES = ['view', 'text', 'image', 'input', 'canvas', 'svg'];
 
 /** The roles `accessibility.role` names. */
 const ROLES = new Set([
@@ -529,7 +551,7 @@ export class UiNode extends EventTarget {
     nodes.set(id, new WeakRef(this));
   }
 
-  /** 'view', 'text', 'image', 'scroll', 'input' or 'canvas'. */
+  /** 'view', 'text', 'image', 'input', 'canvas' or 'svg'. */
   get type() {
     return this.#type;
   }
@@ -827,27 +849,65 @@ export class UiNode extends EventTarget {
     native.setScrollIndicators(this.#id, this.#scrollIndicators);
   }
 
-  /** scrollTo({ top, left }) or scrollTo(left, top); clamped to the content. */
+  /**
+   * scrollTo({ top, left, behavior }) or scrollTo(left, top): along the axes
+   * its style scrolls, clamped to the content; nothing on a node that does
+   * not scroll, as in browsers.
+   */
   scrollTo(optionsOrLeft, top) {
-    this.#expect('scroll', 'scrollTo()');
     const current = native.scrollOffset(this.#id);
-    const target =
+    const options =
       typeof optionsOrLeft === 'object' && optionsOrLeft !== null
-        ? {
-            x: optionsOrLeft.left ?? current.x,
-            y: optionsOrLeft.top ?? current.y,
-          }
+        ? optionsOrLeft
+        : null;
+    const smooth = scrollBehavior(options?.behavior);
+    const target =
+      options !== null
+        ? { x: options.left ?? current.x, y: options.top ?? current.y }
         : { x: optionsOrLeft ?? current.x, y: top ?? current.y };
-    native.scrollTo(this.#id, Number(target.x) || 0, Number(target.y) || 0);
+    native.scrollTo(
+      this.#id,
+      Number(target.x) || 0,
+      Number(target.y) || 0,
+      smooth,
+    );
   }
 
+  /** scrollBy({ top, left, behavior }) or scrollBy(left, top): from where it is. */
   scrollBy(optionsOrLeft, top) {
     const current = native.scrollOffset(this.#id);
-    const delta =
+    const options =
       typeof optionsOrLeft === 'object' && optionsOrLeft !== null
-        ? { x: optionsOrLeft.left ?? 0, y: optionsOrLeft.top ?? 0 }
+        ? optionsOrLeft
+        : null;
+    const delta =
+      options !== null
+        ? { x: options.left ?? 0, y: options.top ?? 0 }
         : { x: optionsOrLeft ?? 0, y: top ?? 0 };
-    this.scrollTo(current.x + Number(delta.x), current.y + Number(delta.y));
+    this.scrollTo({
+      left: current.x + (Number(delta.x) || 0),
+      top: current.y + (Number(delta.y) || 0),
+      behavior: options?.behavior,
+    });
+  }
+
+  /**
+   * Scrolls the views around it that scroll to show it, as
+   * Element.scrollIntoView(): `true` (or nothing) puts it at their start,
+   * `false` at their end; or { block, inline, behavior }, the alignments
+   * 'start', 'center', 'end' or 'nearest' ('start' and 'nearest' unless set).
+   */
+  scrollIntoView(arg) {
+    const options =
+      typeof arg === 'object' && arg !== null
+        ? arg
+        : { block: arg === false ? 'end' : 'start' };
+    native.scrollIntoView(
+      this.#id,
+      scrollAlignment(options.block ?? 'start'),
+      scrollAlignment(options.inline ?? 'nearest'),
+      scrollBehavior(options.behavior),
+    );
   }
 
   #expect(type, what) {
@@ -1084,13 +1144,6 @@ export function createImage(source = '', style) {
 /** A new SVG layout leaf. Its vector shapes never create UI/Yoga nodes. */
 export function createSvg(style) {
   const node = create('svg');
-  if (style !== undefined) node.style = style;
-  return node;
-}
-
-/** A new, detached view whose children scroll (by wheel, or scrollTo()). */
-export function createScrollView(style) {
-  const node = create('scroll');
   if (style !== undefined) node.style = style;
   return node;
 }

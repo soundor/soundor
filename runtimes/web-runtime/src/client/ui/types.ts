@@ -157,6 +157,8 @@ export interface Style {
   columnGap?: number;
 
   overflow?: 'visible' | 'hidden' | 'scroll';
+  overflowX?: 'visible' | 'hidden' | 'scroll';
+  overflowY?: 'visible' | 'hidden' | 'scroll';
   /** 'box-none': not the node, but its children; 'box-only': the reverse. */
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
   cursor?: Cursor;
@@ -216,14 +218,21 @@ export interface LayoutRect {
   readonly height: number;
 }
 
-export type NodeType =
-  | 'view'
-  | 'text'
-  | 'image'
-  | 'scroll'
-  | 'input'
-  | 'canvas'
-  | 'svg';
+/** 'smooth' scrolls over a moment; 'auto' and 'instant', at once. */
+export type ScrollBehavior = 'auto' | 'instant' | 'smooth';
+export interface ScrollToOptions {
+  top?: number;
+  left?: number;
+  behavior?: ScrollBehavior;
+}
+export type ScrollLogicalPosition = 'start' | 'center' | 'end' | 'nearest';
+export interface ScrollIntoViewOptions {
+  block?: ScrollLogicalPosition;
+  inline?: ScrollLogicalPosition;
+  behavior?: ScrollBehavior;
+}
+
+export type NodeType = 'view' | 'text' | 'image' | 'input' | 'canvas' | 'svg';
 
 export type AccessibilityRole =
   | 'none'

@@ -95,7 +95,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 if (node.children().empty())
                     return;
                 std::optional<AncestorClip> inner = clip;
-                if (style.overflow != ui::Overflow::Visible || node.type() == ui::NodeType::Scroll)
+                if (style.clips())
                 {
                     const Box box { x + border.left, y + border.top, x + frame.width - border.right,
                                     y + frame.height - border.bottom };
@@ -109,7 +109,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 // Its border, outline and scroll indicators paint after its
                 // children: in a later layer when a canvas among them is
                 // promoted.
-                if (painted.size() != layers && (bordered || outlined || node.type() == ui::NodeType::Scroll))
+                if (painted.size() != layers && (bordered || outlined || node.scrolls()))
                     paintOwn();
             }
 

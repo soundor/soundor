@@ -253,7 +253,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 const auto& style = parent->presentedStyle();
                 if (style.display == Display::None)
                     return;
-                if (style.overflow == Overflow::Visible && parent->type() != NodeType::Scroll)
+                if (! style.clips())
                     continue;
                 setTransform(surface.visualTransform(parent->id()));
                 const auto frame = parent->frame();
@@ -360,14 +360,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     drawSvg(canvas, node, outer);
                     break;
                 case NodeType::View:
-                case NodeType::Scroll:
                     break;
             }
 
         if (! node.children().empty())
         {
             canvas.save();
-            if (style.overflow != Overflow::Visible || node.type() == NodeType::Scroll)
+            if (style.clips())
             {
                 const SkRect inner =
                     SkRect::MakeLTRB(border.left, border.top, frame.width - border.right, frame.height - border.bottom);
@@ -378,7 +377,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 drawNode(canvas, *child);
             canvas.restore();
         }
-        if (node.type() == NodeType::Scroll && node.scrollIndicators() && painting())
+        if (node.scrolls() && node.scrollIndicators() && painting())
             drawScrollIndicators(canvas, node);
 
         if (bordered && painting())
@@ -543,9 +542,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         };
         const auto thick = [&](bool vertical)
         { return node.scrollbarGrown(vertical) ? scrollbar::grownThickness : scrollbar::thickness; };
-        // Tracks first, for neither to draw over the other's bar.
-        const bool down = content.height > box.height + 0.5f && box.height > 0;
-        const bool across = content.width > box.width + 0.5f && box.width > 0;
+        // Tracks first, for neither to draw over the other's bar. An axis its
+        // style does not scroll has none, however far its content reaches.
+        const Style& style = node.style();
+        const bool down = style.scrollsY() && content.height > box.height + 0.5f && box.height > 0;
+        const bool across = style.scrollsX() && content.width > box.width + 0.5f && box.width > 0;
         if (down && node.scrollbarGrown(true))
             canvas.drawRect(SkRect::MakeXYWH(box.x + box.width - scrollbar::trackThickness, box.y,
                                              scrollbar::trackThickness, box.height),

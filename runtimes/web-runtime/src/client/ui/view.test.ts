@@ -12,6 +12,13 @@ afterEach(() => {
 
 const el = (node: UiNode) => UiNode.elementOf(node);
 
+/** A view whose style scrolls both ways: a scroll view. */
+function scrollView(view: UiView): UiNode {
+  const node = view.createNode('view');
+  node.style = { overflow: 'scroll' };
+  return node;
+}
+
 /**
  * A view whose hit test is a table from x to node: happy-dom has no layout.
  * Returns the nodes and a recorder of the events they see.
@@ -715,7 +722,7 @@ describe('focus', () => {
 describe('wheel', () => {
   it('scrolls the nearest scroll view, unless prevented', () => {
     setup();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     const content = view.createNode('view');
     view.root.appendChild(scroll);
     scroll.appendChild(content);
@@ -757,7 +764,7 @@ describe('wheel', () => {
 
   it('with Control is the browser’s zoom, a pinch too: plugin code sees it, nothing scrolls', () => {
     setup();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     const content = view.createNode('view');
     view.root.appendChild(scroll);
     scroll.appendChild(content);

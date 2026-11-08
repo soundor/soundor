@@ -41,6 +41,14 @@ const LEAVES = new Set([
   'textinput',
 ]);
 /** Soundor semantic ownership, including portals and the last visible modal. */
+/** A view whose style scrolls an axis: a scroll view, as in the runtimes. */
+function scrolls(node: TestNode): boolean {
+  const { overflow, overflowX, overflowY } = node.style;
+  return (
+    (overflowX ?? overflow) === 'scroll' || (overflowY ?? overflow) === 'scroll'
+  );
+}
+
 export function semanticSnapshot(roots: readonly TestNode[]): {
   tree: SemanticNode[];
   hidden: Set<TestNode>;
@@ -127,8 +135,7 @@ export function semanticSnapshot(roots: readonly TestNode[]): {
                 canvas: 'image',
                 svg: 'image',
                 input: 'textinput',
-                scroll: 'scrollview',
-                view: 'group',
+                view: scrolls(node) ? 'scrollview' : 'group',
               } as const
             )[node.type];
     const entry: SemanticNode = {

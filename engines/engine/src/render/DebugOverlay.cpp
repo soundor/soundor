@@ -34,8 +34,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             for (const ui::Node* item = surface.find(id); item; item = item->parent())
             {
                 const auto& style = item->presentedStyle();
-                if (item->id() != id && style.overflow == ui::Overflow::Visible && item->type() != ui::NodeType::Scroll
-                    && style.display != ui::Display::None)
+                if (item->id() != id && ! style.clips() && style.display != ui::Display::None)
                     continue;
                 const auto box = item->frame();
                 const auto border = style.borderWidth;
