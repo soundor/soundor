@@ -11,7 +11,6 @@ import {
   Portal,
   Image,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -168,11 +167,11 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     flushSync(() => reactRoot.unmount());
   });
 
-  it('renders Image and ScrollView primitives', () => {
+  it('renders an image directly in a view that scrolls by style', () => {
     const reactRoot = render(
       h(
-        ScrollView,
-        { style: { height: 100 }, contentContainerStyle: { padding: 4 } },
+        View,
+        { style: { height: 100, overflowY: 'scroll', padding: 4 } },
         h(Image, {
           source: '0123456789abcdef.png' as never,
           style: { width: 32 },
@@ -181,9 +180,8 @@ describe('@soundor/react on the DOM soundor:ui', () => {
     );
     const scroll = root.children[0]!;
     expect(scroll.type).toBe('view');
-    expect(scroll.style.overflow).toBe('scroll');
-    const content = scroll.children[0]!;
-    const image = content.children[0]!;
+    expect(scroll.style.overflowY).toBe('scroll');
+    const image = scroll.children[0]!;
     expect(image.type).toBe('image');
     expect((element(image) as HTMLImageElement).src).toContain(
       'soundor-assets/0123456789abcdef.png',
@@ -360,8 +358,8 @@ describe('@soundor/react on the DOM soundor:ui', () => {
           View,
           { style: { overflow: 'hidden', height: 50 } },
           h(
-            ScrollView,
-            null,
+            View,
+            { style: { overflow: 'scroll' } },
             h(Pressable, {
               ref: setTrigger,
               onPress: () => setBox(trigger!.getBoundingClientRect()),
@@ -382,8 +380,7 @@ describe('@soundor/react on the DOM soundor:ui', () => {
         );
       }
       const reactRoot = render(h(Picker));
-      const pressable =
-        root.children[0]!.children[0]!.children[0]!.children[0]!;
+      const pressable = root.children[0]!.children[0]!.children[0]!;
       layout(new Map([[element(pressable), new DOMRect(30, 40, 100, 20)]]));
       at(pressable);
       const pointer = (type: string, buttons: number) =>

@@ -10,7 +10,6 @@ import {
   Modal,
   Portal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -212,7 +211,7 @@ function PressDemo() {
   );
 }
 
-// ── Dropdown out of a clipped ScrollView ─────────────────────────────────────
+// ── Dropdown out of a scrolling view ─────────────────────────────────────────
 
 function Dropdown() {
   const [anchor, setAnchor] = useState<UiNode | null>(null);
@@ -270,19 +269,18 @@ function CustomScrollbarDemo() {
   return (
     <Card title="Custom scrollbar">
       <View style={styles.customList}>
-        <ScrollView
+        <View
           ref={list}
           debugId="custom-list"
           scrollIndicators={false}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ gap: 6, padding: 8 }}
+          style={{ flex: 1, overflowY: 'scroll', gap: 6, padding: 8 }}
         >
           {Array.from({ length: 24 }, (_, n) => (
             <View key={n} style={styles.customRow}>
               <Text style={styles.caption}>Preset {n + 1}</Text>
             </View>
           ))}
-        </ScrollView>
+        </View>
         {/* Beside the list, with room of its own. */}
         <View
           {...bar.trackProps}
@@ -303,7 +301,6 @@ function CustomScrollbarDemo() {
         </View>
       </View>
       <View style={styles.customStrip}>
-        {/* Not a ScrollView: any view scrolls the way its style says. */}
         <View
           ref={strip}
           debugId="custom-strip"
@@ -373,26 +370,28 @@ function BothAxesDemo() {
       <View style={styles.bothAxes}>
         <View style={{ flex: 1, gap: 6 }}>
           <Text style={styles.caption}>Default</Text>
-          <ScrollView
+          <View
             debugId="both-default"
-            style={styles.bothBox}
-            contentContainerStyle={gridContainer}
+            style={[styles.bothBox, { overflow: 'scroll' }]}
           >
-            <GridCells />
-          </ScrollView>
+            <View style={gridContainer}>
+              <GridCells />
+            </View>
+          </View>
         </View>
         <View style={{ flex: 1, gap: 6 }}>
           <Text style={styles.caption}>Custom</Text>
           <View style={styles.bothBox}>
-            <ScrollView
+            <View
               ref={box}
               debugId="both-custom"
               scrollIndicators={false}
-              style={{ flex: 1 }}
-              contentContainerStyle={gridContainer}
+              style={{ flex: 1, overflow: 'scroll' }}
             >
-              <GridCells />
-            </ScrollView>
+              <View style={gridContainer}>
+                <GridCells />
+              </View>
+            </View>
             {/* Each stops short of the corner, for the two not to cross. */}
             {down.visible && (
               <View
@@ -494,10 +493,9 @@ function AnimatedScrollDemo() {
 
 function ScrollDemo() {
   return (
-    <Card title="Dropdown out of a clipped ScrollView">
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={{ gap: 8, padding: 8 }}
+    <Card title="Dropdown out of a scrolling view">
+      <View
+        style={[styles.scroll, { overflowY: 'scroll', gap: 8, padding: 8 }]}
       >
         {[1, 2, 3, 4, 5, 6].map((n) => (
           <View key={n} style={styles.scrollRow}>
@@ -505,7 +503,7 @@ function ScrollDemo() {
             <Dropdown />
           </View>
         ))}
-      </ScrollView>
+      </View>
     </Card>
   );
 }
@@ -898,10 +896,9 @@ function SvgImageDemo() {
 
 export function App() {
   return (
-    <ScrollView
+    <View
       debugId="primitives"
-      style={styles.root}
-      contentContainerStyle={styles.content}
+      style={[styles.root, styles.content, { overflowY: 'scroll' }]}
     >
       <Text style={styles.title}>Soundor UI primitives</Text>
       <View style={styles.grid}>
@@ -926,7 +923,7 @@ export function App() {
         <CanvasDemo />
         <WebGLDemo />
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

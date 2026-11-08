@@ -1,20 +1,25 @@
-import { Pressable, ScrollView, Text, View } from '@soundor/react';
+import { Pressable, Text, View } from '@soundor/react';
 import { useRef, useState } from 'react';
 import type { UiNode } from 'soundor:ui';
 
 const PRESETS = Array.from({ length: 24 }, (_, index) => `Preset ${index + 1}`);
 
-// A ScrollView scrolls by wheel or trackpad, or from code with scrollTo().
+// A view with overflowY: 'scroll' scrolls by wheel, trackpad or scrollTo().
 export default function PresetList() {
   const list = useRef<UiNode>(null);
   const [chosen, setChosen] = useState(PRESETS[0]);
 
   return (
     <View style={{ width: 260, gap: 8 }}>
-      <ScrollView
+      <View
         ref={list}
-        style={{ height: 150, borderRadius: 8, backgroundColor: '#24262c' }}
-        contentContainerStyle={{ padding: 4 }}
+        style={{
+          height: 150,
+          borderRadius: 8,
+          backgroundColor: '#24262c',
+          overflowY: 'scroll',
+          padding: 4,
+        }}
       >
         {PRESETS.map((preset) => (
           <Pressable
@@ -34,7 +39,7 @@ export default function PresetList() {
             <Text style={{ color: '#e6e7ea' }}>{preset}</Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
       <Pressable
         onPress={() => list.current?.scrollTo({ top: 0 })}
         style={{

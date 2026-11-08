@@ -7,7 +7,7 @@ description: A scrollbar of your own, drawn however you like.
 thumb shows what is in view and drags, and a press on its track jumps there.
 They are ordinary nodes, so they look like whatever you draw, wherever you put
 them, in every runtime. They scroll any view whose style scrolls: a
-`ScrollView`, or a `View` or `Animated.View` with `overflow: 'scroll'`.
+`View` or `Animated.View` with `overflow: 'scroll'` (or `overflowX`/`overflowY`).
 
 ```tsx
 const list = useRef<UiNode>(null);

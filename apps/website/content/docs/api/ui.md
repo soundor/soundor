@@ -55,7 +55,7 @@ A `UiNode` is an `EventTarget` with a DOM-like tree (`appendChild`,
   ([Overflow](/docs/components/style#overflow)): `scrollTop`, `scrollLeft`,
   `scrollWidth`, `scrollHeight`, `scrollIndicators`, `scrollTo()` and
   `scrollBy()` with `behavior: 'smooth'`, and `scrollIntoView()` on any node
-  inside it ([Scrolling from code](/docs/components/scroll-view#scrolling-from-code));
+  inside it ([Scrolling from code](/docs/components/view#scrolling-from-code));
 - per kind: `text`; `value`, `placeholder` and the selection; `source`;
   `width`, `height` and `getContext()`.
 

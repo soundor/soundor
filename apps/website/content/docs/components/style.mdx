@@ -54,9 +54,8 @@ sizes; see
 | `'scroll'`            | yes   | yes: wheel, scrollbar, `scrollTo()`, with `scroll` events |
 
 Any view scrolls with `'scroll'`, an [`Animated.View`](/docs/components/animated-view)
-too: [`ScrollView`](/docs/components/scroll-view) is a view with that style and
-its children in a box of their own. It is the CSS meaning, not React Native's,
-where `'scroll'` only clips.
+too ([Scrolling](/docs/components/view#scrolling)). It is the CSS meaning,
+not React Native's, where `'scroll'` only clips.
 
 ```tsx
 <Animated.View
@@ -84,7 +83,7 @@ where `'scroll'` only clips.
   scrolls, unless its `scrollIndicators` prop is `false`
   ([`useScrollbar`](/docs/hooks/use-scrollbar) draws your own).
 - **From code:** the node's `scrollTo()`, `scrollBy()` and `scrollIntoView()`,
-  smooth with `behavior: 'smooth'` ([ScrollView](/docs/components/scroll-view#scrolling-from-code)).
+  smooth with `behavior: 'smooth'` ([Scrolling from code](/docs/components/view#scrolling-from-code)).
 
 ## Text
 

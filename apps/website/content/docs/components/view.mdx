@@ -17,6 +17,59 @@ default, as in React Native.
   contains is, unless it is given a role or `accessible`
   ([Accessibility](/docs/components/accessibility)).
 
+## Scrolling
+
+Set `overflowY: 'scroll'` on a view to scroll its children vertically,
+`overflowX: 'scroll'` for horizontal scrolling, or `overflow: 'scroll'`
+for both. It clips its content and scrolls by wheel or trackpad, by its
+scrollbar, or from code. `Animated.View` scrolls with the same styles.
+
+<Snippet name="scrolling" height={230} />
+
+- **Size:** give the scrolling view a height or a `flex` that gives it one.
+  Style its children directly; when the content needs a box of its own,
+  put it in another `View` inside.
+- **Axes:** `overflowX` and `overflowY` win over `overflow`, whatever the
+  order. Set an axis to `'hidden'` to clip without scrolling it.
+  See [Overflow](/docs/components/style#overflow).
+- **`onScroll`** fires as it scrolls, by any means; read the node's `scrollTop`
+  and `scrollLeft`. Scrolled from code, it fires once on the next frame,
+  rather than during the call.
+- **Accessibility:** a scrolling view is not an element itself; what it
+  contains is. Given a label or `accessible`, it is exposed as a scroll view
+  unless given another role.
+- **Indicators** are drawn over the content, taking no space. A mouse near
+  the edge shows a track under a grown bar: the bar drags, and a press on the
+  track jumps there. That 12 pixel strip takes the mouse from what is under
+  it, so leave room with padding if something important is at that edge.
+- **`scrollIndicators={false}`** leaves the indicators out. It scrolls the
+  same; for a scrollbar of your own, see
+  [`useScrollbar`](/docs/hooks/use-scrollbar).
+
+### Scrolling from code
+
+The node, from `ref`, scrolls as an element does on the Web:
+
+```tsx
+list.current?.scrollTo({ top: 0, behavior: 'smooth' });
+list.current?.scrollBy({ top: 100 });
+row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+```
+
+- **`scrollTo()` and `scrollBy()`** take `{ top, left, behavior }`, or
+  `(left, top)`. They move the axes the style scrolls, clamped to the content,
+  and nothing on a node that does not scroll.
+- **`behavior: 'smooth'`** takes 300 ms, eased in and out, the same in both
+  runtimes, a `scroll` event each frame. A wheel, a scrollbar, or scrolling the
+  node again stops it where it is. With reduced motion asked for, it is there at
+  once. `'auto'` (the default) and `'instant'` jump.
+- **`scrollIntoView()`** scrolls every view around the node that scrolls,
+  innermost first, to show it: `block` vertically and `inline` horizontally,
+  each `'start'`, `'center'`, `'end'` or `'nearest'` (no more than it takes).
+  It defaults to `block: 'start'`, `inline: 'nearest'`; `false` puts it at the
+  end. It goes by layout boxes, so a transform does not change where it scrolls
+  to.
+
 ## Props
 
 <auto-type-table

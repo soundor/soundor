@@ -4,7 +4,6 @@ import {
   Modal,
   Portal,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View,
@@ -81,7 +80,7 @@ describe('accessibility props', () => {
         <Text accessibilityRole="header">Title</Text>
         <Image source={asset} accessibilityLabel="Logo" />
         <TextInput accessibilityLabel="Name" />
-        <ScrollView accessible={false} />
+        <View style={{ overflow: 'scroll' }} accessible={false} />
       </View>,
     );
     expect(child(0).children.map((node) => node.accessibility)).toEqual([

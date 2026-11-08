@@ -1,11 +1,4 @@
-import {
-  createElement,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { createElement, useContext, type ReactNode, type Ref } from 'react';
 import {
   type FocusEvent,
   type InputEvent,
@@ -209,41 +202,6 @@ export interface CanvasProps
 /** A canvas code draws on, sized by its drawing buffer unless styled. */
 export function Canvas(props: CanvasProps) {
   return createElement(HostTypes.Canvas, useHostProps(props));
-}
-
-export interface ScrollViewProps extends ViewProps {
-  /** The style of the box inside that holds the children and scrolls. */
-  contentContainerStyle?: StyleProp;
-}
-
-/**
- * Always, over its style's `overflow`; both ways unless the style turns an
- * axis off (`overflowX: 'hidden'`), the axis winning over the shorthand.
- */
-const SCROLLS = { overflow: 'scroll' } as const;
-
-/**
- * A view whose content scrolls (wheel, scrollbar, or the node's
- * scrollTo()): a `View` with `overflow: 'scroll'`, its children in a box of
- * their own, `contentContainerStyle`. Any view, an `Animated.View` too,
- * scrolls the same with that style.
- */
-export function ScrollView({
-  contentContainerStyle,
-  children,
-  style,
-  ...props
-}: ScrollViewProps) {
-  const scope = useContext(ScopeContext);
-  return createElement(
-    HostTypes.View,
-    { ...props, style: [style, SCROLLS], [SCOPE_PROP]: scope },
-    createElement(
-      HostTypes.View,
-      { style: contentContainerStyle, [SCOPE_PROP]: scope },
-      children,
-    ),
-  );
 }
 
 export interface TextInputProps

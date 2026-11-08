@@ -13,7 +13,7 @@ import Modal from './modal';
 import Parameters from './parameters';
 import PointerLock from './pointer-lock';
 import Pressable from './pressable';
-import ScrollView from './scroll-view';
+import Scrolling from './scrolling';
 import Spring from './spring';
 import Svg from './svg';
 import Text from './text';
@@ -36,7 +36,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   parameters: Parameters,
   'pointer-lock': PointerLock,
   pressable: Pressable,
-  'scroll-view': ScrollView,
+  scrolling: Scrolling,
   spring: Spring,
   text: Text,
   'text-input': TextInput,
