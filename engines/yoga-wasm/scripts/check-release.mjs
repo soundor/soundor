@@ -38,7 +38,8 @@ export function builtProblem(build, fingerprint) {
 export function releaseProblem({ sameInputs, published, version, changeset }) {
   if (sameInputs || changeset) return null;
   // Versioned already, by a release pull request: the release publishes it.
-  if (published !== null && published !== version) return null;
+  // Before the first publication, 0.0.0 is the package's unreleased version.
+  if ((published ?? '0.0.0') !== version) return null;
   return `${PACKAGE}'s inputs changed, in the engine's Yoga or in the package, and nothing will publish them: add a changeset for it (pnpm changeset).`;
 }
 
