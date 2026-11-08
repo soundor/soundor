@@ -22,7 +22,7 @@ peers. The engine's public ABI and prebuilt checks are documented in
 ```mermaid
 flowchart TD
     package["Runtime tarball: factory, types and resources"] --> project["Installed plugin project"]
-    peers["Compatible config and core peers"] --> project
+    peers["Compatible config peer and core dependency"] --> project
     engine["Exact engine package, when used"] --> project
     project --> init["Initialize and generate"]
     init --> verify["Doctor, dev and production consumer checks"]
@@ -43,16 +43,15 @@ working directory. Exercise those paths from an installed tarball.
 
 ### Dependencies and peers
 
-Declare the config and core versions your runtime supports as peers, and test
-the range you claim. The reference runtimes use peers for these shared contracts
-and development dependencies for workspace builds. A third-party package should
-choose its range from tested compatibility, rather than copy a broad range
-without checking it.
+The reference runtimes declare `@soundor/config` as a peer and a development
+dependency for workspace builds. They declare `@soundor/core` as a regular
+dependency because their emitted code uses its utilities. Test the versions
+your runtime supports and choose ranges from that compatibility.
 
 If emitted code imports the runtime SDK, include it as a runtime dependency.
 If the bundler inlines its implementation, it can be a build dependency; its
-config/core peers still need to resolve in the consumer. Review the emitted
-entry point to make that choice.
+config peer and core dependency still need to resolve in the consumer. Review
+the emitted entry point to make that choice.
 
 Before 1.0, plugin projects pin exact Soundor versions. Document your runtime's
 tested versions and upgrade steps. Keep your package version and the engine ABI

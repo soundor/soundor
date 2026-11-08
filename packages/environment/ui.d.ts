@@ -572,9 +572,9 @@ declare module 'soundor:ui' {
     behavior?: ScrollBehavior;
   }
   /**
-   * A node of the view: a flexbox box ('view'), text, an image, a scroll view,
-   * a text input, a canvas or an SVG viewport. Events capture and bubble along the tree as in
-   * the DOM.
+   * A node of the view: a flexbox box ('view'), text, an image, a text input,
+   * a canvas or an SVG viewport. Views scroll when their style says so.
+   * Events capture and bubble along the tree as in the DOM.
    */
   export class UiNode extends EventTarget {
     private constructor();

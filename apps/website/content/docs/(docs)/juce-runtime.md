@@ -504,13 +504,14 @@ juceRuntime({ engine: { mode: 'source' } }); // compile the installed engine's s
 
 `soundor dev` (Debug) links the debug engine: Hermes with its compiler, for
 reloading the UI's source, and DevTools. `soundor build` (Release) links the
-release engine: bytecode only, no DevTools. A prebuilt that is missing, for
-another platform or engine version, or fails its checksum stops the configure
-with the reason. Prebuilt mode compares
-build-input fingerprints: local engine changes and unpublished versions build
-from source; matching releases use prebuilts, including in the workspace.
-An explicitly supplied CI artifact must match the checkout. The engine never
-includes JUCE.
+release engine: bytecode only, no DevTools. `soundor build juce --debug` also
+links the debug engine, with an embedded UI for tests.
+
+Prebuilt mode compares build-input fingerprints: local engine changes,
+unpublished versions and unsupported prebuilt targets build from source;
+matching releases use prebuilts, including in the workspace. Download or
+checksum failures stop the configure with the reason. An explicitly supplied
+CI artifact must match the checkout. The engine never includes JUCE.
 
 The engine version owns the inline C++ ABI namespace. Each final Apple plugin
 format compiles a small accessibility class-registration shim with a distinct

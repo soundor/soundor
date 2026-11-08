@@ -9,7 +9,8 @@ The independently versioned C++ engine owns the native UI runtime, its public
 headers, embedded resources and dependency recipes. JUCE integration lives in
 `@soundor/juce-runtime`; JUCE itself is not included here.
 
-The engine owns the Hermes module-lowering tool, re-exported by `@soundor/core`.
+The engine exports its Hermes module-lowering tool from
+`@soundor/engine/native-module`.
 Engine is outside the fixed Changesets group and does not depend on core.
 Ordinary core releases therefore do not force an engine release. The ordinary
 package build compiles this small JavaScript tool only, never native libraries.
@@ -512,7 +513,8 @@ root.appendChild(knob);
 root.appendChild(createText('Gain', { fontSize: 13 }));
 ```
 
-- **Nodes:** `UiNode`s are `'view'` boxes or `'text'` runs. They are
+- **Nodes:** `UiNode`s are views, text runs, images, text inputs, canvases or
+  SVG viewports. A view scrolls when its style says so. They are
   `EventTarget`s with `appendChild`, `insertBefore`, `removeChild`, `style`,
   `layout` (box relative to the parent) and `getBoundingClientRect()`. A
   detached node that nothing references is released, natively too, when it is
@@ -1018,14 +1020,14 @@ generated JUCE editor does this from its peer; another framework (iPlug2)
 would pass its own view the same way. Call `tick(host)` after every
 `RuntimeHost::tick()`.
 
-| Platform | Backend                             | State                                                      |
-| -------- | ----------------------------------- | ---------------------------------------------------------- |
-| Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                   |
-| Windows  | AccessKit (UI Automation)           | built in                                                   |
-| Linux    | AccessKit (AT-SPI)                  | x64; not arm64 (no prebuilt AccessKit)                     |
-| Android  | AccessKit                           | not attached: Soundor has no Android view to attach to yet |
-| macOS    | Soundor's Apple bridge              | not yet: `createPlatformAccessibility()` returns null      |
-| iOS      | Soundor's Apple bridge              | not yet                                                    |
+| Platform | Backend                             | State                                                                         |
+| -------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                                      |
+| Windows  | AccessKit (UI Automation)           | built in                                                                      |
+| Linux    | AccessKit (AT-SPI)                  | x64; not arm64 (no prebuilt AccessKit)                                        |
+| Android  | AccessKit                           | not attached: Soundor has no Android view to attach to yet                    |
+| macOS    | Soundor's Apple bridge              | implemented; attached by the JUCE editor                                      |
+| iOS      | Soundor's Apple bridge              | implemented; simulator build checked, no iOS runtime or device validation yet |
 
 The AccessKit adapter (`src/a11y/accesskit/`, the only code that includes
 `accesskit.h`) works like this:
@@ -1170,9 +1172,10 @@ several minutes; `SOUNDOR_HERMES_DIR` points at another build of it). It is
 always an optimized build, whatever the configuration: its headers do not
 depend on it. Its libraries are linked `PRIVATE`, and its API's
 `JSI_EXPORT`/`HERMES_EXPORT` are defined empty on both sides, so nothing of it
-is exported from a plugin. Sanitizer builds do not instrument it (as Skia and
-ANGLE). Cross-compiling needs a Hermes for the target with a host `hermesc`,
-which the build does not make yet (`SOUNDOR_HERMES_DIR`).
+is exported from a plugin. Sanitizer builds leave Hermes and ANGLE
+uninstrumented; Skia uses a separate ASan-instrumented build. Cross-compiling
+needs a Hermes for the target with a host `hermesc`, which the build does not
+make yet (`SOUNDOR_HERMES_DIR`).
 
 Yoga is compiled from its `yoga/` sources into `soundor_yoga` the same way.
 `SoundorYogaPatch.cmake` changes it after download (and after the hash
@@ -1573,8 +1576,8 @@ and MSVC on Windows, and runs the sanitizer preset on Linux.
 
 The engine's native libraries, compiled once per engine version and published
 as a GitHub release, so that a plugin build links them instead of compiling
-Hermes, Skia and ANGLE. A release has six archives: three targets, two
-variants each.
+Hermes, Skia and ANGLE. A release has eight archives: Debug and Release for
+Linux and macOS, and both configurations for each Windows C runtime.
 
 | Target            | Architectures    | Toolchain                                   |
 | ----------------- | ---------------- | ------------------------------------------- |

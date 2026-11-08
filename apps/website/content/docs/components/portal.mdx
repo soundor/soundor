@@ -24,8 +24,8 @@ A tooltip is the trigger's box in surface coordinates and a portal:
 - above the portals opened before it, so one opened from inside another (a
   dropdown in a dialog) is on top of it.
 
-There is one overlay layer, not one per kind of overlay, and it is not
-exported: `<Portal>` is the way in. A context menu is `onContextMenu`, the
+There is one overlay layer, shared by overlays. `soundor:ui` exports it as
+`overlayRoot`; React components render into it through `<Portal>`. A context menu is `onContextMenu`, the
 pointer's position and a portal:
 
 <Snippet name="context-menu" height={240} />

@@ -16,7 +16,7 @@ pnpm add @soundor/core
 
 ## Usage
 
-Most applications consume this package through `@soundor/cli`,
+Most applications consume this package through `soundor`,
 `@soundor/config`, or a runtime package. Use it directly when building Soundor
 tooling or runtime integrations.
 

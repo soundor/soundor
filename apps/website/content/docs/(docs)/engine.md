@@ -14,7 +14,7 @@ bindings, and links the engine as one CMake target, `Soundor::Engine`.
 |                 | `@soundor/engine`                                  | `@soundor/juce-runtime`                       |
 | --------------- | -------------------------------------------------- | --------------------------------------------- |
 | What            | the C++ runtime, its headers, dependency recipes   | the JUCE plugin, codegen, `soundor dev/build` |
-| Versioned       | independently (outside the Changesets fixed group) | with the other Soundor packages               |
+| Versioned       | independently (outside the Changesets fixed group) | independently (outside the fixed group)       |
 | Depends on JUCE | never                                              | yes (your JUCE checkout, never downloaded)    |
 | Ships binaries  | as a separate prebuilt release                     | no                                            |
 
@@ -85,20 +85,23 @@ Download and integrity errors also fail, without falling back to source.
 
 | Build           | Engine variant | Hermes                               | DevTools | Windows C runtime |
 | --------------- | -------------- | ------------------------------------ | -------- | ----------------- |
-| `soundor dev`   | debug          | with its compiler: reloads UI source | yes      | `/MDd`            |
-| `soundor build` | release        | bytecode only, compiled at build     | no       | `/MD`             |
+| `soundor dev`   | debug          | with its compiler: reloads UI source | yes      | `/MTd` (default)  |
+| `soundor build` | release        | bytecode only, compiled at build     | no       | `/MT` (default)   |
 
 The engine's own code is compiled for the variant; Skia, ANGLE and Hermes are
 optimized builds in both, built against the matching C runtime on Windows.
+With `windows.crt: 'MD'`, builds use `/MDd` and `/MD` instead.
+`soundor build juce --debug` uses the debug engine with DevTools and embeds its
+UI for tests ([debug builds](/docs/cli/build#debug-builds)).
 Release, RelWithDebInfo and MinSizeRel all link the release engine.
 
 ## Supported platforms
 
-| Target          | Architectures                 | Minimum                            |
-| --------------- | ----------------------------- | ---------------------------------- |
-| macOS universal | arm64 and x86_64, one archive | macOS 12                           |
-| Linux x64       | x86_64, glibc                 | glibc 2.39 (Ubuntu 24.04) or newer |
-| Windows x64     | x64, MSVC                     | the DLL C runtime                  |
+| Target          | Architectures                 | Minimum                                                  |
+| --------------- | ----------------------------- | -------------------------------------------------------- |
+| macOS universal | arm64 and x86_64, one archive | macOS 12                                                 |
+| Linux x64       | x86_64, glibc                 | glibc 2.39 (Ubuntu 24.04) or newer                       |
+| Windows x64     | x64, MSVC                     | Visual C++ Redistributable only with `windows.crt: 'MD'` |
 
 The archive is chosen by the platform the plugin **targets**
 (`CMAKE_OSX_ARCHITECTURES` included), not the machine it builds on. Anything
@@ -195,8 +198,9 @@ only changed documentation.
 ## Distribution and integrity
 
 The binaries are not in the npm package. They are the GitHub release
-`engine-prebuilts-v<version>-<commit>-r<revision>` of this repository: six
-archives (three targets, two variants), `build-info.json` and `SHA256SUMS`.
+`engine-prebuilts-v<version>-<commit>-r<revision>` of this repository: eight
+archives (Debug and Release for Linux and macOS, plus both configurations for
+each Windows C runtime), `build-info.json` and `SHA256SUMS`.
 The npm package carries `artifacts/manifest.json`, written when it is
 published, naming each archive's URL and SHA-256.
 

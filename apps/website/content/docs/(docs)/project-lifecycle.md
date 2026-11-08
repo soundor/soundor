@@ -82,7 +82,9 @@ UI source.
 ## Development and reload
 
 For JUCE, `dev` builds a debug plugin, uses the development UI files on disk,
-and launches the Standalone when configured. A successful UI rebuild destroys
+and opens the VST3 when the project installs the host, otherwise the Standalone
+when configured. [Development launch options](/docs/cli/dev#what-soundor-dev-juce-opens)
+can override that choice. A successful UI rebuild destroys
 the old `RuntimeHost` and creates a fresh one. Timers, subscriptions, gestures,
 and pending work from the old UI end. Processor parameters and persisted data
 can outlive the UI; local React state cannot.
@@ -96,7 +98,7 @@ Console output and uncaught errors reach the terminal, with native source maps
 used to map UI stack frames back to TypeScript.
 
 The CLI can also start a local DevTools session for a runtime that declares
-support. The native development Standalone offers tree inspection, picking,
+support. The native plugin editor offers tree inspection, picking,
 animation information, and measured rendering diagnostics. See
 [CLI development](/docs/cli/dev).
 
@@ -107,10 +109,10 @@ selected runtimes' build phases. JUCE uses a Release build with bytecode-only
 Hermes and no DevTools bridge; the browser runtime emits a static site with
 relative asset URLs.
 
-JUCE's default prebuilt mode verifies and links the engine libraries for the
-installed engine version. Source mode compiles them, caching heavy dependencies.
-A missing or incompatible prebuilt fails explicitly. It never silently changes
-to source mode. See [Soundor Engine](/docs/engine).
+JUCE's default prebuilt mode selects matching released engine libraries or
+compiles local sources for modified inputs or unpublished versions. Explicit
+source mode always compiles them, caching heavy dependencies. Download and
+integrity errors fail the build, as does a mismatched explicit CI artifact. See [Soundor Engine](/docs/engine).
 
 On macOS, final bundle modification and signing have a fixed order: Soundor
 writes the VST3 manifest before final signing and verification. Signing details

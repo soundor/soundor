@@ -24,7 +24,7 @@ import {
 } from './pressable';
 import type { StyleProp } from './style';
 
-/** Event props every component takes; `…Capture` runs in the capture phase. */
+/** Event props for node components; `…Capture` runs in the capture phase. */
 export interface EventProps {
   /** A button went down over the node (mouse, pen or touch). */
   onPointerDown?: (event: PointerEvent) => void;

@@ -17,9 +17,9 @@ for (const node of tree.nodes)
 
 `roots` are the content root and the overlay root (where portals and modals
 show). Each node of the snapshot has its reference (`ref`: an opaque `id` and
-the runtime `generation`), `type` (`View`, `Text`, `Image`, `Scroll`,
-`Input`, `Canvas`), `parent` and `children`, `debugId` and `text` when it has
-them, `bounds`, `visible`, `focused`, and a summary of its accessibility
+the runtime `generation`), `type` (`View`, `Text`, `Image`, `Input`, `Canvas`,
+`Svg`), `parent` and `children`, `debugId` and `text` when it has them,
+`bounds`, `visible`, `focused`, and a summary of its accessibility
 (`exposed`, `role`, `name`). A snapshot holds at most 5000 nodes, with
 `truncated` set beyond.
 
@@ -75,8 +75,8 @@ const loose = driver.getByText('orb', { exact: false }); // case-insensitive, pa
 | `getByRole(role, options)` | A node assistive technology sees with `role`, and `options.name` if given. |
 | `getByText(text, options)` | A text or input node showing `text`.                                       |
 
-`debugId` is a prop of every component (and `node.debugId` in
-`soundor:ui`), for tools only: neither shown nor read to assistive
+`debugId` is a prop of node components such as `View` and `Pressable`
+(and `node.debugId` in `soundor:ui`), for tools only: neither shown nor read to assistive
 technology, at most 128 characters. It is the stable way to find a node,
 whatever its text or language. Roles are those of
 [accessibility](/docs/components/accessibility); a name matches exactly,

@@ -531,7 +531,7 @@ the room the page has, so the two never disagree, and the viewport resizes
 with the page's next render. It is the viewport's size, never the browser
 window's (no `window.resizeTo()`). In `embed`, and for a fixed editor, the
 page owns the size: `editorSize().resizable` is false and requests return
-`false`. Each view on a page asks its own host only. The editor stays
+`null`. Each view on a page asks its own host only. The editor stays
 centred on the stage as it resizes, so a grip the UI draws in its corner
 moves half as far as the pointer, as the host's handle does.
 

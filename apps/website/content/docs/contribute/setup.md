@@ -17,8 +17,8 @@ private shared configs under `configs/`, application examples under `examples/`,
 and rendering benchmarks under `tools/benchmark/`. See
 [Packages](/docs/contribute/packages) for package ownership.
 
-`pnpm build` builds TypeScript packages and tools; it does not compile the native
-engine. Native checks build it separately. The first native configure compiles
+`pnpm build` builds workspace packages, excluding apps, examples and tools; it
+does not compile the native engine. Native checks build it separately. The first native configure compiles
 Skia, ANGLE, and Hermes and caches them in the user cache directory;
 `SOUNDOR_CACHE` overrides the location. Later builds reuse this cache.
 
@@ -46,7 +46,7 @@ JUCE adapter tests require an existing JUCE checkout. From
 cmake --workflow --preset juce
 ```
 
-From the repository root, build the source-engine JUCE test plugin with:
+From the repository root, build the JUCE test plugin with the automatically selected engine:
 
 ```sh
 pnpm --filter @soundor/juce-runtime test:plugin
@@ -69,9 +69,10 @@ pnpm --filter basic typecheck
 pnpm --filter basic build:web
 ```
 
-The native command needs JUCE and a display to launch the Standalone. Both
-examples use source engine mode because workspace engines have no published
-manifest. The examples are real applications; native CI uses the runtime's own
+The native command needs JUCE and a display to open the VST3 in the host.
+Both examples install the host and use automatic engine selection: matching
+releases use prebuilts; local engine changes or unpublished versions build
+from source. The examples are real applications; native CI uses the runtime's own
 test plugin fixtures, and builds only Orbit, for its end-to-end tests. See [Basic](/docs/examples/basic) and
 [Primitives](/docs/examples/primitives).
 

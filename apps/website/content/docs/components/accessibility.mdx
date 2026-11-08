@@ -1,10 +1,12 @@
 ---
 title: Accessibility
-description: The accessibility props every component takes, and how runtimes present them.
+description: Accessibility props for node components, and how runtimes present them.
 ---
 
-Every component takes React Native's accessibility props, so a custom-drawn
-control can tell screen readers what it is. Soundor owns these semantics:
+The [node components](/docs/components) take React Native's accessibility
+props, so a custom-drawn control can tell screen readers what it is. `Modal`
+exposes `accessibilityLabel` for its dialog; `Portal` and `FocusScope` have no
+accessibility props of their own. Soundor owns these semantics:
 each runtime presents the same ones to its platform (ARIA in the browser,
 the platform's accessibility natively).
 
@@ -137,7 +139,9 @@ runtime's platform backend then presents it:
 
 - **Coordinates:** an element's bounds are the view's logical pixels, like
   `getBoundingClientRect()`. Each backend converts them to its platform's
-  screen coordinates itself; there is no screen or window coordinate API.
+  screen coordinates itself. Pointer events also provide `screenX`/`screenY`
+  in editor logical pixels ([coordinates](/docs/components/events#coordinates));
+  those do not replace the backend's conversion of accessibility bounds.
 - **Cost:** nothing is computed until assistive technology is listening.
   After that, each frame sends only the elements that changed.
 

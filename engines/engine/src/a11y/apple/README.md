@@ -4,7 +4,8 @@ On macOS, VoiceOver perceives a Soundor view through virtual
 `NSAccessibilityElement`s that Soundor creates from its own semantic tree
 (`a11y::SurfaceSemantics`). There is one element per semantic element, not one
 `NSView` per node. The Skia surface stays a single custom-drawn view. AccessKit's
-Apple adapters and JUCE's `AccessibilityHandler` are not involved.
+Apple adapters are not used. JUCE's `AccessibilityHandler` only attaches
+Soundor's native accessibility container; it does not define the semantics.
 
 - [Guide and reference](https://soundor.dev/docs/contribute/apple-accessibility)
 - [Documentation](https://soundor.dev/docs)

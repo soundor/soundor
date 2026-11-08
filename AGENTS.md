@@ -34,8 +34,9 @@ which its table shows.
 
 ## Commands
 
-pnpm 12 + Node 24 monorepo driven by Turborepo. The root scripts exclude
-`apps/*` (the website) and `examples/*`.
+pnpm 12 + Node 24 monorepo driven by Turborepo. Root build excludes apps,
+examples and tools. Root tests include website unit tests, but exclude examples
+and tools.
 
 ```sh
 pnpm install
@@ -76,7 +77,7 @@ cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -rel
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
 (cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce) # JUCE adapter tests
 ctest --test-dir build/dev -R <name> # one native test after a dev build
-pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (source engine)
+pnpm --filter @soundor/juce-runtime test:plugin  # build the JUCE test plugin (automatic engine selection)
 pnpm --filter @soundor/juce-runtime test:plugin:debug  # its Debug build with DevTools, for the real-plugin suites
 ```
 
@@ -148,7 +149,7 @@ pnpm --filter soundor-benchmark bench --only ui,canvas # some groups or scenario
 Regenerating checked-in generated files:
 
 - `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
-  `soundor:native` C++ output in `native/tests/generated`, compiled by the
+  `soundor:native` C++ output in `engines/engine/tests/generated`, compiled by the
   native tests.
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
   (from `engines/engine`, after a dev build) — the engine's frames in
@@ -359,8 +360,9 @@ generated framework or the runtime package, not in `init` templates.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the sixteen packages under `packages/` are a fixed version group;
-  `@soundor/engine`, `@soundor/yoga-wasm` and `@soundor/vst3-host` are versioned on
-  their own. A change to the engine's Yoga also needs a `@soundor/yoga-wasm`
-  changeset, which Verify checks.
+  `@soundor/engine`, `@soundor/yoga-wasm`, `@soundor/juce-runtime`,
+  `@soundor/web-runtime` and `@soundor/vst3-host` are versioned on their own.
+  A change to the engine's Yoga also needs a `@soundor/yoga-wasm` changeset,
+  which Verify checks.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

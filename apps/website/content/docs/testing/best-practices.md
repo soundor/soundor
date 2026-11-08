@@ -34,9 +34,11 @@ screen.getByText('Reset');
 
 [`userEvent`](/docs/testing/user-event) does what a user does: a click is
 pointer down, up and a click, with focus moving and the default actions
-following, as in the runtime. [`fireEvent`](/docs/testing/fire-event) sends
-one event and nothing else; keep it for what `userEvent` cannot do (a pen,
-a touch, an accessibility action). Make one session per test:
+following, as in the runtime. [`fireEvent`](/docs/testing/fire-event) provides
+individual dispatch and pointer/focus helpers for what `userEvent` cannot do
+(a pen, a touch, an accessibility action). Its pointer and focus helpers
+include runtime defaults such as capture, focus changes and a release's
+click. Make one session per test:
 `const user = userEvent.setup()`.
 
 ## Await everything
