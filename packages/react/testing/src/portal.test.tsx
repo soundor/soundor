@@ -57,7 +57,9 @@ describe('Portal', () => {
         </ScrollView>
       </View>,
     );
-    expect(print()).toBe('view[view{overflow:hidden}[scroll[view]]]');
+    expect(print()).toBe(
+      'view[view{overflow:hidden}[view{overflow:scroll}[view]]]',
+    );
     expect(overlay()).toBe('view[entry[text"menu"]]');
   });
 

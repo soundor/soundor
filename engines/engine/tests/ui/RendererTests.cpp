@@ -12,7 +12,7 @@ using test::WebFixture;
 
 namespace
 {
-    constexpr const char* imports = "import { root, createView, createText, createImage, createScrollView } "
+    constexpr const char* imports = "import { root, createView, createText, createImage } "
                                     "from 'soundor:ui';\n";
 
     struct Pixel
@@ -517,7 +517,7 @@ TEST_SUITE("ui::Renderer")
     {
         RenderFixture f;
         f.run(std::string(imports) + R"(
-            const scroller = createScrollView({ position: 'absolute', left: 0, top: 0, width: 50, height: 50 });
+            const scroller = createView({ overflow: 'scroll', position: 'absolute', left: 0, top: 0, width: 50, height: 50 });
             scroller.appendChild(createView({ height: 50, backgroundColor: 'red' }));
             scroller.appendChild(createView({ height: 50, backgroundColor: 'blue' }));
             root.appendChild(scroller);
@@ -542,7 +542,7 @@ TEST_SUITE("ui::Renderer")
     {
         RenderFixture f;
         f.run(std::string(imports) + R"(
-            const scroller = createScrollView({ position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
+            const scroller = createView({ overflow: 'scroll', position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
             scroller.appendChild(createView({ height: 400, flexShrink: 0 }));
             root.appendChild(scroller);
             globalThis.scroller = scroller;
@@ -570,11 +570,26 @@ TEST_SUITE("ui::Renderer")
         CHECK(indicator());
     }
 
+    TEST_CASE("a view draws an indicator only for an axis its style scrolls")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            const scroller = createView({ overflowY: 'scroll', position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
+            scroller.appendChild(createView({ width: 300, height: 400, flexShrink: 0 }));
+            root.appendChild(scroller);
+        )");
+        f.render();
+        // The vertical one at the right edge; none along the bottom, wider
+        // though its content is.
+        CHECK_FALSE(isClear(f.at(96, 20)));
+        CHECK(isClear(f.at(20, 96)));
+    }
+
     TEST_CASE("a mouse near a scroll view's edge shows a track, and a bar grown and pressed")
     {
         RenderFixture f;
         f.run(std::string(imports) + R"(
-            const scroller = createScrollView({ position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
+            const scroller = createView({ overflow: 'scroll', position: 'absolute', left: 0, top: 0, width: 100, height: 100 });
             scroller.appendChild(createView({ height: 400, flexShrink: 0 }));
             root.appendChild(scroller);
         )");

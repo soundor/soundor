@@ -17,6 +17,9 @@ renders the start and the end, never the frames in between.
   animations, its children's included.
 - **Layout stays:** a transform moves how the view is drawn and hit, not
   where it is laid out.
+- **It scrolls** with `overflow: 'scroll'` in its style, as any view does
+  ([Overflow](/docs/components/style#overflow)): a list that fades or slides in
+  is an `Animated.View`, not a `ScrollView` inside one.
 - **Reduced motion** follows `soundor:ui`'s preference: the browser's media
   query on the web; natively, the host or your code sets it
   (`setReducedMotion()`).

@@ -51,12 +51,11 @@ TEST_SUITE("layout corpus")
         WebFixture f(approximateText());
         f.host.surface().setSize({ 800, 600 });
         f.run(R"(
-            import { root, createView, createText, createScrollView } from 'soundor:ui';
+            import { root, createView, createText } from 'soundor:ui';
             globalThis.corpus = )"
               + text.str() + R"(;
             const make = (tree) => {
               const node = tree.type === 'text' ? createText(tree.text, tree.style)
-                : tree.type === 'scroll' ? createScrollView(tree.style)
                 : createView(tree.style);
               for (const child of tree.children) node.appendChild(make(child));
               return node;

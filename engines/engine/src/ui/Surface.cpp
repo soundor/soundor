@@ -168,7 +168,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
             YGNodeStyleSetGap(node, YGGutterRow, style.rowGap);
             YGNodeStyleSetGap(node, YGGutterColumn, style.columnGap);
-            YGNodeStyleSetOverflow(node, overflows[index(style.overflow)]);
+            YGNodeStyleSetOverflow(node, overflows[index(style.layoutOverflow())]);
         }
 
         class MemoryClipboard final : public Clipboard
@@ -304,7 +304,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 YGNodeSetMeasureFunc(yoga, &NodeAccess::measureSvg);
                 break;
             case NodeType::View:
-            case NodeType::Scroll:
                 break;
         }
     }
@@ -431,6 +430,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             scrollbarDrag.reset();
         std::erase(grownScrollbars, id);
         std::erase(pendingScrolls, id);
+        std::erase_if(smoothScrolls, [id](const SmoothScroll& scroll) { return scroll.node == id; });
         if (focusedNode == id)
             focusedNode = noNode;
         if (node.nodeType == NodeType::Canvas)
@@ -445,7 +445,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Node& child = get(childId);
         if (isRoot(child))
             throw std::invalid_argument("the root node cannot be a child");
-        if (parent.nodeType != NodeType::View && parent.nodeType != NodeType::Scroll)
+        if (parent.nodeType != NodeType::View)
             throw std::invalid_argument("only views can have children");
         for (const Node* ancestor = &parent; ancestor != nullptr; ancestor = ancestor->parentNode)
             if (ancestor == &child)
@@ -514,6 +514,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             applyStyle(node.yoga, style);
         if (before.zIndex != style.zIndex && node.parentNode != nullptr)
             restack(*node.parentNode);
+        if (before.scrollsX() != style.scrollsX() || before.scrollsY() != style.scrollsY())
+            scrollingChanged(node);
         if (layoutBefore.text != layoutAfter.text
             && (node.nodeType == NodeType::Text || node.nodeType == NodeType::Input))
         {
@@ -662,17 +664,108 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return { box.width, box.height };
     }
 
-    void Surface::scrollTo(NodeId id, Point offset)
+    void Surface::scrollTo(NodeId id, Point offset, ScrollBehavior behavior)
     {
         Node& node = get(id);
-        if (node.nodeType != NodeType::Scroll)
-            throw std::invalid_argument("only scroll nodes scroll");
+        // As a browser's element that does not scroll: nothing moves.
+        if (! node.scrolls())
+            return;
+        if (behavior == ScrollBehavior::Smooth && ! timeline.reducedMotion())
+        {
+            std::erase_if(smoothScrolls, [id](const SmoothScroll& scroll) { return scroll.node == id; });
+            const Point to = clampScroll(node, offset);
+            if (to.x != node.scroll.x || to.y != node.scroll.y)
+                smoothScrolls.push_back({ id, node.scroll, to, timeline.time() });
+            return;
+        }
         if (moveScroll(node, offset) && std::ranges::find(pendingScrolls, id) == pendingScrolls.end())
             pendingScrolls.push_back(id);
     }
 
+    void Surface::scrollIntoView(NodeId id, ScrollAlignment block, ScrollAlignment inlineAxis, ScrollBehavior behavior)
+    {
+        layout();
+        const Node& target = get(id);
+        if (! isConnected(id))
+            return;
+        // Where each view will be scrolled to, innermost first: the outer ones
+        // bring the node to where the inner ones put it.
+        std::vector<std::pair<Node*, Point>> planned;
+        const auto plannedScroll = [&planned](const Node& node)
+        {
+            for (const auto& [view, offset] : planned)
+                if (view == &node)
+                    return offset;
+            return node.scroll;
+        };
+        const auto align = [](ScrollAlignment alignment, float scrolled, float start, float size, float room)
+        {
+            // `start`: the offset that puts its start at the view's start.
+            const float end = start + size - room;
+            switch (alignment)
+            {
+                case ScrollAlignment::Start:
+                    return start;
+                case ScrollAlignment::Center:
+                    return start + (size - room) / 2;
+                case ScrollAlignment::End:
+                    return end;
+                case ScrollAlignment::Nearest:
+                    return std::clamp(scrolled, std::min(start, end), std::max(start, end));
+            }
+            return scrolled;
+        };
+        const Rect frame = target.frame();
+        // The node's box in its parent's, through each view's planned scroll.
+        Rect box { frame.x, frame.y, frame.width, frame.height };
+        for (Node* view = target.parentNode; view != nullptr; view = view->parentNode)
+        {
+            if (view->scrolls() && view->nodeStyle.display != Display::None)
+            {
+                const Rect content = view->contentBox();
+                const Point now = plannedScroll(*view);
+                const Point wanted { align(inlineAxis, now.x, box.x - content.x, box.width, content.width),
+                                     align(block, now.y, box.y - content.y, box.height, content.height) };
+                const Point to = clampScroll(*view, wanted);
+                planned.emplace_back(view, to);
+                box.x -= to.x;
+                box.y -= to.y;
+            }
+            else
+            {
+                box.x -= view->scroll.x;
+                box.y -= view->scroll.y;
+            }
+            const Rect at = view->frame();
+            box.x += at.x;
+            box.y += at.y;
+        }
+        for (const auto& [view, offset] : planned)
+            scrollTo(view->nodeId, offset, behavior);
+    }
+
     void Surface::deliverScrolls()
     {
+        if (! smoothScrolls.empty())
+        {
+            const double time = timeline.time();
+            for (std::size_t index = 0; index < smoothScrolls.size();)
+            {
+                const SmoothScroll scroll = smoothScrolls[index];
+                Node* node = find(scroll.node);
+                const double progress = std::clamp((time - scroll.started) / smoothScrollMilliseconds, 0.0, 1.0);
+                const auto eased = static_cast<float>(AnimationTimeline::ease(Easing::EaseInOut, progress));
+                const Point at { scroll.from.x + (scroll.to.x - scroll.from.x) * eased,
+                                 scroll.from.y + (scroll.to.y - scroll.from.y) * eased };
+                if (node != nullptr && moveScroll(*node, at, true)
+                    && std::ranges::find(pendingScrolls, scroll.node) == pendingScrolls.end())
+                    pendingScrolls.push_back(scroll.node);
+                if (node == nullptr || progress >= 1)
+                    smoothScrolls.erase(smoothScrolls.begin() + static_cast<std::ptrdiff_t>(index));
+                else
+                    ++index;
+            }
+        }
         // What the listeners scroll is told the next time.
         for (const NodeId id : std::exchange(pendingScrolls, {}))
         {
@@ -685,17 +778,53 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
     }
 
-    bool Surface::moveScroll(Node& node, Point offset)
+    Point Surface::clampScroll(const Node& node, Point offset)
     {
         const Size content = contentSize(node.nodeId);
         const Rect box = node.contentBox();
-        const Point clamped { std::clamp(offset.x, 0.0f, std::max(0.0f, content.width - box.width)),
-                              std::clamp(offset.y, 0.0f, std::max(0.0f, content.height - box.height)) };
+        const Style& style = node.nodeStyle;
+        const float right = style.scrollsX() ? std::max(0.0f, content.width - box.width) : 0.0f;
+        const float bottom = style.scrollsY() ? std::max(0.0f, content.height - box.height) : 0.0f;
+        return { std::clamp(offset.x, 0.0f, right), std::clamp(offset.y, 0.0f, bottom) };
+    }
+
+    bool Surface::moveScroll(Node& node, Point offset, bool smooth)
+    {
+        if (! smooth)
+            std::erase_if(smoothScrolls, [&node](const SmoothScroll& scroll) { return scroll.node == node.nodeId; });
+        const Point clamped = clampScroll(node, offset);
         if (clamped.x == node.scroll.x && clamped.y == node.scroll.y)
             return false;
         node.scroll = clamped;
         markChanged(node);
         return true;
+    }
+
+    void Surface::scrollingChanged(Node& node)
+    {
+        if (node.nodeType != NodeType::View)
+            return;
+        const Style& style = node.nodeStyle;
+        if (scrollbarDrag && scrollbarDrag->node == node.nodeId
+            && ! (scrollbarDrag->vertical ? style.scrollsY() : style.scrollsX()))
+            endScrollbarDrag();
+        if (! style.scrollsY())
+            node.verticalBarGrown = false;
+        if (! style.scrollsX())
+            node.horizontalBarGrown = false;
+        if (! node.verticalBarGrown && ! node.horizontalBarGrown)
+            std::erase(grownScrollbars, node.nodeId);
+        if (! style.scrolls())
+            std::erase_if(smoothScrolls, [&node](const SmoothScroll& scroll) { return scroll.node == node.nodeId; });
+        // What no longer scrolls shows from its start, and listeners hear of it.
+        const Point kept { style.scrollsX() ? node.scroll.x : 0.0f, style.scrollsY() ? node.scroll.y : 0.0f };
+        if (kept.x != node.scroll.x || kept.y != node.scroll.y)
+        {
+            node.scroll = kept;
+            if (std::ranges::find(pendingScrolls, node.nodeId) == pendingScrolls.end())
+                pendingScrolls.push_back(node.nodeId);
+        }
+        markChanged(node);
     }
 
     void Surface::setCanvasSize(NodeId id, int width, int height)
@@ -1085,10 +1214,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const auto at = inverse->map(point.x - origin.x - frame.x, point.y - origin.y - frame.y);
         point = { at[0], at[1] };
         const Rect box { 0, 0, frame.width, frame.height };
-        if ((style.overflow != Overflow::Visible || node.nodeType == NodeType::Scroll) && ! box.contains(point))
+        if (style.clips() && ! box.contains(point))
             return noNode;
         bool childrenVisible = true;
-        if (style.overflow != Overflow::Visible || node.nodeType == NodeType::Scroll)
+        if (style.clips())
         {
             const auto& border = style.borderWidth;
             const Rect inner { border.left, border.top, frame.width - border.left - border.right,
@@ -1543,7 +1672,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const Rect box = node.contentBox();
         const float room = vertical ? box.height : box.width;
         const float extent = vertical ? content.height : content.width;
-        if (extent <= room + 0.5f || room <= 0)
+        if (! (vertical ? node.nodeStyle.scrollsY() : node.nodeStyle.scrollsX()) || extent <= room + 0.5f || room <= 0)
             return {};
         const float length = std::max(scrollbar::minLength, room * room / extent);
         return { room, extent - room, length, room - length };
@@ -1555,7 +1684,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         for (const NodeId id : pathTo(hit))
         {
             Node& node = get(id);
-            if (node.nodeType != NodeType::Scroll || ! node.drawsScrollIndicators)
+            if (! node.scrolls() || ! node.drawsScrollIndicators)
                 continue;
             const Point at = localPoint(id, point);
             const Rect box = node.contentBox();
@@ -1723,7 +1852,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     {
         for (Node* node = find(target); node != nullptr; node = node->parentNode)
         {
-            if (node->nodeType != NodeType::Scroll || node->nodeStyle.display == Display::None)
+            if (! node->scrolls() || node->nodeStyle.display == Display::None)
                 continue;
             const Point before = node->scroll;
             if (! moveScroll(*node, { before.x + deltaX, before.y + deltaY }))

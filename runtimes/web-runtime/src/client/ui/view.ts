@@ -1144,7 +1144,7 @@ export class UiView implements ViewLink {
 
   #scrollBy(target: UiNode, deltaX: number, deltaY: number): boolean {
     for (let node: UiNode | null = target; node !== null; node = node.parent) {
-      if (node.type !== 'scroll' || node.style.display === 'none') continue;
+      if (!UiNode.scrolls(node) || node.style.display === 'none') continue;
       const before = { x: node.scrollLeft, y: node.scrollTop };
       node.scrollTo(before.x + deltaX, before.y + deltaY);
       if (node.scrollLeft === before.x && node.scrollTop === before.y) continue;

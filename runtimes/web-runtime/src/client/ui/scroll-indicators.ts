@@ -55,6 +55,8 @@ export class ScrollIndicators {
   #touch = false;
   #enabled = true;
   #fade: ReturnType<typeof setTimeout> | undefined;
+  /** Ends what it listens to on the element, when it goes (dispose()). */
+  readonly #listening = new AbortController();
 
   /**
    * `onScroll` is called when a press or a drag of a bar scrolled the view:
@@ -82,20 +84,45 @@ export class ScrollIndicators {
     );
     const window = document.defaultView;
     this.#setTouch(window?.matchMedia?.('(hover: none)').matches === true);
+    const { signal } = this.#listening;
     element.addEventListener('scroll', () => this.#scrolled(), {
       passive: true,
+      signal,
     });
-    element.addEventListener('pointermove', (event) => {
-      if (event.pointerType === 'touch') return;
-      this.#setTouch(false);
-      this.#updateHover(event);
-    });
-    element.addEventListener('pointerdown', (event) => {
-      this.#setTouch(event.pointerType === 'touch');
-    });
-    element.addEventListener('pointerleave', () => {
-      if (this.#drag === null) this.#setGrown(false, false);
-    });
+    element.addEventListener(
+      'pointermove',
+      (event) => {
+        if (event.pointerType === 'touch') return;
+        this.#setTouch(false);
+        this.#updateHover(event);
+      },
+      { signal },
+    );
+    element.addEventListener(
+      'pointerdown',
+      (event) => {
+        this.#setTouch(event.pointerType === 'touch');
+      },
+      { signal },
+    );
+    element.addEventListener(
+      'pointerleave',
+      () => {
+        if (this.#drag === null) this.#setGrown(false, false);
+      },
+      { signal },
+    );
+  }
+
+  /** The view no longer scrolls: takes its bars and tracks away. */
+  dispose(): void {
+    this.release();
+    clearTimeout(this.#fade);
+    this.#listening.abort();
+    this.#vertical.remove();
+    this.#horizontal.remove();
+    this.#verticalTrack.remove();
+    this.#horizontalTrack.remove();
   }
 
   /** Puts the bars where a new layout, or a scroll, leaves them. */

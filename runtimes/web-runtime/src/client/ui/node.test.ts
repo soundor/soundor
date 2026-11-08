@@ -20,6 +20,13 @@ function setup() {
 
 const el = (node: UiNode) => UiNode.elementOf(node);
 
+/** A view whose style scrolls both ways: a scroll view. */
+function scrollView(view: UiView): UiNode {
+  const node = view.createNode('view');
+  node.style = { overflow: 'scroll' };
+  return node;
+}
+
 it('keeps logical layout and inverses nested presentation transforms for pointer coordinates', () => {
   const { root } = setup();
   const parent = view.createNode('view');
@@ -291,13 +298,17 @@ describe('UiNode content', () => {
     expect(element.hasAttribute('src')).toBe(false);
   });
 
-  it('scrolls only scroll views', () => {
+  it('scrolls only views whose style scrolls; others stay where they are', () => {
     setup();
-    const scroll = view.createNode('scroll');
-    expect(() => view.createNode('view').scrollTo(0, 10)).toThrow(
-      new TypeError('scrollTo() belongs to scroll nodes'),
-    );
+    const scroll = scrollView(view);
+    const plain = view.createNode('view');
+    plain.style = { overflow: 'hidden' };
+    expect(() => plain.scrollTo(0, 10)).not.toThrow();
+    expect(plain.scrollTop).toBe(0);
     expect(() => scroll.scrollTo({ top: 10 })).not.toThrow();
+    expect(() =>
+      scroll.scrollTo({ top: 10, behavior: 'fast' as never }),
+    ).toThrow(TypeError);
   });
 });
 
@@ -313,9 +324,15 @@ describe('UiNode layout', () => {
 
   it('reports boxes relative to the parent and to the view', () => {
     const { root } = setup();
-    const parent = view.createNode('scroll');
+    const parent = scrollView(view);
     const child = view.createNode('view');
-    parent.style = { position: 'absolute', left: 10, top: 20, width: 300 };
+    parent.style = {
+      overflow: 'scroll',
+      position: 'absolute',
+      left: 10,
+      top: 20,
+      width: 300,
+    };
     child.style = { marginLeft: 10, marginTop: 20, width: 50, height: 40 };
     root.appendChild(parent);
     parent.appendChild(child);
@@ -348,7 +365,13 @@ describe('UiNode layout', () => {
     const { root } = setup();
     const parent = view.createNode('view');
     const child = view.createNode('view');
-    parent.style = { borderWidth: 3, padding: 2, width: 100, height: 100 };
+    parent.style = {
+      overflow: 'scroll',
+      borderWidth: 3,
+      padding: 2,
+      width: 100,
+      height: 100,
+    };
     child.style = { width: 10, height: 10 };
     root.appendChild(parent);
     parent.appendChild(child);
@@ -491,9 +514,9 @@ describe('UiNode layout', () => {
 
   it('scrolls as far as the engine does: to what its content needs', () => {
     const { root } = setup();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     const child = view.createNode('view');
-    scroll.style = { width: 100, height: 100, padding: 9 };
+    scroll.style = { overflow: 'scroll', width: 100, height: 100, padding: 9 };
     child.style = { width: 400, height: 300, marginBottom: 5, flexShrink: 0 };
     root.appendChild(scroll);
     scroll.appendChild(child);
@@ -510,9 +533,9 @@ describe('UiNode layout', () => {
 
   it("draws the engine's scroll indicators, not the browser's scrollbar", () => {
     const { root } = sized();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     const child = view.createNode('view');
-    scroll.style = { width: 100, height: 100 };
+    scroll.style = { overflow: 'scroll', width: 100, height: 100 };
     child.style = { width: 50, height: 400, flexShrink: 0 };
     root.appendChild(scroll);
     scroll.appendChild(child);
@@ -547,9 +570,15 @@ describe('UiNode layout', () => {
 
   it('says how much of what it scrolls shows, and can draw no indicators', () => {
     const { root } = sized();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     const child = view.createNode('view');
-    scroll.style = { width: 100, height: 100, padding: 5, borderWidth: 2 };
+    scroll.style = {
+      overflow: 'scroll',
+      width: 100,
+      height: 100,
+      padding: 5,
+      borderWidth: 2,
+    };
     child.style = { width: 50, height: 400, flexShrink: 0 };
     root.appendChild(scroll);
     scroll.appendChild(child);
@@ -575,7 +604,7 @@ describe('UiNode layout', () => {
     const { root } = setup();
     const parent = view.createNode('view');
     const child = view.createNode('view');
-    parent.style = { width: 100 };
+    parent.style = { overflow: 'scroll', width: 100 };
     child.style = { height: 20 };
     parent.appendChild(child);
     // Not in the view: no box, and it can still be built up.
@@ -584,7 +613,7 @@ describe('UiNode layout', () => {
     expect(child.layout).toEqual({ x: 0, y: 0, width: 100, height: 20 });
     root.removeChild(parent);
     expect(child.layout).toEqual({ x: 0, y: 0, width: 0, height: 0 });
-    parent.style = { width: 50 };
+    parent.style = { overflow: 'scroll', width: 50 };
     root.appendChild(parent);
     expect(child.layout).toEqual({ x: 0, y: 0, width: 50, height: 20 });
   });
@@ -679,7 +708,7 @@ describe('UiNode layout', () => {
 describe('UiNode events', () => {
   it('tells of scrolling from code by the browser’s event, once, and of the wheel at once', () => {
     const { root } = setup();
-    const scroll = view.createNode('scroll');
+    const scroll = scrollView(view);
     root.appendChild(scroll);
     let scrolled = 0;
     scroll.addEventListener('scroll', () => ++scrolled);

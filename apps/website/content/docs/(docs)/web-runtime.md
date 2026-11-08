@@ -247,9 +247,11 @@ the browser itself decides:
   too, in text and in inputs, on the device pixel it would use: the browser's
   rounding of a font's metrics, which moves text by a pixel between 1x and 2x, is
   corrected for. Glyphs still differ by what each renderer hints.
-- **Scroll views** scroll as far in both, and draw the same thin indicators, not
-  the browser's scrollbar. What moves them is the browser's here, so its momentum
-  on a trackpad is its own, and after touch the bars show only while scrolling.
+- **Scroll views** (views whose style scrolls) scroll as far in both, and draw
+  the same thin indicators, not the browser's scrollbar. What moves them is the
+  browser's here, so its momentum on a trackpad is its own, and after touch the
+  bars show only while scrolling. A smooth `scrollTo()` is the runtime's, not
+  the browser's, for the same curve as natively.
 
 ## Native API in TypeScript
 

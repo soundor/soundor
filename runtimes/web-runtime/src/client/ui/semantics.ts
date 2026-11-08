@@ -144,8 +144,8 @@ function roleOf(node: UiNode): Role {
       return 'image';
     case 'input':
       return 'textinput';
-    case 'scroll':
-      return 'scrollview';
+    case 'view':
+      return UiNode.scrolls(node) ? 'scrollview' : 'group';
     default:
       return 'group';
   }

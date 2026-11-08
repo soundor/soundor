@@ -151,8 +151,15 @@ describe('rendering', () => {
       </ScrollView>,
     );
     expect(print()).toBe(
-      'view[scroll{height:50}[view{padding:4}[image{width:8}<logo.png>]]]',
+      'view[view{height:50,overflow:scroll}[view{padding:4}[image{width:8}<logo.png>]]]',
     );
+  });
+
+  it('scrolls a ScrollView whatever its overflow, and an axis can be turned off', async () => {
+    await show(
+      <ScrollView style={{ overflow: 'hidden', overflowX: 'hidden' }} />,
+    );
+    expect(print()).toBe('view[view{overflow:scroll,overflowX:hidden}[view]]');
   });
 
   it('gives refs the soundor:ui node', async () => {

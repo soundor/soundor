@@ -138,7 +138,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                                              line.height + margin * 2));
             }
         }
-        else if (node.type() == ui::NodeType::Scroll)
+        else if (node.scrolls())
         {
             // Its scroll indicators follow the content's size.
             const ui::Size content = pass.surface.contentSize(node.id());
@@ -147,7 +147,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         own = own.intersected(clip);
 
         IntRect childClip = clip;
-        if (style.overflow != ui::Overflow::Visible || node.type() == ui::NodeType::Scroll)
+        if (style.clips())
         {
             const ui::Edges<float>& border = style.borderWidth;
             childClip =

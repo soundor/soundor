@@ -14,13 +14,20 @@ using namespace soundor::ui;
 
 namespace
 {
+    // `style`, scrolling both ways: what makes a view a scroll view.
+    Style scrolling(Style style)
+    {
+        style.overflowX = style.overflowY = Overflow::Scroll;
+        return style;
+    }
+
     // A 100 by 100 scroll view of 400 down, at the top left, with the mouse.
     struct ScrollbarFixture
     {
         ScrollbarFixture()
         {
             surface.setSize({ 200, 200 });
-            surface.setStyle(scroller, sized(100, 100));
+            surface.setStyle(scroller, scrolling(sized(100, 100)));
             surface.insertChild(surface.root().id(), scroller);
             surface.setStyle(content, sized(100, 400));
             surface.insertChild(scroller, content);
@@ -52,7 +59,7 @@ namespace
         [[nodiscard]] const Node& node() { return *surface.find(scroller); }
 
         Surface surface;
-        NodeId scroller = surface.createNode(NodeType::Scroll);
+        NodeId scroller = surface.createNode(NodeType::View);
         NodeId content = surface.createNode(NodeType::View);
     };
 
@@ -639,7 +646,7 @@ TEST_SUITE("ui::Surface hit testing")
         f.surface.setStyle(f.b, sized(100, 100));
         CHECK(f.surface.hitTest({ 190, 10 }) == f.inner);
         Style clipped = sized(100, 100);
-        clipped.overflow = Overflow::Hidden;
+        clipped.overflowX = clipped.overflowY = Overflow::Hidden;
         f.surface.setStyle(f.a, sized(100, 100));
         f.surface.setStyle(f.b, clipped);
         f.surface.setSize({ 400, 100 });
@@ -730,8 +737,8 @@ TEST_SUITE("ui::Surface input")
         Surface surface;
         surface.setSize({ 100, 100 });
         surface.setScale(2);
-        const NodeId scroller = surface.createNode(NodeType::Scroll);
-        Style box = sized(100, 50);
+        const NodeId scroller = surface.createNode(NodeType::View);
+        Style box = scrolling(sized(100, 50));
         box.padding = { Length::points(5), Length::points(5), Length::points(5), Length::points(5) };
         surface.setStyle(scroller, box);
         surface.insertChild(surface.root().id(), surface.createNode(NodeType::View));
@@ -898,8 +905,8 @@ TEST_SUITE("ui::Surface input")
     {
         Surface surface;
         surface.setSize({ 100, 100 });
-        const NodeId scroll = surface.createNode(NodeType::Scroll);
-        surface.setStyle(scroll, sized(100, 100));
+        const NodeId scroll = surface.createNode(NodeType::View);
+        surface.setStyle(scroll, scrolling(sized(100, 100)));
         surface.insertChild(surface.root().id(), scroll);
         const NodeId first = surface.createNode(NodeType::View);
         const NodeId second = surface.createNode(NodeType::View);

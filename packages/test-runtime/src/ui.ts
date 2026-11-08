@@ -140,7 +140,6 @@ export function createUiModule(runtime: TestRuntime) {
       node.source = source;
       return node;
     },
-    createScrollView: (style?: Style) => runtime.create('scroll', style),
     createTextInput: (
       options: { value?: string; placeholder?: string; style?: Style } = {},
     ) => {

@@ -180,7 +180,8 @@ describe('@soundor/react on the DOM soundor:ui', () => {
       ),
     );
     const scroll = root.children[0]!;
-    expect(scroll.type).toBe('scroll');
+    expect(scroll.type).toBe('view');
+    expect(scroll.style.overflow).toBe('scroll');
     const content = scroll.children[0]!;
     const image = content.children[0]!;
     expect(image.type).toBe('image');

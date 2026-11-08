@@ -35,13 +35,56 @@ on the Web:
   by `top`, `right`, `bottom`, `left` (or `inset`) in its parent's box.
 - **Stacking:** `zIndex` (an integer) stacks a node among its siblings, for
   drawing and hit testing alike; layout keeps the tree's order.
-- **Clipping and input:** `overflow: 'hidden'` clips the children;
-  `pointerEvents` lets the pointer through a node, its children, or both;
-  `cursor` sets its shape ([Cursor](#cursor)).
+- **Clipping and scrolling:** `overflow` ([Overflow](#overflow)).
+- **Input:** `pointerEvents` lets the pointer through a node, its children,
+  or both; `cursor` sets its shape ([Cursor](#cursor)).
 
 Both runtimes lay a style out the same, with the same Yoga, given the same text
 sizes; see
 [Where layout differs](/docs/web-runtime#where-layout-differs).
+
+## Overflow
+
+`overflow` says what happens to children that reach past a box:
+
+| Value                 | Clips | Scrolls                                                   |
+| --------------------- | ----- | --------------------------------------------------------- |
+| `'visible'` (default) | no    | no                                                        |
+| `'hidden'`            | yes   | no                                                        |
+| `'scroll'`            | yes   | yes: wheel, scrollbar, `scrollTo()`, with `scroll` events |
+
+Any view scrolls with `'scroll'`, an [`Animated.View`](/docs/components/animated-view)
+too: [`ScrollView`](/docs/components/scroll-view) is a view with that style and
+its children in a box of their own. It is the CSS meaning, not React Native's,
+where `'scroll'` only clips.
+
+```tsx
+<Animated.View
+  style={{ overflowY: 'scroll', height: 200 }}
+  transition={{ type: 'spring' }}
+>
+  {rows}
+</Animated.View>
+```
+
+- **One axis:** `overflowX` and `overflowY` take the same values, and win over
+  `overflow` whatever the order. `{ overflowX: 'scroll' }` is a strip that
+  scrolls sideways; `{ overflow: 'scroll', overflowX: 'hidden' }` only scrolls
+  down.
+- **Both clip or neither:** a box that scrolls clips both ways, so `'visible'`
+  on one axis beside a clipping one clips too, as `'hidden'`, as in CSS.
+- **Style arrays** merge key by key, so a later `overflow` does not undo an
+  earlier `overflowX`, unlike a CSS shorthand: set both axes, or only
+  `overflow`, to change them later.
+- **Only a view's children scroll.** On a `Text`, an image or a canvas,
+  `'scroll'` clips, as `'hidden'`; put long text in a view that scrolls.
+- **Stopping:** a view whose style no longer scrolls an axis goes back to its
+  start there, and fires `scroll`.
+- **Scrollbars:** a view that scrolls draws thin indicators for the axes it
+  scrolls, unless its `scrollIndicators` prop is `false`
+  ([`useScrollbar`](/docs/hooks/use-scrollbar) draws your own).
+- **From code:** the node's `scrollTo()`, `scrollBy()` and `scrollIntoView()`,
+  smooth with `behavior: 'smooth'` ([ScrollView](/docs/components/scroll-view#scrolling-from-code)).
 
 ## Text
 

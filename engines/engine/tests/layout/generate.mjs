@@ -164,8 +164,11 @@ function tree(seed) {
       return r() < 0.75
         ? text()
         : { type: 'view', style: style(false), children: [] };
+    // A draw that once picked a scroll node, a type of its own then: kept,
+    // so the same seed makes the same corpus.
+    if (depth > 0) r();
     const node = {
-      type: depth > 0 && r() < 0.12 ? 'scroll' : 'view',
+      type: 'view',
       style: style(true),
       children: [],
     };

@@ -19,7 +19,6 @@ import {
   createCanvas,
   createSvg,
   createImage,
-  createScrollView,
   createText,
   createTextInput,
   createView,
@@ -52,7 +51,6 @@ export const HostTypes = {
   View: 'soundor-view',
   Text: 'soundor-text',
   Image: 'soundor-image',
-  ScrollView: 'soundor-scroll',
   TextInput: 'soundor-input',
   Canvas: 'soundor-canvas',
   Svg: 'soundor-svg',
@@ -548,8 +546,6 @@ function createNode(type: HostType): UiNode {
       return createText();
     case HostTypes.Image:
       return createImage();
-    case HostTypes.ScrollView:
-      return createScrollView();
     case HostTypes.TextInput:
       return createTextInput();
     case HostTypes.Canvas:

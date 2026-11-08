@@ -79,7 +79,7 @@ function settings(options: AnimationOptions): AnimationOptions {
   return out;
 }
 /** CSS standard cubic curves, evaluated without frame integration. */
-function ease(name: AnimationOptions['easing'], value: number): number {
+export function ease(name: AnimationOptions['easing'], value: number): number {
   if (!name || name === 'linear') return value;
   const points = {
     ease: [0.25, 0.1, 0.25, 1],

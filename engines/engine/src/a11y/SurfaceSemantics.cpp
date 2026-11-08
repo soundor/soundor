@@ -38,9 +38,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             label += text;
         }
 
-        Role roleByType(ui::NodeType type) noexcept
+        Role roleOf(const ui::Node& node) noexcept
         {
-            switch (type)
+            switch (node.type())
             {
                 case ui::NodeType::Text:
                     return Role::Text;
@@ -50,10 +50,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                     return Role::Image;
                 case ui::NodeType::Input:
                     return Role::TextInput;
-                case ui::NodeType::Scroll:
-                    return Role::ScrollView;
                 case ui::NodeType::View:
-                    return Role::Group;
+                    return node.scrolls() ? Role::ScrollView : Role::Group;
             }
             return Role::Group;
         }
@@ -81,7 +79,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
                 case ui::NodeType::Image: // decorative unless said otherwise
                 case ui::NodeType::Canvas:
                 case ui::NodeType::Svg:
-                case ui::NodeType::Scroll:
                     return false;
             }
             return false;
@@ -189,7 +186,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
             element.id = known != owner.elements.end() ? known->second : newNodeId();
             element.role = properties.role.has_value() && *properties.role != Role::None ? *properties.role
                            : properties.modal                                            ? Role::Dialog
-                                                                                         : roleByType(node.type());
+                                                                                         : roleOf(node);
             element.label = properties.label;
             element.hint = properties.hint;
             element.state = properties.state;

@@ -38,10 +38,11 @@ export const STYLESHEET = `
 /* Moved by what puts its baselines where the engine does (TextMeasurer). */
 .sd-text-lines { position: relative; display: block; }
 .sd-image { object-fit: cover; object-position: center; }
-/* The browser's scrollbar takes room and looks its own: a scroll view draws
-   the JUCE runtime's indicators instead (UiNode). A wheel no scroll view can
-   use goes on to the page, as natively to the host: no overscroll-behavior. */
-.sd-scroll { overflow: auto; scrollbar-width: none; }
+/* A view that scrolls (overflow-x/-y from its style). The browser's scrollbar
+   takes room and looks its own: it draws the JUCE runtime's indicators
+   instead (UiNode). A wheel no scroll view can use goes on to the page, as
+   natively to the host: no overscroll-behavior. */
+.sd-scroll { scrollbar-width: none; }
 .sd-scroll::-webkit-scrollbar { display: none; }
 /* What a scroll view scrolls: as far as the engine's contentSize() goes. */
 .sd-scroll-extent {
@@ -138,6 +139,8 @@ const CHOICES: Readonly<Record<string, readonly string[]>> = {
   alignSelf: ALIGNS(),
   alignContent: ALIGNS(),
   overflow: ['visible', 'hidden', 'scroll'],
+  overflowX: ['visible', 'hidden', 'scroll'],
+  overflowY: ['visible', 'hidden', 'scroll'],
   boxSizing: ['border-box', 'content-box'],
   pointerEvents: ['auto', 'none', 'box-none', 'box-only'],
   cursor: [
@@ -240,6 +243,30 @@ const COLORS = ['color', 'backgroundColor', 'borderColor', 'outlineColor'];
  * undefined entries. Unknown keys are ignored; a known key with an invalid
  * value is a TypeError naming it.
  */
+type Overflow = NonNullable<Style['overflow']>;
+
+/**
+ * Each axis's overflow: `overflowX`/`overflowY` over `overflow`, as the
+ * engine's `Style`. A box clips both axes or neither (see `clips`).
+ */
+export function overflowOf(style: Readonly<Style>): {
+  x: Overflow;
+  y: Overflow;
+  /** Either axis is not 'visible': what is inside is cut to the padding box. */
+  clips: boolean;
+  /** Either axis scrolls (on a view). */
+  scrolls: boolean;
+} {
+  const x = style.overflowX ?? style.overflow ?? 'visible';
+  const y = style.overflowY ?? style.overflow ?? 'visible';
+  return {
+    x,
+    y,
+    clips: x !== 'visible' || y !== 'visible',
+    scrolls: x === 'scroll' || y === 'scroll',
+  };
+}
+
 export function readStyle(value: unknown): Style {
   if (value === null || value === undefined) return {};
   if (typeof value !== 'object') {
@@ -349,9 +376,14 @@ export function cssFor(style: Style, type: NodeType): Css {
     if (value !== undefined) css[`border-${edge}-width`] = px(value);
   }
 
-  // Scroll views always scroll; elsewhere 'scroll' clips, as in Yoga.
-  if (style.overflow !== undefined && type !== 'scroll') {
-    css['overflow'] = style.overflow === 'visible' ? 'visible' : 'hidden';
+  // A view's axis that scrolls is the browser's to scroll ('auto': it hides
+  // its own scrollbar, see .sd-scroll); everything else that clips, clips.
+  const overflow = overflowOf(style);
+  if (overflow.clips) {
+    const axis = (value: Overflow): string =>
+      value === 'scroll' && type === 'view' ? 'auto' : 'hidden';
+    css['overflow-x'] = axis(overflow.x);
+    css['overflow-y'] = axis(overflow.y);
   }
 
   set('background-color', style.backgroundColor);

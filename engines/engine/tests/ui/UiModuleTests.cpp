@@ -9,7 +9,7 @@ using test::WebFixture;
 
 namespace
 {
-    constexpr const char* imports = "import { root, createView, createText, createScrollView, focusedNode, "
+    constexpr const char* imports = "import { root, createView, createText, focusedNode, "
                                     "viewSize, UiNode, PointerEvent, KeyboardEvent } from 'soundor:ui';\n";
 
     ui::PointerInput pointer(ui::PointerInput::Phase phase, float x, float y, unsigned buttons, int button)
@@ -209,7 +209,7 @@ TEST_SUITE("soundor:ui")
         UiFixture f;
         f.host.surface().setScale(2);
         f.run(std::string(imports) + R"(
-            const scroller = createScrollView({ width: 100, height: 100, padding: 10 });
+            const scroller = createView({ overflow: 'scroll', width: 100, height: 100, padding: 10 });
             globalThis.item = createView({ height: 300, marginTop: 20, marginLeft: 5 });
             scroller.appendChild(item);
             b.appendChild(scroller);

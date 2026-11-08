@@ -264,9 +264,9 @@ function Dropdown() {
 
 function CustomScrollbarDemo() {
   const list = useRef<UiNode>(null);
-  const bar = useScrollbar(list);
+  const bar = useScrollbar(list).vertical;
   const strip = useRef<UiNode>(null);
-  const across = useScrollbar(strip, { axis: 'horizontal' });
+  const across = useScrollbar(strip).horizontal;
   return (
     <Card title="Custom scrollbar">
       <View style={styles.customList}>
@@ -303,12 +303,13 @@ function CustomScrollbarDemo() {
         </View>
       </View>
       <View style={styles.customStrip}>
-        <ScrollView
+        {/* Not a ScrollView: any view scrolls the way its style says. */}
+        <View
           ref={strip}
           debugId="custom-strip"
           scrollIndicators={false}
-          contentContainerStyle={{
-            alignSelf: 'flex-start',
+          style={{
+            overflowX: 'scroll',
             flexDirection: 'row',
             gap: 6,
             padding: 8,
@@ -319,7 +320,7 @@ function CustomScrollbarDemo() {
               <Text style={styles.caption}>{n + 1}</Text>
             </View>
           ))}
-        </ScrollView>
+        </View>
         {/* Over the content, as the built-in ones are. */}
         {across.visible && (
           <View
@@ -366,8 +367,7 @@ function GridCells() {
 
 function BothAxesDemo() {
   const box = useRef<UiNode>(null);
-  const down = useScrollbar(box);
-  const across = useScrollbar(box, { axis: 'horizontal' });
+  const { vertical: down, horizontal: across } = useScrollbar(box);
   return (
     <Card title="Scrollbars on both axes">
       <View style={styles.bothAxes}>
@@ -430,6 +430,64 @@ function BothAxesDemo() {
           </View>
         </View>
       </View>
+    </Card>
+  );
+}
+
+// ── Any view scrolls, an animated one too; scrolling from code ─────────────────
+
+function AnimatedScrollDemo() {
+  const list = useRef<UiNode>(null);
+  const rows = useRef<(UiNode | null)[]>([]);
+  const [open, setOpen] = useState(true);
+  return (
+    <Card title="An Animated.View that scrolls">
+      <View style={styles.row}>
+        <Button
+          label={open ? 'Fold' : 'Unfold'}
+          onPress={() => setOpen((value) => !value)}
+        />
+        <Button
+          label="Top"
+          onPress={() => list.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+        />
+        <Button
+          label="Preset 20"
+          onPress={() =>
+            rows.current[19]?.scrollIntoView({
+              block: 'center',
+              behavior: 'smooth',
+            })
+          }
+        />
+        <Button
+          label="Down 100"
+          onPress={() =>
+            list.current?.scrollBy({ top: 100, behavior: 'smooth' })
+          }
+        />
+      </View>
+      <Animated.View
+        ref={list}
+        debugId="animated-scroll"
+        transition={{ type: 'spring' }}
+        style={[
+          styles.animatedScroll,
+          { opacity: open ? 1 : 0.4, transform: [{ scale: open ? 1 : 0.92 }] },
+        ]}
+      >
+        {Array.from({ length: 30 }, (_, n) => (
+          <View
+            key={n}
+            ref={(node) => {
+              rows.current[n] = node;
+            }}
+            style={styles.customRow}
+          >
+            <Text style={styles.caption}>Preset {n + 1}</Text>
+          </View>
+        ))}
+      </Animated.View>
     </Card>
   );
 }
@@ -858,6 +916,7 @@ export function App() {
         <ContextMenuDemo />
         <PressDemo />
         <ScrollDemo />
+        <AnimatedScrollDemo />
         <CustomScrollbarDemo />
         <BothAxesDemo />
         <HostDemo />
@@ -998,6 +1057,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#2b2e35',
     overflow: 'hidden',
+  },
+  animatedScroll: {
+    height: 140,
+    overflowY: 'scroll',
+    gap: 6,
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#2b2e35',
   },
   customRow: {
     padding: 6,

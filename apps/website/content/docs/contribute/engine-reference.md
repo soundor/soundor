@@ -630,9 +630,19 @@ Beyond views and text there are the primitives a plugin UI is made of:
   `stretch` or `center`.
   Decoding makes its mipmaps once, and it is drawn between the two nearest:
   an image drawn much smaller than its pixels averages them, not aliasing.
-- **`createScrollView(style)`:** its children scroll by wheel or by `scrollTo()`
-  and `scrollTop`/`scrollLeft`. It fires `scroll`, clips, and draws thin scroll
-  indicators.
+- **Scrolling:** a view whose style has `overflow: 'scroll'` (or
+  `overflowX`/`overflowY`, `Style::overflowX`/`overflowY`, resolved by
+  `UiModule`) scrolls its children by wheel, by its scrollbar, or by
+  `scrollTo()` and `scrollTop`/`scrollLeft`, on those axes
+  (`Node::scrolls()`; no node type of its own). It fires `scroll`, clips, and
+  draws thin scroll indicators. Yoga gets one overflow, `scroll` when either
+  axis scrolls (`Style::layoutOverflow()`). A style that stops scrolling an
+  axis puts it back at 0 and queues `scroll` (`Surface::scrollingChanged()`).
+  Smooth `scrollTo()` (`ScrollBehavior::Smooth`) moves in
+  `Surface::deliverScrolls()` each tick, on the animation timeline's clock,
+  over `smoothScrollMilliseconds` eased in and out; any other move of the node
+  ends it (`moveScroll()`). `Surface::scrollIntoView()` aligns a node in each
+  scrolling ancestor, innermost first, by layout boxes.
 - **`createTextInput({ value, placeholder, style })`:** a focusable, single-line
   input.
   - **Editing:** it edits itself as the default action of its events, so a

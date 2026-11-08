@@ -42,11 +42,25 @@ describe('cssFor', () => {
     });
   });
 
-  it('clips with overflow scroll except in scroll views, which always scroll', () => {
+  it('scrolls a view along the axes its style scrolls, and clips the rest', () => {
     expect(cssFor({ overflow: 'scroll' }, 'view')).toEqual({
-      overflow: 'hidden',
+      'overflow-x': 'auto',
+      'overflow-y': 'auto',
     });
-    expect(cssFor({ overflow: 'hidden' }, 'scroll')).toEqual({});
+    // The axis over the shorthand; 'visible' beside a clipping axis clips.
+    expect(cssFor({ overflow: 'scroll', overflowX: 'hidden' }, 'view')).toEqual(
+      { 'overflow-x': 'hidden', 'overflow-y': 'auto' },
+    );
+    expect(cssFor({ overflowY: 'scroll' }, 'view')).toEqual({
+      'overflow-x': 'hidden',
+      'overflow-y': 'auto',
+    });
+    // Only a view's children scroll: elsewhere 'scroll' clips.
+    expect(cssFor({ overflow: 'scroll' }, 'text')).toMatchObject({
+      'overflow-x': 'hidden',
+      'overflow-y': 'hidden',
+    });
+    expect(cssFor({ overflow: 'visible' }, 'view')).toEqual({});
   });
 
   it('sets text in text and input nodes only, with lines 1.2× the size', () => {

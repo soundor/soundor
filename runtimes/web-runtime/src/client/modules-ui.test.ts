@@ -6,7 +6,6 @@ import {
   AccessibilityActionEvent,
   clipboard,
   createImage,
-  createScrollView,
   createText,
   createTextInput,
   createView,
@@ -96,13 +95,13 @@ describe('soundor:ui', () => {
     const text = createText('Hi', { color: 'red' });
     const input = createTextInput({ value: 'v', placeholder: 'p' });
     const image = createImage('0123456789abcdef.png');
-    const scroll = createScrollView({ flex: 1 });
+    const scroll = createView({ flex: 1, overflow: 'scroll' });
     expect([box, text, input, image, scroll].map((node) => node.type)).toEqual([
       'view',
       'text',
       'input',
       'image',
-      'scroll',
+      'view',
     ]);
     expect(text.text).toBe('Hi');
     expect(box.style).toEqual({ padding: 4 });

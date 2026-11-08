@@ -95,6 +95,17 @@ export interface ViewProps extends EventProps, AccessibilityProps, DebugProps {
   focusable?: boolean;
   /** The view's `soundor:ui` node: its layout, bounds, focus, animations. */
   ref?: Ref<UiNode>;
+  /**
+   * It scrolled (a view whose style has `overflow: 'scroll'`, or
+   * `overflowX`/`overflowY`); read the node's `scrollTop`/`scrollLeft`.
+   */
+  onScroll?: (event: Event) => void;
+  /**
+   * Whether a view that scrolls draws its own scroll indicators; true by
+   * default. Without them it scrolls just the same: for no bar at all, or
+   * your own with `useScrollbar`.
+   */
+  scrollIndicators?: boolean;
   children?: ReactNode;
 }
 
@@ -203,25 +214,30 @@ export function Canvas(props: CanvasProps) {
 export interface ScrollViewProps extends ViewProps {
   /** The style of the box inside that holds the children and scrolls. */
   contentContainerStyle?: StyleProp;
-  /** It scrolled; read the node's `scrollTop`/`scrollLeft`. */
-  onScroll?: (event: Event) => void;
-  /**
-   * Whether it draws its own scroll indicators; true by default. Without them it
-   * scrolls just the same: for no bar at all, or your own with `useScrollbar`.
-   */
-  scrollIndicators?: boolean;
 }
 
-/** A view whose content scrolls (wheel, or the node's scrollTo()). */
+/**
+ * Always, over its style's `overflow`; both ways unless the style turns an
+ * axis off (`overflowX: 'hidden'`), the axis winning over the shorthand.
+ */
+const SCROLLS = { overflow: 'scroll' } as const;
+
+/**
+ * A view whose content scrolls (wheel, scrollbar, or the node's
+ * scrollTo()): a `View` with `overflow: 'scroll'`, its children in a box of
+ * their own, `contentContainerStyle`. Any view, an `Animated.View` too,
+ * scrolls the same with that style.
+ */
 export function ScrollView({
   contentContainerStyle,
   children,
+  style,
   ...props
 }: ScrollViewProps) {
   const scope = useContext(ScopeContext);
   return createElement(
-    HostTypes.ScrollView,
-    { ...props, [SCOPE_PROP]: scope },
+    HostTypes.View,
+    { ...props, style: [style, SCROLLS], [SCOPE_PROP]: scope },
     createElement(
       HostTypes.View,
       { style: contentContainerStyle, [SCOPE_PROP]: scope },

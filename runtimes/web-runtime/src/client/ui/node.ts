@@ -20,6 +20,7 @@ import {
 } from './accessibility';
 /** What a node needs of the view it belongs to. */
 import type { AnimationController } from './animation';
+import { standardEase } from './animation';
 import {
   computedTransform,
   IDENTITY,
@@ -36,14 +37,29 @@ import {
   registerMeasure,
   type Measure,
 } from './layout';
-import { cssFor, cssText, NODE_CLASS, pointerClass, readStyle } from './style';
+import {
+  cssFor,
+  cssText,
+  NODE_CLASS,
+  overflowOf,
+  pointerClass,
+  readStyle,
+} from './style';
 import {
   layoutText,
   lineHeightOf,
   sameTextStyle,
   type TextMeasurer,
 } from './text-layout';
-import type { Accessibility, LayoutRect, NodeType, Style } from './types';
+import type {
+  Accessibility,
+  LayoutRect,
+  NodeType,
+  ScrollIntoViewOptions,
+  ScrollLogicalPosition,
+  ScrollToOptions,
+  Style,
+} from './types';
 import type {
   AnimationKeyframe,
   AnimationOptions,
@@ -99,7 +115,6 @@ const ELEMENTS: Record<NodeType, { tag: string; className: string }> = {
   view: { tag: 'div', className: NODE_CLASS },
   text: { tag: 'div', className: `${NODE_CLASS} sd-text` },
   image: { tag: 'img', className: `${NODE_CLASS} sd-image` },
-  scroll: { tag: 'div', className: `${NODE_CLASS} sd-scroll` },
   input: { tag: 'input', className: `${NODE_CLASS} sd-input` },
   canvas: { tag: 'canvas', className: `${NODE_CLASS} sd-canvas` },
   svg: { tag: 'svg', className: `${NODE_CLASS} sd-svg` },
@@ -119,6 +134,59 @@ export function nodeOf(element: Element | null, root: Element): UiNode | null {
 }
 
 const ZERO: LayoutRect = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
+
+/** How long a smooth scroll takes: the engine's `smoothScrollMilliseconds`. */
+export const SMOOTH_SCROLL_MS = 300;
+
+/** Whether a scroll `behavior` is smooth: 'auto' and 'instant' are not. */
+function scrollBehavior(value: unknown): boolean {
+  if (value === undefined || value === 'auto' || value === 'instant')
+    return false;
+  if (value === 'smooth') return true;
+  throw new TypeError(
+    `The provided value '${String(value)}' is not a valid enum value of type ScrollBehavior.`,
+  );
+}
+
+function scrollAlignment(value: unknown): ScrollLogicalPosition {
+  if (
+    value === 'start' ||
+    value === 'center' ||
+    value === 'end' ||
+    value === 'nearest'
+  )
+    return value;
+  throw new TypeError(
+    `The provided value '${String(value)}' is not a valid enum value of type ScrollLogicalPosition.`,
+  );
+}
+
+/**
+ * The offset that shows a box at `start` (from the view's content box),
+ * `size` long, in a view `room` long scrolled to `scrolled`.
+ */
+function align(
+  alignment: ScrollLogicalPosition,
+  scrolled: number,
+  start: number,
+  size: number,
+  room: number,
+): number {
+  const end = start + size - room;
+  switch (alignment) {
+    case 'start':
+      return start;
+    case 'center':
+      return start + (size - room) / 2;
+    case 'end':
+      return end;
+    case 'nearest':
+      return Math.min(
+        Math.max(scrolled, Math.min(start, end)),
+        Math.max(start, end),
+      );
+  }
+}
 
 /** Yoga's MeasureMode.Undefined, and its Direction.LTR. */
 const MeasureModeUndefined = 0;
@@ -225,13 +293,23 @@ export class UiNode extends TreeEventTarget {
   readonly #textLines: HTMLElement | null = null;
   /** The width its text's lines were set for; NaN: to be set again. */
   #textWidth = NaN;
-  /** The element showing how far a scroll view scrolls. */
+  /**
+   * While its style scrolls (a view's): the element showing how far it
+   * scrolls, its indicators, and what ends its listening when it stops.
+   */
   #scrollExtent: HTMLElement | null = null;
   #extentWidth = 0;
   #extentHeight = 0;
-  /** A scroll view's indicators, and what places them, as last laid out. */
   #indicators: ScrollIndicators | null = null;
+  #scrollListening: AbortController | null = null;
   #scrollIndicators = true;
+  /** A smooth scroll on its way (scrollTo() with behavior 'smooth'). */
+  #smooth: {
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    started: number;
+    frame: number;
+  } | null = null;
 
   /** Nodes are made with createView(), createText() and the like. */
   constructor(
@@ -290,26 +368,11 @@ export class UiNode extends TreeEventTarget {
       this.#textLines.className = 'sd-text-lines';
       this.#element.append(this.#textLines);
     }
-    if (type === 'scroll') {
-      this.#scrollExtent = view.rootElement.ownerDocument.createElement('div');
-      this.#scrollExtent.className = 'sd-scroll-extent';
-      this.#element.append(this.#scrollExtent);
-      // A drag of its bar scrolls as the wheel does: told at once.
-      this.#indicators = new ScrollIndicators(
-        this.#element as HTMLElement,
-        () => this.#announceScroll(),
-      );
-      // Scrolling from code is told by the browser's own event, as natively
-      // on the next frame, before its requestAnimationFrame callbacks.
-      this.#element.addEventListener('scroll', () => this.#announceScroll(), {
-        passive: true,
-      });
-    }
     nodes.set(this.#element, this);
     if (this.#root) this.#connect();
   }
 
-  /** 'view', 'text', 'image', 'scroll', 'input' or 'canvas'. */
+  /** 'view', 'text', 'image', 'input', 'canvas' or 'svg'. */
   get type(): NodeType {
     return this.#type;
   }
@@ -390,18 +453,25 @@ export class UiNode extends TreeEventTarget {
 
   set style(value: Readonly<Style>) {
     const style = readStyle(cssPixels(value));
+    // Where it was scrolled, while the browser still has it as it was.
+    const scrolled = {
+      x: this.#element.scrollLeft,
+      y: this.#element.scrollTop,
+    };
     this.#element.style.cssText =
       cssText(cssFor(style, this.#type)) + this.#placement;
     const { className } = ELEMENTS[this.#type];
+    const scrolls = this.#type === 'view' && overflowOf(style).scrolls;
     this.#element.setAttribute(
       'class',
-      [className, this.#rootClass, pointerClass(style)]
+      [className, scrolls && 'sd-scroll', this.#rootClass, pointerClass(style)]
         .filter(Boolean)
         .join(' '),
     );
     this.#svgStyle(style);
     const before = this.#style;
     this.#style = Object.freeze({ ...style });
+    this.#scrollingChanged(scrolled);
     if (this.#yoga !== 0) {
       applyYogaStyle(this.#view.yoga, this.#yoga, style);
       if (
@@ -754,41 +824,256 @@ export class UiNode extends TreeEventTarget {
     node.#announceScroll();
   }
 
-  /** scrollTo({ top, left }) or scrollTo(left, top); clamped to the content. */
-  scrollTo(
-    optionsOrLeft?: { top?: number; left?: number } | number,
-    top?: number,
-  ): void {
-    this.#expect('scroll', 'scrollTo()');
-    const element = this.#element;
-    const target =
-      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
-        ? {
-            x: optionsOrLeft.left ?? element.scrollLeft,
-            y: optionsOrLeft.top ?? element.scrollTop,
-          }
-        : {
-            x: optionsOrLeft ?? element.scrollLeft,
-            y: top ?? element.scrollTop,
-          };
-    element.scrollLeft = Number(target.x) || 0;
-    element.scrollTop = Number(target.y) || 0;
-    this.#indicators?.place();
+  /** @internal Whether its style scrolls an axis: a view's only. */
+  static scrolls(node: UiNode): boolean {
+    return node.#scrollExtent !== null;
   }
 
-  scrollBy(
-    optionsOrLeft?: { top?: number; left?: number } | number,
-    top?: number,
-  ): void {
+  /**
+   * Starts or stops what scrolling takes, as its style says; and what no
+   * longer scrolls goes back to its start, told on the next frame, as
+   * natively (`Surface::scrollingChanged()`).
+   */
+  #scrollingChanged(scrolled: { x: number; y: number }): void {
+    const overflow = overflowOf(this.#style);
+    const view = this.#type === 'view';
+    const scrollsX = view && overflow.x === 'scroll';
+    const scrollsY = view && overflow.y === 'scroll';
+    if ((scrollsX || scrollsY) && this.#scrollExtent === null)
+      this.#startScrolling();
     const element = this.#element;
-    const delta =
-      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
-        ? { x: optionsOrLeft.left ?? 0, y: optionsOrLeft.top ?? 0 }
-        : { x: optionsOrLeft ?? 0, y: top ?? 0 };
-    this.scrollTo(
-      element.scrollLeft + Number(delta.x),
-      element.scrollTop + Number(delta.y),
+    if ((!scrollsX && scrolled.x !== 0) || (!scrollsY && scrolled.y !== 0)) {
+      if (!scrollsX) element.scrollLeft = 0;
+      if (!scrollsY) element.scrollTop = 0;
+      element.ownerDocument.defaultView?.requestAnimationFrame(() =>
+        this.#announceScroll(),
+      );
+    }
+    if (!scrollsX && !scrollsY) {
+      this.#cancelSmooth();
+      if (this.#scrollExtent !== null) this.#stopScrolling();
+    } else if (this.#yoga !== 0) this.#placeScrollExtent();
+  }
+
+  #startScrolling(): void {
+    const element = this.#element as HTMLElement;
+    this.#scrollExtent = element.ownerDocument.createElement('div');
+    this.#scrollExtent.className = 'sd-scroll-extent';
+    element.prepend(this.#scrollExtent);
+    // A drag of its bar scrolls as the wheel does: told at once, and the end
+    // of a smooth scroll.
+    this.#indicators = new ScrollIndicators(element, () => {
+      this.#cancelSmooth();
+      this.#announceScroll();
+    });
+    this.#indicators.setEnabled(this.#scrollIndicators);
+    // Scrolling from code is told by the browser's own event, as natively
+    // on the next frame, before its requestAnimationFrame callbacks.
+    this.#scrollListening = new AbortController();
+    element.addEventListener('scroll', () => this.#announceScroll(), {
+      passive: true,
+      signal: this.#scrollListening.signal,
+    });
+  }
+
+  #stopScrolling(): void {
+    this.#indicators?.dispose();
+    this.#indicators = null;
+    this.#scrollExtent?.remove();
+    this.#scrollExtent = null;
+    this.#extentWidth = 0;
+    this.#extentHeight = 0;
+    this.#scrollListening?.abort();
+    this.#scrollListening = null;
+  }
+
+  /** Where scrolling may go: the engine's contentSize() less its client size. */
+  #scrollRange(): { x: number; y: number } {
+    const overflow = overflowOf(this.#style);
+    const content = this.#contentSize();
+    const client = this.#clientSize();
+    return {
+      x:
+        overflow.x === 'scroll' ? Math.max(0, content.width - client.width) : 0,
+      y:
+        overflow.y === 'scroll'
+          ? Math.max(0, content.height - client.height)
+          : 0,
+    };
+  }
+
+  /**
+   * Puts it at `x`, `y` at once; whether it moved. The browser keeps an axis
+   * that scrolls within the extent, which ends where the engine clamps; the
+   * one that does not stays at 0, though the browser would scroll it.
+   */
+  #scrollAt(x: number, y: number): boolean {
+    const overflow = overflowOf(this.#style);
+    const element = this.#element;
+    const before = { x: element.scrollLeft, y: element.scrollTop };
+    element.scrollLeft = overflow.x === 'scroll' ? x : 0;
+    element.scrollTop = overflow.y === 'scroll' ? y : 0;
+    this.#indicators?.place();
+    return element.scrollLeft !== before.x || element.scrollTop !== before.y;
+  }
+
+  #cancelSmooth(): void {
+    if (this.#smooth === null) return;
+    this.#element.ownerDocument.defaultView?.cancelAnimationFrame(
+      this.#smooth.frame,
     );
+    this.#smooth = null;
+  }
+
+  /**
+   * scrollTo({ top, left, behavior }) or scrollTo(left, top): along the axes
+   * its style scrolls, clamped to the content; nothing on a node that does
+   * not scroll, as in browsers.
+   */
+  scrollTo(optionsOrLeft?: ScrollToOptions | number, top?: number): void {
+    const options =
+      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
+        ? optionsOrLeft
+        : null;
+    const smooth = scrollBehavior(options?.behavior);
+    if (this.#scrollExtent === null) return;
+    const element = this.#element;
+    const target =
+      options !== null
+        ? {
+            x: options.left ?? element.scrollLeft,
+            y: options.top ?? element.scrollTop,
+          }
+        : {
+            x: (optionsOrLeft as number | undefined) ?? element.scrollLeft,
+            y: top ?? element.scrollTop,
+          };
+    const x = Number(target.x) || 0;
+    const y = Number(target.y) || 0;
+    this.#cancelSmooth();
+    const window = element.ownerDocument.defaultView;
+    if (!smooth || this.#view.animations.reducedMotion || window === null) {
+      this.#scrollAt(x, y);
+      return;
+    }
+    const range = this.#scrollRange();
+    const to = {
+      x: Math.min(Math.max(x, 0), range.x),
+      y: Math.min(Math.max(y, 0), range.y),
+    };
+    const from = { x: element.scrollLeft, y: element.scrollTop };
+    if (to.x === from.x && to.y === from.y) return;
+    // As natively (`Surface::deliverScrolls()`): eased in and out, from the
+    // next frame, each step told as it is taken.
+    const step = (): void => {
+      const smooth = this.#smooth;
+      if (smooth === null) return;
+      const progress = Math.min(
+        1,
+        Math.max(
+          0,
+          (window.performance.now() - smooth.started) / SMOOTH_SCROLL_MS,
+        ),
+      );
+      const eased = standardEase('ease-in-out', progress);
+      this.#scrollAt(
+        smooth.from.x + (smooth.to.x - smooth.from.x) * eased,
+        smooth.from.y + (smooth.to.y - smooth.from.y) * eased,
+      );
+      if (progress >= 1) this.#smooth = null;
+      else smooth.frame = window.requestAnimationFrame(step);
+      this.#announceScroll();
+    };
+    this.#smooth = {
+      from,
+      to,
+      started: window.performance.now(),
+      frame: window.requestAnimationFrame(step),
+    };
+  }
+
+  /** scrollBy({ top, left, behavior }) or scrollBy(left, top): from where it is. */
+  scrollBy(optionsOrLeft?: ScrollToOptions | number, top?: number): void {
+    const element = this.#element;
+    const options =
+      typeof optionsOrLeft === 'object' && optionsOrLeft !== null
+        ? optionsOrLeft
+        : null;
+    const delta =
+      options !== null
+        ? { x: options.left ?? 0, y: options.top ?? 0 }
+        : { x: (optionsOrLeft as number | undefined) ?? 0, y: top ?? 0 };
+    this.scrollTo({
+      left: element.scrollLeft + (Number(delta.x) || 0),
+      top: element.scrollTop + (Number(delta.y) || 0),
+      behavior: options?.behavior,
+    });
+  }
+
+  /**
+   * Scrolls the views around it that scroll to show it, as
+   * Element.scrollIntoView() and the engine's `Surface::scrollIntoView()`:
+   * innermost first, by layout boxes.
+   */
+  scrollIntoView(arg?: boolean | ScrollIntoViewOptions): void {
+    const options: ScrollIntoViewOptions =
+      typeof arg === 'object' && arg !== null
+        ? arg
+        : { block: arg === false ? 'end' : 'start' };
+    const block = scrollAlignment(options.block ?? 'start');
+    const inline = scrollAlignment(options.inline ?? 'nearest');
+    const behavior = options.behavior;
+    scrollBehavior(behavior);
+    if (!this.isConnected || this.#yoga === 0) return;
+    this.#view.flushLayout();
+    const yoga = this.#view.yoga;
+    const planned = new Map<UiNode, { x: number; y: number }>();
+    const own = this.layout;
+    const box = { x: own.x, y: own.y, width: own.width, height: own.height };
+    for (let view = this.#parent; view !== null; view = view.#parent) {
+      const node = view.#yoga;
+      if (view.#scrollExtent !== null && view.#style.display !== 'none') {
+        const left =
+          yoga.YGNodeLayoutGetBorder(node, Edge.Left) +
+          yoga.YGNodeLayoutGetPadding(node, Edge.Left);
+        const top =
+          yoga.YGNodeLayoutGetBorder(node, Edge.Top) +
+          yoga.YGNodeLayoutGetPadding(node, Edge.Top);
+        const client = view.#clientSize();
+        const range = view.#scrollRange();
+        const element = view.#element;
+        const wanted = {
+          x: align(
+            inline,
+            element.scrollLeft,
+            box.x - left,
+            box.width,
+            client.width,
+          ),
+          y: align(
+            block,
+            element.scrollTop,
+            box.y - top,
+            box.height,
+            client.height,
+          ),
+        };
+        const to = {
+          x: Math.min(Math.max(wanted.x, 0), range.x),
+          y: Math.min(Math.max(wanted.y, 0), range.y),
+        };
+        planned.set(view, to);
+        box.x -= to.x;
+        box.y -= to.y;
+      } else {
+        box.x -= view.#element.scrollLeft;
+        box.y -= view.#element.scrollTop;
+      }
+      box.x += yoga.YGNodeLayoutGetLeft(node);
+      box.y += yoga.YGNodeLayoutGetTop(node);
+    }
+    for (const [view, to] of planned)
+      view.scrollTo({ left: to.x, top: to.y, behavior });
   }
 
   // ── Accessibility ──────────────────────────────────────────────────────────
@@ -892,7 +1177,7 @@ export class UiNode extends TreeEventTarget {
     expectNode(child, 'child');
     if (before !== null && before !== undefined) expectNode(before, 'before');
     if (child.#root) throw new Error('the root node cannot be a child');
-    if (this.#type !== 'view' && this.#type !== 'scroll') {
+    if (this.#type !== 'view') {
       throw new Error('only views can have children');
     }
     if (child.contains(this)) throw new Error('a node cannot contain itself');
@@ -1136,7 +1421,7 @@ export class UiNode extends TreeEventTarget {
       const height = finite(yoga.YGNodeLayoutGetHeight(node));
       let placement = `left:${x - parentLeft}px;top:${y - parentTop}px;width:${width}px;height:${height}px;`;
       // Children are placed by Yoga; only what draws in its box needs padding.
-      if (this.#type !== 'view' && this.#type !== 'scroll') {
+      if (this.#type !== 'view') {
         const shift = this.#type === 'input' ? this.#inputShift(viewY) : 0;
         for (const [property, side] of PADDINGS) {
           let padding = finite(yoga.YGNodeLayoutGetPadding(node, side));
@@ -1279,9 +1564,12 @@ export class UiNode extends TreeEventTarget {
     const borderTop = yoga.YGNodeLayoutGetBorder(node, Edge.Top);
     const left = borderLeft + yoga.YGNodeLayoutGetPadding(node, Edge.Left);
     const top = borderTop + yoga.YGNodeLayoutGetPadding(node, Edge.Top);
+    // An axis it does not scroll has nothing to show, however far its
+    // content reaches.
+    const overflow = overflowOf(this.#style);
     this.#indicators!.place({
-      contentWidth: width,
-      contentHeight: height,
+      contentWidth: overflow.x === 'scroll' ? width : 0,
+      contentHeight: overflow.y === 'scroll' ? height : 0,
       x: left,
       y: top,
       width: Math.max(

@@ -1039,7 +1039,7 @@ describe('requestEditorSize', () => {
 
 it('scrolling from code fires scroll at the next frame, once, before its callbacks', () => {
   const runtime = createTestRuntime();
-  const scroll = runtime.create('scroll');
+  const scroll = runtime.create('view', { overflow: 'scroll' });
   runtime.root.appendChild(scroll);
   const log: string[] = [];
   scroll.addEventListener('scroll', () =>
@@ -1066,4 +1066,47 @@ it('scrolling from code fires scroll at the next frame, once, before its callbac
   scroll.remove();
   runtime.advanceTime(17);
   expect(log).toHaveLength(2);
+});
+
+it('scrolls a view along the axes its style scrolls, and nothing else', () => {
+  const runtime = createTestRuntime();
+  const list = runtime.create('view', { overflowY: 'scroll' });
+  const plain = runtime.create('view', { overflow: 'hidden' });
+  runtime.root.appendChild(list);
+  runtime.root.appendChild(plain);
+  list.scrollTo({ left: 50, top: 30 });
+  expect([list.scrollLeft, list.scrollTop]).toEqual([0, 30]);
+  plain.scrollTo(0, 30);
+  expect(plain.scrollTop).toBe(0);
+  expect(() => list.scrollTo({ behavior: 'fast' })).toThrow(TypeError);
+  expect(() => list.scrollIntoView({ block: 'top' })).toThrow(TypeError);
+  // Stopped: back to its start, and told so.
+  const log: number[] = [];
+  list.addEventListener('scroll', () => log.push(list.scrollTop));
+  runtime.advanceTime(17);
+  list.style = { overflow: 'hidden' };
+  expect(list.scrollTop).toBe(0);
+  runtime.advanceTime(17);
+  expect(log).toEqual([30, 0]);
+});
+
+it('scrolls smoothly over the virtual clock, eased, and stops for a scroll at once', () => {
+  const runtime = createTestRuntime();
+  const list = runtime.create('view', { overflow: 'scroll' });
+  runtime.root.appendChild(list);
+  list.scrollTo({ top: 200, behavior: 'smooth' });
+  expect(list.scrollTop).toBe(0);
+  runtime.advanceTime(150);
+  expect(list.scrollTop).toBeGreaterThan(80);
+  expect(list.scrollTop).toBeLessThan(120);
+  runtime.advanceTime(200);
+  expect(list.scrollTop).toBe(200);
+  list.scrollBy({ top: 100, behavior: 'smooth' });
+  runtime.advanceTime(100);
+  list.scrollTop = 10;
+  runtime.advanceTime(400);
+  expect(list.scrollTop).toBe(10);
+  runtime.setReducedMotion(true);
+  list.scrollTo({ top: 50, behavior: 'smooth' });
+  expect(list.scrollTop).toBe(50);
 });
