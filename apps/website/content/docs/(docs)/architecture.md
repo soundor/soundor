@@ -131,7 +131,7 @@ Pointer and keyboard routing also follow the Soundor tree. React's `Modal` and
 ## Development and test boundaries
 
 DevTools connects a browser dashboard to an authenticated local server. The
-native development Standalone connects through a worker-based bridge, while
+native plugin editor connects through a worker-based bridge, while
 inspection and mutations run on the owning UI thread. Node references include a
 generation so reload invalidates stale requests. Release builds exclude the
 native debug bridge. See [CLI development](/docs/cli/devtools#inspecting-the-native-ui).

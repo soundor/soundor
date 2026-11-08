@@ -21,11 +21,12 @@ without a browser: there is no DOM, no `window`, no CSS. The web runtime
 draws the same Soundor nodes with DOM elements. Either way the UI sees the
 same components, the same layout and the same events, so it is written once:
 
-- **Components** are React Native's: [`View`](/docs/components/view),
+- **Components** follow React Native conventions: [`View`](/docs/components/view),
   [`Text`](/docs/components/text), [`Pressable`](/docs/components/pressable),
   [`TextInput`](/docs/components/text-input),
   [`Image`](/docs/components/image), plus [`Canvas`](/docs/components/canvas)
-  for code that draws, and overlays: [`Portal`](/docs/components/portal),
+  for code that draws, [SVG components](/docs/components/svg) from
+  `@soundor/react/svg` for vectors, and overlays: [`Portal`](/docs/components/portal),
   [`Modal`](/docs/components/modal), [`FocusScope`](/docs/components/focus-scope).
   Strings go in a `Text`.
 - **Styles** are objects, not CSS: flexbox, a column by default

@@ -61,7 +61,7 @@ frontmatter gives its title and description. Write
 `<Snippet name="gain" height={200} />`, which runs one file of
 `examples/snippets/src/snippets/` live, its code under it. Readers can edit
 an embedded example's UI code (`src/`, without tests) and a snippet, and see
-them run, so that code may import only `react`, `@soundor/react`,
+them run, so that code may import only `react`, `@soundor/react`, `@soundor/react/svg`,
 `soundor:*` and the example's own files (a snippet: none, but images from
 `examples/snippets/src/assets/`, which the snippet's page gets the ids of).
 

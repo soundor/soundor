@@ -1,12 +1,15 @@
 ---
 title: Events
-description: The Web-style pointer, wheel, key and focus events every component takes, and their coordinates.
+description: The Web-style pointer, wheel, key and focus events node components take, and their coordinates.
 ---
 
-Every component takes event props: `onPointerDown`, `onClick`, `onKeyDown`,
-`onWheel`, `onFocus` and the others below, with `…Capture` variants. They
-receive `soundor:ui`'s Web-style events, which capture and bubble through
-the view's nodes as in the DOM.
+The [node components](/docs/components) take event props: `onPointerDown`,
+`onClick`, `onKeyDown`, `onWheel`, `onFocus` and the others below.
+`onPointerDown`, `onPointerMove`, `onPointerUp`, `onClick`, `onContextMenu`,
+`onWheel` and `onKeyDown` also have `…Capture` variants. They receive
+`soundor:ui`'s Web-style events, which capture and bubble through the view's
+nodes as in the DOM. `Portal`, `Modal` and `FocusScope` take their own props;
+put node event handlers on the content they render.
 
 ```tsx
 <View
@@ -89,18 +92,21 @@ by the browser's own.
 
 ## Coordinates
 
-Every position is in logical pixels, in one of three spaces:
+Layout and view-relative positions use the view's logical pixels. Screen
+positions use the editor's logical pixels:
 
-| Space   | Relative to                        | Where                                                        |
-| ------- | ---------------------------------- | ------------------------------------------------------------ |
-| Local   | The event's target                 | `event.locationX`, `event.locationY`                         |
-| Parent  | The parent's box (scrolling aside) | `node.layout`                                                |
-| Surface | The plugin view's top-left corner  | `event.pageX`, `event.pageY`, `node.getBoundingClientRect()` |
+| Space   | Relative to                          | Where                                                        |
+| ------- | ------------------------------------ | ------------------------------------------------------------ |
+| Local   | The event's target                   | `event.locationX`, `event.locationY`                         |
+| Parent  | The parent's box (scrolling aside)   | `node.layout`                                                |
+| Surface | The plugin view's top-left corner    | `event.pageX`, `event.pageY`, `node.getBoundingClientRect()` |
+| Screen  | The screen, in editor logical pixels | `event.screenX`, `event.screenY`                             |
 
 `getBoundingClientRect()` is where the node shows, after its ancestors have
 scrolled. Device pixels (a Retina scale, a host that zooms
 the view) are the renderer's business and never show up in these numbers.
-There is no window or screen space: the view is all a plugin UI knows.
+Screen positions remain stable as the editor resizes or zooms: use their
+deltas for an editor resize grip. A wheel event falls back to `clientX`/`clientY`.
 (`clientX`/`clientY` and `offsetX`/`offsetY` are the Web names for
 `pageX`/`pageY` and `locationX`/`locationY`.)
 

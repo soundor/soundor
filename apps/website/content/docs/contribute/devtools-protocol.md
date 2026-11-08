@@ -7,8 +7,9 @@ Source: [`packages/devtools-protocol/`](https://github.com/soundor/soundor/tree/
 
 Soundor Debug Protocol v2: browser-safe types and Zod validation schemas for
 native UI developer tools. It depends on no runtime, engine, renderer or browser
-UI. The local server lives in the `soundor` CLI and runs only during supported,
-enabled development sessions.
+UI. The standalone `@soundor/devtools-server` package supplies the local
+server. The CLI starts it for supported development sessions; Driver/VST3
+launches also create private sessions.
 
 ## Session and transports
 
@@ -33,8 +34,8 @@ rejected. All requests validate Host to resist DNS rebinding. Native operations
 are intended for a worker; tree access and mutations must be dispatched to the
 engine's owning thread. Never issue blocking IPC on UI or audio threads.
 
-1. `POST /runtime/register` with `{version:1, sessionId, name, runtime,
-   generation:1, capabilities, processId?}`. Receive `{version:1, targetId,
+1. `POST /runtime/register` with `{version:2, sessionId, name, runtime,
+   generation:1, capabilities, processId?}`. Receive `{version:2, targetId,
    targetToken}`. Each registration gets a fresh unpredictable instance ID.
    Instance capabilities must be a subset of the runtime's static declaration.
 2. Further requests also require `X-Soundor-Target` and
@@ -79,8 +80,8 @@ cookie and an exact Origin matching this session's localhost or 127.0.0.1 URL.
 Credentials never go in WebSocket URLs. Cookies are unique to each session, so
 different projects on localhost do not share authentication.
 
-The server sends `{type:'hello',version:1,sessionId,clientId,project}`. A browser
-must answer `{type:'hello',version:1}` before issuing requests. Incompatible
+The server sends `{type:'hello',version:2,sessionId,clientId,project}`. A browser
+must answer `{type:'hello',version:2}` before issuing requests. Incompatible
 clients are closed. Server WebSocket ping/pong drives heartbeat expiry.
 
 ## Requests, responses and identity

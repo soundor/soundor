@@ -89,8 +89,8 @@ try {
 
 Locators find nodes by what the engine knows of them:
 
-- `getByDebugId(id)`: the node whose `debugId` prop (on every
-  [component](/docs/components), and `node.debugId` in
+- `getByDebugId(id)`: the node whose `debugId` prop (on
+  [node components](/docs/components), and `node.debugId` in
   [`soundor:ui`](/docs/api/ui)) is `id`. It is for tools only: users and
   assistive technology never see it. DevTools shows it too.
 - `getByRole(role, { name })`: a node assistive technology sees with this
@@ -130,9 +130,9 @@ generation, and the references of the old one are refused.
 
 ## Security
 
-DevTools runs only in development: the engine compiles its inspector only in
-Debug builds with DevTools enabled, which `soundor build` never makes, and a
-plugin connects only when `SOUNDOR_DEVTOOLS_SESSION` names its designated
+The engine compiles its inspector only in Debug builds with DevTools enabled,
+as made by `soundor dev` or `soundor build juce --debug`. Release builds exclude
+it. A plugin connects only when `SOUNDOR_DEVTOOLS_SESSION` names its designated
 DevTools session descriptor.
 
 - The server listens on 127.0.0.1 only. The Driver refuses any other

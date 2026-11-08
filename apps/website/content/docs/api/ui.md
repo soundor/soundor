@@ -294,7 +294,9 @@ press plus how far the pointer went since, so nothing drifts:
 
 ```tsx
 const editor = useSyncExternalStore(subscribeEditorSize, editorSize);
-const drag = useRef<{ x: number; y: number; width: number; height: number }>();
+const drag = useRef<
+  { x: number; y: number; width: number; height: number } | undefined
+>(undefined);
 if (!editor.resizable) return null;
 return (
   <View

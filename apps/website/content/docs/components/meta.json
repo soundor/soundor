@@ -17,7 +17,7 @@
     "portal",
     "modal",
     "focus-scope",
-    "---Every component---",
+    "---Shared node props---",
     "style",
     "events",
     "accessibility"

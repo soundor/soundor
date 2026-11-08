@@ -3,10 +3,12 @@ title: Style
 description: Flexbox layout, spacing, text and paint, as in React Native.
 ---
 
-Styles are React Native's: flexbox laid out by
+Styles follow React Native conventions: flexbox laid out by
 [Yoga](https://www.yogalayout.dev), spacing shorthands, percentages, CSS
-colors, rounded corners, opacity and transforms. Every component takes a
-`style`.
+colors, rounded corners, opacity and transforms. The
+[node components](/docs/components) take `style`. `Portal.Host` also takes
+`style`; `Modal` takes `backdropStyle`. `Portal` and `FocusScope` have no
+style of their own.
 
 <Snippet name="view" height={230} />
 

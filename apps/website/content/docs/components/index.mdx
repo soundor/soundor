@@ -3,7 +3,7 @@ title: Components
 description: The components a Soundor plugin UI is made of, from @soundor/react.
 ---
 
-`@soundor/react` renders a plugin's UI with React Native's components and
+`@soundor/react` renders a plugin's UI with its own components and React Native
 conventions, in every runtime: natively, where there is no DOM, and in the
 browser. Each page here runs its component live: edit the code, then apply.
 
@@ -14,6 +14,7 @@ browser. Each page here runs its component live: edit the code, then apply.
 | [`View`](/docs/components/view)                   | A box laid out with flexbox: the building block.              |
 | [`Text`](/docs/components/text)                   | Text. Every string goes in one.                               |
 | [`Image`](/docs/components/image)                 | A bundled image.                                              |
+| [`Svg` and shapes](/docs/components/svg)          | Retained vectors from `@soundor/react/svg`.                   |
 | [`Pressable`](/docs/components/pressable)         | A view that responds to presses, with its state for styling.  |
 | [`TextInput`](/docs/components/text-input)        | A single-line text input.                                     |
 | [`Canvas`](/docs/components/canvas)               | Pixels code draws, with a 2D or WebGL 2 context.              |
@@ -22,7 +23,8 @@ browser. Each page here runs its component live: edit the code, then apply.
 | [`Modal`](/docs/components/modal)                 | A layer over the view that takes its input until it closes.   |
 | [`FocusScope`](/docs/components/focus-scope)      | A boundary for keyboard focus: trap, autofocus, restore.      |
 
-Every component takes:
+The node components (`View`, `Text`, `Image`, `Pressable`, `TextInput`,
+`Canvas`, `Animated.View`, and the `Svg` root) take:
 
 - [`style`](/docs/components/style): flexbox layout, spacing, text and paint,
   as in React Native. `StyleSheet.create()` names styles with their types.
@@ -32,6 +34,12 @@ Every component takes:
   to a screen reader.
 - `ref`: its `soundor:ui` node, for its layout, bounds, focus and animations
   ([`soundor:ui`](/docs/api/ui)).
+
+`Portal` and `FocusScope` group or place children without exposing these
+node props. `Modal` takes its own dialog props, including `backdropStyle` and
+`accessibilityLabel`; `Portal.Host` takes `host` and `style`. SVG shapes take
+the [SVG presentation and geometry props](/docs/components/svg), with input
+and accessibility on the `Svg` root.
 
 ## Rendering
 

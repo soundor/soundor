@@ -121,8 +121,9 @@ Nothing stays pressed:
 
 ## Security
 
-The engine compiles input automation with DevTools only: Debug builds with
-DevTools enabled, which `soundor build` never makes, so a released plugin has
-none. In development it takes the session's browser key, from the loopback
-only: any client signed in to the session can send input. Targets advertise it as the `input`
+The engine compiles input automation with DevTools only, in Debug builds as
+made by `soundor dev` or `soundor build juce --debug`. Release builds exclude
+it. Clients sign in to the loopback session with its browser key, and the
+runtime receives commands through its authenticated bridge. Any client signed
+in to the session can send input. Targets advertise it as the `input`
 capability, separate from inspection.

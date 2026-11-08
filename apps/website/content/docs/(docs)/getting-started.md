@@ -41,14 +41,19 @@ release; naming it keeps the scaffolder, and so the new project, on the version
 these docs describe.
 
 The scaffolder prompts for the runtime and package manager, copies the template,
-installs dependencies, and runs `soundor init`. It currently offers the JUCE
-runtime, with VST3 and Standalone formats. Native development builds and launches
-the Standalone; it needs a graphical desktop to open the window.
+installs dependencies, and runs `soundor init`. Choose JUCE (the default), web,
+or both. JUCE projects include VST3 and Standalone formats and the VST3 host:
+`pnpm dev` opens the VST3 in that host. Without the host package, it opens the
+Standalone instead. Either native editor needs a graphical desktop. See
+[What development opens](/docs/cli/dev#what-soundor-dev-juce-opens).
 
 Soundor is pre-1.0, and a minor release (0.10 to 0.11) can change its APIs. The
-new project therefore pins each Soundor package to the exact version the
-scaffolder was released with. Upgrade them together, after reading their
-changelogs.
+new project therefore pins each direct Soundor dependency exactly. The
+scaffolder starts with package-specific tested versions and can select older
+compatible versions when those are unavailable under the package manager's
+policy. The CLI, config and React share a release; the runtimes and VST3 host
+have their own versions. See [Dependency versions](/docs/cli/create-soundor-app#dependency-versions)
+before upgrading.
 
 The template includes a gain control UI and a JUCE processor scaffold. Implement
 your audio behavior in the processor; declaring a parameter does not apply it to
@@ -101,9 +106,10 @@ Run `pnpm gen` after editing the contract to refresh editor types. Restart
 `pnpm dev` after config or native code changes. Ordinary UI edits rebuild
 automatically during development.
 
-Published JUCE runtimes use a matching prebuilt engine by default. A checkout of
-this monorepo has no published-engine manifest, so its examples use
-`juceRuntime({ engine: { mode: 'source' } })`. See [Engine modes](/docs/engine).
+The default engine mode selects matching prebuilt libraries, including in a
+workspace checkout. Modified engine inputs or an unpublished version select
+local sources automatically. Use `juceRuntime({ engine: { mode: 'source' } })`
+to force a source build. See [Engine modes](/docs/engine).
 
 ## Connect the UI
 

@@ -92,7 +92,8 @@ and appropriate background execution.
   elements, layout, canvas contexts, and ARIA attributes.
 
 The native editor embeds the Soundor Engine. The browser runtime uses browser
-APIs and contains no native engine or WebAssembly build. See
+APIs for drawing and services, with the engine's Yoga compiled to WebAssembly
+for layout. See
 [Architecture](/docs/architecture) for the full flow.
 
 ## Where state belongs

@@ -80,8 +80,9 @@ editor: {
   ([`soundor()`](/docs/testing/vitest)).
 - **Sizes are whole, non-negative numbers;** anything else throws a
   `RangeError`. A request's are checked as in the runtimes: a `TypeError`
-  for a side that is not a number, a `RangeError` for one not finite or not
-  above 0.
+  for a side that is not a number, a `RangeError` for one that is not finite.
+  Finite requests, including zero and negative numbers, are rounded and
+  clamped to the editor's limits.
 - **Nothing is laid out:** a request resizes the editor, not the view.
 - **Pointer events' `screenX`/`screenY`** are what a test passes, or its
   `clientX`/`clientY`.

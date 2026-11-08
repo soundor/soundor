@@ -28,7 +28,7 @@ and `flushSync` deliberately outside `act`.
 
 ## The examples' tests
 
-The renderer's 84 tests live in the private `packages/react/testing` workspace.
+The renderer's tests live in the private `packages/react/testing` workspace.
 It directly declares the testing packages and renderer, avoiding a dependency
 cycle between the renderer and its test tools. `pnpm --filter @soundor/react test`
 continues to run this suite. Renderer-specific checks inspect actual runtime
@@ -58,9 +58,9 @@ and host/parameter subscriptions. `primitives` tests pointer/keyboard/accessibil
 knob changes, nested modal focus, hosted portals, and animation lifecycle.
 
 Native application builds remain separate: `pnpm --filter basic --filter primitives
-exec soundor build juce`. CI does not build the examples natively; the JUCE
-integration job builds `@soundor/juce-runtime`'s own test plugin
-(`pnpm --filter @soundor/juce-runtime test:plugin`). These simulated tests cannot replace native runtime
-checks or validate pixels, DSP, plugin formats, or host integration. Future native
-Vitest support can supply its own environment and `@soundor/vitest/native` plugin;
-no placeholder native entry point is published today.
+exec soundor build juce`. The JUCE integration job builds the runtime's own
+test plugin (`pnpm --filter @soundor/juce-runtime test:plugin`); Orbit is the
+one example CI builds natively, for its end-to-end tests. Simulated tests
+cannot validate pixels, DSP, plugin formats or host integration. Use
+[`@soundor/vitest-e2e`](/docs/testing/e2e) to test a built VST3's real UI and
+audio in the VST3 host, alongside the native engine and adapter suites.

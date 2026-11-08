@@ -62,7 +62,8 @@ The web runtime uses browser JavaScript and DOM nodes, Web Audio for audio, and
 IndexedDB for persistence. It supplies Soundor layout defaults, focus and event
 routing, semantic visibility and animation behavior on top of browser APIs.
 User-defined native API functions run as TypeScript in the same host context.
-No Hermes, Yoga, Skia or WASM runs in the web implementation.
+The engine's Yoga runs as WebAssembly for layout; CSS only draws the boxes it
+computes. Hermes and Skia are not part of the web implementation.
 
 This route avoids the engine ABI, but it owns every semantic adaptation. DOM
 defaults alone do not establish conformance. Compare invalid values, event

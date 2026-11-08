@@ -9,7 +9,7 @@ import { generateNativeModuleSources } from './native-codegen';
 
 /**
  * Exercises every supported shape. Its generated C++ is checked in under
- * native/tests/generated and compiled by the native test suite, which calls
+ * engines/engine/tests/generated and compiled by the native test suite, which calls
  * each method from JavaScript. Regenerate with:
  *
  *   UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
