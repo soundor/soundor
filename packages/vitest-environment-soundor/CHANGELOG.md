@@ -1,5 +1,16 @@
 # vitest-environment-soundor
 
+## 0.16.0
+
+### Minor Changes
+
+- [#238](https://github.com/soundor/soundor/pull/238) [`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `ResizeObserver` is a global that observes nodes, as on the Web: its callback is told after a frame's `requestAnimationFrame` callbacks and layout of each node whose content, border or device-pixel content box changed size. In the web runtime it takes the browser's place for nodes, and passes DOM elements on to it. The simulated runtime's observes nodes and never calls back, as nothing is laid out there. `useScrollbar` no longer reads sizes every frame: it is told of changes by a `ResizeObserver` and by `scroll` events. New `useCanvasSize` keeps a canvas's drawing buffer exactly the device pixels its box covers.
+
+### Patch Changes
+
+- Updated dependencies [[`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762), [`ca0158b`](https://github.com/soundor/soundor/commit/ca0158b66bafff553e878c642f3b33aff25942c9), [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837), [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837)]:
+  - @soundor/test-runtime@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

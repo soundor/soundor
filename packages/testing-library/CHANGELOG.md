@@ -1,5 +1,13 @@
 # @soundor/testing-library
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies [[`ede9005`](https://github.com/soundor/soundor/commit/ede90051c20216a7543fcf0b8336f3bf8630eec5), [`1b4e0a0`](https://github.com/soundor/soundor/commit/1b4e0a056f32ad976429aa4b5be39fc52651c757), [`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762), [`ca0158b`](https://github.com/soundor/soundor/commit/ca0158b66bafff553e878c642f3b33aff25942c9), [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837), [`f0cfe73`](https://github.com/soundor/soundor/commit/f0cfe73cab2daaf7e374c7269d82364077353a48), [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837)]:
+  - @soundor/react@0.16.0
+  - @soundor/test-runtime@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
