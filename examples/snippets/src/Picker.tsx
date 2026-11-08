@@ -1,5 +1,5 @@
 // What `soundor dev web` shows: every snippet, one at a time.
-import { Pressable, ScrollView, Text, View } from '@soundor/react';
+import { Pressable, Text, View } from '@soundor/react';
 import { useState } from 'react';
 
 import { Frame } from './frame';
@@ -12,9 +12,14 @@ export function Picker() {
 
   return (
     <View style={{ flex: 1, flexDirection: 'row' }}>
-      <ScrollView
-        style={{ width: 160, backgroundColor: '#1d1f24' }}
-        contentContainerStyle={{ padding: 8, gap: 2 }}
+      <View
+        style={{
+          width: 160,
+          backgroundColor: '#1d1f24',
+          overflowY: 'scroll',
+          padding: 8,
+          gap: 2,
+        }}
       >
         {names.map((name) => (
           <Pressable
@@ -37,7 +42,7 @@ export function Picker() {
             </Text>
           </Pressable>
         ))}
-      </ScrollView>
+      </View>
       <Frame>
         <Snippet key={chosen} />
       </Frame>

@@ -3,7 +3,6 @@ import {
   createPortalHost,
   FocusScope,
   Portal,
-  ScrollView,
   Text,
   View,
   type PortalHost,
@@ -52,14 +51,12 @@ describe('Portal', () => {
   it('renders into an overlay entry, out of clipping and scrolling', async () => {
     await show(
       <View style={{ overflow: 'hidden' }}>
-        <ScrollView>
+        <View style={{ overflow: 'scroll' }}>
           <Portal>{label('menu')}</Portal>
-        </ScrollView>
+        </View>
       </View>,
     );
-    expect(print()).toBe(
-      'view[view{overflow:hidden}[view{overflow:scroll}[view]]]',
-    );
+    expect(print()).toBe('view[view{overflow:hidden}[view{overflow:scroll}]]');
     expect(overlay()).toBe('view[entry[text"menu"]]');
   });
 

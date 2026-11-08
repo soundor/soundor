@@ -3,7 +3,6 @@ import {
   Canvas,
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -144,22 +143,27 @@ describe('rendering', () => {
     errors.mockRestore();
   });
 
-  it('shows images and scroll views with a content container', async () => {
+  it('scrolls a view by its style without adding a content container', async () => {
     await show(
-      <ScrollView style={{ height: 50 }} contentContainerStyle={{ padding: 4 }}>
+      <View style={{ height: 50, overflowY: 'scroll', padding: 4 }}>
         <Image source="logo.png" style={{ width: 8 }} />
-      </ScrollView>,
+      </View>,
     );
     expect(print()).toBe(
-      'view[view{height:50,overflow:scroll}[view{padding:4}[image{width:8}<logo.png>]]]',
+      'view[view{height:50,overflowY:scroll,padding:4}[image{width:8}<logo.png>]]',
     );
   });
 
-  it('scrolls a ScrollView whatever its overflow, and an axis can be turned off', async () => {
-    await show(
-      <ScrollView style={{ overflow: 'hidden', overflowX: 'hidden' }} />,
-    );
-    expect(print()).toBe('view[view{overflow:scroll,overflowX:hidden}[view]]');
+  it('updates scrolling axes through the view style', async () => {
+    await show(<View style={{ overflow: 'scroll', overflowX: 'hidden' }} />);
+    const node = child(0);
+    node.scrollTop = 40;
+    node.scrollLeft = 20;
+    expect(node.scrollTop).toBe(40);
+    expect(node.scrollLeft).toBe(0);
+    await show(<View style={{ overflow: 'hidden' }} />);
+    expect(child(0)).toBe(node);
+    expect(node.scrollTop).toBe(0);
   });
 
   it('gives refs the soundor:ui node', async () => {

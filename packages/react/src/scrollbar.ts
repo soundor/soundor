@@ -57,7 +57,7 @@ export interface Scrollbar {
 /**
  * What scrollbars of your own need: draw a track and a thumb however you like,
  * anywhere, and they scroll the view, any view whose style scrolls
- * (`overflow: 'scroll'`, a `ScrollView`). Give it `scrollIndicators={false}`
+ * (`overflow: 'scroll'`). Give it `scrollIndicators={false}`
  * to replace its own. One bar for each axis; draw the ones you need.
  *
  *   const list = useRef<UiNode>(null);

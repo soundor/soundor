@@ -1,6 +1,5 @@
 import {
   Animated,
-  ScrollView,
   useScrollbar,
   View,
   type Scrollbar,
@@ -19,13 +18,16 @@ function Bar({ axis }: { axis?: 'vertical' | 'horizontal' }) {
   bar = useScrollbar(node)[axis ?? 'vertical'];
   return (
     <View>
-      <ScrollView
+      <View
         ref={(value) => {
           node.current = value;
           if (value !== null) scroll = value;
         }}
         scrollIndicators={false}
-      />
+        style={{ overflow: 'scroll' }}
+      >
+        <View />
+      </View>
       <View {...bar.trackProps}>
         <View {...bar.thumbProps} style={{ backgroundColor: 'red' }} />
       </View>
