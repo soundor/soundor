@@ -258,7 +258,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         }
         Object result {
             { "ref", ref(currentGeneration, id) },
-            { "type", name(item->type(), { "View", "Text", "Image", "Scroll", "Input", "Canvas", "Svg" }) },
+            { "type", name(item->type(), { "View", "Text", "Image", "Input", "Canvas", "Svg" }) },
             { "parent", item->parent() ? Value(std::to_string(item->parent()->id())) : Value() },
             { "children", children },
             { "bounds", rect(surface.bounds(id)) },
