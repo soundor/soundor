@@ -6,6 +6,7 @@
 #include <chrono>
 #include <limits>
 #include <string>
+#include <utility>
 #include <vector>
 #if SOUNDOR_TEST_GPU
     #include "../gpu/GpuTestSupport.h"
@@ -100,6 +101,32 @@ TEST_SUITE("Native DevTools inspector")
         CHECK_FALSE(update.nodes.empty());
         const auto parsed = f.eval("JSON.parse(" + debug::Value(tree.json()).json() + ").nodes.length");
         CHECK(parsed.asNumber() == 4);
+    }
+
+    TEST_CASE("snapshots and details report the correct type for every node kind")
+    {
+        Fixture f;
+        auto& surface = f.host.surface();
+        for (const auto& [type, expected] :
+             { std::pair { ui::NodeType::View, "View" }, std::pair { ui::NodeType::Text, "Text" },
+               std::pair { ui::NodeType::Image, "Image" }, std::pair { ui::NodeType::Input, "Input" },
+               std::pair { ui::NodeType::Canvas, "Canvas" }, std::pair { ui::NodeType::Svg, "Svg" } })
+        {
+            const std::string expectedName = expected;
+            CAPTURE(expectedName);
+            const auto id = surface.createNode(type);
+            surface.insertChild(surface.root().id(), id);
+            const auto details = f.inspector.node(f.host, id);
+            CHECK(std::get<std::string>(object(details).at("type").data) == expectedName);
+
+            const auto tree = f.inspector.tree(f.host);
+            const auto& nodes = std::get<Array>(object(tree).at("nodes").data);
+            const auto found = std::ranges::find_if(
+                nodes, [&](const auto& node)
+                { return std::get<std::string>(object(object(node).at("ref")).at("id").data) == std::to_string(id); });
+            REQUIRE(found != nodes.end());
+            CHECK(std::get<std::string>(object(*found).at("type").data) == expectedName);
+        }
     }
 
     TEST_CASE("debug IDs appear in snapshots, details and metadata patches")
