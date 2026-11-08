@@ -31,6 +31,12 @@ changeset (`scripts/check-release.mjs`): the two would otherwise ship different
 layouts. The engine is a dev dependency, which keeps the build order and affected
 packages right, but changesets does not release a package for a dev dependency.
 
+A release pull request has already bumped the version and consumed its
+changesets, so the check accepts that version as pending publication. Before
+the first npm publication, `0.0.0` is this package's unreleased version: a bump
+from it, such as the initial `0.1.0` release, also passes without a remaining
+changeset. An unversioned `0.0.0` still needs a changeset.
+
 Whether they really lay out alike is tested against the engine itself.
 `engines/engine/tests/layout/corpus.json` holds generated trees and the frames the
 engine gives them, through its `soundor:ui`, the same on every platform. The web runtime's

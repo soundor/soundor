@@ -30,10 +30,29 @@ test('passes when a release pull request has versioned them', () => {
   assert.equal(releaseProblem({ ...state, version: '0.2.0' }), null);
 });
 
-test('fails with nothing published and nothing to publish it', () => {
+test('passes when the first release pull request has consumed its changeset', () => {
+  assert.equal(
+    releaseProblem({ ...state, published: null, version: '0.1.0' }),
+    null,
+  );
+});
+
+test('fails before the first version bump with no changeset', () => {
   assert.match(
-    releaseProblem({ ...state, published: null }),
+    releaseProblem({ ...state, published: null, version: '0.0.0' }),
     /add a changeset/,
+  );
+});
+
+test('passes before the first version bump with a pending changeset', () => {
+  assert.equal(
+    releaseProblem({
+      ...state,
+      published: null,
+      version: '0.0.0',
+      changeset: true,
+    }),
+    null,
   );
 });
 
