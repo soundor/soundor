@@ -43,6 +43,12 @@ the view's nodes as in the DOM.
   the editor measures with them
   ([A resize grip](/docs/api/ui#a-resize-grip)). A wheel event's are its
   `clientX`/`clientY`.
+- **The wheel with Control is a zoom**, as browsers take it, and a trackpad's
+  pinch arrives in a browser as one (`ctrlKey`, the zoom in `deltaY`). It never
+  scrolls a scroll view. Unless a listener calls `preventDefault()`, it goes on
+  to the host, which in a browser zooms the page. To zoom something of your
+  own, a waveform say, handle `onWheel` when `event.ctrlKey` is set and call
+  `preventDefault()`.
 - **Focus:** a press focuses the nearest `focusable` node, unless its
   `pointerdown` is prevented; Tab and Shift+Tab move through focusable nodes.
   Keys go to the focused node. Show focus with `focusVisible`, not `focused`

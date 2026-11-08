@@ -1125,6 +1125,10 @@ export class UiView implements ViewLink {
       event.preventDefault();
       return;
     }
+    // With Control it is a zoom, the browser's (a trackpad's pinch arrives
+    // as one): never a scroll, and left to the browser unless plugin code
+    // took it above.
+    if (event.ctrlKey) return;
     // The default action: scroll the nearest scroll view that can.
     const unit =
       event.deltaMode === 1
