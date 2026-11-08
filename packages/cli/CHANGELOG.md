@@ -1,5 +1,26 @@
 # soundor
 
+## 0.16.0
+
+### Minor Changes
+
+- [#215](https://github.com/soundor/soundor/pull/215) [`9e4c0ef`](https://github.com/soundor/soundor/commit/9e4c0efa87a2743965921a0590c61f161faeb0bf) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add `soundor build juce --debug`: a one-shot Debug build with DevTools and the UI embedded, for tests, in `.soundor/debug/juce/<format>/`. Add `--out <dir>` to `soundor build`, for releases and debug builds.
+
+- [#208](https://github.com/soundor/soundor/pull/208) [`01bf473`](https://github.com/soundor/soundor/commit/01bf473f0fe1d09678b8e34073d7642fbbbb95e7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Enable the `soundor` package condition when bundling plugin UIs and running
+  Soundor Vitest tests, including external dependencies. Libraries can expose
+  Soundor and DOM implementations through the same import, with the Soundor
+  entry selected for both JUCE and the web runtime. New projects include
+  `customConditions: ["soundor"]` in their UI tsconfig; existing and manually
+  created projects should add it to select matching TypeScript declarations.
+
+### Patch Changes
+
+- Updated dependencies [[`c6a011f`](https://github.com/soundor/soundor/commit/c6a011f5fcbe805ff4c9def2b1d3ddc50dadf89b), [`7fb3f13`](https://github.com/soundor/soundor/commit/7fb3f13f2e3435764e0c5c84ba0b2c44ef805430), [`cdbebe4`](https://github.com/soundor/soundor/commit/cdbebe4624eeb57c7d7be6840d10e2a0e92b2cf7)]:
+  - @soundor/driver@0.16.0
+  - @soundor/core@0.16.0
+  - @soundor/devtools-client@0.16.0
+  - @soundor/devtools-server@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes

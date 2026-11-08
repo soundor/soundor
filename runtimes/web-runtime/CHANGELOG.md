@@ -1,5 +1,35 @@
 # @soundor/web-runtime
 
+## 0.12.0
+
+### Minor Changes
+
+- [#238](https://github.com/soundor/soundor/pull/238) [`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `ResizeObserver` is a global that observes nodes, as on the Web: its callback is told after a frame's `requestAnimationFrame` callbacks and layout of each node whose content, border or device-pixel content box changed size. In the web runtime it takes the browser's place for nodes, and passes DOM elements on to it. The simulated runtime's observes nodes and never calls back, as nothing is laid out there. `useScrollbar` no longer reads sizes every frame: it is told of changes by a `ResizeObserver` and by `scroll` events. New `useCanvasSize` keeps a canvas's drawing buffer exactly the device pixels its box covers.
+
+- [#240](https://github.com/soundor/soundor/pull/240) [`ca0158b`](https://github.com/soundor/soundor/commit/ca0158b66bafff553e878c642f3b33aff25942c9) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Any view scrolls when its style says so, an `Animated.View` too: `overflow: 'scroll'` scrolls, as in CSS, and `overflowX` and `overflowY` scroll one axis (they win over `overflow`). `ScrollView` is now a view with that style, its children in a content container, and it always scrolls; `scrollIndicators` and `onScroll` are props of every `View`. Nodes scroll smoothly with `scrollTo()`/`scrollBy()` and `behavior: 'smooth'`, and `scrollIntoView()` brings a node into view in every view around it that scrolls.
+
+  Breaking:
+
+  - `createScrollView()` and the `'scroll'` node type are gone: create a view with `overflow: 'scroll'`.
+  - `overflow: 'scroll'` on a view scrolls it; it used to only clip, as `'hidden'` still does.
+  - `scrollTo()` on a node that does not scroll does nothing, as in browsers, instead of throwing.
+  - `useScrollbar(ref)` returns `{ vertical, horizontal }`, a bar for each axis, and no longer takes `axis`: `useScrollbar(ref, { axis: 'horizontal' })` is `useScrollbar(ref).horizontal`.
+
+- [#235](https://github.com/soundor/soundor/pull/235) [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `useScrollbar` makes a scrollbar of your own from ordinary nodes, and `ScrollView`'s `scrollIndicators={false}` leaves out the built-in one. Nodes gain `scrollIndicators`, `clientWidth` and `clientHeight`.
+
+- [#234](https://github.com/soundor/soundor/pull/234) [`5964ac0`](https://github.com/soundor/soundor/commit/5964ac08ea858df571878b723b37fad177f375b3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The web runtime now lays out with Yoga, the engine's own, compiled to WebAssembly: a plugin UI gets the same boxes in the browser as in a plugin. CSS only draws them. Text wraps as natively, only at spaces and line breaks, text and inputs sit on the same baselines, and scroll views draw the JUCE runtime's thin indicators in place of the browser's scrollbar. Under a strict Content Security Policy the page needs `wasm-unsafe-eval`.
+
+### Patch Changes
+
+- [#239](https://github.com/soundor/soundor/pull/239) [`8a8f912`](https://github.com/soundor/soundor/commit/8a8f912207d8b1d61832ad7042c63fc395fdb729) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The wheel with Control, which is how a browser reports a trackpad's pinch, no longer scrolls a scroll view: the browser zooms the page as it does elsewhere, unless plugin code calls `preventDefault()` to zoom something of its own. Before, a pinch over the plugin scrolled its content and the page could not be zoomed from there. And a wheel no scroll view can use any more, at the end of its content, now goes on to the page, as natively to the host: a page zoomed past the window can be scrolled with the pointer over the plugin.
+
+- [#238](https://github.com/soundor/soundor/pull/238) [`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Scrolling a scroll view from code (`scrollTo`, `scrollBy`, `scrollTop`, `scrollLeft`) now fires its `scroll` event in the web runtime too, once, on the browser's next frame, as in the JUCE runtime; dragging or pressing its scrollbar fires it at once, as the wheel does.
+
+- [#235](https://github.com/soundor/soundor/pull/235) [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A mouse can use a scroll view's indicators: near the scroll view's edge a track appears under a grown bar, which can be dragged, and a press on the track jumps there. After touch, indicators show only while scrolling.
+- Updated dependencies [[`7fb3f13`](https://github.com/soundor/soundor/commit/7fb3f13f2e3435764e0c5c84ba0b2c44ef805430), [`8985215`](https://github.com/soundor/soundor/commit/8985215b4ebe4c88267c407249c404c93fb0ff83), [`f8d5230`](https://github.com/soundor/soundor/commit/f8d5230800a595375880743dea71c053d02311a6)]:
+  - @soundor/core@0.16.0
+  - @soundor/yoga-wasm@0.1.0
+
 ## 0.11.0
 
 ### Minor Changes

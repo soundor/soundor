@@ -1,6 +1,6 @@
 {
   "name": "@soundor/yoga-wasm",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Soundor Engine's Yoga, compiled to WebAssembly: the same layout in the browser as in a plugin.",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,22 @@
 # create-soundor-app
 
+## 0.16.0
+
+### Minor Changes
+
+- [#222](https://github.com/soundor/soundor/pull/222) [`7fb3f13`](https://github.com/soundor/soundor/commit/7fb3f13f2e3435764e0c5c84ba0b2c44ef805430) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `soundor dev juce` opens the VST3 in `@soundor/vst3-host`, now an optional peer, when the project installs it and `formats` has `vst3`; otherwise the Standalone, as before. `juceRuntime({ dev: { launch } })` chooses (`'vst3'`, `'standalone'` or `false`), and the `v` and `s` keys open either at any time. The plugin's state is kept in `.soundor/state/juce/vst3.json` between launches of the host. New projects with the JUCE runtime get the host as a devDependency. In the host, `launchHost({ detached: true })` runs it in a process group of its own, so that a terminal's Ctrl+C reaches only Node. Runtimes get `ctx.paths.state`, `.soundor/state/<id>`, for what they keep between sessions and cannot make again. A local build of the host no longer needs a static libstdc++ (Fedora's `libstdc++-static`); only the published executables link it.
+
+### Patch Changes
+
+- [#230](https://github.com/soundor/soundor/pull/230) [`b428816`](https://github.com/soundor/soundor/commit/b42881617544d88139f6f7b2f868cdbabea4791b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Check the template's complete dependency tree with the selected package manager before generating a project. Try the tested package versions first, then older stable versions within explicit template minimums, keeping the CLI release group together and resolving independent runtimes separately. Preserve release-age policies, explain unavailable releases and fallbacks, and install using the resolved lockfile.
+
+- [#208](https://github.com/soundor/soundor/pull/208) [`01bf473`](https://github.com/soundor/soundor/commit/01bf473f0fe1d09678b8e34073d7642fbbbb95e7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Enable the `soundor` package condition when bundling plugin UIs and running
+  Soundor Vitest tests, including external dependencies. Libraries can expose
+  Soundor and DOM implementations through the same import, with the Soundor
+  entry selected for both JUCE and the web runtime. New projects include
+  `customConditions: ["soundor"]` in their UI tsconfig; existing and manually
+  created projects should add it to select matching TypeScript declarations.
+
 ## 0.15.0
 
 No changes in this release.

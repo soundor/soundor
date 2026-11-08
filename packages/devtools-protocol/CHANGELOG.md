@@ -1,5 +1,11 @@
 # @soundor/devtools-protocol
 
+## 0.16.0
+
+### Patch Changes
+
+- [#243](https://github.com/soundor/soundor/pull/243) [`ede9005`](https://github.com/soundor/soundor/commit/ede90051c20216a7543fcf0b8336f3bf8630eec5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Correct documentation for node components, event props, protocol version 2 and Apple accessibility integration. Runtime behavior and API signatures are unchanged.
+
 ## 0.15.0
 
 No changes in this release.

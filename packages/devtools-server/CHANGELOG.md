@@ -1,5 +1,12 @@
 # @soundor/devtools-server
 
+## 0.16.0
+
+### Patch Changes
+
+- Updated dependencies [[`ede9005`](https://github.com/soundor/soundor/commit/ede90051c20216a7543fcf0b8336f3bf8630eec5)]:
+  - @soundor/devtools-protocol@0.16.0
+
 ## 0.15.0
 
 ### Patch Changes

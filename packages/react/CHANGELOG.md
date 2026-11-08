@@ -1,5 +1,32 @@
 # @soundor/react
 
+## 0.16.0
+
+### Minor Changes
+
+- [#242](https://github.com/soundor/soundor/pull/242) [`1b4e0a0`](https://github.com/soundor/soundor/commit/1b4e0a056f32ad976429aa4b5be39fc52651c757) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Remove `ScrollView` and `ScrollViewProps`. Use `View` or `Animated.View` with `overflow: 'scroll'`, `overflowX: 'scroll'` or `overflowY: 'scroll'` in its style instead. Apply content styles to the view or an explicit child `View`; `contentContainerStyle` is no longer available. Scroll events, indicators, `useScrollbar` and the node's scrolling methods work with these views.
+
+  The scrolling guide and live example now live on the View documentation page.
+
+- [#238](https://github.com/soundor/soundor/pull/238) [`2daa8a0`](https://github.com/soundor/soundor/commit/2daa8a0a47aa8413d4e2d50fed3660e095080762) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `ResizeObserver` is a global that observes nodes, as on the Web: its callback is told after a frame's `requestAnimationFrame` callbacks and layout of each node whose content, border or device-pixel content box changed size. In the web runtime it takes the browser's place for nodes, and passes DOM elements on to it. The simulated runtime's observes nodes and never calls back, as nothing is laid out there. `useScrollbar` no longer reads sizes every frame: it is told of changes by a `ResizeObserver` and by `scroll` events. New `useCanvasSize` keeps a canvas's drawing buffer exactly the device pixels its box covers.
+
+- [#240](https://github.com/soundor/soundor/pull/240) [`ca0158b`](https://github.com/soundor/soundor/commit/ca0158b66bafff553e878c642f3b33aff25942c9) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Any view scrolls when its style says so, an `Animated.View` too: `overflow: 'scroll'` scrolls, as in CSS, and `overflowX` and `overflowY` scroll one axis (they win over `overflow`). `ScrollView` is now a view with that style, its children in a content container, and it always scrolls; `scrollIndicators` and `onScroll` are props of every `View`. Nodes scroll smoothly with `scrollTo()`/`scrollBy()` and `behavior: 'smooth'`, and `scrollIntoView()` brings a node into view in every view around it that scrolls.
+
+  Breaking:
+
+  - `createScrollView()` and the `'scroll'` node type are gone: create a view with `overflow: 'scroll'`.
+  - `overflow: 'scroll'` on a view scrolls it; it used to only clip, as `'hidden'` still does.
+  - `scrollTo()` on a node that does not scroll does nothing, as in browsers, instead of throwing.
+  - `useScrollbar(ref)` returns `{ vertical, horizontal }`, a bar for each axis, and no longer takes `axis`: `useScrollbar(ref, { axis: 'horizontal' })` is `useScrollbar(ref).horizontal`.
+
+- [#237](https://github.com/soundor/soundor/pull/237) [`f0cfe73`](https://github.com/soundor/soundor/commit/f0cfe73cab2daaf7e374c7269d82364077353a48) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `usePressable` gives a component of your own what `Pressable` does: presses, long presses, and whether it is pressed, hovered or focused. `Pressable` is now made with it.
+
+- [#235](https://github.com/soundor/soundor/pull/235) [`9110364`](https://github.com/soundor/soundor/commit/9110364ad76f83d4e4b9f428c7a52e72f8267837) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `useScrollbar` makes a scrollbar of your own from ordinary nodes, and `ScrollView`'s `scrollIndicators={false}` leaves out the built-in one. Nodes gain `scrollIndicators`, `clientWidth` and `clientHeight`.
+
+### Patch Changes
+
+- [#243](https://github.com/soundor/soundor/pull/243) [`ede9005`](https://github.com/soundor/soundor/commit/ede90051c20216a7543fcf0b8336f3bf8630eec5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Correct documentation for node components, event props, protocol version 2 and Apple accessibility integration. Runtime behavior and API signatures are unchanged.
+
 ## 0.15.0
 
 ### Minor Changes

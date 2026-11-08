@@ -1,5 +1,37 @@
 # @soundor/engine
 
+## 0.7.0
+
+### Minor Changes
+
+- [#210](https://github.com/soundor/soundor/pull/210) [`ac3af22`](https://github.com/soundor/soundor/commit/ac3af2206db1ec4a160ae104d601c3506f2a548b) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Select engine prebuilts automatically when native build inputs match, including in the workspace. Compile local changes from source, verify input fingerprints on imported CI artifacts, and resolve immutable release metadata by the exact engine package version.
+
+- [#238](https://github.com/soundor/soundor/pull/238) [`079d0a5`](https://github.com/soundor/soundor/commit/079d0a5bc152b983de7ef96c431c91dca683ef7d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `ResizeObserver` is a global that observes nodes, as on the Web, delivered after each frame's `requestAnimationFrame` callbacks. A frame where nothing could have changed size measures no node.
+
+- [#240](https://github.com/soundor/soundor/pull/240) [`ca0158b`](https://github.com/soundor/soundor/commit/ca0158b66bafff553e878c642f3b33aff25942c9) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Scrolling is a view's style, not a node type: a view with `overflow: 'scroll'` scrolls, and `overflowX`/`overflowY` (`Style::overflowX`, `Style::overflowY`) scroll one axis. `NodeType::Scroll` and `createScrollView()` are gone; `Node::scrolls()` says whether a view scrolls. `Surface::scrollTo()` takes a `ScrollBehavior` (smooth scrolls move frame by frame in `deliverScrolls()`), `Surface::scrollIntoView()` aligns a node in each view around it that scrolls, and `scrollTo()` on a node that does not scroll does nothing instead of throwing. A view whose style stops scrolling an axis goes back to its start there.
+
+- [#226](https://github.com/soundor/soundor/pull/226) [`2f7cdc3`](https://github.com/soundor/soundor/commit/2f7cdc36b8a5fdfdec0f1113ff901d2463007659) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Windows plugins now include the C runtime by default (`/MT`, and `/MTd` in Debug), so users need no Visual C++ Redistributable, and an older runtime loaded by a host cannot crash them. `juceRuntime({ windows: { crt: 'MD' } })` keeps the DLL runtime, for a library that only comes built that way. The engine builds Skia, ANGLE and Hermes for the runtime in use, and Windows has `debug-static` and `release-static` prebuilt archives beside `debug` and `release`. Prebuilt engines are now built with MSVC 19.44, so Visual Studio 2022 17.14 or newer can link them, and an older one stops with a message saying so. Skia builds with the project's MSVC on Windows, rather than the newest installed.
+
+### Patch Changes
+
+- [#225](https://github.com/soundor/soundor/pull/225) [`9646c34`](https://github.com/soundor/soundor/commit/9646c34f84a94ead9c36724bf28984a1743d6189) Thanks [@dm-balakin](https://github.com/dm-balakin)! - On Linux, AccessKit's prebuilt library is stripped of its debug info when it is extracted. It took 39 of the library's 47 MB and added about 21 MB to every plugin: a Release plugin goes from about 50 MB to 29 MB, and the Linux prebuilt engines shrink by about 6 MB each. Building on Linux now needs `strip`, which comes with the compiler toolchain.
+
+- [#243](https://github.com/soundor/soundor/pull/243) [`ede9005`](https://github.com/soundor/soundor/commit/ede90051c20216a7543fcf0b8336f3bf8630eec5) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Correct documentation for node components, event props, protocol version 2 and Apple accessibility integration. Runtime behavior and API signatures are unchanged.
+
+- [#239](https://github.com/soundor/soundor/pull/239) [`8a8f912`](https://github.com/soundor/soundor/commit/8a8f912207d8b1d61832ad7042c63fc395fdb729) Thanks [@dm-balakin](https://github.com/dm-balakin)! - The wheel with Control no longer scrolls a scroll view, as in browsers, where it zooms: plugin code still receives it, and it is passed on to the host unless prevented.
+
+- [#241](https://github.com/soundor/soundor/pull/241) [`6279a4b`](https://github.com/soundor/soundor/commit/6279a4b5bd244a8b0ae9c6b6acb927764e4ea8f3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Report the correct Input, Canvas and Svg node types in DevTools snapshots and node details after removing the separate Scroll node type.
+
+- [#223](https://github.com/soundor/soundor/pull/223) [`5f9a5a3`](https://github.com/soundor/soundor/commit/5f9a5a33ef84f916d4b295a91b6ca0bc1343f50e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A JUCE plugin now runs on macOS 12 or later by default, whatever macOS it is built on, where it used to require the macOS of the machine that built it. `juceRuntime({ macos: { deploymentTarget } })` asks for a newer minimum, and anything below the engine's 12.0 is refused. `soundor doctor` checks for the Metal tools a source build of the engine needs. A prebuilt macOS engine no longer lists a framework by its path inside the Xcode that built it. Source builds of the VST3 host target macOS 12 too, as its published executables do.
+
+- [#203](https://github.com/soundor/soundor/pull/203) [`7d8b5a5`](https://github.com/soundor/soundor/commit/7d8b5a5153ed988c138376688b7a492665fad8dd) Thanks [@dependabot](https://github.com/apps/dependabot)! - Use the workspace Three.js dependency for native GPU tests instead of downloading and pinning a separate copy through CMake.
+
+- [#235](https://github.com/soundor/soundor/pull/235) [`dee92f6`](https://github.com/soundor/soundor/commit/dee92f672cd91be4df9436807317fb28fbf24d5a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Scrolling from code (`scrollTo`, `scrollBy`, `scrollTop`) fires `scroll`, once on the next tick, as it does in a browser.
+
+- [#235](https://github.com/soundor/soundor/pull/235) [`dee92f6`](https://github.com/soundor/soundor/commit/dee92f672cd91be4df9436807317fb28fbf24d5a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - A mouse can use a scroll view's indicators: near its edge a track appears under a grown bar, which can be dragged, and a press on the track jumps there. A scroll view can also leave them out (`scrollIndicators`), and says how much of its content shows (`clientWidth`, `clientHeight`).
+
+- [#234](https://github.com/soundor/soundor/pull/234) [`da1a05c`](https://github.com/soundor/soundor/commit/da1a05c258489f948d4023dd7dda59aa9e1a1f6f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Yoga is compiled without fused multiply-add, so a layout is the same on arm64 as on x86 and in the web runtime. Rarely, a layout near zero free space on Apple Silicon changes to match them.
+
 ## 0.6.0
 
 ### Minor Changes
