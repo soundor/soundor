@@ -7,7 +7,8 @@ const label: Style = { color: '#c9ccd4', fontSize: 12 };
 // sunk into it with `inset`. They follow the corners and take no room.
 export default function BoxShadows() {
   const [armed, setArmed] = useState(false);
-  const [level, setLevel] = useState(0.65);
+  // A percentage, in steps of 20: each press raises it, past 100 back to 20.
+  const [level, setLevel] = useState(60);
 
   return (
     <View
@@ -25,11 +26,11 @@ export default function BoxShadows() {
       }}
     >
       <View style={{ gap: 8 }}>
-        <Text style={label}>Level {Math.round(level * 100)}%</Text>
+        <Text style={label}>Level {level}%</Text>
         {/* Sunk: inset shadows inside the track, light along its bottom. */}
         <Pressable
           accessibilityLabel="Level"
-          onPress={() => setLevel(level >= 0.95 ? 0.15 : level + 0.2)}
+          onPress={() => setLevel(level >= 100 ? 20 : level + 20)}
           style={{
             height: 14,
             borderRadius: 7,
@@ -43,7 +44,7 @@ export default function BoxShadows() {
         >
           <View
             style={{
-              width: `${level * 100}%`,
+              width: `${level}%`,
               height: '100%',
               borderRadius: 7,
               backgroundColor: '#34c77b',

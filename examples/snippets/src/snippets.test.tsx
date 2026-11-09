@@ -75,3 +75,15 @@ test('the double-click snippet resets the fader', async () => {
   expect(screen.getByText('Mix 50%')).toBeDefined();
   expect(screen.getByText('Last click: double click')).toBeDefined();
 });
+
+test('the box-shadow snippet steps its level within 100%', async () => {
+  const user = userEvent.setup();
+  const BoxShadow = snippets['box-shadow']!;
+  await render(<BoxShadow />);
+  const level = screen.getByRole('button', { name: 'Level' });
+  expect(screen.getByText('Level 60%')).toBeDefined();
+  for (const next of [80, 100, 20, 40, 60]) {
+    await user.click(level);
+    expect(screen.getByText(`Level ${next}%`)).toBeDefined();
+  }
+});
