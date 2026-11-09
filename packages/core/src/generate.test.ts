@@ -37,9 +37,9 @@ const config: CoreSoundorConfig = {
     { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 16, default: 4 },
   ],
   native: {
-    types: { Level: { struct: { peak: 'number', rms: 'number' } } },
+    types: { Level: { struct: { peak: 'float32', rms: 'float32' } } },
     methods: {
-      measure: { args: { samples: 'Float32Array' }, returns: 'Level' },
+      measure: { args: { samples: 'buffer<float32>' }, returns: 'Level' },
       reset: {},
     },
   },

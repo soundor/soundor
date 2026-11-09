@@ -54,16 +54,16 @@ identity in either mode. `ctx.ui` can be absent for a project with no UI entry.
 
 Core emits these files under `.soundor/generated/`:
 
-| File              | Contents                                                     |
-| ----------------- | ------------------------------------------------------------ |
-| `soundor.d.ts`    | Entry referencing the portable declarations                  |
-| `assets.d.ts`     | Image and font imports, as their ids (strings)               |
-| `parameters.d.ts` | Exactly the configured parameters and their types            |
-| `native.d.ts`     | Configured native methods, structs, enums and opaque handles |
-| `globals.d.ts`    | Supported Web globals, excluding the full DOM                |
-| `webgl.d.ts`      | WebGL 2, generated from the Khronos IDL                      |
-| `platform.d.ts`   | Host, storage and filesystem declarations                    |
-| `ui.d.ts`         | Nodes, styles, events, canvases and animations               |
+| File              | Contents                                          |
+| ----------------- | ------------------------------------------------- |
+| `soundor.d.ts`    | Entry referencing the portable declarations       |
+| `assets.d.ts`     | Image and font imports, as their ids (strings)    |
+| `parameters.d.ts` | Exactly the configured parameters and their types |
+| `native.d.ts`     | Configured native methods, structs and enums      |
+| `globals.d.ts`    | Supported Web globals, excluding the full DOM     |
+| `webgl.d.ts`      | WebGL 2, generated from the Khronos IDL           |
+| `platform.d.ts`   | Host, storage and filesystem declarations         |
+| `ui.d.ts`         | Nodes, styles, events, canvases and animations    |
 
 The runtime's `gen` adds platform-specific sources under `ctx.paths.gen` through
 `ctx.codegen`. JUCE generates C++ interfaces and bindings plus its build setup;
@@ -76,14 +76,14 @@ Use the linked API page as the public specification, and the listed code and
 tests when matching exact validation, error text and ordering. This table is a
 review map, rather than a replacement declaration of each method.
 
-| Module                             | Semantics to preserve                                                                                                                             | Implementation starting points                                                      |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [parameters](/docs/api/parameters) | Typed values, clamping and integer rounding, invalid values, deduplicated/coalesced subscriptions, nested gestures and teardown                   | Engine `src/parameters/`, web client `parameters.ts`, generated declarations        |
-| [native](/docs/api/native)         | Declared argument order and types, path-specific `TypeError`s, synchronous results versus promises, opaque handle ownership and native exceptions | JUCE `src/native-codegen.ts`, web `src/native-codegen.ts`, core `src/native-api.ts` |
-| [host](/docs/api/host)             | Plugin identity, host snapshot and transport shape, change subscriptions, platform availability                                                   | Engine `src/web/`, web client `modules/host.ts` and host context                    |
-| [ui](/docs/api/ui)                 | Node ownership, style/layout defaults, input routing, focus, portals, semantic visibility, canvases and animation lifetime                        | Engine `src/ui/` and `src/a11y/`, web client `ui/`, React renderer                  |
-| [storage](/docs/api/storage)       | Async key/value operations, serialization, missing values, persistence and isolation by plugin ID                                                 | Engine `src/web/`, web client `storage.ts` and `persistence.ts`                     |
-| [fs](/docs/api/fs)                 | Private relative paths, binary/text operations, atomic writes, directory rules and `DOMException` error names                                     | Engine `src/web/`, web client `fs.ts`                                               |
+| Module                             | Semantics to preserve                                                                                                                                                                                                                              | Implementation starting points                                                                                             |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [parameters](/docs/api/parameters) | Typed values, clamping and integer rounding, invalid values, deduplicated/coalesced subscriptions, nested gestures and teardown                                                                                                                    | Engine `src/parameters/`, web client `parameters.ts`, generated declarations                                               |
+| [native](/docs/api/native)         | Declared argument order and types, the same checks and path-specific `TypeError`/`RangeError`s, `null` only for `T?`, value copies of structs and arrays, typed arrays for `buffer<T>`, synchronous results versus promises, and native exceptions | Core `src/native-api.ts`, JUCE `src/native-codegen.ts` and engine `src/js/Bindings.cpp`, web `src/client/native-values.ts` |
+| [host](/docs/api/host)             | Plugin identity, host snapshot and transport shape, change subscriptions, platform availability                                                                                                                                                    | Engine `src/web/`, web client `modules/host.ts` and host context                                                           |
+| [ui](/docs/api/ui)                 | Node ownership, style/layout defaults, input routing, focus, portals, semantic visibility, canvases and animation lifetime                                                                                                                         | Engine `src/ui/` and `src/a11y/`, web client `ui/`, React renderer                                                         |
+| [storage](/docs/api/storage)       | Async key/value operations, serialization, missing values, persistence and isolation by plugin ID                                                                                                                                                  | Engine `src/web/`, web client `storage.ts` and `persistence.ts`                                                            |
+| [fs](/docs/api/fs)                 | Private relative paths, binary/text operations, atomic writes, directory rules and `DOMException` error names                                                                                                                                      | Engine `src/web/`, web client `fs.ts`                                                                                      |
 
 For example, repeated parameter writes of the same value do not produce new
 notifications. Nested gestures reach the host as one; an unmatched end is

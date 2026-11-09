@@ -1,52 +1,18 @@
 /**
- * `soundor:native` in the browser. The plugin's calls go straight to the
- * project's TypeScript implementation (`runtimes/web/src/native.ts`): the
- * same arguments, results, exceptions and promises, nothing serialized.
+ * `soundor:native` in the browser. The plugin's calls go to the project's
+ * TypeScript implementation (`runtimes/web/src/native.ts`), their arguments
+ * and results checked and converted as the JUCE runtime's bindings do them
+ * (./native-values): nothing serialized, exceptions and promises as they are.
  */
 
 import { hostContext } from './context';
 import type { WebNativeMethod } from './manifest';
-
-/** An opaque reference to a native object, as `soundor:native` declares handles. */
-export interface WebNativeHandle<Name extends string> {
-  readonly __soundorHandle: Name;
-}
-
-/** Makes and opens handles of one type (the generated `Preset` and the like). */
-export interface WebNativeHandleType<Name extends string> {
-  /** A new handle to `value`. Plugin code can pass it around, not look inside. */
-  wrap(value: unknown): WebNativeHandle<Name>;
-  /** The value a handle of this type refers to; a TypeError for anything else. */
-  unwrap<T = unknown>(handle: WebNativeHandle<Name>): T;
-}
-
-/** The values behind handles; a handle is only valid if it is in here. */
-const handles = new WeakMap<object, { name: string; value: unknown }>();
-
-/** Defines a handle type; the generated native.ts calls it per handle. */
-export function defineHandle<Name extends string>(
-  name: Name,
-): WebNativeHandleType<Name> {
-  return Object.freeze({
-    wrap(value: unknown): WebNativeHandle<Name> {
-      const handle = Object.freeze({
-        [Symbol.toStringTag]: name,
-      }) as unknown as WebNativeHandle<Name>;
-      handles.set(handle, { name, value });
-      return handle;
-    },
-    unwrap<T>(handle: WebNativeHandle<Name>): T {
-      const entry =
-        typeof handle === 'object' && handle !== null
-          ? handles.get(handle)
-          : undefined;
-      if (entry === undefined || entry.name !== name) {
-        throw new TypeError(`expected a ${name} handle`);
-      }
-      return entry.value as T;
-    },
-  });
-}
+import {
+  nativeArguments,
+  nativeResult,
+  nativeTypes,
+  type NativeTypes,
+} from './native-values';
 
 /** What the project's native.ts exports: the implementation, by method name. */
 export type NativeImplementation = Readonly<Record<string, unknown>>;
@@ -80,25 +46,50 @@ export function installNative(module: unknown): void {
   implementation = candidate;
 }
 
+let declaredTypes: { manifest: object; types: NativeTypes } | undefined;
+
+/** The declared types of the page's manifest. */
+function types(): NativeTypes {
+  const { manifest } = hostContext();
+  if (declaredTypes?.manifest !== manifest) {
+    declaredTypes = { manifest, types: nativeTypes(manifest.native.types) };
+  }
+  return declaredTypes.types;
+}
+
 /**
- * The function `soundor:native` exports for `method`: it calls the
- * implementation as it is. An async method always returns a promise.
+ * The function `soundor:native` exports for `method`. It checks the
+ * arguments (throwing, as the native bindings do, before any promise exists),
+ * calls the implementation with their converted values, and checks what it
+ * returns. An async method always returns a promise.
  */
 export function nativeMethod(
   method: WebNativeMethod,
 ): (...args: unknown[]) => unknown {
-  const call = (args: unknown[]): unknown => {
+  const implementationOf = () => {
     if (implementation === undefined) {
       throw new Error(
         `soundor:native: ${method.name}() has no Web implementation. Implement it in runtimes/web/src/native.ts and pass it to startSoundorWebHost({ native }).`,
       );
     }
-    return (
-      implementation[method.name] as (...args: unknown[]) => unknown
-    ).apply(implementation, args);
+    return implementation[method.name] as (...args: unknown[]) => unknown;
   };
   const fn = method.async
-    ? async (...args: unknown[]) => call(args)
-    : (...args: unknown[]) => call(args);
+    ? (...args: unknown[]) => {
+        const values = nativeArguments(method, args, types());
+        return (async () => {
+          const result: unknown = await implementationOf().apply(
+            implementation,
+            values,
+          );
+          return nativeResult(method, result, types());
+        })();
+      }
+    : (...args: unknown[]) => {
+        const values = nativeArguments(method, args, types());
+        const result = implementationOf().apply(implementation, values);
+        return nativeResult(method, result, types());
+      };
+  Object.defineProperty(fn, 'length', { value: method.args.length });
   return Object.defineProperty(fn, 'name', { value: method.name });
 }

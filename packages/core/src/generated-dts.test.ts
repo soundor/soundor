@@ -57,12 +57,13 @@ const config: CoreSoundorConfig = {
   ],
   native: {
     types: {
-      Level: { struct: { rms: 'number', peak: 'number' } },
-      Preset: 'handle',
+      Level: { struct: { rms: 'float32', peak: 'float32' } },
+      Preset: { struct: { name: 'string', gains: 'float32[]', id: 'uint64' } },
     },
     methods: {
-      measure: { args: { samples: 'Float32Array' }, returns: 'Level' },
-      loadPreset: { args: { path: 'string' }, returns: 'Preset', async: true },
+      measure: { args: { samples: 'buffer<float32>' }, returns: 'Level' },
+      loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
+      setSolo: { args: { slot: 'int32?' } },
     },
   },
 };
@@ -71,7 +72,7 @@ const consumer = `/// <reference path="./soundor.d.ts" />
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
-import { loadPreset, measure, type Level, type Preset } from 'soundor:native';
+import { loadPreset, measure, setSolo, type Level, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
@@ -98,7 +99,10 @@ parameters.gain.endGesture();
 
 const level: Level = measure(new Float32Array(128));
 const rms: number = level.rms;
-const preset: Promise<Preset> = loadPreset('/presets/a.json');
+const preset: Promise<Preset | null> = loadPreset('/presets/a.json');
+void preset.then((loaded) => loaded && void loaded.gains.map((gain: number) => gain * 2) && void (loaded.id + 1n));
+setSolo(null);
+setSolo(2);
 
 const id: string = plugin.id;
 const bpm: number | undefined = snapshot().transport?.bpm;
@@ -120,8 +124,12 @@ parameters.bypass.set(1);
 void parameters.missing;
 // @ts-expect-error plain arrays are not Float32Arrays
 measure([1, 2]);
-// @ts-expect-error handles cannot be forged from plain objects
-const forged: Preset = {};
+// @ts-expect-error nullable arguments are still required
+setSolo();
+// @ts-expect-error null, never undefined
+setSolo(undefined);
+// @ts-expect-error a 64-bit integer is a bigint
+const notBig: Preset = { name: 'x', gains: [], id: 1 };
 
 const box: UiNode = root.appendChild(createView({ flexDirection: 'row', width: '50%', padding: 4, flex: 1 }));
 const label = createText('hi', { fontSize: 12, fontWeight: 'bold' });
@@ -192,7 +200,7 @@ void document;
 // @ts-expect-error there is no localStorage
 void localStorage;
 
-export { asset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, forged, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+export { asset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, notBig, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
 `;
 
 let dir: string;

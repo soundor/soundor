@@ -79,7 +79,7 @@ try {
   run('pnpm', ['install', '--prefer-offline', '--ignore-scripts'], temporary);
   await writeFile(
     resolve(temporary, 'vitest.config.ts'),
-    `import {defineConfig} from 'vitest/config';\nimport {soundor} from '@soundor/vitest';\nexport default defineConfig({plugins: [soundor({config: false, runtime: {parameters: [{id: 'gain', label: 'Gain', type: 'float', min: 0, max: 1, default: 0.5}]}, native: {methods: {probe: {returns: 'number'}, loadPreset: {returns: 'string', async: true}}}})], test: {environment: 'soundor'}});\n`,
+    `import {defineConfig} from 'vitest/config';\nimport {soundor} from '@soundor/vitest';\nexport default defineConfig({plugins: [soundor({config: false, runtime: {parameters: [{id: 'gain', label: 'Gain', type: 'float', min: 0, max: 1, default: 0.5}]}, native: {methods: {probe: {returns: 'float64'}, loadPreset: {returns: 'string', async: true}}}})], test: {environment: 'soundor'}});\n`,
   );
   await writeFile(
     resolve(temporary, 'component.test.tsx'),

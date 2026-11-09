@@ -275,7 +275,7 @@ describe('webGen', () => {
           default: 'warm',
         },
       ],
-      native: { methods: [] },
+      native: { types: [], methods: [] },
     });
   });
 

@@ -7,7 +7,7 @@ export default defineConfig({
       native: {
         methods: {
           loadPreset: { returns: 'string', async: true },
-          probe: { returns: 'number' },
+          probe: { returns: 'float64' },
         },
       },
       runtime: {

@@ -17,12 +17,11 @@ import { generateNativeModuleSources } from './native-codegen';
 export const fixtureNativeApi: NativeApiDeclaration = {
   types: {
     Curve: { enum: ['linear', 'exponential', 'low-cut'] },
-    Preset: 'handle',
-    Point: { struct: { x: 'number', y: 'number' } },
+    Point: { struct: { x: 'float64', y: 'float64' } },
     Analysis: {
       struct: {
-        rms: 'number',
-        peak: 'number',
+        rms: 'float32',
+        peak: 'float32',
         label: 'string',
         clipped: 'boolean',
         curve: 'Curve',
@@ -30,29 +29,82 @@ export const fixtureNativeApi: NativeApiDeclaration = {
         tags: 'string[]',
       },
     },
+    Preset: { struct: { name: 'string', gains: 'float32[]' } },
+    Numbers: {
+      struct: {
+        i8: 'int8',
+        u8: 'uint8',
+        i16: 'int16',
+        u16: 'uint16',
+        i32: 'int32',
+        u32: 'uint32',
+        i64: 'int64',
+        u64: 'uint64',
+        f32: 'float32',
+        f64: 'float64',
+      },
+    },
+    Buffers: {
+      struct: {
+        i8: 'buffer<int8>',
+        u8: 'buffer<uint8>',
+        i16: 'buffer<int16>',
+        u16: 'buffer<uint16>',
+        i32: 'buffer<int32>',
+        u32: 'buffer<uint32>',
+        i64: 'buffer<int64>',
+        u64: 'buffer<uint64>',
+        f32: 'buffer<float32>',
+        f64: 'buffer<float64>',
+      },
+    },
+    Optionals: {
+      struct: {
+        slot: 'int32?',
+        id: 'uint64?',
+        name: 'string?',
+        curve: 'Curve?',
+        point: 'Point?',
+        gains: 'float32[]?',
+        samples: 'buffer<float32>?',
+      },
+    },
   },
   methods: {
-    add: { args: { a: 'number', b: 'number' }, returns: 'number' },
+    add: { args: { a: 'int32', b: 'int32' }, returns: 'int32' },
     greet: { args: { name: 'string' }, returns: 'string' },
-    isEven: { args: { value: 'number' }, returns: 'boolean' },
-    analyze: { args: { samples: 'Float32Array' }, returns: 'Analysis' },
-    sumBytes: { args: { data: 'ArrayBuffer' }, returns: 'number' },
-    sumInts: { args: { values: 'Int32Array' }, returns: 'number' },
-    makeRamp: { args: { length: 'number' }, returns: 'Float32Array' },
-    makeBytes: { args: { count: 'number' }, returns: 'ArrayBuffer' },
+    isEven: { args: { value: 'int32' }, returns: 'boolean' },
+    echoUint8: { args: { value: 'uint8' }, returns: 'uint8' },
+    echoInt64: { args: { value: 'int64' }, returns: 'int64' },
+    echoUint64: { args: { value: 'uint64' }, returns: 'uint64' },
+    echoFloat32: { args: { value: 'float32' }, returns: 'float32' },
+    echoNumbers: { args: { numbers: 'Numbers' }, returns: 'Numbers' },
+    echoBuffers: { args: { buffers: 'Buffers' }, returns: 'Buffers' },
+    echoOptionals: { args: { optionals: 'Optionals' }, returns: 'Optionals' },
+    analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
+    getSpectrum: { returns: 'buffer<float32>' },
+    sumBytes: { args: { data: 'buffer<uint8>' }, returns: 'uint32' },
+    sumInts: { args: { values: 'buffer<int32>' }, returns: 'int64' },
+    sumWords: { args: { values: 'buffer<uint64>?' }, returns: 'uint64?' },
+    makeRamp: { args: { length: 'uint32' }, returns: 'buffer<float32>' },
     scale: {
-      args: { values: 'Float64Array', factor: 'number' },
-      returns: 'Float64Array',
+      args: { values: 'buffer<float64>', factor: 'float64' },
+      returns: 'buffer<float64>',
     },
-    reverseBytes: { args: { data: 'Uint8Array' }, returns: 'Uint8Array' },
+    reverseBytes: {
+      args: { data: 'buffer<uint8>' },
+      returns: 'buffer<uint8>',
+    },
     invert: { args: { curve: 'Curve' }, returns: 'Curve' },
     centroid: { args: { points: 'Point[]' }, returns: 'Point' },
+    firstPoint: { args: { points: 'Point[]?' }, returns: 'Point?' },
     joinTags: { args: { tags: 'string[]' }, returns: 'string' },
-    createPreset: { args: { name: 'string' }, returns: 'Preset' },
-    presetName: { args: { preset: 'Preset' }, returns: 'string' },
-    listPresets: { returns: 'Preset[]' },
+    curves: { returns: 'Curve[]' },
+    setSolo: { args: { slot: 'int32?' } },
+    solo: { returns: 'int32?' },
     fail: { args: { message: 'string' } },
-    loadPreset: { args: { name: 'string' }, returns: 'Preset', async: true },
+    loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
+    applyPreset: { args: { preset: 'Preset' }, returns: 'void' },
     save: { args: { preset: 'Preset' }, async: true },
     reset: {},
   },
@@ -115,17 +167,38 @@ describe('generateNativeModuleSources', () => {
       'virtual std::vector<double> scale(std::span<const double> values, double factor) = 0;',
     );
     expect(header).toContain(
+      'virtual std::int32_t add(std::int32_t a, std::int32_t b) = 0;',
+    );
+    expect(header).toContain(
+      'virtual std::uint64_t echoUint64(std::uint64_t value) = 0;',
+    );
+    expect(header).toContain('virtual float echoFloat32(float value) = 0;');
+    expect(header).toContain(
+      'virtual std::optional<std::uint64_t> sumWords(std::optional<std::span<const std::uint64_t>> values) = 0;',
+    );
+    expect(header).toContain(
       'virtual Point centroid(std::vector<Point> points) = 0;',
     );
     expect(header).toContain(
-      'virtual void loadPreset(std::string name, js::Promise<std::shared_ptr<Preset>> promise) = 0;',
+      'virtual std::optional<Point> firstPoint(std::optional<std::vector<Point>> points) = 0;',
     );
     expect(header).toContain(
-      'virtual void save(std::shared_ptr<Preset> preset, js::Promise<void> promise) = 0;',
+      'virtual void setSolo(std::optional<std::int32_t> slot) = 0;',
+    );
+    expect(header).toContain(
+      'virtual void loadPreset(std::string path, js::Promise<std::optional<Preset>> promise) = 0;',
+    );
+    expect(header).toContain(
+      'virtual void save(Preset preset, js::Promise<void> promise) = 0;',
     );
     expect(header).toContain('virtual void reset() = 0;');
     expect(header).toContain('        LowCut, // "low-cut"');
     expect(header).toContain('        std::vector<Point> points {};');
+    expect(header).toContain('        std::vector<std::int64_t> i64 {};');
+    expect(header).toContain(
+      '        std::optional<std::vector<float>> samples {};',
+    );
+    expect(header).not.toMatch(/shared_ptr<(?!NativeApi)/);
   });
 
   it('generates an installable module for an empty API', () => {

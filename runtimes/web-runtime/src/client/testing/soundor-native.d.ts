@@ -3,31 +3,96 @@
 declare module 'soundor:native' {
   export type Curve = "linear" | "exponential";
 
-  /** An opaque reference to a native Preset. Only native methods can create one. */
-  export interface Preset {
-    readonly __soundorHandle: 'Preset';
-  }
-
   export interface Analysis {
     rms: number;
     peaks: number[];
   }
 
+  export interface Buffers {
+    i8: Int8Array;
+    u8: Uint8Array;
+    i16: Int16Array;
+    u16: Uint16Array;
+    i32: Int32Array;
+    u32: Uint32Array;
+    i64: BigInt64Array;
+    u64: BigUint64Array;
+    f32: Float32Array;
+    f64: Float64Array;
+  }
+
+  export interface Numbers {
+    i8: number;
+    u8: number;
+    i16: number;
+    u16: number;
+    i32: number;
+    u32: number;
+    i64: bigint;
+    u64: bigint;
+    f32: number;
+    f64: number;
+  }
+
+  export interface Point {
+    x: number;
+    y: number;
+  }
+
+  export interface Optionals {
+    slot: number | null;
+    id: bigint | null;
+    name: string | null;
+    curve: Curve | null;
+    point: Point | null;
+    gains: number[] | null;
+    samples: Float32Array | null;
+  }
+
+  export interface Preset {
+    name: string;
+    gains: number[];
+  }
+
+  export function add(a: number, b: number): number;
+
   export function analyze(samples: Float32Array): Analysis;
 
-  export function echo(data: Uint8Array): ArrayBuffer;
+  export function applyPreset(preset: Preset): void;
+
+  export function echo(data: Uint8Array): Uint8Array;
+
+  export function echoBuffers(buffers: Buffers): Buffers;
+
+  export function echoFloat32(value: number): number;
+
+  export function echoInt64(value: bigint): bigint;
+
+  export function echoNumbers(numbers: Numbers): Numbers;
+
+  export function echoOptionals(optionals: Optionals): Optionals;
+
+  export function echoUint64(value: bigint): bigint;
+
+  export function echoUint8(value: number): number;
 
   export function fail(): void;
 
   export function failLater(): Promise<void>;
 
+  export function firstPoint(points: readonly Point[] | null): Point | null;
+
   export function invert(on: boolean): boolean;
 
-  export function loadPreset(path: string): Promise<Preset>;
-
-  export function presetName(preset: Preset): string;
+  export function loadPreset(path: string): Promise<Preset | null>;
 
   export function scale(values: readonly number[], factor: number): number[];
 
   export function setCurve(curve: Curve): void;
+
+  export function setSolo(slot: number | null): void;
+
+  export function solo(): number | null;
+
+  export function sumWords(values: BigUint64Array | null): bigint | null;
 }

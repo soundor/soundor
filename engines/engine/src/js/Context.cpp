@@ -92,10 +92,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 const jsi::Object global = rt.global();
                 const auto constructor = [&](const char* name) { return global.getPropertyAsFunction(rt, name); };
                 return Intrinsics {
-                    constructor("Error"),        constructor("TypeError"),    constructor("RangeError"),
-                    constructor("Promise"),      constructor("Float32Array"), constructor("Float64Array"),
-                    constructor("Int32Array"),   constructor("Uint8Array"),   constructor("Number"),
-                    constructor("TimeoutError"),
+                    .error = constructor("Error"),
+                    .typeError = constructor("TypeError"),
+                    .rangeError = constructor("RangeError"),
+                    .promise = constructor("Promise"),
+                    .int8Array = constructor("Int8Array"),
+                    .uint8Array = constructor("Uint8Array"),
+                    .int16Array = constructor("Int16Array"),
+                    .uint16Array = constructor("Uint16Array"),
+                    .int32Array = constructor("Int32Array"),
+                    .uint32Array = constructor("Uint32Array"),
+                    .bigInt64Array = constructor("BigInt64Array"),
+                    .bigUint64Array = constructor("BigUint64Array"),
+                    .float32Array = constructor("Float32Array"),
+                    .float64Array = constructor("Float64Array"),
+                    .number = constructor("Number"),
+                    .timeoutError = constructor("TimeoutError"),
                 };
             }
 
@@ -266,11 +278,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
             // What QuickJS's debug build checked when its runtime was freed:
             // nothing in C++ may hold a value of this engine any more.
             assert(facebook::hermes::soundor::liveValues(rt) == 0 && "JSI values outlive their Soundor context");
-            // Finalizes every object, handles queueing their native objects,
-            // which are released next; moduleData, which they may use, goes
-            // after.
             hermes.reset();
-            releaseHandles();
         }
 
         const jsi::PropNameID& ContextState::name(const char* literal)
@@ -284,8 +292,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         std::size_t ContextState::drainJobs()
         {
             runtime->assertOwnerThread();
-            // Even in a context that ran out of memory: it takes no JavaScript.
-            releaseHandles();
             if (halted())
                 return 0;
             const JavaScriptCall call(*this);
@@ -310,7 +316,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 }
                 reportUnhandledRejections();
                 runFinalizers();
-                releaseHandles();
                 if (halted() || ! facebook::hermes::soundor::hasPendingJobs(rt))
                     break;
             }
@@ -388,17 +393,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         {
             if (--javaScriptDepth == 0 && runtime->options.timeLimit.count() > 0)
                 hermes->unwatchTimeLimit();
-        }
-
-        void ContextState::releaseHandles()
-        {
-            std::unique_ptr<ObjectState::Handle> list;
-            {
-                const std::scoped_lock lock(finalization->mutex);
-                list = std::move(finalization->released);
-            }
-            // Outside the lock: a native destructor may take its time.
-            releaseHandleList(std::move(list));
         }
 
         std::string ContextState::resolve(std::string_view specifier, std::string_view referrer)

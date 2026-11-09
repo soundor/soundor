@@ -70,6 +70,7 @@ function webEditor(config: SoundorConfig): WebEditor {
  * config always produces the same bytes.
  */
 export function webManifest(config: SoundorConfig): WebManifest {
+  const native = nativeModel(config);
   return {
     plugin: { id: config.plugin.id, name: config.plugin.name },
     editor: webEditor(config),
@@ -104,9 +105,12 @@ export function webManifest(config: SoundorConfig): WebManifest {
       }
     }),
     native: {
-      methods: nativeModel(config).methods.map((method) => ({
+      types: native.types,
+      methods: native.methods.map((method) => ({
         name: method.name,
         async: method.async,
+        args: method.args,
+        returns: method.returns,
       })),
     },
   };

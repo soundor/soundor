@@ -52,42 +52,699 @@
     }
   ],
   "native": {
+    "types": [
+      {
+        "kind": "enum",
+        "name": "Curve",
+        "values": [
+          "linear",
+          "exponential"
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Analysis",
+        "fields": [
+          {
+            "name": "rms",
+            "type": {
+              "kind": "primitive",
+              "name": "float32"
+            }
+          },
+          {
+            "name": "peaks",
+            "type": {
+              "kind": "array",
+              "element": {
+                "kind": "primitive",
+                "name": "float32"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Buffers",
+        "fields": [
+          {
+            "name": "i8",
+            "type": {
+              "kind": "buffer",
+              "element": "int8"
+            }
+          },
+          {
+            "name": "u8",
+            "type": {
+              "kind": "buffer",
+              "element": "uint8"
+            }
+          },
+          {
+            "name": "i16",
+            "type": {
+              "kind": "buffer",
+              "element": "int16"
+            }
+          },
+          {
+            "name": "u16",
+            "type": {
+              "kind": "buffer",
+              "element": "uint16"
+            }
+          },
+          {
+            "name": "i32",
+            "type": {
+              "kind": "buffer",
+              "element": "int32"
+            }
+          },
+          {
+            "name": "u32",
+            "type": {
+              "kind": "buffer",
+              "element": "uint32"
+            }
+          },
+          {
+            "name": "i64",
+            "type": {
+              "kind": "buffer",
+              "element": "int64"
+            }
+          },
+          {
+            "name": "u64",
+            "type": {
+              "kind": "buffer",
+              "element": "uint64"
+            }
+          },
+          {
+            "name": "f32",
+            "type": {
+              "kind": "buffer",
+              "element": "float32"
+            }
+          },
+          {
+            "name": "f64",
+            "type": {
+              "kind": "buffer",
+              "element": "float64"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Numbers",
+        "fields": [
+          {
+            "name": "i8",
+            "type": {
+              "kind": "primitive",
+              "name": "int8"
+            }
+          },
+          {
+            "name": "u8",
+            "type": {
+              "kind": "primitive",
+              "name": "uint8"
+            }
+          },
+          {
+            "name": "i16",
+            "type": {
+              "kind": "primitive",
+              "name": "int16"
+            }
+          },
+          {
+            "name": "u16",
+            "type": {
+              "kind": "primitive",
+              "name": "uint16"
+            }
+          },
+          {
+            "name": "i32",
+            "type": {
+              "kind": "primitive",
+              "name": "int32"
+            }
+          },
+          {
+            "name": "u32",
+            "type": {
+              "kind": "primitive",
+              "name": "uint32"
+            }
+          },
+          {
+            "name": "i64",
+            "type": {
+              "kind": "primitive",
+              "name": "int64"
+            }
+          },
+          {
+            "name": "u64",
+            "type": {
+              "kind": "primitive",
+              "name": "uint64"
+            }
+          },
+          {
+            "name": "f32",
+            "type": {
+              "kind": "primitive",
+              "name": "float32"
+            }
+          },
+          {
+            "name": "f64",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Point",
+        "fields": [
+          {
+            "name": "x",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          },
+          {
+            "name": "y",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Optionals",
+        "fields": [
+          {
+            "name": "slot",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "primitive",
+                "name": "int32"
+              }
+            }
+          },
+          {
+            "name": "id",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "primitive",
+                "name": "uint64"
+              }
+            }
+          },
+          {
+            "name": "name",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "primitive",
+                "name": "string"
+              }
+            }
+          },
+          {
+            "name": "curve",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "declared",
+                "name": "Curve",
+                "declaration": "enum"
+              }
+            }
+          },
+          {
+            "name": "point",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "declared",
+                "name": "Point",
+                "declaration": "struct"
+              }
+            }
+          },
+          {
+            "name": "gains",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "array",
+                "element": {
+                  "kind": "primitive",
+                  "name": "float32"
+                }
+              }
+            }
+          },
+          {
+            "name": "samples",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "buffer",
+                "element": "float32"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "kind": "struct",
+        "name": "Preset",
+        "fields": [
+          {
+            "name": "name",
+            "type": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "name": "gains",
+            "type": {
+              "kind": "array",
+              "element": {
+                "kind": "primitive",
+                "name": "float32"
+              }
+            }
+          }
+        ]
+      }
+    ],
     "methods": [
       {
+        "name": "add",
+        "async": false,
+        "args": [
+          {
+            "name": "a",
+            "type": {
+              "kind": "primitive",
+              "name": "int32"
+            }
+          },
+          {
+            "name": "b",
+            "type": {
+              "kind": "primitive",
+              "name": "int32"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "int32"
+        }
+      },
+      {
         "name": "analyze",
-        "async": false
+        "async": false,
+        "args": [
+          {
+            "name": "samples",
+            "type": {
+              "kind": "buffer",
+              "element": "float32"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "declared",
+          "name": "Analysis",
+          "declaration": "struct"
+        }
+      },
+      {
+        "name": "applyPreset",
+        "async": false,
+        "args": [
+          {
+            "name": "preset",
+            "type": {
+              "kind": "declared",
+              "name": "Preset",
+              "declaration": "struct"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "void"
+        }
       },
       {
         "name": "echo",
-        "async": false
+        "async": false,
+        "args": [
+          {
+            "name": "data",
+            "type": {
+              "kind": "buffer",
+              "element": "uint8"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "buffer",
+          "element": "uint8"
+        }
+      },
+      {
+        "name": "echoBuffers",
+        "async": false,
+        "args": [
+          {
+            "name": "buffers",
+            "type": {
+              "kind": "declared",
+              "name": "Buffers",
+              "declaration": "struct"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "declared",
+          "name": "Buffers",
+          "declaration": "struct"
+        }
+      },
+      {
+        "name": "echoFloat32",
+        "async": false,
+        "args": [
+          {
+            "name": "value",
+            "type": {
+              "kind": "primitive",
+              "name": "float32"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "float32"
+        }
+      },
+      {
+        "name": "echoInt64",
+        "async": false,
+        "args": [
+          {
+            "name": "value",
+            "type": {
+              "kind": "primitive",
+              "name": "int64"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "int64"
+        }
+      },
+      {
+        "name": "echoNumbers",
+        "async": false,
+        "args": [
+          {
+            "name": "numbers",
+            "type": {
+              "kind": "declared",
+              "name": "Numbers",
+              "declaration": "struct"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "declared",
+          "name": "Numbers",
+          "declaration": "struct"
+        }
+      },
+      {
+        "name": "echoOptionals",
+        "async": false,
+        "args": [
+          {
+            "name": "optionals",
+            "type": {
+              "kind": "declared",
+              "name": "Optionals",
+              "declaration": "struct"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "declared",
+          "name": "Optionals",
+          "declaration": "struct"
+        }
+      },
+      {
+        "name": "echoUint64",
+        "async": false,
+        "args": [
+          {
+            "name": "value",
+            "type": {
+              "kind": "primitive",
+              "name": "uint64"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "uint64"
+        }
+      },
+      {
+        "name": "echoUint8",
+        "async": false,
+        "args": [
+          {
+            "name": "value",
+            "type": {
+              "kind": "primitive",
+              "name": "uint8"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "uint8"
+        }
       },
       {
         "name": "fail",
-        "async": false
+        "async": false,
+        "args": [],
+        "returns": {
+          "kind": "void"
+        }
       },
       {
         "name": "failLater",
-        "async": true
+        "async": true,
+        "args": [],
+        "returns": {
+          "kind": "void"
+        }
+      },
+      {
+        "name": "firstPoint",
+        "async": false,
+        "args": [
+          {
+            "name": "points",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "array",
+                "element": {
+                  "kind": "declared",
+                  "name": "Point",
+                  "declaration": "struct"
+                }
+              }
+            }
+          }
+        ],
+        "returns": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "declared",
+            "name": "Point",
+            "declaration": "struct"
+          }
+        }
       },
       {
         "name": "invert",
-        "async": false
+        "async": false,
+        "args": [
+          {
+            "name": "on",
+            "type": {
+              "kind": "primitive",
+              "name": "boolean"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "primitive",
+          "name": "boolean"
+        }
       },
       {
         "name": "loadPreset",
-        "async": true
-      },
-      {
-        "name": "presetName",
-        "async": false
+        "async": true,
+        "args": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "declared",
+            "name": "Preset",
+            "declaration": "struct"
+          }
+        }
       },
       {
         "name": "scale",
-        "async": false
+        "async": false,
+        "args": [
+          {
+            "name": "values",
+            "type": {
+              "kind": "array",
+              "element": {
+                "kind": "primitive",
+                "name": "float64"
+              }
+            }
+          },
+          {
+            "name": "factor",
+            "type": {
+              "kind": "primitive",
+              "name": "float64"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "array",
+          "element": {
+            "kind": "primitive",
+            "name": "float64"
+          }
+        }
       },
       {
         "name": "setCurve",
-        "async": false
+        "async": false,
+        "args": [
+          {
+            "name": "curve",
+            "type": {
+              "kind": "declared",
+              "name": "Curve",
+              "declaration": "enum"
+            }
+          }
+        ],
+        "returns": {
+          "kind": "void"
+        }
+      },
+      {
+        "name": "setSolo",
+        "async": false,
+        "args": [
+          {
+            "name": "slot",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "primitive",
+                "name": "int32"
+              }
+            }
+          }
+        ],
+        "returns": {
+          "kind": "void"
+        }
+      },
+      {
+        "name": "solo",
+        "async": false,
+        "args": [],
+        "returns": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "primitive",
+            "name": "int32"
+          }
+        }
+      },
+      {
+        "name": "sumWords",
+        "async": false,
+        "args": [
+          {
+            "name": "values",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "buffer",
+                "element": "uint64"
+              }
+            }
+          }
+        ],
+        "returns": {
+          "kind": "nullable",
+          "inner": {
+            "kind": "primitive",
+            "name": "uint64"
+          }
+        }
       }
     ]
   }

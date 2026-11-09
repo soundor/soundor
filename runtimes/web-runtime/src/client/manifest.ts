@@ -37,8 +37,11 @@ export interface WebManifest {
   readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */
   readonly parameters: readonly WebParameterInfo[];
-  /** The native API's methods (soundor:native), by name. */
-  readonly native: { readonly methods: readonly WebNativeMethod[] };
+  /** The native API (soundor:native): its declared types and its methods, by name. */
+  readonly native: {
+    readonly types: readonly WebNativeTypeDeclaration[];
+    readonly methods: readonly WebNativeMethod[];
+  };
 }
 
 /**
@@ -94,4 +97,54 @@ export interface WebNativeMethod {
   readonly name: string;
   /** Whether it returns a Promise. */
   readonly async: boolean;
+  /** Its arguments, in order. */
+  readonly args: readonly WebNativeField[];
+  readonly returns: WebNativeType;
 }
+
+/** A sized number, as the native API declares one. */
+export type WebNativeNumeric =
+  | 'int8'
+  | 'uint8'
+  | 'int16'
+  | 'uint16'
+  | 'int32'
+  | 'uint32'
+  | 'int64'
+  | 'uint64'
+  | 'float32'
+  | 'float64';
+
+/** A resolved native type reference (the toolchain's NativeType). */
+export type WebNativeType =
+  | { readonly kind: 'void' }
+  | {
+      readonly kind: 'primitive';
+      readonly name: 'boolean' | 'string' | WebNativeNumeric;
+    }
+  | {
+      readonly kind: 'declared';
+      readonly name: string;
+      readonly declaration: 'struct' | 'enum';
+    }
+  | { readonly kind: 'array'; readonly element: WebNativeType }
+  | { readonly kind: 'buffer'; readonly element: WebNativeNumeric }
+  | { readonly kind: 'nullable'; readonly inner: WebNativeType };
+
+export interface WebNativeField {
+  readonly name: string;
+  readonly type: WebNativeType;
+}
+
+/** A type declared under `native.types`. */
+export type WebNativeTypeDeclaration =
+  | {
+      readonly kind: 'struct';
+      readonly name: string;
+      readonly fields: readonly WebNativeField[];
+    }
+  | {
+      readonly kind: 'enum';
+      readonly name: string;
+      readonly values: readonly string[];
+    };

@@ -56,7 +56,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         };
 
         template <typename T>
-        jsi::ArrayBuffer writeBuffer(ContextState& context, std::vector<T>&& values)
+        jsi::ArrayBuffer ownedArrayBuffer(ContextState& context, std::vector<T>&& values)
         {
             return jsi::ArrayBuffer(context.rt, std::make_shared<VectorBuffer<T>>(std::move(values)));
         }
@@ -64,8 +64,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         template <typename T>
         jsi::Value writeTypedArray(ContextState& context, std::vector<T>&& values, const jsi::Function& constructor)
         {
-            const jsi::ArrayBuffer buffer = writeBuffer(context, std::move(values));
+            const jsi::ArrayBuffer buffer = ownedArrayBuffer(context, std::move(values));
             return constructor.callAsConstructor(context.rt, buffer);
+        }
+
+        // "<path>: <value> is out of range for <type> (<min> to <max>)".
+        [[noreturn]] void throwOutOfRange(ContextState& context, const Path& path, const jsi::Value& value,
+                                          std::string_view typeName, std::string_view range)
+        {
+            std::string message =
+                path.toString() + ": " + toString(context, value) + " is out of range for " + std::string(typeName);
+            if (! range.empty())
+                message += " (" + std::string(range) + ")";
+            throwRangeError(context, message);
+        }
+
+        // An integer of up to 32 bits, from a number that is one, in range.
+        template <typename T>
+        void readSmallInteger(ContextState& context, const jsi::Value& value, const Path& path,
+                              std::string_view typeName, T& out)
+        {
+            static_assert(sizeof(T) <= 4, "exactly representable as a double");
+            if (! value.isNumber())
+                throwTypeMismatch(context, path, typeName, value);
+            const double number = value.getNumber();
+            if (! std::isfinite(number) || std::trunc(number) != number)
+                throwTypeError(context, path.toString() + ": expected an integer (" + std::string(typeName) + "), got "
+                                            + toString(context, value));
+            constexpr auto min = std::numeric_limits<T>::min();
+            constexpr auto max = std::numeric_limits<T>::max();
+            if (number < static_cast<double>(min) || number > static_cast<double>(max))
+                throwOutOfRange(context, path, value, typeName,
+                                std::to_string(static_cast<long long>(min)) + " to "
+                                    + std::to_string(static_cast<long long>(max)));
+            out = static_cast<T>(number);
         }
     } // namespace
 
@@ -228,6 +260,83 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         out = value.getNumber();
     }
 
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int8_t& out)
+    {
+        readSmallInteger(context, value, path, "int8", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint8_t& out)
+    {
+        readSmallInteger(context, value, path, "uint8", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int16_t& out)
+    {
+        readSmallInteger(context, value, path, "int16", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint16_t& out)
+    {
+        readSmallInteger(context, value, path, "uint16", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int32_t& out)
+    {
+        readSmallInteger(context, value, path, "int32", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint32_t& out)
+    {
+        readSmallInteger(context, value, path, "uint32", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int64_t& out)
+    {
+        if (! value.isBigInt())
+            throwTypeMismatch(context, path, "int64", value);
+        const jsi::BigInt big = value.getBigInt(context.rt);
+        if (! big.isInt64(context.rt))
+            throwOutOfRange(context, path, value, "int64", "-9223372036854775808 to 9223372036854775807");
+        out = big.getInt64(context.rt);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint64_t& out)
+    {
+        if (! value.isBigInt())
+            throwTypeMismatch(context, path, "uint64", value);
+        const jsi::BigInt big = value.getBigInt(context.rt);
+        if (! big.isUint64(context.rt))
+            throwOutOfRange(context, path, value, "uint64", "0 to 18446744073709551615");
+        out = big.getUint64(context.rt);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, float& out)
+    {
+        if (! value.isNumber())
+            throwTypeMismatch(context, path, "float32", value);
+        const double number = value.getNumber();
+        // NaN and the infinities are floats too; a finite number from halfway
+        // between the largest float and 2^128 on would round to infinity.
+        constexpr double overflow = 0x1.ffffffp127;
+        constexpr float largest = std::numeric_limits<float>::max();
+        const bool finite = std::isfinite(number);
+        if (finite && std::abs(number) >= overflow)
+            throwOutOfRange(context, path, value, "float32", "");
+        // Below that but beyond the largest float, a number rounds to it (a
+        // cast would be undefined there).
+        if (finite && std::abs(number) > static_cast<double>(largest))
+            out = number > 0 ? largest : -largest;
+        else
+            out = static_cast<float>(number);
+    }
+
+    void readFloat64(ContextState& context, const jsi::Value& value, const Path& path, double& out)
+    {
+        if (! value.isNumber())
+            throwTypeMismatch(context, path, "float64", value);
+        out = value.getNumber();
+    }
+
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::string& out)
     {
         if (! value.isString())
@@ -260,14 +369,44 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         out = std::span<std::byte>(reinterpret_cast<std::byte*>(view.data), view.byteLength);
     }
 
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int8_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::Int8, "Int8Array", out);
+    }
+
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint8_t>& out)
     {
         readTypedSpan(context, value, path, TypedArrayKind::Uint8, "Uint8Array", out);
     }
 
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int16_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::Int16, "Int16Array", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint16_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::Uint16, "Uint16Array", out);
+    }
+
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int32_t>& out)
     {
         readTypedSpan(context, value, path, TypedArrayKind::Int32, "Int32Array", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint32_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::Uint32, "Uint32Array", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int64_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::BigInt64, "BigInt64Array", out);
+    }
+
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint64_t>& out)
+    {
+        readTypedSpan(context, value, path, TypedArrayKind::BigUint64, "BigUint64Array", out);
     }
 
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const float>& out)
@@ -331,7 +470,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
 
     jsi::Value write(ContextState& context, std::vector<std::byte>&& value)
     {
-        return writeBuffer(context, std::move(value));
+        return ownedArrayBuffer(context, std::move(value));
+    }
+
+    jsi::Value write(ContextState& context, std::int64_t value)
+    {
+        return { context.rt, jsi::BigInt::fromInt64(context.rt, value) };
+    }
+
+    jsi::Value write(ContextState& context, std::uint64_t value)
+    {
+        return { context.rt, jsi::BigInt::fromUint64(context.rt, value) };
+    }
+
+    jsi::Value write(ContextState& context, std::vector<std::int8_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().int8Array);
     }
 
     jsi::Value write(ContextState& context, std::vector<std::uint8_t>&& value)
@@ -339,9 +493,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         return writeTypedArray(context, std::move(value), context.builtins().uint8Array);
     }
 
+    jsi::Value write(ContextState& context, std::vector<std::int16_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().int16Array);
+    }
+
+    jsi::Value write(ContextState& context, std::vector<std::uint16_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().uint16Array);
+    }
+
     jsi::Value write(ContextState& context, std::vector<std::int32_t>&& value)
     {
         return writeTypedArray(context, std::move(value), context.builtins().int32Array);
+    }
+
+    jsi::Value write(ContextState& context, std::vector<std::uint32_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().uint32Array);
+    }
+
+    jsi::Value write(ContextState& context, std::vector<std::int64_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().bigInt64Array);
+    }
+
+    jsi::Value write(ContextState& context, std::vector<std::uint64_t>&& value)
+    {
+        return writeTypedArray(context, std::move(value), context.builtins().bigUint64Array);
     }
 
     jsi::Value write(ContextState& context, std::vector<float>&& value)
@@ -357,39 +536,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     jsi::Value writeEnum(ContextState& context, std::string_view value)
     {
         return write(context, value);
-    }
-
-    void readHandle(ContextState& context, const jsi::Value& value, const Path& path, const HandleType& type,
-                    std::shared_ptr<void>& out)
-    {
-        if (value.isObject())
-        {
-            const jsi::Object object = value.getObject(context.rt);
-            if (object.hasNativeState(context.rt))
-            {
-                const auto state = std::dynamic_pointer_cast<detail::ObjectState>(object.getNativeState(context.rt));
-                if (state != nullptr && state->handleType == &type && state->handle != nullptr)
-                {
-                    out = state->handle->object;
-                    return;
-                }
-            }
-        }
-        throwTypeMismatch(context, path, type.name, value);
-    }
-
-    jsi::Value writeHandle(ContextState& context, const HandleType& type, std::shared_ptr<void> object)
-    {
-        if (object == nullptr)
-            throwTypeError(context, std::string("native code returned an empty ") + type.name + " handle");
-        jsi::Object handle(context.rt);
-        auto state = std::make_shared<detail::ObjectState>();
-        state->handleType = &type;
-        state->handle = std::make_unique<detail::ObjectState::Handle>();
-        state->handle->object = std::move(object);
-        state->finalization = context.finalization;
-        handle.setNativeState(context.rt, std::move(state));
-        return handle;
     }
 
     jsi::Function function(ContextState& context, const char* name, unsigned length, NativeFunction function)
@@ -581,37 +727,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 
     ObjectState::~ObjectState()
     {
-        if (finalization == nullptr || (handle == nullptr && tokens.empty()))
+        if (finalization == nullptr || tokens.empty())
             return;
         try
         {
             const std::scoped_lock lock(finalization->mutex);
-            if (handle != nullptr)
-            {
-                // Not released here: this may be the collector's thread.
-                handle->next = std::move(finalization->released);
-                finalization->released = std::move(handle);
-            }
             finalization->tokens.insert(finalization->tokens.end(), tokens.begin(), tokens.end());
         }
         catch (...) // NOLINT(bugprone-empty-catch): nothing to unwind into
         {
             // Out of memory while the collector finalizes: the callbacks of
-            // these cells are lost rather than unwinding through the engine,
-            // and a native object not yet queued is leaked rather than
-            // destroyed on a thread it does not belong to.
-            [[maybe_unused]] const Handle* leaked = handle.release();
+            // these cells are lost rather than unwinding through the engine.
         }
-    }
-
-    ObjectState::Queue::~Queue()
-    {
-        releaseHandleList(std::move(released));
-    }
-
-    void releaseHandleList(std::unique_ptr<ObjectState::Handle> list) noexcept
-    {
-        while (list != nullptr)
-            list = std::move(list->next);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail

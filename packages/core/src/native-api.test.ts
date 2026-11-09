@@ -32,58 +32,104 @@ describe('describeNativeApi', () => {
     const model = modelOf({
       types: {
         Curve: { enum: ['linear', 'exponential'] },
-        Preset: 'handle',
-        Point: { struct: { x: 'number', y: 'number' } },
+        Point: { struct: { x: 'float64', y: 'float64' } },
       },
       methods: {
         everything: {
           args: {
             flag: 'boolean',
-            amount: 'number',
             label: 'string',
-            bytes: 'ArrayBuffer',
-            samples: 'Float32Array',
+            small: 'int8',
+            count: 'uint32',
+            big: 'int64',
+            gain: 'float32',
+            samples: 'buffer<float32>',
+            words: 'buffer<uint64>',
             curve: 'Curve',
-            preset: 'Preset',
             points: 'Point[]',
             names: 'string[]',
+            slot: 'int32?',
+            point: 'Point?',
+            gains: 'float32[]?',
+            spectrum: 'buffer<float64>?',
           },
-          returns: 'Preset[]',
+          returns: 'Point[]',
           async: true,
         },
       },
     });
     const [method] = model.methods;
     expect(method!.async).toBe(true);
+    const point = { kind: 'declared', name: 'Point', declaration: 'struct' };
     expect(method!.args.map((arg) => [arg.name, arg.type])).toEqual([
       ['flag', { kind: 'primitive', name: 'boolean' }],
-      ['amount', { kind: 'primitive', name: 'number' }],
       ['label', { kind: 'primitive', name: 'string' }],
-      ['bytes', { kind: 'binary', name: 'ArrayBuffer' }],
-      ['samples', { kind: 'binary', name: 'Float32Array' }],
+      ['small', { kind: 'primitive', name: 'int8' }],
+      ['count', { kind: 'primitive', name: 'uint32' }],
+      ['big', { kind: 'primitive', name: 'int64' }],
+      ['gain', { kind: 'primitive', name: 'float32' }],
+      ['samples', { kind: 'buffer', element: 'float32' }],
+      ['words', { kind: 'buffer', element: 'uint64' }],
       ['curve', { kind: 'declared', name: 'Curve', declaration: 'enum' }],
-      ['preset', { kind: 'declared', name: 'Preset', declaration: 'handle' }],
-      [
-        'points',
-        {
-          kind: 'array',
-          element: { kind: 'declared', name: 'Point', declaration: 'struct' },
-        },
-      ],
+      ['points', { kind: 'array', element: point }],
       [
         'names',
         { kind: 'array', element: { kind: 'primitive', name: 'string' } },
       ],
+      [
+        'slot',
+        { kind: 'nullable', inner: { kind: 'primitive', name: 'int32' } },
+      ],
+      ['point', { kind: 'nullable', inner: point }],
+      [
+        'gains',
+        {
+          kind: 'nullable',
+          inner: {
+            kind: 'array',
+            element: { kind: 'primitive', name: 'float32' },
+          },
+        },
+      ],
+      [
+        'spectrum',
+        { kind: 'nullable', inner: { kind: 'buffer', element: 'float64' } },
+      ],
     ]);
-    expect(method!.returns).toEqual({
-      kind: 'array',
-      element: { kind: 'declared', name: 'Preset', declaration: 'handle' },
+    expect(method!.returns).toEqual({ kind: 'array', element: point });
+  });
+
+  it('accepts every primitive, and buffers of every numeric type', () => {
+    const numeric = [
+      'int8',
+      'uint8',
+      'int16',
+      'uint16',
+      'int32',
+      'uint32',
+      'int64',
+      'uint64',
+      'float32',
+      'float64',
+    ];
+    const model = modelOf({
+      types: {
+        Everything: {
+          struct: Object.fromEntries([
+            ['flag', 'boolean'],
+            ['text', 'string'],
+            ...numeric.map((name) => [`${name}Value`, name]),
+            ...numeric.map((name) => [`${name}Buffer`, `buffer<${name}>`]),
+          ]),
+        },
+      },
     });
+    expect(model.types[0]!.kind).toBe('struct');
   });
 
   it('keeps argument order and defaults returns to void', () => {
     const model = modelOf({
-      methods: { mix: { args: { b: 'number', a: 'number' } } },
+      methods: { mix: { args: { b: 'int32', a: 'int32' } } },
     });
     expect(model.methods[0]!.args.map((arg) => arg.name)).toEqual(['b', 'a']);
     expect(model.methods[0]!.returns).toEqual({ kind: 'void' });
@@ -95,7 +141,7 @@ describe('describeNativeApi', () => {
       types: {
         Outer: { struct: { inner: 'Inner', list: 'Leaf[]' } },
         Inner: { struct: { leaf: 'Leaf' } },
-        Leaf: { struct: { value: 'number' } },
+        Leaf: { struct: { value: 'float64' } },
         Alpha: { enum: ['a'] },
       },
       methods: { zeta: {}, alpha: {} },
@@ -133,16 +179,21 @@ describe('describeNativeApi', () => {
   it('rejects names that cannot be generated', () => {
     expect(
       issuesOf({
-        types: { lowercase: 'handle', Promise: 'handle' },
+        types: {
+          lowercase: { enum: ['a'] },
+          Promise: { enum: ['a'] },
+          Float32Array: { enum: ['a'] },
+        },
         methods: {
           delete: {},
           'not-an-identifier': {},
           __internal: {},
           Upper: {},
-          ok: { args: { class: 'number' } },
+          ok: { args: { class: 'int32' } },
         },
       }),
     ).toEqual([
+      "native.types.Float32Array: type name 'Float32Array' collides with a built-in type",
       "native.types.Promise: type name 'Promise' collides with a built-in type",
       expect.stringContaining(
         "native.types.lowercase: type name 'lowercase' must be PascalCase",
@@ -161,28 +212,78 @@ describe('describeNativeApi', () => {
     ]);
   });
 
-  it('rejects unsupported struct fields, nested arrays and recursion', () => {
+  it('rejects handles, unsupported compositions and recursion', () => {
     expect(
       issuesOf({
         types: {
-          Preset: 'handle',
-          Holder: { struct: { preset: 'Preset', data: 'Float32Array' } },
-          Loop: { struct: { next: 'Loop' } },
+          Preset: 'handle' as never,
+          Loop: { struct: { next: 'Loop?' } },
         },
-        methods: { grid: { returns: 'number[][]' } },
+        methods: {
+          grid: { returns: 'float32[][]' },
+          holes: { args: { values: 'int32?[]' } },
+          buffers: { args: { list: 'buffer<uint8>[]' } },
+          twice: { args: { value: 'int32??' } },
+          nothing: { returns: 'void?' },
+          text: { args: { data: 'buffer<string>' } },
+          nested: { args: { data: 'buffer<buffer<uint8>>' } },
+          flags: { args: { data: 'buffer<boolean>' } },
+          points: { args: { data: 'buffer<Loop>' } },
+        },
       }),
     ).toEqual([
-      expect.stringContaining(
-        'native.types.Holder.struct.preset: struct fields may be',
-      ),
-      expect.stringContaining(
-        'native.types.Holder.struct.data: struct fields may be',
-      ),
+      "native.types.Preset: 'handle' types are gone: declare a { struct: { ... } } of the values the UI needs, or pass an ID or path",
       expect.stringContaining(
         "native.types.Loop: struct 'Loop' contains itself (Loop → Loop)",
       ),
       expect.stringContaining(
-        "native.methods.grid.returns: 'number[][]' is not supported",
+        "native.methods.buffers.args.list: 'buffer<uint8>[]' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.flags.args.data: 'buffer<boolean>' is not supported; a buffer holds one fixed-width numeric type",
+      ),
+      expect.stringContaining(
+        "native.methods.grid.returns: 'float32[][]' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.holes.args.values: 'int32?[]' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.nested.args.data: 'buffer<buffer<uint8>>' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.nothing.returns: 'void?' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.points.args.data: 'buffer<Loop>' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.text.args.data: 'buffer<string>' is not supported",
+      ),
+      expect.stringContaining(
+        "native.methods.twice.args.value: 'int32??' is not supported",
+      ),
+    ]);
+  });
+
+  it('points former type names to their replacements', () => {
+    expect(
+      issuesOf({
+        methods: {
+          a: { args: { value: 'number' } },
+          b: { args: { data: 'Float32Array' } },
+          c: { args: { data: 'ArrayBuffer' } },
+          d: { args: { data: 'BigInt64Array[]' } },
+          e: { args: { value: 'float' } },
+        },
+      }),
+    ).toEqual([
+      "native.methods.a.args.value: 'number' is not a native type; use a sized number ('int32', 'float64', ...)",
+      "native.methods.b.args.data: 'Float32Array' is not a native type; use 'buffer<float32>'",
+      "native.methods.c.args.data: 'ArrayBuffer' is not a native type; use 'buffer<uint8>'",
+      "native.methods.d.args.data: 'BigInt64Array' is not a native type; use 'buffer<int64>'",
+      expect.stringMatching(
+        /^native\.methods\.e\.args\.value: unknown type 'float'/,
       ),
     ]);
   });
@@ -219,33 +320,121 @@ describe('renderNativeDts', () => {
     );
   });
 
-  it('declares handles, enums, structs, async results and readonly array arguments', () => {
+  it('declares enums, structs, async results and readonly array arguments', () => {
     const dts = renderNativeDts(
       modelOf({
         types: {
           Curve: { enum: ['linear', 'exponential'] },
-          Preset: 'handle',
-          Point: { struct: { x: 'number', tags: 'string[]' } },
+          Point: { struct: { x: 'float64', tags: 'string[]', id: 'uint64?' } },
         },
         methods: {
-          load: { args: { path: 'string' }, returns: 'Preset', async: true },
+          load: { args: { path: 'string' }, returns: 'Point?', async: true },
           plot: {
-            args: { points: 'Point[]', curve: 'Curve' },
-            returns: 'number[]',
+            args: { points: 'Point[]', curve: 'Curve', gains: 'float32[]?' },
+            returns: 'float64[]',
           },
         },
       }),
     );
     expect(dts).toContain('  export type Curve = "linear" | "exponential";');
-    expect(dts).toContain("    readonly __soundorHandle: 'Preset';");
     expect(dts).toContain(
-      '  export interface Point {\n    x: number;\n    tags: string[];\n  }',
+      '  export interface Point {\n    x: number;\n    tags: string[];\n    id: bigint | null;\n  }',
     );
     expect(dts).toContain(
-      '  export function load(path: string): Promise<Preset>;',
+      '  export function load(path: string): Promise<Point | null>;',
     );
     expect(dts).toContain(
-      '  export function plot(points: readonly Point[], curve: Curve): number[];',
+      '  export function plot(points: readonly Point[], curve: Curve, gains: readonly number[] | null): number[];',
     );
+  });
+
+  it('maps numbers to number or bigint, and buffers to typed arrays', () => {
+    const types: [string, string][] = [
+      ['int8', 'number'],
+      ['uint8', 'number'],
+      ['int16', 'number'],
+      ['uint16', 'number'],
+      ['int32', 'number'],
+      ['uint32', 'number'],
+      ['int64', 'bigint'],
+      ['uint64', 'bigint'],
+      ['float32', 'number'],
+      ['float64', 'number'],
+      ['buffer<int8>', 'Int8Array'],
+      ['buffer<uint8>', 'Uint8Array'],
+      ['buffer<int16>', 'Int16Array'],
+      ['buffer<uint16>', 'Uint16Array'],
+      ['buffer<int32>', 'Int32Array'],
+      ['buffer<uint32>', 'Uint32Array'],
+      ['buffer<int64>', 'BigInt64Array'],
+      ['buffer<uint64>', 'BigUint64Array'],
+      ['buffer<float32>', 'Float32Array'],
+      ['buffer<float64>', 'Float64Array'],
+      ['buffer<float32>?', 'Float32Array | null'],
+    ];
+    const dts = renderNativeDts(
+      modelOf({
+        methods: Object.fromEntries(
+          types.map(([ref], index) => [
+            `m${index}`,
+            { args: { value: ref }, returns: ref },
+          ]),
+        ),
+      }),
+    );
+    types.forEach(([, ts], index) => {
+      expect(dts).toContain(
+        `  export function m${index}(value: ${ts}): ${ts};`,
+      );
+    });
+  });
+
+  it('declares the example API', () => {
+    const dts = renderNativeDts(
+      modelOf({
+        types: {
+          Analysis: { struct: { rms: 'float32', peak: 'float32' } },
+          Preset: { struct: { name: 'string', gains: 'float32[]' } },
+        },
+        methods: {
+          analyze: {
+            args: { samples: 'buffer<float32>' },
+            returns: 'Analysis',
+          },
+          getSpectrum: { returns: 'buffer<float32>' },
+          loadPreset: {
+            args: { path: 'string' },
+            returns: 'Preset?',
+            async: true,
+          },
+          applyPreset: { args: { preset: 'Preset' }, returns: 'void' },
+          setSolo: { args: { slot: 'int32?' }, returns: 'void' },
+        },
+      }),
+    );
+    expect(dts).toBe(`// This file was generated by Soundor. Do not edit.
+
+declare module 'soundor:native' {
+  export interface Analysis {
+    rms: number;
+    peak: number;
+  }
+
+  export interface Preset {
+    name: string;
+    gains: number[];
+  }
+
+  export function analyze(samples: Float32Array): Analysis;
+
+  export function applyPreset(preset: Preset): void;
+
+  export function getSpectrum(): Float32Array;
+
+  export function loadPreset(path: string): Promise<Preset | null>;
+
+  export function setSolo(slot: number | null): void;
+}
+`);
   });
 });

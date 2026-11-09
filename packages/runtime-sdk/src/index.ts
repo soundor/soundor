@@ -69,6 +69,7 @@ export {
   UnknownRuntimeError,
   exitCodeFor,
   describeNativeApi,
+  nativeTsType,
 } from '@soundor/core';
 export type {
   CodegenFile,
