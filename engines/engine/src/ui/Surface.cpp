@@ -1592,7 +1592,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 // Implicit capture until the last button is up, from before the
                 // listeners run, so they can lock it (a node they remove lets go).
                 if (state.captured == noNode)
+                {
                     state.captured = target;
+                    state.clicks = std::max(1, input.clicks);
+                }
                 const bool prevented = dispatch(pointerEvent(Event::Type::PointerDown, target, input));
                 if (! isConnected(state.captured))
                     state.captured = noNode;
@@ -1643,7 +1646,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         for (std::size_t i = 0; i < from.size() && i < to.size() && from[i] == to[i]; ++i)
                             common = from[i];
                         if (common != noNode)
-                            dispatch(pointerEvent(Event::Type::Click, common, input));
+                        {
+                            // As on the Web: the click says which of a series
+                            // it is, and the second is also a double click.
+                            Event click = pointerEvent(Event::Type::Click, common, input);
+                            click.detail = state.clicks;
+                            dispatch(click);
+                            if (state.clicks == 2 && isConnected(common))
+                            {
+                                Event twice = pointerEvent(Event::Type::DoubleClick, common, input);
+                                twice.detail = state.clicks;
+                                dispatch(twice);
+                            }
+                        }
                     }
                     updateHover(state, input, hitTest(input.position));
                 }

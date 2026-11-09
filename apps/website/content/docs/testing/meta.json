@@ -19,6 +19,7 @@
     "---Interactions---",
     "user-event",
     "click",
+    "dbl-click",
     "press",
     "type",
     "clear",

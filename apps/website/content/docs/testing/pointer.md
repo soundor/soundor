@@ -10,6 +10,7 @@ interface PointerAction {
   target?: NodeTarget; // the node; the previous one when omitted
   keys?: string;       // '[MouseLeft]', '[MouseLeft>]', '[/MouseLeft]', also MouseRight, MouseMiddle
   clientX?: number;    // and clientY, offsetX, offsetY, screenX, screenY, movementX, movementY, modifiers…
+  detail?: number;     // a press: which of a series it is (1 by default; 2 makes a double click)
 }
 ```
 
@@ -31,7 +32,10 @@ await user.pointer({ target: knob, keys: '[/MouseLeft]', clientY: 32 });
 | _(none)_       | Moves only.                      |
 
 `MouseRight` (a secondary click: `onContextMenu`) and `MouseMiddle` work the
-same.
+same. A press's `detail` is its click count, as a platform counts them: a
+second click is `{ target, keys: '[MouseLeft]', detail: 2 }`, whose release
+fires `click` and then `dblclick` ([`dblClick`](/docs/testing/dbl-click) does
+both clicks).
 
 ## Good to know
 

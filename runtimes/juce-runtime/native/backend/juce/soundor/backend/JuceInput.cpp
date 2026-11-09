@@ -1,5 +1,6 @@
 #include "JuceInput.h"
 
+#include <algorithm>
 #include <array>
 #include <utility>
 
@@ -129,6 +130,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 input.buttons = buttonsOf(event.mods);
                 if (input.pressure == 0.0f)
                     input.pressure = 0.5f;
+                // JUCE counts presses close in time and place, of the same
+                // buttons and not a drag, as a series (useDoubleClickTime()).
+                input.clicks = std::max(1, event.getNumberOfClicks());
                 break;
             case ui::PointerInput::Phase::Up:
                 // JUCE reports up once every button is released, with the

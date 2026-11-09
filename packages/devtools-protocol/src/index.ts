@@ -104,7 +104,10 @@ const modifiers = z.array(modifierSchema).max(4).optional();
  * Pointer input in the view's logical pixels. `click` is a move, a press and
  * a release at the point, dispatched together; `cancel` ends the synthetic
  * pointer without a click. `down`, `up` and `cancel` default to the last
- * position.
+ * position. `clickCount` says which press of a series a `down` or `click`
+ * is, as a platform counts them: 2 for the second click of a double click,
+ * which is then also a `dblclick`. The caller counts, so a script's double
+ * click does not depend on its timing.
  */
 export const pointerInputSchema = z
   .strictObject({
@@ -112,6 +115,7 @@ export const pointerInputSchema = z
     x: coordinate.optional(),
     y: coordinate.optional(),
     button: z.enum(['left', 'middle', 'right']).optional(),
+    clickCount: z.number().int().min(1).max(10).optional(),
     modifiers,
   })
   .refine(

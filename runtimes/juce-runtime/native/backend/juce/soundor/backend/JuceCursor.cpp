@@ -1,9 +1,23 @@
+// The pointer's platform settings: the cursor, and the double-click time.
+//
 // JUCE declares its X11 window system only for those that ask, and X11's
 // headers define macros (None, Status) that the rest of the adapters must not
 // see: this file is the only one that asks.
 #define JUCE_GUI_BASICS_INCLUDE_XHEADERS 1
 
 #include "JuceInput.h"
+
+#include <algorithm>
+
+#if JUCE_MAC
+    #include <objc/message.h>
+    #include <objc/runtime.h>
+#endif
+
+#if JUCE_WINDOWS
+// user32's, which JUCE links; declared rather than taking in <windows.h>.
+extern "C" __declspec(dllimport) unsigned int __stdcall GetDoubleClickTime();
+#endif
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 {
@@ -76,4 +90,43 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         return juce::MouseCursor::NormalCursor;
     }
 #endif
+
+    std::optional<int> platformDoubleClickTime()
+    {
+#if JUCE_MAC
+        // [NSEvent doubleClickInterval], in seconds, through the Objective-C
+        // runtime: this file is C++, and Apple code adds no classes.
+        auto* const event = reinterpret_cast<id>(objc_getClass("NSEvent"));
+        const SEL interval = sel_registerName("doubleClickInterval");
+        if (event == nullptr || interval == nullptr)
+            return std::nullopt;
+        const double seconds = reinterpret_cast<double (*)(id, SEL)>(objc_msgSend)(event, interval);
+        if (! (seconds > 0))
+            return std::nullopt;
+        return static_cast<int>(seconds * 1000.0 + 0.5);
+#elif JUCE_WINDOWS
+        const auto milliseconds = GetDoubleClickTime();
+        if (milliseconds == 0)
+            return std::nullopt;
+        return static_cast<int>(milliseconds);
+#elif JUCE_LINUX || JUCE_BSD
+        auto* const settings = juce::XWindowSystem::getInstance()->getXSettings();
+        if (settings == nullptr)
+            return std::nullopt;
+        const auto setting = settings->getSetting("Net/DoubleClickTime");
+        if (setting.type != juce::XWindowSystemUtilities::XSetting::Type::integer || setting.integerValue <= 0)
+            return std::nullopt;
+        return setting.integerValue;
+#else
+        return std::nullopt;
+#endif
+    }
+
+    void useDoubleClickTime()
+    {
+        // Within what a person could mean: a setting of 0 or of minutes would
+        // make every press, or none, a double click.
+        if (const auto milliseconds = platformDoubleClickTime())
+            juce::MouseEvent::setDoubleClickTimeout(std::clamp(*milliseconds, 100, 5000));
+    }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

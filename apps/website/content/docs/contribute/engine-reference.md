@@ -538,6 +538,17 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
     `pointerEvents` applies.
   - **Pointer capture:** implicit from press to release, set before the
     `pointerdown` listeners run.
+  - **Clicks:** a release of the primary button, once every button is up,
+    clicks the deepest node holding both the press and the release. The
+    platform counts presses: `PointerInput::clicks` on the first button's
+    down (1 a single press, 2 the second of a series), which the click
+    carries as `detail`; the second is followed by a `DoubleClick`
+    (`dblclick`) to the same node, unless the click's listeners removed it.
+    The JUCE adapter reports `MouseEvent::getNumberOfClicks()`, JUCE's count
+    by its double-click timeout, which the editor sets to the platform's
+    (`backend::useDoubleClickTime()`: macOS's and Windows' setting, the
+    XSETTINGS `Net/DoubleClickTime` on Linux, else JUCE's 400 ms); synthetic
+    input says its count (`clickCount`).
   - **Movement:** each pointer event's `movement` is how far the pointer moved
     since its previous input (`movementX`/`movementY`).
   - **Screen:** `PointerInput::screen` is where the pointer is on the screen

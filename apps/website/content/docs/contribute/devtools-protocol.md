@@ -265,10 +265,13 @@ Input is synthetic platform input, in the view's logical pixels, dispatched by
 the engine's own hit testing, capture, propagation and default actions. It
 never calls application handlers directly.
 
-- `Input.dispatchPointer {action, x?, y?, button?, modifiers?}`: `move`,
-  `down`, `up` (at the last position unless given), `click` (move, press and
-  release in one command, so no press outlives it) and `cancel` (a
+- `Input.dispatchPointer {action, x?, y?, button?, clickCount?, modifiers?}`:
+  `move`, `down`, `up` (at the last position unless given), `click` (move,
+  press and release in one command, so no press outlives it) and `cancel` (a
   `pointercancel`, no click). `button` is `left`, `middle` or `right`.
+  `clickCount` (1 to 10, 1 by default) says which press of a series a `down`
+  or a `click` is, as a platform counts them: its click's `detail`, and 2
+  also makes a `dblclick`. The client counts, never the engine by time.
 - `Input.dispatchWheel {x, y, deltaX, deltaY, modifiers?}`: pixels, positive
   down and right.
 - `Input.dispatchKey {action: down|up|press, key, modifiers?}`:

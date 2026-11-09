@@ -275,6 +275,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             ContextMenu,
             AccessibilityAction,
             FocusVisibleChange, // does not bubble
+            DoubleClick,
         };
 
         Type type = Type::PointerMove;
@@ -296,6 +297,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         int button = -1;
         unsigned buttons = 0;
         float pressure = 0;
+        // Click and DoubleClick: the press's click count (PointerInput::clicks).
+        int detail = 0;
 
         float deltaX = 0;
         float deltaY = 0;
@@ -630,6 +633,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             NodeId captured = noNode;    // the pointerdown target, while pressed
             std::vector<NodeId> hovered; // root ... deepest hovered node
             PointerInput last;           // where hover is refreshed from
+            int clicks = 1;              // the press's click count, while pressed
             bool inside = false;         // in the view, as of the last input
         };
 

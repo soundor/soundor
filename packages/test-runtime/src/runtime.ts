@@ -75,6 +75,8 @@ export class TestRuntime {
     type: 'mouse' as string,
     /** The node holding the pointer lock: the press goes to it until released. */
     locked: null as TestNode | null,
+    /** The press's click count: `detail` of its click. */
+    clicks: 1,
   };
   readonly keys = new Set<string>();
   constructor(options: RuntimeOptions = {}) {
@@ -381,21 +383,29 @@ export class TestRuntime {
       throw new RangeError(
         'Supported mouse buttons are primary, middle, and secondary',
       );
-    if (this.pointer.down === null)
+    if (this.pointer.down === null) {
       this.pointer.type = String(init['pointerType'] ?? 'mouse');
+      // Which press of a series this is, as a platform counts them.
+      const clicks = Number(init['detail'] ?? 1);
+      if (!Number.isInteger(clicks) || clicks < 1)
+        throw new RangeError('A press counts its clicks from 1 (detail)');
+      this.pointer.clicks = clicks;
+    }
     this.pointer.down ??= node;
     this.pointer.target = node;
     this.pointer.buttons |= [1, 4, 2][button]!;
     // Focus a press moves is not shown.
     this.keyboardModality = false;
     const target = this.pointer.down;
-    const event = this.fire(target, 'pointerdown', init);
+    // Pointer events say no count (detail 0); the press's click does.
+    const { detail: _detail, ...pointerInit } = init;
+    const event = this.fire(target, 'pointerdown', pointerInit);
     if (!event.defaultPrevented) {
       let focus: TestNode | null = target;
       while (focus && !focus.focusable) focus = focus.parent;
       this.moveFocus(focus);
     }
-    if (button === 2) this.fire(target, 'contextmenu', init);
+    if (button === 2) this.fire(target, 'contextmenu', pointerInit);
     return event;
   }
   pointerMove(node: TestNode, init: Record<string, unknown> = {}) {
@@ -418,9 +428,11 @@ export class TestRuntime {
     const down = this.pointer.down;
     this.pointer.target = node;
     this.pointer.buttons &= ~[1, 4, 2][button]!;
+    // The count is the press's (pointerDown's detail).
+    const { detail: _detail, ...pointerInit } = init;
     let event: TestEvent;
     try {
-      event = this.fire(down ?? node, 'pointerup', init);
+      event = this.fire(down ?? node, 'pointerup', pointerInit);
     } finally {
       if (this.pointer.buttons === 0) {
         this.pointer.down = null;
@@ -431,7 +443,13 @@ export class TestRuntime {
       // Native Surface sends click to the deepest shared physical ancestor.
       let common: TestNode | null = down;
       while (common && !common.contains(node)) common = common.parent;
-      if (common) this.fire(common, 'click', init);
+      if (common) {
+        const detail = this.pointer.clicks;
+        this.fire(common, 'click', { ...pointerInit, detail });
+        // The second click of a series is also a double click.
+        if (detail === 2 && common.isConnected)
+          this.fire(common, 'dblclick', { ...pointerInit, detail });
+      }
     }
     return event;
   }

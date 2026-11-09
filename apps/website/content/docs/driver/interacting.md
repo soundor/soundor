@@ -16,6 +16,7 @@ calls them: a `Pressable`'s `onPress` runs from a real press and release.
 const reset = driver.getByDebugId('reset');
 await reset.click();
 await reset.click({ button: 'right' });
+await driver.getByDebugId('gain').dblclick();
 await driver.getByRole('adjustable', { name: 'Gain' }).drag({ deltaY: -100 });
 await driver.getByDebugId('preset-list').scroll({ deltaY: 120 });
 await driver.getByDebugId('meter').hover();
@@ -27,6 +28,7 @@ await driver.getByDebugId('name').focus();
 | Action                            | What it does                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------- |
 | `click(options)`                  | Moves the pointer to the node, presses and releases a button (`left` by default). |
+| `dblclick(options)`               | Clicks the node twice, the second click counted as a double click.                |
 | `hover(options)`                  | Moves the pointer over the node.                                                  |
 | `drag({ deltaX, deltaY, steps })` | Presses on the node, moves in `steps` (5) by the deltas, releases.                |
 | `dragTo(locator, options)`        | Drags the node onto another node's center.                                        |
@@ -58,6 +60,12 @@ when no node ever matched, and `ELEMENT_NOT_ACTIONABLE` with the last reason
 otherwise ("is covered at (220, 20) by node 6"). Once input was sent, it is
 never sent again: a failed click is not retried into a double click.
 
+`dblclick()` clicks twice, telling the engine which press of a series each
+is (`clickCount`), as a platform counts them: a `click` with `detail` 1, then
+a `click` and a `dblclick` with `detail` 2. A script's double click so never
+depends on its timing, nor two `click()`s on how fast they come: those are
+two single clicks.
+
 `focus()` needs a focusable node (a text input, a `Pressable`, a view with
 `focusable`); another fails with `ELEMENT_NOT_ACTIONABLE`.
 
@@ -72,6 +80,8 @@ await driver.pointer.down(); // { button: 'left' }
 await driver.pointer.move(100, 120);
 await driver.pointer.up();
 await driver.pointer.click(40, 40, { button: 'right' });
+await driver.pointer.dblclick(40, 40);
+await driver.pointer.click(40, 40, { clickCount: 3 }); // a triple click's third
 await driver.pointer.wheel({ deltaY: 120 }); // at the pointer
 await driver.pointer.cancel(); // ends a press without a click
 
@@ -88,7 +98,8 @@ root without one). A printable key types its character when the plugin does
 not handle the key and neither Control nor Meta is held, as a keyboard does.
 Modifier keys held with `keyboard.down()` apply to later pointer and key
 input; `modifiers` adds others to one input. `press('Shift+a')` holds Shift
-around the key, and releases it whatever happens.
+around the key, and releases it whatever happens. `down()` and `click()`
+take a `clickCount` (1 by default): which press of a series it is.
 
 `hitTest(x, y)` says what is at a point without sending input: the deepest
 node there and its ancestors.

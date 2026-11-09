@@ -26,6 +26,12 @@ export interface PointerOptions extends CallOptions {
   button?: MouseButton;
   /** Modifier keys held besides those held with `keyboard.down()`. */
   modifiers?: Modifier[];
+  /**
+   * `down()` and `click()`: which press of a series this is (1 by default):
+   * 2 makes the second click of a double click, a `dblclick` too. Counted by
+   * the caller, as a platform counts them, never by timing.
+   */
+  clickCount?: number;
 }
 
 export interface WheelOptions extends CallOptions {
@@ -52,6 +58,16 @@ function options(options: CallOptions | undefined): CallOptions {
 function position(x: number, y: number): void {
   if (!Number.isFinite(x) || !Number.isFinite(y))
     throw new DriverError('INVALID_OPTIONS', 'x and y must be finite numbers');
+}
+
+function clicks(count: number | undefined): { clickCount?: number } {
+  if (count === undefined) return {};
+  if (!Number.isInteger(count) || count < 1 || count > 10)
+    throw new DriverError(
+      'INVALID_OPTIONS',
+      'clickCount must be an integer from 1 to 10',
+    );
+  return { clickCount: count };
 }
 
 /**
@@ -91,6 +107,7 @@ export class Pointer {
   async down({
     button,
     modifiers,
+    clickCount,
     ...call
   }: PointerOptions = {}): Promise<InputResult> {
     return this.#host.send(
@@ -98,6 +115,7 @@ export class Pointer {
       {
         action: 'down',
         ...(button ? { button } : {}),
+        ...clicks(clickCount),
         ...(modifiers ? { modifiers } : {}),
       },
       options(call),
@@ -109,7 +127,7 @@ export class Pointer {
     button,
     modifiers,
     ...call
-  }: PointerOptions = {}): Promise<InputResult> {
+  }: Omit<PointerOptions, 'clickCount'> = {}): Promise<InputResult> {
     return this.#host.send(
       'Input.dispatchPointer',
       {
@@ -125,7 +143,7 @@ export class Pointer {
   async click(
     x: number,
     y: number,
-    { button, modifiers, ...call }: PointerOptions = {},
+    { button, modifiers, clickCount, ...call }: PointerOptions = {},
   ): Promise<InputResult> {
     position(x, y);
     const result = await this.#host.send(
@@ -135,12 +153,38 @@ export class Pointer {
         x,
         y,
         ...(button ? { button } : {}),
+        ...clicks(clickCount),
         ...(modifiers ? { modifiers } : {}),
       },
       options(call),
     );
     this.#at = { x, y };
     return result;
+  }
+
+  /**
+   * Clicks twice at a point, the second click counted as the second of a
+   * series: a `click` with `detail` 1, then a `click` and a `dblclick` with
+   * `detail` 2.
+   */
+  async dblclick(
+    x: number,
+    y: number,
+    { button, modifiers, ...call }: Omit<PointerOptions, 'clickCount'> = {},
+  ): Promise<InputResult> {
+    const first = await this.click(x, y, {
+      ...call,
+      ...(button ? { button } : {}),
+      ...(modifiers ? { modifiers } : {}),
+      clickCount: 1,
+    });
+    const second = await this.click(x, y, {
+      ...call,
+      ...(button ? { button } : {}),
+      ...(modifiers ? { modifiers } : {}),
+      clickCount: 2,
+    });
+    return { ...second, handled: first.handled || second.handled };
   }
 
   /**

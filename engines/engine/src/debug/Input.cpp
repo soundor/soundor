@@ -14,6 +14,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         using Object = Value::Object;
         using Array = Value::Array;
 
+        constexpr int maxClickCount = 10;
+
         CommandError invalid(const std::string& message)
         {
             return { "INVALID_REQUEST", message };
@@ -40,6 +42,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             if (! number || ! std::isfinite(*number) || std::abs(*number) > 1e6)
                 throw invalid(std::string(name) + " must be a finite number");
             return static_cast<float>(*number);
+        }
+        // Which press of a series a down is (PointerInput::clicks): the
+        // caller counts, as a platform would, so a script's double click
+        // does not depend on its timing.
+        int clickCount(const Object& params)
+        {
+            const auto* value = field(params, "clickCount");
+            if (! value)
+                return 1;
+            const auto* number = std::get_if<double>(&value->data);
+            if (! number || *number != std::floor(*number) || *number < 1 || *number > maxClickCount)
+                throw invalid("clickCount must be an integer from 1 to " + std::to_string(maxClickCount));
+            return static_cast<int>(*number);
         }
         ui::Modifiers modifierOf(std::string_view name)
         {
@@ -168,6 +183,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
             else if ((action == "down" || action == "up") && ! synthetic.present)
                 throw invalid("move the pointer before pressing a button");
             const auto mods = static_cast<ui::Modifiers>(modifiers(params) | held);
+            const auto clicks = clickCount(params);
             const auto pointer = [&](ui::PointerInput::Phase phase, int index = -1)
             {
                 const bool handled = surface.pointer({ .phase = phase,
@@ -176,7 +192,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                                                        .type = ui::PointerType::Mouse,
                                                        .button = index,
                                                        .buttons = synthetic.buttons,
-                                                       .modifiers = mods });
+                                                       .modifiers = mods,
+                                                       .clicks = clicks });
                 settle();
                 return handled;
             };

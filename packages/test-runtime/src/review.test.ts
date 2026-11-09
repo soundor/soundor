@@ -48,6 +48,7 @@ describe('pointer ownership preconditions', () => {
       buttons: 1,
       type: 'mouse',
       locked: null,
+      clicks: 1,
     });
     r.dispose();
   });

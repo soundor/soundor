@@ -19,15 +19,16 @@ await user.type(screen.getByRole('textinput', { name: 'Name' }), 'Warm');
 await user.keyboard('{Enter}');
 ```
 
-| Method                                      | What it does                                   |
-| ------------------------------------------- | ---------------------------------------------- |
-| [`click(node)`](/docs/testing/click)        | Moves the pointer over the node and clicks it. |
-| [`press(node)`](/docs/testing/press)        | Focuses a control and presses Enter.           |
-| [`type(input, text)`](/docs/testing/type)   | Clicks a text input and types the text.        |
-| [`clear(input)`](/docs/testing/clear)       | Clicks a text input and deletes its text.      |
-| [`keyboard(keys)`](/docs/testing/keyboard)  | Presses keys, with held modifiers.             |
-| [`tab(options?)`](/docs/testing/tab)        | Moves focus with Tab, or Shift+Tab.            |
-| [`pointer(actions)`](/docs/testing/pointer) | Moves and presses mouse buttons, step by step. |
+| Method                                      | What it does                                          |
+| ------------------------------------------- | ----------------------------------------------------- |
+| [`click(node)`](/docs/testing/click)        | Moves the pointer over the node and clicks it.        |
+| [`dblClick(node)`](/docs/testing/dbl-click) | Moves the pointer over the node and double-clicks it. |
+| [`press(node)`](/docs/testing/press)        | Focuses a control and presses Enter.                  |
+| [`type(input, text)`](/docs/testing/type)   | Clicks a text input and types the text.               |
+| [`clear(input)`](/docs/testing/clear)       | Clicks a text input and deletes its text.             |
+| [`keyboard(keys)`](/docs/testing/keyboard)  | Presses keys, with held modifiers.                    |
+| [`tab(options?)`](/docs/testing/tab)        | Moves focus with Tab, or Shift+Tab.                   |
+| [`pointer(actions)`](/docs/testing/pointer) | Moves and presses mouse buttons, step by step.        |
 
 ## Options
 

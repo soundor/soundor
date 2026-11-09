@@ -174,6 +174,23 @@ const click = defineCommand({
   },
 });
 
+const dblclick = defineCommand({
+  meta: {
+    name: 'dblclick',
+    description:
+      'Double-click a node once it is actionable: two clicks, the second counted as the second of a series',
+  },
+  args: { ...queryArgs, ...buttonArg, ...connectionArgs },
+  async run({ args }) {
+    await runDriverCommand(args as ConnectionArgs, {
+      parse: () => ({ find: locator(args), button: button(args.button) }),
+      work: (driver, { find, button }) =>
+        find(driver).dblclick(button ? { button } : {}),
+      print: described('double-clicked'),
+    });
+  },
+});
+
 const hover = defineCommand({
   meta: {
     name: 'hover',
@@ -427,6 +444,7 @@ export const driverCommand = defineCommand({
     tree,
     inspect,
     click,
+    dblclick,
     hover,
     focus,
     move,

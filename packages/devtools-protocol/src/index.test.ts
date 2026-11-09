@@ -170,6 +170,13 @@ it('validates input commands and keeps them behind their own capability', async 
     pointer.safeParse({ action: 'click', x: 0, y: 0, button: 'back' }).success,
   ).toBe(false);
   expect(
+    pointer.safeParse({ action: 'click', x: 0, y: 0, clickCount: 2 }).success,
+  ).toBe(true);
+  for (const clickCount of [0, 1.5, 11])
+    expect(pointer.safeParse({ action: 'down', clickCount }).success).toBe(
+      false,
+    );
+  expect(
     methodParams['Input.dispatchKey'].safeParse({
       action: 'press',
       key: 'Enter',

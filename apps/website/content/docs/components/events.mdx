@@ -4,9 +4,10 @@ description: The Web-style pointer, wheel, key and focus events node components 
 ---
 
 The [node components](/docs/components) take event props: `onPointerDown`,
-`onClick`, `onKeyDown`, `onWheel`, `onFocus` and the others below.
-`onPointerDown`, `onPointerMove`, `onPointerUp`, `onClick`, `onContextMenu`,
-`onWheel` and `onKeyDown` also have `…Capture` variants. They receive
+`onClick`, `onDoubleClick`, `onKeyDown`, `onWheel`, `onFocus` and the others
+below. `onPointerDown`, `onPointerMove`, `onPointerUp`, `onClick`,
+`onDoubleClick`, `onContextMenu`, `onWheel` and `onKeyDown` also have
+`…Capture` variants. They receive
 `soundor:ui`'s Web-style events, which capture and bubble through the view's
 nodes as in the DOM. `Portal`, `Modal` and `FocusScope` take their own props;
 put node event handlers on the content they render.
@@ -58,6 +59,42 @@ put node event handlers on the content they render.
   ([Focus rings](#focus-rings)).
 - **`onContextMenu`** fires when the secondary button goes down, so a UI can
   open its own menu ([Portal](/docs/components/portal#over-everything)).
+- **Double clicks** are the platform's: `onDoubleClick` fires right after
+  the second click's `onClick` ([Double clicks](#double-clicks)).
+
+## Double clicks
+
+<Snippet name="double-click" height={180} />
+
+The platform decides which clicks make a series: those close enough in time
+(its double-click time, which the user sets) and in place, of the same
+button. Every `click` says which of a series it is in `event.detail`: 1 for
+a single click, 2 for the second of a double click, 3 for a triple click.
+The second is followed at once by a `dblclick`, also with `detail` 2, on
+the same node:
+
+```tsx
+<View
+  onDoubleClick={(event) => addPoint(event.locationX)}
+  onClick={(event) => {
+    if (event.detail === 1) select();
+  }}
+/>
+```
+
+- **A double click is two clicks first:** `onClick` runs for both, so code
+  that should not run for a double click's first click (opening something,
+  say) has to wait, or be harmless when undone by the double click.
+- **The same node:** `dblclick` goes where the second click went, the
+  deepest node holding both its press and its release.
+- **Other events have no count:** `detail` is 0 for `pointerdown`,
+  `pointerup` and the rest.
+- **The platform's time:** the JUCE runtime reads macOS's and Windows'
+  setting, and on Linux the desktop's (`Net/DoubleClickTime`, as GNOME and
+  KDE publish it), else 400 ms; in a browser it is the browser's count.
+- **In tests** there is no time: [`user.dblClick`](/docs/testing/dbl-click)
+  and Soundor Driver's [`dblclick()`](/docs/driver/interacting) say which
+  click of a series each one is.
 
 ## Focus rings
 

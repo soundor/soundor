@@ -64,6 +64,7 @@ function setup() {
       'pointerenter',
       'pointerleave',
       'click',
+      'dblclick',
       'contextmenu',
       'focus',
       'blur',
@@ -92,6 +93,26 @@ function pointer(type: string, x: number, init: PointerEventInit = {}) {
       ...init,
     }),
   );
+}
+
+/** Input as the browser makes it (trusted), which its own click follows. */
+function trusted(
+  type: string,
+  x: number,
+  init: PointerEventInit = {},
+  target: Element = view.rootElement,
+) {
+  const event = new window.PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    clientX: x,
+    clientY: 0,
+    pointerId: 1,
+    pointerType: 'mouse',
+    ...init,
+  });
+  Object.defineProperty(event, 'isTrusted', { value: true });
+  target.dispatchEvent(event);
 }
 
 describe('cursor', () => {
@@ -396,6 +417,95 @@ describe('pointer routing', () => {
       'pointerleave@button',
       'pointerenter@other',
     ]);
+  });
+
+  it('counts clicks as the browser does: from its own click after a release', () => {
+    const { button, events } = setup();
+    const details: number[] = [];
+    button.addEventListener('click', (event) =>
+      details.push((event as PointerEvent).detail),
+    );
+    const press = (detail: number) => {
+      trusted('pointerdown', 10, { button: 0, buttons: 1 });
+      trusted('pointerup', 10, { button: 0, buttons: 0 });
+      // Nothing yet: the click waits for the browser's.
+      expect(events.filter((e) => e.startsWith('click'))).toEqual([]);
+      view.rootElement.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, detail }),
+      );
+      return events.splice(0).filter((e) => !e.startsWith('pointer'));
+    };
+    pointer('pointermove', 10);
+    events.length = 0;
+    expect(press(1)).toEqual(['click@button']);
+    expect(press(2)).toEqual(['click@button', 'dblclick@button']);
+    expect(press(3)).toEqual(['click@button']);
+    expect(details).toEqual([1, 2, 3]);
+    // The browser's own dblclick is not the page's.
+    const outside = vi.fn<() => void>();
+    document.body.addEventListener('dblclick', outside);
+    view.rootElement.dispatchEvent(
+      new window.MouseEvent('dblclick', { bubbles: true, detail: 2 }),
+    );
+    document.body.removeEventListener('dblclick', outside);
+    expect(outside).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
+  it('clicks before hover changes, also when the click waits', () => {
+    const { events } = setup();
+    pointer('pointermove', 10);
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 20, { button: 0, buttons: 0 });
+    view.rootElement.dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true, detail: 1 }),
+    );
+    expect(events.slice(-3)).toEqual([
+      'click@panel',
+      'pointerleave@button',
+      'pointerenter@other',
+    ]);
+  });
+
+  it('clicks once on its own when the browser sends no click', async () => {
+    const { button, events } = setup();
+    const details: number[] = [];
+    button.addEventListener('click', (event) =>
+      details.push((event as PointerEvent).detail),
+    );
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events.filter((e) => e.endsWith('click@button'))).toEqual([
+      'click@button',
+    ]);
+    // A press before then sends it first.
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(details).toEqual([1, 1]);
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    view.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Gone with the view.
+    expect(details).toEqual([1, 1]);
+  });
+
+  it('clicks at once when the browser will not: what it pressed is gone', () => {
+    const { button, events } = setup();
+    const child = button.children[0]!;
+    pointer('pointermove', 10);
+    events.length = 0;
+    trusted('pointerdown', 10, { button: 0, buttons: 1 }, el(child));
+    button.removeChild(child);
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('click@button');
+    // Untrusted input (a script's) has no browser click to wait for.
+    events.length = 0;
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('click@button');
+    expect(events).not.toContain('dblclick@button');
   });
 
   it('does not click for other buttons or outside the view', () => {

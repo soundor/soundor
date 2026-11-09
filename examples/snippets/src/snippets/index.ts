@@ -5,6 +5,7 @@ import Animated from './animated';
 import Canvas from './canvas';
 import ContextMenu from './context-menu';
 import Cursor from './cursor';
+import DoubleClick from './double-click';
 import FocusScope from './focus-scope';
 import Gain from './gain';
 import Image from './image';
@@ -27,6 +28,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   canvas: Canvas,
   'context-menu': ContextMenu,
   cursor: Cursor,
+  'double-click': DoubleClick,
   'focus-scope': FocusScope,
   gain: Gain,
   image: Image,

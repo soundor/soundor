@@ -188,6 +188,31 @@ TEST_SUITE("soundor:ui")
         CHECK(f.log() == "click@root:capture click@b click@b click@root:bubble");
     }
 
+    TEST_CASE("a double click is a dblclick after the second click, both with its count")
+    {
+        UiFixture f;
+        f.run(std::string(imports) + R"(
+            globalThis.seen = [];
+            for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'])
+              b.addEventListener(type, (e) => seen.push(
+                `${e.type}:${e.detail}:${e instanceof PointerEvent}:${e.bubbles}:${e.cancelable}`));
+        )");
+        auto press = pointer(ui::PointerInput::Phase::Down, 150, 50, 1, 0);
+        f.host.surface().pointer(press);
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 150, 50, 0, 0));
+        press.clicks = 2;
+        f.host.surface().pointer(press);
+        f.host.surface().pointer(pointer(ui::PointerInput::Phase::Up, 150, 50, 0, 0));
+        CHECK(f.run("globalThis.result = seen.join(' ');").asString()
+              == "pointerdown:0:true:true:true pointerup:0:true:true:true click:1:true:true:true "
+                 "pointerdown:0:true:true:true pointerup:0:true:true:true click:2:true:true:true "
+                 "dblclick:2:true:true:true");
+        CHECK(f.run(std::string(imports) + "globalThis.result = new PointerEvent('dblclick', { detail: 2 }).detail;")
+                  .asNumber()
+              == 2);
+        CHECK(f.run(std::string(imports) + "globalThis.result = new PointerEvent('click').detail;").asNumber() == 0);
+    }
+
     TEST_CASE("events are trusted Web events with positions and modifiers")
     {
         UiFixture f;

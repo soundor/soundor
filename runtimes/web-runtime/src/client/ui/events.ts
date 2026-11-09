@@ -291,6 +291,7 @@ export interface PointerEventInit extends ModifierEventInit {
   pressure?: number;
   isPrimary?: boolean;
   relatedTarget?: EventTarget | null;
+  detail?: number;
 }
 
 type PointerData = Required<Omit<PointerEventInit, keyof ModifierEventInit>>;
@@ -316,9 +317,18 @@ export class PointerEvent extends ModifierEvent {
       pressure: init.pressure ?? 0,
       isPrimary: init.isPrimary ?? false,
       relatedTarget: init.relatedTarget ?? null,
+      detail: init.detail ?? 0,
     };
   }
 
+  /**
+   * click and dblclick: which click of a series this is, as the platform
+   * counts them (1 a single click, 2 the second of a double click); 0 for
+   * other events.
+   */
+  get detail(): number {
+    return this.#init.detail;
+  }
   /** Relative to the view's top-left corner, in logical pixels. */
   get pageX(): number {
     return this.#init.clientX;

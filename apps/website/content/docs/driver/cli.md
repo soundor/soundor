@@ -18,20 +18,21 @@ soundor driver inspect reset
 
 ## Commands
 
-| Command             | Prints                                                                                                 |
-| ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `targets`           | The instances connected to the session.                                                                |
-| `tree`              | The target's native UI tree.                                                                           |
-| `inspect <debugId>` | A node's details: bounds, properties, layout, styles, accessibility.                                   |
-| `click <debugId>`   | Clicks the node once it is actionable (`--button left`, `middle` or `right`).                          |
-| `hover <debugId>`   | Moves the pointer over the node.                                                                       |
-| `focus <debugId>`   | Gives a focusable node keyboard focus.                                                                 |
-| `drag <debugId>`    | Drags from the node by `--dx`/`--dy` pixels, in `--steps` moves (5).                                   |
-| `scroll <debugId>`  | Scrolls the wheel over the node by `--dx`/`--dy`; or at `--x`/`--y`.                                   |
-| `move --x --y`      | Moves the pointer to a point of the view, in logical pixels.                                           |
-| `key <key>`         | Presses a key in the focused node: `Enter`, `Control+a`.                                               |
-| `type <text>`       | Types text into the focused node.                                                                      |
-| `screenshot <path>` | Saves a PNG of the view as the engine renders it; of one node with `--debug-id`, `--role` or `--text`. |
+| Command              | Prints                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `targets`            | The instances connected to the session.                                                                |
+| `tree`               | The target's native UI tree.                                                                           |
+| `inspect <debugId>`  | A node's details: bounds, properties, layout, styles, accessibility.                                   |
+| `click <debugId>`    | Clicks the node once it is actionable (`--button left`, `middle` or `right`).                          |
+| `dblclick <debugId>` | Double-clicks the node once it is actionable (`--button` as for `click`).                              |
+| `hover <debugId>`    | Moves the pointer over the node.                                                                       |
+| `focus <debugId>`    | Gives a focusable node keyboard focus.                                                                 |
+| `drag <debugId>`     | Drags from the node by `--dx`/`--dy` pixels, in `--steps` moves (5).                                   |
+| `scroll <debugId>`   | Scrolls the wheel over the node by `--dx`/`--dy`; or at `--x`/`--y`.                                   |
+| `move --x --y`       | Moves the pointer to a point of the view, in logical pixels.                                           |
+| `key <key>`          | Presses a key in the focused node: `Enter`, `Control+a`.                                               |
+| `type <text>`        | Types text into the focused node.                                                                      |
+| `screenshot <path>`  | Saves a PNG of the view as the engine renders it; of one node with `--debug-id`, `--role` or `--text`. |
 
 Commands that act on a node find it by a `debugId`, or instead by
 `--role <role>` (with `--name <name>`) or `--text <text>`, as the
@@ -69,7 +70,7 @@ Results go to stdout, and nothing else does: no banners, no colors. With
 - `tree`: the tree snapshot (`generation`, `revision`, `roots`, `nodes`,
   `truncated`);
 - `inspect`: the node with its details;
-- `click`, `hover`, `drag`, `scroll`, `move`, `key`: what the input reached,
+- `click`, `dblclick`, `hover`, `drag`, `scroll`, `move`, `key`: what the input reached,
   `{ "handled": true, "node": { "generation": 1, "id": "12" } }`; `focus`:
   `{ "focused": true }`; `type`: `{ "typed": <characters> }`;
 - `screenshot`: where it saved the PNG, and its `width`, `height`, `scale`,

@@ -889,6 +889,8 @@ namespace ${NS}
         : juce::AudioProcessorEditor(owner), processorRef(owner)
     {
         requireEngineAbi(static_cast<EngineAbi*>(nullptr));
+        // Clicks count as a double click within the platform's time.
+        backend::useDoubleClickTime();
         gpuDevice = render::GpuCompositor::createDevice();
         RuntimeHost::Options options;
         options.gpuDevice = gpuDevice;

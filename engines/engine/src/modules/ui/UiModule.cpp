@@ -1463,6 +1463,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 case Event::Type::PointerEnter:
                 case Event::Type::PointerLeave:
                 case Event::Type::Click:
+                case Event::Type::DoubleClick:
                 case Event::Type::ContextMenu:
                     data.set("x", jsi::Value(double(event.position.x)));
                     data.set("y", jsi::Value(double(event.position.y)));
@@ -1477,6 +1478,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     data.set("button", jsi::Value(double(event.button)));
                     data.set("buttons", jsi::Value(double(event.buttons)));
                     data.set("pressure", jsi::Value(double(event.pressure)));
+                    // The click count of a click or a double click; 0 otherwise.
+                    data.set("detail", jsi::Value(double(event.detail)));
                     break;
                 case Event::Type::KeyDown:
                 case Event::Type::KeyUp:
