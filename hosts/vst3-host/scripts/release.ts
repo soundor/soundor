@@ -549,20 +549,44 @@ export async function publish(
   return outcomes;
 }
 
-/** After publishing, before the main package: every target is on npm and
-    verifiably the expected build. */
+/** After publishing, wait for registry visibility before the main package:
+    every target must be on npm and verifiably the expected build. */
 export async function verify(
   tarballs: CheckedTarball[],
   {
     registry = NPM_REGISTRY,
     fetcher = fetch,
-  }: { registry?: string; fetcher?: Fetch } = {},
+    timeoutMs = 5 * 60_000,
+    pollIntervalMs = 5_000,
+  }: {
+    registry?: string;
+    fetcher?: Fetch;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+  } = {},
 ): Promise<void> {
-  const missing: string[] = [];
-  for (const tarball of tarballs)
-    if ((await registryState(tarball, { registry, fetcher })) === 'missing')
-      missing.push(`${tarball.target.package}@${tarball.provenance.version}`);
-  if (missing.length) throw new Error(`Not on npm yet: ${missing.join(', ')}`);
+  const deadline = Date.now() + timeoutMs;
+  let pending = tarballs;
+  while (pending.length) {
+    const missing: CheckedTarball[] = [];
+    for (const tarball of pending)
+      if ((await registryState(tarball, { registry, fetcher })) === 'missing')
+        missing.push(tarball);
+    if (!missing.length) return;
+    const names = missing.map(
+      ({ target, provenance }) => `${target.package}@${provenance.version}`,
+    );
+    const remaining = deadline - Date.now();
+    if (remaining <= 0)
+      throw new Error(
+        `Not on npm yet after ${timeoutMs}ms: ${names.join(', ')}`,
+      );
+    console.log(`Waiting for npm publication: ${names.join(', ')}`);
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(pollIntervalMs, remaining)),
+    );
+    pending = missing;
+  }
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────

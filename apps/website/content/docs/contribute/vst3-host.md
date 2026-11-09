@@ -253,7 +253,11 @@ When the release plan publishes `@soundor/vst3-host`, `.github/workflows/release
 | network, authentication or server error | fail; never taken for absence           |
 
 A failed publish is followed by another query: a version another run
-published meanwhile counts if it has the same identity. Re-running the failed
+published meanwhile counts if it has the same identity. After publishing,
+`release.ts verify` polls missing versions every five seconds for up to five
+minutes, allowing npm's processing to finish. Each visible package must pass the
+existing integrity and provenance checks; registry errors and conflicting builds
+fail immediately. Re-running the failed
 jobs reuses the run's artifacts. A run that fails before the Changesets step
 leaves the main package unpublished, so it stays in the next run's plan and
 the platform packages already published are verified and skipped. A later
