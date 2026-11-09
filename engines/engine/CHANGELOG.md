@@ -1,5 +1,11 @@
 # @soundor/engine
 
+## 0.7.1
+
+### Patch Changes
+
+- [#246](https://github.com/soundor/soundor/pull/246) [`cad49d2`](https://github.com/soundor/soundor/commit/cad49d2841d692bf274a1e9b62a619163e0c09e7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Normalize Windows line endings in generated includes, WebGL IDL, and embedded Markdown when calculating engine input fingerprints, so identical checkouts produce matching fingerprints across platforms.
+
 ## 0.7.0
 
 ### Minor Changes
