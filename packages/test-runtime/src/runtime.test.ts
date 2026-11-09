@@ -683,6 +683,37 @@ it('retains mouse capture until the final button release and clicks the shared a
   runtime.dispose();
 });
 
+it('counts a click as its press says, and makes the second a double click', () => {
+  const runtime = createTestRuntime(),
+    node = runtime.create('view');
+  runtime.root.appendChild(node);
+  const seen: string[] = [];
+  for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'])
+    node.addEventListener(type, (event) =>
+      seen.push(`${event.type}:${String(event['detail'])}`),
+    );
+  runtime.pointerDown(node);
+  runtime.pointerUp(node);
+  runtime.pointerDown(node, { detail: 2 });
+  runtime.pointerUp(node);
+  runtime.pointerDown(node, { detail: 3 });
+  runtime.pointerUp(node);
+  expect(seen).toEqual([
+    'pointerdown:0',
+    'pointerup:0',
+    'click:1',
+    'pointerdown:0',
+    'pointerup:0',
+    'click:2',
+    'dblclick:2',
+    'pointerdown:0',
+    'pointerup:0',
+    'click:3',
+  ]);
+  expect(() => runtime.pointerDown(node, { detail: 0 })).toThrow(RangeError);
+  runtime.dispose();
+});
+
 it('locks a press to the node asking from its pointerdown, until the release', async () => {
   const runtime = createTestRuntime(),
     ui = createUiModule(runtime),
@@ -741,6 +772,7 @@ it('rejects unsupported button operations before modifying capture or button sta
     buttons: 1,
     type: 'mouse',
     locked: null,
+    clicks: 1,
   });
   runtime.dispose();
 });

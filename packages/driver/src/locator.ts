@@ -420,6 +420,20 @@ export class Locator {
     });
   }
 
+  /**
+   * Double-clicks the node: waits until it is actionable, then clicks it
+   * twice, the second click counted as the second of a series (a `click`
+   * and a `dblclick` with `detail` 2). Never repeated once input was sent.
+   */
+  async dblclick(options: ClickOptions = {}): Promise<InputResult> {
+    const { x, y } = await this.#actionable(options);
+    return this.#host.pointer.dblclick(x, y, {
+      ...this.#call(options),
+      ...(options.button ? { button: options.button } : {}),
+      ...(options.modifiers ? { modifiers: options.modifiers } : {}),
+    });
+  }
+
   /** Moves the pointer over the node, once it is actionable. */
   async hover(options: ActionOptions = {}): Promise<InputResult> {
     const { x, y } = await this.#actionable(options);

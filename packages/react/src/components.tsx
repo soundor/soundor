@@ -41,9 +41,19 @@ export interface EventProps {
   onPointerEnter?: (event: PointerEvent) => void;
   /** The pointer left the node's box; does not bubble. */
   onPointerLeave?: (event: PointerEvent) => void;
-  /** The primary button went down and up on the node. */
+  /**
+   * The primary button went down and up on the node. `event.detail` says
+   * which click of a series it is: 2 for the second of a double click.
+   */
   onClick?: (event: PointerEvent) => void;
   onClickCapture?: (event: PointerEvent) => void;
+  /**
+   * The node was double-clicked, as the platform counts clicks (its
+   * double-click time and distance): right after the second click's
+   * `onClick`.
+   */
+  onDoubleClick?: (event: PointerEvent) => void;
+  onDoubleClickCapture?: (event: PointerEvent) => void;
   /**
    * The secondary button went down: where to open a custom menu
    * (`event.pageX/pageY`). preventDefault() keeps a browser's own away.

@@ -24,6 +24,12 @@ export interface PointerOptions extends Modifiers {
   pointerType?: 'mouse' | 'pen' | 'touch' | '';
   pressure?: number;
   isPrimary?: boolean;
+  /**
+   * Which click of a series: for `pointerDown`, the press's count, which its
+   * click reports (2 makes the second click of a double click, and a
+   * `dblclick`); for `click` and `dblClick`, the event's own.
+   */
+  detail?: number;
 }
 export interface KeyOptions extends Modifiers {
   key?: string;
@@ -62,7 +68,15 @@ export const fireEvent = Object.assign(
     change: (target: NodeTarget) =>
       getTestRuntime().fire(resolveNode(target), 'change'),
     click: (target: NodeTarget, options: PointerOptions = {}) =>
-      getTestRuntime().fire(resolveNode(target), 'click', { ...options }),
+      getTestRuntime().fire(resolveNode(target), 'click', {
+        detail: 1,
+        ...options,
+      }),
+    dblClick: (target: NodeTarget, options: PointerOptions = {}) =>
+      getTestRuntime().fire(resolveNode(target), 'dblclick', {
+        detail: 2,
+        ...options,
+      }),
     focus: (target: NodeTarget) => resolveNode(target).focus(),
     blur: (target: NodeTarget) => resolveNode(target).blur(),
     accessibilityAction: (

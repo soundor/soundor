@@ -174,7 +174,9 @@ UiNodes.
 - **Events.** Events capture and bubble along the Soundor tree, and input
   follows the JUCE runtime's rules: implicit pointer capture, hover enter and
   leave along the tree, a click to the deepest node holding both press and
-  release, focus on press, Tab cycling, `focusVisible` (by the JUCE
+  release, counted as the browser counts clicks (its own `click`'s `detail`,
+  by the platform's double-click time) with a `dblclick` after the second,
+  focus on press, Tab cycling, `focusVisible` (by the JUCE
   runtime's rules, not the browser's `:focus-visible`), and the wheel
   scrolling the nearest scroll view. With Control, the wheel, a trackpad's
   pinch included, scrolls nothing and is left to the browser's zoom unless
@@ -229,7 +231,9 @@ UiNodes.
   - A click no pointer made (`detail` 0: a screen reader activating an
     element) is the `activate` action of the nearest element offering it.
     Pointer clicks come from the view's own press and release, so a press
-    is never delivered twice. Other actions have no DOM path: screen
+    is never delivered twice; only their count is the browser's: a real
+    release waits for the browser's `click` right after it, and is a single
+    click when none comes (the element pressed was removed). Other actions have no DOM path: screen
     readers adjust sliders with the arrow keys, which a control handles
     itself.
 

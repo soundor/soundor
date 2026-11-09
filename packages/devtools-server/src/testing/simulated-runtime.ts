@@ -215,6 +215,8 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
   interface Client {
     pointer: { present: boolean; x: number; y: number; buttons: number };
     pressed: string;
+    /** The press's click count (`clickCount`). */
+    clicks: number;
     keys: Set<string>;
     highlighted: NodeRef | null;
     picker: boolean;
@@ -226,6 +228,7 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
       found = {
         pointer: { present: false, x: 0, y: 0, buttons: 0 },
         pressed: '',
+        clicks: 1,
         keys: new Set(),
         highlighted: null,
         picker: false,
@@ -363,13 +366,16 @@ export async function startSimulatedRuntime(options: SimulatedRuntimeOptions) {
         if (params.action === 'down' || params.action === 'click') {
           pointer.buttons |= bit;
           state.pressed = at();
+          state.clicks = params.clickCount ?? 1;
           inputLog.push(`pointerdown:${at()}`);
         }
         if (params.action === 'up' || params.action === 'click') {
           pointer.buttons &= ~bit;
           inputLog.push(`pointerup:${state.pressed}`);
-          if (bit === 1 && state.pressed === at())
+          if (bit === 1 && state.pressed === at()) {
             inputLog.push(`click:${at()}`);
+            if (state.clicks === 2) inputLog.push(`dblclick:${at()}`);
+          }
         }
       }
       result = { handled: target() !== null, node: refOf(target()) };

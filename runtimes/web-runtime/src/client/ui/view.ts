@@ -64,6 +64,24 @@ interface PointerState {
   last: globalThis.PointerEvent | null;
   /** In the view, as of the last input. */
   inside: boolean;
+  /**
+   * The element the browser's last press went to: while it is in the
+   * document, the browser follows the release with its own `click`.
+   */
+  pressedElement: Element | null;
+}
+
+/**
+ * A pointer click waiting for the browser's own: only the browser's `click`
+ * says which of a series it is (its `detail`, by the platform's double-click
+ * time and distance), and it comes right after the release.
+ */
+interface PendingClick {
+  node: UiNode;
+  release: globalThis.PointerEvent;
+  timer: ReturnType<typeof setTimeout>;
+  /** What the release does after its click, as natively (hover). */
+  after: () => void;
 }
 
 const elementOf = (node: UiNode): UiElement => UiNode.elementOf(node);
@@ -91,6 +109,7 @@ export class UiView implements ViewLink {
   #movingFocus = false;
   /** Whether the last pointerdown kept the browser's default (focus, caret). */
   #nativeDown = false;
+  #pendingClick: PendingClick | null = null;
   #clipboard = '';
   /** Whether the ARIA is to be brought up to date. */
   #semanticsPending = false;
@@ -231,6 +250,8 @@ export class UiView implements ViewLink {
         this.#hoverFrame,
       );
     this.#controller.abort();
+    if (this.#pendingClick !== null) clearTimeout(this.#pendingClick.timer);
+    this.#pendingClick = null;
     this.rootElement.remove();
     this.#disposed = true;
     UiNode.free(this.root);
@@ -701,7 +722,10 @@ export class UiView implements ViewLink {
    */
   #click(event: MouseEvent): void {
     event.stopPropagation();
-    if (event.detail !== 0) return;
+    if (event.detail !== 0) {
+      this.#browserClicked(event.detail);
+      return;
+    }
     // Assistive technology moves focus as the keyboard does: shown.
     this.#keyboardModality = true;
     for (
@@ -720,6 +744,46 @@ export class UiView implements ViewLink {
       });
       if (!node.dispatchEvent(action)) event.preventDefault();
       return;
+    }
+  }
+
+  /**
+   * The browser's click for the release a click is waiting on: it is
+   * dispatched now, with the browser's count.
+   */
+  #browserClicked(detail: number): void {
+    const pending = this.#pendingClick;
+    if (pending === null) return;
+    this.#pendingClick = null;
+    clearTimeout(pending.timer);
+    this.#dispatchClick(pending.node, pending.release, detail);
+    pending.after();
+  }
+
+  /** A click the browser does not count: one on its own. */
+  #flushClick(): void {
+    const pending = this.#pendingClick;
+    if (pending === null) return;
+    this.#pendingClick = null;
+    clearTimeout(pending.timer);
+    this.#dispatchClick(pending.node, pending.release, 1);
+    pending.after();
+  }
+
+  /** A `click`, and for the second of a series a `dblclick`, as natively. */
+  #dispatchClick(
+    node: UiNode,
+    release: globalThis.PointerEvent,
+    detail: number,
+  ): void {
+    if (!node.isConnected) return;
+    node.dispatchEvent(
+      this.#pointerEvent('click', node, release, true, true, null, detail),
+    );
+    if (detail === 2 && node.isConnected) {
+      node.dispatchEvent(
+        this.#pointerEvent('dblclick', node, release, true, true, null, detail),
+      );
     }
   }
 
@@ -838,6 +902,8 @@ export class UiView implements ViewLink {
       options,
     );
     element.addEventListener('click', (e) => this.#click(e), options);
+    // Soundor's own dblclick comes from the browser's click count.
+    element.addEventListener('dblclick', (e) => e.stopPropagation(), options);
     element.addEventListener(
       'contextmenu',
       (e) => this.#contextMenu(e),
@@ -880,6 +946,7 @@ export class UiView implements ViewLink {
     bubbles: boolean,
     cancelable: boolean,
     relatedTarget: UiNode | null = null,
+    detail = 0,
   ): PointerEvent {
     const root = this.rootElement.getBoundingClientRect();
     const scale = this.scale();
@@ -913,13 +980,20 @@ export class UiView implements ViewLink {
       pressure: pointer.pressure ?? (event.buttons !== 0 ? 0.5 : 0),
       isPrimary: true,
       relatedTarget,
+      detail,
     });
   }
 
   #state(pointerId: number): PointerState {
     let state = this.#pointers.get(pointerId);
     if (state === undefined) {
-      state = { captured: null, hovered: [], last: null, inside: false };
+      state = {
+        captured: null,
+        hovered: [],
+        last: null,
+        inside: false,
+        pressedElement: null,
+      };
       this.#pointers.set(pointerId, state);
     }
     if (state.captured !== null && !state.captured.isConnected)
@@ -962,9 +1036,13 @@ export class UiView implements ViewLink {
   }
 
   #pointerDown(event: globalThis.PointerEvent): void {
+    // A click still waiting goes first: its browser click never came.
+    this.#flushClick();
     // Focus a press moves is not shown (focusVisible()).
     this.#keyboardModality = false;
     const state = this.#state(event.pointerId);
+    if (state.captured === null)
+      state.pressedElement = event.target as Element | null;
     const hit = this.#hitTest(event);
     if (state.captured === null) this.#updateHover(state, event, hit);
     const target = state.captured ?? hit;
@@ -1042,23 +1120,49 @@ export class UiView implements ViewLink {
     }
     // A click goes to the deepest node holding both press and release.
     const released = this.#hitTest(event);
+    let common: UiNode | null = null;
     if (event.button === 0 && pressed !== null && released !== null) {
       const from = this.#pathTo(pressed);
       const to = this.#pathTo(released);
-      let common: UiNode | null = null;
       for (
         let i = 0;
         i < from.length && i < to.length && from[i] === to[i];
         ++i
       )
         common = from[i]!;
-      if (common !== null) {
-        common.dispatchEvent(
-          this.#pointerEvent('click', common, event, true, true),
-        );
-      }
     }
-    this.#updateHover(state, event, this.#hitTest(event));
+    const hover = () => this.#updateHover(state, event, this.#hitTest(event));
+    const waits =
+      common !== null && this.#releaseClick(state, common, event, hover);
+    state.pressedElement = null;
+    if (!waits) hover();
+  }
+
+  /**
+   * The click a release makes. A real release (trusted) of an element still
+   * in the document is followed at once by the browser's own click, which
+   * says its count: it waits for that, or for the end of the task, should
+   * the browser not send it, and so does `after`. Any other is a click on
+   * its own. Returns whether it waits.
+   */
+  #releaseClick(
+    state: PointerState,
+    node: UiNode,
+    release: globalThis.PointerEvent,
+    after: () => void,
+  ): boolean {
+    if (!release.isTrusted || state.pressedElement?.isConnected !== true) {
+      this.#dispatchClick(node, release, 1);
+      return false;
+    }
+    this.#flushClick();
+    this.#pendingClick = {
+      node,
+      release,
+      timer: setTimeout(() => this.#flushClick(), 0),
+      after,
+    };
+    return true;
   }
 
   /**

@@ -1611,9 +1611,18 @@ export class PointerEvent extends ModifierEvent {
       pressure: init.pressure ?? 0,
       isPrimary: init.isPrimary ?? false,
       relatedTarget: init.relatedTarget ?? null,
+      detail: init.detail ?? 0,
     };
   }
 
+  /**
+   * click and dblclick: which click of a series this is, as the platform
+   * counts them (1 a single click, 2 the second of a double click); 0 for
+   * other events.
+   */
+  get detail() {
+    return this.#init.detail;
+  }
   /** Relative to the view's top-left corner, in logical pixels. */
   get pageX() {
     return this.#init.clientX;
@@ -1818,6 +1827,7 @@ const EVENT_TYPES = [
   ['contextmenu', PointerEvent, true, true],
   ['accessibilityaction', AccessibilityActionEvent, true, true],
   ['focusvisiblechange', FocusEvent, false, false],
+  ['dblclick', PointerEvent, true, true],
 ];
 
 // ── Text editing: the default actions of an input's events ─────────────────
@@ -2072,6 +2082,7 @@ native.setListener((type, targetId, data) => {
     pointerId: data.pointerId,
     pointerType: data.pointerType,
     pressure: data.pressure,
+    detail: data.detail,
     isPrimary: true,
     deltaX: data.deltaX,
     deltaY: data.deltaY,

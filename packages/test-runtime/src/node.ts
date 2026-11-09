@@ -80,6 +80,7 @@ export class TestEvent {
       movementY: 0,
       isPrimary: false,
       pressure: 0,
+      detail: 0,
       key: '',
       repeat: false,
       data: null,

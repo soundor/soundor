@@ -2,6 +2,8 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
+
 using namespace soundor;
 
 namespace
@@ -97,6 +99,34 @@ TEST_SUITE("JUCE input")
         CHECK(stepped.unit == ui::WheelInput::Unit::Line);
         CHECK(stepped.deltaY == doctest::Approx(3)); // one notch towards the user scrolls down
         CHECK(backend::wheelInput({}, {}, wheel(-notch, 0, false)).deltaX == doctest::Approx(3));
+    }
+
+    TEST_CASE("a press reports JUCE's click count, which the platform's double-click time sets")
+    {
+        juce::ScopedJuceInitialiser_GUI gui;
+        juce::Component editor;
+        editor.setBounds(0, 0, 400, 300);
+        const auto now = juce::Time::getCurrentTime();
+        const auto event = [&](int clicks)
+        {
+            return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), { 10, 20 },
+                                    juce::ModifierKeys::leftButtonModifier, 0, 0, 0, 0, 0, &editor, &editor, now,
+                                    { 10, 20 }, now, clicks, false);
+        };
+        CHECK(backend::pointerInput(event(1), ui::PointerInput::Phase::Down).clicks == 1);
+        CHECK(backend::pointerInput(event(2), ui::PointerInput::Phase::Down).clicks == 2);
+        CHECK(backend::pointerInput(event(0), ui::PointerInput::Phase::Down).clicks == 1);
+
+        // JUCE's own 400 ms unless the platform says otherwise, and never
+        // beyond what a person could mean.
+        const auto before = juce::MouseEvent::getDoubleClickTimeout();
+        backend::useDoubleClickTime();
+        const auto platform = backend::platformDoubleClickTime();
+        if (platform)
+            CHECK(juce::MouseEvent::getDoubleClickTimeout() == std::clamp(*platform, 100, 5000));
+        else
+            CHECK(juce::MouseEvent::getDoubleClickTimeout() == before);
+        juce::MouseEvent::setDoubleClickTimeout(before);
     }
 
     TEST_CASE("a pointer's screen position is in the editor's logical pixels, however the host scales it")

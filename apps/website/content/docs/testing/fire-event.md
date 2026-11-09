@@ -28,6 +28,7 @@ fireEvent.accessibilityAction(knob, { actionName: 'increment' });
 | Method                                             | Event                                                                      |
 | -------------------------------------------------- | -------------------------------------------------------------------------- |
 | `pointerDown`, `pointerMove`, `pointerUp`, `click` | Pointer events: `clientX`, `button`, `pointerType`, `pressure`, modifiers… |
+| `dblClick`                                         | A `dblclick` (`detail` 2 by default), on its own.                          |
 | `pointerCancel(node)`                              | Cancels the active press; no event options.                                |
 | `keyDown`, `keyUp`                                 | `key`, `code`, `repeat`, modifiers.                                        |
 | `beforeInput`, `input`                             | `data`, `inputType`.                                                       |
@@ -38,6 +39,10 @@ fireEvent.accessibilityAction(knob, { actionName: 'increment' });
 `pointerDown` starts capture and focuses the nearest focusable node unless
 prevented; a secondary press also fires `contextmenu`. `pointerMove` follows
 capture, and `pointerUp` can fire `click` when it completes a primary press.
+A press's `detail` is its click count (1 by default), which its `click`
+reports: `fireEvent.pointerDown(node, { detail: 2 })` makes the second click
+of a double click, and its release fires `dblclick` after the `click`.
+`click` alone has `detail` 1 unless given another.
 `pointerCancel(node)` cancels the active press, which may belong to another
 node; it takes no event options. `focus` and `blur` call the node's methods.
 The other named helpers dispatch their single event.

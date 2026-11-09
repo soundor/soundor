@@ -290,6 +290,22 @@ describe('soundor driver input', () => {
     );
   });
 
+  it('double-clicks a node, the second click counted as such', async () => {
+    const plugin = await runtime();
+    expect((await session('dblclick', 'gain')).stdout).toBe(
+      'double-clicked: handled (node 3)\n',
+    );
+    expect(plugin.inputLog).toEqual([
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+      'dblclick:3',
+    ]);
+  });
+
   it('hovers, moves, drags, scrolls, focuses, presses keys and types', async () => {
     const plugin = await runtime();
     for (const args of [

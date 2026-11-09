@@ -440,6 +440,11 @@ declare module 'soundor:ui' {
     pointerenter: PointerEvent;
     pointerleave: PointerEvent;
     click: PointerEvent;
+    /**
+     * The second click of a series, right after its `click` (both have
+     * `detail` 2): a double click, as the platform counts them.
+     */
+    dblclick: PointerEvent;
     /** The secondary button went down (or the platform's equivalent). */
     contextmenu: PointerEvent;
     wheel: WheelEvent;
@@ -997,6 +1002,7 @@ declare module 'soundor:ui' {
     pressure?: number;
     isPrimary?: boolean;
     relatedTarget?: UiNode | null;
+    detail?: number;
   }
   export class PointerEvent extends Event implements ModifierState {
     constructor(type: string, init?: PointerEventInit);
@@ -1044,6 +1050,13 @@ declare module 'soundor:ui' {
     readonly pressure: number;
     readonly isPrimary: boolean;
     readonly relatedTarget: UiNode | null;
+    /**
+     * `click` and `dblclick`: which click of a series this is, as the
+     * platform counts them (its double-click time and distance): 1 for a
+     * single click, 2 for the second of a double click, 3 for a triple
+     * click. 0 for every other event.
+     */
+    readonly detail: number;
     readonly target: UiNode | null;
     readonly currentTarget: UiNode | null;
   }

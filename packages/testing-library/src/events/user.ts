@@ -255,6 +255,16 @@ export function createUser(
     if (!eligible(node)) return;
     await pointer([{ target: node }, { target: node, keys: '[MouseLeft]' }]);
   }
+  /** Two clicks, the second counted as the second of a series. */
+  async function dblClick(target: NodeTarget) {
+    const node = resolveNode(target);
+    if (!eligible(node)) return;
+    await pointer([
+      { target: node },
+      { target: node, keys: '[MouseLeft]', detail: 1 },
+      { target: node, keys: '[MouseLeft]', detail: 2 },
+    ]);
+  }
   async function type(target: NodeTarget, text: string) {
     const node = resolveNode(target);
     if (node.type !== 'input')
@@ -269,6 +279,7 @@ export function createUser(
   }
   return {
     click,
+    dblClick,
     press: async (target: NodeTarget) => {
       const node = resolveNode(target);
       if (!eligible(node)) return;

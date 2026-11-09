@@ -194,6 +194,7 @@ test('foreign nodes cannot mutate a session or the active runtime', async () => 
     buttons: 0,
     type: 'mouse',
     locked: null,
+    clicks: 1,
   });
   expect(foreign.pointer).toEqual({
     down: null,
@@ -201,6 +202,7 @@ test('foreign nodes cannot mutate a session or the active runtime', async () => 
     buttons: 0,
     type: 'mouse',
     locked: null,
+    clicks: 1,
   });
   expect(node.value).toBe('');
   foreign.dispose();
@@ -215,4 +217,20 @@ test('stale sessions reject interactions and held modifiers do not leak', async 
   expect(getTestRuntime().keys.size).toBe(0);
   await expect(previousUser.keyboard('a')).rejects.toThrow('earlier test');
   expect(getTestRuntime().keys.size).toBe(0);
+});
+test('dblClick clicks twice, the second counted as a double click', async () => {
+  const r = getTestRuntime(),
+    node = r.create('view');
+  r.root.appendChild(node);
+  const seen: string[] = [];
+  for (const type of ['click', 'dblclick'])
+    node.addEventListener(type, (event) =>
+      seen.push(`${event.type}:${String(event['detail'])}`),
+    );
+  await userEvent.setup().dblClick(node);
+  expect(seen).toEqual(['click:1', 'click:2', 'dblclick:2']);
+  seen.length = 0;
+  fireEvent.dblClick(node);
+  fireEvent.click(node);
+  expect(seen).toEqual(['dblclick:2', 'click:1']);
 });

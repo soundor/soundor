@@ -69,6 +69,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         unsigned buttons = 0;
         Modifiers modifiers = 0;
         float pressure = 0;
+        // Down: which press of a series this is, as the platform counts them
+        // (its double-click time and distance): 1 for a single press, 2 for
+        // the second of a double click, and so on. Other phases ignore it.
+        int clicks = 1;
     };
 
     struct WheelInput

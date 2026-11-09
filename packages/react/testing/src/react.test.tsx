@@ -265,6 +265,23 @@ describe('events', () => {
     expect(log).toEqual(['capture 2', 'inner 2', 'bubble 2']);
   });
 
+  it('double-clicks: onDoubleClick after the second onClick, in both phases', async () => {
+    const log: string[] = [];
+    await show(
+      <View
+        onDoubleClickCapture={() => log.push('capture')}
+        onClick={(event) => log.push(`click ${event.detail}`)}
+        onDoubleClick={(event) => log.push(`double ${event.detail}`)}
+      />,
+    );
+    const runtime = getTestRuntime();
+    for (const detail of [1, 2]) {
+      runtime.pointerDown(child(0), { detail });
+      runtime.pointerUp(child(0));
+    }
+    expect(log).toEqual(['click 1', 'click 2', 'capture', 'double 2']);
+  });
+
   it('removes listeners whose props go away', async () => {
     const onClick = vi.fn();
     await show(<View onClick={onClick} />);

@@ -95,8 +95,9 @@ namespace
                                                              "scroll",
                                                              "contextmenu",
                                                              "accessibilityaction",
-                                                             "focusvisiblechange" };
-                    static_assert(std::size(names) == static_cast<std::size_t>(Event::Type::FocusVisibleChange) + 1,
+                                                             "focusvisiblechange",
+                                                             "dblclick" };
+                    static_assert(std::size(names) == static_cast<std::size_t>(Event::Type::DoubleClick) + 1,
                                   "a name for every event type");
                     events.push_back(std::string(names[static_cast<int>(event.type)]) + "@"
                                      + std::to_string(event.target));
@@ -694,6 +695,77 @@ TEST_SUITE("ui::Surface input")
         f.surface.pointer(down(10, 10));
         f.surface.pointer(up(12, 12));
         CHECK(r.take() == std::vector { at(f.a, "down"), at(f.a, "up"), at(f.a, "click") });
+    }
+
+    TEST_CASE("a click says which of a series it is, and the second is a double click")
+    {
+        Row f;
+        Recorder r(f.surface);
+        const auto press = [&](int clicks)
+        {
+            auto input = down(10, 10);
+            input.clicks = clicks;
+            f.surface.pointer(input);
+            r.take();
+            f.surface.pointer(up(10, 10));
+            return r.take();
+        };
+        CHECK(press(1) == std::vector { at(f.a, "up"), at(f.a, "click") });
+        CHECK(r.last.detail == 1);
+        CHECK(press(2) == std::vector { at(f.a, "up"), at(f.a, "click"), at(f.a, "dblclick") });
+        CHECK(r.last.type == Event::Type::DoubleClick);
+        CHECK(r.last.detail == 2);
+        CHECK(r.last.button == 0);
+        CHECK(r.last.offset.x == 10);
+        // A third is a click of its own, as on the Web.
+        CHECK(press(3) == std::vector { at(f.a, "up"), at(f.a, "click") });
+        CHECK(r.last.detail == 3);
+        // Nonsense counts are a single click.
+        CHECK(press(0) == std::vector { at(f.a, "up"), at(f.a, "click") });
+        CHECK(r.last.detail == 1);
+    }
+
+    TEST_CASE("a click's count is its press's, and other events have none")
+    {
+        Row f;
+        Recorder r(f.surface);
+        auto first = pointer(PointerInput::Phase::Down, 10, 10, 1, 0);
+        first.clicks = 2;
+        f.surface.pointer(first);
+        CHECK(r.last.type == Event::Type::PointerDown);
+        CHECK(r.last.detail == 0);
+        // A second button going down does not start another series.
+        auto second = pointer(PointerInput::Phase::Down, 10, 10, 3, 2);
+        second.clicks = 1;
+        f.surface.pointer(second);
+        f.surface.pointer(pointer(PointerInput::Phase::Up, 10, 10, 1, 2));
+        CHECK(r.last.detail == 0);
+        r.take();
+        f.surface.pointer(up(12, 12));
+        CHECK(r.take() == std::vector { at(f.a, "up"), at(f.a, "click"), at(f.a, "dblclick") });
+    }
+
+    TEST_CASE("a node the click removed is not double-clicked")
+    {
+        Row f;
+        std::vector<std::string> events;
+        f.surface.setEventSink(
+            [&](const Event& event)
+            {
+                if (event.type == Event::Type::Click)
+                {
+                    events.emplace_back("click");
+                    f.surface.removeChild(f.root, f.a);
+                }
+                if (event.type == Event::Type::DoubleClick)
+                    events.emplace_back("dblclick");
+                return false;
+            });
+        auto input = down(10, 10);
+        input.clicks = 2;
+        f.surface.pointer(input);
+        f.surface.pointer(up(10, 10));
+        CHECK(events == std::vector<std::string> { "click" });
     }
 
     TEST_CASE("only the primary button clicks, and only when all buttons are up")

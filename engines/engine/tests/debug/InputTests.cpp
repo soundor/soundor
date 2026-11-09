@@ -19,7 +19,8 @@ namespace
             name + ':' + event.type + (event.shiftKey ? '+shift' : '') + (event.key ? '=' + event.key : ''));
         const reset = createView({ position: 'absolute', left: 0, top: 0, width: 40, height: 30 });
         reset.debugId = 'reset';
-        for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'click', 'pointerenter', 'pointerleave'])
+        for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'click', 'dblclick', 'pointerenter',
+                            'pointerleave'])
             reset.addEventListener(type, record('reset'));
         const label = createView({ width: 10, height: 10 });
         reset.appendChild(label);
@@ -95,6 +96,23 @@ TEST_SUITE("Native DevTools input")
         // The deepest node under the point is the label, inside reset.
         CHECK(f.log() == "reset:pointerenter reset:pointerdown reset:pointerup reset:click");
         CHECK(f.inspector.holdingInput() == false);
+    }
+
+    TEST_CASE("a click counted as the second of a series is also a double click")
+    {
+        Fixture f;
+        f.eval("nodes.reset.addEventListener('click', (event) => globalThis.log.push('detail=' + event.detail))");
+        f.send("Input.dispatchPointer", R"({"action":"click","x":5,"y":5,"clickCount":1})");
+        f.log();
+        f.send("Input.dispatchPointer", R"({"action":"click","x":5,"y":5,"clickCount":2})");
+        CHECK(f.log() == "reset:pointerdown reset:pointerup reset:click detail=2 reset:dblclick");
+        // A press and a release of their own count the same way.
+        f.send("Input.dispatchPointer", R"({"action":"down","clickCount":2})");
+        f.send("Input.dispatchPointer", R"({"action":"up"})");
+        CHECK(f.log() == "reset:pointerdown reset:pointerup reset:click detail=2 reset:dblclick");
+        // Without a count, a click is a single one, however soon it follows.
+        f.send("Input.dispatchPointer", R"({"action":"click","x":5,"y":5})");
+        CHECK(f.log() == "reset:pointerdown reset:pointerup reset:click detail=1");
     }
 
     TEST_CASE("hover enters and leaves; a press and release elsewhere is a drag, not a click")
@@ -224,6 +242,11 @@ TEST_SUITE("Native DevTools input")
                   .find("INVALID_REQUEST")
               != std::string::npos);
         CHECK(f.send("Input.typeText", R"({"text":""})").find("INVALID_REQUEST") != std::string::npos);
+        for (const auto* count : { "0", "1.5", "11", "\"2\"" })
+            CHECK(f.send("Input.dispatchPointer",
+                         std::string(R"({"action":"click","x":1,"y":1,"clickCount":)") + count + "}")
+                      .find("clickCount must be an integer")
+                  != std::string::npos);
         CHECK(f.log().empty());
     }
 }

@@ -97,6 +97,30 @@ describe('locator actions', () => {
     ).toHaveLength(1);
   });
 
+  it('double-clicks through the target, counting the second click', async () => {
+    const connected = await driver();
+    const result = await connected.getByDebugId('gain').dblclick();
+    expect(result).toEqual({
+      handled: true,
+      node: { generation: 1, id: '3' },
+    });
+    expect(plugin.inputLog).toEqual([
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+      'pointerdown:3',
+      'pointerup:3',
+      'click:3',
+      'dblclick:3',
+    ]);
+    await expect(
+      connected.pointer.click(60, 72, { clickCount: 0 }),
+    ).rejects.toMatchObject({ code: 'INVALID_OPTIONS' });
+    await connected.pointer.down({ clickCount: 2 });
+    await connected.pointer.up();
+    expect(plugin.inputLog.slice(-2)).toEqual(['click:3', 'dblclick:3']);
+  });
+
   it('hovers, scrolls and drags; a drag releases its press', async () => {
     const connected = await driver();
     const gain = connected.getByDebugId('gain');

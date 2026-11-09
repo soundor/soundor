@@ -313,6 +313,10 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
   in the view, moved back to where the lock began whenever it strays, and put
   back there when the lock ends. Under Wayland (through XWayland) moving the
   pointer depends on the compositor.
+- **Click counts** (`event.detail`, and `dblclick`): JUCE's, by the
+  platform's double-click time, which the editor gives JUCE when it opens:
+  macOS's and Windows' setting, on Linux the desktop's
+  (`Net/DoubleClickTime`, as GNOME and KDE publish it), else JUCE's 400 ms.
 
 ### Canvases: 2D and WebGL
 
