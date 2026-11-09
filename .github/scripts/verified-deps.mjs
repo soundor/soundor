@@ -79,6 +79,16 @@ export async function findDependencies(
   key,
   { repository, token, fetcher = fetch, now = Date.now() },
 ) {
+  const family = families.find((family) =>
+    new RegExp(`^verified-native-${family}-[a-f0-9]{64}$`).test(key),
+  );
+  if (!family) return null;
+  const producer = {
+    'linux-clang': 'linux-x64',
+    'macos-universal': 'macos-universal',
+    windows: 'windows-x64-dynamic',
+    'windows-static': 'windows-x64-static',
+  }[family];
   const request = async (path) => {
     const response = await fetcher(
       `https://api.github.com/repos/${repository}${path}`,
@@ -113,8 +123,6 @@ export async function findDependencies(
       const run = await request(`/actions/runs/${id}`);
       if (
         !run ||
-        run.conclusion !== 'success' ||
-        run.status !== 'completed' ||
         run.head_branch !== 'main' ||
         run.head_repository?.full_name !== repository ||
         !['push', 'workflow_dispatch'].includes(run.event) ||
@@ -126,6 +134,38 @@ export async function findDependencies(
         artifact.workflow_run.head_sha !== run.head_sha ||
         !Number.isSafeInteger(artifact.id) ||
         !/^sha256:[a-f0-9]{64}$/.test(artifact.digest ?? '')
+      )
+        continue;
+      // A later release failure must not invalidate a completed signed snapshot.
+      // Pair producer and signer within the same reusable-workflow invocation.
+      const jobs = [];
+      for (let jobPage = 1; ; jobPage++) {
+        const result = await request(
+          `/actions/runs/${id}/jobs?filter=latest&per_page=100&page=${jobPage}`,
+        );
+        if (!result) break;
+        jobs.push(...result.jobs);
+        if (result.jobs.length < 100) break;
+      }
+      const successful = jobs.filter(
+        (job) =>
+          job.status === 'completed' &&
+          job.conclusion === 'success' &&
+          job.head_sha === run.head_sha,
+      );
+      const signerName = `Attest dependencies (${family})`;
+      if (
+        !successful.some((signer) => {
+          if (
+            signer.name !== signerName &&
+            !signer.name.endsWith(` / ${signerName}`)
+          )
+            return false;
+          const prefix = signer.name.slice(0, -signerName.length);
+          return successful.some(
+            (job) => job.name === `${prefix}Build (${producer})`,
+          );
+        })
       )
         continue;
       return { id: artifact.id, commit: run.head_sha, digest: artifact.digest };

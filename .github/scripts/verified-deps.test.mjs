@@ -38,7 +38,21 @@ const run = {
 };
 const response = (value, status = 200) =>
   new Response(JSON.stringify(value), { status });
-function find({ artifacts = [artifact], workflow = run, fetcher } = {}) {
+const jobs = [
+  'Engine prebuilts / Build engine artifacts / Build (windows-x64-dynamic)',
+  'Engine prebuilts / Build engine artifacts / Attest dependencies (windows)',
+].map((name) => ({
+  name,
+  status: 'completed',
+  conclusion: 'success',
+  head_sha: commit,
+}));
+function find({
+  artifacts = [artifact],
+  workflow = run,
+  workflowJobs = jobs,
+  fetcher,
+} = {}) {
   return findDependencies(key, {
     repository,
     token: 'fixture',
@@ -47,7 +61,11 @@ function find({ artifacts = [artifact], workflow = run, fetcher } = {}) {
       fetcher ??
       (async (url) =>
         response(
-          url.includes('/actions/artifacts?') ? { artifacts } : workflow,
+          url.includes('/actions/artifacts?')
+            ? { artifacts }
+            : url.includes('/jobs?')
+              ? { jobs: workflowJobs }
+              : workflow,
         )),
   });
 }
@@ -86,7 +104,7 @@ test('dependency identity binds family, compiler/SDK and exact recipes', () => {
   assert.throws(() => dependencyKey('unknown', 'compiler', []), /Unknown/);
 });
 
-test('only successful main release workflows with unexpired matching artifact digests are candidates', async () => {
+test('only main release workflows with unexpired matching artifact digests are candidates', async () => {
   assert.deepEqual(await find(), {
     id: artifact.id,
     commit,
@@ -106,8 +124,6 @@ test('only successful main release workflows with unexpired matching artifact di
   for (const patch of [
     { event: 'pull_request' },
     { head_branch: 'feature' },
-    { conclusion: 'failure' },
-    { status: 'in_progress' },
     { path: '.github/workflows/other.yml' },
     { head_repository: { full_name: 'attacker/fork' } },
     { head_sha: 'c'.repeat(40) },
@@ -123,6 +139,90 @@ test('only successful main release workflows with unexpired matching artifact di
     assert.equal(await find({ artifacts: [{ ...artifact, ...patch }] }), null);
 });
 
+test('successful producer and signer remain eligible when the enclosing release fails or is running', async () => {
+  for (const patch of [
+    { status: 'completed', conclusion: 'failure' },
+    { status: 'in_progress', conclusion: null },
+    { status: 'completed', conclusion: 'cancelled' },
+  ]) {
+    assert.deepEqual(await find({ workflow: { ...run, ...patch } }), {
+      id: artifact.id,
+      commit,
+      digest: artifact.digest,
+    });
+  }
+});
+
+test('missing, failed, skipped, unfinished or foreign-commit dependency jobs are rejected', async () => {
+  assert.equal(await find({ workflowJobs: [] }), null);
+  for (const index of [0, 1]) {
+    assert.equal(
+      await find({ workflowJobs: jobs.filter((_, i) => i !== index) }),
+      null,
+    );
+    for (const patch of [
+      { conclusion: 'failure' },
+      { conclusion: 'skipped' },
+      { status: 'in_progress' },
+      { head_sha: 'c'.repeat(40) },
+      { name: jobs[index].name.replace('windows', 'windows-static') },
+      { name: `Other invocation / ${jobs[index].name}` },
+    ]) {
+      assert.equal(
+        await find({
+          workflowJobs: jobs.map((job, i) =>
+            i === index ? { ...job, ...patch } : job,
+          ),
+        }),
+        null,
+      );
+    }
+  }
+});
+
+test('producer and signer discovery paginates jobs and supports every dependency family', async () => {
+  for (const [family, producer] of [
+    ['linux-clang', 'linux-x64'],
+    ['macos-universal', 'macos-universal'],
+    ['windows', 'windows-x64-dynamic'],
+    ['windows-static', 'windows-x64-static'],
+  ]) {
+    const familyKey = dependencyKey(family, 'compiler', []);
+    const requests = [];
+    const found = await findDependencies(familyKey, {
+      repository,
+      token: 'fixture',
+      now,
+      fetcher: async (url) => {
+        requests.push(url);
+        if (url.includes('/actions/artifacts?'))
+          return response({ artifacts: [{ ...artifact, name: familyKey }] });
+        if (!url.includes('/jobs?'))
+          return response({ ...run, conclusion: 'failure' });
+        if (url.endsWith('page=1'))
+          return response({
+            jobs: Array.from({ length: 100 }, () => ({
+              ...jobs[0],
+              name: 'Other job',
+            })),
+          });
+        return response({
+          jobs: [
+            { ...jobs[0], name: `Build (${producer})` },
+            { ...jobs[1], name: `Attest dependencies (${family})` },
+          ],
+        });
+      },
+    });
+    assert.equal(found.id, artifact.id);
+    assert.ok(
+      requests.some((url) =>
+        url.includes('filter=latest&per_page=100&page=2'),
+      ),
+    );
+  }
+});
+
 test('a miss selects a clean build; service and permission failures fail closed', async () => {
   assert.equal(await find({ artifacts: [] }), null);
   assert.equal(await find({ fetcher: async () => response({}, 404) }), null);
@@ -131,6 +231,21 @@ test('a miss selects a clean build; service and permission failures fail closed'
       find({ fetcher: async () => response({}, code) }),
       new RegExp(`HTTP ${code}`),
     );
+});
+
+test('job lookup failures cannot bypass producer and signer checks', async () => {
+  for (const status of [403, 404, 500]) {
+    const lookup = find({
+      fetcher: async (url) => {
+        if (url.includes('/actions/artifacts?'))
+          return response({ artifacts: [artifact] });
+        if (url.includes('/jobs?')) return response({}, status);
+        return response(run);
+      },
+    });
+    if (status === 404) assert.equal(await lookup, null);
+    else await assert.rejects(lookup, new RegExp(`HTTP ${status}`));
+  }
 });
 
 test('verification restricts the repository, reusable signer, source ref and both commit digests', () => {
