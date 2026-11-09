@@ -97,6 +97,27 @@ test('identity excludes docs, tests and unrelated lockfile changes but sees dirt
   assert.notEqual(engineInputs(root).fingerprint, before);
 });
 
+test('identity normalizes CRLF in generated includes, IDL and embedded documentation', () => {
+  for (const path of ['src/generated.inc', 'src/webgl.idl', 'src/README.md']) {
+    const root = fixture();
+    write(join(root, path), 'first line\nsecond line\n');
+    const before = engineInputs(root).fingerprint;
+    write(join(root, path), 'first line\r\nsecond line\r\n');
+    assert.equal(engineInputs(root).fingerprint, before, path);
+    write(join(root, path), 'changed line\nsecond line\n');
+    assert.notEqual(engineInputs(root).fingerprint, before, path);
+  }
+});
+
+test('identity preserves exact bytes for binary inputs', () => {
+  const root = fixture();
+  const path = join(root, 'src/resource.bin');
+  write(path, Buffer.from([0xff, 0x0d, 0x0a, 0x00]));
+  const before = engineInputs(root).fingerprint;
+  write(path, Buffer.from([0xff, 0x0a, 0x00]));
+  assert.notEqual(engineInputs(root).fingerprint, before);
+});
+
 test('installed lowering dependencies contribute their transitive versions', () => {
   const root = fixture();
   write(
