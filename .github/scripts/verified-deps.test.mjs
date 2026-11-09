@@ -216,9 +216,7 @@ test('producer and signer discovery paginates jobs and supports every dependency
     });
     assert.equal(found.id, artifact.id);
     assert.ok(
-      requests.some((url) =>
-        url.includes('filter=latest&per_page=100&page=2'),
-      ),
+      requests.some((url) => url.includes('filter=latest&per_page=100&page=2')),
     );
   }
 });
