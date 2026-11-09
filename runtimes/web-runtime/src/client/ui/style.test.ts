@@ -125,6 +125,27 @@ describe('cssFor', () => {
     });
   });
 
+  it('draws box shadows as CSS, in order, black by default', () => {
+    expect(
+      cssFor(
+        {
+          boxShadow: [
+            { offsetY: 2, blur: 8, color: 'rgba(0, 0, 0, 0.3)' },
+            { inset: true, spread: 1.5 },
+          ],
+        },
+        'view',
+      ),
+    ).toEqual({
+      'box-shadow':
+        '0px 2px 8px 0px rgba(0, 0, 0, 0.3), inset 0px 0px 0px 1.5px black',
+    });
+    expect(cssFor({ boxShadow: [] }, 'view')).toEqual({});
+    expect(() =>
+      readStyle({ boxShadow: [{ offsetX: 1, blur: null, color: undefined }] }),
+    ).not.toThrow();
+  });
+
   it('draws an outline only with a width, solid and black by default', () => {
     expect(
       cssFor(
@@ -215,6 +236,32 @@ describe('readStyle', () => {
       "style.fontWeight: expected a weight from 1 to 1000, 'normal' or 'bold', got 1200",
     ],
     [{ fontFamily: 3 }, 'style.fontFamily: expected a string, got 3'],
+    // The same cases as the engine's UiModule tests.
+    [
+      { boxShadow: { blur: 2 } },
+      'style.boxShadow: expected an array, got [object Object]',
+    ],
+    [{ boxShadow: [3] }, 'style.boxShadow[0]: expected an object, got 3'],
+    [
+      { boxShadow: [{}, { blurRadius: 2 }] },
+      'style.boxShadow[1]: unsupported property blurRadius',
+    ],
+    [
+      { boxShadow: [{ blur: -1 }] },
+      'style.boxShadow[0].blur: expected a finite nonnegative number, got -1',
+    ],
+    [
+      { boxShadow: [{ offsetX: '2px' }] },
+      "style.boxShadow[0].offsetX: expected a finite number, got '2px'",
+    ],
+    [
+      { boxShadow: [{ color: 3 }] },
+      'style.boxShadow[0].color: expected a CSS color, got 3',
+    ],
+    [
+      { boxShadow: [{ inset: 1 }] },
+      'style.boxShadow[0].inset: expected a boolean, got 1',
+    ],
   ])('rejects %j as the JUCE runtime does', (style, message) => {
     expect(() => readStyle(style)).toThrow(new TypeError(message));
   });

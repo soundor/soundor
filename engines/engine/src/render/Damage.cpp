@@ -118,9 +118,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         const ui::Rect frame = node.frame();
         const float x = originX + frame.x;
         const float y = originY + frame.y;
-        // An outline draws outside the box.
-        const float outline = style.outlineExtent();
-        IntRect own = pass.device(x - outline, y - outline, frame.width + (outline * 2), frame.height + (outline * 2));
+        // An outline and shadows draw outside the box.
+        const ui::Edges<float> ink = style.inkOverflow();
+        IntRect own = pass.device(x - ink.left, y - ink.top, frame.width + ink.left + ink.right,
+                                  frame.height + ink.top + ink.bottom);
         std::uint64_t key = 0;
         if (node.type() == ui::NodeType::Text)
         {

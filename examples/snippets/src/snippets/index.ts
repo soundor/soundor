@@ -2,6 +2,7 @@
 import type { ComponentType } from 'react';
 
 import Animated from './animated';
+import BoxShadow from './box-shadow';
 import Canvas from './canvas';
 import ContextMenu from './context-menu';
 import Cursor from './cursor';
@@ -25,6 +26,7 @@ import ViewSize from './view-size';
 
 export const snippets: Readonly<Record<string, ComponentType>> = {
   animated: Animated,
+  'box-shadow': BoxShadow,
   canvas: Canvas,
   'context-menu': ContextMenu,
   cursor: Cursor,

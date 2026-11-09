@@ -164,6 +164,14 @@ TEST_SUITE("soundor:ui")
         // A change still goes through, and a failed one still changes nothing.
         f.run(std::string(imports) + "a.style.opacity = 0.25;");
         CHECK(calls() == before + 1);
+        // Shadows are compared by value: a new array of the same shadows is
+        // the same style (as a React render makes one).
+        f.run(std::string(imports) + "a.style.boxShadow = [{ blur: 4, color: 'red' }];");
+        CHECK(calls() == before + 2);
+        f.run(std::string(imports) + "a.style.boxShadow = [{ blur: 4, color: 'red' }];");
+        CHECK(calls() == before + 2);
+        f.run(std::string(imports) + "a.style.boxShadow = null;");
+        CHECK(calls() == before + 3);
         CHECK(f.error(std::string(imports) + "a.style.width = 'wide';").find("style.width") != std::string::npos);
         CHECK(f.run(std::string(imports) + "globalThis.result = JSON.stringify(a.style);").asString()
               == R"({"width":40,"height":20,"opacity":0.25})");
@@ -365,6 +373,35 @@ TEST_SUITE("soundor:ui")
               == "TypeError: style.zIndex: expected an integer, got '2'");
         CHECK(f.run(std::string(imports) + "a.style = { zIndex: -3 }; globalThis.result = a.style.zIndex;").asNumber()
               == -3);
+    }
+
+    TEST_CASE("boxShadow is an array of shadows, each checked")
+    {
+        UiFixture f;
+        // The web runtime's style tests' cases, and a color string (which
+        // the web runtime checks only in a browser, with CSS.supports()).
+        const std::pair<const char*, const char*> cases[] = {
+            { "{ blur: 2 }", "style.boxShadow: expected an array, got [object Object]" },
+            { "[3]", "style.boxShadow[0]: expected an object, got 3" },
+            { "[{}, { blurRadius: 2 }]", "style.boxShadow[1]: unsupported property blurRadius" },
+            { "[{ blur: -1 }]", "style.boxShadow[0].blur: expected a finite nonnegative number, got -1" },
+            { "[{ offsetX: '2px' }]", "style.boxShadow[0].offsetX: expected a finite number, got '2px'" },
+            { "[{ color: 3 }]", "style.boxShadow[0].color: expected a CSS color, got 3" },
+            { "[{ color: 'reddish' }]", "style.boxShadow[0].color: expected a CSS color, got 'reddish'" },
+            { "[{ inset: 1 }]", "style.boxShadow[0].inset: expected a boolean, got 1" },
+        };
+        for (const auto& [value, message] : cases)
+        {
+            CAPTURE(value);
+            CHECK(f.error(std::string(imports) + "a.style = { boxShadow: " + value + " };")
+                  == std::string("TypeError: ") + message);
+        }
+        CHECK(f.run(std::string(imports)
+                    + "a.style = { boxShadow: [{ offsetX: 1, blur: null, color: undefined }], width: 3 };"
+                      "globalThis.result = a.style.width;")
+                  .asNumber()
+              == 3);
+        CHECK(f.run(std::string(imports) + "a.style = { boxShadow: null }; globalThis.result = 1;").asNumber() == 1);
     }
 
     TEST_CASE("the cursor style reaches the surface")

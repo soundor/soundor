@@ -134,12 +134,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 painting.emplace_back();
                 return;
             }
-            // An outline draws outside the box.
-            const float outline = style.outlineExtent();
-            IntRect own =
-                scaled(local, scale)
-                    .mapBounds(
-                        pixels({ -outline, -outline, box.width + (outline * 2), box.height + (outline * 2) }, scale));
+            // An outline and shadows draw outside the box.
+            const ui::Edges<float> ink = style.inkOverflow();
+            IntRect own = scaled(local, scale)
+                              .mapBounds(pixels({ -ink.left, -ink.top, box.width + ink.left + ink.right,
+                                                  box.height + ink.top + ink.bottom },
+                                                scale));
             if (node.type() == ui::NodeType::Text)
             {
                 const auto content = node.contentBox();
@@ -161,7 +161,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             const auto& border = style.borderWidth;
             const bool bordered = style.borderColor.visible()
                                   && (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0);
-            if (style.backgroundColor.visible() || style.outlined()
+            if (style.backgroundColor.visible() || style.outlined() || style.shadowed()
                 || (node.type() != ui::NodeType::View && ! gpuCanvas(node, device)))
                 painting.back() = painting.back().united(own);
             const auto found = group.layout.find(node.id());

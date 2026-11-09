@@ -236,10 +236,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
             [[noreturn]] void fail(const Property& property, std::string_view expected)
             {
-                const std::string got = js::detail::toStdString(context.rt, *property.value);
-                bind::throwTypeError(context, std::string("style.") + property.name + ": expected "
-                                                  + std::string(expected) + ", got "
-                                                  + (property.value->isString() ? "'" + got + "'" : got));
+                fail(std::string("style.") + property.name, *property.value, expected);
+            }
+
+            // `path`: expected `expected`, got the value.
+            [[noreturn]] void fail(const std::string& path, const jsi::Value& value, std::string_view expected)
+            {
+                const std::string got = js::detail::toStdString(context.rt, value);
+                bind::throwTypeError(context, path + ": expected " + std::string(expected) + ", got "
+                                                  + (value.isString() ? "'" + got + "'" : got));
             }
 
             std::optional<float> number(const char* key)
@@ -432,6 +437,82 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 fail(property, "a CSS color");
             }
 
+            // `boxShadow`: an array of { offsetX, offsetY, blur, spread,
+            // color, inset }, each optional.
+            std::vector<BoxShadow> boxShadow()
+            {
+                const Property property(*this, "boxShadow");
+                if (! property.present())
+                    return {};
+                if (! property.value->isObject() || ! property.value->getObject(context.rt).isArray(context.rt))
+                    fail(property, "an array");
+                const jsi::Array array = property.value->getObject(context.rt).getArray(context.rt);
+                const std::size_t count = array.size(context.rt);
+                std::vector<BoxShadow> result;
+                result.reserve(count);
+                static constexpr std::array<std::string_view, 6> keys { "offsetX", "offsetY", "blur",
+                                                                        "spread",  "color",   "inset" };
+                for (std::size_t i = 0; i < count; ++i)
+                {
+                    const std::string path = "style.boxShadow[" + std::to_string(i) + "]";
+                    const jsi::Value entry = array.getValueAtIndex(context.rt, i);
+                    if (! entry.isObject() || entry.getObject(context.rt).isArray(context.rt)
+                        || entry.getObject(context.rt).isFunction(context.rt))
+                        fail(path, entry, "an object");
+                    const jsi::Object object = entry.getObject(context.rt);
+                    const jsi::Array names = object.getPropertyNames(context.rt);
+                    for (std::size_t n = 0; n < names.size(context.rt); ++n)
+                    {
+                        const std::string name =
+                            names.getValueAtIndex(context.rt, n).getString(context.rt).utf8(context.rt);
+                        if (std::ranges::find(keys, name) == keys.end())
+                            bind::throwTypeError(context,
+                                                 std::string(path).append(": unsupported property ").append(name));
+                    }
+                    BoxShadow shadow;
+                    const auto field = [&](const char* name) -> std::optional<jsi::Value>
+                    {
+                        jsi::Value value = object.getProperty(context.rt, name);
+                        if (value.isUndefined() || value.isNull())
+                            return std::nullopt;
+                        return value;
+                    };
+                    const auto number = [&](const char* name, bool nonnegative) -> std::optional<float>
+                    {
+                        const std::optional<jsi::Value> value = field(name);
+                        if (! value)
+                            return std::nullopt;
+                        if (! value->isNumber() || ! std::isfinite(value->getNumber())
+                            || ! std::isfinite(static_cast<float>(value->getNumber()))
+                            || (nonnegative && value->getNumber() < 0))
+                            fail(path + "." + name, *value,
+                                 nonnegative ? "a finite nonnegative number" : "a finite number");
+                        return static_cast<float>(value->getNumber());
+                    };
+                    assign(shadow.offsetX, number("offsetX", false));
+                    assign(shadow.offsetY, number("offsetY", false));
+                    assign(shadow.blur, number("blur", true));
+                    assign(shadow.spread, number("spread", false));
+                    if (const std::optional<jsi::Value> value = field("color"))
+                    {
+                        std::optional<Color> parsed;
+                        if (value->isString())
+                            parsed = parseColor(value->getString(context.rt).utf8(context.rt));
+                        if (! parsed)
+                            fail(path + ".color", *value, "a CSS color");
+                        shadow.color = *parsed;
+                    }
+                    if (const std::optional<jsi::Value> value = field("inset"))
+                    {
+                        if (! value->isBool())
+                            fail(path + ".inset", *value, "a boolean");
+                        shadow.inset = value->getBool();
+                    }
+                    result.push_back(shadow);
+                }
+                return result;
+            }
+
             void readVisual(Style& out)
             {
                 static constexpr std::array<std::string_view, 4> resizeModes { "cover", "contain", "stretch",
@@ -447,6 +528,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 assign(out.outlineWidth, number("outlineWidth"));
                 assign(out.outlineOffset, number("outlineOffset"));
                 assign(out.outlineColor, color("outlineColor"));
+                out.boxShadow = boxShadow();
                 if (const auto opacity = number("opacity"))
                     out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
                 const Property transform(*this, "transform");

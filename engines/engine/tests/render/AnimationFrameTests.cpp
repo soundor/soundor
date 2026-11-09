@@ -258,6 +258,62 @@ TEST_SUITE("native animation frames")
         CHECK(scene.host.frame().statistics.layersRasterized > 0);
     }
 
+    TEST_CASE("an animated group's cache holds its shadows, outside the box")
+    {
+        double time = 0;
+        RuntimeHost host { RuntimeHost::Options {} };
+        auto& surface = host.surface();
+        surface.setSize({ 100, 100 });
+        surface.animations().setClock([&time] { return time; });
+        ui::Style style;
+        style.backgroundColor = { 255, 255, 255, 255 };
+        surface.setStyle(surface.root().id(), style);
+        const auto panel = surface.createNode(ui::NodeType::View);
+        style.position = ui::Position::Absolute;
+        style.inset.left = ui::Length::points(20);
+        style.inset.top = ui::Length::points(20);
+        style.width = ui::Length::points(30);
+        style.height = ui::Length::points(30);
+        style.backgroundColor = { 255, 0, 0, 255 };
+        style.borderRadius = { 4, 4, 4, 4 };
+        // Reaching 8 + 6 right and 6 + 6 below the box, 0 above and left.
+        style.boxShadow = { { .offsetX = 8, .offsetY = 6, .blur = 4, .color = { 0, 0, 0, 200 } },
+                            { .offsetX = -3, .spread = 1, .color = { 0, 0, 255, 255 }, .inset = true } };
+        surface.setStyle(panel, style);
+        surface.insertChild(surface.root().id(), panel);
+        ui::AnimationDescription animation;
+        animation.to[ui::AnimatedProperty::TranslateX] = 10;
+        animation.to[ui::AnimatedProperty::TranslateY] = 10;
+        animation.to.order[0] = ui::AnimatedProperty::TranslateX;
+        animation.to.order[1] = ui::AnimatedProperty::TranslateY;
+        animation.to.count = 2;
+        animation.properties =
+            ui::propertyBit(ui::AnimatedProperty::TranslateX) | ui::propertyBit(ui::AnimatedProperty::TranslateY);
+        animation.timing.duration = 100;
+        animation.timing.easing = ui::Easing::Linear;
+        animation.timing.fill = ui::Fill::Forwards;
+        surface.animations().animate(panel, animation);
+
+        Target target;
+        render::RasterCompositor compositor(target);
+        compositor.composite(host.frame());
+        // Whole pixels at each step: the cache moves without resampling.
+        for (const double at : { 30., 60., 100. })
+        {
+            time = at;
+            host.tick();
+            const auto& frame = host.frame();
+            CHECK(frame.statistics.layersRasterized == 0);
+            compositor.composite(frame);
+            std::vector<std::uint32_t> whole(100ULL * 100);
+            host.render({ whole.data(), 100, 100, 100ULL * 4 });
+            int worst = 0;
+            for (std::size_t i = 0; i < whole.size(); ++i)
+                worst = std::max(worst, difference(whole[i], target.pixels.pixels()[i]));
+            CHECK_MESSAGE(worst <= 2, "at " << at << " the cache differs by " << worst);
+        }
+    }
+
 #if SOUNDOR_TEST_GPU
     TEST_CASE("mixed WebGL animation shares textures and preserves pixels when switching to CPU fallback")
     {

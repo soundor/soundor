@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
@@ -187,6 +188,28 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Center,  // centered at its own size, scaled down to fit
     };
 
+    // A shadow of the box (CSS `box-shadow`): its rounded rectangle, grown by
+    // `spread`, moved by the offset and blurred by `blur` (a Gaussian of
+    // sigma blur / 2, as CSS has it), drawn outside the border box, or with
+    // `inset` inside the padding box. Neither laid out nor hit.
+    struct BoxShadow
+    {
+        float offsetX = 0;
+        float offsetY = 0;
+        float blur = 0;
+        float spread = 0;
+        Color color = black;
+        bool inset = false;
+
+        // Whether it draws anything: a visible color.
+        [[nodiscard]] bool visible() const noexcept { return color.visible(); }
+        // How far its blur reaches past the shape: three sigmas, where
+        // Skia's Gaussian ends.
+        [[nodiscard]] float blurReach() const noexcept { return blur * 1.5f; }
+
+        friend bool operator==(const BoxShadow&, const BoxShadow&) = default;
+    };
+
     struct TextStyle
     {
         Color color = black;
@@ -256,6 +279,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         float outlineWidth = 0;
         float outlineOffset = 0;
         Color outlineColor = black;
+        // Painted in order, the first on top, as in CSS: outer shadows below
+        // the background, inset ones above it and below the border.
+        std::vector<BoxShadow> boxShadow;
         // 0 (invisible) to 1; applies to the node and everything in it.
         float opacity = 1;
         Presentation transform;
@@ -285,6 +311,36 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] float outlineExtent() const noexcept
         {
             return outlined() ? std::max(0.0f, outlineOffset + outlineWidth) : 0;
+        }
+        // Whether any shadow draws.
+        [[nodiscard]] bool shadowed() const noexcept
+        {
+            return std::ranges::any_of(boxShadow, [](const BoxShadow& shadow) { return shadow.visible(); });
+        }
+        // How far what the node draws itself reaches outside its box, per
+        // edge: its outline and its outer shadows. Damage, layers and
+        // caches cover this much more than the box.
+        [[nodiscard]] Edges<float> inkOverflow() const noexcept
+        {
+            const float outline = outlineExtent();
+            Edges<float> result { outline, outline, outline, outline };
+            for (const BoxShadow& shadow : boxShadow)
+            {
+                if (shadow.inset || ! shadow.visible())
+                    continue;
+                const float reach = shadow.spread + shadow.blurReach();
+                result.top = std::max(result.top, reach - shadow.offsetY);
+                result.right = std::max(result.right, reach + shadow.offsetX);
+                result.bottom = std::max(result.bottom, reach + shadow.offsetY);
+                result.left = std::max(result.left, reach - shadow.offsetX);
+            }
+            return result;
+        }
+        // Whether it draws anything outside its box.
+        [[nodiscard]] bool overflowsInk() const noexcept
+        {
+            const Edges<float> ink = inkOverflow();
+            return ink.top > 0 || ink.right > 0 || ink.bottom > 0 || ink.left > 0;
         }
 
         friend bool operator==(const Style&, const Style&) = default;
