@@ -62,14 +62,16 @@ test('snippets use the parameters of every type', async () => {
   expect(screen.getByRole('button', { name: 'On' })).toBeDefined();
 });
 
-test('the double-click snippet adds and removes points', async () => {
+test('the double-click snippet resets the fader', async () => {
   const user = userEvent.setup();
   const DoubleClick = snippets['double-click']!;
   await render(<DoubleClick />);
-  expect(screen.getByText('2 points · last click: none yet')).toBeDefined();
-  const strip = screen.getByText(/points/).parent!.children[0]!;
-  await user.dblClick(strip);
-  expect(screen.getByText('3 points · last click: 2')).toBeDefined();
-  await user.dblClick(strip.children[0]!);
-  expect(screen.getByText('2 points · last click: 2')).toBeDefined();
+  expect(screen.getByText('Mix 80%')).toBeDefined();
+  const fader = screen.getByText('Mix 80%').parent!.children[1]!;
+  await user.click(fader);
+  expect(screen.getByText('Last click: single click')).toBeDefined();
+  expect(screen.getByText('Mix 80%')).toBeDefined();
+  await user.dblClick(fader);
+  expect(screen.getByText('Mix 50%')).toBeDefined();
+  expect(screen.getByText('Last click: double click')).toBeDefined();
 });

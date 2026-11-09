@@ -75,7 +75,7 @@ the same node:
 
 ```tsx
 <View
-  onDoubleClick={(event) => addPoint(event.locationX)}
+  onDoubleClick={() => setValue(DEFAULT)}
   onClick={(event) => {
     if (event.detail === 1) select();
   }}
