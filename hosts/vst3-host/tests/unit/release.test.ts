@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 
 import {
   type CheckedTarball,
@@ -213,9 +213,9 @@ describe('publishing', () => {
       '@soundor/vst3-host-linux-x64-gnu',
       '@soundor/vst3-host-darwin-universal',
     ]);
-    await expect(verify(tarballs, { registry: registry.url })).rejects.toThrow(
-      /win32-x64@0\.3\.0/,
-    );
+    await expect(
+      verify(tarballs, { registry: registry.url, timeoutMs: 0 }),
+    ).rejects.toThrow(/win32-x64@0\.3\.0/);
 
     // The retry: rebuilt bytes, same native inputs.
     const retried = checkTarballs(packed({ bytes: Buffer.from('rebuilt') }), {
@@ -256,6 +256,86 @@ describe('publishing', () => {
       }),
     ).rejects.toThrow(/already published from other native inputs/);
     expect(attempt.published).toEqual([]);
+  });
+
+  test('waits for published package visibility and verifies each visible build', async () => {
+    registry.versions.clear();
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    await publish(tarballs, {
+      registry: registry.url,
+      publisher: publisherInto(registry).publisher,
+      log: quiet,
+    });
+    const requests = new Map<string, number>();
+    await verify(tarballs, {
+      registry: registry.url,
+      timeoutMs: 5_000,
+      pollIntervalMs: 1,
+      fetcher: async (url, options) => {
+        const address = String(url);
+        const count = (requests.get(address) ?? 0) + 1;
+        requests.set(address, count);
+        if (
+          !address.includes('/tarballs/') &&
+          !address.includes('linux-x64-gnu') &&
+          count <= 2
+        )
+          return new Response(null, { status: 404 });
+        return fetch(url, options);
+      },
+    });
+    expect([...requests.values()].filter((count) => count === 3)).toHaveLength(
+      2,
+    );
+    expect([...requests.values()].filter((count) => count === 1)).toHaveLength(
+      4,
+    );
+  });
+
+  test('stops waiting at the deadline and reports packages still missing', async () => {
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn(async () => new Response(null, { status: 404 }));
+      const result = expect(
+        verify(tarballs, {
+          timeoutMs: 100,
+          pollIntervalMs: 25,
+          fetcher,
+        }),
+      ).rejects.toThrow(
+        /Not on npm yet after 100ms:.*linux-x64-gnu.*darwin-universal.*win32-x64/,
+      );
+      await vi.advanceTimersByTimeAsync(100);
+      await result;
+      expect(fetcher).toHaveBeenCalledTimes(15);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('verification does not retry registry errors or conflicting published builds', async () => {
+    const tarballs = checkTarballs(packed(), { version: '0.3.0' });
+    for (const status of [401, 500]) {
+      const fetcher = vi.fn(async () => new Response(null, { status }));
+      await expect(verify(tarballs, { fetcher })).rejects.toThrow(
+        `HTTP ${status}`,
+      );
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+    registry.versions.clear();
+    await publish(tarballs, {
+      registry: registry.url,
+      publisher: publisherInto(registry).publisher,
+      log: quiet,
+    });
+    const different = checkTarballs(
+      packed({ sourceFingerprint: 'e'.repeat(64) }),
+      { version: '0.3.0' },
+    );
+    await expect(verify(different, { registry: registry.url })).rejects.toThrow(
+      /other native inputs/,
+    );
   });
 
   test('fails on registry errors without publishing anything', async () => {
