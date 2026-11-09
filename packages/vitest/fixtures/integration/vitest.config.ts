@@ -18,8 +18,8 @@ export default defineConfig({
       },
       native: {
         methods: {
-          probe: { returns: 'number' },
-          load: { returns: 'number', async: true },
+          probe: { returns: 'float64' },
+          load: { returns: 'float64', async: true },
         },
       },
     }),

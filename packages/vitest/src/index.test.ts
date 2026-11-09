@@ -96,7 +96,7 @@ test('loads a project configuration without a native engine', async () => {
   const config = resolve(root, 'soundor.config.ts');
   await writeFile(
     config,
-    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, parameters: [{id: 'enabled', label: 'Enabled', type: 'bool', default: true}], runtimes: [], native: {methods: {probe: {returns: 'number'}}}};`,
+    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, parameters: [{id: 'enabled', label: 'Enabled', type: 'bool', default: true}], runtimes: [], native: {methods: {probe: {returns: 'float64'}}}};`,
   );
   const { result } = await configure({ config });
   expect(result?.test?.environmentOptions?.soundor).toMatchObject({

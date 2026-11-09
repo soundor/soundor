@@ -19,8 +19,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         // Identifies this context's NativeApi in its module data.
         const char apiKey = 0;
 
-        const bind::HandleType kPresetHandle { "Preset" };
-
         constexpr std::array<std::string_view, 3> kCurveValues { "linear", "exponential", "low-cut" };
 
         void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Curve& out)
@@ -38,8 +36,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Point& out)
         {
             const jsi::Object object = bind::expectObject(ctx, value, path);
-            read(ctx, bind::property(ctx, object, "x"), path.field("x"), out.x);
-            read(ctx, bind::property(ctx, object, "y"), path.field("y"), out.y);
+            bind::readFloat64(ctx, bind::property(ctx, object, "x"), path.field("x"), out.x);
+            bind::readFloat64(ctx, bind::property(ctx, object, "y"), path.field("y"), out.y);
         }
 
         jsi::Value write(bind::ContextState& ctx, Point value)
@@ -63,6 +61,108 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
             return object.release();
         }
 
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Buffers& out)
+        {
+            const jsi::Object object = bind::expectObject(ctx, value, path);
+            bind::readBuffer(ctx, bind::property(ctx, object, "i8"), path.field("i8"), out.i8);
+            bind::readBuffer(ctx, bind::property(ctx, object, "u8"), path.field("u8"), out.u8);
+            bind::readBuffer(ctx, bind::property(ctx, object, "i16"), path.field("i16"), out.i16);
+            bind::readBuffer(ctx, bind::property(ctx, object, "u16"), path.field("u16"), out.u16);
+            bind::readBuffer(ctx, bind::property(ctx, object, "i32"), path.field("i32"), out.i32);
+            bind::readBuffer(ctx, bind::property(ctx, object, "u32"), path.field("u32"), out.u32);
+            bind::readBuffer(ctx, bind::property(ctx, object, "i64"), path.field("i64"), out.i64);
+            bind::readBuffer(ctx, bind::property(ctx, object, "u64"), path.field("u64"), out.u64);
+            bind::readBuffer(ctx, bind::property(ctx, object, "f32"), path.field("f32"), out.f32);
+            bind::readBuffer(ctx, bind::property(ctx, object, "f64"), path.field("f64"), out.f64);
+        }
+
+        jsi::Value write(bind::ContextState& ctx, Buffers value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("i8", bind::writeBuffer(ctx, std::move(value.i8)));
+            object.set("u8", bind::writeBuffer(ctx, std::move(value.u8)));
+            object.set("i16", bind::writeBuffer(ctx, std::move(value.i16)));
+            object.set("u16", bind::writeBuffer(ctx, std::move(value.u16)));
+            object.set("i32", bind::writeBuffer(ctx, std::move(value.i32)));
+            object.set("u32", bind::writeBuffer(ctx, std::move(value.u32)));
+            object.set("i64", bind::writeBuffer(ctx, std::move(value.i64)));
+            object.set("u64", bind::writeBuffer(ctx, std::move(value.u64)));
+            object.set("f32", bind::writeBuffer(ctx, std::move(value.f32)));
+            object.set("f64", bind::writeBuffer(ctx, std::move(value.f64)));
+            return object.release();
+        }
+
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Numbers& out)
+        {
+            const jsi::Object object = bind::expectObject(ctx, value, path);
+            read(ctx, bind::property(ctx, object, "i8"), path.field("i8"), out.i8);
+            read(ctx, bind::property(ctx, object, "u8"), path.field("u8"), out.u8);
+            read(ctx, bind::property(ctx, object, "i16"), path.field("i16"), out.i16);
+            read(ctx, bind::property(ctx, object, "u16"), path.field("u16"), out.u16);
+            read(ctx, bind::property(ctx, object, "i32"), path.field("i32"), out.i32);
+            read(ctx, bind::property(ctx, object, "u32"), path.field("u32"), out.u32);
+            read(ctx, bind::property(ctx, object, "i64"), path.field("i64"), out.i64);
+            read(ctx, bind::property(ctx, object, "u64"), path.field("u64"), out.u64);
+            read(ctx, bind::property(ctx, object, "f32"), path.field("f32"), out.f32);
+            bind::readFloat64(ctx, bind::property(ctx, object, "f64"), path.field("f64"), out.f64);
+        }
+
+        jsi::Value write(bind::ContextState& ctx, Numbers value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("i8", write(ctx, value.i8));
+            object.set("u8", write(ctx, value.u8));
+            object.set("i16", write(ctx, value.i16));
+            object.set("u16", write(ctx, value.u16));
+            object.set("i32", write(ctx, value.i32));
+            object.set("u32", write(ctx, value.u32));
+            object.set("i64", write(ctx, value.i64));
+            object.set("u64", write(ctx, value.u64));
+            object.set("f32", write(ctx, value.f32));
+            object.set("f64", write(ctx, value.f64));
+            return object.release();
+        }
+
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Optionals& out)
+        {
+            const jsi::Object object = bind::expectObject(ctx, value, path);
+            bind::readNullable(ctx, bind::property(ctx, object, "slot"), path.field("slot"), out.slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "id"), path.field("id"), out.id, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::uint64_t& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "name"), path.field("name"), out.name, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "curve"), path.field("curve"), out.curve, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Curve& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "point"), path.field("point"), out.point, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Point& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "gains"), path.field("gains"), out.gains, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& present) { bind::readArray(innerCtx, inner, innerPath, present, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, float& item) { read(elementCtx, element, elementPath, item); }); });
+            bind::readNullable(ctx, bind::property(ctx, object, "samples"), path.field("samples"), out.samples, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& present) { bind::readBuffer(innerCtx, inner, innerPath, present); });
+        }
+
+        jsi::Value write(bind::ContextState& ctx, Optionals value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("slot", bind::writeNullable(ctx, std::move(value.slot), [](bind::ContextState& innerCtx, std::int32_t&& present) { return write(innerCtx, present); }));
+            object.set("id", bind::writeNullable(ctx, std::move(value.id), [](bind::ContextState& innerCtx, std::uint64_t&& present) { return write(innerCtx, present); }));
+            object.set("name", bind::writeNullable(ctx, std::move(value.name), [](bind::ContextState& innerCtx, std::string&& present) { return write(innerCtx, present); }));
+            object.set("curve", bind::writeNullable(ctx, std::move(value.curve), [](bind::ContextState& innerCtx, Curve&& present) { return write(innerCtx, std::move(present)); }));
+            object.set("point", bind::writeNullable(ctx, std::move(value.point), [](bind::ContextState& innerCtx, Point&& present) { return write(innerCtx, std::move(present)); }));
+            object.set("gains", bind::writeNullable(ctx, std::move(value.gains), [](bind::ContextState& innerCtx, std::vector<float>&& present) { return bind::writeArray(innerCtx, std::move(present), [](bind::ContextState& elementCtx, float&& item) { return write(elementCtx, item); }); }));
+            object.set("samples", bind::writeNullable(ctx, std::move(value.samples), [](bind::ContextState& innerCtx, std::vector<float>&& present) { return bind::writeBuffer(innerCtx, std::move(present)); }));
+            return object.release();
+        }
+
+        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Preset& out)
+        {
+            const jsi::Object object = bind::expectObject(ctx, value, path);
+            read(ctx, bind::property(ctx, object, "name"), path.field("name"), out.name);
+            bind::readArray(ctx, bind::property(ctx, object, "gains"), path.field("gains"), out.gains, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, float& item) { read(elementCtx, element, elementPath, item); });
+        }
+
+        jsi::Value write(bind::ContextState& ctx, Preset value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("name", write(ctx, value.name));
+            object.set("gains", bind::writeArray(ctx, std::move(value.gains), [](bind::ContextState& elementCtx, float&& item) { return write(elementCtx, item); }));
+            return object.release();
+        }
+
         jsi::Value call_add(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "add",
@@ -73,9 +173,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "add", count, 2);
                 const bind::Path call { "add" };
-                double arg_a {};
+                std::int32_t arg_a {};
                 read(ctx, argv[0], call.field("a"), arg_a);
-                double arg_b {};
+                std::int32_t arg_b {};
                 read(ctx, argv[1], call.field("b"), arg_b);
                 return write(ctx, api->add(std::move(arg_a), std::move(arg_b)));
                                 });
@@ -97,6 +197,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                 });
         }
 
+        jsi::Value call_applyPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "applyPreset",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "applyPreset", count, 1);
+                const bind::Path call { "applyPreset" };
+                Preset arg_preset {};
+                read(ctx, argv[0], call.field("preset"), arg_preset);
+                api->applyPreset(std::move(arg_preset));
+                return jsi::Value::undefined();
+                                });
+        }
+
         jsi::Value call_centroid(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
         {
             return bind::invoke(ctx, "centroid",
@@ -113,19 +230,128 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                 });
         }
 
-        jsi::Value call_createPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        jsi::Value call_curves(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
-            return bind::invoke(ctx, "createPreset",
+            return bind::invoke(ctx, "curves",
                                 [&]() -> jsi::Value
                                 {
                 auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
                 if (api == nullptr)
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
-                bind::expectArgumentCount(ctx, "createPreset", count, 1);
-                const bind::Path call { "createPreset" };
-                std::string arg_name {};
-                read(ctx, argv[0], call.field("name"), arg_name);
-                return bind::writeHandle(ctx, kPresetHandle, api->createPreset(std::move(arg_name)));
+                bind::expectArgumentCount(ctx, "curves", count, 0);
+                return bind::writeArray(ctx, api->curves(), [](bind::ContextState& elementCtx, Curve&& item) { return write(elementCtx, std::move(item)); });
+                                });
+        }
+
+        jsi::Value call_echoBuffers(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoBuffers",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoBuffers", count, 1);
+                const bind::Path call { "echoBuffers" };
+                Buffers arg_buffers {};
+                read(ctx, argv[0], call.field("buffers"), arg_buffers);
+                return write(ctx, api->echoBuffers(std::move(arg_buffers)));
+                                });
+        }
+
+        jsi::Value call_echoFloat32(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoFloat32",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoFloat32", count, 1);
+                const bind::Path call { "echoFloat32" };
+                float arg_value {};
+                read(ctx, argv[0], call.field("value"), arg_value);
+                return write(ctx, api->echoFloat32(std::move(arg_value)));
+                                });
+        }
+
+        jsi::Value call_echoInt64(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoInt64",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoInt64", count, 1);
+                const bind::Path call { "echoInt64" };
+                std::int64_t arg_value {};
+                read(ctx, argv[0], call.field("value"), arg_value);
+                return write(ctx, api->echoInt64(std::move(arg_value)));
+                                });
+        }
+
+        jsi::Value call_echoNumbers(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoNumbers",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoNumbers", count, 1);
+                const bind::Path call { "echoNumbers" };
+                Numbers arg_numbers {};
+                read(ctx, argv[0], call.field("numbers"), arg_numbers);
+                return write(ctx, api->echoNumbers(std::move(arg_numbers)));
+                                });
+        }
+
+        jsi::Value call_echoOptionals(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoOptionals",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoOptionals", count, 1);
+                const bind::Path call { "echoOptionals" };
+                Optionals arg_optionals {};
+                read(ctx, argv[0], call.field("optionals"), arg_optionals);
+                return write(ctx, api->echoOptionals(std::move(arg_optionals)));
+                                });
+        }
+
+        jsi::Value call_echoUint64(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoUint64",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoUint64", count, 1);
+                const bind::Path call { "echoUint64" };
+                std::uint64_t arg_value {};
+                read(ctx, argv[0], call.field("value"), arg_value);
+                return write(ctx, api->echoUint64(std::move(arg_value)));
+                                });
+        }
+
+        jsi::Value call_echoUint8(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "echoUint8",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "echoUint8", count, 1);
+                const bind::Path call { "echoUint8" };
+                std::uint8_t arg_value {};
+                read(ctx, argv[0], call.field("value"), arg_value);
+                return write(ctx, api->echoUint8(std::move(arg_value)));
                                 });
         }
 
@@ -143,6 +369,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 read(ctx, argv[0], call.field("message"), arg_message);
                 api->fail(std::move(arg_message));
                 return jsi::Value::undefined();
+                                });
+        }
+
+        jsi::Value call_firstPoint(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "firstPoint",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "firstPoint", count, 1);
+                const bind::Path call { "firstPoint" };
+                std::optional<std::vector<Point>> arg_points {};
+                bind::readNullable(ctx, argv[0], call.field("points"), arg_points, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<Point>& present) { bind::readArray(innerCtx, inner, innerPath, present, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Point& item) { read(elementCtx, element, elementPath, item); }); });
+                return bind::writeNullable(ctx, api->firstPoint(std::move(arg_points)), [](bind::ContextState& innerCtx, Point&& present) { return write(innerCtx, std::move(present)); });
+                                });
+        }
+
+        jsi::Value call_getSpectrum(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return bind::invoke(ctx, "getSpectrum",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "getSpectrum", count, 0);
+                return bind::writeBuffer(ctx, api->getSpectrum());
                                 });
         }
 
@@ -188,7 +443,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "isEven", count, 1);
                 const bind::Path call { "isEven" };
-                double arg_value {};
+                std::int32_t arg_value {};
                 read(ctx, argv[0], call.field("value"), arg_value);
                 return write(ctx, api->isEven(std::move(arg_value)));
                                 });
@@ -210,22 +465,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                 });
         }
 
-        jsi::Value call_listPresets(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
+        void resolve_loadPreset(js::detail::PendingPromise& pending, std::optional<Preset>&& value)
         {
-            return bind::invoke(ctx, "listPresets",
-                                [&]() -> jsi::Value
-                                {
-                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
-                if (api == nullptr)
-                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
-                bind::expectArgumentCount(ctx, "listPresets", count, 0);
-                return bind::writeArray(ctx, api->listPresets(), [](bind::ContextState& elementCtx, std::shared_ptr<Preset>&& item) { return bind::writeHandle(elementCtx, kPresetHandle, std::move(item)); });
-                                });
-        }
-
-        void resolve_loadPreset(js::detail::PendingPromise& pending, std::shared_ptr<Preset>&& value)
-        {
-            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return bind::writeHandle(ctx, kPresetHandle, std::move(value)); });
+            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return bind::writeNullable(ctx, std::move(value), [](bind::ContextState& innerCtx, Preset&& present) { return write(innerCtx, std::move(present)); }); });
         }
 
         jsi::Value call_loadPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
@@ -238,29 +480,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "loadPreset", count, 1);
                 const bind::Path call { "loadPreset" };
-                std::string arg_name {};
-                read(ctx, argv[0], call.field("name"), arg_name);
+                std::string arg_path {};
+                read(ctx, argv[0], call.field("path"), arg_path);
                 std::shared_ptr<js::detail::PendingPromise> pending;
                 jsi::Value promise = bind::newPromise(ctx, "loadPreset", pending);
-                const js::Promise<std::shared_ptr<Preset>> promiseHandle(pending, resolve_loadPreset);
-                bind::startAsync(*pending, [&] { api->loadPreset(std::move(arg_name), promiseHandle); });
+                const js::Promise<std::optional<Preset>> promiseHandle(pending, resolve_loadPreset);
+                bind::startAsync(*pending, [&] { api->loadPreset(std::move(arg_path), promiseHandle); });
                 return promise;
-                                });
-        }
-
-        jsi::Value call_makeBytes(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
-        {
-            return bind::invoke(ctx, "makeBytes",
-                                [&]() -> jsi::Value
-                                {
-                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
-                if (api == nullptr)
-                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
-                bind::expectArgumentCount(ctx, "makeBytes", count, 1);
-                const bind::Path call { "makeBytes" };
-                double arg_count {};
-                read(ctx, argv[0], call.field("count"), arg_count);
-                return write(ctx, api->makeBytes(std::move(arg_count)));
                                 });
         }
 
@@ -274,25 +500,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "makeRamp", count, 1);
                 const bind::Path call { "makeRamp" };
-                double arg_length {};
+                std::uint32_t arg_length {};
                 read(ctx, argv[0], call.field("length"), arg_length);
-                return write(ctx, api->makeRamp(std::move(arg_length)));
-                                });
-        }
-
-        jsi::Value call_presetName(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
-        {
-            return bind::invoke(ctx, "presetName",
-                                [&]() -> jsi::Value
-                                {
-                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
-                if (api == nullptr)
-                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
-                bind::expectArgumentCount(ctx, "presetName", count, 1);
-                const bind::Path call { "presetName" };
-                std::shared_ptr<Preset> arg_preset {};
-                bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset);
-                return write(ctx, api->presetName(std::move(arg_preset)));
+                return bind::writeBuffer(ctx, api->makeRamp(std::move(arg_length)));
                                 });
         }
 
@@ -322,7 +532,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 const bind::Path call { "reverseBytes" };
                 std::span<const std::uint8_t> arg_data {};
                 read(ctx, argv[0], call.field("data"), arg_data);
-                return write(ctx, api->reverseBytes(std::move(arg_data)));
+                return bind::writeBuffer(ctx, api->reverseBytes(std::move(arg_data)));
                                 });
         }
 
@@ -336,8 +546,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "save", count, 1);
                 const bind::Path call { "save" };
-                std::shared_ptr<Preset> arg_preset {};
-                bind::read(ctx, argv[0], call.field("preset"), kPresetHandle, arg_preset);
+                Preset arg_preset {};
+                read(ctx, argv[0], call.field("preset"), arg_preset);
                 std::shared_ptr<js::detail::PendingPromise> pending;
                 jsi::Value promise = bind::newPromise(ctx, "save", pending);
                 const js::Promise<void> promiseHandle(pending, bind::resolvePromiseWithUndefined);
@@ -359,8 +569,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 std::span<const double> arg_values {};
                 read(ctx, argv[0], call.field("values"), arg_values);
                 double arg_factor {};
-                read(ctx, argv[1], call.field("factor"), arg_factor);
-                return write(ctx, api->scale(std::move(arg_values), std::move(arg_factor)));
+                bind::readFloat64(ctx, argv[1], call.field("factor"), arg_factor);
+                return bind::writeBuffer(ctx, api->scale(std::move(arg_values), std::move(arg_factor)));
+                                });
+        }
+
+        jsi::Value call_setSolo(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "setSolo",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "setSolo", count, 1);
+                const bind::Path call { "setSolo" };
+                std::optional<std::int32_t> arg_slot {};
+                bind::readNullable(ctx, argv[0], call.field("slot"), arg_slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& present) { read(innerCtx, inner, innerPath, present); });
+                api->setSolo(std::move(arg_slot));
+                return jsi::Value::undefined();
+                                });
+        }
+
+        jsi::Value call_solo(bind::ContextState& ctx, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return bind::invoke(ctx, "solo",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "solo", count, 0);
+                return bind::writeNullable(ctx, api->solo(), [](bind::ContextState& innerCtx, std::int32_t&& present) { return write(innerCtx, present); });
                                 });
         }
 
@@ -374,7 +614,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "sumBytes", count, 1);
                 const bind::Path call { "sumBytes" };
-                std::span<const std::byte> arg_data {};
+                std::span<const std::uint8_t> arg_data {};
                 read(ctx, argv[0], call.field("data"), arg_data);
                 return write(ctx, api->sumBytes(std::move(arg_data)));
                                 });
@@ -395,6 +635,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 return write(ctx, api->sumInts(std::move(arg_values)));
                                 });
         }
+
+        jsi::Value call_sumWords(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
+        {
+            return bind::invoke(ctx, "sumWords",
+                                [&]() -> jsi::Value
+                                {
+                auto* api = bind::contextData<NativeApi>(ctx, &apiKey);
+                if (api == nullptr)
+                    bind::throwInternalError(ctx, "soundor:native is not installed in this context");
+                bind::expectArgumentCount(ctx, "sumWords", count, 1);
+                const bind::Path call { "sumWords" };
+                std::optional<std::span<const std::uint64_t>> arg_values {};
+                bind::readNullable(ctx, argv[0], call.field("values"), arg_values, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::span<const std::uint64_t>& present) { read(innerCtx, inner, innerPath, present); });
+                return bind::writeNullable(ctx, api->sumWords(std::move(arg_values)), [](bind::ContextState& innerCtx, std::uint64_t&& present) { return write(innerCtx, present); });
+                                });
+        }
     } // namespace
 
     void install(js::Context& context, std::shared_ptr<NativeApi> api)
@@ -408,24 +664,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                      {
                                          bind::setProperty(ctx, exports, "add", bind::function(ctx, "add", 2, call_add));
                                          bind::setProperty(ctx, exports, "analyze", bind::function(ctx, "analyze", 1, call_analyze));
+                                         bind::setProperty(ctx, exports, "applyPreset", bind::function(ctx, "applyPreset", 1, call_applyPreset));
                                          bind::setProperty(ctx, exports, "centroid", bind::function(ctx, "centroid", 1, call_centroid));
-                                         bind::setProperty(ctx, exports, "createPreset", bind::function(ctx, "createPreset", 1, call_createPreset));
+                                         bind::setProperty(ctx, exports, "curves", bind::function(ctx, "curves", 0, call_curves));
+                                         bind::setProperty(ctx, exports, "echoBuffers", bind::function(ctx, "echoBuffers", 1, call_echoBuffers));
+                                         bind::setProperty(ctx, exports, "echoFloat32", bind::function(ctx, "echoFloat32", 1, call_echoFloat32));
+                                         bind::setProperty(ctx, exports, "echoInt64", bind::function(ctx, "echoInt64", 1, call_echoInt64));
+                                         bind::setProperty(ctx, exports, "echoNumbers", bind::function(ctx, "echoNumbers", 1, call_echoNumbers));
+                                         bind::setProperty(ctx, exports, "echoOptionals", bind::function(ctx, "echoOptionals", 1, call_echoOptionals));
+                                         bind::setProperty(ctx, exports, "echoUint64", bind::function(ctx, "echoUint64", 1, call_echoUint64));
+                                         bind::setProperty(ctx, exports, "echoUint8", bind::function(ctx, "echoUint8", 1, call_echoUint8));
                                          bind::setProperty(ctx, exports, "fail", bind::function(ctx, "fail", 1, call_fail));
+                                         bind::setProperty(ctx, exports, "firstPoint", bind::function(ctx, "firstPoint", 1, call_firstPoint));
+                                         bind::setProperty(ctx, exports, "getSpectrum", bind::function(ctx, "getSpectrum", 0, call_getSpectrum));
                                          bind::setProperty(ctx, exports, "greet", bind::function(ctx, "greet", 1, call_greet));
                                          bind::setProperty(ctx, exports, "invert", bind::function(ctx, "invert", 1, call_invert));
                                          bind::setProperty(ctx, exports, "isEven", bind::function(ctx, "isEven", 1, call_isEven));
                                          bind::setProperty(ctx, exports, "joinTags", bind::function(ctx, "joinTags", 1, call_joinTags));
-                                         bind::setProperty(ctx, exports, "listPresets", bind::function(ctx, "listPresets", 0, call_listPresets));
                                          bind::setProperty(ctx, exports, "loadPreset", bind::function(ctx, "loadPreset", 1, call_loadPreset));
-                                         bind::setProperty(ctx, exports, "makeBytes", bind::function(ctx, "makeBytes", 1, call_makeBytes));
                                          bind::setProperty(ctx, exports, "makeRamp", bind::function(ctx, "makeRamp", 1, call_makeRamp));
-                                         bind::setProperty(ctx, exports, "presetName", bind::function(ctx, "presetName", 1, call_presetName));
                                          bind::setProperty(ctx, exports, "reset", bind::function(ctx, "reset", 0, call_reset));
                                          bind::setProperty(ctx, exports, "reverseBytes", bind::function(ctx, "reverseBytes", 1, call_reverseBytes));
                                          bind::setProperty(ctx, exports, "save", bind::function(ctx, "save", 1, call_save));
                                          bind::setProperty(ctx, exports, "scale", bind::function(ctx, "scale", 2, call_scale));
+                                         bind::setProperty(ctx, exports, "setSolo", bind::function(ctx, "setSolo", 1, call_setSolo));
+                                         bind::setProperty(ctx, exports, "solo", bind::function(ctx, "solo", 0, call_solo));
                                          bind::setProperty(ctx, exports, "sumBytes", bind::function(ctx, "sumBytes", 1, call_sumBytes));
                                          bind::setProperty(ctx, exports, "sumInts", bind::function(ctx, "sumInts", 1, call_sumInts));
+                                         bind::setProperty(ctx, exports, "sumWords", bind::function(ctx, "sumWords", 1, call_sumWords));
                                      },
                                      {},
                                      {},

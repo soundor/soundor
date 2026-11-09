@@ -7,17 +7,19 @@
  * ```ts
  * native: {
  *   types: {
- *     Analysis: { struct: { rms: 'number', peak: 'number' } },
+ *     Analysis: { struct: { rms: 'float32', peak: 'float32' } },
  *     Curve: { enum: ['linear', 'exponential'] },
- *     Preset: 'handle',
+ *     Preset: { struct: { name: 'string', gains: 'float32[]' } },
  *   },
  *   methods: {
- *     analyze: { args: { samples: 'Float32Array' }, returns: 'Analysis' },
- *     loadPreset: { args: { path: 'string' }, returns: 'Preset', async: true },
+ *     analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
+ *     loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
  *   },
  * }
  * ```
  *
+ * The schema is language-neutral: its types say what a value is (a 32-bit
+ * float, an array, contiguous numbers), not what JavaScript or C++ calls it.
  * {@link describeNativeApi} validates that form and resolves it into a
  * {@link NativeApiModel}: every type reference parsed, names sorted, so the
  * TypeScript declarations and the C++ bindings are generated from one
@@ -27,15 +29,21 @@
 // ── Config form ──────────────────────────────────────────────────────────────
 
 /**
- * A type reference: a primitive (`'number'`), a binary type (`'Float32Array'`),
- * a type declared under `native.types` (`'Preset'`), or a one-level array of a
- * non-binary type (`'string[]'`). `'void'` is only valid as a return type.
+ * A type reference:
+ *
+ * - a primitive: `'boolean'`, `'string'`, a sized integer (`'int8'` …
+ *   `'uint64'`) or float (`'float32'`, `'float64'`);
+ * - a type declared under `native.types` (`'Preset'`);
+ * - `'T[]'`, an array (a list of values) of a primitive or declared type;
+ * - `'buffer<T>'`, contiguous binary numbers of one sized numeric type;
+ * - any of these followed by `?`, which also accepts `null`.
+ *
+ * `'void'` is only valid as a return type.
  */
 export type NativeTypeRef = string;
 
 /** A type declared under `native.types`. */
 export type NativeTypeDeclaration =
-  | 'handle'
   | { readonly struct: Readonly<Record<string, NativeTypeRef>> }
   | { readonly enum: readonly string[] };
 
@@ -56,28 +64,54 @@ export interface NativeApiDeclaration {
 
 // ── Resolved model ──────────────────────────────────────────────────────────
 
-export const PRIMITIVE_TYPES = ['boolean', 'number', 'string'] as const;
+/** Integers: up to 32 bits a JavaScript number, 64 bits a bigint. */
+export const INTEGER_TYPES = [
+  'int8',
+  'uint8',
+  'int16',
+  'uint16',
+  'int32',
+  'uint32',
+  'int64',
+  'uint64',
+] as const;
+export const FLOAT_TYPES = ['float32', 'float64'] as const;
+/** The fixed-width numeric types, the only ones a `buffer<T>` holds. */
+export const NUMERIC_TYPES = [...INTEGER_TYPES, ...FLOAT_TYPES] as const;
+export const PRIMITIVE_TYPES = ['boolean', 'string', ...NUMERIC_TYPES] as const;
+
+export type IntegerTypeName = (typeof INTEGER_TYPES)[number];
+export type NumericTypeName = (typeof NUMERIC_TYPES)[number];
 export type PrimitiveTypeName = (typeof PRIMITIVE_TYPES)[number];
 
-export const BINARY_TYPES = [
-  'ArrayBuffer',
-  'Uint8Array',
-  'Int32Array',
-  'Float32Array',
-  'Float64Array',
-] as const;
-export type BinaryTypeName = (typeof BINARY_TYPES)[number];
+/** The JavaScript typed array a `buffer<T>` is, by element type. */
+export const BUFFER_ARRAY_TYPES = {
+  int8: 'Int8Array',
+  uint8: 'Uint8Array',
+  int16: 'Int16Array',
+  uint16: 'Uint16Array',
+  int32: 'Int32Array',
+  uint32: 'Uint32Array',
+  int64: 'BigInt64Array',
+  uint64: 'BigUint64Array',
+  float32: 'Float32Array',
+  float64: 'Float64Array',
+} as const satisfies Record<NumericTypeName, string>;
 
 export type NativeType =
   | { readonly kind: 'void' }
   | { readonly kind: 'primitive'; readonly name: PrimitiveTypeName }
-  | { readonly kind: 'binary'; readonly name: BinaryTypeName }
   | {
       readonly kind: 'declared';
       readonly name: string;
-      readonly declaration: 'struct' | 'enum' | 'handle';
+      readonly declaration: 'struct' | 'enum';
     }
-  | { readonly kind: 'array'; readonly element: NativeType };
+  /** `T[]`: a list of values, copied across. */
+  | { readonly kind: 'array'; readonly element: NativeType }
+  /** `buffer<T>`: contiguous binary numbers. */
+  | { readonly kind: 'buffer'; readonly element: NumericTypeName }
+  /** `T?`: `T` or `null`. Never nested, never void. */
+  | { readonly kind: 'nullable'; readonly inner: NativeType };
 
 export interface NativeField {
   readonly name: string;
@@ -94,8 +128,7 @@ export type NativeTypeModel =
       readonly kind: 'enum';
       readonly name: string;
       readonly values: readonly string[];
-    }
-  | { readonly kind: 'handle'; readonly name: string };
+    };
 
 export interface NativeMethodModel {
   readonly name: string;
@@ -232,15 +265,19 @@ const RESERVED_NAMES = new Set([
   'install',
 ]);
 
+// Names a declared type cannot take: they would shadow what the generated
+// TypeScript refers to.
 const BUILTIN_TYPE_NAMES = new Set<string>([
-  'void',
-  ...PRIMITIVE_TYPES,
-  ...BINARY_TYPES,
+  ...Object.values(BUFFER_ARRAY_TYPES),
+  'ArrayBuffer',
+  'BigInt',
   'Promise',
   'Array',
   'Object',
   'Error',
 ]);
+
+type DeclarationKind = 'struct' | 'enum' | 'invalid';
 
 /** Validates a `native` declaration and resolves it into a model. */
 export function describeNativeApi(
@@ -251,7 +288,7 @@ export function describeNativeApi(
   const typeDecls = declaration?.types ?? {};
   const methodDecls = declaration?.methods ?? {};
 
-  const declaredKinds = new Map<string, 'struct' | 'enum' | 'handle'>();
+  const declaredKinds = new Map<string, DeclarationKind>();
   for (const [name, decl] of sortedEntries(typeDecls)) {
     const path = `${basePath}.types.${name}`;
     if (!TYPE_NAME.test(name)) {
@@ -274,9 +311,7 @@ export function describeNativeApi(
   const types: NativeTypeModel[] = [];
   for (const [name, decl] of sortedEntries(typeDecls)) {
     const path = `${basePath}.types.${name}`;
-    if (decl === 'handle') {
-      types.push({ kind: 'handle', name });
-    } else if (isRecord(decl) && 'struct' in decl) {
+    if (isRecord(decl) && 'struct' in decl) {
       const fields = checkMembers(
         decl.struct,
         `${path}.struct`,
@@ -286,15 +321,6 @@ export function describeNativeApi(
         name: fieldName,
         type: resolve(ref, `${path}.struct.${fieldName}`, false),
       }));
-      for (const field of fields) {
-        if (!isStructFieldType(field.type)) {
-          issues.push({
-            path: `${path}.struct.${field.name}`,
-            message:
-              'struct fields may be primitives, enums, structs or arrays of them; binary data and handles are passed as method arguments instead',
-          });
-        }
-      }
       types.push({ kind: 'struct', name, fields });
     } else if (isRecord(decl) && 'enum' in decl) {
       types.push({
@@ -305,7 +331,10 @@ export function describeNativeApi(
     } else {
       issues.push({
         path,
-        message: "expected 'handle', { struct: { ... } } or { enum: [ ... ] }",
+        message:
+          decl === 'handle'
+            ? "'handle' types are gone: declare a { struct: { ... } } of the values the UI needs, or pass an ID or path"
+            : 'expected { struct: { ... } } or { enum: [ ... ] }',
       });
     }
   }
@@ -342,40 +371,103 @@ export function describeNativeApi(
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-function declarationKind(decl: unknown): 'struct' | 'enum' | 'handle' {
+function declarationKind(decl: unknown): DeclarationKind {
   if (isRecord(decl) && 'struct' in decl) return 'struct';
   if (isRecord(decl) && 'enum' in decl) return 'enum';
-  return 'handle';
+  return 'invalid';
 }
+
+const BUFFER_REF = /^buffer<(.*)>$/;
 
 function resolveTypeRef(
   ref: unknown,
   path: string,
   allowVoid: boolean,
-  declared: ReadonlyMap<string, 'struct' | 'enum' | 'handle'>,
+  declared: ReadonlyMap<string, DeclarationKind>,
   issues: NativeApiIssue[],
 ): NativeType {
-  const fallback: NativeType = { kind: 'void' };
   if (typeof ref !== 'string') {
     issues.push({ path, message: 'expected a type name string' });
-    return fallback;
+    return { kind: 'void' };
+  }
+  if (!ref.endsWith('?')) {
+    return resolveValueRef(ref, path, allowVoid, declared, issues);
+  }
+  const inner = ref.slice(0, -1);
+  if (inner.endsWith('?') || inner === 'void') {
+    issues.push({
+      path,
+      message: `'${ref}' is not supported; '?' follows a value type once ('int32?', 'Preset?', 'float32[]?')`,
+    });
+    return { kind: 'void' };
+  }
+  return {
+    kind: 'nullable',
+    inner: resolveValueRef(inner, path, false, declared, issues),
+  };
+}
+
+/** A type without a trailing `?`. */
+function resolveValueRef(
+  ref: string,
+  path: string,
+  allowVoid: boolean,
+  declared: ReadonlyMap<string, DeclarationKind>,
+  issues: NativeApiIssue[],
+): NativeType {
+  const buffer = BUFFER_REF.exec(ref);
+  if (buffer !== null) {
+    const element = buffer[1]!;
+    if ((NUMERIC_TYPES as readonly string[]).includes(element)) {
+      return { kind: 'buffer', element: element as NumericTypeName };
+    }
+    issues.push({
+      path,
+      message: `'${ref}' is not supported; a buffer holds one fixed-width numeric type: ${NUMERIC_TYPES.join(', ')}`,
+    });
+    return { kind: 'void' };
   }
   if (ref.endsWith('[]')) {
-    const element = resolveTypeRef(
-      ref.slice(0, -2),
-      path,
-      false,
-      declared,
-      issues,
-    );
-    if (element.kind === 'array' || element.kind === 'binary') {
+    const elementRef = ref.slice(0, -2);
+    if (
+      elementRef.endsWith('[]') ||
+      elementRef.endsWith('?') ||
+      BUFFER_REF.test(elementRef)
+    ) {
       issues.push({
         path,
-        message: `'${ref}' is not supported; arrays hold primitives, enums, structs or handles`,
+        message: `'${ref}' is not supported; an array holds primitives, enums or structs (wrap anything else in a struct)`,
       });
+      return { kind: 'void' };
     }
-    return { kind: 'array', element };
+    return {
+      kind: 'array',
+      element: resolveNamedRef(elementRef, path, false, declared, issues),
+    };
   }
+  return resolveNamedRef(ref, path, allowVoid, declared, issues);
+}
+
+/** Former names, and what to write instead. */
+const REPLACED_TYPES: Readonly<Record<string, string>> = {
+  number: "a sized number ('int32', 'float64', ...)",
+  ArrayBuffer: "'buffer<uint8>'",
+  ...Object.fromEntries(
+    Object.entries(BUFFER_ARRAY_TYPES).map(([element, array]) => [
+      array,
+      `'buffer<${element}>'`,
+    ]),
+  ),
+};
+
+/** `void`, a primitive or a declared type. */
+function resolveNamedRef(
+  ref: string,
+  path: string,
+  allowVoid: boolean,
+  declared: ReadonlyMap<string, DeclarationKind>,
+  issues: NativeApiIssue[],
+): NativeType {
   if (ref === 'void') {
     if (!allowVoid) {
       issues.push({ path, message: "'void' is only valid as a return type" });
@@ -385,24 +477,20 @@ function resolveTypeRef(
   if ((PRIMITIVE_TYPES as readonly string[]).includes(ref)) {
     return { kind: 'primitive', name: ref as PrimitiveTypeName };
   }
-  if ((BINARY_TYPES as readonly string[]).includes(ref)) {
-    return { kind: 'binary', name: ref as BinaryTypeName };
-  }
   const declaration = declared.get(ref);
-  if (declaration !== undefined) {
+  if (declaration === 'struct' || declaration === 'enum') {
     return { kind: 'declared', name: ref, declaration };
   }
+  if (declaration === 'invalid') return { kind: 'void' };
+  const replacement = REPLACED_TYPES[ref];
   issues.push({
     path,
-    message: `unknown type '${ref}'; use ${[...PRIMITIVE_TYPES, ...BINARY_TYPES].join(', ')}, a type declared in native.types, or an array of one ('T[]')`,
+    message:
+      replacement !== undefined
+        ? `'${ref}' is not a native type; use ${replacement}`
+        : `unknown type '${ref}'; use ${PRIMITIVE_TYPES.join(', ')}, a type declared in native.types, 'T[]', 'buffer<T>' or 'T?'`,
   });
-  return fallback;
-}
-
-function isStructFieldType(type: NativeType): boolean {
-  if (type.kind === 'array') return isStructFieldType(type.element);
-  if (type.kind === 'primitive') return true;
-  return type.kind === 'declared' && type.declaration !== 'handle';
+  return { kind: 'void' };
 }
 
 function checkMembers(
@@ -527,6 +615,7 @@ function structDependencies(
   const names: string[] = [];
   const collect = (type: NativeType): void => {
     if (type.kind === 'array') collect(type.element);
+    else if (type.kind === 'nullable') collect(type.inner);
     else if (type.kind === 'declared' && type.declaration === 'struct')
       names.push(type.name);
   };
@@ -534,7 +623,7 @@ function structDependencies(
   return names;
 }
 
-/** Enums and handles first (sorted), then structs in dependency order. */
+/** Enums first (sorted), then structs in dependency order. */
 function orderStructs(types: readonly NativeTypeModel[]): NativeTypeModel[] {
   const others = types.filter((type) => type.kind !== 'struct');
   const structs = new Map(

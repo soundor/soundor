@@ -71,7 +71,7 @@ const expectedData = {
     },
   ],
   native: {
-    methods: { render: { args: { request: 'string' }, returns: 'number' } },
+    methods: { render: { args: { request: 'string' }, returns: 'float64' } },
   },
 };
 
@@ -297,7 +297,7 @@ describe('validateConfig — validation rules', () => {
     const error = expectValidation({
       ...base,
       native: {
-        types: { Point: { struct: { x: 'number' } } },
+        types: { Point: { struct: { x: 'float64' } } },
         methods: { move: { args: { to: 'Pointt' } }, delete: {} },
       },
     });
@@ -309,9 +309,9 @@ describe('validateConfig — validation rules', () => {
 
   it('keeps a valid native API as declared', () => {
     const native = {
-      types: { Preset: 'handle' },
+      types: { Preset: { struct: { name: 'string', gains: 'float32[]' } } },
       methods: {
-        load: { args: { path: 'string' }, returns: 'Preset', async: true },
+        load: { args: { path: 'string' }, returns: 'Preset?', async: true },
       },
     };
     expect(validateConfig({ ...base, native }).native).toEqual(native);

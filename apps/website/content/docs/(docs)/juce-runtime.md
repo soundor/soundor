@@ -276,8 +276,9 @@ gestures, so hosts record UI drags as automation.
 The config's `native` section (see `@soundor/config`) declares the plugin's
 typed native API. `gen` turns it into:
 
-- `soundor/native/SoundorNative.h` — the declared structs, enums and handle base
-  classes, and a `soundor::native::NativeApi` interface to implement in C++;
+- `soundor/native/SoundorNative.h` — the declared structs and enums, and a
+  `soundor::native::NativeApi` interface to implement in C++, with exact
+  types (`std::int32_t`, `float`, `std::optional<T>`, `std::vector<T>`);
 - `soundor/native/SoundorNative.cpp` — the JavaScript bindings: argument
   validation, conversion, exceptions and promises.
 
@@ -291,9 +292,11 @@ std::shared_ptr<soundor::native::NativeApi> createNativeApi() override
 ```
 
 JavaScript imports the methods from `soundor:native` with full types (from
-`.soundor/generated/native.d.ts`). Typed arrays are passed to C++ without
-copying, native objects travel as opaque handles, and a C++ exception becomes a
-JavaScript `Error`. See [the engine reference](/docs/contribute/engine-reference).
+`.soundor/generated/native.d.ts`). Buffer arguments are lent to C++ without
+copying, every other value is converted and checked, and a C++ exception becomes
+a JavaScript `Error`. See [the config reference](/docs/cli/config#native) for the
+types and [the engine reference](/docs/contribute/engine-reference) for how
+they cross.
 
 ### Web APIs, `soundor:host`, `soundor:storage`, `soundor:fs`
 

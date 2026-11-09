@@ -374,7 +374,9 @@ interface and installs it into each context:
 class Api final : public soundor::native::NativeApi
 {
     soundor::native::Analysis analyze(std::span<const float> samples) override;
-    void loadPreset(std::string path, soundor::js::Promise<std::shared_ptr<soundor::native::Preset>> promise) override;
+    std::vector<float> getSpectrum() override;
+    void loadPreset(std::string path, soundor::js::Promise<std::optional<soundor::native::Preset>> promise) override;
+    void setSolo(std::optional<std::int32_t> slot) override;
 };
 
 soundor::native::install(context, std::make_shared<Api>());
@@ -382,18 +384,27 @@ soundor::native::install(context, std::make_shared<Api>());
 
 - **Validation.** Every argument is type-checked before C++ runs, and a mismatch
   is a `TypeError` naming the path, e.g. `centroid(): points[1].y: expected
-  number, got undefined`. Missing arguments are errors; extra ones are ignored,
-  as for any JavaScript function.
-- **Binary data.** Typed-array and `ArrayBuffer` arguments arrive as read-only
-  `std::span`s into the JavaScript buffer: zero-copy, valid until the method
-  returns. Returned `std::vector`s move into JavaScript-owned buffers without a
-  copy.
-- **Handles.** Native objects cross as opaque JavaScript objects backed by a
-  `std::shared_ptr` (in the object's JSI native state). They cannot be forged
-  or confused between types. The C++ object is released on the runtime's
-  thread: at the next job drain (the next tick) after the garbage collector
-  finalizes the handle, and at the latest when its context is destroyed, so
-  its destructor never runs on the collector's thread.
+  float64, got undefined`; a number beyond its type's range is a `RangeError`
+  (`echoUint8(): value: 256 is out of range for uint8 (0 to 255)`). Missing
+  arguments are errors; extra ones are ignored, as for any JavaScript function.
+  The web runtime checks with the same rules and messages
+  (`web-runtime/src/client/native-values.ts`).
+- **Numbers** convert exactly (`js/Bindings.h`): integers of up to 32 bits
+  from numbers that are integers in range, `int64`/`uint64` from bigints
+  through JSI's `BigInt` (`isInt64`/`isUint64`, so the whole range is
+  lossless), `float32` rounded to nearest, as `Math.fround`. Results go back
+  the same way.
+- **Nullable** values are `std::optional`: `null` is `std::nullopt` both
+  ways; `undefined` is read as a value and fails.
+- **Buffers.** A `buffer<T>` argument arrives as a read-only `std::span` into
+  the JavaScript typed array (exactly that type, by its internal class):
+  zero-copy, valid until the method returns. A buffer in a struct is copied
+  into a `std::vector`. Returned `std::vector`s move into JavaScript-owned
+  `ArrayBuffer`s (a `jsi::MutableBuffer` that keeps the vector) under a typed
+  array, without a copy, freed by the garbage collector; nothing native
+  outlives the call in JavaScript's hands. Hermes can back an `ArrayBuffer`
+  with external memory this way, but a borrowed or shared buffer would need a
+  lifetime contract the API does not have, so there is none.
 - **Errors.** A C++ exception from a method becomes a JavaScript `Error`
   (`"fail(): disk full"`); only `jsi::JSError`, JSI's own, reaches the engine.
 - **Async.** `async` methods receive a `js::Promise<T>` to settle later, on the
@@ -1150,9 +1161,8 @@ Each `Context` is a Hermes runtime of its own, and each has a thread of
 Hermes's own: its collector (Hades) collects the old generation concurrently
 there, while JavaScript keeps running, and finalizes what it collects there
 too. That thread runs no JavaScript, and Soundor's finalizers only queue:
-FinalizationRegistry cells and the native objects of handles go to the
-context under a mutex, and are reported and released on the context's thread
-when its jobs drain (`ContextState::runFinalizers`, `releaseHandles`). A host
+FinalizationRegistry cells go to the context under a mutex, and are reported
+on the context's thread when its jobs drain (`ContextState::runFinalizers`). A host
 with ten plugin editors open has ten of these threads. With a time limit,
 Hermes has one more thread per plugin binary (its `time-limit-monitor`),
 asleep until a deadline passes, when it asks the engine to stop.

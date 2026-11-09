@@ -29,6 +29,7 @@
 #include <exception>
 #include <memory>
 #include <new>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -101,16 +102,50 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     void read(ContextState& context, const jsi::Value& value, const Path& path, double& out);
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::string& out);
 
+    // Sized numbers, never coerced. An integer of up to 32 bits comes from a
+    // number that is an integer, a 64-bit one from a bigint, a float from a
+    // number (rounded to the nearest float). The wrong kind of value is a
+    // TypeError ("expected int32, got string", "expected an integer (int32),
+    // got 1.5"), a value beyond the type's range a RangeError ("300 is out of
+    // range for uint8 (0 to 255)").
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int8_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint8_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int16_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint16_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int32_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint32_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::int64_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::uint64_t& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, float& out);
+    // As read() for a double, naming the native API's type in its message.
+    void readFloat64(ContextState& context, const jsi::Value& value, const Path& path, double& out);
+
     // Binary views borrow the JavaScript buffer for the duration of the call:
     // zero-copy, read-only, and invalid once the native method returns (or
     // calls back into JavaScript). Typed arrays must be exactly the type
     // (by their internal class, not their prototype); a detached buffer
     // reads as empty.
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::byte>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int8_t>& out);
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint8_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int16_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint16_t>& out);
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int32_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint32_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::int64_t>& out);
+    void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const std::uint64_t>& out);
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const float>& out);
     void read(ContextState& context, const jsi::Value& value, const Path& path, std::span<const double>& out);
+
+    // A typed array's elements, copied: for a buffer held by value (a struct
+    // field), which outlives the call.
+    template <typename T>
+    void readBuffer(ContextState& context, const jsi::Value& value, const Path& path, std::vector<T>& out)
+    {
+        std::span<const T> view;
+        read(context, value, path, view);
+        out.assign(view.begin(), view.end());
+    }
 
     // The bytes of an ArrayBuffer or any typed array (its view), borrowed and
     // writable (for natives that fill a buffer); invalid once the native
@@ -124,6 +159,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     // Reads one of `values`, reporting its position.
     void readEnum(ContextState& context, const jsi::Value& value, const Path& path,
                   std::span<const std::string_view> values, std::size_t& index);
+
+    // null, or what `readValue` reads (called as readValue(context, value,
+    // path, out)). undefined is not null: it is read, and fails, as a value.
+    template <typename T, typename ReadValue>
+    void readNullable(ContextState& context, const jsi::Value& value, const Path& path, std::optional<T>& out,
+                      ReadValue readValue)
+    {
+        if (value.isNull())
+        {
+            out.reset();
+            return;
+        }
+        T inner {};
+        readValue(context, value, path, inner);
+        out = std::move(inner);
+    }
 
     // A plain object (not an array or function).
     [[nodiscard]] jsi::Object expectObject(ContextState& context, const jsi::Value& value, const Path& path);
@@ -171,6 +222,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     {
         return { value };
     }
+    // Integers of up to 32 bits and floats become numbers, 64-bit integers
+    // bigints: every value exactly.
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::int8_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::uint8_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::int16_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::uint16_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::int32_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, std::uint32_t value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] inline jsi::Value write(ContextState&, float value)
+    {
+        return { static_cast<double>(value) };
+    }
+    [[nodiscard]] jsi::Value write(ContextState& context, std::int64_t value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::uint64_t value);
     [[nodiscard]] jsi::Value write(ContextState& context, std::string_view value);
     [[nodiscard]] inline jsi::Value write(ContextState& context, const std::string& value)
     {
@@ -182,13 +265,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         return write(context, std::string_view(value));
     }
 
-    // Binary results move their storage into a JavaScript-owned ArrayBuffer:
-    // zero-copy, and freed by the garbage collector.
+    // Binary results move their storage into a JavaScript-owned ArrayBuffer
+    // (std::byte) or a typed array over one: zero-copy, owned by JavaScript
+    // from then on, and freed by the garbage collector.
     [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::byte>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::int8_t>&& value);
     [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::uint8_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::int16_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::uint16_t>&& value);
     [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::int32_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::uint32_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::int64_t>&& value);
+    [[nodiscard]] jsi::Value write(ContextState& context, std::vector<std::uint64_t>&& value);
     [[nodiscard]] jsi::Value write(ContextState& context, std::vector<float>&& value);
     [[nodiscard]] jsi::Value write(ContextState& context, std::vector<double>&& value);
+
+    // A buffer result (a typed array), as write() makes it; named so that
+    // generated code never confuses one with an array of numbers.
+    template <typename T>
+    [[nodiscard]] jsi::Value writeBuffer(ContextState& context, std::vector<T>&& values)
+    {
+        return write(context, std::move(values));
+    }
+
+    // null for an empty optional, else what `writeValue` makes of its value
+    // (called as writeValue(context, value)).
+    template <typename T, typename WriteValue>
+    [[nodiscard]] jsi::Value writeNullable(ContextState& context, std::optional<T>&& value, WriteValue writeValue)
+    {
+        if (! value.has_value())
+            return jsi::Value::null();
+        return writeValue(context, std::move(*value));
+    }
 
     [[nodiscard]] jsi::Value writeEnum(ContextState& context, std::string_view value);
 
@@ -220,28 +328,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
         ContextState& context;
         jsi::Object object;
     };
-
-    // ── Opaque native handles ────────────────────────────────────────────────
-
-    // Identifies one handle type; generated code defines one per declared
-    // handle, and compares them by address.
-    struct HandleType
-    {
-        const char* name;
-    };
-
-    void readHandle(ContextState& context, const jsi::Value& value, const Path& path, const HandleType& type,
-                    std::shared_ptr<void>& out);
-    [[nodiscard]] jsi::Value writeHandle(ContextState& context, const HandleType& type, std::shared_ptr<void> object);
-
-    template <typename T>
-    void read(ContextState& context, const jsi::Value& value, const Path& path, const HandleType& type,
-              std::shared_ptr<T>& out)
-    {
-        std::shared_ptr<void> object;
-        readHandle(context, value, path, type, object);
-        out = std::static_pointer_cast<T>(std::move(object));
-    }
 
     // ── Native functions ─────────────────────────────────────────────────────
 

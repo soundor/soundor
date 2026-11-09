@@ -59,7 +59,7 @@ export {
 } from './generate';
 
 export type {
-  BinaryTypeName,
+  IntegerTypeName,
   NativeApiDeclaration,
   NativeApiIssue,
   NativeApiModel,
@@ -71,12 +71,16 @@ export type {
   NativeTypeDeclaration,
   NativeTypeModel,
   NativeTypeRef,
+  NumericTypeName,
   PrimitiveTypeName,
 } from './native-api';
 export {
-  BINARY_TYPES,
+  BUFFER_ARRAY_TYPES,
+  FLOAT_TYPES,
+  INTEGER_TYPES,
+  NUMERIC_TYPES,
   PRIMITIVE_TYPES,
   describeNativeApi,
   enumeratorName,
 } from './native-api';
-export { renderNativeDts } from './native-dts';
+export { nativeTsType, renderNativeDts } from './native-dts';

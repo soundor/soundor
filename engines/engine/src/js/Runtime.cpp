@@ -83,7 +83,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         {
             if (! context->halted())
                 context->rt.instrumentation().collectGarbage("soundor");
-            context->releaseHandles();
         }
     }
 

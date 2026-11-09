@@ -188,8 +188,6 @@ async function loadSetup(load: () => Promise<unknown>): Promise<WebAudioSetup> {
   return setup as WebAudioSetup;
 }
 
-export { defineHandle } from './native';
-export type { WebNativeHandle, WebNativeHandleType } from './native';
 export type {
   WebAudioCleanup,
   WebAudioInput,

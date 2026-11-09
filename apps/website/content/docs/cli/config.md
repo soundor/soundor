@@ -175,39 +175,75 @@ from `soundor:native`:
 ```ts
 native: {
   types: {
-    Analysis: { struct: { rms: 'number', peak: 'number' } },
+    Analysis: { struct: { rms: 'float32', peak: 'float32' } },
     Curve: { enum: ['linear', 'exponential'] },
-    Preset: 'handle',
+    Preset: { struct: { name: 'string', gains: 'float32[]' } },
   },
   methods: {
-    analyze: { args: { samples: 'Float32Array' }, returns: 'Analysis' },
+    analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
+    getSpectrum: { returns: 'buffer<float32>' },
     setCurve: { args: { curve: 'Curve' } },
-    loadPreset: { args: { path: 'string' }, returns: 'Preset', async: true },
+    loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
+    applyPreset: { args: { preset: 'Preset' } },
+    setSolo: { args: { slot: 'int32?' } },
   },
 }
 ```
 
 ```ts
-import { analyze, loadPreset } from 'soundor:native';
+import { analyze, loadPreset, setSolo } from 'soundor:native';
 
 const { rms } = analyze(samples);
-const preset = await loadPreset('/presets/warm.json');
+const preset = await loadPreset('/presets/warm.json'); // Preset | null
+setSolo(null);
 ```
 
 Methods take positional arguments in the order declared and return `returns`
-(default `void`); `async: true` methods return a `Promise`. Type references:
+(default `void`); `async: true` methods return a `Promise`. The types say what
+a value is, not what a language calls it, so the same declaration maps onto
+TypeScript, C++ and any later runtime:
 
-| Type                                                                      | JavaScript                                | C++ argument → result                                                      |
-| ------------------------------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------- |
-| `boolean`, `number`, `string`                                             | primitives                                | `bool`, `double`, `std::string`                                            |
-| `ArrayBuffer`, `Uint8Array`, `Int32Array`, `Float32Array`, `Float64Array` | binary data                               | `std::span<const T>` (zero-copy, valid during the call) → `std::vector<T>` |
-| a `struct` type                                                           | plain object                              | `struct`                                                                   |
-| an `enum` type                                                            | string literal union                      | `enum class`                                                               |
-| a `'handle'` type                                                         | opaque object only native code can create | `std::shared_ptr<T>`                                                       |
-| `T[]` (one level; not binary)                                             | array                                     | `std::vector<T>`                                                           |
+| Type                        | TypeScript               | C++                                                       |
+| --------------------------- | ------------------------ | --------------------------------------------------------- |
+| `boolean`                   | `boolean`                | `bool`                                                    |
+| `string`                    | `string`                 | `std::string`                                             |
+| `int8`, `uint8`, `int16`    | `number`                 | `std::int8_t`, `std::uint8_t`, `std::int16_t`             |
+| `uint16`, `int32`, `uint32` | `number`                 | `std::uint16_t`, `std::int32_t`, `std::uint32_t`          |
+| `int64`, `uint64`           | `bigint`                 | `std::int64_t`, `std::uint64_t`                           |
+| `float32`, `float64`        | `number`                 | `float`, `double`                                         |
+| a `struct` type             | interface (plain object) | `struct`                                                  |
+| an `enum` type              | string literal union     | `enum class`                                              |
+| `T[]`                       | `T[]`                    | `std::vector<T>`                                          |
+| `buffer<T>`                 | typed array (see below)  | argument `std::span<const T>`, otherwise `std::vector<T>` |
+| `T?`                        | `T \| null`              | `std::optional<T>`                                        |
 
-Struct fields may be primitives, enums, structs or arrays of them. Method,
-argument and field names are camelCase; type names are PascalCase.
+`void` is only a return type. Method, argument and field names are camelCase;
+type names are PascalCase.
+
+- **Numbers have a size.** There is no plain `number`: an integer type takes
+  an integer within its range, a float32 is rounded to the nearest float, and
+  64-bit integers are `bigint`s, so their whole range is exact. Nothing is
+  coerced: `1.5` for an `int32`, `'1'` for a `float64` or `1` for an `int64`
+  is a `TypeError`, `256` for a `uint8` a `RangeError`.
+- **`T[]` is a list of values:** primitives, enums or structs, copied across
+  and checked element by element. Not nested (`T[][]`): put the inner list in
+  a struct.
+- **`buffer<T>` is contiguous binary numbers** of one sized numeric type:
+  `buffer<int8>` is an `Int8Array`, `buffer<uint8>` a `Uint8Array`, and so on
+  to `buffer<int64>` (`BigInt64Array`), `buffer<uint64>` (`BigUint64Array`),
+  `buffer<float32>` (`Float32Array`) and `buffer<float64>` (`Float64Array`),
+  exactly that type (not an `ArrayBuffer` or another typed array). It moves
+  without per-element conversion, but it is not shared memory: a method
+  argument is lent to C++ for the call, and a buffer anywhere else (a result,
+  a struct field) is a copy JavaScript owns.
+- **`T?` means nullable, not optional:** the value is `null` or a `T`, and an
+  argument must still be passed. `undefined` is never a value. Any type but
+  `void` can be nullable (`'Preset?'`, `'float32[]?'`, `'buffer<float32>?'`),
+  except an array's elements.
+- **Structs are values**, any of the types above as fields. One that needs to
+  stand for something native, such as a loaded file, carries what the UI shows
+  and an ID or path the native side looks it up by; there are no opaque
+  native objects in JavaScript.
 
 ### `signing`
 

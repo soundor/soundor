@@ -265,20 +265,20 @@ The config's `native` section declares the API. `gen` turns it into
 ```ts
 // soundor.config.ts
 native: {
-  types: { Preset: 'handle', Analysis: { struct: { rms: 'number' } } },
+  types: {
+    Analysis: { struct: { rms: 'float32' } },
+    Preset: { struct: { name: 'string', gains: 'float32[]' } },
+  },
   methods: {
-    analyze: { args: { samples: 'Float32Array' }, returns: 'Analysis' },
-    loadPreset: { args: { path: 'string' }, returns: 'Preset', async: true },
+    analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
+    loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
   },
 },
 ```
 
 ```ts
 // runtimes/web/src/native.ts
-import {
-  Preset,
-  type WebNativeApi,
-} from '../../../.soundor/generated/runtimes/web/native';
+import type { WebNativeApi } from '../../../.soundor/generated/runtimes/web/native';
 
 export const native: WebNativeApi = {
   analyze(samples) {
@@ -287,7 +287,7 @@ export const native: WebNativeApi = {
   },
   async loadPreset(path) {
     const response = await fetch(path);
-    return Preset.wrap(await response.json());
+    return response.ok ? await response.json() : null;
   },
 };
 ```
@@ -296,10 +296,16 @@ export const native: WebNativeApi = {
   implement it. At startup the host also rejects an implementation that
   misses methods, naming them.
 - The plugin's `import { analyze } from 'soundor:native'` calls your function
-  directly. Typed arrays arrive as the same objects, exceptions stay
-  exceptions, and an async method always returns a promise.
-- Handles are opaque: `Preset.wrap(value)` makes one, `Preset.unwrap(handle)`
-  gets the value back, and anything else is rejected.
+  with what the JUCE runtime's C++ would get: the runtime checks every
+  argument with the same rules and errors (an `int32` must be an integer in
+  range, an `int64` a bigint, `null` only where a type is `T?`), rounds
+  `float32`s, and passes copies of structs and arrays with the declared fields
+  only. A buffer argument is the caller's own typed array, read-only by
+  contract, as C++ borrows it.
+- What you return is checked the same way (a mistake is a `TypeError` naming
+  `result`) and copied, buffers included, so the plugin never shares your
+  objects. Exceptions stay exceptions, and an async method always returns a
+  promise.
 
 ## Audio: raw Web Audio
 

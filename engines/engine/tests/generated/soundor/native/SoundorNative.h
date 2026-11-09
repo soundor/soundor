@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -20,13 +21,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         LowCut, // "low-cut"
     };
 
-    // Opaque to JavaScript: derive the native object from this class.
-    class Preset
-    {
-    public:
-        virtual ~Preset() = default;
-    };
-
     struct Point
     {
         double x {};
@@ -35,8 +29,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
 
     struct Analysis
     {
-        double rms {};
-        double peak {};
+        float rms {};
+        float peak {};
         std::string label {};
         bool clipped {};
         Curve curve {};
@@ -44,37 +38,93 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         std::vector<std::string> tags {};
     };
 
+    struct Buffers
+    {
+        std::vector<std::int8_t> i8 {};
+        std::vector<std::uint8_t> u8 {};
+        std::vector<std::int16_t> i16 {};
+        std::vector<std::uint16_t> u16 {};
+        std::vector<std::int32_t> i32 {};
+        std::vector<std::uint32_t> u32 {};
+        std::vector<std::int64_t> i64 {};
+        std::vector<std::uint64_t> u64 {};
+        std::vector<float> f32 {};
+        std::vector<double> f64 {};
+    };
+
+    struct Numbers
+    {
+        std::int8_t i8 {};
+        std::uint8_t u8 {};
+        std::int16_t i16 {};
+        std::uint16_t u16 {};
+        std::int32_t i32 {};
+        std::uint32_t u32 {};
+        std::int64_t i64 {};
+        std::uint64_t u64 {};
+        float f32 {};
+        double f64 {};
+    };
+
+    struct Optionals
+    {
+        std::optional<std::int32_t> slot {};
+        std::optional<std::uint64_t> id {};
+        std::optional<std::string> name {};
+        std::optional<Curve> curve {};
+        std::optional<Point> point {};
+        std::optional<std::vector<float>> gains {};
+        std::optional<std::vector<float>> samples {};
+    };
+
+    struct Preset
+    {
+        std::string name {};
+        std::vector<float> gains {};
+    };
+
     // The plugin's native API, declared under `native.methods` in
     // soundor.config. Implement it in the plugin and install() it into each
     // JavaScript context; JavaScript calls it through `soundor:native`.
     //
-    // Methods run on the UI/message thread and must not block it. Arguments
-    // that view binary data are only valid until the method returns. Async
-    // methods receive a js::Promise to settle later, on the same thread.
+    // Methods run on the UI/message thread and must not block it. Buffer
+    // arguments (std::span) view the JavaScript typed array and are only
+    // valid until the method returns; everything else is a value of its own.
+    // Async methods receive a js::Promise to settle later, on the same thread.
     class NativeApi
     {
     public:
         virtual ~NativeApi() = default;
-        virtual double add(double a, double b) = 0;
+        virtual std::int32_t add(std::int32_t a, std::int32_t b) = 0;
         virtual Analysis analyze(std::span<const float> samples) = 0;
+        virtual void applyPreset(Preset preset) = 0;
         virtual Point centroid(std::vector<Point> points) = 0;
-        virtual std::shared_ptr<Preset> createPreset(std::string name) = 0;
+        virtual std::vector<Curve> curves() = 0;
+        virtual Buffers echoBuffers(Buffers buffers) = 0;
+        virtual float echoFloat32(float value) = 0;
+        virtual std::int64_t echoInt64(std::int64_t value) = 0;
+        virtual Numbers echoNumbers(Numbers numbers) = 0;
+        virtual Optionals echoOptionals(Optionals optionals) = 0;
+        virtual std::uint64_t echoUint64(std::uint64_t value) = 0;
+        virtual std::uint8_t echoUint8(std::uint8_t value) = 0;
         virtual void fail(std::string message) = 0;
+        virtual std::optional<Point> firstPoint(std::optional<std::vector<Point>> points) = 0;
+        virtual std::vector<float> getSpectrum() = 0;
         virtual std::string greet(std::string name) = 0;
         virtual Curve invert(Curve curve) = 0;
-        virtual bool isEven(double value) = 0;
+        virtual bool isEven(std::int32_t value) = 0;
         virtual std::string joinTags(std::vector<std::string> tags) = 0;
-        virtual std::vector<std::shared_ptr<Preset>> listPresets() = 0;
-        virtual void loadPreset(std::string name, js::Promise<std::shared_ptr<Preset>> promise) = 0;
-        virtual std::vector<std::byte> makeBytes(double count) = 0;
-        virtual std::vector<float> makeRamp(double length) = 0;
-        virtual std::string presetName(std::shared_ptr<Preset> preset) = 0;
+        virtual void loadPreset(std::string path, js::Promise<std::optional<Preset>> promise) = 0;
+        virtual std::vector<float> makeRamp(std::uint32_t length) = 0;
         virtual void reset() = 0;
         virtual std::vector<std::uint8_t> reverseBytes(std::span<const std::uint8_t> data) = 0;
-        virtual void save(std::shared_ptr<Preset> preset, js::Promise<void> promise) = 0;
+        virtual void save(Preset preset, js::Promise<void> promise) = 0;
         virtual std::vector<double> scale(std::span<const double> values, double factor) = 0;
-        virtual double sumBytes(std::span<const std::byte> data) = 0;
-        virtual double sumInts(std::span<const std::int32_t> values) = 0;
+        virtual void setSolo(std::optional<std::int32_t> slot) = 0;
+        virtual std::optional<std::int32_t> solo() = 0;
+        virtual std::uint32_t sumBytes(std::span<const std::uint8_t> data) = 0;
+        virtual std::int64_t sumInts(std::span<const std::int32_t> values) = 0;
+        virtual std::optional<std::uint64_t> sumWords(std::optional<std::span<const std::uint64_t>> values) = 0;
     };
 
     // Makes `soundor:native` importable in `context`, backed by `api`. Call

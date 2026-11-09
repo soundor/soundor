@@ -28,7 +28,7 @@ const config = {
     },
   ],
   native: {
-    methods: { render: { args: { request: 'string' }, returns: 'number' } },
+    methods: { render: { args: { request: 'string' }, returns: 'float64' } },
   },
 } as unknown as SoundorConfig;
 

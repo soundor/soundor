@@ -66,34 +66,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         std::thread::id owner;
     };
 
-    // What Soundor attaches to a JavaScript object: the native object behind
-    // a handle (a bind::HandleType), and the FinalizationRegistry cells
-    // watching it. JSI allows one NativeState per object, so both live here.
+    // What Soundor attaches to a JavaScript object: the FinalizationRegistry
+    // cells watching it.
     struct ObjectState final : jsi::NativeState
     {
-        // A handle's native object, in a node of its own so that finalizing
-        // the handle queues it without allocating.
-        struct Handle
-        {
-            std::shared_ptr<void> object;
-            std::unique_ptr<Handle> next;
-        };
-
         // What the collector hands back to the context. Hades finalizes on a
         // thread of its own as well as on the context's, so a collected
-        // object only leaves its cells and its native object here, under the
-        // mutex; the context reports the cells and releases the objects on
-        // its own thread (ContextState::runFinalizers, releaseHandles).
+        // object only leaves its cells here, under the mutex; the context
+        // reports them on its own thread (ContextState::runFinalizers).
         struct Queue
         {
-            Queue() = default;
-            Queue(const Queue&) = delete;
-            Queue& operator=(const Queue&) = delete;
-            ~Queue();
-
             std::mutex mutex;
             std::vector<std::uint32_t> tokens;
-            std::unique_ptr<Handle> released;
         };
 
         ObjectState() = default;
@@ -101,15 +85,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         ObjectState& operator=(const ObjectState&) = delete;
         ~ObjectState() override;
 
-        // The handle's type (compared by address), or nullptr.
-        const void* handleType = nullptr;
-        std::unique_ptr<Handle> handle;
         std::shared_ptr<Queue> finalization;
         std::vector<std::uint32_t> tokens;
     };
-
-    // Destroys a list of handle nodes front to back, without recursing.
-    void releaseHandleList(std::unique_ptr<ObjectState::Handle> list) noexcept;
 
     // Engine values a context takes before any other code runs, so bindings
     // never see a replaced global.
@@ -119,10 +97,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         jsi::Function typeError;
         jsi::Function rangeError;
         jsi::Function promise;
+        // The typed array constructors, for buffer results.
+        jsi::Function int8Array;
+        jsi::Function uint8Array;
+        jsi::Function int16Array;
+        jsi::Function uint16Array;
+        jsi::Function int32Array;
+        jsi::Function uint32Array;
+        jsi::Function bigInt64Array;
+        jsi::Function bigUint64Array;
         jsi::Function float32Array;
         jsi::Function float64Array;
-        jsi::Function int32Array;
-        jsi::Function uint8Array;
         jsi::Function number;
         // What the engine throws when a call runs past its time limit; taken
         // before the global goes, so JavaScript never sees it.
@@ -213,9 +198,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         std::size_t drainJobs();
         void reportUnhandledRejections();
         void runFinalizers();
-        // Releases the native objects of handles collected since: their
-        // destructors run here, on the context's thread.
-        void releaseHandles();
 
         // Loads (once) the module with canonical `name` and returns its
         // `module.exports`. Throws jsi::JSError.
