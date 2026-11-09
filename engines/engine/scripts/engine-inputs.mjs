@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const textFile = /\.(?:cmake|cpp|c|h|hpp|mm|m|js|mjs|ts|py|in|txt)$/;
+const textFile = /\.(?:cmake|cpp|c|h|hpp|mm|m|js|mjs|ts|py|in|inc|idl|md|txt)$/;
 
 export function engineInputs(root) {
   root = resolve(root);
