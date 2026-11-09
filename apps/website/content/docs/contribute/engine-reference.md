@@ -1205,7 +1205,9 @@ and compiler caches, including the pnpm store cache. Standalone Verify uses `rel
 main, to check changes and populate ordinary CI caches and artifacts. `.github/scripts/verified-deps.mjs` identifies a dependency snapshot by
 the recipes (including patches and symbol prefixes), runtime family, detected
 compiler and SDK settings, CMake flags and hosted runner image. It looks for a
-matching fourteen-day artifact from a successful main release workflow. A miss
+matching fourteen-day artifact from a main release workflow whose dependency
+producer and signing jobs both succeeded for that runtime family. A later release
+failure does not invalidate that snapshot. A miss
 compiles cleanly from pinned sources; no existing unsigned cache is promoted.
 
 Before restoring a snapshot, the job verifies the transport digest, then uses
