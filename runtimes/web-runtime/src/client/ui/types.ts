@@ -17,6 +17,15 @@ export type TransformOperation =
   | { scaleX: number }
   | { scaleY: number }
   | { rotate: number | `${number}deg` | `${number}rad` };
+/** One shadow of `Style.boxShadow` (see soundor:ui). */
+export interface BoxShadow {
+  offsetX?: number;
+  offsetY?: number;
+  blur?: number;
+  spread?: number;
+  color?: Color;
+  inset?: boolean;
+}
 export type AnimationEasing =
   | 'linear'
   | 'ease'
@@ -188,6 +197,7 @@ export interface Style {
   outlineWidth?: number;
   outlineColor?: Color;
   outlineOffset?: number;
+  boxShadow?: readonly BoxShadow[];
   /** 0 to 1, for the node and everything in it. */
   opacity?: number;
   transform?: readonly TransformOperation[];

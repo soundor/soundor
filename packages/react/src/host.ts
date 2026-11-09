@@ -285,7 +285,7 @@ function sameStyle(a: Style, b: Style): boolean {
     if (!Object.hasOwn(left, key)) return false;
     if (
       left[key] !== right[key] &&
-      (key !== 'transform' ||
+      ((key !== 'transform' && key !== 'boxShadow') ||
         JSON.stringify(left[key]) !== JSON.stringify(right[key]))
     )
       return false;

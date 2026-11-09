@@ -82,12 +82,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 const bool bordered = (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0)
                                       && style.borderColor.visible();
                 const bool outlined = style.outlined();
-                const float outline = style.outlineExtent();
+                const bool shadowed = style.shadowed();
+                const ui::Edges<float> ink = style.inkOverflow();
                 // What it draws itself (a plain view draws nothing), its
-                // outline outside its box.
-                const auto paintOwn = [&]
-                { paint(x - outline, y - outline, frame.width + (outline * 2), frame.height + (outline * 2)); };
-                if (style.backgroundColor.visible() || bordered || outlined || node.type() != ui::NodeType::View)
+                // outline and shadows outside its box.
+                const auto paintOwn = [&] {
+                    paint(x - ink.left, y - ink.top, frame.width + ink.left + ink.right,
+                          frame.height + ink.top + ink.bottom);
+                };
+                if (style.backgroundColor.visible() || bordered || outlined || shadowed
+                    || node.type() != ui::NodeType::View)
                     paintOwn();
                 const std::size_t layers = painted.size();
                 if (node.type() == ui::NodeType::Canvas)

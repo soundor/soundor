@@ -128,6 +128,39 @@ Leave room for it: an ancestor with `overflow: 'hidden'` clips it, and in
 the JUCE runtime a later sibling drawn over the same place covers it (a
 browser draws outlines above).
 
+## Shadows
+
+`boxShadow` is a list of shadows, as CSS's `box-shadow`, the first drawn on
+top. Each is the box's shape grown by `spread` (shrunk when negative, its
+rounded corners growing with it), moved by `offsetX` and `offsetY`, and
+blurred by `blur` (a Gaussian with half of it as its standard deviation),
+in `color` (black by default). Every field is optional:
+
+<Snippet name="box-shadow" height={220} />
+
+```tsx
+<View
+  style={{
+    borderRadius: 12,
+    backgroundColor: '#2a2c33',
+    boxShadow: [
+      { offsetY: 8, blur: 24, color: 'rgba(0, 0, 0, 0.45)' },
+      { offsetY: 1, blur: 2, color: 'rgba(0, 0, 0, 0.4)' },
+    ],
+  }}
+/>
+```
+
+- **Outside** the box by default: only around it, never under it, so a
+  translucent background does not show its shadow through.
+- **Inside** with `inset: true`: within the border, over the background and
+  under what the node holds, as a sunk well or a pressed button.
+- Like an outline, a shadow takes no room and is not hit. An ancestor with
+  `overflow: 'hidden'` clips it, so leave room for a large blur.
+
+`Animated.View` does not animate shadows; set another `boxShadow` to change
+one, as the knob above does when pressed.
+
 ## Cursor
 
 <Snippet name="cursor" height={200} />

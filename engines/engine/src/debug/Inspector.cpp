@@ -92,6 +92,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
         {
             return Array { value.r, value.g, value.b, value.a };
         }
+        Value boxShadow(const std::vector<ui::BoxShadow>& shadows)
+        {
+            Array result;
+            result.reserve(shadows.size());
+            for (const ui::BoxShadow& shadow : shadows)
+                result.emplace_back(Object { { "offsetX", shadow.offsetX },
+                                             { "offsetY", shadow.offsetY },
+                                             { "blur", shadow.blur },
+                                             { "spread", shadow.spread },
+                                             { "color", color(shadow.color) },
+                                             { "inset", shadow.inset } });
+            return result;
+        }
         Value style(const ui::Style& value, ui::Rect frame)
         {
             const auto transform = value.transform.transform(frame.width, frame.height);
@@ -123,6 +136,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::debug
                 { "outlineWidth", value.outlineWidth },
                 { "outlineOffset", value.outlineOffset },
                 { "outlineColor", color(value.outlineColor) },
+                { "boxShadow", boxShadow(value.boxShadow) },
                 { "fontFamily", prefix(value.text.fontFamily, 16384) },
                 { "fontSize", value.text.fontSize },
                 { "fontWeight", value.text.fontWeight },

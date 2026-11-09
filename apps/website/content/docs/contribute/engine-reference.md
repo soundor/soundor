@@ -528,7 +528,7 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
   property, as on the Web; `''`, `null` or `delete` removes it.
 - **Restyling costs what changed:** assigning what a style already is does
   not reach native code. A change that only looks different (colors, border
-  radius, outline, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
+  radius, outline, shadows, opacity, text color, `pointerEvents`, `zIndex`) is drawn again but
   not laid out; text is measured again only when its font changes. A
   `cursor` change is neither: the backend reads it.
 - **Input:** the backend hands `ui::Surface` normalized input (`ui/Input.h`).
@@ -772,17 +772,24 @@ still draws the whole view in one go, for tests and tools.
 
 - **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere
   (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
-- **Boxes:** backgrounds, borders, per-corner radii, outlines, opacity,
+- **Boxes:** backgrounds, borders, per-corner radii, outlines, shadows, opacity,
   overflow clipping, scrolling, text, images, and inputs with selection and a
   caret.
-- **Outlines** draw after the node's children and border, outside its box
-  (`Style::outlineExtent()`), so damage, the layers a promoted canvas splits
-  a view into and animation groups all count that far around the box.
+- **Outlines** draw after the node's children and border, outside its box.
+- **Shadows** (`Style::boxShadow`) draw with Skia's Gaussian blur mask
+  (sigma half the CSS blur): outer ones before the background, clipped out
+  of the border box unless the background is opaque (as Chromium does, so
+  its antialiased edge shows no seam), inset ones after it, clipped to the
+  padding box. What a node draws outside its box, outline and outer shadows,
+  is `Style::inkOverflow()`, per edge (a shadow offset down reaches further
+  below than above, its blur three sigmas past its shape): damage, the
+  layers a promoted canvas splits a view into and animation groups all
+  count that far around the box. Animations do not interpolate shadows.
 - **Opacity** is a node's and everything in it, drawn as one picture into a
   layer. A view that paints a single shape (a background, without a border,
-  outline or children) is drawn with the opacity in its paint instead, which
-  looks the same; a view, image or canvas without children or an outline
-  outside its box gets a layer only the size of its box.
+  outline, shadow or children) is drawn with the opacity in its paint
+  instead, which looks the same; a view, image or canvas without children
+  or anything drawn outside its box gets a layer only the size of its box.
 - **Colors:** any CSS color: hex, `rgb()`, `hsl()`, names, `transparent`. An
   invalid one is a `TypeError` naming the property.
 - **Text:** the platform's fonts (CoreText, DirectWrite, fontconfig/FreeType),

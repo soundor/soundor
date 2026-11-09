@@ -11,10 +11,12 @@
 #include <include/codec/SkJpegDecoder.h>
 #include <include/codec/SkPngDecoder.h>
 #include <include/codec/SkWebpDecoder.h>
+#include <include/core/SkBlurTypes.h>
 #include <include/core/SkCanvas.h>
 #include <include/core/SkData.h>
 #include <include/core/SkImage.h>
 #include <include/core/SkImageInfo.h>
+#include <include/core/SkMaskFilter.h>
 #include <include/core/SkPaint.h>
 #include <include/core/SkPixmap.h>
 #include <include/core/SkRRect.h>
@@ -123,6 +125,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         void draw(SkCanvas& canvas);
         void drawNode(SkCanvas& canvas, const Node& node);
         void drawOutline(SkCanvas& canvas, const SkRect& box, const Style& style);
+        // Shadows of one kind (outer or inset), last first: CSS paints the
+        // first on top.
+        static void drawShadows(SkCanvas& canvas, const SkRect& box, const Style& style, bool inset);
         void drawText(SkCanvas& canvas, const Node& node);
         void drawImage(SkCanvas& canvas, const Node& node, const SkRRect& outer);
         void drawSvg(SkCanvas& canvas, const Node& node, const SkRRect& outer) const;
@@ -310,6 +315,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const bool bordered =
             (border.top > 0 || border.right > 0 || border.bottom > 0 || border.left > 0) && style.borderColor.visible();
         const bool outlined = style.outlined();
+        const bool shadowed = style.shadowed();
         // Opacity applies to the node and everything in it as one picture,
         // drawn into a layer. A view that paints a single shape (its
         // background: no border or outline, nothing in it) looks the same
@@ -317,17 +323,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // only inside its box gets a layer of that size; others, one the
         // size of what is drawn.
         const bool leaf = node.children().empty();
-        const bool singleShape = opacity < 1 && leaf && ! bordered && ! outlined && node.type() == NodeType::View;
+        const bool singleShape =
+            opacity < 1 && leaf && ! bordered && ! outlined && ! shadowed && node.type() == NodeType::View;
         const bool layered = opacity < 1 && ! singleShape;
         if (layered)
         {
-            const bool insideBox = leaf && style.outlineExtent() <= 0
+            const bool insideBox = leaf && ! style.overflowsInk()
                                    && (node.type() == NodeType::View || node.type() == NodeType::Image
                                        || node.type() == NodeType::Canvas || node.type() == NodeType::Svg);
             canvas.saveLayerAlphaf(insideBox ? &box : nullptr, opacity);
         }
 
         const SkRRect outer = roundedRect(box, style.borderRadius);
+        if (shadowed && painting())
+            drawShadows(canvas, box, style, false);
         if (style.backgroundColor.visible() && painting())
         {
             SkColor4f color = SkColor4f::FromColor(skColor(style.backgroundColor));
@@ -337,6 +346,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             paint.setAntiAlias(true);
             canvas.drawRRect(outer, paint);
         }
+        // Inset shadows: over the background, under what is inside and the
+        // border.
+        if (shadowed && painting())
+            drawShadows(canvas, box, style, true);
 
         // Shown elsewhere: everything after it is in the next layer.
         if (isHole(node))
@@ -412,6 +425,58 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             canvas.drawRRect(outer, paint);
         else
             canvas.drawDRRect(outer, inner, paint);
+    }
+
+    void Renderer::Impl::drawShadows(SkCanvas& canvas, const SkRect& box, const Style& style, bool inset)
+    {
+        const Edges<float>& border = style.borderWidth;
+        const SkRRect borderBox = roundedRect(box, style.borderRadius);
+        const SkRect padding =
+            SkRect::MakeLTRB(border.left, border.top, box.width() - border.right, box.height() - border.bottom);
+        const SkRRect paddingBox = roundedRect(padding, style.borderRadius, border);
+        for (auto shadow = style.boxShadow.rbegin(); shadow != style.boxShadow.rend(); ++shadow)
+        {
+            if (shadow->inset != inset || ! shadow->visible())
+                continue;
+            SkPaint paint(SkColor4f::FromColor(skColor(shadow->color)));
+            paint.setAntiAlias(true);
+            if (shadow->blur > 0)
+                paint.setMaskFilter(SkMaskFilter::MakeBlur(kNormal_SkBlurStyle, shadow->blur / 2));
+            canvas.save();
+            // The box's shape grown by the spread (shrunk, inside), its
+            // round corners with it, square ones staying square.
+            if (! inset)
+            {
+                // Outside the border box only: CSS draws no shadow under the
+                // box, even a translucent one. An opaque background covers
+                // it anyway, and without the clip its antialiased edge has
+                // no seam of the shadow showing through (as in Chromium).
+                SkRRect shape = borderBox;
+                shape.outset(shadow->spread, shadow->spread);
+                shape.offset(shadow->offsetX, shadow->offsetY);
+                if (style.backgroundColor.a != 255)
+                    canvas.clipRRect(borderBox, SkClipOp::kDifference, true);
+                if (! shape.isEmpty())
+                    canvas.drawRRect(shape, paint);
+            }
+            else if (! paddingBox.isEmpty())
+            {
+                // Inside the padding box: everything around the padding box,
+                // shrunk by the spread and moved, blurred into it.
+                canvas.clipRRect(paddingBox, true);
+                SkRRect hole = paddingBox;
+                hole.inset(shadow->spread, shadow->spread);
+                hole.offset(shadow->offsetX, shadow->offsetY);
+                const float reach = shadow->blurReach() + std::abs(shadow->offsetX) + std::abs(shadow->offsetY)
+                                    + std::abs(shadow->spread) + 1;
+                const SkRRect around = SkRRect::MakeRect(padding.makeOutset(reach, reach));
+                if (hole.isEmpty())
+                    canvas.drawRRect(around, paint);
+                else
+                    canvas.drawDRRect(around, hole, paint);
+            }
+            canvas.restore();
+        }
     }
 
     void Renderer::Impl::drawText(SkCanvas& canvas, const Node& node)

@@ -284,6 +284,10 @@ export function readStyle(value: unknown): Style {
   };
   if (style.transform !== undefined)
     transformCss(style.transform as NonNullable<Style['transform']>);
+  if ('boxShadow' in style) {
+    if (!Array.isArray(style['boxShadow'])) fail('boxShadow', 'an array');
+    checkBoxShadow(style['boxShadow'] as readonly unknown[]);
+  }
   for (const [key, names] of Object.entries(CHOICES)) {
     if (key in style && !names.includes(style[key] as string)) {
       fail(key, `one of ${names.map((name) => `'${name}'`).join(', ')}`);
@@ -326,6 +330,81 @@ export function readStyle(value: unknown): Style {
     }
   }
   return style as Style;
+}
+
+const BOX_SHADOW_KEYS = [
+  'offsetX',
+  'offsetY',
+  'blur',
+  'spread',
+  'color',
+  'inset',
+];
+
+/** `got` as the JUCE runtime's errors name it: strings quoted. */
+function gotText(value: unknown): string {
+  return typeof value === 'string' ? `'${value}'` : String(value);
+}
+
+/** Checks `boxShadow`'s entries with the JUCE runtime's errors. */
+function checkBoxShadow(shadows: readonly unknown[]): void {
+  shadows.forEach((entry, index) => {
+    const path = `style.boxShadow[${index}]`;
+    const fail = (at: string, value: unknown, expected: string): never => {
+      throw new TypeError(`${at}: expected ${expected}, got ${gotText(value)}`);
+    };
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      fail(path, entry, 'an object');
+    }
+    const shadow = entry as Record<string, unknown>;
+    for (const key of Object.keys(shadow)) {
+      if (!BOX_SHADOW_KEYS.includes(key))
+        throw new TypeError(`${path}: unsupported property ${key}`);
+    }
+    const present = (key: string): boolean =>
+      shadow[key] !== undefined && shadow[key] !== null;
+    for (const key of ['offsetX', 'offsetY', 'spread', 'blur']) {
+      if (!present(key)) continue;
+      const value = shadow[key];
+      const nonnegative = key === 'blur';
+      if (
+        typeof value !== 'number' ||
+        !Number.isFinite(value) ||
+        !Number.isFinite(Math.fround(value)) ||
+        (nonnegative && value < 0)
+      ) {
+        fail(
+          `${path}.${key}`,
+          value,
+          nonnegative ? 'a finite nonnegative number' : 'a finite number',
+        );
+      }
+    }
+    if (present('color') && !isColor(shadow['color']))
+      fail(`${path}.color`, shadow['color'], 'a CSS color');
+    if (present('inset') && typeof shadow['inset'] !== 'boolean')
+      fail(`${path}.inset`, shadow['inset'], 'a boolean');
+  });
+}
+
+/** `boxShadow` as CSS's `box-shadow`; undefined for none. */
+export function boxShadowCss(
+  shadows: NonNullable<Style['boxShadow']>,
+): string | undefined {
+  if (shadows.length === 0) return undefined;
+  return shadows
+    .map((shadow) => {
+      const parts = [
+        px(shadow.offsetX ?? 0),
+        px(shadow.offsetY ?? 0),
+        px(shadow.blur ?? 0),
+        px(shadow.spread ?? 0),
+        shadow.color ?? 'black',
+      ];
+      if (shadow.inset === true) parts.unshift('inset');
+      return parts.join(' ');
+    })
+    .join(', ');
 }
 
 function isLength(value: unknown, allowAuto: boolean): boolean {
@@ -407,6 +486,8 @@ export function cssFor(style: Style, type: NodeType): Css {
     if (style.outlineOffset !== undefined)
       css['outline-offset'] = px(style.outlineOffset);
   }
+  if (style.boxShadow !== undefined)
+    set('box-shadow', boxShadowCss(style.boxShadow));
   if (style.transform !== undefined)
     css['transform'] = transformCss(style.transform);
   if (style.zIndex !== undefined) css['z-index'] = String(style.zIndex);

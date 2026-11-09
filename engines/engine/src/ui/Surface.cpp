@@ -86,6 +86,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             style.outlineWidth = 0;
             style.outlineOffset = 0;
             style.outlineColor = {};
+            style.boxShadow = {};
             style.opacity = 1;
             style.transform = {};
             style.resizeMode = {};

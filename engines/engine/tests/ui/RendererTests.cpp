@@ -135,6 +135,59 @@ TEST_SUITE("ui::Renderer")
         CHECK(isBlue(f.at(90, 30)));
     }
 
+    TEST_CASE("draws box shadows outside the box, and inset ones inside it")
+    {
+        RenderFixture f;
+        f.run(std::string(imports) + R"(
+            // Sharp, moved: x 14 to 44, y 14 to 34, under the box at 10 to 40, 10 to 30.
+            const shadowed = createView({ position: 'absolute', left: 10, top: 10, width: 30, height: 20,
+                                          backgroundColor: '#00f',
+                                          boxShadow: [{ offsetX: 4, offsetY: 4, color: 'red' }] });
+            root.appendChild(shadowed);
+            // Never under a translucent box.
+            root.appendChild(createView({ position: 'absolute', left: 50, top: 10, width: 10, height: 10,
+                                          backgroundColor: 'rgba(0, 0, 255, 0.5)',
+                                          boxShadow: [{ offsetX: 4, color: 'red' }] }));
+            // Spread around a circle (radius 10 + 3), nothing inside it.
+            root.appendChild(createView({ position: 'absolute', left: 70, top: 5, width: 20, height: 20,
+                                          borderRadius: 10, boxShadow: [{ spread: 3, color: 'red' }] }));
+            // Blurred: sigma 5, fading out within 15.
+            root.appendChild(createView({ position: 'absolute', left: 10, top: 50, width: 20, height: 20,
+                                          backgroundColor: '#00f', boxShadow: [{ blur: 10, color: 'red' }] }));
+            // Inset, inside the border: the padding box (62 to 88) less itself moved 5 right.
+            root.appendChild(createView({ position: 'absolute', left: 60, top: 50, width: 30, height: 30,
+                                          backgroundColor: '#00f', borderWidth: 2, borderColor: 'black',
+                                          boxShadow: [{ inset: true, offsetX: 5, color: 'red' }] }));
+            globalThis.result = JSON.stringify(shadowed.layout);
+        )");
+        CHECK(f.eval("result").asString() == R"({"x":10,"y":10,"width":30,"height":20})");
+        f.render();
+        CHECK(isBlue(f.at(12, 12)));
+        CHECK(isBlue(f.at(38, 28))); // the box over its shadow
+        CHECK(isRed(f.at(42, 20)));
+        CHECK(isRed(f.at(20, 32)));
+        CHECK(isRed(f.at(42, 32)));
+        CHECK(isClear(f.at(12, 32))); // the offset leaves the corner
+        CHECK(isClear(f.at(45, 20)));
+
+        CHECK(f.at(57, 15).r < 60); // the translucent box: no shadow under it
+        CHECK(isRed(f.at(62, 15)));
+
+        CHECK(isRed(f.at(80, 3)));
+        CHECK(isClear(f.at(80, 15))); // inside the circle
+        CHECK(isClear(f.at(68, 4)));  // outside the grown circle's corner
+
+        const Pixel edge = f.at(31, 60);
+        CHECK(edge.a > 60);
+        CHECK(edge.a < 200);
+        CHECK(f.at(46, 60).a < 8);
+
+        CHECK(isRed(f.at(64, 65)));
+        CHECK(isBlue(f.at(80, 65)));
+        CHECK(isDark(f.at(61, 65))); // the border, over the shadow
+        CHECK(isClear(f.at(58, 65)));
+    }
+
     TEST_CASE("rounds corners, applies opacity, and clips children to overflow")
     {
         RenderFixture f;

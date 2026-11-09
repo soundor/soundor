@@ -220,6 +220,21 @@ TEST_SUITE("render::ViewRenderer")
             f.step("globalThis.panel.style = { ...globalThis.panel.style, opacity: 0.5 };");
             f.step("globalThis.a.style = { ...globalThis.a.style, outlineWidth: 0 };");
         }
+        SUBCASE("shadows, outside the box and inside it")
+        {
+            // Far below and right of the box, blurred: more outside it on
+            // two sides than on the others.
+            f.step("globalThis.b.style = { ...globalThis.b.style, boxShadow: [{ offsetX: 9, offsetY: 7, blur: 6, "
+                   "color: 'black' }, { inset: true, offsetX: 3, blur: 2, color: 'lime' }] };");
+            // Moved by its sibling, its style unchanged: where its shadow was is
+            // drawn again.
+            f.step("globalThis.a.style = { ...globalThis.a.style, width: 30 };");
+            f.step("globalThis.a.style = { ...globalThis.a.style, width: 20 };");
+            f.step("globalThis.b.style = { ...globalThis.b.style, boxShadow: [{ offsetX: -6, spread: 2, "
+                   "color: 'blue' }] };");
+            f.step("globalThis.panel.style = { ...globalThis.panel.style, opacity: 0.5 };");
+            f.step("globalThis.b.style = { ...globalThis.b.style, boxShadow: [] };");
+        }
         SUBCASE("an image")
         {
             f.step("globalThis.image.source = 'halves.png';");

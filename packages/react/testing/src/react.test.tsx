@@ -197,10 +197,11 @@ describe('updates do only what changed', () => {
 
   it('re-rendering equal props sets no style or accessibility, and keeps listeners', async () => {
     const onClick = vi.fn();
-    // New style objects and a new handler every render, with the same content.
+    // New style objects (and shadow arrays) and a new handler every render,
+    // with the same content.
     const Cell = ({ opacity }: { opacity: number }) => (
       <View
-        style={[{ width: 10 }, { opacity }]}
+        style={[{ width: 10 }, { opacity, boxShadow: [{ blur: 4 }] }]}
         accessibilityLabel="cell"
         onClick={() => onClick(opacity)}
       />
@@ -217,7 +218,11 @@ describe('updates do only what changed', () => {
 
     await show(<Cell opacity={0.25} />);
     expect(styles()).toBe(1);
-    expect(child(0).style).toEqual({ width: 10, opacity: 0.25 });
+    expect(child(0).style).toEqual({
+      width: 10,
+      opacity: 0.25,
+      boxShadow: [{ blur: 4 }],
+    });
     fire(child(0), 'click');
     expect(onClick).toHaveBeenCalledWith(0.25);
   });
