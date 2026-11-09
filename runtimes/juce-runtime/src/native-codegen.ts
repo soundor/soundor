@@ -421,16 +421,18 @@ function readStatement(
       return `bind::readArray(${ctx}, ${value}, ${path}, ${out}, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, ${element}& item) { ${inner}; })`;
     }
     case 'nullable': {
+      // Its own names: an array lambda inside it must not shadow them (GCC's
+      // -Wshadow).
       const inner = borrow ? argumentType(type.inner) : valueType(type.inner);
       const read = readStatement(
         type.inner,
         'innerCtx',
         'inner',
         'innerPath',
-        'item',
+        'present',
         borrow,
       );
-      return `bind::readNullable(${ctx}, ${value}, ${path}, ${out}, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, ${inner}& item) { ${read}; })`;
+      return `bind::readNullable(${ctx}, ${value}, ${path}, ${out}, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, ${inner}& present) { ${read}; })`;
     }
     case 'primitive':
       // The engine's read() of a double names it a number.
@@ -469,8 +471,8 @@ function writeExpression(
     }
     case 'nullable': {
       const inner = valueType(type.inner);
-      const write = writeExpression(type.inner, 'innerCtx', 'item');
-      return `bind::writeNullable(${ctx}, ${consumed}, [](bind::ContextState& innerCtx, ${inner}&& item) { return ${write}; })`;
+      const write = writeExpression(type.inner, 'innerCtx', 'present');
+      return `bind::writeNullable(${ctx}, ${consumed}, [](bind::ContextState& innerCtx, ${inner}&& present) { return ${write}; })`;
     }
   }
 }

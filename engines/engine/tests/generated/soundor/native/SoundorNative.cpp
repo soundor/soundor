@@ -126,25 +126,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, Optionals& out)
         {
             const jsi::Object object = bind::expectObject(ctx, value, path);
-            bind::readNullable(ctx, bind::property(ctx, object, "slot"), path.field("slot"), out.slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& item) { read(innerCtx, inner, innerPath, item); });
-            bind::readNullable(ctx, bind::property(ctx, object, "id"), path.field("id"), out.id, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::uint64_t& item) { read(innerCtx, inner, innerPath, item); });
-            bind::readNullable(ctx, bind::property(ctx, object, "name"), path.field("name"), out.name, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& item) { read(innerCtx, inner, innerPath, item); });
-            bind::readNullable(ctx, bind::property(ctx, object, "curve"), path.field("curve"), out.curve, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Curve& item) { read(innerCtx, inner, innerPath, item); });
-            bind::readNullable(ctx, bind::property(ctx, object, "point"), path.field("point"), out.point, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Point& item) { read(innerCtx, inner, innerPath, item); });
-            bind::readNullable(ctx, bind::property(ctx, object, "gains"), path.field("gains"), out.gains, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& item) { bind::readArray(innerCtx, inner, innerPath, item, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, float& item) { read(elementCtx, element, elementPath, item); }); });
-            bind::readNullable(ctx, bind::property(ctx, object, "samples"), path.field("samples"), out.samples, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& item) { bind::readBuffer(innerCtx, inner, innerPath, item); });
+            bind::readNullable(ctx, bind::property(ctx, object, "slot"), path.field("slot"), out.slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "id"), path.field("id"), out.id, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::uint64_t& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "name"), path.field("name"), out.name, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "curve"), path.field("curve"), out.curve, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Curve& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "point"), path.field("point"), out.point, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, Point& present) { read(innerCtx, inner, innerPath, present); });
+            bind::readNullable(ctx, bind::property(ctx, object, "gains"), path.field("gains"), out.gains, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& present) { bind::readArray(innerCtx, inner, innerPath, present, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, float& item) { read(elementCtx, element, elementPath, item); }); });
+            bind::readNullable(ctx, bind::property(ctx, object, "samples"), path.field("samples"), out.samples, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<float>& present) { bind::readBuffer(innerCtx, inner, innerPath, present); });
         }
 
         jsi::Value write(bind::ContextState& ctx, Optionals value)
         {
             bind::ObjectBuilder object(ctx);
-            object.set("slot", bind::writeNullable(ctx, std::move(value.slot), [](bind::ContextState& innerCtx, std::int32_t&& item) { return write(innerCtx, item); }));
-            object.set("id", bind::writeNullable(ctx, std::move(value.id), [](bind::ContextState& innerCtx, std::uint64_t&& item) { return write(innerCtx, item); }));
-            object.set("name", bind::writeNullable(ctx, std::move(value.name), [](bind::ContextState& innerCtx, std::string&& item) { return write(innerCtx, item); }));
-            object.set("curve", bind::writeNullable(ctx, std::move(value.curve), [](bind::ContextState& innerCtx, Curve&& item) { return write(innerCtx, std::move(item)); }));
-            object.set("point", bind::writeNullable(ctx, std::move(value.point), [](bind::ContextState& innerCtx, Point&& item) { return write(innerCtx, std::move(item)); }));
-            object.set("gains", bind::writeNullable(ctx, std::move(value.gains), [](bind::ContextState& innerCtx, std::vector<float>&& item) { return bind::writeArray(innerCtx, std::move(item), [](bind::ContextState& elementCtx, float&& item) { return write(elementCtx, item); }); }));
-            object.set("samples", bind::writeNullable(ctx, std::move(value.samples), [](bind::ContextState& innerCtx, std::vector<float>&& item) { return bind::writeBuffer(innerCtx, std::move(item)); }));
+            object.set("slot", bind::writeNullable(ctx, std::move(value.slot), [](bind::ContextState& innerCtx, std::int32_t&& present) { return write(innerCtx, present); }));
+            object.set("id", bind::writeNullable(ctx, std::move(value.id), [](bind::ContextState& innerCtx, std::uint64_t&& present) { return write(innerCtx, present); }));
+            object.set("name", bind::writeNullable(ctx, std::move(value.name), [](bind::ContextState& innerCtx, std::string&& present) { return write(innerCtx, present); }));
+            object.set("curve", bind::writeNullable(ctx, std::move(value.curve), [](bind::ContextState& innerCtx, Curve&& present) { return write(innerCtx, std::move(present)); }));
+            object.set("point", bind::writeNullable(ctx, std::move(value.point), [](bind::ContextState& innerCtx, Point&& present) { return write(innerCtx, std::move(present)); }));
+            object.set("gains", bind::writeNullable(ctx, std::move(value.gains), [](bind::ContextState& innerCtx, std::vector<float>&& present) { return bind::writeArray(innerCtx, std::move(present), [](bind::ContextState& elementCtx, float&& item) { return write(elementCtx, item); }); }));
+            object.set("samples", bind::writeNullable(ctx, std::move(value.samples), [](bind::ContextState& innerCtx, std::vector<float>&& present) { return bind::writeBuffer(innerCtx, std::move(present)); }));
             return object.release();
         }
 
@@ -383,8 +383,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 bind::expectArgumentCount(ctx, "firstPoint", count, 1);
                 const bind::Path call { "firstPoint" };
                 std::optional<std::vector<Point>> arg_points {};
-                bind::readNullable(ctx, argv[0], call.field("points"), arg_points, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<Point>& item) { bind::readArray(innerCtx, inner, innerPath, item, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Point& item) { read(elementCtx, element, elementPath, item); }); });
-                return bind::writeNullable(ctx, api->firstPoint(std::move(arg_points)), [](bind::ContextState& innerCtx, Point&& item) { return write(innerCtx, std::move(item)); });
+                bind::readNullable(ctx, argv[0], call.field("points"), arg_points, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::vector<Point>& present) { bind::readArray(innerCtx, inner, innerPath, present, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Point& item) { read(elementCtx, element, elementPath, item); }); });
+                return bind::writeNullable(ctx, api->firstPoint(std::move(arg_points)), [](bind::ContextState& innerCtx, Point&& present) { return write(innerCtx, std::move(present)); });
                                 });
         }
 
@@ -467,7 +467,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
 
         void resolve_loadPreset(js::detail::PendingPromise& pending, std::optional<Preset>&& value)
         {
-            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return bind::writeNullable(ctx, std::move(value), [](bind::ContextState& innerCtx, Preset&& item) { return write(innerCtx, std::move(item)); }); });
+            bind::resolvePromise(pending, [&](bind::ContextState& ctx) { return bind::writeNullable(ctx, std::move(value), [](bind::ContextState& innerCtx, Preset&& present) { return write(innerCtx, std::move(present)); }); });
         }
 
         jsi::Value call_loadPreset(bind::ContextState& ctx, const jsi::Value&, const jsi::Value* argv, std::size_t count)
@@ -585,7 +585,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 bind::expectArgumentCount(ctx, "setSolo", count, 1);
                 const bind::Path call { "setSolo" };
                 std::optional<std::int32_t> arg_slot {};
-                bind::readNullable(ctx, argv[0], call.field("slot"), arg_slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& item) { read(innerCtx, inner, innerPath, item); });
+                bind::readNullable(ctx, argv[0], call.field("slot"), arg_slot, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::int32_t& present) { read(innerCtx, inner, innerPath, present); });
                 api->setSolo(std::move(arg_slot));
                 return jsi::Value::undefined();
                                 });
@@ -600,7 +600,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 if (api == nullptr)
                     bind::throwInternalError(ctx, "soundor:native is not installed in this context");
                 bind::expectArgumentCount(ctx, "solo", count, 0);
-                return bind::writeNullable(ctx, api->solo(), [](bind::ContextState& innerCtx, std::int32_t&& item) { return write(innerCtx, item); });
+                return bind::writeNullable(ctx, api->solo(), [](bind::ContextState& innerCtx, std::int32_t&& present) { return write(innerCtx, present); });
                                 });
         }
 
@@ -647,8 +647,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 bind::expectArgumentCount(ctx, "sumWords", count, 1);
                 const bind::Path call { "sumWords" };
                 std::optional<std::span<const std::uint64_t>> arg_values {};
-                bind::readNullable(ctx, argv[0], call.field("values"), arg_values, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::span<const std::uint64_t>& item) { read(innerCtx, inner, innerPath, item); });
-                return bind::writeNullable(ctx, api->sumWords(std::move(arg_values)), [](bind::ContextState& innerCtx, std::uint64_t&& item) { return write(innerCtx, item); });
+                bind::readNullable(ctx, argv[0], call.field("values"), arg_values, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::span<const std::uint64_t>& present) { read(innerCtx, inner, innerPath, present); });
+                return bind::writeNullable(ctx, api->sumWords(std::move(arg_values)), [](bind::ContextState& innerCtx, std::uint64_t&& present) { return write(innerCtx, present); });
                                 });
         }
     } // namespace
