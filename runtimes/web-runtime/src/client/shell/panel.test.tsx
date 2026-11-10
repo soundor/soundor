@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { WebHost } from '../host';
 import { createParameterStore } from '../parameters';
 import { fakeAudio, mount } from '../testing/preact';
+import { storeOf } from '../testing/store';
 import { Panel, type PanelProps } from './panel';
 
 afterEach(() => document.body.replaceChildren());
@@ -37,7 +38,7 @@ function setup(
       pluginName="Fixture"
       host={host}
       audio={fake.audio}
-      parameters={props.parameters ?? createParameterStore([])}
+      parameters={props.parameters ?? createParameterStore([], [])}
       inspect={props.inspect ?? false}
     />,
   );
@@ -69,10 +70,10 @@ describe('the panel', () => {
 
   it('lists every parameter in declaration order', () => {
     const { panel } = setup({
-      parameters: createParameterStore([
-        { id: 'b', label: 'Second', type: 'bool', default: false },
-        { id: 'a', label: 'First', type: 'bool', default: true },
-      ]),
+      parameters: storeOf({
+        b: { type: 'boolean', label: 'Second', default: false },
+        a: { type: 'boolean', label: 'First', default: true },
+      }),
     });
     expect(
       getByRole(panel, 'heading', { name: 'Parameters' }).closest('section')!

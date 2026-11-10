@@ -3,32 +3,53 @@ import { fireEvent, getByLabelText, getByRole } from '@testing-library/dom';
 import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createParameterStore } from '../parameters';
 import { mount } from '../testing/preact';
+import { storeOf } from '../testing/store';
 import { ParameterControl } from './parameter';
 
 afterEach(() => document.body.replaceChildren());
 
-const store = createParameterStore([
-  {
-    id: 'gain',
+const store = storeOf({
+  gain: {
+    type: 'float32',
     label: 'Gain',
-    type: 'float',
     min: -60,
     max: 12,
     default: 0,
+    step: 0.1,
     unit: 'dB',
   },
-  { id: 'voices', label: 'Voices', type: 'int', min: 1, max: 8, default: 4 },
-  { id: 'bypass', label: 'Bypass', type: 'bool', default: false },
-  {
-    id: 'mode',
+  voices: { type: 'int32', label: 'Voices', min: 1, max: 8, default: 4 },
+  bypass: { type: 'boolean', label: 'Bypass', default: false },
+  mode: {
+    type: 'choice',
     label: 'Mode',
-    type: 'enum',
-    values: ['clean', 'warm', 'hot'],
+    options: [
+      { value: 'clean', label: 'Clean' },
+      { value: 'warm', label: 'Warm' },
+      { value: 'hot', label: 'Hot' },
+    ],
     default: 'clean',
   },
-]);
+  frequency: {
+    type: 'float32',
+    label: 'Frequency',
+    min: 20,
+    max: 20000,
+    default: 1000,
+    mapping: 'log',
+    unit: 'Hz',
+  },
+  meter: {
+    type: 'float32',
+    label: 'Meter',
+    min: -60,
+    max: 0,
+    default: 0,
+    unit: 'dB',
+    access: 'readOnly',
+  },
+});
 const parameter = (id: string) => store.byId[id]!;
 
 afterEach(() => {
@@ -46,27 +67,43 @@ describe('a float parameter', () => {
     const slider = getByRole<HTMLInputElement>(container, 'slider', {
       name: 'Gain',
     });
-    expect([slider.min, slider.max, slider.step]).toEqual([
-      '-60',
-      '12',
-      '0.072',
-    ]);
-    expect(container.querySelector('output')?.textContent).toBe('0 dB');
+    // Positions through the parameter's mapping, as a host's slider moves.
+    expect([slider.min, slider.max, slider.step]).toEqual(['0', '1000', '1']);
+    expect(slider.value).toBe('833');
+    expect(container.querySelector('output')?.textContent).toBe('0.0 dB');
 
-    fireEvent.input(slider, { target: { value: '-6.5' } });
-    expect(parameter('gain').get()).toBe(-6.5);
-    expect(container.querySelector('output')?.textContent).toBe('-6.5 dB');
+    fireEvent.input(slider, { target: { value: '500' } });
+    expect(parameter('gain').get()).toBe(-24);
+    expect(container.querySelector('output')?.textContent).toBe('-24.0 dB');
   });
 
-  it('follows a value set elsewhere, rounded for display', () => {
+  it("follows a value set elsewhere, shown in the parameter's text", () => {
     const { container } = mount(
       <ParameterControl parameter={parameter('gain')} />,
     );
     act(() => parameter('gain').set(-3.14159));
-    expect(getByRole<HTMLInputElement>(container, 'slider').value).toBe(
-      '-3.14159',
+    expect(parameter('gain').get()).toBe(Math.fround(-3.1));
+    expect(container.querySelector('output')?.textContent).toBe('-3.1 dB');
+  });
+
+  it('moves along a log curve, as hosts do', () => {
+    const { container } = mount(
+      <ParameterControl parameter={parameter('frequency')} />,
     );
-    expect(container.querySelector('output')?.textContent).toBe('-3.142 dB');
+    const slider = getByRole<HTMLInputElement>(container, 'slider');
+    fireEvent.input(slider, { target: { value: '500' } });
+    expect(container.querySelector('output')?.textContent).toBe('632 Hz');
+    parameter('frequency').set(1000);
+  });
+
+  it('shows a read-only parameter without editing it', () => {
+    const { container } = mount(
+      <ParameterControl parameter={parameter('meter')} />,
+    );
+    expect(getByRole<HTMLInputElement>(container, 'slider').disabled).toBe(
+      true,
+    );
+    expect(container.querySelector('output')?.textContent).toBe('0.0 dB');
   });
 
   it('makes a gesture of a drag, however the pointer lets go', () => {
@@ -85,7 +122,7 @@ describe('a float parameter', () => {
   });
 });
 
-describe('an int parameter', () => {
+describe('an integer parameter', () => {
   it('steps by one, and the parameter rounds what it is given', () => {
     const { container } = mount(
       <ParameterControl parameter={parameter('voices')} />,
@@ -93,15 +130,16 @@ describe('an int parameter', () => {
     const slider = getByRole<HTMLInputElement>(container, 'slider', {
       name: 'Voices',
     });
-    expect(slider.step).toBe('1');
+    // One position per value: 1 to 8.
+    expect([slider.max, slider.step, slider.value]).toEqual(['7', '1', '3']);
     expect(container.querySelector('output')?.textContent).toBe('4');
-    fireEvent.input(slider, { target: { value: '6.6' } });
+    fireEvent.input(slider, { target: { value: '6' } });
     expect(parameter('voices').get()).toBe(7);
     expect(container.querySelector('output')?.textContent).toBe('7');
   });
 });
 
-describe('a bool parameter', () => {
+describe('a boolean parameter', () => {
   it('is a checkbox both ways', () => {
     const { container } = mount(
       <ParameterControl parameter={parameter('bypass')} />,
@@ -117,8 +155,8 @@ describe('a bool parameter', () => {
   });
 });
 
-describe('an enum parameter', () => {
-  it('is a menu of its values', () => {
+describe('a choice parameter', () => {
+  it('is a menu of its options, by label', () => {
     const { container } = mount(
       <ParameterControl parameter={parameter('mode')} />,
     );
@@ -129,6 +167,11 @@ describe('an enum parameter', () => {
       'clean',
       'warm',
       'hot',
+    ]);
+    expect([...menu.options].map((option) => option.text)).toEqual([
+      'Clean',
+      'Warm',
+      'Hot',
     ]);
     fireEvent.change(menu, { target: { value: 'hot' } });
     expect(parameter('mode').get()).toBe('hot');
@@ -144,11 +187,11 @@ describe('a control given another parameter', () => {
     );
     rerender(<ParameterControl parameter={parameter('voices')} />);
     const slider = getByLabelText<HTMLInputElement>(container, 'Voices');
-    expect(slider.value).toBe('4');
+    expect(slider.value).toBe('3');
 
     act(() => parameter('gain').set(-20));
-    expect(slider.value).toBe('4');
+    expect(slider.value).toBe('3');
     act(() => parameter('voices').set(2));
-    expect(slider.value).toBe('2');
+    expect(slider.value).toBe('1');
   });
 });

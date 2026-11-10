@@ -6,26 +6,73 @@
 export const fixtureConfig = {
   plugin: { id: 'com.example.fixture', name: 'Fixture' },
   runtimes: [],
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
+  parameters: {
+    gain: {
+      type: 'float32',
       label: 'Gain',
       min: 0,
       max: 1,
       default: 0.5,
       unit: 'dB',
     },
-    { type: 'int', id: 'steps', label: 'Steps', min: 1, max: 8, default: 4 },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-    {
-      type: 'enum',
-      id: 'mode',
+    steps: { type: 'int32', label: 'Steps', min: 1, max: 8, default: 4 },
+    bypass: { type: 'boolean', label: 'Bypass', default: false },
+    mode: {
+      type: 'choice',
       label: 'Mode',
-      values: ['clean', 'warm', 'hot'],
+      options: [
+        { value: 'clean', label: 'Clean' },
+        { value: 'warm', label: 'Warm' },
+        { value: 'hot', label: 'Hot' },
+      ],
       default: 'warm',
     },
-  ],
+    // Even's: a log frequency in Hz and kHz, and a gain in 0.01 dB steps.
+    frequency: {
+      type: 'float32',
+      label: 'Frequency',
+      min: 20,
+      max: 20000,
+      default: 1000,
+      mapping: 'log',
+      unit: 'Hz',
+      format: (e: any) =>
+        e.if(
+          e.gte(e.value, 1000),
+          e.concat(e.fixed(e.div(e.value, 1000), 2), ' kHz'),
+          e.concat(e.fixed(e.value, 0), ' Hz'),
+        ),
+      parse: (e: any) =>
+        e.let(e.lower(e.trim(e.text)), (text: any) =>
+          e.if(
+            e.endsWith(text, 'khz'),
+            e.map(e.parseFloat32(e.removeSuffix(text, 'khz')), (v: any) =>
+              e.mul(v, 1000),
+            ),
+            e.parseFloat32(e.removeSuffix(text, 'hz')),
+          ),
+        ),
+    },
+    trim: {
+      type: 'float32',
+      label: 'Trim',
+      min: -24,
+      max: 24,
+      default: 0,
+      step: 0.01,
+      unit: 'dB',
+      access: 'manual',
+    },
+    reduction: {
+      type: 'float32',
+      label: 'Reduction',
+      min: -60,
+      max: 0,
+      default: 0,
+      unit: 'dB',
+      access: 'readOnly',
+    },
+  },
   // Every kind of native type, sync and async: close to the JUCE runtime's
   // fixture (juce-runtime/src/native-codegen.test.ts), so the two runtimes'
   // tests can check the same behaviour.

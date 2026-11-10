@@ -118,8 +118,11 @@ export interface SoundorConfig<
  */
 export interface ResolvedSoundorConfig {
   plugin: PluginIdentity;
-  /** Always set by validation; resolve it with `resolveEditor` either way. */
-  editor?: ResolvedEditorConfig;
+  /**
+   * Resolved by validation; runtimes resolve it with `resolveEditor` either
+   * way, so a config built by hand may give any editor config.
+   */
+  editor?: EditorConfig | ResolvedEditorConfig;
   runtimes: RuntimeDescriptor[];
   /** In declaration order, which is the order hosts list them in. */
   parameters: readonly ResolvedParameter[];

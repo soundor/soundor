@@ -11,6 +11,7 @@ import { join } from 'node:path';
 
 import {
   createNodeFileSystem,
+  resolveConfig,
   type CommandProbe,
   type DevShortcut,
   type DevSummaryRow,
@@ -24,14 +25,13 @@ import { juceBuild, juceDev, juceGen, juceInit } from './index';
 import type { JuceOptions } from './options';
 import { makeCtx } from './testing';
 
-const config = {
+const config: ResolvedSoundorConfig = resolveConfig({
   plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
   runtimes: [],
-  parameters: [
-    { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  ],
-  native: {},
-} as unknown as ResolvedSoundorConfig;
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+  },
+});
 
 const okProbe: CommandProbe = () => ({ ok: true, version: '1.2.3' });
 
@@ -99,7 +99,7 @@ describe('juceInit', () => {
     const procSource = await ctx.fs.read(
       ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp'),
     );
-    expect(procSource).toContain('gainParameter->load()');
+    expect(procSource).toContain('gainParameter.load()');
     expect(procSource).toContain('applyGainRamp');
     expect(procSource).toContain('isBusesLayoutSupported');
 
@@ -119,6 +119,7 @@ describe('juceGen', () => {
       'soundor/soundor.h',
       'soundor/SoundorProcessor.h',
       'soundor/SoundorProcessor.cpp',
+      'soundor/SoundorParameters.cpp',
       'soundor/SoundorEditor.h',
       'soundor/SoundorEditor.cpp',
       'soundor/native/SoundorNative.h',

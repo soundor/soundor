@@ -25,7 +25,7 @@ export interface WebScaffoldInput {
     readonly name: string;
     readonly async: boolean;
   }[];
-  /** Whether the plugin declares a float `gain` parameter to apply. */
+  /** Whether the plugin declares a float32 `gain` parameter to apply. */
   readonly gain: boolean;
 }
 

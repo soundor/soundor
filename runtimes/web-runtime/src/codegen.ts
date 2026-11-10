@@ -10,7 +10,7 @@ import {
   SoundorError,
   type CodegenFile,
   type NativeApiModel,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
 import type {
@@ -19,25 +19,34 @@ import type {
   WebParameterInfo,
 } from './client/manifest.ts';
 import { renderWebNative } from './native-codegen.ts';
+import { renderParameterBehaviors } from './parameter-codegen.ts';
 
 /** The manifest's file name in `.soundor/generated/runtimes/web/`. */
 export const MANIFEST_FILE = 'manifest.json';
 /** The native API contract's file name, next to the manifest. */
 export const NATIVE_FILE = 'native.ts';
+/** The parameters' behavior, next to the manifest. */
+export const PARAMETERS_FILE = 'parameters.js';
 
 /** The generated files, relative to the runtime's generated directory. */
-export function generateWebSources(config: SoundorConfig): CodegenFile[] {
+export function generateWebSources(
+  config: ResolvedSoundorConfig,
+): CodegenFile[] {
   return [
     {
       path: MANIFEST_FILE,
       contents: `${JSON.stringify(webManifest(config), null, 2)}\n`,
     },
     { path: NATIVE_FILE, contents: renderWebNative(nativeModel(config)) },
+    {
+      path: PARAMETERS_FILE,
+      contents: renderParameterBehaviors(config.parameters),
+    },
   ];
 }
 
 /** The resolved native API; config validation has already rejected bad input. */
-export function nativeModel(config: SoundorConfig): NativeApiModel {
+export function nativeModel(config: ResolvedSoundorConfig): NativeApiModel {
   const result = describeNativeApi(config.native);
   if (!result.ok) {
     throw new SoundorError('Invalid native API declaration.', {
@@ -49,7 +58,7 @@ export function nativeModel(config: SoundorConfig): NativeApiModel {
 }
 
 /** The config's editor, resolved as every runtime resolves it. */
-function webEditor(config: SoundorConfig): WebEditor {
+function webEditor(config: ResolvedSoundorConfig): WebEditor {
   const editor = resolveEditor(config.editor);
   return {
     width: editor.width,
@@ -69,38 +78,39 @@ function webEditor(config: SoundorConfig): WebEditor {
  * The manifest of a config. Keys are written in a fixed order, so the same
  * config always produces the same bytes.
  */
-export function webManifest(config: SoundorConfig): WebManifest {
+export function webManifest(config: ResolvedSoundorConfig): WebManifest {
   const native = nativeModel(config);
   return {
     plugin: { id: config.plugin.id, name: config.plugin.name },
     editor: webEditor(config),
     parameters: config.parameters.map((parameter): WebParameterInfo => {
+      const base = {
+        id: parameter.id,
+        label: parameter.label,
+        access: parameter.access,
+      };
       switch (parameter.type) {
-        case 'float':
-        case 'int':
+        case 'boolean':
+          return { ...base, type: 'boolean', default: parameter.default };
+        case 'choice':
           return {
-            id: parameter.id,
-            label: parameter.label,
+            ...base,
+            type: 'choice',
+            options: parameter.options.map((option) => ({
+              value: option.value,
+              label: option.label,
+            })),
+            default: parameter.default,
+          };
+        default:
+          return {
+            ...base,
             type: parameter.type,
             min: parameter.min,
             max: parameter.max,
             default: parameter.default,
+            ...(parameter.step === undefined ? {} : { step: parameter.step }),
             ...(parameter.unit === undefined ? {} : { unit: parameter.unit }),
-          };
-        case 'bool':
-          return {
-            id: parameter.id,
-            label: parameter.label,
-            type: 'bool',
-            default: parameter.default,
-          };
-        case 'enum':
-          return {
-            id: parameter.id,
-            label: parameter.label,
-            type: 'enum',
-            values: [...parameter.values],
-            default: parameter.default,
           };
       }
     }),

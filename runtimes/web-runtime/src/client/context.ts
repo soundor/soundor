@@ -6,10 +6,15 @@
  */
 
 import manifest from 'soundor:internal/manifest';
+import { behaviors } from 'soundor:internal/parameters';
 
 import { WebHost, type WebHostOptions } from './host';
 import { readManifest, type WebManifest } from './manifest';
-import { createParameterStore, type ParameterStore } from './parameters';
+import {
+  createParameterStore,
+  type ParameterBehavior,
+  type ParameterStore,
+} from './parameters';
 import { UiView } from './ui/view';
 
 export interface WebHostContext {
@@ -24,12 +29,13 @@ export interface WebHostContext {
 export function createHostContext(
   manifest: WebManifest,
   options: WebHostOptions = {},
+  parameterBehaviors: readonly ParameterBehavior[] = behaviors,
 ): WebHostContext {
   manifest = readManifest(manifest);
   return {
     manifest,
     plugin: Object.freeze({ ...manifest.plugin }),
-    parameters: createParameterStore(manifest.parameters),
+    parameters: createParameterStore(manifest.parameters, parameterBehaviors),
     host: new WebHost(options),
   };
 }

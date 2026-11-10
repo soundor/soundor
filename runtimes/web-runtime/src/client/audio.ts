@@ -5,6 +5,12 @@
  */
 import type { WebHost } from './host';
 import { Listeners } from './listeners';
+import type { WebParameterInfo } from './manifest';
+import {
+  publishParameter,
+  type ParameterValue,
+  type WebParameter,
+} from './parameters';
 import { report } from './report';
 
 /** What a project's audio processor receives. */
@@ -15,6 +21,14 @@ export interface WebAudioSetupContext {
   readonly input: AudioNode;
   /** Where the plugin's output goes, before master volume. */
   readonly output: AudioNode;
+  /**
+   * Sets a parameter as the plugin's processing does, read-only ones (meters)
+   * included, as a JUCE processor's \`publish()\`: \`publish(parameters.reduction, -3)\`.
+   */
+  readonly publish: <Info extends WebParameterInfo>(
+    parameter: WebParameter<Info>,
+    value: ParameterValue<Info>,
+  ) => void;
 }
 
 /** Releases the nodes, subscriptions or other resources a setup owns. */
@@ -315,7 +329,13 @@ export class WebAudioHost {
       const setup = await this.#options.loadSetup?.();
       if (this.#disposed) return;
       if (setup) {
-        const cleanup = (await setup({ context, input, output })) ?? null;
+        const cleanup =
+          (await setup({
+            context,
+            input,
+            output,
+            publish: publishParameter,
+          })) ?? null;
         if (this.#disposed) {
           if (cleanup) safely(cleanup);
         } else this.#cleanup = cleanup;

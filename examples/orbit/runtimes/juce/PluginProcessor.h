@@ -23,7 +23,7 @@ public:
     {
         // A captured loop sustains indefinitely. Allow the slowest 9-second
         // taps at maximum feedback to decay below -70 dB when not held.
-        return holdParameter->load() >= 0.5f ? std::numeric_limits<double>::infinity() : 900.0;
+        return holdParameter.load() ? std::numeric_limits<double>::infinity() : 900.0;
     }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }

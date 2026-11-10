@@ -121,7 +121,7 @@ void ${cls}Processor::prepareToPlay(double sampleRate, int samplesPerBlock)
 
     // Start the ramp from the current parameter value so the first block after
     // (re)prepare doesn't glide up from silence.
-    previousGain = gainParameter->load();
+    previousGain = gainParameter.load();
 }
 
 bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -148,7 +148,7 @@ void ${cls}Processor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer
     // provided by the soundor::AudioProcessor base (generated from the config's
     // \`gain\` parameter). Ramp from the previous block's value to the current
     // one so automation moves don't produce zipper noise.
-    const float targetGain = gainParameter->load();
+    const float targetGain = gainParameter.load();
     buffer.applyGainRamp(0, buffer.getNumSamples(), previousGain, targetGain);
     previousGain = targetGain;
 }
