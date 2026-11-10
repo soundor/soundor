@@ -40,7 +40,7 @@ C++, and performance work measures the JavaScript that remains on each frame.
 
 ## Skia drawing, ANGLE for GPU rendering
 
-Skia draws UI content and Canvas 2D into GPU surfaces through Ganesh on Windows
+Skia draws UI content and Canvas 2D into GPU surfaces through Ganesh on macOS and Windows
 when available, with CPU layers as fallback and on other platforms. ANGLE
 provides WebGL and the GPU composition path where supported. Soundor's compositor combines
 those layers, with a CPU fallback. A compatible GPU compositor shares WebGL

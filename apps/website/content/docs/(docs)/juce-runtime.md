@@ -354,7 +354,7 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 ### Canvases: 2D and WebGL
 
 A canvas node draws with `getContext('2d')`, which uses Skia (GPU-backed on
-Windows when Ganesh and the GPU compositor are available, otherwise CPU), or
+macOS and Windows when Ganesh and the GPU compositor are available, otherwise CPU), or
 with `getContext('webgl2')`, which uses ANGLE on the GPU. WebGL needs a
 hardware GPU. Where there is none (a VM, a headless Linux machine),
 `getContext('webgl2')` returns null and the plugin log says why, so code
@@ -363,7 +363,7 @@ native tests check that. The GPU compositor shows WebGL as it is, without copies
 where the UI is composited on the CPU (Linux), WebGL is read back. See
 [the engine reference](/docs/contribute/engine-reference).
 
-On Windows, retained UI layers and Canvas 2D use Skia Ganesh on the same
+On macOS and Windows, retained UI layers and Canvas 2D use Skia Ganesh on the same
 ANGLE device as WebGL and the compositor, avoiding CPU layer uploads.
 `getImageData()` explicitly reads pixels back; `putImageData()` uploads pixels.
 If a GPU reset loses a 2D canvas, its contents and context state reset to
