@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import { defineSoundorConfig } from '../index';
 import type { Runtime } from '../runtime';
+import type { SoundorConfig } from '../types';
 
 const noop = async (): Promise<void> => {};
 function makeRuntime(id: string): Runtime {
@@ -36,14 +37,12 @@ describe('defineSoundorConfig', () => {
   });
 
   it('returns the config unchanged', () => {
-    expect(config.runtimes[0].id).toBe('juce');
+    expect(config.runtimes[0]?.id).toBe('juce');
     expect(config.parameters).toHaveLength(2);
   });
 
-  it('preserves parameter ids as string literals', () => {
-    // `const` inference pins the literal ids so downstream codegen can read them.
-    expectTypeOf(config.parameters[0].id).toEqualTypeOf<'gain'>();
-    expectTypeOf(config.runtimes[0].id).toEqualTypeOf<'juce'>();
+  it('returns a SoundorConfig, naming no runtime package', () => {
+    expectTypeOf(config).toEqualTypeOf<SoundorConfig>();
   });
 
   it('requires a runtime implementation on each entry (type-level)', () => {
@@ -87,7 +86,7 @@ describe('defineSoundorConfig', () => {
       ...base,
       editor: { resizable: true, resize: 'scale', fit: 'cover' },
     });
-    expect(cover.editor.fit).toBe('cover');
+    expect(cover.editor?.fit).toBe('cover');
     defineSoundorConfig({
       ...base,
       editor: { resizable: true, fit: 'cover', maxWidth: 1000 },

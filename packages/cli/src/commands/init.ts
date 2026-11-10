@@ -40,9 +40,14 @@ export async function runInit(
   if (options.runtime !== undefined && runtimes.length === 0) {
     resolveRuntime(config, options.runtime);
   }
+  // Every runtime is resolved, and its compatibility checked, before any
+  // initializes.
+  const resolvedRuntimes = runtimes.map((runtimeEntry) =>
+    resolveRuntime(config, runtimeEntry.id),
+  );
 
-  for (const runtimeEntry of runtimes) {
-    const resolved = resolveRuntime(config, runtimeEntry.id);
+  for (const resolved of resolvedRuntimes) {
+    const runtimeEntry = resolved.config;
     const paths = createProjectPaths({
       root,
       config: configPath,
@@ -85,10 +90,15 @@ export const initCommand = defineCommand({
         ? 'Initializing runtimes'
         : `Initializing ${runtime}`,
     );
+    // A failure stops the spinner too, whose timer would keep the process
+    // alive after the error is reported.
     const result = await runInit({
       runtime,
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
+    }).catch((error: unknown) => {
+      s.error('Initialization failed');
+      throw error;
     });
     s.stop(
       result.initialized.length === 1

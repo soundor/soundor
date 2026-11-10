@@ -1,5 +1,6 @@
 export type {
   SoundorErrorCode,
+  SoundorErrorInfo,
   SoundorErrorOptions,
   SoundorIssue,
   RuntimeErrorOptions,
@@ -7,10 +8,12 @@ export type {
 export {
   EXIT_CODES,
   SoundorError,
+  RuntimeCompatibilityError,
   RuntimeError,
   UnknownRuntimeError,
   EnvError,
   exitCodeFor,
+  isSoundorError,
 } from './errors';
 
 export type { Logger } from './logger';

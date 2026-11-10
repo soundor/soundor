@@ -166,11 +166,18 @@ From the repository root:
 
 ```sh
 UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test
+UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test
 pnpm --filter @soundor/juce-runtime gen:webgl
 ```
 
-These update the native API golden C++, and the WebGL bindings with their
-declarations (`packages/environment/webgl.d.ts`) respectively. The other
+These update the native API golden C++, the runtime API contract
+(`packages/config/runtime-api.json`), and the WebGL bindings with their
+declarations (`packages/environment/webgl.d.ts`) respectively. Record the
+runtime API contract only after deciding whether the change raises
+`RUNTIME_API_VERSION`, as
+[Changing the runtime API version](/docs/contribute/compatibility#changing-the-runtime-api-version)
+describes: the record holds the version, so raising it later needs recording
+again. The other
 declarations in `packages/environment` are written by hand. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.

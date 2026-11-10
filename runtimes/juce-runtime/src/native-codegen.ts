@@ -22,8 +22,8 @@ import type {
   NativeType,
   NativeTypeModel,
   PrimitiveTypeName,
-} from '@soundor/core';
-import { enumeratorName } from '@soundor/core';
+} from '@soundor/runtime-sdk';
+import { enumeratorName } from '@soundor/runtime-sdk';
 
 export interface NativeCodegenFile {
   readonly path: string;

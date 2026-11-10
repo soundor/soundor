@@ -11,12 +11,18 @@ that backend is connected.
 ## 1. Create the package
 
 Create a TypeScript package with an ESM entry and declarations. Install the
-runtime SDK and its peers:
+runtime SDK:
 
 ```sh
-pnpm add @soundor/runtime-sdk @soundor/config @soundor/core
+pnpm add @soundor/runtime-sdk
 pnpm add -D typescript @types/node
 ```
+
+It is the only Soundor package the runtime needs: it re-exports all of
+`@soundor/config` and `@soundor/core`. Keep it at one release line
+(`^%version:@soundor/runtime-sdk%`): the runtime's API version, which the CLI
+checks, is that of its copy (see
+[Dependencies and compatibility](/docs/contribute/compatibility)).
 
 Use exact matching Soundor versions while developing the package. Its public
 entry will export `demoRuntime`; a plugin config imports that factory. See
@@ -89,7 +95,9 @@ export const demoRuntime = defineRuntime<DemoOptions>({
 ```
 
 The runtime ID is the directory and dispatch identity, independent of the npm
-package name. `init` writes through the filesystem only when the user file is
+package name. `defineRuntime` gives the runtime the runtime API version of the
+`@soundor/config` it is built with, which the CLI checks before running any
+phase. `init` writes through the filesystem only when the user file is
 missing. `gen` emits contents through the sink, so the CLI controls writes and
 check mode. Options need runtime validation even though the factory is typed.
 

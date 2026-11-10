@@ -7,14 +7,15 @@
 
 import {
   RuntimeError,
-  SoundorError,
   UnknownRuntimeError,
+  isSoundorError,
   type CodegenSink,
   type FileSystemHost,
   type Logger,
   type ProjectPaths,
 } from '@soundor/core';
 
+import { checkRuntimeCompatibility } from './compatibility';
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 import type { DoctorReport, Runtime } from './runtime';
 import { resolveSigning } from './signing';
@@ -24,11 +25,17 @@ import type { RuntimeConfig, SoundorConfig } from './types';
 export interface ResolvedRuntime {
   runtime: Runtime;
   config: RuntimeConfig;
+  /** The runtime API version it implements, which the host runs. */
+  apiVersion: number;
 }
 
 /**
- * Finds the runtime registered under `id` in `config.runtimes[]`. Throws
- * {@link UnknownRuntimeError} (listing the available ids) when none matches.
+ * Finds the runtime registered under `id` in `config.runtimes[]` and checks
+ * that this host runs its runtime API version, and that it has what the config
+ * uses (`checkRuntimeCompatibility`). Throws {@link
+ * UnknownRuntimeError} (listing the available ids) when none matches, and a
+ * `RuntimeCompatibilityError` when it does not support the host: entry points
+ * resolve every runtime they will run before generating anything.
  */
 export function resolveRuntime(
   config: SoundorConfig,
@@ -44,6 +51,7 @@ export function resolveRuntime(
   return {
     runtime: entry.runtime,
     config: { id: entry.id, options: entry.options },
+    apiVersion: checkRuntimeCompatibility(entry.runtime, config),
   };
 }
 
@@ -66,8 +74,9 @@ export interface DispatchContextInput {
 /**
  * Dispatches one lifecycle phase: builds the {@link LifecycleContext} from the
  * host input and the resolved config entry, then invokes the matching method.
- * Errors already in the Soundor taxonomy pass through; anything else is wrapped
- * as a {@link RuntimeError} tagged with the runtime id and phase.
+ * Soundor errors pass through, whichever copy of `@soundor/core` the runtime
+ * threw them from (`isSoundorError`); anything else is wrapped as a {@link
+ * RuntimeError} tagged with the runtime id and phase.
  */
 export async function runPhase(
   resolved: ResolvedRuntime,
@@ -111,7 +120,7 @@ export async function runPhase(
         return await runtime.doctor(config, ctx);
     }
   } catch (error) {
-    if (error instanceof SoundorError) throw error;
+    if (isSoundorError(error)) throw error;
     throw new RuntimeError(
       `Runtime '${runtime.id}' failed during '${phase}'.`,
       { runtimeId: runtime.id, phase, cause: error },

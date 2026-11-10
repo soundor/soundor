@@ -154,6 +154,12 @@ Regenerating checked-in generated files:
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
   (from `engines/engine`, after a dev build) — the engine's frames in
   `tests/layout/corpus.json`, for a change meant to change layout.
+- `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` — the runtime API
+  contract in `packages/config/runtime-api.json`, after a change to what
+  runtimes depend on (the `Runtime` interface, its context, the config they
+  receive, the error protocol). Decide first whether runtimes could notice and
+  raise `RUNTIME_API_VERSION` if so (see `contribute/compatibility.md`); the
+  record holds the version too.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
@@ -270,6 +276,26 @@ in the other. Layout is the same Yoga in both: a style's mapping to it is
 `src/client/ui/layout.ts` here and `UiModule.cpp` with `Surface.cpp` there, and
 `engines/engine/tests/layout/corpus.json` holds the engine's frames, which the
 web runtime's tests must match exactly.
+
+### Dependencies and compatibility
+
+A package declares what its emitted code or declarations import as
+`dependencies`; peers are only for what the project must share (React,
+Vitest, Vite, the VST3 host). Values crossing packages are recognized by
+protocol, never by `instanceof` or module identity: a project can hold
+several copies of `@soundor/core` (`isSoundorError()`, `isConfigError()`).
+A runtime depends on `@soundor/runtime-sdk` alone, which re-exports all of
+config and core; `defineSoundorConfig` returns a plain `SoundorConfig`, so a
+project's config type never names a runtime's packages.
+Runtimes and the CLI agree on `RUNTIME_API_VERSION` (`@soundor/config`), the
+version of what runtimes depend on (the `Runtime` interface, its context, the
+config they receive, the error protocol), not of the packages: `defineRuntime()`
+records it, and `resolveRuntime()` refuses a runtime outside
+`MIN_RUNTIME_API_VERSION`…`RUNTIME_API_VERSION` before any phase. Changing that
+contract fails `runtime-api.test.ts`: raise the version if runtimes could
+notice (both for a break; tag a new config field in `CONFIG_FEATURES`), then
+`UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`. See
+`contribute/compatibility.md`.
 
 ### Accessibility
 

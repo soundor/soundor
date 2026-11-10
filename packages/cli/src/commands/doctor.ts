@@ -166,7 +166,10 @@ export const doctorCommand = defineCommand({
     const json = args['json'] === true;
 
     if (json) {
-      const result = await runDoctor({ configPath });
+      const result = await runDoctor({ configPath }).catch((error: unknown) => {
+        s.error('Diagnostics failed');
+        throw error;
+      });
       console.log(JSON.stringify(toJsonReport(result), null, 2));
       process.exitCode = result.exitCode;
       return;

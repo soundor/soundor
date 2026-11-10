@@ -3,10 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   EnvError,
   EXIT_CODES,
+  RuntimeCompatibilityError,
   RuntimeError,
   SoundorError,
   UnknownRuntimeError,
   exitCodeFor,
+  isSoundorError,
 } from './errors';
 
 describe('SoundorError', () => {
@@ -89,8 +91,69 @@ describe('EXIT_CODES', () => {
       ENV: 3,
       UNKNOWN_RUNTIME: 4,
       INVALID_RUNTIME: 4,
+      INCOMPATIBLE_RUNTIME: 4,
       RUNTIME: 5,
       INTERNAL: 70,
     });
+  });
+});
+
+describe('isSoundorError', () => {
+  it('recognizes every subclass, and filters by code', () => {
+    expect(isSoundorError(new EnvError('x'))).toBe(true);
+    expect(isSoundorError(new EnvError('x'), 'ENV')).toBe(true);
+    expect(isSoundorError(new EnvError('x'), 'RUNTIME')).toBe(false);
+    expect(isSoundorError(new UnknownRuntimeError('juce'))).toBe(true);
+  });
+
+  it('rejects look-alikes without the brand', () => {
+    expect(isSoundorError(new Error('x'))).toBe(false);
+    expect(isSoundorError({ code: 'ENV', message: 'x', issues: [] })).toBe(
+      false,
+    );
+    expect(isSoundorError(null)).toBe(false);
+    expect(isSoundorError('ENV')).toBe(false);
+  });
+
+  it('recognizes an error of another copy by its protocol', () => {
+    // What another copy's SoundorError is to this one: a different class with
+    // the same global brand. (The packages' integration tests load real
+    // separate copies.)
+    class ForeignError extends Error {
+      readonly code = 'ENV';
+      readonly issues = [];
+      get [Symbol.for('soundor.error.v1')](): true {
+        return true;
+      }
+    }
+    const foreign = new ForeignError('missing cmake');
+    expect(foreign instanceof SoundorError).toBe(false);
+    expect(isSoundorError(foreign, 'ENV')).toBe(true);
+    expect(exitCodeFor(foreign)).toBe(EXIT_CODES.ENV);
+  });
+
+  it('maps a code this copy does not know to INTERNAL', () => {
+    const newer = Object.assign(new Error('from a newer core'), {
+      code: 'SOMETHING_NEW',
+      issues: [],
+      [Symbol.for('soundor.error.v1')]: true,
+    });
+    expect(isSoundorError(newer)).toBe(true);
+    expect(exitCodeFor(newer)).toBe(EXIT_CODES.INTERNAL);
+  });
+});
+
+describe('RuntimeCompatibilityError', () => {
+  it('formats its issues and hint, with the INCOMPATIBLE_RUNTIME exit code', () => {
+    const error = new RuntimeCompatibilityError('Runtime x does not fit.', {
+      runtimeId: 'x',
+      issues: [{ path: '', message: '@soundor/config 0.9.0: needs ^0.8.0' }],
+      hint: 'Upgrade it.',
+    });
+    expect(error.code).toBe('INCOMPATIBLE_RUNTIME');
+    expect(error.exitCode).toBe(4);
+    expect(error.format()).toBe(
+      'Runtime x does not fit.\n  @soundor/config 0.9.0: needs ^0.8.0\nUpgrade it.',
+    );
   });
 });

@@ -38,6 +38,25 @@ export type {
   RuntimeDescriptor,
   RuntimeFactory,
 } from './runtime';
+
+// Versions and compatibility
+export {
+  CONFIG_VERSION,
+  MIN_RUNTIME_API_VERSION,
+  RUNTIME_API_VERSION,
+} from './version';
+export {
+  CONFIG_FEATURES,
+  HOST_RUNTIME_API,
+  checkRuntimeCompatibility,
+  runtimeApiVersion,
+} from './compatibility';
+export type { ConfigFeature, HostRuntimeApi } from './compatibility';
+export {
+  checkProjectConfigVersion,
+  projectConfigVersion,
+  sameReleaseLine,
+} from './project';
 export type {
   LifecycleContext,
   DevSessionContext,
@@ -69,18 +88,21 @@ export { resolveRuntime, runPhase } from './registry';
 export type { DispatchContextInput, ResolvedRuntime } from './registry';
 
 // Errors: config's own plus the shared taxonomy from core
-export { ConfigError } from './errors';
-export type { ConfigIssue, ConfigErrorKind } from './errors';
+export { ConfigError, isConfigError } from './errors';
+export type { ConfigErrorInfo, ConfigIssue, ConfigErrorKind } from './errors';
 export {
   EXIT_CODES,
   EnvError,
+  RuntimeCompatibilityError,
   RuntimeError,
   SoundorError,
   UnknownRuntimeError,
   exitCodeFor,
+  isSoundorError,
 } from '@soundor/core';
 export type {
   SoundorErrorCode,
+  SoundorErrorInfo,
   SoundorErrorOptions,
   SoundorIssue,
 } from '@soundor/core';

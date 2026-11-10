@@ -1,4 +1,8 @@
-import { SoundorError } from '@soundor/core';
+import {
+  SoundorError,
+  isSoundorError,
+  type SoundorErrorInfo,
+} from '@soundor/core';
 
 /** A single, actionable problem found while loading or validating a config. */
 export interface ConfigIssue {
@@ -8,8 +12,16 @@ export interface ConfigIssue {
   message: string;
 }
 
-/** What stage of loading failed. */
-export type ConfigErrorKind = 'not-found' | 'load' | 'validation';
+/**
+ * What stage of loading failed: finding the file, evaluating it, validating
+ * it, or (`compatibility`) the project's `@soundor/config` is of another
+ * release line than the host's.
+ */
+export type ConfigErrorKind =
+  | 'not-found'
+  | 'load'
+  | 'validation'
+  | 'compatibility';
 
 /**
  * Thrown by {@link parseConfig} for every failure mode. A {@link SoundorError}
@@ -39,4 +51,23 @@ export class ConfigError extends SoundorError {
     );
     return [this.message, ...lines].join('\n');
   }
+}
+
+/** What a `ConfigError` of any copy of this package carries. */
+export interface ConfigErrorInfo extends SoundorErrorInfo {
+  readonly code: 'CONFIG';
+  readonly kind: string;
+}
+
+/**
+ * Whether `value` is a config error from any copy or version of this
+ * package: a Soundor error (`isSoundorError`) with the `CONFIG` code and a
+ * `kind`. A runtime's `ConfigError` comes from its own copy, where
+ * `instanceof ConfigError` says no.
+ */
+export function isConfigError(value: unknown): value is ConfigErrorInfo {
+  return (
+    isSoundorError(value, 'CONFIG') &&
+    typeof (value as { kind?: unknown }).kind === 'string'
+  );
 }

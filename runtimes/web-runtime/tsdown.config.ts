@@ -22,8 +22,13 @@ export default defineConfig([
     target: 'es2022',
     tsconfig: './tsconfig.client.json',
     dts: true,
-    // The runtime's Vite plugin provides soundor:* to the page.
-    deps: { neverBundle: [/^soundor:/] },
+    // The runtime's Vite plugin provides soundor:* to the page. The SDK's
+    // client entry (core's springs, the same as the test runtime's) is
+    // inlined: the page gets no import of it to resolve.
+    deps: {
+      neverBundle: [/^soundor:/],
+      alwaysBundle: ['@soundor/runtime-sdk/client'],
+    },
     outputOptions: { chunkFileNames: 'client/[name]-[hash].js' },
   }),
 ]);

@@ -837,6 +837,9 @@ importers:
       '@clack/prompts':
         specifier: 'catalog:'
         version: 1.8.1
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../config
       '@soundor/core':
         specifier: workspace:*
         version: link:../core
@@ -856,9 +859,6 @@ importers:
         specifier: 'catalog:'
         version: 0.23.4(typescript@7.0.2)
     devDependencies:
-      '@soundor/config':
-        specifier: workspace:^
-        version: link:../config
       '@soundor/devtools-protocol':
         specifier: workspace:^
         version: link:../devtools-protocol
@@ -1229,13 +1229,13 @@ importers:
 
   packages/runtime-sdk:
     dependencies:
+      '@soundor/config':
+        specifier: workspace:*
+        version: link:../config
       '@soundor/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
-      '@soundor/config':
-        specifier: workspace:^
-        version: link:../config
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config
@@ -1245,6 +1245,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      rolldown:
+        specifier: 'catalog:'
+        version: 1.2.16
       tsdown:
         specifier: 'catalog:'
         version: 0.23.4(typescript@7.0.2)
@@ -1441,19 +1444,16 @@ importers:
 
   runtimes/juce-runtime:
     dependencies:
-      '@soundor/core':
-        specifier: workspace:^
-        version: link:../../packages/core
       '@soundor/engine':
         specifier: workspace:*
         version: link:../../engines/engine
+      '@soundor/runtime-sdk':
+        specifier: workspace:^
+        version: link:../../packages/runtime-sdk
     devDependencies:
       '@soundor/config':
         specifier: workspace:^
         version: link:../../packages/config
-      '@soundor/runtime-sdk':
-        specifier: workspace:^
-        version: link:../../packages/runtime-sdk
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config
@@ -1481,9 +1481,9 @@ importers:
 
   runtimes/web-runtime:
     dependencies:
-      '@soundor/core':
+      '@soundor/runtime-sdk':
         specifier: workspace:^
-        version: link:../../packages/core
+        version: link:../../packages/runtime-sdk
       '@soundor/yoga-wasm':
         specifier: workspace:*
         version: link:../../engines/yoga-wasm
@@ -1494,18 +1494,12 @@ importers:
         specifier: 'catalog:'
         version: 8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
     devDependencies:
-      '@soundor/config':
-        specifier: workspace:^
-        version: link:../../packages/config
       '@soundor/environment':
         specifier: workspace:^
         version: link:../../packages/environment
       '@soundor/react':
         specifier: workspace:^
         version: link:../../packages/react
-      '@soundor/runtime-sdk':
-        specifier: workspace:^
-        version: link:../../packages/runtime-sdk
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config

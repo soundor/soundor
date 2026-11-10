@@ -1,8 +1,18 @@
-import type {
-  Runtime,
-  RuntimeDescriptor,
-  RuntimeFactory,
+import {
+  RUNTIME_API_VERSION,
+  type Runtime,
+  type RuntimeDescriptor,
+  type RuntimeFactory,
 } from '@soundor/config';
+
+/**
+ * What {@link defineRuntime} takes: a {@link Runtime}, whose `apiVersion` it
+ * sets itself.
+ */
+export type RuntimeDefinition<Options extends object = object> = Omit<
+  Runtime<Options>,
+  'apiVersion'
+>;
 
 /**
  * Authors a runtime and returns the config-callable factory a runtime package
@@ -10,7 +20,9 @@ import type {
  * RuntimeDescriptor} to drop into a config's `runtimes[]`:
  *
  * ```ts
- * export const juceRuntime = defineRuntime<JuceOptions>({
+ * import type { RuntimeFactory } from '@soundor/config';
+ *
+ * export const juceRuntime: RuntimeFactory<JuceOptions> = defineRuntime({
  *   id: 'juce',
  *   async init(config, ctx) { ... },
  *   async gen(config, ctx) { ... },
@@ -23,19 +35,22 @@ import type {
  * runtimes: [juceRuntime({ plugin: { formats: ['vst3'] } })]
  * ```
  *
- * The returned descriptor carries the declarative `{ id, options }` plus the
- * implementation; the factory object also exposes `id` and `runtime` directly.
+ * The runtime is given the `RUNTIME_API_VERSION` of the `@soundor/config` the
+ * runtime is built with, which the host checks before running it. The returned
+ * descriptor carries the declarative `{ id, options }` plus the implementation;
+ * the factory object also exposes `id` and `runtime` directly.
  */
 export function defineRuntime<Options extends object = object>(
-  definition: Runtime<Options>,
+  definition: RuntimeDefinition<Options>,
 ): RuntimeFactory<Options> {
+  const runtime: Runtime<Options> = {
+    ...definition,
+    apiVersion: RUNTIME_API_VERSION,
+  };
   const factory = (options?: Options): RuntimeDescriptor<Options> => ({
-    id: definition.id,
+    id: runtime.id,
     options: options ?? ({} as Options),
-    runtime: definition,
+    runtime,
   });
-  return Object.assign(factory, {
-    id: definition.id,
-    runtime: definition,
-  });
+  return Object.assign(factory, { id: runtime.id, runtime });
 }

@@ -195,6 +195,9 @@ jobs:
       - name: Packed Vitest consumer smoke
         run: pnpm --filter @soundor/vitest test:consumer
 
+      - name: Packed runtimes consumer smoke
+        run: pnpm --filter soundor test:runtime-consumer
+
       - name: Install DevTools browser
         run: pnpm --filter @soundor/devtools-client exec playwright install --with-deps chromium
 

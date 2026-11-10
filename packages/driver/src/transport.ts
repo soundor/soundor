@@ -18,7 +18,7 @@ import {
 import { WebSocket, type RawData } from 'ws';
 import { z } from 'zod';
 
-import { DriverError, fromProtocolError } from './errors';
+import { DriverError, fromProtocolError, isDriverError } from './errors';
 import type { SessionCredentials } from './session';
 
 /** Per-call limits: how long to wait, and a signal that cancels the call. */
@@ -64,7 +64,8 @@ const serverErrorSchema = z.object({
 });
 
 function aborted(signal: AbortSignal | undefined, what: string): DriverError {
-  return signal?.reason instanceof DriverError
+  // The caller's signal may carry a DriverError of another copy.
+  return isDriverError(signal?.reason)
     ? signal.reason
     : new DriverError('CANCELLED', `${what} was cancelled`);
 }

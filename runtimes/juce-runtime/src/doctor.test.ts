@@ -1,4 +1,4 @@
-import { createNodeFileSystem } from '@soundor/core';
+import { createNodeFileSystem } from '@soundor/runtime-sdk';
 import type { CommandProbe } from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 

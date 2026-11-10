@@ -1,6 +1,6 @@
 ---
 title: 'Publishing a runtime'
-description: 'Package entry points, peers, engine compatibility and consumer validation.'
+description: 'Package entry points, dependencies, Soundor and engine compatibility, and consumer validation.'
 ---
 
 ## Purpose
@@ -12,8 +12,7 @@ build alone does not establish that packaging boundary.
 ## Where the code is
 
 Use `runtimes/juce-runtime/package.json` and `runtimes/web-runtime/package.json`
-as reference manifests. `packages/runtime-sdk/package.json` declares the SDK's
-peers. The engine's public ABI and prebuilt checks are documented in
+as reference manifests. The engine's public ABI and prebuilt checks are documented in
 [Soundor Engine](/docs/engine#abi-versioning) and the
 [engine reference](/docs/contribute/engine-reference#prebuilt-engines).
 
@@ -22,7 +21,7 @@ peers. The engine's public ABI and prebuilt checks are documented in
 ```mermaid
 flowchart TD
     package["Runtime tarball: factory, types and resources"] --> project["Installed plugin project"]
-    peers["Compatible config peer and core dependency"] --> project
+    deps["Runtime SDK and core dependencies, declared compatibility"] --> project
     engine["Exact engine package, when used"] --> project
     project --> init["Initialize and generate"]
     init --> verify["Doctor, dev and production consumer checks"]
@@ -41,17 +40,26 @@ package's `files` list. Resolve packaged templates, CMake support or browser
 resources relative to `import.meta.url`, rather than the consumer's current
 working directory. Exercise those paths from an installed tarball.
 
-### Dependencies and peers
+### Dependencies and compatibility
 
-The reference runtimes declare `@soundor/config` as a peer and a development
-dependency for workspace builds. They declare `@soundor/core` as a regular
-dependency because their emitted code uses its utilities. Test the versions
-your runtime supports and choose ranges from that compatibility.
+The reference runtimes depend on one Soundor package, `@soundor/runtime-sdk`,
+which re-exports all of `@soundor/config` and `@soundor/core`: their code
+imports everything from it, and their declarations name nothing else. A
+project's config type names only its own `@soundor/config`
+(`defineSoundorConfig` returns a `SoundorConfig`), so the runtime's packages
+need not be installed in the project. Client code, which runs with the
+plugin's UI rather than in Node, imports from `@soundor/runtime-sdk/client`
+(no Node code); the web runtime inlines it into its browser client. Review the emitted entry point and declarations (`dist/*.mjs`,
+`dist/*.d.mts`) to check that every package they import is declared. See
+[Dependencies and compatibility](/docs/contribute/compatibility) for the rules.
 
-If emitted code imports the runtime SDK, include it as a runtime dependency.
-If the bundler inlines its implementation, it can be a build dependency; its
-config peer and core dependency still need to resolve in the consumer. Review
-the emitted entry point to make that choice.
+Depend on one release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0).
+`defineRuntime()` gives the runtime the runtime API version of that copy, and
+the CLI refuses the runtime, before running any phase, when its own does not
+run that version. A wider range lets the package manager hand the runtime a
+copy of another line, whose version it would then report. When a Soundor
+release raises the runtime API version, check the runtime against it, and
+release it built with that release if it implements what the raise adds.
 
 Before 1.0, plugin projects pin exact Soundor versions. Document your runtime's
 tested versions and upgrade steps. Keep your package version and the engine ABI
@@ -70,7 +78,9 @@ engine. It still needs compatible declarations and observable module behavior.
 
 ## Invariants and tests
 
-Check a packed installation in a fresh consumer: import the factory, load config,
+Check a packed installation in a fresh consumer (as
+`packages/cli/scripts/runtime-consumer-smoke.mjs` does for the reference
+runtimes): import the factory, load config,
 initialize twice, generate and check, run doctor, and exercise development and
 production output. Include assets and user-defined native API types in the
 fixture so missing package resources or dependencies are exposed.

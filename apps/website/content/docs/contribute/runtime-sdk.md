@@ -1,6 +1,6 @@
 ---
 title: 'Runtime SDK'
-description: 'Writing a runtime: lifecycle context, DevTools capabilities, and signing.'
+description: 'Writing a runtime: compatibility, lifecycle context, DevTools capabilities, and signing.'
 ---
 
 Source: [`packages/runtime-sdk/`](https://github.com/soundor/soundor/tree/main/packages/runtime-sdk).
@@ -15,13 +15,36 @@ describes the environment a runtime must provide in addition to these hooks.
 ## Install
 
 ```sh
-pnpm add @soundor/runtime-sdk @soundor/config @soundor/core
+pnpm add @soundor/runtime-sdk
 ```
+
+It is the one Soundor package a runtime depends on: it re-exports all of
+`@soundor/config` and `@soundor/core`, so import everything from it. A
+runtime that also installed those would risk copies of them that its SDK's do
+not share, and declarations naming packages its users may not have.
+
+The root entry is for the runtime's Node side (its lifecycle phases). Code
+that runs with the plugin's UI, in a browser or an embedded engine, imports
+from `@soundor/runtime-sdk/client` instead: helpers that import nothing of
+Node or the toolchain, such as core's springs (`springParameters`,
+`sampleSpring`, `springDuration`), the same the other runtimes animate with.
 
 ## Usage
 
 Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
 `dev`, `build`, and `doctor` commands.
+
+### Compatibility
+
+`defineRuntime` gives the runtime `apiVersion`, the `RUNTIME_API_VERSION` of
+the `@soundor/config` it is built with: the version of everything a runtime
+depends on of its host, which changes only when that does, not with every
+Soundor release. The CLI refuses the runtime before any phase when it does not
+run that version, or when the config uses a setting added after it
+([Dependencies and compatibility](/docs/contribute/compatibility)). The SDK
+re-exports the check (`checkRuntimeCompatibility`) and the error protocol
+(`isSoundorError`, `isConfigError`) for errors from other copies of the
+packages.
 
 ### Optional DevTools capability
 

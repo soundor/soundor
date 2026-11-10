@@ -71,6 +71,11 @@ export async function runGen(
     config.runtimes,
     options.runtimeIds,
   );
+  // Every runtime is resolved, and its compatibility checked, before any file
+  // is written.
+  const resolvedRuntimes = runtimeEntries.map((runtimeEntry) =>
+    resolveRuntime(config, runtimeEntry.id),
+  );
   const groups: RunGenGroupReport[] = [];
 
   if (options.check === true) {
@@ -90,8 +95,8 @@ export async function runGen(
     });
   }
 
-  for (const runtimeEntry of runtimeEntries) {
-    const resolved = resolveRuntime(config, runtimeEntry.id);
+  for (const resolved of resolvedRuntimes) {
+    const runtimeEntry = resolved.config;
     const codegen = createCodegenSink();
     const paths = createProjectPaths({
       root,
@@ -164,10 +169,15 @@ export const genCommand = defineCommand({
     const s = spinner();
     const check = args['check'] === true;
     s.start(check ? 'Checking generated files' : 'Generating files');
+    // A failure stops the spinner too, whose timer would keep the process
+    // alive after the error is reported.
     const report = await runGen({
       configPath:
         typeof args['config'] === 'string' ? args['config'] : undefined,
       check,
+    }).catch((error: unknown) => {
+      s.error(check ? 'Could not check generated files' : 'Generation failed');
+      throw error;
     });
     s.stop(check ? 'Generated files are up to date' : 'Files generated');
     outro(formatRunGenReport(report));

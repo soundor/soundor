@@ -51,8 +51,19 @@ export type DriverErrorCode =
   /** The instance failed while handling the operation. */
   | 'INTERNAL';
 
+/**
+ * The brand of every {@link DriverError}, whichever copy of this package made
+ * it: `@soundor/vitest-e2e` throws from its own copy, which a test's
+ * `isDriverError` (from another) still recognizes.
+ */
+const DRIVER_ERROR = Symbol.for('soundor.driver-error.v1');
+
 export class DriverError extends Error {
   override readonly name = 'DriverError';
+  /** The cross-copy brand {@link isDriverError} checks. */
+  get [DRIVER_ERROR](): true {
+    return true;
+  }
   constructor(
     readonly code: DriverErrorCode,
     message: string,
@@ -62,12 +73,21 @@ export class DriverError extends Error {
   }
 }
 
+/**
+ * Whether `error` is a {@link DriverError} of any copy of this package (and
+ * with `code`, one with that code): it carries the Driver's brand and a
+ * string `code`. Not `instanceof`, which holds only within one copy.
+ */
 export function isDriverError(
   error: unknown,
   code?: DriverErrorCode,
 ): error is DriverError {
+  if (typeof error !== 'object' || error === null) return false;
+  const record = error as Record<PropertyKey, unknown>;
   return (
-    error instanceof DriverError && (code === undefined || error.code === code)
+    record[DRIVER_ERROR] === true &&
+    typeof record['code'] === 'string' &&
+    (code === undefined || record['code'] === code)
   );
 }
 

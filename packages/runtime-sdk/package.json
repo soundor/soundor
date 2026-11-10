@@ -12,6 +12,7 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
@@ -19,6 +20,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./client": {
+      "types": "./dist/client.d.mts",
+      "import": "./dist/client.mjs"
     }
   },
   "scripts": {
@@ -28,18 +33,16 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*"
   },
   "devDependencies": {
-    "@soundor/config": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
+    "rolldown": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0"
   }
 }

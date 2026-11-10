@@ -6,6 +6,7 @@ import { type ConfigIssue, ConfigError } from './errors';
 import type { Runtime } from './runtime';
 import { checkSigningIdentity } from './signing';
 import type { Parameter, SoundorConfig } from './types';
+import { CONFIG_VERSION } from './version';
 
 /** The lifecycle methods every {@link Runtime} must expose. */
 const RUNTIME_METHODS = ['init', 'gen', 'dev', 'build', 'doctor'] as const;
@@ -29,7 +30,7 @@ const baseParameter = {
   label: z.string(),
 };
 
-const floatParameterSchema = z.object({
+const floatParameterSchema = z.strictObject({
   type: z.literal('float'),
   ...baseParameter,
   min: z.number(),
@@ -38,7 +39,7 @@ const floatParameterSchema = z.object({
   unit: z.string().optional(),
 });
 
-const intParameterSchema = z.object({
+const intParameterSchema = z.strictObject({
   type: z.literal('int'),
   ...baseParameter,
   min: z.number(),
@@ -47,13 +48,13 @@ const intParameterSchema = z.object({
   unit: z.string().optional(),
 });
 
-const boolParameterSchema = z.object({
+const boolParameterSchema = z.strictObject({
   type: z.literal('bool'),
   ...baseParameter,
   default: z.boolean(),
 });
 
-const enumParameterSchema = z.object({
+const enumParameterSchema = z.strictObject({
   type: z.literal('enum'),
   ...baseParameter,
   values: z.array(z.string()),
@@ -67,6 +68,8 @@ const parameterSchema = z.discriminatedUnion('type', [
   enumParameterSchema,
 ]);
 
+// Not strict: a runtime factory makes this object, and a newer one may carry
+// more than this copy knows.
 const runtimeSchema = z.object({
   id: z.string(),
   options: z.record(z.string(), z.unknown()).optional(),
@@ -76,7 +79,7 @@ const runtimeSchema = z.object({
   }),
 });
 
-const pluginSchema = z.object({
+const pluginSchema = z.strictObject({
   id: z
     .string()
     .regex(
@@ -88,7 +91,7 @@ const pluginSchema = z.object({
 
 // The native API's structure is checked by describeNativeApi, which reports
 // precise paths; zod only guarantees it is an object here.
-const nativeSchema = z.object({
+const nativeSchema = z.strictObject({
   types: z.record(z.string(), z.unknown()).optional(),
   methods: z.record(z.string(), z.unknown()).optional(),
 });
@@ -98,11 +101,13 @@ const signingIdentitySchema = z.string().superRefine((value, ctx) => {
   if (problem !== undefined) ctx.addIssue({ code: 'custom', message: problem });
 });
 
-const signingSchema = z.object({
-  macos: z.object({ identity: signingIdentitySchema.optional() }).optional(),
+const signingSchema = z.strictObject({
+  macos: z
+    .strictObject({ identity: signingIdentitySchema.optional() })
+    .optional(),
 });
 
-const soundorConfigSchema = z.object({
+const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
   editor: editorSchema.optional(),
   runtimes: z.array(runtimeSchema),
@@ -110,6 +115,15 @@ const soundorConfigSchema = z.object({
   native: nativeSchema.optional(),
   signing: signingSchema.optional(),
 });
+
+/**
+ * A property this schema does not have is an error, never dropped: it may be
+ * a typo, or a setting of a newer config schema that this host, and so its
+ * runtimes, would otherwise silently ignore.
+ */
+function unknownPropertyMessage(key: string): string {
+  return `unknown property '${key}' in @soundor/config ${CONFIG_VERSION}; check its spelling, or upgrade soundor and @soundor/config together if it is from a newer release`;
+}
 
 /** Renders a zod path array into a `parameters[0].max`-style string. */
 function formatPath(path: readonly PropertyKey[]): string {
@@ -129,10 +143,14 @@ function formatPath(path: readonly PropertyKey[]): string {
 export function validateConfig(raw: unknown): SoundorConfig {
   const result = soundorConfigSchema.safeParse(raw);
   if (!result.success) {
-    const issues: ConfigIssue[] = result.error.issues.map((issue) => ({
-      path: formatPath(issue.path),
-      message: issue.message,
-    }));
+    const issues: ConfigIssue[] = result.error.issues.flatMap((issue) =>
+      issue.code === 'unrecognized_keys'
+        ? issue.keys.map((key) => ({
+            path: formatPath([...issue.path, key]),
+            message: unknownPropertyMessage(key),
+          }))
+        : [{ path: formatPath(issue.path), message: issue.message }],
+    );
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
   }
 

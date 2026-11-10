@@ -11,6 +11,7 @@
     "pipeline",
     "contract",
     "packages",
+    "compatibility",
     "ownership",
     "decisions",
     "build-runtime",

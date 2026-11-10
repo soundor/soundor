@@ -3,4 +3,4 @@ export {
   springDuration,
   springParameters,
   type SpringParameters,
-} from '@soundor/core/spring';
+} from '@soundor/runtime-sdk/client';
