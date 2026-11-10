@@ -9,15 +9,14 @@ export default defineSoundorConfig({
     name: '__PROJECT_NAME__',
   },
   runtimes: __RUNTIMES__,
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
+  parameters: {
+    gain: {
+      type: 'float32',
       label: 'Gain',
       min: 0,
       max: 1,
       default: 0.5,
       unit: 'dB',
     },
-  ],
+  },
 });

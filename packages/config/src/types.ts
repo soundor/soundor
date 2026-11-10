@@ -10,6 +10,11 @@
 import type { NativeApiDeclaration } from '@soundor/core';
 
 import type { EditorConfig, ResolvedEditorConfig } from './editor';
+import type {
+  CheckedParameters,
+  ParameterDeclarations,
+  ResolvedParameter,
+} from './parameters';
 import type { RuntimeDescriptor } from './runtime';
 
 /**
@@ -26,54 +31,6 @@ export interface RuntimeConfig {
   /** Runtime-specific options. Core treats this as an opaque bag. */
   options?: object;
 }
-
-/** Fields shared by every parameter variant. */
-export interface BaseParameter {
-  /** Stable identifier used as the key by downstream codegen and hooks. */
-  id: string;
-  label: string;
-}
-
-/** Continuous, floating-point parameter. */
-export interface FloatParameter extends BaseParameter {
-  type: 'float';
-  min: number;
-  max: number;
-  default: number;
-  unit?: string;
-}
-
-/** Discrete, integer parameter. */
-export interface IntParameter extends BaseParameter {
-  type: 'int';
-  min: number;
-  max: number;
-  default: number;
-  unit?: string;
-}
-
-/** Boolean toggle parameter. */
-export interface BoolParameter extends BaseParameter {
-  type: 'bool';
-  default: boolean;
-}
-
-/** Enumerated choice parameter. */
-export interface EnumParameter extends BaseParameter {
-  type: 'enum';
-  values: string[];
-  default: string;
-}
-
-/** Any declared parameter. */
-export type Parameter =
-  | FloatParameter
-  | IntParameter
-  | BoolParameter
-  | EnumParameter;
-
-/** The declared `type` discriminant of a {@link Parameter}. */
-export type ParameterType = Parameter['type'];
 
 /**
  * Who the plugin is, independent of any runtime or plugin format.
@@ -126,19 +83,49 @@ export interface SigningConfig {
   macos?: MacosSigningConfig;
 }
 
-/** Top-level Soundor configuration. */
-export interface SoundorConfig {
+/**
+ * A project's configuration, as `soundor.config.ts` declares it.
+ *
+ * `P` is the parameters' declarations, which {@link defineSoundorConfig}
+ * infers so that each is checked against its own type: a choice's default
+ * against its options, a parser's result against the parameter's type.
+ */
+export interface SoundorConfig<
+  P extends ParameterDeclarations = ParameterDeclarations,
+> {
   plugin: PluginIdentity;
   /**
    * The plugin editor's size, and whether it can be resized; the same in
-   * every runtime. Omitted, the editor is a fixed 800×600 view. After
-   * validation, every field is set (see `resolveEditor`).
+   * every runtime. Omitted, the editor is a fixed 800×600 view.
    */
-  editor?: EditorConfig | ResolvedEditorConfig;
+  editor?: EditorConfig;
   runtimes: RuntimeDescriptor[];
-  parameters: Parameter[];
+  /**
+   * The parameters hosts automate and store, by key. A key is the
+   * parameter's identity in saved sessions: never rename one after release.
+   * Their order is the order hosts list them in.
+   */
+  parameters?: CheckedParameters<P>;
   /** The plugin's typed native API, exposed to JavaScript as `soundor:native`. */
   native?: NativeApiDeclaration;
   /** Code signing; runtimes read the resolved settings from `ctx.signing`. */
+  signing?: SigningConfig;
+}
+
+/**
+ * A validated config, every field decided: what `parseConfig` returns and
+ * what runtimes receive.
+ */
+export interface ResolvedSoundorConfig {
+  plugin: PluginIdentity;
+  /**
+   * Resolved by validation; runtimes resolve it with `resolveEditor` either
+   * way, so a config built by hand may give any editor config.
+   */
+  editor?: EditorConfig | ResolvedEditorConfig;
+  runtimes: RuntimeDescriptor[];
+  /** In declaration order, which is the order hosts list them in. */
+  parameters: readonly ResolvedParameter[];
+  native?: NativeApiDeclaration;
   signing?: SigningConfig;
 }

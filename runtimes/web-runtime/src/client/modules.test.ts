@@ -17,15 +17,18 @@ describe('soundor:parameters', () => {
       'steps',
       'bypass',
       'mode',
+      'frequency',
+      'trim',
+      'reduction',
     ]);
 
-    parameters.gain.set(0.7);
-    expect(store.byId['gain']!.get()).toBe(0.7);
+    parameters.gain.set(0.75);
+    expect(store.byId['gain']!.get()).toBe(0.75);
 
     const heard = vi.fn<(value: number) => void>();
     const unsubscribe = parameters.gain.subscribe(heard);
-    store.byId['gain']!.set(0.2);
-    expect(heard).toHaveBeenCalledWith(0.2);
+    store.byId['gain']!.set(0.25);
+    expect(heard).toHaveBeenCalledWith(0.25);
     unsubscribe();
   });
 

@@ -1,12 +1,12 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
-import { generateSoundorFiles, type SoundorConfig } from '@soundor/runtime-sdk';
+import { generateSoundorFiles, resolveConfig } from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { fixtureConfig } from './client/testing/fixture';
 import { generateWebSources } from './codegen';
 
-const config = fixtureConfig as unknown as SoundorConfig;
+const config = resolveConfig(fixtureConfig);
 const dir = new URL('./client/testing/', import.meta.url);
 
 /** The fixture files and what generates them. */
@@ -20,6 +20,7 @@ function expected(): Record<string, string> {
   return {
     'manifest.json': web['manifest.json']!,
     'native.ts': web['native.ts']!,
+    'parameters.js': web['parameters.js']!,
     // Not native.d.ts: next to native.ts, TypeScript would ignore it.
     'soundor-native.d.ts': core['native.d.ts']!,
     'parameters.d.ts': core['parameters.d.ts']!,

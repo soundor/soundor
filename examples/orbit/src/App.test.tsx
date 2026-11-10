@@ -17,13 +17,14 @@ test('presets set the real parameters, release Hold, and survive host automation
   expect(parameters.hold.get()).toBe(true);
   await user.click(screen.getByRole('button', { name: 'Next preset' }));
   expect(parameters.hold.get()).toBe(false);
-  expect(parameters.time1.get()).toBe(0.38);
+  // float32 parameters hold 32-bit floats.
+  expect(parameters.time1.get()).toBe(Math.fround(0.38));
   expect(parameters.sync.get()).toBe(false);
   expect(screen.getByText('Warm magnetic')).toBeDefined();
   testParameters.set('mix', 0.7);
   expect(
     screen.getByRole('adjustable', { name: 'Mix' }).accessibility.value?.now,
-  ).toBe(0.7);
+  ).toBe(Math.fround(0.7));
 });
 
 test('echoes and knobs support keyboard editing; toggles expose their state', async () => {
@@ -37,7 +38,7 @@ test('echoes and knobs support keyboard editing; toggles expose their state', as
   await user.keyboard('{ArrowUp}');
   expect(parameters.feedback.get()).toBeGreaterThan(0.48);
   await user.keyboard('{Home}');
-  expect(parameters.feedback.get()).toBe(0.48);
+  expect(parameters.feedback.get()).toBe(Math.fround(0.48));
   await user.click(screen.getByRole('radio', { name: 'Original' }));
   expect(parameters.bypass.get()).toBe(true);
   expect(

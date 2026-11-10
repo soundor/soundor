@@ -5,6 +5,11 @@ declare module 'soundor:internal/manifest' {
   export default manifest;
 }
 
+declare module 'soundor:internal/parameters' {
+  /** The parameters' generated behavior, in the manifest's order. */
+  export const behaviors: readonly import('./parameters').ParameterBehavior[];
+}
+
 declare module 'soundor:internal/ui' {
   /** Whether the project has a plugin UI (src/main.ts[x]). */
   export const hasUi: boolean;

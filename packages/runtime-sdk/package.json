@@ -24,6 +24,18 @@
     "./client": {
       "types": "./dist/client.d.mts",
       "import": "./dist/client.mjs"
+    },
+    "./expression": {
+      "types": "./dist/expression/index.d.mts",
+      "import": "./dist/expression/index.mjs"
+    },
+    "./expression/cpp": {
+      "types": "./dist/expression/cpp.d.mts",
+      "import": "./dist/expression/cpp.mjs"
+    },
+    "./expression/js": {
+      "types": "./dist/expression/js.d.mts",
+      "import": "./dist/expression/js.mjs"
     }
   },
   "scripts": {
@@ -34,7 +46,8 @@
   },
   "dependencies": {
     "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:*"
+    "@soundor/core": "workspace:*",
+    "@soundor/expression": "workspace:*"
   },
   "devDependencies": {
     "@soundor/tsdown-config": "workspace:^",

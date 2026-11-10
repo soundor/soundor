@@ -10,6 +10,7 @@ export default defineConfig({
   ignorePatterns: [
     'packages/environment/webgl.d.ts',
     'runtimes/web-runtime/src/client/testing/*.{d.ts,json}',
+    'runtimes/web-runtime/src/client/testing/parameters.js',
     'engines/engine/src/gpu/webgl/generated/**',
     'engines/yoga-wasm/generated/**',
     // C++ (included into Hermes's hermes.cpp), not JavaScript.

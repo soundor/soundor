@@ -1,17 +1,22 @@
 import {
   getTestRuntime,
+  setParameterAsHost,
   type EditorSize,
   type HostSnapshot,
   type ViewSizeInit,
 } from '@soundor/test-runtime';
 
-/** Set simulated parameters in plain units using their declared type and range. */
+/**
+ * Set simulated parameters in plain units, as the host (automation, a preset)
+ * or the plugin's processing does: snapped to their range and step, read-only
+ * ones included, and subscribers notified.
+ */
 export const testParameters = {
   set(id: string, value: number | boolean | string): void {
     const runtime = getTestRuntime();
     if (!Object.hasOwn(runtime.parameters.byId, id))
       throw new Error(`Unknown Soundor parameter '${id}'`);
-    runtime.parameters.byId[id]!.set(value);
+    setParameterAsHost(runtime.parameters.byId[id]!, value as never);
   },
 };
 

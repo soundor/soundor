@@ -10,7 +10,7 @@ import { ConfigError } from '../errors';
 import { parseConfig } from '../parse';
 import type { Runtime } from '../runtime';
 import { validateConfig } from '../schema';
-import type { SoundorConfig } from '../types';
+import type { ResolvedSoundorConfig } from '../types';
 
 const fixtures = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -37,11 +37,14 @@ function makeRuntime(id: string): Runtime {
 }
 
 /** The serializable projection of a config (drops the live `runtime`). */
-function projectData(config: SoundorConfig): unknown {
+function projectData(config: ResolvedSoundorConfig): unknown {
   return {
     plugin: config.plugin,
     runtimes: config.runtimes.map((r) => ({ id: r.id, options: r.options })),
-    parameters: config.parameters,
+    parameters: config.parameters.map(({ semantics, ...parameter }) => {
+      expect(semantics.format.type).toBe('string');
+      return parameter;
+    }),
     native: config.native,
   };
 }
@@ -52,21 +55,43 @@ const expectedData = {
   runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
   parameters: [
     {
-      type: 'float',
       id: 'gain',
       label: 'Gain',
-      min: 0,
-      max: 1,
-      default: 0.5,
+      access: 'automatable',
+      type: 'float32',
+      min: -24,
+      max: 24,
+      default: 0,
+      step: 0.01,
       unit: 'dB',
+      mapping: { type: 'linear' },
     },
-    { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 16, default: 4 },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
     {
-      type: 'enum',
+      id: 'voices',
+      label: 'Voices',
+      access: 'manual',
+      type: 'int32',
+      min: 1,
+      max: 16,
+      default: 4,
+      mapping: { type: 'linear' },
+    },
+    {
+      id: 'bypass',
+      label: 'bypass',
+      access: 'automatable',
+      type: 'boolean',
+      default: false,
+    },
+    {
       id: 'mode',
       label: 'Mode',
-      values: ['mono', 'stereo'],
+      access: 'automatable',
+      type: 'choice',
+      options: [
+        { value: 'mono', label: 'Mono' },
+        { value: 'stereo', label: 'Stereo' },
+      ],
       default: 'stereo',
     },
   ],
@@ -76,7 +101,7 @@ const expectedData = {
 };
 
 /** Asserts a parsed config carries a live runtime implementation for `id`. */
-function expectRuntime(config: SoundorConfig, id: string): void {
+function expectRuntime(config: ResolvedSoundorConfig, id: string): void {
   const runtime = config.runtimes.find((r) => r.id === id)?.runtime;
   expect(runtime?.id).toBe(id);
   for (const method of ['init', 'gen', 'dev', 'build', 'doctor'] as const) {
@@ -118,7 +143,7 @@ describe('parseConfig — loading', () => {
       path,
       `const noop = async () => {};
        const runtime = { id: 'juce', init: noop, gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
-       export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'juce', runtime }], parameters: [] };`,
+       export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'juce', runtime }], parameters: {} };`,
     );
     const config = await parseConfig({ path });
     expect(projectData(config)).toEqual({
@@ -173,7 +198,7 @@ describe('parseConfig — loading', () => {
 
 describe('validateConfig — validation rules', () => {
   const plugin = { id: 'com.example.test', name: 'Test' };
-  const base = { plugin, runtimes: [], parameters: [] };
+  const base = { plugin, runtimes: [], parameters: {} };
 
   it('accepts a valid config and normalizes it', () => {
     const runtime = makeRuntime('juce');
@@ -207,72 +232,6 @@ describe('validateConfig — validation rules', () => {
     );
   });
 
-  it('rejects a malformed shape (wrong field type)', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [
-        { type: 'float', id: 'g', label: 'G', min: 'x', max: 1, default: 0 },
-      ],
-    });
-    expect(error.issues[0]?.path).toBe('parameters[0].min');
-  });
-
-  it('rejects an unknown parameter type', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [{ type: 'ratio', id: 'g', label: 'G' }],
-    });
-    expect(error.issues.length).toBeGreaterThan(0);
-  });
-
-  it('flags min greater than max', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [
-        { type: 'int', id: 'n', label: 'N', min: 10, max: 1, default: 10 },
-      ],
-    });
-    expect(error.issues).toContainEqual(
-      expect.objectContaining({ path: 'parameters[0].min' }),
-    );
-  });
-
-  it('flags a default out of range', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [
-        { type: 'float', id: 'g', label: 'G', min: 0, max: 1, default: 2 },
-      ],
-    });
-    expect(error.issues).toContainEqual(
-      expect.objectContaining({ path: 'parameters[0].default' }),
-    );
-  });
-
-  it('flags an empty enum', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [
-        { type: 'enum', id: 'm', label: 'M', values: [], default: 'a' },
-      ],
-    });
-    expect(error.issues).toContainEqual(
-      expect.objectContaining({ path: 'parameters[0].values' }),
-    );
-  });
-
-  it('flags an enum default that is not a declared value', () => {
-    const error = expectValidation({
-      ...base,
-      parameters: [
-        { type: 'enum', id: 'm', label: 'M', values: ['a', 'b'], default: 'c' },
-      ],
-    });
-    expect(error.issues).toContainEqual(
-      expect.objectContaining({ path: 'parameters[0].default' }),
-    );
-  });
-
   it('requires a reverse-DNS plugin id and a display name', () => {
     for (const id of ['acme', 'com..acme', 'com.acme reverb', '']) {
       const error = expectValidation({ ...base, plugin: { id, name: 'X' } });
@@ -287,7 +246,7 @@ describe('validateConfig — validation rules', () => {
     expect(unnamed.issues).toContainEqual(
       expect.objectContaining({ path: 'plugin.name' }),
     );
-    const missing = expectValidation({ runtimes: [], parameters: [] });
+    const missing = expectValidation({ runtimes: [], parameters: {} });
     expect(missing.issues).toContainEqual(
       expect.objectContaining({ path: 'plugin' }),
     );
@@ -348,23 +307,16 @@ describe('validateConfig — validation rules', () => {
     );
   });
 
-  it('flags duplicate parameter and runtime ids', () => {
+  it('flags duplicate runtime ids', () => {
     const error = expectValidation({
       plugin,
       runtimes: [
         { id: 'juce', runtime: makeRuntime('juce') },
         { id: 'juce', runtime: makeRuntime('juce') },
       ],
-      parameters: [
-        { type: 'bool', id: 'x', label: 'X', default: false },
-        { type: 'bool', id: 'x', label: 'X2', default: true },
-      ],
     });
     expect(error.issues).toContainEqual(
       expect.objectContaining({ path: 'runtimes[1].id' }),
-    );
-    expect(error.issues).toContainEqual(
-      expect.objectContaining({ path: 'parameters[1].id' }),
     );
   });
 });
@@ -373,7 +325,7 @@ describe('validateConfig — editor', () => {
   const base = {
     plugin: { id: 'com.example.test', name: 'Test' },
     runtimes: [],
-    parameters: [],
+    parameters: {},
   };
 
   it('opens a fixed editor at its size, its limits being that size', () => {

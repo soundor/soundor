@@ -20,7 +20,7 @@ import type { UiBundleContext } from '@soundor/runtime-sdk';
 import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 
 import type { WebManifest } from './client/manifest.ts';
-import { MANIFEST_FILE } from './codegen.ts';
+import { MANIFEST_FILE, PARAMETERS_FILE } from './codegen.ts';
 import { CLIENT_DIR, clientModule } from './paths.ts';
 import { soundorUiBundle } from './ui-bundle.ts';
 
@@ -147,6 +147,9 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       if (!id.startsWith('soundor:')) return null;
       if (id === 'soundor:internal/manifest') {
         return join(options.genDir, MANIFEST_FILE);
+      }
+      if (id === 'soundor:internal/parameters') {
+        return join(options.genDir, PARAMETERS_FILE);
       }
       if (id === UI_MODULE || id === DEV_MODULE || id === NATIVE_MODULE)
         return `\0${id}`;

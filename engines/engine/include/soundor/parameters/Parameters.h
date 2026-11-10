@@ -7,18 +7,41 @@
 #include <atomic>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
 {
-    enum class Kind
+    // A parameter's declared type (soundor.config `type`). The order is the
+    // JavaScript module's: keep them in step.
+    enum class Type
     {
-        Float,
-        Int,
-        Bool,
+        Int8,
+        Uint8,
+        Int16,
+        Uint16,
+        Int32,
+        Uint32,
+        Float32,
+        Boolean,
         Choice,
+    };
+
+    // Who may change it (soundor.config `access`).
+    enum class Access
+    {
+        Automatable,
+        Manual,
+        ReadOnly,
+    };
+
+    struct Choice
+    {
+        std::string value;
+        std::string label;
     };
 
     // A parameter as declared in soundor.config (generated per plugin).
@@ -26,13 +49,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
     {
         std::string id;
         std::string label;
-        Kind kind = Kind::Float;
-        // Plain-unit range and default. Bool: 0..1. Choice: 0..choices.size()-1.
+        Type type = Type::Float32;
+        Access access = Access::Automatable;
+        // Plain-unit range and default. Boolean: 0..1. Choice: the option index.
         double min = 0;
         double max = 1;
         double defaultValue = 0;
+        // 0 when the parameter has no step.
+        double step = 0;
         std::string unit;
-        std::vector<std::string> choices;
+        std::vector<Choice> choices;
     };
 
     // Which parameters changed since the UI last looked.
@@ -75,6 +101,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
     // A backend's parameter system (JUCE: the AudioProcessorValueTreeState),
     // seen from the UI thread. Indices follow infos(). Values are plain units:
     // the declared range, 0/1 for booleans, the index for choices.
+    //
+    // The parameter's behavior (its mapping, step and text) is the backend's,
+    // generated from soundor.config: the engine never computes it, so it is
+    // the same whether or not a UI runs.
     class Host
     {
     public:
@@ -82,12 +112,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
 
         [[nodiscard]] virtual std::span<const Info> infos() const = 0;
         [[nodiscard]] virtual double value(std::size_t index) const = 0;
-        // `value` is already clamped (and rounded where discrete).
+        // `value` is a legal value (constrain() gave it).
         virtual void setValue(std::size_t index, double value) = 0;
         virtual void beginGesture(std::size_t index) = 0;
         virtual void endGesture(std::size_t index) = 0;
         // Marked by the backend whenever a value changes, from any source.
         [[nodiscard]] virtual ChangeFlags& changes() = 0;
+
+        // Any finite value → the nearest legal one (range, step, integer).
+        [[nodiscard]] virtual double constrain(std::size_t index, double value) const = 0;
+        // A legal value → its normalized position in [0, 1].
+        [[nodiscard]] virtual double toNormalized(std::size_t index, double value) const = 0;
+        // A normalized position (clamped to [0, 1]) → a legal value.
+        [[nodiscard]] virtual double fromNormalized(std::size_t index, double normalized) const = 0;
+        // A legal value as display text.
+        [[nodiscard]] virtual std::string format(std::size_t index, double value) const = 0;
+        // Text as a legal value, or nothing.
+        [[nodiscard]] virtual std::optional<double> parse(std::size_t index, std::string_view text) const = 0;
     };
 
     // Makes `soundor:parameters` importable in `context`, backed by `host`.
@@ -96,7 +137,4 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
     // On the UI thread: delivers the changes marked since the last call to the
     // context's JavaScript subscribers. Returns how many parameters changed.
     std::size_t dispatchChanges(js::Context& context);
-
-    // Clamps (and rounds, for discrete kinds) a plain value into range.
-    [[nodiscard]] double constrain(const Info& info, double value) noexcept;
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters

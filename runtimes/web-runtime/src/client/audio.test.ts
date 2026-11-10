@@ -174,17 +174,10 @@ describe('WebAudioHost', () => {
   });
 
   it('follows a parameter in the project setup: one store, no copy', async () => {
-    const { createParameterStore } = await import('./parameters');
-    const { byId } = createParameterStore([
-      {
-        id: 'gain',
-        label: 'Gain',
-        type: 'float',
-        min: 0,
-        max: 1,
-        default: 0.5,
-      },
-    ]);
+    const { storeOf } = await import('./testing/store');
+    const { byId } = storeOf({
+      gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+    });
     let node: FakeGain | undefined;
     const projectSetup: WebAudioSetup = ({ context, input, output }) => {
       node = (context as unknown as FakeContext).createGain();

@@ -13,11 +13,12 @@ import {
   createCodegenSink,
   createNodeFileSystem,
   createProjectPaths,
+  resolveConfig,
   writeGeneratedFiles,
   type CollectingCodegenSink,
   type LifecycleContext,
   type Logger,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
 import type { WebOptions } from './options';
@@ -27,13 +28,13 @@ export const SOURCE_CLIENT_DIR = fileURLToPath(
   new URL('./client/', import.meta.url),
 );
 
-export const testConfig = {
+export const testConfig: ResolvedSoundorConfig = resolveConfig({
   plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
   runtimes: [],
-  parameters: [
-    { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  ],
-} as unknown as SoundorConfig;
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+  },
+});
 
 /** A logger that records what it is given. */
 export interface RecordingLogger extends Logger {

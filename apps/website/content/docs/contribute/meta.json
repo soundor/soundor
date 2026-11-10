@@ -12,6 +12,7 @@
     "contract",
     "packages",
     "compatibility",
+    "expression",
     "ownership",
     "decisions",
     "build-runtime",

@@ -10,7 +10,7 @@ import {
   resolveSigning,
   runPhase,
   type DoctorReport,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/config';
 import {
   createCodegenSink,
@@ -242,7 +242,7 @@ function glyph(status: DoctorStatus): string {
 
 /** Which identity macOS binaries are signed with, and where it came from. */
 function signingDiagnostic(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   env: NodeJS.ProcessEnv,
 ): DoctorDiagnostic {
   const label = 'macOS signing';

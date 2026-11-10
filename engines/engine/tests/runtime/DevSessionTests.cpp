@@ -41,7 +41,9 @@ namespace
     // Records what reaches the "plugin" across reloads.
     struct RecordingHost final : parameters::Host
     {
-        std::vector<parameters::Info> declared { { "gain", "Gain", parameters::Kind::Float, 0, 1, 0.5, "", {} } };
+        std::vector<parameters::Info> declared {
+            { "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, 0, 1, 0.5, 0, "", {} }
+        };
         double gain = 0.5;
         parameters::ChangeFlags flags { 1 };
         std::vector<std::string> log;
@@ -51,6 +53,11 @@ namespace
         void beginGesture(std::size_t) override { log.emplace_back("begin"); }
         void endGesture(std::size_t) override { log.emplace_back("end"); }
         parameters::ChangeFlags& changes() override { return flags; }
+        [[nodiscard]] double constrain(std::size_t, double v) const override { return v; }
+        [[nodiscard]] double toNormalized(std::size_t, double v) const override { return v; }
+        [[nodiscard]] double fromNormalized(std::size_t, double t) const override { return t; }
+        [[nodiscard]] std::string format(std::size_t, double v) const override { return std::to_string(v); }
+        [[nodiscard]] std::optional<double> parse(std::size_t, std::string_view) const override { return {}; }
     };
 
     struct Fixture

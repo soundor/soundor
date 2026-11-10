@@ -287,7 +287,7 @@ export default defineSoundorConfig({
         `{ id: ${JSON.stringify(id)}, options: {}, runtime: runtime(${JSON.stringify(id)}) }`,
     )
     .join(', ')}],
-  parameters: [],
+  parameters: {},
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,

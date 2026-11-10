@@ -69,16 +69,9 @@ test('generates the actual shared contracts for a library project', async () => 
   const { result, root } = await configure({
     config: false,
     runtime: {
-      parameters: [
-        {
-          id: 'gain',
-          label: 'Gain',
-          type: 'float',
-          min: 0,
-          max: 1,
-          default: 0.5,
-        },
-      ],
+      parameters: {
+        gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+      },
     },
   });
   expect(result?.test?.environmentOptions?.soundor).toMatchObject({
@@ -96,7 +89,7 @@ test('loads a project configuration without a native engine', async () => {
   const config = resolve(root, 'soundor.config.ts');
   await writeFile(
     config,
-    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, parameters: [{id: 'enabled', label: 'Enabled', type: 'bool', default: true}], runtimes: [], native: {methods: {probe: {returns: 'float64'}}}};`,
+    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, parameters: {enabled: {label: 'Enabled', type: 'boolean', default: true}}, runtimes: [], native: {methods: {probe: {returns: 'float64'}}}};`,
   );
   const { result } = await configure({ config });
   expect(result?.test?.environmentOptions?.soundor).toMatchObject({

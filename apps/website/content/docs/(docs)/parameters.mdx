@@ -1,35 +1,199 @@
 ---
 title: 'Parameters and host automation'
-description: 'Typed parameter values, subscriptions, gestures, and the audio boundary.'
+description: 'Typed parameters: types, mappings, steps, text, access, and how the UI, the host and the audio processing share them.'
 ---
 
 Parameters are the values the plugin exposes to its host: a gain, a bypass
-switch, a mode selector. Declare them in `soundor.config.ts`, use the generated
-`soundor:parameters` module from the UI, and connect them to audio processing in
-each runtime.
+switch, a filter mode, a gain-reduction meter. Declare them in
+`soundor.config.ts`, use the generated `soundor:parameters` module from the
+UI, and read them in each runtime's audio processing.
+
+A parameter's behavior is declared once and runs the same everywhere: how a
+knob's travel maps to a value, which values are legal, how a value is shown
+as text and how typed text is read. Soundor compiles it into C++ for the JUCE
+runtime and into JavaScript for the browser and the tests, so a DAW shows the
+same text as your UI, even with the plugin's editor closed.
 
 ## Declare parameters
 
-The config accepts four parameter types:
+`parameters` is a record: each key is the parameter's **id**, the stable
+identity hosts store in sessions and automation. Rename a key and saved
+projects lose that parameter's value; `label` is only what hosts show, and
+can change freely.
 
 ```ts
-parameters: [
-  { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 16, default: 4 },
-  { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-  {
-    type: 'enum',
-    id: 'mode',
-    label: 'Mode',
-    values: ['clean', 'warm'],
-    default: 'clean',
+import { defineSoundorConfig } from '@soundor/config';
+
+export default defineSoundorConfig({
+  // plugin, runtimes…
+  parameters: {
+    gain: {
+      type: 'float32',
+      label: 'Gain',
+      min: -60,
+      max: 12,
+      default: 0,
+      step: 0.1,
+      unit: 'dB',
+    },
+    voices: { type: 'uint8', label: 'Voices', min: 1, max: 16, default: 4 },
+    bypass: { type: 'boolean', label: 'Bypass', default: false },
+    mode: {
+      type: 'choice',
+      label: 'Mode',
+      options: [
+        { value: 'clean', label: 'Clean' },
+        { value: 'warm', label: 'Warm' },
+      ],
+      default: 'clean',
+    },
   },
-],
+});
 ```
 
-Float and integer parameters may also have a display `unit`. IDs are unique
-within the plugin. Generated declarations expose the corresponding value types:
-numbers, booleans, and enum string unions.
+The types:
+
+| Type                                                  | Values                                  | In code                            |
+| ----------------------------------------------------- | --------------------------------------- | ---------------------------------- |
+| `float32`                                             | a 32-bit float in `[min, max]`          | `number`                           |
+| `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32` | an integer of that size in `[min, max]` | `number`                           |
+| `boolean`                                             | on or off                               | `boolean`                          |
+| `choice`                                              | one of `options`                        | the union of the options' `value`s |
+
+`int64`, `uint64` and `float64` are refused, with an explanation: hosts
+carry every parameter as a normalized 32-bit float, so their values could not
+survive automation exactly. For the same reason an integer parameter's values
+stay within ±2^24 and its range spans at most 2^23 values.
+
+A choice's `value` is what code sees and `label` what screens show. Hosts
+store a choice as its option's **index**: add new options at the end, since
+reordering or removing options changes what saved sessions and automation
+mean. TypeScript knows the values from the declaration itself, without
+`as const`: a `default` that is not an option, or an option value or label
+that repeats an earlier one, is a type error.
+
+Every problem the config has is reported when it is loaded, with its path: a
+default outside the range or off the step's grid, a step that does not fit,
+a custom mapping that does not invert itself, a `format` its `parse` cannot
+read back.
+
+### Mappings
+
+A host's automation lane, a generic editor's slider and a knob's travel are
+all positions in `[0, 1]`. `mapping` says how such a position maps to a value
+of a `float32` parameter:
+
+| `mapping`                                   | Value at position `t`                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| `'linear'` (default)                        | `min + t · (max - min)`                                                 |
+| `'log'`                                     | `min · (max / min)^t`, for frequencies and ratios (`min` above 0)       |
+| `{ type: 'power', exponent }`               | `min + (max - min) · t^exponent`; above 1 gives the low end more travel |
+| `{ type: 'symmetricPower', exponent }`      | a power curve on each half; above 1 gives the middle more travel        |
+| `{ type: 'custom', toValue, toNormalized }` | your own, both directions as expressions                                |
+
+```ts
+cutoff: {
+  type: 'float32',
+  label: 'Cutoff',
+  min: 20,
+  max: 20000,
+  default: 1000,
+  mapping: 'log',
+  unit: 'Hz',
+},
+```
+
+A custom mapping writes both directions with the expression builder (see
+[Format and parse text](#format-and-parse-text)), in float64:
+
+```ts
+mapping: {
+  type: 'custom',
+  toValue: (e) => e.mul(e.mul(e.normalized, e.normalized), 100),
+  toNormalized: (e) => e.sqrt(e.div(e.value, 100)),
+},
+```
+
+It must increase, map 0 to `min` and 1 to `max`, and its two directions must
+invert each other; loading the config checks this numerically. Integer
+parameters are always linear: hosts space a discrete parameter's values
+evenly.
+
+### Steps
+
+With a `step`, a parameter's values are `min + k · step`, and `max`: every
+value set from anywhere (the UI, the host, a preset) snaps to the nearest one,
+a tie upward. A `float32` parameter's last step may be shorter than the
+others, so `max` is always reachable; an integer's step divides its range.
+Integers without a step have a step of 1. The `default` must be on the grid.
+
+### Format and parse text
+
+Hosts show a parameter's value as text and let users type one. By default a
+number is shown with the decimals its step suggests (or its range, without
+a step) followed by its `unit`, and typed text is read as a number, the unit
+optional and case ignored: `-6.5 dB`, `-6.5db` and `-6.5` all read as -6.5.
+
+For anything else, write `format` and `parse` as **expressions**: functions
+that receive a builder, `e`, and return a typed expression tree rather than
+compute a value. Soundor compiles the tree into each runtime's language, so
+the same text appears in a DAW, in the browser and in tests.
+
+```ts
+frequency: {
+  type: 'float32',
+  label: 'Frequency',
+  min: 20,
+  max: 20000,
+  default: 1000,
+  mapping: 'log',
+  unit: 'Hz',
+  // 440 Hz, 1.25 kHz
+  format: (e) =>
+    e.if(
+      e.gte(e.value, 1000),
+      e.concat(e.fixed(e.div(e.value, 1000), 2), ' kHz'),
+      e.concat(e.fixed(e.value, 0), ' Hz'),
+    ),
+  // "1.25 kHz", "1250", "440hz"
+  parse: (e) =>
+    e.let(e.lower(e.trim(e.text)), (text) =>
+      e.if(
+        e.endsWith(text, 'khz'),
+        e.map(e.parseFloat32(e.removeSuffix(text, 'khz')), (v) =>
+          e.mul(v, 1000),
+        ),
+        e.parseFloat32(e.removeSuffix(text, 'hz')),
+      ),
+    ),
+},
+```
+
+`format` receives `e.value`, of the parameter's type, and returns a string.
+`parse` receives `e.text` and returns a value of the parameter's type, or
+null when the text is not one (`e.parseFloat32`, `e.parseInt32`, `e.map`
+and `e.coalesce` work with nullable values). What `parse` returns is then
+checked against the range and snapped to the step. A custom `format` needs a
+`parse` that reads what it writes, or `parse: 'default'`: loading the config
+formats sample values and checks that they read back.
+
+The builder is typed: operands of one operation have one type, numbers
+convert explicitly (`e.convert(e.value, 'float32')`), and a parser of an
+`int32` cannot return a `float32`. A plain number next to an expression takes
+the expression's type (`e.mul(e.value, 1000)`). The full list of operations
+and their exact semantics is in the
+[expression language](/docs/contribute/expression) reference.
+
+### Access
+
+`access` says who may change a parameter:
+
+- `'automatable'` (the default): the UI and the host, whose automation
+  records and plays it back;
+- `'manual'`: the UI and the host's controls, but hosts do not automate it
+  (an oversampling factor, a mode that is costly to switch);
+- `'readOnly'`: only the plugin's audio processing, which publishes it. Hosts
+  show it as a meter and the UI reads it; writing it from the UI throws.
 
 ## Read, write, and subscribe
 
@@ -37,7 +201,7 @@ numbers, booleans, and enum string unions.
 import { parameters } from 'soundor:parameters';
 
 const gain = parameters.gain.get();
-parameters.gain.set(0.75);
+parameters.gain.set(-6);
 const unsubscribe = parameters.gain.subscribe((value) => {
   console.log('Gain changed:', value);
 });
@@ -46,14 +210,34 @@ const unsubscribe = parameters.gain.subscribe((value) => {
 unsubscribe();
 ```
 
-`info` exposes the declaration, including the label, range where applicable,
-and default. Numeric writes are clamped to their range; integer values are
-rounded. Wrong value types fail, and enum writes must be declared choices.
-Subscribers hear changes rather than repeated writes of the same value.
+Values are in plain units: numbers in the declared range and on its step's
+grid (a `float32` value is a 32-bit float), booleans, or a choice's option
+`value`. `set()` clamps and snaps a number; a value of the wrong type, a
+choice value that is not an option, and any write to a read-only parameter
+throw a `TypeError`. Subscribers hear changes, from any source, rather than
+repeated writes of the same value.
+
+Each parameter also converts as the host does:
+
+```ts
+parameters.frequency.format(); // '1.00 kHz': the current value as hosts show it
+parameters.frequency.format(440); // '440 Hz'
+parameters.frequency.parse('2.5 kHz'); // 2500; null for text that is no value
+parameters.frequency.toNormalized(); // the current value's position in [0, 1]
+parameters.frequency.fromNormalized(0.5); // the value a knob halfway sets
+```
+
+A knob or slider should work in normalized positions (`toNormalized` and
+`fromNormalized`) so its travel follows the parameter's mapping, and show
+`format()` so its text matches the host's.
+
+`info` holds the declaration, with exact literal types: `id`, `label`,
+`access`, `type`, and the range, `step`, `unit`, or `options` and `default`.
 
 In React, use `useParameter(parameters.gain)` to read and subscribe with the
-component's lifecycle. Keep the parameter as the value source so host automation,
-preset restoration, and other views can update the displayed value.
+component's lifecycle. Keep the parameter as the value source so host
+automation, preset restoration, and other views can update the displayed
+value.
 
 One parameter of each type, in React:
 
@@ -82,26 +266,40 @@ DAW to record the interaction as automation.
 
 ## Connect parameters to audio
 
-In a JUCE plugin the parameter API is backed by the processor's
-`AudioProcessorValueTreeState`. Host automation, preset restoration, and UI
-changes use that same state. Parameter listeners only set lock-free flags;
-JavaScript subscribers run later on the message thread.
+In a JUCE plugin the generated base processor holds one typed handle per
+parameter, named after its id:
 
-Your processor reads the parameter state and applies it to audio buffers.
-JavaScript does not process the audio or run on the audio thread. The
-[basic example](/docs/examples/basic) shows the C++ gain implementation alongside
-its browser implementation.
+```cpp
+// float32 → float, uint8 → std::uint8_t, boolean → bool,
+// choice → an enum in namespace choices, in the options' order.
+const float gain = gainParameter.load();
+if (modeParameter.load() == choices::Mode::warm)
+    saturate(buffer);
+
+// A read-only parameter: publish it from the processing.
+reductionParameter.publish(-3.5f);
+```
+
+`load()` is realtime-safe on any thread. `publish()` stores the value without
+locks or allocation; the message thread hands what was published to the host
+and the UI about 30 times a second. Host automation, preset restoration and
+UI changes all share the processor's state, and the host's text for a value
+comes from the parameter's compiled `format`, with or without the editor.
+JavaScript does not process audio or run on the audio thread. The
+[basic example](/docs/examples/basic) shows the C++ gain implementation
+alongside its browser implementation.
 
 In the browser the UI, audio setup, and host controls share one parameter
 store. Subscribe from `runtimes/web/src/audio.ts` to update a Web Audio node,
+publish read-only parameters with the setup's `publish(parameter, value)`,
 and return a cleanup function that unsubscribes and disconnects the graph.
 See [Web Audio setup](/docs/web-runtime#audio-raw-web-audio).
 
 ## Test parameter behavior
 
-The test runtime implements parameter validation, changes, and nested gestures.
-Use the [testing helpers](/docs/testing/test-parameters) to
-simulate host-side values and inspect UI behavior. A component test can verify
-that a fader displays an automated change or that Reset restores the declared
-default. Audio processing and real DAW automation require their own integration
-checks.
+The test runtime runs the same compiled behavior: ranges, steps, mappings and
+text. Use the [testing helpers](/docs/testing/test-parameters) to simulate
+host-side values, including read-only ones, and inspect UI behavior. A
+component test can verify that a fader displays an automated change, or that
+Reset restores the declared default. Audio processing and real DAW automation
+require their own integration checks.

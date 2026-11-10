@@ -29,19 +29,19 @@ void OrbitProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&
         if (const auto position = playhead->getPosition())
             if (const auto tempo = position->getBpm())
                 bpm = std::clamp(*tempo, 20.0, 400.0);
-    const auto beat = syncParameter->load() >= 0.5f ? 60.0 / bpm : 0.5;
+    const auto beat = syncParameter.load() ? 60.0 / bpm : 0.5;
     orbit::Settings settings;
-    settings.times = { static_cast<float>(time1Parameter->load() * beat),
-                       static_cast<float>(time2Parameter->load() * beat),
-                       static_cast<float>(time3Parameter->load() * beat) };
-    settings.levels = { level1Parameter->load(), level2Parameter->load(), level3Parameter->load() };
-    settings.feedback = feedbackParameter->load();
-    settings.tone = toneParameter->load();
-    settings.motion = motionParameter->load();
-    settings.spread = spreadParameter->load();
-    settings.mix = mixParameter->load();
-    settings.hold = holdParameter->load() >= 0.5f;
-    settings.bypass = bypassParameter->load() >= 0.5f;
+    settings.times = { static_cast<float>(time1Parameter.load() * beat),
+                       static_cast<float>(time2Parameter.load() * beat),
+                       static_cast<float>(time3Parameter.load() * beat) };
+    settings.levels = { level1Parameter.load(), level2Parameter.load(), level3Parameter.load() };
+    settings.feedback = feedbackParameter.load();
+    settings.tone = toneParameter.load();
+    settings.motion = motionParameter.load();
+    settings.spread = spreadParameter.load();
+    settings.mix = mixParameter.load();
+    settings.hold = holdParameter.load();
+    settings.bypass = bypassParameter.load();
     delay.configure(settings);
     const bool stereo = buffer.getNumChannels() > 1;
     auto* left = buffer.getWritePointer(0);

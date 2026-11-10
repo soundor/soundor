@@ -15,43 +15,51 @@ export interface CoreRuntimeDescriptor {
   readonly id: string;
 }
 
+/** Who may change a parameter (see `@soundor/config`). */
+export type CoreParameterAccess = 'automatable' | 'manual' | 'readOnly';
+
 export interface CoreBaseParameter {
   readonly id: string;
   readonly label: string;
+  readonly access: CoreParameterAccess;
 }
 
-export interface CoreFloatParameter extends CoreBaseParameter {
-  readonly type: 'float';
+/** A numeric parameter: an integer type of up to 32 bits, or `float32`. */
+export interface CoreNumericParameter extends CoreBaseParameter {
+  readonly type:
+    | 'int8'
+    | 'uint8'
+    | 'int16'
+    | 'uint16'
+    | 'int32'
+    | 'uint32'
+    | 'float32';
   readonly min: number;
   readonly max: number;
   readonly default: number;
+  readonly step?: number;
   readonly unit?: string;
 }
 
-export interface CoreIntParameter extends CoreBaseParameter {
-  readonly type: 'int';
-  readonly min: number;
-  readonly max: number;
-  readonly default: number;
-  readonly unit?: string;
-}
-
-export interface CoreBoolParameter extends CoreBaseParameter {
-  readonly type: 'bool';
+export interface CoreBooleanParameter extends CoreBaseParameter {
+  readonly type: 'boolean';
   readonly default: boolean;
 }
 
-export interface CoreEnumParameter extends CoreBaseParameter {
-  readonly type: 'enum';
-  readonly values: readonly string[];
+export interface CoreChoiceParameter extends CoreBaseParameter {
+  readonly type: 'choice';
+  readonly options: readonly {
+    readonly value: string;
+    readonly label: string;
+  }[];
   readonly default: string;
 }
 
+/** What core needs of a resolved parameter to declare `soundor:parameters`. */
 export type CoreParameter =
-  | CoreFloatParameter
-  | CoreIntParameter
-  | CoreBoolParameter
-  | CoreEnumParameter;
+  | CoreNumericParameter
+  | CoreBooleanParameter
+  | CoreChoiceParameter;
 
 export interface CorePluginIdentity {
   readonly id: string;

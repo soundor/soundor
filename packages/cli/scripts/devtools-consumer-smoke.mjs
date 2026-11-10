@@ -26,6 +26,7 @@ try {
     'packages/core',
     'packages/environment',
     'packages/config',
+    'packages/expression',
     'packages/cli',
     'packages/devtools-protocol',
     'packages/devtools-server',
@@ -113,7 +114,7 @@ try {
     `
 import { defineSoundorConfig } from '@soundor/config';
 export default defineSoundorConfig({
-  plugin: { id: 'com.soundor.packed-test', name: 'Packed test' }, parameters: [],
+  plugin: { id: 'com.soundor.packed-test', name: 'Packed test' }, parameters: {},
   runtimes: [{ id: 'smoke', options: {}, runtime: {
     id: 'smoke', capabilities: { devtools: { inspector: true } },
     async init() {}, async gen() {}, async build() {}, async doctor() { return { checks: [] }; },

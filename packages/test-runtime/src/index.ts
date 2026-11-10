@@ -11,7 +11,10 @@ export {
 } from './semantics';
 export type {
   RuntimeOptions,
+  ParameterAccess,
   ParameterInfo,
+  ParameterInit,
+  ParameterSemanticsInit,
   HostSnapshot,
   EditorInit,
   EditorSize,
@@ -39,3 +42,4 @@ export {
   resetTestContext,
   disposeTestContext,
 } from './context';
+export { setParameterAsHost } from './parameters';

@@ -21,7 +21,7 @@ import { defineSoundorConfig } from '@soundor/config';
 export default defineSoundorConfig({
   plugin: { id: 'com.acme.reverb', name: 'Acme Reverb' },
   runtimes: [],
-  parameters: [],
+  parameters: {},
 });
 ```
 
@@ -65,7 +65,7 @@ export default defineSoundorConfig({
     resizable: true,
   },
   runtimes: [juceRuntime(), webRuntime()],
-  parameters: [],
+  parameters: {},
 });
 ```
 
@@ -177,6 +177,51 @@ cannot be resized at its size (the VST3 standard), so there is nothing
 beyond it to fill. `fit` is only allowed with `resizable: true`, and
 `keepAspectRatio` with `resize: 'scale'`: the config's types reject them
 elsewhere, and so does validation of a config that is not type-checked.
+
+### `parameters`
+
+The plugin's parameters, by id: the key is the stable identity hosts store in
+sessions and automation, so never rename one after release.
+
+```ts
+parameters: {
+  cutoff: {
+    type: 'float32',
+    label: 'Cutoff',
+    min: 20,
+    max: 20000,
+    default: 1000,
+    mapping: 'log',
+    unit: 'Hz',
+  },
+  mode: {
+    type: 'choice',
+    options: [
+      { value: 'clean', label: 'Clean' },
+      { value: 'warm', label: 'Warm' },
+    ],
+    default: 'clean',
+    access: 'manual',
+  },
+},
+```
+
+| Field             | Meaning                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`            | `float32`; `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`; `boolean`; `choice`. `int64`, `uint64`, `float64` are refused.                                      |
+| `label`           | What hosts show. Default: the id.                                                                                                                                     |
+| `access`          | `'automatable'` (default), `'manual'` (not automated by hosts), or `'readOnly'` (set by the processing: a meter).                                                     |
+| `min`, `max`      | The range of a numeric parameter. Integer values stay within ±2^24.                                                                                                   |
+| `default`         | In the range and on the step's grid; a boolean; or one of a choice's option values.                                                                                   |
+| `step`            | Values are `min + k · step`, and `max`; an integer's step divides its range.                                                                                          |
+| `unit`            | Shown after the value (`'dB'`), and optional in typed text.                                                                                                           |
+| `mapping`         | `float32` only: `'linear'` (default), `'log'`, `{ type: 'power', exponent }`, `{ type: 'symmetricPower', exponent }`, or `{ type: 'custom', toValue, toNormalized }`. |
+| `format`, `parse` | A numeric parameter's text, as expressions. A `format` needs a `parse` (or `parse: 'default'`).                                                                       |
+| `options`         | A choice's `{ value, label }` list. Hosts store the index: add options at the end.                                                                                    |
+
+Loading the config checks each parameter and reports every problem with its
+path, custom mappings and `format`/`parse` round trips included. See
+[Parameters](/docs/parameters) for what each field does.
 
 ### `native`
 

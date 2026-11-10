@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@soundor/core": "workspace:*",
+    "@soundor/expression": "workspace:*",
     "rolldown": "catalog:",
     "zod": "catalog:"
   },

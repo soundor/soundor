@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { loadConfigModule, locateConfig } from './load';
 import { checkProjectConfigVersion } from './project';
 import { validateConfig } from './schema';
-import type { SoundorConfig } from './types';
+import type { ResolvedSoundorConfig } from './types';
 
 export interface ParseConfigOptions {
   /** Directory to start config discovery from. Defaults to `process.cwd()`. */
@@ -14,7 +14,7 @@ export interface ParseConfigOptions {
 
 /**
  * Loads `soundor.config.ts` from disk, evaluates it in-process, and validates
- * it into a normalized, deterministic {@link SoundorConfig}.
+ * it into a normalized, deterministic {@link ResolvedSoundorConfig}.
  *
  * Throws {@link ConfigError} for every failure (missing file, a project
  * `@soundor/config` of another release line than this one, unloadable module,
@@ -24,7 +24,7 @@ export interface ParseConfigOptions {
  */
 export async function parseConfig(
   options: ParseConfigOptions = {},
-): Promise<SoundorConfig> {
+): Promise<ResolvedSoundorConfig> {
   const path = options.path ?? locateConfig(options.cwd ?? process.cwd());
   checkProjectConfigVersion(dirname(resolve(path)));
   const raw = await loadConfigModule(path);

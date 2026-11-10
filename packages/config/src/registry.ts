@@ -19,7 +19,7 @@ import { checkRuntimeCompatibility } from './compatibility';
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 import type { DoctorReport, Runtime } from './runtime';
 import { resolveSigning } from './signing';
-import type { RuntimeConfig, SoundorConfig } from './types';
+import type { ResolvedSoundorConfig, RuntimeConfig } from './types';
 
 /** A runtime implementation paired with the config entry that selected it. */
 export interface ResolvedRuntime {
@@ -38,7 +38,7 @@ export interface ResolvedRuntime {
  * resolve every runtime they will run before generating anything.
  */
 export function resolveRuntime(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   id: string,
 ): ResolvedRuntime {
   const entry = config.runtimes.find((runtime) => runtime.id === id);
@@ -81,7 +81,7 @@ export interface DispatchContextInput {
 export async function runPhase(
   resolved: ResolvedRuntime,
   phase: RuntimePhase,
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   input: DispatchContextInput,
 ): Promise<void | DoctorReport> {
   const ctx: LifecycleContext = {

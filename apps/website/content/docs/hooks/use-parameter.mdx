@@ -21,8 +21,11 @@ automation, a preset, another view, the audio side, or this UI.
   the latest value. Web and simulated parameters notify subscribers
   synchronously from `set()`. The hook reads the latest value through React
   `useSyncExternalStore`.
-- **Typed from the config:** a `float` or `int` parameter gives a `number`, a
-  `bool` a `boolean`, an `enum` one of its values.
+- **Typed from the config:** a numeric parameter gives a `number`, a
+  `boolean` a `boolean`, a `choice` one of its options' values.
+- **Show and move it as the host does:** `format()` gives the host's text,
+  and a knob's travel follows the parameter's mapping through
+  `toNormalized()` and `fromNormalized()`.
 - **During a drag,** bracket the `set()`s with `beginGesture()` and
   `endGesture()`, so the host records one edit:
 
@@ -31,7 +34,11 @@ const gain = useParameter(parameters.gain);
 
 <View
   onPointerDown={() => parameters.gain.beginGesture()}
-  onPointerMove={(event) => parameters.gain.set(valueAt(event.locationY))}
+  onPointerMove={(event) =>
+    parameters.gain.set(
+      parameters.gain.fromNormalized(positionAt(event.locationY)),
+    )
+  }
   onPointerUp={() => parameters.gain.endGesture()}
 />;
 ```

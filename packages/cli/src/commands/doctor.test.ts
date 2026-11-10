@@ -302,7 +302,7 @@ export default defineSoundorConfig({
         `{ id: ${JSON.stringify(spec.id)}, options: {}, runtime: runtime(${JSON.stringify(spec.id)}, ${JSON.stringify(spec.checks)}) }`,
     )
     .join(', ')}],
-  parameters: [],
+  parameters: {},
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,

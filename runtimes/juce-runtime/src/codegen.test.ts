@@ -1,36 +1,58 @@
-import type { SoundorConfig } from '@soundor/runtime-sdk';
+import {
+  resolveConfig,
+  type ResolvedSoundorConfig,
+} from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { generateJuceSources } from './codegen';
 import { resolveJuceOptions } from './options';
 
-const config = {
-  plugin: { id: 'com.acme.synth', name: 'Acme $ynth "One"' },
-  runtimes: [],
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
-      label: 'Gain',
-      min: 0,
-      max: 1,
-      default: 0.5,
-      unit: 'dB',
+const config: ResolvedSoundorConfig = {
+  ...resolveConfig({
+    plugin: { id: 'com.acme.synth', name: 'Acme $ynth "One"' },
+    runtimes: [],
+    parameters: {
+      gain: {
+        type: 'float32',
+        label: 'Gain',
+        min: 0,
+        max: 1,
+        default: 0.5,
+        unit: 'dB',
+      },
+      voices: {
+        type: 'int32',
+        label: 'Voices',
+        min: 1,
+        max: 8,
+        default: 4,
+        access: 'manual',
+      },
+      bypass: { type: 'boolean', label: 'Bypass', default: false },
+      mode: {
+        type: 'choice',
+        label: 'Mode',
+        options: [
+          { value: 'a', label: 'A' },
+          { value: 'b', label: 'B' },
+          { value: 'default', label: 'Default' },
+        ],
+        default: 'b',
+      },
+      level: {
+        type: 'float32',
+        label: 'Level',
+        min: -60,
+        max: 0,
+        default: 0,
+        access: 'readOnly',
+      },
     },
-    { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 8, default: 4 },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-    {
-      type: 'enum',
-      id: 'mode',
-      label: 'Mode',
-      values: ['a', 'b', 'c'],
-      default: 'b',
+    native: {
+      methods: { render: { args: { request: 'string' }, returns: 'float64' } },
     },
-  ],
-  native: {
-    methods: { render: { args: { request: 'string' }, returns: 'float64' } },
-  },
-} as unknown as SoundorConfig;
+  }),
+};
 
 const options = resolveJuceOptions(
   { formats: ['vst3', 'au'], companyName: 'Acme', pluginCode: 'Syn1' },
@@ -42,7 +64,10 @@ const params = {
   nativeDir: '/opt/soundor/native',
 };
 
-function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
+function fileMap(
+  cfg: ResolvedSoundorConfig,
+  jucePath?: string,
+): Map<string, string> {
   return new Map(
     generateJuceSources(cfg, { ...params, jucePath }).map((f) => [
       f.path,
@@ -59,6 +84,7 @@ describe('generateJuceSources', () => {
       'soundor/soundor.h',
       'soundor/SoundorProcessor.h',
       'soundor/SoundorProcessor.cpp',
+      'soundor/SoundorParameters.cpp',
       'soundor/SoundorEditor.h',
       'soundor/SoundorEditor.cpp',
       'soundor/native/SoundorNative.h',
@@ -105,28 +131,48 @@ describe('generateJuceSources', () => {
     expect(setup).toContain('set(JUCE_DIR "")');
   });
 
-  it('builds an APVTS parameter for each type in the processor', () => {
+  it('builds a Soundor parameter for each declared one, with its generated behavior', () => {
     const proc = fileMap(config).get('soundor/SoundorProcessor.cpp')!;
     expect(proc).toContain(
-      'std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { "gain", 1 }, "Gain", juce::NormalisableRange<float>(0.0f, 1.0f), 0.5f)',
+      'auto parameter = std::make_unique<backend::JuceParameter>(infos[index], behaviors[index]);',
     );
     expect(proc).toContain(
-      'std::make_unique<juce::AudioParameterInt>(juce::ParameterID { "voices", 1 }, "Voices", 1, 8, 4)',
+      'published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));',
     );
-    expect(proc).toContain(
-      'std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "bypass", 1 }, "Bypass", false)',
-    );
-    expect(proc).toContain(
-      'std::make_unique<juce::AudioParameterChoice>(juce::ParameterID { "mode", 1 }, "Mode", juce::StringArray { "a", "b", "c" }, 1)',
+    const setup = fileMap(config).get('setup.cmake')!;
+    expect(setup).toContain(
+      '${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorParameters.cpp',
     );
   });
 
-  it('exposes a named raw-parameter pointer per parameter', () => {
+  it('gives the processing each parameter in its declared C++ type', () => {
     const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
-    expect(header).toContain('std::atomic<float>* gainParameter = nullptr;');
+    expect(header).toContain(
+      'backend::ParameterValue<float> gainParameter; // "gain"',
+    );
+    expect(header).toContain(
+      'backend::ParameterValue<std::int32_t> voicesParameter; // "voices"',
+    );
+    expect(header).toContain(
+      'backend::ParameterValue<bool> bypassParameter; // "bypass"',
+    );
+    expect(header).toContain(
+      'backend::ParameterValue<choices::Mode> modeParameter; // "mode"',
+    );
+    expect(header).toContain(
+      'backend::ParameterOutput<float> levelParameter; // "level", read-only: publish() it',
+    );
+    // A choice's values are an enum, in the order hosts store them; a C++
+    // keyword gets a trailing underscore.
+    expect(header).toContain(`        enum class Mode : std::uint32_t
+        {
+            a = 0, // "a"
+            b = 1, // "b"
+            default_ = 2, // "default"
+        };`);
     const proc = fileMap(config).get('soundor/SoundorProcessor.cpp')!;
     expect(proc).toContain(
-      'gainParameter = parameters->getRawParameterValue("gain");',
+      'modeParameter = backend::ParameterValue<choices::Mode>(*created[3]);',
     );
   });
 
@@ -220,20 +266,24 @@ describe('generateJuceSources', () => {
   });
 
   it('generates the parameter table soundor:parameters indexes, in APVTS order', () => {
-    const proc = fileMap(config).get('soundor/SoundorProcessor.cpp')!;
-    const table = proc.slice(proc.indexOf('parameterInfos()'));
+    const source = fileMap(config).get('soundor/SoundorParameters.cpp')!;
+    const table = source.slice(source.indexOf('parameterInfos()'));
     expect(table).toContain(
-      '{ "bypass", "Bypass", parameters::Kind::Bool, 0.0, 1.0, 0.0, "", {  } },',
+      '{ "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "dB", {  } },',
     );
     expect(table).toContain(
-      '{ "gain", "Gain", parameters::Kind::Float, 0.0, 1.0, 0.5, "dB", {  } },',
+      '{ "voices", "Voices", parameters::Type::Int32, parameters::Access::Manual, 1.0, 8.0, 4.0, 0.0, "", {  } },',
     );
     expect(table).toContain(
-      '{ "mode", "Mode", parameters::Kind::Choice, 0.0, 2.0, 1.0, "", { "a", "b", "c" } },',
+      '{ "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  } },',
     );
     expect(table).toContain(
-      '{ "voices", "Voices", parameters::Kind::Int, 1.0, 8.0, 4.0, "", {  } },',
+      '{ "mode", "Mode", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 2.0, 1.0, 0.0, "", { { "a", "A" }, { "b", "B" }, { "default", "Default" } } },',
     );
+    expect(source).toContain(
+      'namespace soundor::inline SOUNDOR_ABI_NAMESPACE::generated',
+    );
+    expect(source).toContain('#pragma clang fp contract(off)');
     const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
     expect(header).toContain(
       'virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }',
@@ -305,8 +355,8 @@ describe('generateJuceSources', () => {
   });
 
   describe('editor size', () => {
-    const editorSource = (editor?: SoundorConfig['editor']) =>
-      fileMap({ ...config, editor } as SoundorConfig).get(
+    const editorSource = (editor?: ResolvedSoundorConfig['editor']) =>
+      fileMap({ ...config, editor } as ResolvedSoundorConfig).get(
         'soundor/SoundorEditor.cpp',
       )!;
 
@@ -609,10 +659,10 @@ describe('generateJuceSources', () => {
     const reversed = {
       ...config,
       parameters: [...config.parameters].reverse(),
-    } as SoundorConfig;
-    const table = (input: SoundorConfig) => {
-      const proc = fileMap(input).get('soundor/SoundorProcessor.cpp')!;
-      return proc.slice(proc.indexOf('parameterInfos()'));
+    } as ResolvedSoundorConfig;
+    const table = (input: ResolvedSoundorConfig) => {
+      const source = fileMap(input).get('soundor/SoundorParameters.cpp')!;
+      return source.slice(source.indexOf('parameterInfos()'));
     };
     const positions = (source: string) =>
       config.parameters.map((parameter) =>
@@ -632,9 +682,12 @@ describe('generateJuceSources', () => {
       plugin: config.plugin,
       runtimes: [],
       parameters: [],
-    } as unknown as SoundorConfig;
+    } as unknown as ResolvedSoundorConfig;
     const proc = fileMap(empty).get('soundor/SoundorProcessor.cpp')!;
     expect(proc).toContain('// no parameters');
+    expect(fileMap(empty).get('soundor/SoundorParameters.cpp')).toContain(
+      '// no parameters',
+    );
     const native = fileMap(empty).get('soundor/native/SoundorNative.h')!;
     expect(native).toContain('class NativeApi');
   });

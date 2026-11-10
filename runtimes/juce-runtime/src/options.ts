@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 
 import { RuntimeError } from '@soundor/runtime-sdk';
-import type { SoundorConfig } from '@soundor/runtime-sdk';
+import type { ResolvedSoundorConfig } from '@soundor/runtime-sdk';
 
 /** Plugin binary formats JUCE can emit. */
 export type JuceFormat = 'vst3' | 'au' | 'standalone';
@@ -126,7 +126,7 @@ const MAX_TIME_LIMIT_MS = 2 ** 32 - 1;
 /** Applies defaults to a raw {@link JuceOptions} bag for the given plugin. */
 export function resolveJuceOptions(
   options: JuceOptions,
-  plugin: SoundorConfig['plugin'],
+  plugin: ResolvedSoundorConfig['plugin'],
 ): ResolvedJuceOptions {
   const engineMode = options.engine?.mode ?? 'prebuilt';
   if (engineMode !== 'prebuilt' && engineMode !== 'source')

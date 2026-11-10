@@ -273,7 +273,7 @@ const runtime = {
 
 export default defineSoundorConfig({
   runtimes: [{ id: 'test', options: {}, runtime }],
-  parameters: [],
+  parameters: {},
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,

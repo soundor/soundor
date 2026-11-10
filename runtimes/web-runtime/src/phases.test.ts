@@ -3,10 +3,11 @@ import { join, relative } from 'node:path';
 
 import {
   checkGeneratedFiles,
+  resolveConfig,
   GeneratedFilesOutOfDateError,
   type DevShortcut,
   type DevSummaryRow,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 import type { InlineConfig } from 'vite';
 import { describe, expect, it, vi, type Mock } from 'vitest';
@@ -50,7 +51,7 @@ async function listFiles(dir: string): Promise<string[]> {
 
 /** An initialized, generated project; the scaffold's vite.config.ts imports
  * the built package, which tests run without, so it is replaced. */
-async function preparedProject(config: SoundorConfig = testConfig) {
+async function preparedProject(config: ResolvedSoundorConfig = testConfig) {
   const root = await tempProject();
   const ctx = makeCtx(root);
   await webInit(config, ctx);
@@ -176,7 +177,7 @@ describe('webGen', () => {
     const config = {
       ...testConfig,
       editor: { width: 1000, height: 640, resizable: true },
-    } as unknown as SoundorConfig;
+    } as unknown as ResolvedSoundorConfig;
     const ctx = makeCtx(await tempProject());
     await webGen(config, ctx);
     expect(JSON.parse(ctx.codegen.files()[0]!.contents).editor).toEqual({
@@ -195,36 +196,38 @@ describe('webGen', () => {
   });
 
   it('emits the manifest: plugin identity and parameters, in order', async () => {
-    const config = {
-      ...testConfig,
-      parameters: [
-        {
-          type: 'float',
-          id: 'gain',
+    const config = resolveConfig({
+      plugin: testConfig.plugin,
+      runtimes: [],
+      parameters: {
+        gain: {
+          type: 'float32',
           label: 'Gain',
           min: 0,
           max: 1,
           default: 0.5,
           unit: 'dB',
         },
-        {
-          type: 'int',
-          id: 'steps',
+        steps: {
+          type: 'int32',
           label: 'Steps',
           min: 1,
           max: 8,
           default: 4,
+          access: 'manual',
         },
-        { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-        {
-          type: 'enum',
-          id: 'mode',
+        bypass: { type: 'boolean', label: 'Bypass', default: false },
+        mode: {
+          type: 'choice',
           label: 'Mode',
-          values: ['clean', 'warm'],
+          options: [
+            { value: 'clean', label: 'Clean' },
+            { value: 'warm', label: 'Warm' },
+          ],
           default: 'warm',
         },
-      ],
-    } as unknown as SoundorConfig;
+      },
+    });
     const ctx = makeCtx(await tempProject());
     await webGen(config, ctx);
 
@@ -232,6 +235,7 @@ describe('webGen', () => {
     expect(files.map((file) => file.path)).toEqual([
       'manifest.json',
       'native.ts',
+      'parameters.js',
     ]);
     expect(JSON.parse(files[0]!.contents)).toEqual({
       plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
@@ -252,7 +256,8 @@ describe('webGen', () => {
         {
           id: 'gain',
           label: 'Gain',
-          type: 'float',
+          access: 'automatable',
+          type: 'float32',
           min: 0,
           max: 1,
           default: 0.5,
@@ -261,17 +266,28 @@ describe('webGen', () => {
         {
           id: 'steps',
           label: 'Steps',
-          type: 'int',
+          access: 'manual',
+          type: 'int32',
           min: 1,
           max: 8,
           default: 4,
         },
-        { id: 'bypass', label: 'Bypass', type: 'bool', default: false },
+        {
+          id: 'bypass',
+          label: 'Bypass',
+          access: 'automatable',
+          type: 'boolean',
+          default: false,
+        },
         {
           id: 'mode',
           label: 'Mode',
-          type: 'enum',
-          values: ['clean', 'warm'],
+          access: 'automatable',
+          type: 'choice',
+          options: [
+            { value: 'clean', label: 'Clean' },
+            { value: 'warm', label: 'Warm' },
+          ],
           default: 'warm',
         },
       ],
@@ -290,7 +306,7 @@ describe('webGen', () => {
     expect(again.codegen.files()).toEqual(first.codegen.files());
     await expect(
       checkGeneratedFiles(again.fs, again.paths.gen, again.codegen.files()),
-    ).resolves.toHaveLength(2);
+    ).resolves.toHaveLength(3);
 
     const changed = makeCtx(root);
     await webGen(

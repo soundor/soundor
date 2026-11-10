@@ -25,7 +25,13 @@ test('shows the gain', async () => {
 ## Good to know
 
 - **Checked like the real thing:** an unknown id or a value of the wrong
-  type throws; numbers are clamped to the range, ints rounded.
+  type throws; numbers are clamped to the range and snapped to the step, by
+  the parameter's compiled behavior, as in the plugin.
+- **Read-only parameters too:** a meter's value is the processing's to set,
+  and `testParameters.set` sets it as the processing would, while the UI's
+  `parameters.reduction.set()` throws.
+- **Choices by value:** `testParameters.set('mode', 'warm')`, one of the
+  options' `value`s.
 - **Read with `soundor:parameters`:** `parameters.gain.get()`, in the test,
   is the value the plugin has.
 - **Per test:** values start from their defaults in every test. Set them in

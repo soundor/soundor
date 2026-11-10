@@ -1,26 +1,63 @@
+/** Who may change a parameter: the UI and automation, the UI only, or the processing only. */
+export type ParameterAccess = 'automatable' | 'manual' | 'readOnly';
+
+/** A parameter's metadata, as `soundor:parameters` reports it in `info`. */
 export type ParameterInfo =
   | {
       readonly id: string;
       readonly label: string;
-      readonly type: 'float' | 'int';
+      readonly access: ParameterAccess;
+      readonly type:
+        | 'int8'
+        | 'uint8'
+        | 'int16'
+        | 'uint16'
+        | 'int32'
+        | 'uint32'
+        | 'float32';
       readonly min: number;
       readonly max: number;
       readonly default: number;
+      readonly step?: number;
       readonly unit?: string;
     }
   | {
       readonly id: string;
       readonly label: string;
-      readonly type: 'bool';
+      readonly access: ParameterAccess;
+      readonly type: 'boolean';
       readonly default: boolean;
     }
   | {
       readonly id: string;
       readonly label: string;
-      readonly type: 'enum';
-      readonly values: readonly string[];
+      readonly access: ParameterAccess;
+      readonly type: 'choice';
+      readonly options: readonly {
+        readonly value: string;
+        readonly label: string;
+      }[];
       readonly default: string;
     };
+
+/**
+ * A parameter's behavior as `@soundor/config` resolves it: expression trees
+ * (JSON) over plain numbers of `valueType`, which the runtime compiles.
+ */
+export interface ParameterSemanticsInit {
+  readonly valueType: string;
+  readonly toValue: unknown;
+  readonly toNormalized: unknown;
+  readonly constrain: unknown;
+  readonly format: unknown;
+  readonly parse: unknown;
+}
+
+/** A resolved parameter (`@soundor/config`'s `ResolvedParameter`), as JSON. */
+export type ParameterInit = ParameterInfo & {
+  readonly semantics: ParameterSemanticsInit;
+  readonly mapping?: unknown;
+};
 
 export interface HostSnapshot {
   readonly sampleRate: number;
@@ -103,7 +140,8 @@ export interface EditorInit {
 }
 export interface RuntimeOptions {
   plugin?: { id: string; name: string };
-  parameters?: readonly ParameterInfo[];
+  /** Resolved parameters (`resolveConfig(...).parameters`), as the Vitest plugin passes them. */
+  parameters?: readonly ParameterInit[];
   host?: Partial<HostSnapshot>;
   /**
    * The view's size; by default the project's editor size (800×600 without

@@ -10,7 +10,7 @@
  */
 
 import type { LifecycleContext } from './context';
-import type { SoundorConfig } from './types';
+import type { ResolvedSoundorConfig } from './types';
 
 /** Optional debugging support, discoverable before any lifecycle runs. */
 export interface DevToolsCapabilities {
@@ -60,20 +60,32 @@ export interface Runtime<Options extends object = object> {
   readonly apiVersion?: number;
   readonly capabilities?: RuntimeCapabilities;
   /** Scaffold/prepare a project for this runtime. */
-  init(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
+  init(
+    config: ResolvedSoundorConfig,
+    ctx: LifecycleContext<Options>,
+  ): Promise<void>;
   /** Produce generated sources via `ctx.codegen`. */
-  gen(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
+  gen(
+    config: ResolvedSoundorConfig,
+    ctx: LifecycleContext<Options>,
+  ): Promise<void>;
   /** Run the long-lived dev workflow until `ctx.signal` aborts. */
-  dev(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
+  dev(
+    config: ResolvedSoundorConfig,
+    ctx: LifecycleContext<Options>,
+  ): Promise<void>;
   /**
    * Produce artifacts under `ctx.paths.dist`: production ones, or with `mode`
    * `debug` (only a runtime with `capabilities.devtools` is asked) a debug
    * build with DevTools, for tests.
    */
-  build(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;
+  build(
+    config: ResolvedSoundorConfig,
+    ctx: LifecycleContext<Options>,
+  ): Promise<void>;
   /** Diagnose environment/toolchain readiness. */
   doctor(
-    config: SoundorConfig,
+    config: ResolvedSoundorConfig,
     ctx: LifecycleContext<Options>,
   ): Promise<DoctorReport>;
 }

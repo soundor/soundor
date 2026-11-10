@@ -93,9 +93,9 @@ import { juceRuntime } from '@soundor/juce-runtime';
 export default defineSoundorConfig({
   plugin: { id: 'com.example.my-plugin', name: 'My Plugin' },
   runtimes: [juceRuntime({ formats: ['vst3', 'standalone'] })],
-  parameters: [
-    { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  ],
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+  },
 });
 ```
 

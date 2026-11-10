@@ -18,7 +18,7 @@ import {
   type DoctorReport,
   type LifecycleContext,
   type Logger,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 import {
   build as viteBuild,
@@ -59,7 +59,10 @@ type Ctx = LifecycleContext<WebOptions>;
  * `init` — scaffold the user-owned Web host under `runtimes/<id>/`
  * (idempotent): files that exist are never overwritten.
  */
-export async function webInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
+export async function webInit(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+): Promise<void> {
   resolveWebOptions(ctx.options);
   const scaffoldDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const generatedPath = relative(scaffoldDir, join(ctx.paths.gen, '..', '..'))
@@ -77,7 +80,7 @@ export async function webInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
     nativeContractPath,
     nativeMethods: nativeModel(config).methods,
     gain: config.parameters.some(
-      (parameter) => parameter.id === 'gain' && parameter.type === 'float',
+      (parameter) => parameter.id === 'gain' && parameter.type === 'float32',
     ),
   });
 
@@ -93,14 +96,17 @@ export async function webInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
 }
 
 /** `gen` — emit the project's manifest into `.soundor/generated/runtimes/<id>/`. */
-export async function webGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
+export async function webGen(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+): Promise<void> {
   resolveWebOptions(ctx.options);
   ctx.codegen.emitAll(generateWebSources(config));
 }
 
 /** `dev` — serve the Web host with Vite until `ctx.signal` aborts. */
 export async function webDev(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps = {},
 ): Promise<void> {
@@ -149,7 +155,7 @@ export async function webDev(
 
 /** `build` — a static Web host site under `ctx.paths.dist`. */
 export async function webBuild(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps = {},
 ): Promise<void> {
@@ -171,7 +177,7 @@ export async function webBuild(
 
 /** `doctor` — Node.js, Vite and the scaffolded Web host project. */
 export async function webDoctor(
-  _config: SoundorConfig,
+  _config: ResolvedSoundorConfig,
   ctx: Ctx,
 ): Promise<DoctorReport> {
   resolveWebOptions(ctx.options);
@@ -196,7 +202,7 @@ export default webRuntime;
  * Soundor plugin then fixes what it must not change.
  */
 function viteConfig(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps,
 ): InlineConfig {

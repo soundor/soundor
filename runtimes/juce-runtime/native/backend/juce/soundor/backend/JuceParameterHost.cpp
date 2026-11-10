@@ -16,9 +16,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         bound.reserve(infos.size());
         for (const auto& info : infos)
         {
-            auto* parameter = state.getParameter(juce::String::fromUTF8(info.id.data(), int(info.id.size())));
+            auto* parameter = dynamic_cast<JuceParameter*>(
+                state.getParameter(juce::String::fromUTF8(info.id.data(), int(info.id.size()))));
             if (parameter == nullptr)
-                throw std::logic_error("soundor:parameters: no JUCE parameter '" + info.id + "'");
+                throw std::logic_error("soundor:parameters: no Soundor parameter '" + info.id + "'");
             bound.push_back(parameter);
         }
 
@@ -41,18 +42,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     double JuceParameterHost::value(std::size_t index) const
     {
-        const auto* parameter = bound[index];
-        // Preserve the stored plain float instead of round-tripping through
-        // normalised space (FMA can turn an exact default zero into an epsilon).
-        if (const auto* floating = dynamic_cast<const juce::AudioParameterFloat*>(parameter))
-            return double(floating->get());
-        return double(parameter->convertFrom0to1(parameter->getValue()));
+        return static_cast<double>(bound[index]->plain());
     }
 
     void JuceParameterHost::setValue(std::size_t index, double value)
     {
-        auto* parameter = bound[index];
-        parameter->setValueNotifyingHost(parameter->convertTo0to1(float(value)));
+        bound[index]->setPlain(value);
+    }
+
+    double JuceParameterHost::constrain(std::size_t index, double value) const
+    {
+        return bound[index]->behavior().constrain(value);
+    }
+
+    double JuceParameterHost::toNormalized(std::size_t index, double value) const
+    {
+        return bound[index]->behavior().toNormalized(value);
+    }
+
+    double JuceParameterHost::fromNormalized(std::size_t index, double normalized) const
+    {
+        return bound[index]->behavior().toValue(normalized);
+    }
+
+    std::string JuceParameterHost::format(std::size_t index, double value) const
+    {
+        return bound[index]->behavior().format(value);
+    }
+
+    std::optional<double> JuceParameterHost::parse(std::size_t index, std::string_view text) const
+    {
+        return bound[index]->behavior().parse(text);
     }
 
     void JuceParameterHost::beginGesture(std::size_t index)

@@ -7,7 +7,7 @@ import { createShell, type Presentation, type ViewGeometry } from '.';
 import { WebAudioHost } from '../audio';
 import { WebHost } from '../host';
 import { readManifest, type WebEditor } from '../manifest';
-import { createParameterStore } from '../parameters';
+import { storeOf } from '../testing/store';
 import { viewLayout } from './resize';
 import '../testing/preact';
 
@@ -80,25 +80,26 @@ function setup(
   });
   const audio = new WebAudioHost(host);
   const start = vi.spyOn(audio, 'start').mockResolvedValue();
-  const parameters = createParameterStore([
-    {
-      id: 'gain',
+  const parameters = storeOf({
+    gain: {
+      type: 'float32',
       label: 'Gain',
-      type: 'float',
       min: 0,
       max: 1,
       default: 0.5,
       unit: 'dB',
     },
-    { id: 'bypass', label: 'Bypass', type: 'bool', default: false },
-    {
-      id: 'mode',
+    bypass: { type: 'boolean', label: 'Bypass', default: false },
+    mode: {
+      type: 'choice',
       label: 'Mode',
-      type: 'enum',
-      values: ['a', 'b'],
+      options: [
+        { value: 'a', label: 'A' },
+        { value: 'b', label: 'B' },
+      ],
       default: 'a',
     },
-  ]);
+  });
   const shell = createShell(document.body, {
     pluginName: 'Fixture',
     presentation,
@@ -294,12 +295,12 @@ describe('the panel', () => {
   it('controls every kind of parameter and follows changes made elsewhere', () => {
     const { panel, parameters } = setup();
     const gain = panel.getByLabelText<HTMLInputElement>('Gain');
-    expect(gain.value).toBe('0.5');
-    expect(gain.closest('.soundor-param')?.textContent).toContain('0.5 dB');
-    fireEvent.input(gain, { target: { value: '0.2' } });
-    expect(parameters.byId['gain']!.get()).toBe(0.2);
+    expect(gain.value).toBe('500');
+    expect(gain.closest('.soundor-param')?.textContent).toContain('0.500 dB');
+    fireEvent.input(gain, { target: { value: '250' } });
+    expect(parameters.byId['gain']!.get()).toBe(0.25);
     act(() => parameters.byId['gain']!.set(0.75));
-    expect(gain.value).toBe('0.75');
+    expect(gain.value).toBe('750');
 
     const bypass = panel.getByLabelText<HTMLInputElement>('Bypass');
     fireEvent.click(bypass);

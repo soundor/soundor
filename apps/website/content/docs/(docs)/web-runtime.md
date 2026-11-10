@@ -42,9 +42,9 @@ import { webRuntime } from '@soundor/web-runtime';
 export default defineSoundorConfig({
   plugin: { id: 'com.example.gain', name: 'Gain' },
   runtimes: [juceRuntime(), webRuntime()],
-  parameters: [
-    { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  ],
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+  },
 });
 ```
 
@@ -142,14 +142,14 @@ One page (or iframe) runs one plugin, with one host context. All of these
 share that context directly: the plugin UI, your `native.ts` and `audio.ts`,
 and the host UI. Nothing is serialized and there is no RPC.
 
-| Module               | In the browser                                                                                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `soundor:parameters` | One parameter store. Numbers are clamped and ints rounded, a value of the wrong type is a `TypeError`, listeners hear of changes only, and gestures nest: the JUCE runtime's semantics. |
-| `soundor:host`       | `WebHost`: host name "Soundor Web", the AudioContext's sample rate, a 128-sample block, and a transport the host UI controls. Snapshots arrive every frame while playing.               |
-| `soundor:ui`         | The DOM (see below).                                                                                                                                                                    |
-| `soundor:native`     | Your `runtimes/web/src/native.ts`, called directly.                                                                                                                                     |
-| `soundor:storage`    | IndexedDB, one database per `plugin.id`.                                                                                                                                                |
-| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.       |
+| Module               | In the browser                                                                                                                                                                                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `soundor:parameters` | One parameter store, running the behavior `gen` compiles from the config to JavaScript (`parameters.js`), from the same expressions as the JUCE runtime's C++: mapping, steps, `format` and `parse`. A value of the wrong type, or a write to a read-only parameter, is a `TypeError`; listeners hear of changes only, and gestures nest. |
+| `soundor:host`       | `WebHost`: host name "Soundor Web", the AudioContext's sample rate, a 128-sample block, and a transport the host UI controls. Snapshots arrive every frame while playing.                                                                                                                                                                 |
+| `soundor:ui`         | The DOM (see below).                                                                                                                                                                                                                                                                                                                      |
+| `soundor:native`     | Your `runtimes/web/src/native.ts`, called directly.                                                                                                                                                                                                                                                                                       |
+| `soundor:storage`    | IndexedDB, one database per `plugin.id`.                                                                                                                                                                                                                                                                                                  |
+| `soundor:fs`         | A private file tree in the same database. Relative, `/`-separated paths that cannot leave it; atomic writes; the JUCE runtime's errors. The user's own files are never reachable.                                                                                                                                                         |
 
 The Web globals Soundor declares (`fetch`, timers, `URL`, `TextEncoder`,
 `crypto`, `requestAnimationFrame`, …) are the browser's own, except
@@ -343,6 +343,9 @@ source → input bus → setupAudio's nodes → output bus → master gain → s
   and the panel's Audio section says why.
 - `soundor:parameters` and `soundor:host` work in `audio.ts` too. The `gain`
   above is the same parameter the plugin UI moves.
+- Read-only parameters (meters) are the processing's to set: `setupAudio`
+  receives `publish(parameter, value)`, the counterpart of a JUCE processor's
+  `publish()`, which sets one and notifies the UI and the host's controls.
 
 ### Microphone input
 

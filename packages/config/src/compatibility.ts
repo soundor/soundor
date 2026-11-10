@@ -7,7 +7,7 @@
 import { RuntimeCompatibilityError } from '@soundor/core';
 
 import type { Runtime } from './runtime';
-import type { SoundorConfig } from './types';
+import type { ResolvedSoundorConfig } from './types';
 import {
   CONFIG_VERSION,
   MIN_RUNTIME_API_VERSION,
@@ -28,7 +28,7 @@ export interface ConfigFeature {
   /** What it is, for the error: `parameter mappings`. */
   readonly name: string;
   /** The paths in `config` that use it: `parameters[0].mapping`. */
-  find(config: SoundorConfig): string[];
+  find(config: ResolvedSoundorConfig): string[];
 }
 
 /**
@@ -85,7 +85,7 @@ export function runtimeApiVersion(runtime: Runtime): number {
  */
 export function checkRuntimeCompatibility(
   runtime: Runtime,
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   {
     host = HOST_RUNTIME_API,
     features = CONFIG_FEATURES,

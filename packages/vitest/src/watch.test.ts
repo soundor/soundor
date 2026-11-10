@@ -21,7 +21,7 @@ test('watch mode reloads tests and Soundor configuration', async () => {
   const config = () =>
     `import {soundor} from '@soundor/vitest'; export default {plugins: [soundor()], test: {environment: 'soundor', include: ['watched.test.ts']}};`;
   const project = (value: number) =>
-    `export default {plugin:{id:'com.test.watch',name:'Watch'}, runtimes:[], parameters:[{id:'gain',label:'Gain',type:'float',min:0,max:10,default:${value}}]};`;
+    `export default {plugin:{id:'com.test.watch',name:'Watch'}, runtimes:[], parameters:{gain:{label:'Gain',type:'float32',min:0,max:10,default:${value}}}};`;
   const source = (value: number) =>
     `import {test,expect} from 'vitest'; import {parameters} from 'soundor:parameters'; test('watch value', () => expect(parameters.gain.get()).toBe(${value}));`;
   await writeFile(resolve(directory, 'vitest.config.ts'), config());

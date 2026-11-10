@@ -19,6 +19,9 @@ import { MIN_RUNTIME_API_VERSION, RUNTIME_API_VERSION } from '../version';
 
 const configRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const coreRoot = realpathSync(join(configRoot, 'node_modules/@soundor/core'));
+const expressionRoot = realpathSync(
+  join(configRoot, 'node_modules/@soundor/expression'),
+);
 const record = join(configRoot, 'runtime-api.json');
 
 /** The files whose declarations make the contract. */
@@ -27,6 +30,7 @@ const CONTRACT: Record<string, string> = {
   'config/runtime.ts': join(configRoot, 'src/runtime.ts'),
   'config/context.ts': join(configRoot, 'src/context.ts'),
   'config/types.ts': join(configRoot, 'src/types.ts'),
+  'config/parameters.ts': join(configRoot, 'src/parameters.ts'),
   'config/editor.ts': join(configRoot, 'src/editor.ts'),
   'config/signing.ts': join(configRoot, 'src/signing.ts'),
   // The seams the context carries, the native API, and the error protocol.
@@ -36,6 +40,12 @@ const CONTRACT: Record<string, string> = {
   'core/paths.ts': join(coreRoot, 'src/paths.ts'),
   'core/native-api.ts': join(coreRoot, 'src/native-api.ts'),
   'core/errors.ts': join(coreRoot, 'src/errors.ts'),
+  // The parameters' expressions, and the compilers runtimes turn them into code with.
+  'expression/types.ts': join(expressionRoot, 'src/types.ts'),
+  'expression/ast.ts': join(expressionRoot, 'src/ast.ts'),
+  'expression/check.ts': join(expressionRoot, 'src/check.ts'),
+  'expression/compiler/cpp.ts': join(expressionRoot, 'src/compiler/cpp.ts'),
+  'expression/compiler/js.ts': join(expressionRoot, 'src/compiler/js.ts'),
 };
 
 /** The text without comments, its whitespace collapsed. */

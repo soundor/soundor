@@ -4,36 +4,60 @@
  * Audio code and the host's own UI. There is no second copy to keep in sync.
  *
  * Values are in plain units, as in the JUCE runtime: numbers within
- * [min, max] (ints rounded), booleans, or one of an enum's values.
+ * [min, max] on the step's grid (float32 values are 32-bit floats), booleans,
+ * or one of a choice's option values. Their mapping, step and text are the
+ * generated behavior (`parameters.js`), compiled from the same expressions as
+ * the JUCE runtime's C++; the API and its errors are the JUCE runtime's.
  */
 
 import { Listeners } from './listeners';
 import type { WebParameterInfo } from './manifest';
 
+/**
+ * What a parameter does, generated from soundor.config. Values are plain
+ * numbers: a boolean's 0 or 1, a choice's option index.
+ */
+export interface ParameterBehavior {
+  /** Normalized position (clamped to [0, 1]) → a legal value. */
+  toValue(normalized: number): number;
+  /** A legal value → its normalized position. */
+  toNormalized(value: number): number;
+  /** Any finite value → the nearest legal value. */
+  constrain(value: number): number;
+  /** A legal value → display text. */
+  format(value: number): string;
+  /** Text → a legal value, or null. */
+  parse(text: string): number | null;
+}
+
 /** A parameter's JavaScript value type, by its declared type. */
 export type ParameterValue<Info extends WebParameterInfo> = Info extends {
-  type: 'bool';
+  type: 'boolean';
 }
   ? boolean
-  : Info extends { type: 'enum' }
+  : Info extends { type: 'choice' }
     ? string
     : number;
+
+/** The processing's write to a read-only parameter (see {@link publishParameter}). */
+const publishers = new WeakMap<WebParameter, (value: unknown) => void>();
 
 /** One parameter: what `soundor:parameters` hands the plugin. */
 export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
   readonly #info: Info;
-  #value: ParameterValue<Info>;
+  readonly #behavior: ParameterBehavior;
+  /** The plain value: a boolean's 0 or 1, a choice's index. */
+  #plain: number;
   #gestures = 0;
   readonly #listeners = new Listeners<ParameterValue<Info>>();
 
-  constructor(info: Info) {
-    this.#info = Object.freeze({
-      ...info,
-      ...(info.type === 'enum'
-        ? { values: Object.freeze([...info.values]) }
-        : {}),
-    }) as Info;
-    this.#value = this.#coerce(info.default as ParameterValue<Info>);
+  constructor(info: Info, behavior: ParameterBehavior) {
+    this.#info = freezeInfo(info);
+    this.#behavior = behavior;
+    this.#plain = behavior.constrain(this.#toPlain(info.default));
+    publishers.set(this as WebParameter, (value) =>
+      this.#store(this.#toPlain(value)),
+    );
     Object.freeze(this);
   }
 
@@ -48,18 +72,17 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
 
   /** The current value. */
   get(): ParameterValue<Info> {
-    return this.#value;
+    return this.#fromPlain(this.#plain);
   }
 
   /**
-   * Sets the value: numbers are clamped to the range (ints rounded), and a
-   * value of the wrong type is a TypeError. Listeners hear of changes only.
+   * Sets the value, snapped to the range and step; a value of the wrong
+   * type, or any value of a read-only parameter, is a TypeError. Listeners
+   * hear of changes only.
    */
   set(value: ParameterValue<Info>): void {
-    const next = this.#coerce(value);
-    if (Object.is(next, this.#value)) return;
-    this.#value = next;
-    this.#listeners.notify(next);
+    this.#writable();
+    this.#store(this.#toPlain(value));
   }
 
   /**
@@ -75,6 +98,7 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
 
   /** Starts a user interaction (a drag, say). Interactions may nest. */
   beginGesture(): void {
+    this.#writable();
     this.#gestures++;
   }
 
@@ -88,37 +112,116 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
     return this.#gestures > 0;
   }
 
-  #coerce(value: unknown): ParameterValue<Info> {
-    const info = this.#info;
+  /** The value (the current one by default) as hosts show it. */
+  format(...value: [] | [ParameterValue<Info>]): string {
+    const plain =
+      value.length === 0
+        ? this.#plain
+        : this.#behavior.constrain(this.#toPlain(value[0]));
+    return this.#behavior.format(plain);
+  }
+
+  /** Text read as a value, or null when it is not one. */
+  parse(text: string): ParameterValue<Info> | null {
+    if (typeof text !== 'string') {
+      throw new TypeError(
+        `Parameter '${this.#info.id}': parse() expects a string, got ${describe(text)}`,
+      );
+    }
+    const plain = this.#behavior.parse(text);
+    return plain === null ? null : this.#fromPlain(plain);
+  }
+
+  /** The value's (the current one's by default) position in [0, 1]. */
+  toNormalized(...value: [] | [ParameterValue<Info>]): number {
+    const plain =
+      value.length === 0
+        ? this.#plain
+        : this.#behavior.constrain(this.#toPlain(value[0]));
+    return this.#behavior.toNormalized(plain);
+  }
+
+  /** The value at a position in [0, 1] (clamped), mapped and snapped. */
+  fromNormalized(normalized: number): ParameterValue<Info> {
+    if (typeof normalized !== 'number' || Number.isNaN(normalized)) {
+      throw new TypeError(
+        `Parameter '${this.#info.id}': fromNormalized() expects a number, got ${describe(normalized)}`,
+      );
+    }
+    return this.#fromPlain(this.#behavior.toValue(normalized));
+  }
+
+  #store(plain: number): void {
+    const next = this.#behavior.constrain(plain);
+    if (Object.is(next, this.#plain)) return;
+    this.#plain = next;
+    this.#listeners.notify(this.#fromPlain(next));
+  }
+
+  #writable(): void {
+    if (this.#info.access === 'readOnly') {
+      throw new TypeError(
+        `Parameter '${this.#info.id}' is read-only: only the plugin's processing sets it`,
+      );
+    }
+  }
+
+  #fromPlain(plain: number): ParameterValue<Info> {
+    const info = this.#info as WebParameterInfo;
     switch (info.type) {
-      case 'float':
-      case 'int': {
-        if (typeof value !== 'number' || Number.isNaN(value)) {
-          throw new TypeError(
-            `Parameter '${info.id}' expects a number, got ${describe(value)}`,
-          );
-        }
-        const clamped = Math.min(info.max, Math.max(info.min, value));
-        return (
-          info.type === 'int' ? Math.round(clamped) : clamped
-        ) as ParameterValue<Info>;
-      }
-      case 'bool':
+      case 'boolean':
+        return (plain >= 0.5) as ParameterValue<Info>;
+      case 'choice':
+        return info.options[Math.round(plain)]!.value as ParameterValue<Info>;
+      default:
+        return plain as ParameterValue<Info>;
+    }
+  }
+
+  #toPlain(value: unknown): number {
+    const info = this.#info as WebParameterInfo;
+    switch (info.type) {
+      case 'boolean':
         if (typeof value !== 'boolean') {
           throw new TypeError(
             `Parameter '${info.id}' expects a boolean, got ${describe(value)}`,
           );
         }
-        return value as ParameterValue<Info>;
-      case 'enum':
-        if (typeof value !== 'string' || !info.values.includes(value)) {
+        return value ? 1 : 0;
+      case 'choice': {
+        const index = info.options.findIndex(
+          (option) => option.value === value,
+        );
+        if (index < 0) {
           throw new TypeError(
-            `Parameter '${info.id}' expects one of ${info.values.map((v) => `'${v}'`).join(', ')}, got ${describe(value)}`,
+            `Parameter '${info.id}' expects one of ${info.options.map((option) => `'${option.value}'`).join(', ')}, got ${describe(value)}`,
           );
         }
-        return value as ParameterValue<Info>;
+        return index;
+      }
+      default:
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+          throw new TypeError(
+            `Parameter '${info.id}' expects a number, got ${describe(value)}`,
+          );
+        }
+        return value;
     }
   }
+}
+
+/**
+ * Sets a parameter as the plugin's processing does, read-only ones included:
+ * for the project's audio code, through its setup context's `publish`.
+ */
+export function publishParameter<Info extends WebParameterInfo>(
+  parameter: WebParameter<Info>,
+  value: ParameterValue<Info>,
+): void {
+  const publish = publishers.get(parameter as WebParameter);
+  if (publish === undefined)
+    throw new TypeError('publish() takes a parameter of this plugin');
+  publish(value);
 }
 
 /** Every parameter of a plugin, by id and in declaration order. */
@@ -127,17 +230,33 @@ export interface ParameterStore {
   readonly byId: Readonly<Record<string, WebParameter>>;
 }
 
-/** Creates the store for a plugin's declared parameters. */
+/** Creates the store for a plugin's declared parameters and their behavior. */
 export function createParameterStore(
   infos: readonly WebParameterInfo[],
+  behaviors: readonly ParameterBehavior[],
 ): ParameterStore {
-  const list = Object.freeze(infos.map((info) => new WebParameter(info)));
+  if (behaviors.length !== infos.length)
+    throw new Error(
+      `The parameters' behavior (${behaviors.length}) does not match the manifest (${infos.length}); run soundor gen`,
+    );
+  const list = Object.freeze(
+    infos.map((info, index) => new WebParameter(info, behaviors[index]!)),
+  );
   return {
     list,
     byId: Object.freeze(
       Object.fromEntries(list.map((parameter) => [parameter.id, parameter])),
     ),
   };
+}
+
+function freezeInfo<Info extends WebParameterInfo>(info: Info): Info {
+  const copy = { ...info } as WebParameterInfo;
+  if (copy.type === 'choice')
+    (copy as { options: unknown }).options = Object.freeze(
+      copy.options.map((option) => Object.freeze({ ...option })),
+    );
+  return Object.freeze(copy) as Info;
 }
 
 function describe(value: unknown): string {

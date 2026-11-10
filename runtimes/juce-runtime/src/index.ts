@@ -24,7 +24,7 @@ import {
   type LifecycleContext,
   type Logger,
   type MacosSigning,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
 import { generateJuceSources } from './codegen';
@@ -105,7 +105,10 @@ type StandaloneLauncher = (
  * The scaffold inherits the generated framework and `include()`s its
  * `setup.cmake`; it is written once and never overwritten.
  */
-export async function juceInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
+export async function juceInit(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+): Promise<void> {
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const scaffoldDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   // CMake wants a forward-slash path regardless of platform.
@@ -130,7 +133,10 @@ export async function juceInit(config: SoundorConfig, ctx: Ctx): Promise<void> {
  * into `.soundor/generated/runtimes/<id>/`. Resolves JUCE best-effort so
  * `setup.cmake` can bake the path; `gen` never requires JUCE to be present.
  */
-export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
+export async function juceGen(
+  config: ResolvedSoundorConfig,
+  ctx: Ctx,
+): Promise<void> {
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const resolution = await resolveJuce(ctx.fs, options);
   ctx.codegen.emitAll(
@@ -144,7 +150,7 @@ export async function juceGen(config: SoundorConfig, ctx: Ctx): Promise<void> {
 
 /** `dev` — debug build, then what `chooseDevLaunch` says opens it. */
 export async function juceDev(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
@@ -332,7 +338,7 @@ export async function juceDev(
  * UI directories of its own, so it never disturbs a running `soundor dev`.
  */
 export async function juceBuild(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
@@ -444,7 +450,7 @@ async function reportGlibc(ctx: Ctx): Promise<void> {
 
 /** `doctor` — verify CMake, a compiler, and a locatable JUCE checkout. */
 export async function juceDoctor(
-  config: SoundorConfig,
+  config: ResolvedSoundorConfig,
   ctx: Ctx,
 ): Promise<DoctorReport> {
   const options = resolveJuceOptions(ctx.options, config.plugin);

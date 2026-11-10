@@ -2,32 +2,55 @@
 //
 // Embedded into the native runtime at build time. The native side
 // (`soundor:internal/parameters`, private to runtime modules) holds raw
-// plain-unit values; this layer converts them to the declared JavaScript types,
-// validates input, and keeps the subscriber lists. Subscriptions live and die
-// with the JavaScript context, so a reload never leaves listeners behind.
+// plain-unit values and the parameters' behavior (mapping, step, text), which
+// the backend generates from soundor.config; this layer converts values to the
+// declared JavaScript types, validates input, and keeps the subscriber lists.
+// Subscriptions live and die with the JavaScript context, so a reload never
+// leaves listeners behind.
 
 import * as host from 'soundor:internal/parameters';
 
-const TYPES = ['float', 'int', 'bool', 'enum'];
+// parameters::Type and parameters::Access, in their order.
+const TYPES = [
+  'int8',
+  'uint8',
+  'int16',
+  'uint16',
+  'int32',
+  'uint32',
+  'float32',
+  'boolean',
+  'choice',
+];
+const ACCESS = ['automatable', 'manual', 'readOnly'];
 
 /** Public, frozen metadata in the shape of the soundor.config declaration. */
 function describe(raw) {
-  const type = TYPES[raw.kind];
-  const info = { id: raw.id, label: raw.label, type };
+  const type = TYPES[raw.type];
+  const info = {
+    id: raw.id,
+    label: raw.label,
+    access: ACCESS[raw.access],
+    type,
+  };
   switch (type) {
-    case 'float':
-    case 'int':
+    case 'boolean':
+      info.default = raw.default >= 0.5;
+      break;
+    case 'choice':
+      info.options = Object.freeze(
+        raw.choices.map((choice) =>
+          Object.freeze({ value: choice.value, label: choice.label }),
+        ),
+      );
+      info.default = info.options[Math.round(raw.default)].value;
+      break;
+    default:
       info.min = raw.min;
       info.max = raw.max;
       info.default = raw.default;
+      if (raw.step > 0) info.step = raw.step;
       if (raw.unit !== '') info.unit = raw.unit;
-      break;
-    case 'bool':
-      info.default = raw.default >= 0.5;
-      break;
-    case 'enum':
-      info.values = Object.freeze([...raw.choices]);
-      info.default = raw.choices[Math.round(raw.default)];
       break;
   }
   return Object.freeze(info);
@@ -35,43 +58,40 @@ function describe(raw) {
 
 function fromHost(info, value) {
   switch (info.type) {
-    case 'float':
-      return value;
-    case 'int':
-      return Math.round(value);
-    case 'bool':
+    case 'boolean':
       return value >= 0.5;
-    case 'enum':
-      return info.values[Math.round(value)];
+    case 'choice':
+      return info.options[Math.round(value)].value;
+    default:
+      return value;
   }
 }
 
 function toHost(info, value) {
   switch (info.type) {
-    case 'float':
-    case 'int':
-      if (typeof value !== 'number' || Number.isNaN(value)) {
-        throw new TypeError(
-          `Parameter '${info.id}' expects a number, got ${describeValue(value)}`,
-        );
-      }
-      return value;
-    case 'bool':
+    case 'boolean':
       if (typeof value !== 'boolean') {
         throw new TypeError(
           `Parameter '${info.id}' expects a boolean, got ${describeValue(value)}`,
         );
       }
       return value ? 1 : 0;
-    case 'enum': {
-      const index = info.values.indexOf(value);
+    case 'choice': {
+      const index = info.options.findIndex((option) => option.value === value);
       if (index < 0) {
         throw new TypeError(
-          `Parameter '${info.id}' expects one of ${info.values.map((v) => `'${v}'`).join(', ')}, got ${describeValue(value)}`,
+          `Parameter '${info.id}' expects one of ${info.options.map((option) => `'${option.value}'`).join(', ')}, got ${describeValue(value)}`,
         );
       }
       return index;
     }
+    default:
+      if (typeof value !== 'number' || Number.isNaN(value)) {
+        throw new TypeError(
+          `Parameter '${info.id}' expects a number, got ${describeValue(value)}`,
+        );
+      }
+      return value;
   }
 }
 
@@ -105,6 +125,7 @@ class Parameter {
   }
 
   set(value) {
+    this.#writable();
     host.set(this.#index, toHost(this.#info, value));
   }
 
@@ -129,11 +150,57 @@ class Parameter {
   }
 
   beginGesture() {
+    this.#writable();
     host.beginGesture(this.#index);
   }
 
   endGesture() {
     host.endGesture(this.#index);
+  }
+
+  format(value) {
+    return host.format(
+      this.#index,
+      arguments.length === 0
+        ? host.get(this.#index)
+        : toHost(this.#info, value),
+    );
+  }
+
+  parse(text) {
+    if (typeof text !== 'string') {
+      throw new TypeError(
+        `Parameter '${this.#info.id}': parse() expects a string, got ${describeValue(text)}`,
+      );
+    }
+    const value = host.parse(this.#index, text);
+    return value === null ? null : fromHost(this.#info, value);
+  }
+
+  toNormalized(value) {
+    return host.toNormalized(
+      this.#index,
+      arguments.length === 0
+        ? host.get(this.#index)
+        : toHost(this.#info, value),
+    );
+  }
+
+  fromNormalized(normalized) {
+    if (typeof normalized !== 'number' || Number.isNaN(normalized)) {
+      throw new TypeError(
+        `Parameter '${this.#info.id}': fromNormalized() expects a number, got ${describeValue(normalized)}`,
+      );
+    }
+    return fromHost(this.#info, host.fromNormalized(this.#index, normalized));
+  }
+
+  #writable() {
+    if (this.#info.access === 'readOnly') {
+      throw new TypeError(
+        `Parameter '${this.#info.id}' is read-only: only the plugin's processing sets it`,
+      );
+    }
   }
 }
 
