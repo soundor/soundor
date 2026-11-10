@@ -26,6 +26,8 @@
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
+    "@commitlint/cli": "catalog:",
+    "@commitlint/config-conventional": "catalog:",
     "husky": "catalog:",
     "lint-staged": "catalog:",
     "oxfmt": "catalog:",
@@ -36,6 +38,9 @@
     "*": [
       "oxlint --fix --no-error-on-unmatched-pattern",
       "oxfmt --no-error-on-unmatched-pattern"
+    ],
+    "*.{c,cc,cpp,cxx,h,hh,hpp,hxx,mm}": [
+      "node scripts/clang-format.mjs --files --fix"
     ]
   },
   "engines": {
