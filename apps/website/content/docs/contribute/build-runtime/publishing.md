@@ -12,7 +12,7 @@ build alone does not establish that packaging boundary.
 ## Where the code is
 
 Use `runtimes/juce-runtime/package.json` and `runtimes/web-runtime/package.json`
-as reference manifests, including their `soundor.compatibility`. The engine's public ABI and prebuilt checks are documented in
+as reference manifests. The engine's public ABI and prebuilt checks are documented in
 [Soundor Engine](/docs/engine#abi-versioning) and the
 [engine reference](/docs/contribute/engine-reference#prebuilt-engines).
 
@@ -54,11 +54,13 @@ point and declarations (`dist/*.mjs`, `dist/*.d.mts`) to check that every
 package they import is declared. See
 [Dependencies and compatibility](/docs/contribute/compatibility) for the rules.
 
-Declare the host versions the runtime supports in `soundor.compatibility` and
-pass it to `defineRuntime()`'s `package`: the CLI refuses the runtime, before
-running any phase, when the project's Soundor is outside it. These ranges say
-what you have tested, not what you depend on: widen them only after running
-your tests against the new version.
+Depend on one release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0).
+`defineRuntime()` gives the runtime the runtime API version of that copy, and
+the CLI refuses the runtime, before running any phase, when its own does not
+run that version. A wider range lets the package manager hand the runtime a
+copy of another line, whose version it would then report. When a Soundor
+release raises the runtime API version, check the runtime against it, and
+release it built with that release if it implements what the raise adds.
 
 Before 1.0, plugin projects pin exact Soundor versions. Document your runtime's
 tested versions and upgrade steps. Keep your package version and the engine ABI

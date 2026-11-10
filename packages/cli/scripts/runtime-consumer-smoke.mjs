@@ -1,9 +1,9 @@
 // Installs the packed Soundor packages and both runtimes the way a project
 // does (strict, isolated pnpm; no peers installed automatically), then runs
 // the installed CLI: each package must resolve what it imports from its own
-// manifest, and the runtimes' compatibility declarations must accept the
-// installed CLI's @soundor/config and @soundor/core, while a runtime for
-// other versions is refused before anything is generated.
+// manifest, the runtimes must depend on one release line of the SDK (their
+// runtime API version is that of their copy), and a runtime of a newer
+// runtime API is refused before anything is generated.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -97,14 +97,30 @@ export default defineSoundorConfig({
 });
 `,
   );
-  const output = run(soundor, ['gen']);
-  assert.doesNotMatch(output, /declares no compatibility/);
+  run(soundor, ['gen']);
   assert.ok(
     existsSync(resolve(temporary, '.soundor/generated/parameters.d.ts')),
   );
   run(soundor, ['gen', '--check']);
 
-  // A runtime for other Soundor versions: refused, exit code 4, nothing written.
+  // A runtime's API version is that of its own SDK copy: one release line of
+  // it, so that sharing the CLI's copy (deduplicated) cannot change it.
+  for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
+    const manifest = JSON.parse(
+      await readFile(
+        resolve(temporary, 'node_modules', runtime, 'package.json'),
+        'utf8',
+      ),
+    );
+    for (const name of ['@soundor/runtime-sdk', '@soundor/config'])
+      assert.match(
+        manifest.dependencies[name],
+        /^\^0\.\d+\.\d+$/,
+        `${runtime}: ${name}`,
+      );
+  }
+
+  // A runtime of a newer runtime API: refused, exit code 4, nothing written.
   await rm(resolve(temporary, '.soundor'), { recursive: true, force: true });
   await writeFile(
     resolve(temporary, 'soundor.config.ts'),
@@ -113,13 +129,9 @@ import { defineSoundorConfig } from '@soundor/config';
 import { webRuntime } from '@soundor/web-runtime';
 
 const noop = async () => {};
-const old = {
-  id: 'old',
-  package: {
-    name: 'soundor-runtime-old',
-    version: '1.0.0',
-    compatibility: { config: '>=0.1.0 <0.2.0', core: '>=0.1.0 <0.2.0', schemas: [1] },
-  },
+const newer = {
+  id: 'newer',
+  apiVersion: 999,
   init: noop, gen: noop, dev: noop, build: noop,
   doctor: async () => ({ checks: [] }),
 };
@@ -127,18 +139,14 @@ const old = {
 export default defineSoundorConfig({
   plugin: { id: 'com.soundor.packed-runtimes', name: 'Packed runtimes' },
   parameters: [],
-  runtimes: [webRuntime(), { id: 'old', options: {}, runtime: old }],
+  runtimes: [webRuntime(), { id: 'newer', options: {}, runtime: newer }],
 });
 `,
   );
   const refused = run(soundor, ['gen'], { status: 4 });
   assert.match(
     refused,
-    /Runtime 'old' \(soundor-runtime-old@1\.0\.0\) does not support/,
-  );
-  assert.match(
-    refused,
-    /@soundor\/config \d+\.\d+\.\d+: the runtime supports >=0\.1\.0 <0\.2\.0/,
+    /Runtime 'newer' implements runtime API 999, newer than this soundor/,
   );
   assert.ok(!existsSync(resolve(temporary, '.soundor')));
 

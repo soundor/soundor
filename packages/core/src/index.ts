@@ -16,16 +16,6 @@ export {
   isSoundorError,
 } from './errors';
 
-export { CORE_VERSION } from './version';
-export type { Version } from './version-range';
-export {
-  compareVersions,
-  isValidRange,
-  parseVersion,
-  sameReleaseLine,
-  satisfiesRange,
-} from './version-range';
-
 export type { Logger } from './logger';
 export { createConsoleLogger } from './logger';
 

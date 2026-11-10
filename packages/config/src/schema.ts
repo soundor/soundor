@@ -6,7 +6,7 @@ import { type ConfigIssue, ConfigError } from './errors';
 import type { Runtime } from './runtime';
 import { checkSigningIdentity } from './signing';
 import type { Parameter, SoundorConfig } from './types';
-import { CONFIG_SCHEMA_VERSION, CONFIG_VERSION } from './version';
+import { CONFIG_VERSION } from './version';
 
 /** The lifecycle methods every {@link Runtime} must expose. */
 const RUNTIME_METHODS = ['init', 'gen', 'dev', 'build', 'doctor'] as const;
@@ -122,7 +122,7 @@ const soundorConfigSchema = z.strictObject({
  * runtimes, would otherwise silently ignore.
  */
 function unknownPropertyMessage(key: string): string {
-  return `unknown property '${key}' in @soundor/config ${CONFIG_VERSION} (config schema ${CONFIG_SCHEMA_VERSION}); check its spelling, or upgrade soundor and @soundor/config together if it is from a newer release`;
+  return `unknown property '${key}' in @soundor/config ${CONFIG_VERSION}; check its spelling, or upgrade soundor and @soundor/config together if it is from a newer release`;
 }
 
 /** Renders a zod path array into a `parameters[0].max`-style string. */

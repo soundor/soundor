@@ -15,11 +15,7 @@ import {
   type ProjectPaths,
 } from '@soundor/core';
 
-import {
-  checkRuntimeCompatibility,
-  type RuntimeCompatibilityStatus,
-  undeclaredCompatibilityWarning,
-} from './compatibility';
+import { checkRuntimeCompatibility } from './compatibility';
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 import type { DoctorReport, Runtime } from './runtime';
 import { resolveSigning } from './signing';
@@ -29,13 +25,14 @@ import type { RuntimeConfig, SoundorConfig } from './types';
 export interface ResolvedRuntime {
   runtime: Runtime;
   config: RuntimeConfig;
-  /** What its compatibility check found; `runPhase` warns when undeclared. */
-  compatibility: RuntimeCompatibilityStatus;
+  /** The runtime API version it implements, which the host runs. */
+  apiVersion: number;
 }
 
 /**
  * Finds the runtime registered under `id` in `config.runtimes[]` and checks
- * that it supports this host (`checkRuntimeCompatibility`). Throws {@link
+ * that this host runs its runtime API version, and that it has what the config
+ * uses (`checkRuntimeCompatibility`). Throws {@link
  * UnknownRuntimeError} (listing the available ids) when none matches, and a
  * `RuntimeCompatibilityError` when it does not support the host: entry points
  * resolve every runtime they will run before generating anything.
@@ -54,7 +51,7 @@ export function resolveRuntime(
   return {
     runtime: entry.runtime,
     config: { id: entry.id, options: entry.options },
-    compatibility: checkRuntimeCompatibility(entry.runtime),
+    apiVersion: checkRuntimeCompatibility(entry.runtime, config),
   };
 }
 
@@ -109,8 +106,6 @@ export async function runPhase(
   };
 
   const { runtime } = resolved;
-  if (resolved.compatibility === 'undeclared')
-    input.logger.warn(undeclaredCompatibilityWarning(runtime));
   try {
     switch (phase) {
       case 'init':

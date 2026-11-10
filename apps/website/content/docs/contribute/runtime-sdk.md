@@ -30,16 +30,15 @@ Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
 
 ### Compatibility
 
-`defineRuntime` requires `package: { name, version, compatibility }`: the
-runtime's package and the host versions it supports, best read from its
-`package.json` (`soundor.compatibility`), as
-[Dependencies and compatibility](/docs/contribute/compatibility) describes.
-The CLI refuses the runtime before any phase when the project's
-`@soundor/config`, `@soundor/core` or config schema is outside it. The SDK
-re-exports the check (`checkRuntimeCompatibility`, with `HOST_VERSIONS`), so a
-runtime's tests can assert that it accepts the versions they run with, and
-the error protocol (`isSoundorError`, `isConfigError`) for errors from other
-copies of the packages.
+`defineRuntime` gives the runtime `apiVersion`, the `RUNTIME_API_VERSION` of
+the `@soundor/config` it is built with: the version of everything a runtime
+depends on of its host, which changes only when that does, not with every
+Soundor release. The CLI refuses the runtime before any phase when it does not
+run that version, or when the config uses a setting added after it
+([Dependencies and compatibility](/docs/contribute/compatibility)). The SDK
+re-exports the check (`checkRuntimeCompatibility`) and the error protocol
+(`isSoundorError`, `isConfigError`) for errors from other copies of the
+packages.
 
 ### Optional DevTools capability
 

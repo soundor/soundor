@@ -261,15 +261,7 @@ function runtime(id) {
   return {
     id,
     ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
-    package: {
-      name: 'soundor-runtime-' + id,
-      version: '1.0.0',
-      compatibility: {
-        config: id === ${JSON.stringify(options.incompatible)} ? '<0.0.1' : '>=0.0.0',
-        core: '>=0.0.0',
-        schemas: [1],
-      },
-    },
+    apiVersion: id === ${JSON.stringify(options.incompatible)} ? 999 : 1,
     async init() {},
     async gen(_config, ctx) {
       globalThis.__soundorBuildEvents.push('gen:' + id + ':' + ctx.mode);

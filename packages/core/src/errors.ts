@@ -150,9 +150,10 @@ export class EnvError extends SoundorError {
 }
 
 /**
- * A runtime does not support the Soundor packages or the config schema of the
- * project's host (the CLI): it declares ranges that exclude them, or declares
- * them in a form that cannot be read (`INVALID_RUNTIME`).
+ * A runtime and the host (the CLI) do not share a runtime API version, or the
+ * project's config uses what the runtime's version does not have
+ * (`INCOMPATIBLE_RUNTIME`); or the runtime's API version cannot be read
+ * (`INVALID_RUNTIME`).
  */
 export class RuntimeCompatibilityError extends SoundorError {
   readonly runtimeId: string;

@@ -18,19 +18,9 @@ pnpm add @soundor/runtime-sdk @soundor/config
 pnpm add -D typescript @types/node
 ```
 
-Declare the Soundor versions it supports in its `package.json` (see
-[Dependencies and compatibility](/docs/contribute/compatibility)), the ones
-you develop and test it with:
-
-```json
-"soundor": {
-  "compatibility": {
-    "config": "^%version:@soundor/config%",
-    "core": "^%version:@soundor/core%",
-    "schemas": [1]
-  }
-}
-```
+Keep both at one release line (`^%version:@soundor/runtime-sdk%`): the
+runtime's API version, which the CLI checks, is that of its copy (see
+[Dependencies and compatibility](/docs/contribute/compatibility)).
 
 Use exact matching Soundor versions while developing the package. Its public
 entry will export `demoRuntime`; a plugin config imports that factory. See
@@ -45,15 +35,12 @@ Put this in `src/index.ts`:
 import type { RuntimeFactory } from '@soundor/config';
 import { defineRuntime, RuntimeError } from '@soundor/runtime-sdk';
 
-import { name, soundor, version } from '../package.json';
-
 export interface DemoOptions {
   label?: string;
 }
 
 export const demoRuntime: RuntimeFactory<DemoOptions> = defineRuntime({
   id: 'demo',
-  package: { name, version, compatibility: soundor.compatibility },
 
   async init(_config, ctx) {
     const file = ctx.fs.resolve('runtimes', 'demo', 'README.md');
@@ -107,8 +94,9 @@ export const demoRuntime: RuntimeFactory<DemoOptions> = defineRuntime({
 ```
 
 The runtime ID is the directory and dispatch identity, independent of the npm
-package name. `package` is what the CLI checks before running any phase, and
-names the runtime in its errors. The factory's type comes from
+package name. `defineRuntime` gives the runtime the runtime API version of the
+`@soundor/config` it is built with, which the CLI checks before running any
+phase. The factory's type comes from
 `@soundor/config`, which projects install, so their declarations can name it. `init` writes through the filesystem only when the user file is
 missing. `gen` emits contents through the sink, so the CLI controls writes and
 check mode. Options need runtime validation even though the factory is typed.

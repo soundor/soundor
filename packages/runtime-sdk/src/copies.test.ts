@@ -15,7 +15,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
@@ -28,9 +27,16 @@ import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { CONFIG_SCHEMA_VERSION, CONFIG_VERSION, CORE_VERSION } from './index';
+import {
+  CONFIG_VERSION,
+  MIN_RUNTIME_API_VERSION,
+  RUNTIME_API_VERSION,
+} from './index';
 
 const PLACEHOLDER = '0.0.0-soundor-copy';
+/** RUNTIME_API_VERSION and MIN_RUNTIME_API_VERSION, set per copy. */
+const API_PLACEHOLDER = '7340021';
+const MIN_PLACEHOLDER = '7340022';
 
 const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Where `name` is installed for the package at `from`, as Node finds it. */
@@ -70,6 +76,27 @@ beforeAll(async () => {
         !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0'),
       plugins: [
         {
+          name: 'copy-api-version',
+          transform(code, id) {
+            if (!id.endsWith('/config/src/version.ts')) return null;
+            const replaced = code
+              .replace(
+                /RUNTIME_API_VERSION = \d+;/,
+                `RUNTIME_API_VERSION = ${API_PLACEHOLDER};`,
+              )
+              .replace(
+                /MIN_RUNTIME_API_VERSION = \d+;/,
+                `MIN_RUNTIME_API_VERSION = ${MIN_PLACEHOLDER};`,
+              );
+            if (
+              !replaced.includes(API_PLACEHOLDER) ||
+              !replaced.includes(MIN_PLACEHOLDER)
+            )
+              throw new Error(`no runtime API versions to replace in ${id}`);
+            return replaced;
+          },
+        },
+        {
           name: 'copy-version',
           load(id) {
             return id.endsWith('package.json')
@@ -93,11 +120,19 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** Installs copies of `packages` at `version` into `dir/node_modules`. */
+/** A copy of the Soundor packages: their version, and runtime API versions. */
+interface Copy {
+  version: string;
+  /** RUNTIME_API_VERSION, and MIN_RUNTIME_API_VERSION, in its config. */
+  api?: number;
+  min?: number;
+}
+
+/** Installs copies of `packages` as `copy` into `dir/node_modules`. */
 function install(
   dir: string,
   packages: Package[],
-  version: string,
+  copy: Copy,
   { linkShared = true } = {},
 ): void {
   for (const key of packages) {
@@ -107,15 +142,16 @@ function install(
       join(pkgDir, 'package.json'),
       JSON.stringify({
         name: sources[key].name,
-        version,
+        version: copy.version,
         type: 'module',
         exports: './index.mjs',
       }),
     );
-    writeFileSync(
-      join(pkgDir, 'index.mjs'),
-      bundles[key].replaceAll(PLACEHOLDER, version),
-    );
+    const code = bundles[key]
+      .replaceAll(PLACEHOLDER, copy.version)
+      .replaceAll(API_PLACEHOLDER, String(copy.api ?? RUNTIME_API_VERSION))
+      .replaceAll(MIN_PLACEHOLDER, String(copy.min ?? MIN_RUNTIME_API_VERSION));
+    writeFileSync(join(pkgDir, 'index.mjs'), code);
   }
   if (!linkShared) return;
   for (const [name, target] of Object.entries(shared)) {
@@ -126,11 +162,11 @@ function install(
 
 interface Scenario {
   /** The CLI side: its @soundor/config and @soundor/core. */
-  host: string;
+  host: Copy;
   /** The runtime's own copies of the SDK, config and core. */
-  runtimeCopies: string;
-  /** What the runtime's package.json declares; undefined for none. */
-  compatibility?: { config: string; core: string; schemas: number[] };
+  runtimeCopies: Copy;
+  /** A runtime from before API versions: no defineRuntime, no apiVersion. */
+  legacy?: boolean;
   /** The project's own @soundor/config, which its config is typed against. */
   project?: string;
   /** What the runtime's `gen` does. */
@@ -139,7 +175,7 @@ interface Scenario {
 
 interface Outcome {
   stage: 'parse' | 'resolve' | 'gen' | 'done';
-  compatibility?: string;
+  apiVersion?: number;
   warnings: string[];
   generated: boolean;
   error?: {
@@ -167,7 +203,12 @@ function run(scenario: Scenario): Outcome {
   install(host, ['core', 'config'], scenario.host);
   install(runtime, ['core', 'config', 'runtime-sdk'], scenario.runtimeCopies);
   if (scenario.project !== undefined)
-    install(project, ['config'], scenario.project, { linkShared: false });
+    install(
+      project,
+      ['config'],
+      { version: scenario.project },
+      { linkShared: false },
+    );
 
   writeFileSync(
     join(runtime, 'package.json'),
@@ -176,28 +217,19 @@ function run(scenario: Scenario): Outcome {
       version: '2.1.0',
       type: 'module',
       exports: './index.mjs',
-      ...(scenario.compatibility === undefined
-        ? {}
-        : { soundor: { compatibility: scenario.compatibility } }),
     }),
   );
-  // A third-party runtime, as its author would write it with the SDK. An old
-  // one, from before declarations, has no `package`.
+  // A third-party runtime, as its author would write it with the SDK; an old
+  // one, from before API versions, is a plain object.
   writeFileSync(
     join(runtime, 'index.mjs'),
     `
 import { writeFileSync } from 'node:fs';
 import { ConfigError, EnvError, defineRuntime } from '@soundor/runtime-sdk';
-import manifest from './package.json' with { type: 'json' };
 
 const noop = async () => {};
-export const thirdRuntime = defineRuntime({
+const definition = {
   id: 'third',
-  ${
-    scenario.compatibility === undefined
-      ? ''
-      : 'package: { name: manifest.name, version: manifest.version, compatibility: manifest.soundor.compatibility },'
-  }
   init: noop,
   async gen(config, ctx) {
     switch (${JSON.stringify(scenario.gen)}) {
@@ -215,7 +247,12 @@ export const thirdRuntime = defineRuntime({
   dev: noop,
   build: noop,
   doctor: async () => ({ checks: [] }),
-});
+};
+export const thirdRuntime = ${
+      scenario.legacy === true
+        ? '(options = {}) => ({ id: definition.id, options, runtime: definition })'
+        : 'defineRuntime(definition)'
+    };
 `,
   );
   writeFileSync(
@@ -253,7 +290,7 @@ try {
   const config = await parseConfig({ path: process.argv[2] });
   stage = 'resolve';
   const resolved = resolveRuntime(config, 'third');
-  outcome.compatibility = resolved.compatibility;
+  outcome.apiVersion = resolved.apiVersion;
   stage = 'gen';
   await runPhase(resolved, 'gen', config, {
     paths: { root: '/p', config: '/p/c', dist: '/p/d', gen: '/p/g', cache: '/p/x', state: '/p/s' },
@@ -289,31 +326,25 @@ console.log(JSON.stringify(outcome));
   };
 }
 
-/** Ranges that cover exactly this workspace's versions. */
-const current = {
-  config: `^${CONFIG_VERSION}`,
-  core: `^${CORE_VERSION}`,
-  schemas: [CONFIG_SCHEMA_VERSION],
-};
-
 /** The next patch of `version`: a compatible copy that is not the same. */
 function nextPatch(version: string): string {
   const [major, minor, patch] = version.split('.').map(Number);
   return `${major}.${minor}.${patch! + 1}`;
 }
 
+const workspace: Copy = { version: CONFIG_VERSION };
+
 describe('separate copies of the Soundor packages', () => {
-  it('run a compatible runtime registered with another copy of the SDK', () => {
+  it('run a runtime registered with another copy of the SDK', () => {
     const outcome = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
-      compatibility: current,
+      host: workspace,
+      runtimeCopies: workspace,
       project: CONFIG_VERSION,
       gen: 'ok',
     });
     expect(outcome).toMatchObject({
       stage: 'done',
-      compatibility: 'compatible',
+      apiVersion: RUNTIME_API_VERSION,
       warnings: [],
       generated: true,
     });
@@ -321,9 +352,8 @@ describe('separate copies of the Soundor packages', () => {
 
   it('recognize errors thrown from another copy, of the same version', () => {
     const configError = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
-      compatibility: current,
+      host: workspace,
+      runtimeCopies: workspace,
       gen: 'config-error',
     });
     expect(configError.stage).toBe('gen');
@@ -342,9 +372,8 @@ describe('separate copies of the Soundor packages', () => {
     );
 
     const envError = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
-      compatibility: current,
+      host: workspace,
+      runtimeCopies: workspace,
       gen: 'env-error',
     });
     expect(envError.error).toMatchObject({
@@ -357,9 +386,8 @@ describe('separate copies of the Soundor packages', () => {
 
     // Anything else is the runtime failing, wrapped by the host.
     const crash = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
-      compatibility: current,
+      host: workspace,
+      runtimeCopies: workspace,
       gen: 'plain-error',
     });
     expect(crash.error).toMatchObject({
@@ -370,28 +398,29 @@ describe('separate copies of the Soundor packages', () => {
     });
   });
 
-  it('work across compatible versions', () => {
+  it('work across package versions of one runtime API version', () => {
     const outcome = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: nextPatch(CONFIG_VERSION),
-      compatibility: current,
-      project: nextPatch(CONFIG_VERSION),
+      host: { version: '0.30.0', api: 3 },
+      runtimeCopies: { version: '0.27.4', api: 3 },
       gen: 'env-error',
     });
-    expect(outcome.compatibility).toBe('compatible');
+    expect(outcome.apiVersion).toBe(3);
     expect(outcome.error).toMatchObject({ code: 'ENV', exitCode: 3 });
   });
 
-  it('refuse a runtime for other versions before it generates anything', () => {
+  it('run an older runtime the host still supports', () => {
     const outcome = run({
-      host: '0.30.0',
-      runtimeCopies: '0.29.0',
-      compatibility: {
-        config: '>=0.29.0 <0.30.0',
-        core: '>=0.29.0 <0.30.0',
-        schemas: [CONFIG_SCHEMA_VERSION],
-      },
-      project: '0.30.0',
+      host: { version: '0.30.0', api: 4, min: 2 },
+      runtimeCopies: { version: '0.25.0', api: 2 },
+      gen: 'ok',
+    });
+    expect(outcome).toMatchObject({ stage: 'done', apiVersion: 2 });
+  });
+
+  it('refuse a runtime newer than the host before it generates anything', () => {
+    const outcome = run({
+      host: { version: '0.30.0', api: 3 },
+      runtimeCopies: { version: '0.31.0', api: 4 },
       gen: 'ok',
     });
     expect(outcome.stage).toBe('resolve');
@@ -403,54 +432,39 @@ describe('separate copies of the Soundor packages', () => {
     });
     expect(outcome.error?.text).toBe(
       [
-        "Runtime 'third' (soundor-runtime-third@2.1.0) does not support this project's Soundor version.",
-        '  @soundor/config 0.30.0: the runtime supports >=0.29.0 <0.30.0',
-        '  @soundor/core 0.30.0: the runtime supports >=0.29.0 <0.30.0',
-        'Upgrade soundor-runtime-third to a version that supports @soundor/config 0.30.0, or use soundor and @soundor/config at a version it supports.',
+        "Runtime 'third' implements runtime API 4, newer than this soundor (@soundor/config 0.30.0), which runs runtime API 1 to 3.",
+        'Upgrade soundor and @soundor/config to a release the runtime is made for, or use an older release of the runtime.',
       ].join('\n'),
     );
   });
 
-  it('refuse a malformed declaration', () => {
+  it('refuse a runtime older than the host still runs', () => {
     const outcome = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
-      compatibility: { config: 'latest', core: current.core, schemas: [] },
+      host: { version: '0.30.0', api: 4, min: 3 },
+      runtimeCopies: { version: '0.25.0', api: 2 },
       gen: 'ok',
     });
     expect(outcome.stage).toBe('resolve');
     expect(outcome.generated).toBe(false);
-    expect(outcome.error).toMatchObject({
-      code: 'INVALID_RUNTIME',
-      exitCode: 4,
-    });
+    expect(outcome.error?.text).toContain(
+      "Runtime 'third' implements runtime API 2, which this soundor (@soundor/config 0.30.0) no longer runs: it runs runtime API 3 to 4.",
+    );
   });
 
-  it('run a runtime from before declarations, with a warning', () => {
+  it('take a runtime from before API versions for version 1', () => {
     const outcome = run({
-      host: CONFIG_VERSION,
-      runtimeCopies: CONFIG_VERSION,
+      host: workspace,
+      runtimeCopies: workspace,
+      legacy: true,
       gen: 'ok',
     });
-    expect(outcome).toMatchObject({
-      stage: 'done',
-      compatibility: 'undeclared',
-      generated: true,
-    });
-    expect(outcome.warnings).toEqual([
-      expect.stringContaining("Runtime 'third' declares no compatibility"),
-    ]);
+    expect(outcome).toMatchObject({ stage: 'done', apiVersion: 1 });
   });
 
   it("refuse a project whose @soundor/config is of another line than the host's", () => {
     const outcome = run({
-      host: '0.30.0',
-      runtimeCopies: '0.30.0',
-      compatibility: {
-        config: '^0.30.0',
-        core: '^0.30.0',
-        schemas: [CONFIG_SCHEMA_VERSION],
-      },
+      host: { version: '0.30.0' },
+      runtimeCopies: { version: '0.30.0' },
       project: '0.29.1',
       gen: 'ok',
     });
@@ -466,15 +480,13 @@ describe('separate copies of the Soundor packages', () => {
     );
   });
 
-  it('install each copy from its own tree', () => {
-    // A sanity check of the fixture itself: the host and the runtime load
-    // different files, with the versions written into them.
-    const dir = join(root, `scenario-${count - 1}`);
-    const hostCore = readFileSync(
-      join(dir, 'host/node_modules/@soundor/core/index.mjs'),
-      'utf8',
-    );
-    expect(hostCore).toContain('"0.30.0"');
-    expect(hostCore).not.toContain(PLACEHOLDER);
+  it('keep a compatible patch of the project @soundor/config', () => {
+    const outcome = run({
+      host: workspace,
+      runtimeCopies: workspace,
+      project: nextPatch(CONFIG_VERSION),
+      gen: 'ok',
+    });
+    expect(outcome.stage).toBe('done');
   });
 });

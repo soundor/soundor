@@ -56,10 +56,10 @@ describe('runGen', () => {
     expect(error).toMatchObject({
       name: 'RuntimeCompatibilityError',
       code: 'INCOMPATIBLE_RUNTIME',
-      runtimeId: 'old',
+      runtimeId: 'newer',
     });
     expect((error as { format(): string }).format()).toContain(
-      "Runtime 'old' (soundor-runtime-old@1.0.0) does not support this project's Soundor version.",
+      "Runtime 'newer' implements runtime API 999, newer than this soundor",
     );
     // Neither the portable files nor the compatible runtime's were written.
     await expect(readdir(root)).resolves.toEqual(['soundor.config.ts']);
@@ -197,17 +197,13 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 /**
- * A config with two runtimes: `good`, which supports any host, and `old`, which
- * supports only @soundor/config 0.0.x.
+ * A config with two runtimes: `good`, of this host's runtime API version, and
+ * `newer`, of a version beyond it.
  */
 async function writeIncompatibleConfig(root: string): Promise<void> {
-  const runtime = (id: string, config: string) => `{
+  const runtime = (id: string, apiVersion: number) => `{
   id: '${id}',
-  package: {
-    name: 'soundor-runtime-${id}',
-    version: '1.0.0',
-    compatibility: { config: '${config}', core: '>=0.0.0', schemas: [1] },
-  },
+  apiVersion: ${apiVersion},
   async init() {},
   async gen(_config, ctx) {
     ctx.codegen.emit({ path: '${id}.txt', contents: '${id}\\n' });
@@ -222,13 +218,13 @@ async function writeIncompatibleConfig(root: string): Promise<void> {
     join(root, 'soundor.config.ts'),
     `import { defineSoundorConfig } from '@soundor/config';
 
-const good = ${runtime('good', '>=0.0.0')};
-const old = ${runtime('old', '>=0.0.0 <0.1.0')};
+const good = ${runtime('good', 1)};
+const newer = ${runtime('newer', 999)};
 
 export default defineSoundorConfig({
   runtimes: [
     { id: 'good', options: {}, runtime: good },
-    { id: 'old', options: {}, runtime: old },
+    { id: 'newer', options: {}, runtime: newer },
   ],
   parameters: [],
   plugin: { id: 'com.example.test', name: 'Test' },

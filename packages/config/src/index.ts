@@ -35,21 +35,28 @@ export type {
   DevToolsCapabilities,
   RuntimeCapabilities,
   Runtime,
-  RuntimeCompatibility,
   RuntimeDescriptor,
   RuntimeFactory,
-  RuntimePackage,
 } from './runtime';
 
 // Versions and compatibility
-export { CONFIG_SCHEMA_VERSION, CONFIG_VERSION } from './version';
 export {
-  HOST_VERSIONS,
+  CONFIG_VERSION,
+  MIN_RUNTIME_API_VERSION,
+  RUNTIME_API_VERSION,
+} from './version';
+export {
+  CONFIG_FEATURES,
+  HOST_RUNTIME_API,
   checkRuntimeCompatibility,
-  undeclaredCompatibilityWarning,
+  runtimeApiVersion,
 } from './compatibility';
-export type { HostVersions, RuntimeCompatibilityStatus } from './compatibility';
-export { checkProjectConfigVersion, projectConfigVersion } from './project';
+export type { ConfigFeature, HostRuntimeApi } from './compatibility';
+export {
+  checkProjectConfigVersion,
+  projectConfigVersion,
+  sameReleaseLine,
+} from './project';
 export type {
   LifecycleContext,
   DevSessionContext,

@@ -1,19 +1,18 @@
-import type {
-  Runtime,
-  RuntimeDescriptor,
-  RuntimeFactory,
-  RuntimePackage,
+import {
+  RUNTIME_API_VERSION,
+  type Runtime,
+  type RuntimeDescriptor,
+  type RuntimeFactory,
 } from '@soundor/config';
 
 /**
- * What {@link defineRuntime} takes: a {@link Runtime} that declares its
- * package and compatibility, which the host checks before any phase runs.
+ * What {@link defineRuntime} takes: a {@link Runtime}, whose `apiVersion` it
+ * sets itself.
  */
-export interface RuntimeDefinition<
-  Options extends object = object,
-> extends Runtime<Options> {
-  readonly package: RuntimePackage;
-}
+export type RuntimeDefinition<Options extends object = object> = Omit<
+  Runtime<Options>,
+  'apiVersion'
+>;
 
 /**
  * Authors a runtime and returns the config-callable factory a runtime package
@@ -21,13 +20,10 @@ export interface RuntimeDefinition<
  * RuntimeDescriptor} to drop into a config's `runtimes[]`:
  *
  * ```ts
- * import { name, soundor, version } from '../package.json';
+ * import type { RuntimeFactory } from '@soundor/config';
  *
- * export const juceRuntime = defineRuntime<JuceOptions>({
+ * export const juceRuntime: RuntimeFactory<JuceOptions> = defineRuntime({
  *   id: 'juce',
- *   // package.json: "soundor": { "compatibility": {
- *   //   "config": ">=0.16.0 <0.17.0", "core": ">=0.16.0 <0.17.0", "schemas": [1] } }
- *   package: { name, version, compatibility: soundor.compatibility },
  *   async init(config, ctx) { ... },
  *   async gen(config, ctx) { ... },
  *   async dev(config, ctx) { ... },
@@ -39,19 +35,22 @@ export interface RuntimeDefinition<
  * runtimes: [juceRuntime({ plugin: { formats: ['vst3'] } })]
  * ```
  *
- * The returned descriptor carries the declarative `{ id, options }` plus the
- * implementation; the factory object also exposes `id` and `runtime` directly.
+ * The runtime is given the `RUNTIME_API_VERSION` of the `@soundor/config` the
+ * runtime is built with, which the host checks before running it. The returned
+ * descriptor carries the declarative `{ id, options }` plus the implementation;
+ * the factory object also exposes `id` and `runtime` directly.
  */
 export function defineRuntime<Options extends object = object>(
   definition: RuntimeDefinition<Options>,
 ): RuntimeFactory<Options> {
+  const runtime: Runtime<Options> = {
+    ...definition,
+    apiVersion: RUNTIME_API_VERSION,
+  };
   const factory = (options?: Options): RuntimeDescriptor<Options> => ({
-    id: definition.id,
+    id: runtime.id,
     options: options ?? ({} as Options),
-    runtime: definition,
+    runtime,
   });
-  return Object.assign(factory, {
-    id: definition.id,
-    runtime: definition,
-  });
+  return Object.assign(factory, { id: runtime.id, runtime });
 }

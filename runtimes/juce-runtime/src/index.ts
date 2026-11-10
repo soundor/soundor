@@ -28,7 +28,6 @@ import {
   type SoundorConfig,
 } from '@soundor/runtime-sdk';
 
-import { name, soundor, version } from '../package.json';
 import { generateJuceSources } from './codegen';
 import {
   chooseDevLaunch,
@@ -464,9 +463,6 @@ export async function juceDoctor(
 export const juceRuntime: RuntimeFactory<JuceOptions> =
   defineRuntime<JuceOptions>({
     id: RUNTIME_ID,
-    // The host refuses a runtime outside its declared compatibility, in
-    // package.json (`soundor.compatibility`), before running any phase.
-    package: { name, version, compatibility: soundor.compatibility },
     capabilities: {
       devtools: {
         inspector: true,

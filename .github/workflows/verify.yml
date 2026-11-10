@@ -180,14 +180,6 @@ jobs:
       - name: The web runtime's Yoga is the engine's
         run: node engines/yoga-wasm/scripts/check-release.mjs
 
-      # Each runtime's soundor.compatibility must cover the @soundor/config and
-      # core its tests ran with and the versions the pending changesets
-      # release, and claim no later line.
-      - name: Runtime compatibility declarations
-        run: |
-          node --test .github/scripts/runtime-compatibility.test.mjs &&
-          node .github/scripts/runtime-compatibility.mjs
-
       - name: Example application tests, types and web builds
         run: |
           pnpm --filter basic --filter primitives --filter orbit test &&

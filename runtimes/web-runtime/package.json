@@ -58,14 +58,5 @@
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "soundor": {
-    "compatibility": {
-      "config": ">=0.16.0 <0.18.0",
-      "core": ">=0.16.0 <0.18.0",
-      "schemas": [
-        1
-      ]
-    }
   }
 }

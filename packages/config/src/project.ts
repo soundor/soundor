@@ -8,12 +8,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
-import { sameReleaseLine } from '@soundor/core';
-
 import { ConfigError } from './errors';
 import { CONFIG_VERSION } from './version';
 
 const PACKAGE = '@soundor/config';
+
+/**
+ * Whether two versions are of one release line: the same major, and before
+ * 1.0 the same minor, since a 0.x minor may break. False for a non-version.
+ */
+export function sameReleaseLine(a: string, b: string): boolean {
+  const parse = (version: string) =>
+    /^(\d+)\.(\d+)\.\d+(?:[-+].*)?$/.exec(version)?.slice(1).map(Number);
+  const x = parse(a);
+  const y = parse(b);
+  if (x === undefined || y === undefined) return false;
+  return x[0] === y[0] && (x[0]! > 0 || x[1] === y[1]);
+}
 
 /**
  * The version of the `@soundor/config` a project at `dir` installed, found as

@@ -278,13 +278,15 @@ A package declares what its emitted code or declarations import as
 Vitest, Vite, the VST3 host). Values crossing packages are recognized by
 protocol, never by `instanceof` or module identity: a project can hold
 several copies of `@soundor/core` (`isSoundorError()`, `isConfigError()`).
-Each runtime declares the host versions it supports in `package.json`
-`soundor.compatibility` (`config`, `core` ranges, config `schemas`), passed to
-`defineRuntime()`'s `package`; `resolveRuntime()` refuses one outside them
-before any phase. A new config field bumps `CONFIG_SCHEMA_VERSION` and goes
-into the `schemas` of the runtimes that implement it;
-`.github/scripts/runtime-compatibility.mjs` (Verify) checks the ranges cover
-the tested and pending versions. See `contribute/compatibility.md`.
+Runtimes and the CLI agree on `RUNTIME_API_VERSION` (`@soundor/config`), the
+version of what runtimes depend on (the `Runtime` interface, its context, the
+config they receive, the error protocol), not of the packages: `defineRuntime()`
+records it, and `resolveRuntime()` refuses a runtime outside
+`MIN_RUNTIME_API_VERSION`…`RUNTIME_API_VERSION` before any phase. Changing that
+contract fails `runtime-api.test.ts`: raise the version if runtimes could
+notice (both for a break; tag a new config field in `CONFIG_FEATURES`), then
+`UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`. See
+`contribute/compatibility.md`.
 
 ### Accessibility
 

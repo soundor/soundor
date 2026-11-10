@@ -31,8 +31,8 @@ flowchart TD
 
 The runtime package exports a factory made with `defineRuntime<Options>()`.
 Calling it returns a live descriptor for `config.runtimes[]`; the CLI resolves
-its ID, checks that the runtime supports the project's Soundor versions (its
-declared `package.compatibility`), and calls its implementation. Options are owned and validated by the
+its ID, checks that it runs the runtime's API version (which `defineRuntime`
+sets), and calls its implementation. Options are owned and validated by the
 runtime. The SDK preserves their TypeScript type, but does not validate their
 values for you.
 

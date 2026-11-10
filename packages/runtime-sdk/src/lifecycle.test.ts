@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CONFIG_SCHEMA_VERSION,
-  CONFIG_VERSION,
-  CORE_VERSION,
   createCodegenSink,
   defineRuntime,
   resolveRuntime,
@@ -17,17 +14,6 @@ import {
   type RuntimePhase,
   type SoundorConfig,
 } from './index';
-
-/** A package that declares support for this host. */
-const PACKAGE = {
-  name: 'soundor-runtime-test',
-  version: '1.0.0',
-  compatibility: {
-    config: `^${CONFIG_VERSION}`,
-    core: `^${CORE_VERSION}`,
-    schemas: [CONFIG_SCHEMA_VERSION],
-  },
-};
 
 /** An in-memory FileSystemHost backed by a Map. */
 function memoryFs(): FileSystemHost & { store: Map<string, string> } {
@@ -79,7 +65,6 @@ describe('runtime lifecycle', () => {
 
     const juceRuntime = defineRuntime<{ format: string }>({
       id: 'juce',
-      package: PACKAGE,
       init: async (_config, ctx) => {
         calls.push('init');
         seenOptions.push(ctx.options);
@@ -156,7 +141,6 @@ describe('runtime lifecycle', () => {
     const boom = new Error('build blew up');
     const runtime = defineRuntime({
       id: 'juce',
-      package: PACKAGE,
       init: async () => {},
       gen: async () => {},
       dev: async () => {},

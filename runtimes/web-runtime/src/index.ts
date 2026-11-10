@@ -28,7 +28,6 @@ import {
   type Logger as ViteLogger,
 } from 'vite';
 
-import { name, soundor, version } from '../package.json';
 import { generateWebSources, nativeModel } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
@@ -186,9 +185,6 @@ export async function webDoctor(
 export const webRuntime: RuntimeFactory<WebOptions> = defineRuntime<WebOptions>(
   {
     id: RUNTIME_ID,
-    // The host refuses a runtime outside its declared compatibility, in
-    // package.json (`soundor.compatibility`), before running any phase.
-    package: { name, version, compatibility: soundor.compatibility },
     init: webInit,
     gen: webGen,
     dev: (config, ctx) => webDev(config, ctx),

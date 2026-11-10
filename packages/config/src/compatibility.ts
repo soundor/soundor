@@ -1,164 +1,139 @@
 /**
- * Runtime compatibility: whether a runtime supports the host that loads it.
- * The one implementation every entry point uses, through `resolveRuntime`.
+ * Runtime compatibility: whether a runtime implements a runtime API version
+ * the host supports, and has what the project's config uses. The one
+ * implementation every entry point uses, through `resolveRuntime`.
  */
 
+import { RuntimeCompatibilityError } from '@soundor/core';
+
+import type { Runtime } from './runtime';
+import type { SoundorConfig } from './types';
 import {
-  CORE_VERSION,
-  RuntimeCompatibilityError,
-  isValidRange,
-  parseVersion,
-  satisfiesRange,
-  type SoundorIssue,
-} from '@soundor/core';
+  CONFIG_VERSION,
+  MIN_RUNTIME_API_VERSION,
+  RUNTIME_API_VERSION,
+} from './version';
 
-import type { Runtime, RuntimeCompatibility, RuntimePackage } from './runtime';
-import { CONFIG_SCHEMA_VERSION, CONFIG_VERSION } from './version';
+/** What a runtime implements that predates `apiVersion`. */
+const FIRST_API_VERSION = 1;
 
-/** The versions a host offers its runtimes. */
-export interface HostVersions {
-  /** The `@soundor/config` that parses the config and drives the phases. */
-  readonly config: string;
-  /** The `@soundor/core` behind the context and errors runtimes receive. */
-  readonly core: string;
-  /** The config schema it validates. */
-  readonly schema: number;
+/**
+ * A config setting added to the runtime API after its first version. A
+ * runtime of an older version does not know it, so a project that uses it is
+ * refused rather than having it ignored.
+ */
+export interface ConfigFeature {
+  /** The runtime API version that added it. */
+  readonly since: number;
+  /** What it is, for the error: `parameter mappings`. */
+  readonly name: string;
+  /** The paths in `config` that use it: `parameters[0].mapping`. */
+  find(config: SoundorConfig): string[];
 }
 
-/** This copy's: what `soundor` reports, through its `@soundor/config`. */
-export const HOST_VERSIONS: HostVersions = {
-  config: CONFIG_VERSION,
-  core: CORE_VERSION,
-  schema: CONFIG_SCHEMA_VERSION,
+/**
+ * Every config setting added after the first runtime API version, with the
+ * version that added it. Add one with each config field a raise of
+ * {@link RUNTIME_API_VERSION} brings.
+ */
+export const CONFIG_FEATURES: readonly ConfigFeature[] = [];
+
+/** The runtime API versions a host runs runtimes of. */
+export interface HostRuntimeApi {
+  readonly min: number;
+  readonly current: number;
+  /** The host's `@soundor/config`, for messages. */
+  readonly configVersion: string;
+}
+
+/** This copy's. */
+export const HOST_RUNTIME_API: HostRuntimeApi = {
+  min: MIN_RUNTIME_API_VERSION,
+  current: RUNTIME_API_VERSION,
+  configVersion: CONFIG_VERSION,
 };
 
 /**
- * `'compatible'` when the runtime declares support for `host`;
- * `'undeclared'` for a runtime that declares nothing (made before
- * declarations existed), which the host runs with a warning.
+ * The runtime API version `runtime` implements: its `apiVersion`, or the
+ * first one for a runtime made before it existed. Throws {@link
+ * RuntimeCompatibilityError} (`INVALID_RUNTIME`) for one that is not a
+ * positive integer.
  */
-export type RuntimeCompatibilityStatus = 'compatible' | 'undeclared';
+export function runtimeApiVersion(runtime: Runtime): number {
+  const declared: unknown = runtime.apiVersion;
+  if (declared === undefined) return FIRST_API_VERSION;
+  if (
+    typeof declared === 'number' &&
+    Number.isInteger(declared) &&
+    declared > 0
+  )
+    return declared;
+  throw new RuntimeCompatibilityError(
+    `Runtime '${runtime.id}' has an unreadable runtime API version: ${JSON.stringify(declared)}.`,
+    {
+      runtimeId: runtime.id,
+      code: 'INVALID_RUNTIME',
+      hint: 'A runtime made with defineRuntime() from @soundor/runtime-sdk has a positive integer; report it to its authors.',
+    },
+  );
+}
 
 /**
- * Checks a runtime's declared compatibility against `host`. Throws {@link
- * RuntimeCompatibilityError}: `INCOMPATIBLE_RUNTIME` when it excludes a host
- * version, `INVALID_RUNTIME` when the declaration cannot be read. Never
- * treats an unreadable declaration as either.
+ * Checks that the host runs runtimes of `runtime`'s API version, and that
+ * `config` uses nothing newer than it. Returns that version; throws {@link
+ * RuntimeCompatibilityError} (`INCOMPATIBLE_RUNTIME`) otherwise.
  */
 export function checkRuntimeCompatibility(
   runtime: Runtime,
-  host: HostVersions = HOST_VERSIONS,
-): RuntimeCompatibilityStatus {
-  const declared: unknown = runtime.package;
-  if (declared === undefined) return 'undeclared';
-
-  const problems = declarationProblems(declared);
-  const label = runtimeLabel(runtime);
-  if (problems.length > 0) {
+  config: SoundorConfig,
+  {
+    host = HOST_RUNTIME_API,
+    features = CONFIG_FEATURES,
+  }: {
+    host?: HostRuntimeApi;
+    features?: readonly ConfigFeature[];
+  } = {},
+): number {
+  const version = runtimeApiVersion(runtime);
+  const supported =
+    host.min === host.current
+      ? `runtime API ${host.current}`
+      : `runtime API ${host.min} to ${host.current}`;
+  if (version > host.current) {
     throw new RuntimeCompatibilityError(
-      `Runtime ${label} declares its compatibility in a form soundor cannot read.`,
+      `Runtime '${runtime.id}' implements runtime API ${version}, newer than this soundor (@soundor/config ${host.configVersion}), which runs ${supported}.`,
       {
         runtimeId: runtime.id,
-        code: 'INVALID_RUNTIME',
-        issues: problems,
-        hint: `The runtime's package must declare it as defineRuntime's \`package\`: { name, version, compatibility: { config, core, schemas } }, with version ranges such as '>=0.16.0 <0.17.0'. Report it to the runtime's authors.`,
+        hint: 'Upgrade soundor and @soundor/config to a release the runtime is made for, or use an older release of the runtime.',
       },
     );
   }
-
-  const { name, compatibility } = declared as RuntimePackage;
-  const issues: SoundorIssue[] = [];
-  if (!satisfiesRange(host.config, compatibility.config)) {
-    issues.push({
-      path: '',
-      message: `@soundor/config ${host.config}: the runtime supports ${compatibility.config}`,
-    });
+  if (version < host.min) {
+    throw new RuntimeCompatibilityError(
+      `Runtime '${runtime.id}' implements runtime API ${version}, which this soundor (@soundor/config ${host.configVersion}) no longer runs: it runs ${supported}.`,
+      {
+        runtimeId: runtime.id,
+        hint: `Upgrade the runtime to a release made for runtime API ${host.current}, or use an older soundor and @soundor/config.`,
+      },
+    );
   }
-  if (!satisfiesRange(host.core, compatibility.core)) {
-    issues.push({
-      path: '',
-      message: `@soundor/core ${host.core}: the runtime supports ${compatibility.core}`,
-    });
-  }
-  if (!compatibility.schemas.includes(host.schema)) {
-    issues.push({
-      path: '',
-      message: `config schema ${host.schema}: the runtime supports ${compatibility.schemas.join(', ')}`,
-    });
-  }
+  const issues = features
+    .filter((feature) => feature.since > version)
+    .flatMap((feature) =>
+      feature.find(config).map((path) => ({
+        path,
+        message: `${feature.name}, from runtime API ${feature.since}`,
+      })),
+    );
   if (issues.length > 0) {
     throw new RuntimeCompatibilityError(
-      `Runtime ${label} does not support this project's Soundor version.`,
+      `Runtime '${runtime.id}' implements runtime API ${version}, which does not have what this config uses:`,
       {
         runtimeId: runtime.id,
         issues,
-        hint: `Upgrade ${name} to a version that supports @soundor/config ${host.config}, or use soundor and @soundor/config at a version it supports.`,
+        hint: 'Upgrade the runtime to a release that supports them, or remove them from the config.',
       },
     );
   }
-  return 'compatible';
-}
-
-/** The warning a host shows for a runtime that declares no compatibility. */
-export function undeclaredCompatibilityWarning(
-  runtime: Runtime,
-  host: HostVersions = HOST_VERSIONS,
-): string {
-  return `Runtime '${runtime.id}' declares no compatibility, so soundor cannot check that it supports @soundor/config ${host.config} and config schema ${host.schema}. Runtimes declare it as defineRuntime's \`package\` (from @soundor/runtime-sdk 0.17.0); a later Soundor release will refuse runtimes without it.`;
-}
-
-function runtimeLabel(runtime: Runtime): string {
-  const declared: Partial<Record<'name' | 'version', unknown>> | undefined =
-    runtime.package;
-  return typeof declared?.name === 'string' &&
-    typeof declared.version === 'string'
-    ? `'${runtime.id}' (${declared.name}@${declared.version})`
-    : `'${runtime.id}'`;
-}
-
-/** Every way `value` is not a {@link RuntimePackage}. */
-function declarationProblems(value: unknown): SoundorIssue[] {
-  const issues: SoundorIssue[] = [];
-  const add = (path: string, message: string): void => {
-    issues.push({ path, message });
-  };
-  if (typeof value !== 'object' || value === null) {
-    add('package', 'expected an object { name, version, compatibility }');
-    return issues;
-  }
-  const record = value as Record<string, unknown>;
-  if (typeof record['name'] !== 'string' || record['name'] === '')
-    add('package.name', 'expected the package name');
-  if (
-    typeof record['version'] !== 'string' ||
-    parseVersion(record['version']) === undefined
-  )
-    add('package.version', 'expected a version such as 0.16.0');
-  const compatibility = record['compatibility'];
-  if (typeof compatibility !== 'object' || compatibility === null) {
-    add('package.compatibility', 'expected { config, core, schemas }');
-    return issues;
-  }
-  const declared = compatibility as Partial<
-    Record<keyof RuntimeCompatibility, unknown>
-  >;
-  for (const key of ['config', 'core'] as const) {
-    const range = declared[key];
-    if (typeof range !== 'string' || !isValidRange(range))
-      add(
-        `package.compatibility.${key}`,
-        `expected a version range such as '>=0.16.0 <0.17.0', got ${JSON.stringify(range)}`,
-      );
-  }
-  const schemas = declared.schemas;
-  if (
-    !Array.isArray(schemas) ||
-    schemas.length === 0 ||
-    !schemas.every((schema) => Number.isInteger(schema) && schema > 0)
-  )
-    add(
-      'package.compatibility.schemas',
-      `expected a non-empty list of config schema versions, got ${JSON.stringify(schemas)}`,
-    );
-  return issues;
+  return version;
 }
