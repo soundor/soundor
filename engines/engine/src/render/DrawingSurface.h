@@ -34,7 +34,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             std::unique_ptr<Impl> impl;
             friend class GaneshContext;
         };
-        static std::shared_ptr<GaneshContext> create(std::shared_ptr<gpu::Device> device);
+        static std::shared_ptr<GaneshContext> create(const std::shared_ptr<gpu::Device>& device);
         ~GaneshContext();
         [[nodiscard]] const gpu::Device* device() const;
         [[nodiscard]] std::unique_ptr<Scope> makeCurrent() const;
@@ -53,7 +53,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     class GaneshSurface
     {
     public:
-        static std::shared_ptr<GaneshSurface> create(std::shared_ptr<GaneshContext> context, int width, int height);
+        static std::shared_ptr<GaneshSurface> create(const std::shared_ptr<GaneshContext>& context, int width,
+                                                     int height);
         ~GaneshSurface();
         SkCanvas& begin();
         void publish();

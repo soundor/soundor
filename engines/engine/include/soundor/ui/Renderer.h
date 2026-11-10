@@ -65,7 +65,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     const render::Region* only = nullptr, const Layering* layering = nullptr);
         // Enables Ganesh when it was built and the shared device supports it.
         // A null device keeps CPU rendering. Must be set before creating canvases.
-        bool setGpuDevice(std::shared_ptr<gpu::Device> device);
+        bool setGpuDevice(const std::shared_ptr<gpu::Device>& device);
         [[nodiscard]] bool usesGpu(const gpu::Device* device) const;
         bool prepare(render::DrawingSurface& target, int width, int height, const gpu::Device* device);
         void render(Surface& surface, render::DrawingSurface& target, double seconds,

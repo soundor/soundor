@@ -156,9 +156,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         return impl->images;
     }
 
-    bool Renderer::setGpuDevice(std::shared_ptr<gpu::Device> device)
+    bool Renderer::setGpuDevice(const std::shared_ptr<gpu::Device>& device)
     {
-        impl->images->gpu = render::GaneshContext::create(std::move(device));
+        impl->images->gpu = render::GaneshContext::create(device);
         return impl->images->gpu != nullptr;
     }
 

@@ -36,9 +36,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         sk_sp<SkSurface> surface;
     };
 
-    std::shared_ptr<GaneshContext> GaneshContext::create(std::shared_ptr<gpu::Device> device)
+    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>& device)
     {
-        auto driver = gpu::DrawingContext::create(std::move(device));
+        auto driver = gpu::DrawingContext::create(device);
         if (! driver)
             return nullptr;
         const auto current = driver->makeCurrent();
@@ -90,7 +90,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         impl->context->resetContext();
     }
 
-    std::shared_ptr<GaneshSurface> GaneshSurface::create(std::shared_ptr<GaneshContext> context, int width, int height)
+    std::shared_ptr<GaneshSurface> GaneshSurface::create(const std::shared_ptr<GaneshContext>& context, int width,
+                                                         int height)
     {
         const auto current = context->makeCurrent();
         if (! current || ! context->healthy())
@@ -110,7 +111,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         if (! surface)
             return nullptr;
         auto result = std::shared_ptr<GaneshSurface>(new GaneshSurface());
-        result->impl->owner = std::move(context);
+        result->impl->owner = context;
         result->impl->texture = std::move(texture);
         result->impl->surface = std::move(surface);
         result->begin().clear(SK_ColorTRANSPARENT);
@@ -169,7 +170,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     struct GaneshSurface::Impl
     {
     };
-    std::shared_ptr<GaneshContext> GaneshContext::create(std::shared_ptr<gpu::Device>)
+    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>&)
     {
         return nullptr;
     }
@@ -187,7 +188,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         return false;
     }
     void GaneshContext::resetState() {}
-    std::shared_ptr<GaneshSurface> GaneshSurface::create(std::shared_ptr<GaneshContext>, int, int)
+    std::shared_ptr<GaneshSurface> GaneshSurface::create(const std::shared_ptr<GaneshContext>&, int, int)
     {
         return nullptr;
     }
