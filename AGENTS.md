@@ -154,6 +154,12 @@ Regenerating checked-in generated files:
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
   (from `engines/engine`, after a dev build) — the engine's frames in
   `tests/layout/corpus.json`, for a change meant to change layout.
+- `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` — the runtime API
+  contract in `packages/config/runtime-api.json`, after a change to what
+  runtimes depend on (the `Runtime` interface, its context, the config they
+  receive, the error protocol). Decide first whether runtimes could notice and
+  raise `RUNTIME_API_VERSION` if so (see `contribute/compatibility.md`); the
+  record holds the version too.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
