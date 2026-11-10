@@ -36,22 +36,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         sk_sp<SkSurface> surface;
     };
 
-    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>& device)
+    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>& device,
+                                                         std::string* failure)
     {
         auto driver = gpu::DrawingContext::create(device);
         if (! driver)
+        {
+            if (failure)
+                *failure = "ANGLE drawing context unavailable (shared textures and ordered submissions required)";
             return nullptr;
+        }
         const auto current = driver->makeCurrent();
         if (! current)
+        {
+            if (failure)
+                *failure = "could not make the ANGLE drawing context current";
             return nullptr;
+        }
         auto interface = GrGLMakeAssembledGLESInterface(
             nullptr, [](void*, const char* name)
             { return reinterpret_cast<GrGLFuncPtr>(gpu::DrawingContext::procedure(name)); });
         if (! interface)
+        {
+            if (failure)
+                *failure = "could not assemble Skia's GLES interface from ANGLE";
             return nullptr;
+        }
         auto context = GrDirectContexts::MakeGL(std::move(interface));
         if (! context)
+        {
+            if (failure)
+                *failure = "Skia rejected ANGLE's GLES context";
             return nullptr;
+        }
         context->setResourceCacheLimit(64ULL * 1024 * 1024);
         auto result = std::shared_ptr<GaneshContext>(new GaneshContext());
         result->impl->driver = std::move(driver);
@@ -170,8 +187,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     struct GaneshSurface::Impl
     {
     };
-    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>&)
+    std::shared_ptr<GaneshContext> GaneshContext::create(const std::shared_ptr<gpu::Device>&, std::string* failure)
     {
+        if (failure)
+            *failure = "Ganesh is disabled in this engine build";
         return nullptr;
     }
     GaneshContext::~GaneshContext() = default;

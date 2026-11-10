@@ -9,6 +9,7 @@
 #include <include/core/SkSurface.h>
 
 #include <memory>
+#include <string>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
@@ -34,7 +35,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             std::unique_ptr<Impl> impl;
             friend class GaneshContext;
         };
-        static std::shared_ptr<GaneshContext> create(const std::shared_ptr<gpu::Device>& device);
+        static std::shared_ptr<GaneshContext> create(const std::shared_ptr<gpu::Device>& device,
+                                                     std::string* failure = nullptr);
         ~GaneshContext();
         [[nodiscard]] const gpu::Device* device() const;
         [[nodiscard]] std::unique_ptr<Scope> makeCurrent() const;

@@ -9,9 +9,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 {
     std::shared_ptr<DrawingContext> DrawingContext::create(std::shared_ptr<Device> device)
     {
-        // Shared textures and server-side fences are required for asynchronous
-        // handoff; unsupported devices keep the raster renderer.
-        if (! device || ! device->info().sharesTextures || ! device->info().fences)
+        if (! device || ! device->info().sharesTextures)
+            return nullptr;
+        // ANGLE's D3D11 backend virtualizes GLES contexts on one immediate
+        // D3D context (Renderer11), so submissions are ordered across contexts
+        // without EGL fences. Other backends need server-side synchronization.
+        if (! device->info().fences && device->info().backend != Backend::Direct3D11)
             return nullptr;
         auto result = std::make_shared<DrawingContext>();
         result->context = Context::create(std::move(device), {});
@@ -173,7 +176,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         const auto display = shared->owner->context->device().display();
         if (shared->ready != EGL_NO_SYNC_KHR)
             eglDestroySyncKHR(display, shared->ready);
-        shared->ready = eglCreateSyncKHR(display, EGL_SYNC_FENCE_KHR, nullptr);
+        shared->ready = shared->owner->device()->info().fences ? eglCreateSyncKHR(display, EGL_SYNC_FENCE_KHR, nullptr)
+                                                               : EGL_NO_SYNC_KHR;
         glFlush();
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu

@@ -783,8 +783,10 @@ still draws the whole view in one go, for tests and tools.
 Ganesh's GLES backend by default (`SOUNDOR_ENABLE_GANESH`); macOS and Linux
 keep raster drawing by default. Ganesh uses a separate context on the
 compositor's existing ANGLE device, with an assembled GLES function table
-and no native OpenGL loader or second ANGLE copy. Without shared textures,
-GPU-side fences or successful Ganesh initialization, drawing stays on the CPU.
+and no native OpenGL loader or second ANGLE copy. Shared textures and ordered
+submissions are required: ANGLE's D3D11 backend serializes virtual contexts on
+one immediate device context; other backends require GPU-side fences. If
+these capabilities or Ganesh initialization are unavailable, drawing stays on the CPU.
 
 `render::DrawingSurface` keeps retained layers on the GPU when possible,
 including animation segments. Damage repair uses padded GPU scratch surfaces

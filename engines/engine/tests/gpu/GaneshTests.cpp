@@ -21,11 +21,23 @@ namespace
         return options;
     }
 
+    std::shared_ptr<render::GaneshContext> ganeshContext(const std::shared_ptr<gpu::Device>& device)
+    {
+        std::string failure;
+        auto context = render::GaneshContext::create(device, &failure);
+        INFO("ANGLE backend: " << gpu::name(device->info().backend) << ", renderer: " << device->info().renderer
+                               << ", shared textures: " << device->info().sharesTextures
+                               << ", EGL fences: " << device->info().fences);
+        REQUIRE_MESSAGE(context != nullptr, failure);
+        return context;
+    }
+
     struct Scene : test::WebFixture
     {
         explicit Scene(const std::shared_ptr<gpu::Device>& device)
             : WebFixture(ganeshOptions(device)), compositor(device)
         {
+            REQUIRE(ganeshContext(device) != nullptr);
             host.surface().setSize({ 64, 64 });
         }
         void show()
@@ -58,7 +70,7 @@ TEST_SUITE("Skia Ganesh")
         const gpu::CurrentContext hostCurrent(*hostContext);
         REQUIRE(hostCurrent.ok());
         const auto original = eglGetCurrentContext();
-        auto renderer = render::GaneshContext::create(device);
+        auto renderer = ganeshContext(device);
         REQUIRE(renderer != nullptr);
         CHECK(eglGetCurrentContext() == original);
         std::shared_ptr<render::GpuImage> result;
@@ -91,7 +103,7 @@ TEST_SUITE("Skia Ganesh")
         const auto device = test::testDevice();
         if (! device)
             return;
-        REQUIRE(render::GaneshContext::create(device) != nullptr);
+        REQUIRE(ganeshContext(device) != nullptr);
         Scene scene(device);
         scene.run(R"(
             import {root,createView} from 'soundor:ui';
