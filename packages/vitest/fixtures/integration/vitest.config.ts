@@ -5,16 +5,15 @@ export default defineConfig({
     soundor({
       config: false,
       runtime: {
-        parameters: [
-          {
-            id: 'gain',
+        parameters: {
+          gain: {
+            type: 'float32',
             label: 'Gain',
-            type: 'float',
             min: 0,
             max: 1,
             default: 0.5,
           },
-        ],
+        },
       },
       native: {
         methods: {

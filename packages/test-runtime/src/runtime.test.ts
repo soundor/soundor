@@ -1,3 +1,4 @@
+import { resolveConfig } from '@soundor/config';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -7,6 +8,7 @@ import {
   TestEvent,
   TestResizeObserver,
   print,
+  setParameterAsHost,
   VirtualClock,
 } from './index';
 
@@ -220,16 +222,30 @@ describe('events and input', () => {
 describe('services and semantics', () => {
   it('clamps parameters, nests gestures and only notifies changes', () => {
     const r = createTestRuntime({
-      parameters: [
-        { id: 'gain', label: 'Gain', type: 'int', min: 0, max: 10, default: 2 },
-        {
-          id: 'mode',
-          label: 'Mode',
-          type: 'enum',
-          values: ['a', 'b'],
-          default: 'a',
+      parameters: resolveConfig({
+        plugin: { id: 'com.example.test', name: 'Test' },
+        runtimes: [],
+        parameters: {
+          gain: { type: 'int32', label: 'Gain', min: 0, max: 10, default: 2 },
+          mode: {
+            type: 'choice',
+            label: 'Mode',
+            options: [
+              { value: 'a', label: 'A' },
+              { value: 'b', label: 'B' },
+            ],
+            default: 'a',
+          },
+          meter: {
+            type: 'float32',
+            label: 'Meter',
+            min: -60,
+            max: 0,
+            default: 0,
+            access: 'readOnly',
+          },
         },
-      ],
+      }).parameters,
     });
     const gain = r.parameters.byId['gain']!,
       listener = vi.fn(),
@@ -246,6 +262,14 @@ describe('services and semantics', () => {
     expect(gain.inGesture).toBe(false);
     expect(() => gain.set('x')).toThrow();
     expect(() => r.parameters.byId['mode']!.set('c')).toThrow();
+    // The behavior is the config's, compiled as the Web runtime compiles it.
+    expect(r.parameters.byId['mode']!.format('b')).toBe('B');
+    expect(r.parameters.byId['mode']!.parse('a')).toBe('a');
+    expect(gain.fromNormalized(0.5)).toBe(5);
+    const meter = r.parameters.byId['meter']!;
+    expect(() => meter.set(-3)).toThrow("Parameter 'meter' is read-only");
+    setParameterAsHost(meter, -3);
+    expect(meter.get()).toBe(-3);
     stop();
     gain.set(0);
     expect(listener).toHaveBeenCalledOnce();

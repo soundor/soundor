@@ -136,12 +136,12 @@ describe('defineSoundorConfig', () => {
     defineSoundorConfig({
       ...base,
       parameters: {
-        // @ts-expect-error an int32 parser returns an int32?
         voices: {
           type: 'int32',
           min: 1,
           max: 32,
           default: 8,
+          // @ts-expect-error an int32 parser returns an int32?
           parse: (e) => e.parseFloat32(e.text),
         },
       },
@@ -162,12 +162,12 @@ describe('defineSoundorConfig', () => {
     defineSoundorConfig({
       ...base,
       parameters: {
-        // @ts-expect-error a format writes a string
         gain: {
           type: 'float32',
           min: 0,
           max: 1,
           default: 0,
+          // @ts-expect-error a format writes a string
           format: (e) => e.value,
           parse: 'default',
         },

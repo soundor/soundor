@@ -5,7 +5,9 @@ import {
   ConfigError,
   locateConfig,
   parseConfig,
+  resolveConfig,
   resolveEditor,
+  type ParameterDeclarations,
 } from '@soundor/config';
 import {
   describeNativeApi,
@@ -40,7 +42,10 @@ export interface SoundorOptions {
   /** Discover soundor.config.ts, use an explicit path, or disable discovery for library tests. */
   config?: string | false;
   /** Deterministic initial state for each test. Native functions are configured with mockNative() from @soundor/testing-library. */
-  runtime?: Omit<RuntimeOptions, 'native' | 'nativeMethods'>;
+  runtime?: Omit<RuntimeOptions, 'native' | 'nativeMethods' | 'parameters'> & {
+    /** Parameter declarations for tests without a project config, as soundor.config declares them. */
+    parameters?: ParameterDeclarations;
+  };
   /** Native declarations for tests without a project config. */
   native?: NativeApiDeclaration;
 }
@@ -64,7 +69,9 @@ export function soundor(options: SoundorOptions = {}): Plugin {
   let enabled = false;
   let native: NativeApiDeclaration = options.native ?? {};
   let parameters: NonNullable<RuntimeOptions['parameters']> =
-    options.runtime?.parameters ?? [];
+    options.runtime?.parameters === undefined
+      ? []
+      : resolveParameters(options.runtime.parameters);
   let configPath: string | undefined;
   return {
     name: 'soundor:vitest',
@@ -81,8 +88,11 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         );
       enabled = true;
       const projectRoot = resolve(config.root ?? process.cwd());
-      let runtime: Omit<RuntimeOptions, 'native' | 'nativeMethods'> =
-        options.runtime ?? {};
+      const { parameters: _declared, ...given } = options.runtime ?? {};
+      let runtime: Omit<RuntimeOptions, 'native' | 'nativeMethods'> = {
+        ...given,
+        ...(options.runtime?.parameters !== undefined && { parameters }),
+      };
       if (options.config !== false) {
         // Discover once; malformed project configurations must never become empty defaults.
         try {
@@ -96,7 +106,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         }
         if (configPath) {
           const project = await parseConfig({ path: configPath });
-          if (runtime.parameters || options.native)
+          if (options.runtime?.parameters || options.native)
             throw new Error(
               'Parameter and native declarations come from soundor.config.ts. Use config: false for library declarations, or Testing Library setup helpers in beforeEach to configure state and native mocks.',
             );
@@ -145,11 +155,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       parameters = runtime.parameters ?? parameters;
       const generated = generateSoundorFiles({
         plugin: runtime.plugin ?? { id: 'soundor.test', name: 'Soundor Test' },
-        parameters: parameters.map((parameter) =>
-          parameter.type === 'enum'
-            ? { ...parameter, values: [...parameter.values] }
-            : parameter,
-        ),
+        parameters: parameters as never,
         native,
       });
       await writeGeneratedFiles(
@@ -224,6 +230,21 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       );
     },
   };
+}
+
+/** Library tests' declarations, resolved as a project's config is: JSON for the workers. */
+function resolveParameters(
+  declarations: ParameterDeclarations,
+): NonNullable<RuntimeOptions['parameters']> {
+  return JSON.parse(
+    JSON.stringify(
+      resolveConfig({
+        plugin: { id: 'soundor.test', name: 'Soundor Test' },
+        runtimes: [],
+        parameters: declarations,
+      }).parameters,
+    ),
+  ) as NonNullable<RuntimeOptions['parameters']>;
 }
 
 function virtualModule(

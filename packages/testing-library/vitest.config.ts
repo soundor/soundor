@@ -11,32 +11,32 @@ export default defineConfig({
         },
       },
       runtime: {
-        parameters: [
-          { id: 'enabled', label: 'Enabled', type: 'bool', default: true },
-          {
-            id: 'mode',
+        parameters: {
+          enabled: { type: 'boolean', label: 'Enabled', default: true },
+          mode: {
+            type: 'choice',
             label: 'Mode',
-            type: 'enum',
-            values: ['a', 'b'],
+            options: [
+              { value: 'a', label: 'A' },
+              { value: 'b', label: 'B' },
+            ],
             default: 'a',
           },
-          {
-            id: 'voices',
+          voices: {
+            type: 'int32',
             label: 'Voices',
-            type: 'int',
             min: 1,
             max: 8,
             default: 2,
           },
-          {
-            id: 'gain',
+          gain: {
+            type: 'float32',
             label: 'Gain',
-            type: 'float',
             min: 0,
             max: 1,
             default: 0.5,
           },
-        ],
+        },
       },
     }),
   ],
