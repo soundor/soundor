@@ -42,10 +42,10 @@ export { createCodegenSink, nullCodegenSink } from './codegen';
 
 export type {
   CoreBaseParameter,
-  CoreBoolParameter,
-  CoreEnumParameter,
-  CoreFloatParameter,
-  CoreIntParameter,
+  CoreBooleanParameter,
+  CoreChoiceParameter,
+  CoreNumericParameter,
+  CoreParameterAccess,
   CoreParameter,
   CorePluginIdentity,
   CoreRuntimeDescriptor,

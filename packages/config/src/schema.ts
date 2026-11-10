@@ -3,9 +3,11 @@ import { z } from 'zod';
 
 import { checkEditor, editorSchema, resolveEditor } from './editor';
 import { type ConfigIssue, ConfigError } from './errors';
+import { resolveParameters } from './parameter-model';
+import type { ResolvedParameter } from './parameters';
 import type { Runtime } from './runtime';
 import { checkSigningIdentity } from './signing';
-import type { Parameter, SoundorConfig } from './types';
+import type { ResolvedSoundorConfig, SoundorConfig } from './types';
 import { CONFIG_VERSION } from './version';
 
 /** The lifecycle methods every {@link Runtime} must expose. */
@@ -24,49 +26,6 @@ function isRuntime(value: unknown): value is Runtime {
     (method) => typeof record[method] === 'function',
   );
 }
-
-const baseParameter = {
-  id: z.string(),
-  label: z.string(),
-};
-
-const floatParameterSchema = z.strictObject({
-  type: z.literal('float'),
-  ...baseParameter,
-  min: z.number(),
-  max: z.number(),
-  default: z.number(),
-  unit: z.string().optional(),
-});
-
-const intParameterSchema = z.strictObject({
-  type: z.literal('int'),
-  ...baseParameter,
-  min: z.number(),
-  max: z.number(),
-  default: z.number(),
-  unit: z.string().optional(),
-});
-
-const boolParameterSchema = z.strictObject({
-  type: z.literal('bool'),
-  ...baseParameter,
-  default: z.boolean(),
-});
-
-const enumParameterSchema = z.strictObject({
-  type: z.literal('enum'),
-  ...baseParameter,
-  values: z.array(z.string()),
-  default: z.string(),
-});
-
-const parameterSchema = z.discriminatedUnion('type', [
-  floatParameterSchema,
-  intParameterSchema,
-  boolParameterSchema,
-  enumParameterSchema,
-]);
 
 // Not strict: a runtime factory makes this object, and a newer one may carry
 // more than this copy knows.
@@ -111,7 +70,8 @@ const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
   editor: editorSchema.optional(),
   runtimes: z.array(runtimeSchema),
-  parameters: z.array(parameterSchema),
+  // Checked by resolveParameters, which reports each problem precisely.
+  parameters: z.unknown().optional(),
   native: nativeSchema.optional(),
   signing: signingSchema.optional(),
 });
@@ -137,10 +97,10 @@ function formatPath(path: readonly PropertyKey[]): string {
 
 /**
  * Validates and normalizes a raw, evaluated config value into a deterministic
- * {@link SoundorConfig}. Throws {@link ConfigError} of kind `validation` with
+ * {@link ResolvedSoundorConfig}. Throws {@link ConfigError} of kind `validation` with
  * structured issues on any failure.
  */
-export function validateConfig(raw: unknown): SoundorConfig {
+export function validateConfig(raw: unknown): ResolvedSoundorConfig {
   const result = soundorConfigSchema.safeParse(raw);
   if (!result.success) {
     const issues: ConfigIssue[] = result.error.issues.flatMap((issue) =>
@@ -151,6 +111,14 @@ export function validateConfig(raw: unknown): SoundorConfig {
           }))
         : [{ path: formatPath(issue.path), message: issue.message }],
     );
+    // Parameters are checked apart from the shape: report theirs too.
+    if (typeof raw === 'object' && raw !== null)
+      resolveParameters(
+        (raw as { parameters?: unknown }).parameters,
+        'parameters',
+        issues,
+        unknownPropertyMessage,
+      );
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
   }
 
@@ -158,16 +126,12 @@ export function validateConfig(raw: unknown): SoundorConfig {
   const issues: ConfigIssue[] = [];
 
   checkUniqueIds(data.runtimes, (r) => r.id, 'runtimes', 'runtime', issues);
-  checkUniqueIds(
+  const parameters = resolveParameters(
     data.parameters,
-    (p) => p.id,
     'parameters',
-    'parameter',
     issues,
+    unknownPropertyMessage,
   );
-  data.parameters.forEach((parameter, i) => {
-    checkParameter(parameter, `parameters[${i}]`, issues);
-  });
   if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
   const native = describeNativeApi(data.native as SoundorConfig['native']);
   if (!native.ok) issues.push(...native.issues);
@@ -176,7 +140,7 @@ export function validateConfig(raw: unknown): SoundorConfig {
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
   }
 
-  return normalize(data);
+  return normalize(data, parameters);
 }
 
 function checkUniqueIds<T>(
@@ -199,50 +163,11 @@ function checkUniqueIds<T>(
   });
 }
 
-function checkParameter(
-  parameter: Parameter,
-  path: string,
-  issues: ConfigIssue[],
-): void {
-  switch (parameter.type) {
-    case 'float':
-    case 'int': {
-      const { min, max, default: value } = parameter;
-      if (min > max) {
-        issues.push({
-          path: `${path}.min`,
-          message: `min (${min}) must be <= max (${max}); swap the bounds`,
-        });
-      }
-      if (value < min || value > max) {
-        issues.push({
-          path: `${path}.default`,
-          message: `default (${value}) is out of range; set it within [${min}, ${max}]`,
-        });
-      }
-      break;
-    }
-    case 'enum': {
-      if (parameter.values.length === 0) {
-        issues.push({
-          path: `${path}.values`,
-          message: 'enum must declare at least one value',
-        });
-      } else if (!parameter.values.includes(parameter.default)) {
-        issues.push({
-          path: `${path}.default`,
-          message: `default '${parameter.default}' is not one of the declared values [${parameter.values.join(', ')}]`,
-        });
-      }
-      break;
-    }
-    case 'bool':
-      break;
-  }
-}
-
 /** Builds a canonical config so identical input always yields identical output. */
-function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
+function normalize(
+  data: z.infer<typeof soundorConfigSchema>,
+  parameters: ResolvedParameter[],
+): ResolvedSoundorConfig {
   return {
     plugin: { id: data.plugin.id, name: data.plugin.name.trim() },
     editor: { ...resolveEditor(data.editor) },
@@ -251,43 +176,14 @@ function normalize(data: z.infer<typeof soundorConfigSchema>): SoundorConfig {
       options: runtime.options ?? {},
       runtime: runtime.runtime,
     })),
-    parameters: data.parameters.map(normalizeParameter),
+    parameters,
     // Validated above; a structured clone detaches it from the user's object.
-    native: structuredClone(data.native ?? {}) as SoundorConfig['native'],
+    native: structuredClone(
+      data.native ?? {},
+    ) as ResolvedSoundorConfig['native'],
     signing:
       data.signing?.macos?.identity !== undefined
         ? { macos: { identity: data.signing.macos.identity.trim() } }
         : {},
   };
-}
-
-function normalizeParameter(parameter: Parameter): Parameter {
-  switch (parameter.type) {
-    case 'float':
-    case 'int':
-      return {
-        type: parameter.type,
-        id: parameter.id,
-        label: parameter.label,
-        min: parameter.min,
-        max: parameter.max,
-        default: parameter.default,
-        ...(parameter.unit !== undefined ? { unit: parameter.unit } : {}),
-      };
-    case 'bool':
-      return {
-        type: 'bool',
-        id: parameter.id,
-        label: parameter.label,
-        default: parameter.default,
-      };
-    case 'enum':
-      return {
-        type: 'enum',
-        id: parameter.id,
-        label: parameter.label,
-        values: [...parameter.values],
-        default: parameter.default,
-      };
-  }
 }

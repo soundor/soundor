@@ -29,27 +29,47 @@ const config: CoreSoundorConfig = {
   plugin: { id: 'com.example.dts', name: 'Dts' },
   parameters: [
     {
-      type: 'float',
+      type: 'float32',
       id: 'gain',
       label: 'Gain',
+      access: 'automatable',
       min: -60,
       max: 6,
       default: 0,
       unit: 'dB',
     },
-    { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 8, default: 4 },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
     {
-      type: 'enum',
+      type: 'int32',
+      id: 'voices',
+      label: 'Voices',
+      access: 'manual',
+      min: 1,
+      max: 8,
+      default: 4,
+    },
+    {
+      type: 'boolean',
+      id: 'bypass',
+      label: 'Bypass',
+      access: 'automatable',
+      default: false,
+    },
+    {
+      type: 'choice',
       id: 'mode',
       label: 'Mode',
-      values: ['mono', 'stereo'],
+      access: 'automatable',
+      options: [
+        { value: 'mono', label: 'Mono' },
+        { value: 'stereo', label: 'Stereo' },
+      ],
       default: 'stereo',
     },
     {
-      type: 'float',
+      type: 'float32',
       id: 'low-cut',
       label: 'Low cut',
+      access: 'readOnly',
       min: 0,
       max: 1,
       default: 0,
@@ -88,7 +108,12 @@ const unit: 'dB' = parameters.gain.info.unit;
 const min: -60 = parameters.gain.info.min;
 const bypassed: boolean = parameters.bypass.get();
 parameters.mode.set('mono');
-const values: readonly ['mono', 'stereo'] = parameters.mode.info.values;
+const labels: readonly ['Mono', 'Stereo'] = [parameters.mode.info.options[0].label, parameters.mode.info.options[1].label];
+const shown: string = parameters.gain.format();
+const typed: number | null = parameters.gain.parse('-3 dB');
+const position: number = parameters.gain.toNormalized(-3);
+const mode: 'mono' | 'stereo' = parameters.mode.fromNormalized(0.5);
+const access: 'readOnly' = parameters['low-cut'].info.access;
 const lowCut: Parameter<number> = parameters['low-cut'];
 const unsubscribe: () => void = parameters.voices.subscribe((voices: number) => {
   void voices;
@@ -116,7 +141,7 @@ void storage.get(1);
 // @ts-expect-error fs paths are strings
 void fs.readText(42);
 
-// @ts-expect-error not one of the enum's values
+// @ts-expect-error not one of the choice's values
 parameters.mode.set('quad');
 // @ts-expect-error booleans are not numbers
 parameters.bypass.set(1);
@@ -200,7 +225,7 @@ void document;
 // @ts-expect-error there is no localStorage
 void localStorage;
 
-export { asset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, notBig, id, lowCut, min, preset, presets, rms, stopHost, unit, values, volume };
+export { asset, width, stopPressing, bpm, bypassed, bytes, clone, response, timer, notBig, id, lowCut, min, preset, presets, rms, stopHost, unit, labels, shown, typed, position, mode, access, volume };
 `;
 
 let dir: string;

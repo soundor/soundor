@@ -7,26 +7,35 @@ export default defineSoundorConfig({
   runtimes: [
     { id: 'juce', options: { format: 'vst3' }, runtime: fakeRuntime('juce') },
   ],
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
+  parameters: {
+    gain: {
+      type: 'float32',
       label: 'Gain',
-      min: 0,
-      max: 1,
-      default: 0.5,
+      min: -24,
+      max: 24,
+      default: 0,
+      step: 0.01,
       unit: 'dB',
     },
-    { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 16, default: 4 },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-    {
-      type: 'enum',
-      id: 'mode',
+    voices: {
+      type: 'int32',
+      label: 'Voices',
+      access: 'manual',
+      min: 1,
+      max: 16,
+      default: 4,
+    },
+    bypass: { type: 'boolean', default: false },
+    mode: {
+      type: 'choice',
       label: 'Mode',
-      values: ['mono', 'stereo'],
+      options: [
+        { value: 'mono', label: 'Mono' },
+        { value: 'stereo', label: 'Stereo' },
+      ],
       default: 'stereo',
     },
-  ],
+  },
   native: {
     methods: { render: { args: { request: 'string' }, returns: 'float64' } },
   },

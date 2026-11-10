@@ -21,7 +21,7 @@ import {
 import { resolveRuntime } from '../registry';
 import type { Runtime } from '../runtime';
 import { validateConfig } from '../schema';
-import type { SoundorConfig } from '../types';
+import type { ResolvedSoundorConfig } from '../types';
 import {
   CONFIG_VERSION,
   MIN_RUNTIME_API_VERSION,
@@ -44,13 +44,16 @@ function runtime(apiVersion?: unknown): Runtime {
 }
 
 function project(
-  parameters: SoundorConfig['parameters'] = [],
+  parameters: Record<string, unknown> = {},
   entry: Runtime = runtime(),
-): SoundorConfig {
+): ResolvedSoundorConfig {
   return {
-    plugin: { id: 'com.example.test', name: 'Test' },
+    ...validateConfig({
+      plugin: { id: 'com.example.test', name: 'Test' },
+      runtimes: [],
+      parameters,
+    }),
     runtimes: [{ id: entry.id, options: {}, runtime: entry }],
-    parameters,
   };
 }
 
@@ -59,16 +62,15 @@ const HERTZ: ConfigFeature = {
   since: 4,
   name: 'parameters in hertz',
   find: (config) =>
-    config.parameters.flatMap((parameter, i) =>
+    config.parameters.flatMap((parameter) =>
       'unit' in parameter && parameter.unit === 'Hz'
-        ? [`parameters[${i}].unit`]
+        ? [`parameters.${parameter.id}.unit`]
         : [],
     ),
 };
 
 const cutoff = {
-  type: 'float',
-  id: 'cutoff',
+  type: 'float32',
   label: 'Cutoff',
   min: 20,
   max: 20000,
@@ -133,7 +135,11 @@ describe('checkRuntimeCompatibility', () => {
 
   it('refuses a config using what the runtime API version lacks, by path', () => {
     const options = { host: HOST, features: [HERTZ] };
-    const uses = project([cutoff, { ...cutoff, id: 'q', unit: 'dB' }, cutoff]);
+    const uses = project({
+      low: cutoff,
+      q: { ...cutoff, unit: 'dB' },
+      high: cutoff,
+    });
     expect(checkRuntimeCompatibility(runtime(4), uses, options)).toBe(4);
     expect(checkRuntimeCompatibility(runtime(3), project(), options)).toBe(3);
     const error = thrown(() =>
@@ -143,8 +149,8 @@ describe('checkRuntimeCompatibility', () => {
     expect(error.format()).toBe(
       [
         "Runtime 'third' implements runtime API 3, which does not have what this config uses:",
-        '  parameters[0].unit: parameters in hertz, from runtime API 4',
-        '  parameters[2].unit: parameters in hertz, from runtime API 4',
+        '  parameters.low.unit: parameters in hertz, from runtime API 4',
+        '  parameters.high.unit: parameters in hertz, from runtime API 4',
         'Upgrade the runtime to a release that supports them, or remove them from the config.',
       ].join('\n'),
     );
@@ -184,7 +190,7 @@ describe('resolveRuntime', () => {
       ...runtime(RUNTIME_API_VERSION + 1),
       gen: async () => void calls.push('gen'),
     };
-    expect(() => resolveRuntime(project([], newer), 'third')).toThrow(
+    expect(() => resolveRuntime(project({}, newer), 'third')).toThrow(
       /newer than this soundor/,
     );
     expect(calls).toEqual([]);
@@ -192,7 +198,7 @@ describe('resolveRuntime', () => {
 
   it('resolves a compatible runtime with its API version', () => {
     expect(
-      resolveRuntime(project([], runtime(RUNTIME_API_VERSION)), 'third')
+      resolveRuntime(project({}, runtime(RUNTIME_API_VERSION)), 'third')
         .apiVersion,
     ).toBe(RUNTIME_API_VERSION);
   });
@@ -261,32 +267,31 @@ describe('unknown config properties', () => {
       validateConfig({
         plugin: { id: 'com.example.test', name: 'Test', vendor: 'Acme' },
         runtimes: [],
-        parameters: [
-          {
-            type: 'float',
-            id: 'gain',
+        parameters: {
+          gain: {
+            type: 'float32',
             label: 'Gain',
             min: 0,
             max: 1,
             default: 0.5,
-            mapping: { type: 'symmetricPower', exponent: 2 },
+            smoothing: 0.01,
           },
-        ],
+        },
         editor: { width: 400, height: 300, scale: 2 },
         presets: [],
       }),
     ) as { issues: { path: string; message: string }[] };
     expect(error.issues.map((issue) => issue.path).sort()).toEqual([
       'editor.scale',
-      'parameters[0].mapping',
+      'parameters.gain.smoothing',
       'plugin.vendor',
       'presets',
     ]);
     expect(
-      error.issues.find((issue) => issue.path === 'parameters[0].mapping')
+      error.issues.find((issue) => issue.path === 'parameters.gain.smoothing')
         ?.message,
     ).toBe(
-      `unknown property 'mapping' in @soundor/config ${CONFIG_VERSION}; check its spelling, or upgrade soundor and @soundor/config together if it is from a newer release`,
+      `unknown property 'smoothing' in @soundor/config ${CONFIG_VERSION}; check its spelling, or upgrade soundor and @soundor/config together if it is from a newer release`,
     );
   });
 });

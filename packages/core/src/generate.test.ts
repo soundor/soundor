@@ -17,24 +17,44 @@ const config: CoreSoundorConfig = {
   plugin: { id: 'com.example.plugin', name: 'Example' },
   runtimes: [{ id: 'juce' }],
   parameters: [
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
     {
-      type: 'float',
+      type: 'boolean',
+      id: 'bypass',
+      label: 'Bypass',
+      access: 'automatable',
+      default: false,
+    },
+    {
+      type: 'float32',
       id: 'gain',
       label: 'Gain',
+      access: 'automatable',
       min: 0,
       max: 1,
       default: 0.5,
+      step: 0.01,
       unit: 'dB',
     },
     {
-      type: 'enum',
+      type: 'choice',
       id: 'mode',
       label: 'Mode',
-      values: ['mono', 'stereo'],
+      access: 'manual',
+      options: [
+        { value: 'mono', label: 'Mono' },
+        { value: 'stereo', label: 'Stereo' },
+      ],
       default: 'stereo',
     },
-    { type: 'int', id: 'voices', label: 'Voices', min: 1, max: 16, default: 4 },
+    {
+      type: 'int32',
+      id: 'voices',
+      label: 'Voices',
+      access: 'readOnly',
+      min: 1,
+      max: 16,
+      default: 4,
+    },
   ],
   native: {
     types: { Level: { struct: { peak: 'float32', rms: 'float32' } } },
@@ -76,7 +96,7 @@ declare module 'soundor:native' {
       {
         path: 'parameters.d.ts',
         contents: expect.stringContaining(
-          '  export const parameters: {\n    readonly bypass: Parameter<boolean, { readonly id: "bypass"; readonly label: "Bypass"; readonly type: "bool"; readonly default: false }>;\n    readonly gain: Parameter<number, { readonly id: "gain"; readonly label: "Gain"; readonly type: "float"; readonly min: 0; readonly max: 1; readonly default: 0.5; readonly unit: "dB" }>;\n    readonly mode: Parameter<"mono" | "stereo", { readonly id: "mode"; readonly label: "Mode"; readonly type: "enum"; readonly values: readonly ["mono", "stereo"]; readonly default: "stereo" }>;\n    readonly voices: Parameter<number, { readonly id: "voices"; readonly label: "Voices"; readonly type: "int"; readonly min: 1; readonly max: 16; readonly default: 4 }>;\n  };',
+          '  export const parameters: {\n    readonly bypass: Parameter<boolean, { readonly id: "bypass"; readonly label: "Bypass"; readonly access: "automatable"; readonly type: "boolean"; readonly default: false }>;\n    readonly gain: Parameter<number, { readonly id: "gain"; readonly label: "Gain"; readonly access: "automatable"; readonly type: "float32"; readonly min: 0; readonly max: 1; readonly default: 0.5; readonly step: 0.01; readonly unit: "dB" }>;\n    readonly mode: Parameter<"mono" | "stereo", { readonly id: "mode"; readonly label: "Mode"; readonly access: "manual"; readonly type: "choice"; readonly options: readonly [{ readonly value: "mono"; readonly label: "Mono" }, { readonly value: "stereo"; readonly label: "Stereo" }]; readonly default: "stereo" }>;\n    readonly voices: Parameter<number, { readonly id: "voices"; readonly label: "Voices"; readonly access: "readOnly"; readonly type: "int32"; readonly min: 1; readonly max: 16; readonly default: 4 }>;\n  };',
         ),
       },
       {

@@ -3,7 +3,6 @@
 
 #include <soundor/parameters/Parameters.h>
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <stdexcept>
@@ -73,21 +72,71 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             return { binding.host->value(readIndex(context, binding, args, count)) };
         }
 
+        // A read-only parameter is the plugin's processing's to set.
+        void requireWritable(ContextState& context, const Binding& binding, std::size_t index)
+        {
+            const Info& info = binding.host->infos()[index];
+            if (info.access == Access::ReadOnly)
+                bind::throwTypeError(context, "Parameter '" + info.id + "' is read-only: only the plugin's processing sets it");
+        }
+
+        // The value argument at `position`: a number, never NaN.
+        double readValue(ContextState& context, const jsi::Value* args, std::size_t count, std::size_t position)
+        {
+            const double value = count > position ? bind::toNumber(context, args[position]) : std::nan("");
+            if (std::isnan(value))
+                bind::throwTypeError(context, "invalid parameter value");
+            return value;
+        }
+
         jsi::Value setValue(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
-            const double value = count >= 2 ? bind::toNumber(context, args[1]) : std::nan("");
-            if (std::isnan(value))
-                bind::throwTypeError(context, "invalid parameter value");
-            binding.host->setValue(index, constrain(binding.host->infos()[index], value));
+            requireWritable(context, binding, index);
+            const double value = readValue(context, args, count, 1);
+            binding.host->setValue(index, binding.host->constrain(index, value));
             return jsi::Value::undefined();
+        }
+
+        jsi::Value format(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            Binding& binding = bindingOf(context);
+            const std::size_t index = readIndex(context, binding, args, count);
+            const double value = binding.host->constrain(index, readValue(context, args, count, 1));
+            return bind::write(context, binding.host->format(index, value));
+        }
+
+        jsi::Value parse(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            Binding& binding = bindingOf(context);
+            const std::size_t index = readIndex(context, binding, args, count);
+            if (count < 2 || ! args[1].isString())
+                bind::throwTypeError(context, "parse() expects a string");
+            const std::optional<double> value = binding.host->parse(index, bind::toString(context, args[1]));
+            return value ? jsi::Value(*value) : jsi::Value::null();
+        }
+
+        jsi::Value toNormalized(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            Binding& binding = bindingOf(context);
+            const std::size_t index = readIndex(context, binding, args, count);
+            const double value = binding.host->constrain(index, readValue(context, args, count, 1));
+            return { binding.host->toNormalized(index, value) };
+        }
+
+        jsi::Value fromNormalized(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            Binding& binding = bindingOf(context);
+            const std::size_t index = readIndex(context, binding, args, count);
+            return { binding.host->fromNormalized(index, readValue(context, args, count, 1)) };
         }
 
         jsi::Value beginGesture(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
         {
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
+            requireWritable(context, binding, index);
             int& depth = binding.gestures[index];
             if (depth == 0)
                 binding.host->beginGesture(index);
@@ -140,14 +189,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
                 bind::ObjectBuilder object(context);
                 object.set("id", bind::write(context, info.id));
                 object.set("label", bind::write(context, info.label));
-                object.set("kind", jsi::Value(static_cast<int>(info.kind)));
+                object.set("type", jsi::Value(static_cast<int>(info.type)));
+                object.set("access", jsi::Value(static_cast<int>(info.access)));
                 object.set("min", jsi::Value(info.min));
                 object.set("max", jsi::Value(info.max));
                 object.set("default", jsi::Value(info.defaultValue));
+                object.set("step", jsi::Value(info.step));
                 object.set("unit", bind::write(context, info.unit));
-                object.set("choices", bind::writeArray(context, std::vector<std::string>(info.choices),
-                                                       [](ContextState& c, std::string&& choice)
-                                                       { return bind::write(c, choice); }));
+                object.set("choices", bind::writeArray(context, std::vector<Choice>(info.choices),
+                                                       [](ContextState& c, Choice&& choice)
+                                                       {
+                                                           bind::ObjectBuilder option(c);
+                                                           option.set("value", bind::write(c, choice.value));
+                                                           option.set("label", bind::write(c, choice.label));
+                                                           return option.release();
+                                                       }));
                 array.setValueAtIndex(context.rt, index, object.release());
             }
             return array;
@@ -163,26 +219,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             exportFunction("set", setValue, 2);
             exportFunction("beginGesture", beginGesture, 1);
             exportFunction("endGesture", endGesture, 1);
+            exportFunction("format", format, 2);
+            exportFunction("parse", parse, 2);
+            exportFunction("toNormalized", toNormalized, 2);
+            exportFunction("fromNormalized", fromNormalized, 2);
             exportFunction("setListener", setListener, 1);
             exportFunction("reportError", reportError, 1);
         }
     } // namespace
-
-    double constrain(const Info& info, double value) noexcept
-    {
-        switch (info.kind)
-        {
-            case Kind::Float:
-                return std::clamp(value, info.min, info.max);
-            case Kind::Int:
-                return std::clamp(std::round(value), info.min, info.max);
-            case Kind::Bool:
-                return value >= 0.5 ? 1.0 : 0.0;
-            case Kind::Choice:
-                return std::clamp(std::round(value), 0.0, info.choices.empty() ? 0.0 : double(info.choices.size() - 1));
-        }
-        return value;
-    }
 
     void install(js::Context& context, std::shared_ptr<Host> host)
     {

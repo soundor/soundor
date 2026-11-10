@@ -6,25 +6,39 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
+#include <cmath>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
 using namespace soundor;
 using js::Value;
-using parameters::Kind;
+using parameters::Access;
+using parameters::Type;
 
 namespace
 {
     std::vector<parameters::Info> fixtureInfos()
     {
         return {
-            { "bypass", "Bypass", Kind::Bool, 0, 1, 0, "", {} },
-            { "gain", "Gain", Kind::Float, -60, 6, 0, "dB", {} },
-            { "low-cut", "Low cut", Kind::Float, 20, 400, 20, "Hz", {} },
-            { "mode", "Mode", Kind::Choice, 0, 2, 1, "", { "mono", "stereo", "mid-side" } },
-            { "voices", "Voices", Kind::Int, 1, 16, 4, "", {} },
+            { "bypass", "Bypass", Type::Boolean, Access::Automatable, 0, 1, 0, 0, "", {} },
+            { "gain", "Gain", Type::Float32, Access::Automatable, -60, 6, 0, 0.5, "dB", {} },
+            { "lowCut", "Low cut", Type::Float32, Access::Manual, 20, 400, 20, 0, "Hz", {} },
+            { "mode",
+              "Mode",
+              Type::Choice,
+              Access::Automatable,
+              0,
+              2,
+              1,
+              0,
+              "",
+              { { "mono", "Mono" }, { "stereo", "Stereo" }, { "midSide", "Mid/Side" } } },
+            { "voices", "Voices", Type::Int32, Access::Automatable, 1, 16, 4, 0, "", {} },
+            { "reduction", "Reduction", Type::Float32, Access::ReadOnly, -60, 0, 0, 0, "dB", {} },
         };
     }
 
@@ -51,6 +65,41 @@ namespace
         void beginGesture(std::size_t index) override { log.push_back("begin " + declared[index].id); }
         void endGesture(std::size_t index) override { log.push_back("end " + declared[index].id); }
         parameters::ChangeFlags& changes() override { return flags; }
+
+        // Stand-ins for the backend's generated behavior: linear, stepped by
+        // `step` (by 1 for integers and choices).
+        [[nodiscard]] double constrain(std::size_t index, double value) const override
+        {
+            const auto& info = declared[index];
+            if (info.type == Type::Boolean)
+                return value >= 0.5 ? 1 : 0;
+            const double grain = info.type == Type::Float32 ? info.step : 1;
+            const double clamped = std::clamp(value, info.min, info.max);
+            return grain > 0 ? info.min + std::round((clamped - info.min) / grain) * grain : clamped;
+        }
+        [[nodiscard]] double toNormalized(std::size_t index, double value) const override
+        {
+            const auto& info = declared[index];
+            return (value - info.min) / (info.max - info.min);
+        }
+        [[nodiscard]] double fromNormalized(std::size_t index, double normalized) const override
+        {
+            const auto& info = declared[index];
+            return constrain(index, info.min + std::clamp(normalized, 0.0, 1.0) * (info.max - info.min));
+        }
+        [[nodiscard]] std::string format(std::size_t index, double value) const override
+        {
+            const auto& info = declared[index];
+            if (info.type == Type::Choice)
+                return info.choices[static_cast<std::size_t>(value)].label;
+            return Value::number(value).toString() + (info.unit.empty() ? "" : " " + info.unit);
+        }
+        [[nodiscard]] std::optional<double> parse(std::size_t index, std::string_view text) const override
+        {
+            if (text == "nope")
+                return std::nullopt;
+            return constrain(index, std::stod(std::string(text)));
+        }
 
         // A change from outside the UI, e.g. host automation on the audio thread.
         void automate(std::size_t index, double value)
@@ -101,17 +150,20 @@ TEST_SUITE("soundor:parameters")
     TEST_CASE("exposes every parameter by id with its declared metadata")
     {
         Fixture f;
-        CHECK(f.value("globalThis.result = Object.keys(p).join(',');").asString() == "bypass,gain,low-cut,mode,voices");
-        CHECK(f.value("globalThis.result = JSON.stringify(p.gain.info);").asString()
-              == R"({"id":"gain","label":"Gain","type":"float","min":-60,"max":6,"default":0,"unit":"dB"})");
+        CHECK(f.value("globalThis.result = Object.keys(p).join(',');").asString()
+              == "bypass,gain,lowCut,mode,voices,reduction");
+        CHECK(
+            f.value("globalThis.result = JSON.stringify(p.gain.info);").asString()
+            == R"({"id":"gain","label":"Gain","access":"automatable","type":"float32","min":-60,"max":6,"default":0,"step":0.5,"unit":"dB"})");
         CHECK(f.value("globalThis.result = JSON.stringify(p.voices.info);").asString()
-              == R"({"id":"voices","label":"Voices","type":"int","min":1,"max":16,"default":4})");
+              == R"({"id":"voices","label":"Voices","access":"automatable","type":"int32","min":1,"max":16,"default":4})");
         CHECK(f.value("globalThis.result = JSON.stringify(p.bypass.info);").asString()
-              == R"({"id":"bypass","label":"Bypass","type":"bool","default":false})");
+              == R"({"id":"bypass","label":"Bypass","access":"automatable","type":"boolean","default":false})");
         CHECK(
             f.value("globalThis.result = JSON.stringify(p.mode.info);").asString()
-            == R"({"id":"mode","label":"Mode","type":"enum","values":["mono","stereo","mid-side"],"default":"stereo"})");
-        CHECK(f.value("globalThis.result = p['low-cut'].id;").asString() == "low-cut");
+            == R"({"id":"mode","label":"Mode","access":"automatable","type":"choice","options":[{"value":"mono","label":"Mono"},{"value":"stereo","label":"Stereo"},{"value":"midSide","label":"Mid/Side"}],"default":"stereo"})");
+        CHECK(f.value("globalThis.result = p.lowCut.info.access + ' ' + p.reduction.info.access;").asString()
+              == "manual readOnly");
     }
 
     TEST_CASE("parameters and their metadata are immutable")
@@ -135,18 +187,18 @@ TEST_SUITE("soundor:parameters")
         CHECK(f.value("globalThis.result = p.mode.get();").asString() == "stereo");
         f.host->values[3] = 2;
         f.host->values[0] = 1;
-        CHECK(f.value("globalThis.result = p.mode.get() + ' ' + p.bypass.get();").asString() == "mid-side true");
+        CHECK(f.value("globalThis.result = p.mode.get() + ' ' + p.bypass.get();").asString() == "midSide true");
     }
 
-    TEST_CASE("sets values, converting to plain units, clamping and rounding")
+    TEST_CASE("sets values, converting to plain units and constraining them as the host does")
     {
         Fixture f;
-        REQUIRE(f.value("p.gain.set(-12.5); p.bypass.set(true); p.mode.set('mono');"
-                        "p.voices.set(7.6); p.gain.set(100); p['low-cut'].set(-5); globalThis.result = 0;")
+        REQUIRE(f.value("p.gain.set(-12.4); p.bypass.set(true); p.mode.set('mono');"
+                        "p.voices.set(7.6); p.gain.set(100); p.lowCut.set(-5); globalThis.result = 0;")
                     .isNumber());
         CHECK(f.host->log
               == std::vector<std::string> { "set gain -12.5", "set bypass 1", "set mode 0", "set voices 8",
-                                            "set gain 6", "set low-cut 20" });
+                                            "set gain 6", "set lowCut 20" });
         CHECK(f.value("globalThis.result = p.gain.get();").asNumber() == 6);
     }
 
@@ -157,7 +209,46 @@ TEST_SUITE("soundor:parameters")
         CHECK(f.error("p.gain.set(NaN);") == "TypeError: Parameter 'gain' expects a number, got NaN");
         CHECK(f.error("p.bypass.set(1);") == "TypeError: Parameter 'bypass' expects a boolean, got 1");
         CHECK(f.error("p.mode.set('quad');")
-              == "TypeError: Parameter 'mode' expects one of 'mono', 'stereo', 'mid-side', got 'quad'");
+              == "TypeError: Parameter 'mode' expects one of 'mono', 'stereo', 'midSide', got 'quad'");
+        CHECK(f.host->log.empty());
+    }
+
+    TEST_CASE("a read-only parameter is the processing's: the UI reads it, never writes it")
+    {
+        Fixture f;
+        CHECK(f.error("p.reduction.set(-3);")
+              == "TypeError: Parameter 'reduction' is read-only: only the plugin's processing sets it");
+        CHECK(f.error("p.reduction.beginGesture();")
+              == "TypeError: Parameter 'reduction' is read-only: only the plugin's processing sets it");
+        REQUIRE(f.value("p.reduction.endGesture(); globalThis.result = 0;").isNumber());
+        f.host->automate(5, -6);
+        CHECK(f.value("globalThis.result = p.reduction.get() + ' ' + p.reduction.format();").asString() == "-6 -6 dB");
+        CHECK(f.host->log.empty());
+        // A manual parameter is the UI's to set; only automation is out.
+        REQUIRE(f.value("p.lowCut.set(100); globalThis.result = 0;").isNumber());
+        CHECK(f.host->log == std::vector<std::string> { "set lowCut 100" });
+    }
+
+    TEST_CASE("formats, parses and maps through the host's behavior, in declared types")
+    {
+        Fixture f;
+        CHECK(f.value("globalThis.result = p.gain.format();").asString() == "0 dB");
+        CHECK(f.value("globalThis.result = p.gain.format(-3.3);").asString() == "-3.5 dB");
+        CHECK(f.value("globalThis.result = p.mode.format('midSide');").asString() == "Mid/Side");
+        CHECK(f.value("globalThis.result = p.gain.parse('-12');").asNumber() == -12);
+        CHECK(f.value("globalThis.result = p.gain.parse('nope');").isNull());
+        CHECK(f.value("globalThis.result = p.mode.parse('2');").asString() == "midSide");
+        CHECK(f.value("globalThis.result = p.bypass.parse('1');") == Value::boolean(true));
+        CHECK(f.value("globalThis.result = p.gain.toNormalized(-27);").asNumber() == 0.5);
+        CHECK(f.value("globalThis.result = p.gain.toNormalized();").asNumber() == 60.0 / 66.0);
+        CHECK(f.value("globalThis.result = p.voices.fromNormalized(1);").asNumber() == 16);
+        CHECK(f.value("globalThis.result = p.mode.fromNormalized(0.5);").asString() == "stereo");
+        CHECK(f.value("globalThis.result = p.bypass.fromNormalized(0.9);") == Value::boolean(true));
+        CHECK(f.error("p.gain.parse(1);") == "TypeError: Parameter 'gain': parse() expects a string, got 1");
+        CHECK(f.error("p.gain.fromNormalized(NaN);")
+              == "TypeError: Parameter 'gain': fromNormalized() expects a number, got NaN");
+        CHECK(f.error("p.mode.format('quad');")
+              == "TypeError: Parameter 'mode' expects one of 'mono', 'stereo', 'midSide', got 'quad'");
         CHECK(f.host->log.empty());
     }
 
@@ -175,7 +266,7 @@ TEST_SUITE("soundor:parameters")
         CHECK(parameters::dispatchChanges(f.context) == 2);
         REQUIRE(f.value("p.bypass.set(true); globalThis.result = 0;").isNumber()); // the UI itself
         CHECK(parameters::dispatchChanges(f.context) == 1);
-        CHECK(f.context.evaluateScript("events.join('|')").value().asString() == "gain -3|mode mid-side|bypass true");
+        CHECK(f.context.evaluateScript("events.join('|')").value().asString() == "gain -3|mode midSide|bypass true");
     }
 
     TEST_CASE("coalesces repeated changes into one notification per dispatch")
@@ -297,17 +388,6 @@ TEST_SUITE("soundor:parameters")
         f.host->automate(1, -1);
         CHECK(parameters::dispatchChanges(f.context) == 1);
         CHECK(f.value("globalThis.result = p.gain.get();").asNumber() == -1);
-    }
-
-    TEST_CASE("constrain clamps and rounds by kind")
-    {
-        const auto infos = fixtureInfos();
-        CHECK(parameters::constrain(infos[1], 10) == 6);
-        CHECK(parameters::constrain(infos[1], -1.25) == -1.25);
-        CHECK(parameters::constrain(infos[4], 3.4) == 3);
-        CHECK(parameters::constrain(infos[4], 99) == 16);
-        CHECK(parameters::constrain(infos[0], 0.7) == 1);
-        CHECK(parameters::constrain(infos[3], 5) == 2);
     }
 }
 

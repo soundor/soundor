@@ -7,10 +7,11 @@ import {
 } from '@soundor/core';
 import { describe, expect, it } from 'vitest';
 
+import { resolveEditor } from '../editor';
 import type { DispatchContextInput } from '../registry';
 import { resolveRuntime, runPhase } from '../registry';
 import type { DoctorReport, Runtime, RuntimeDescriptor } from '../runtime';
-import type { SoundorConfig } from '../types';
+import type { ResolvedSoundorConfig } from '../types';
 
 const noopFs: FileSystemHost = {
   resolve: (...s) => s.join('/'),
@@ -50,11 +51,14 @@ function descriptor(
   return { id, options, runtime };
 }
 
-function config(...runtimes: RuntimeDescriptor[]): SoundorConfig {
+function config(...runtimes: RuntimeDescriptor[]): ResolvedSoundorConfig {
   return {
     plugin: { id: 'com.example.test', name: 'Test' },
+    editor: resolveEditor(undefined),
     runtimes,
     parameters: [],
+    native: {},
+    signing: {},
   };
 }
 
@@ -184,7 +188,7 @@ describe('runPhase', () => {
       },
       doctor: async () => ({ checks: [] }),
     };
-    const cfg: SoundorConfig = {
+    const cfg: ResolvedSoundorConfig = {
       ...config(descriptor('juce', runtime)),
       signing: { macos: { identity: 'Apple Development: Me (TEAM)' } },
     };
