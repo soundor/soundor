@@ -42,16 +42,15 @@ working directory. Exercise those paths from an installed tarball.
 
 ### Dependencies and compatibility
 
-The reference runtimes depend on `@soundor/runtime-sdk`, and on
-`@soundor/core` where they import it, as regular dependencies: their emitted
-code imports both. They depend on `@soundor/config` too, because their
-declarations name its types: the factory is typed `RuntimeFactory<Options>`
-from `@soundor/config`, which every project installs, so a project's
-declarations (`composite` projects emit them) can name its config's type; a
-type named through `@soundor/runtime-sdk`, which the project does not
-install, cannot be. The CLI's own copy parses the project's config. Review the emitted entry
-point and declarations (`dist/*.mjs`, `dist/*.d.mts`) to check that every
-package they import is declared. See
+The reference runtimes depend on one Soundor package, `@soundor/runtime-sdk`,
+which re-exports all of `@soundor/config` and `@soundor/core`: their code
+imports everything from it, and their declarations name nothing else. A
+project's config type names only its own `@soundor/config`
+(`defineSoundorConfig` returns a `SoundorConfig`), so the runtime's packages
+need not be installed in the project. Code that only a build inlines, such as
+the web runtime's springs from `@soundor/core/spring`, is a development
+dependency. Review the emitted entry point and declarations (`dist/*.mjs`,
+`dist/*.d.mts`) to check that every package they import is declared. See
 [Dependencies and compatibility](/docs/contribute/compatibility) for the rules.
 
 Depend on one release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0).

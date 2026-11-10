@@ -24,7 +24,7 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
-import { describeNativeApi } from '@soundor/core';
+import { describeNativeApi } from '@soundor/runtime-sdk';
 import {
   resolveEditor,
   type CodegenFile,

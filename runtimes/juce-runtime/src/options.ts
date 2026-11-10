@@ -6,7 +6,7 @@
 
 import { createHash } from 'node:crypto';
 
-import { RuntimeError } from '@soundor/core';
+import { RuntimeError } from '@soundor/runtime-sdk';
 import type { SoundorConfig } from '@soundor/runtime-sdk';
 
 /** Plugin binary formats JUCE can emit. */

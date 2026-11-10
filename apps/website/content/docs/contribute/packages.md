@@ -38,12 +38,8 @@ flowchart LR
     sdk["@soundor/runtime-sdk"] --> config
     sdk --> core
     juce["@soundor/juce-runtime"] --> sdk
-    juce --> config
-    juce --> core
     juce --> engine["@soundor/engine"]
     web["@soundor/web-runtime"] --> sdk
-    web --> config
-    web --> core
     vitest["@soundor/vitest"] --> config
     vitest --> core
     vitest --> testruntime["@soundor/test-runtime"]
@@ -54,10 +50,9 @@ flowchart LR
     tl --> testruntime
 ```
 
-The runtimes depend on `@soundor/config` because their declarations name its
-types (`RuntimeFactory`), which a project's own declarations must be able to
-name. The CLI's own copy parses the project's config, and runs runtimes of
-the runtime API versions it supports
+The runtimes depend on one Soundor package, the SDK, which re-exports all of
+config and core. The CLI's own `@soundor/config` parses the project's config,
+and runs runtimes of the runtime API versions it supports
 ([Dependencies and compatibility](/docs/contribute/compatibility)).
 
 `@soundor/react` depends on no Soundor package: it compiles against the

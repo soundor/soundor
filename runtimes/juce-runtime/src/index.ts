@@ -12,7 +12,6 @@ import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { RuntimeFactory } from '@soundor/config';
 import {
   defineRuntime,
   EnvError,
@@ -458,27 +457,24 @@ export async function juceDoctor(
 }
 
 /** The factory a config author registers: `runtimes: [juceRuntime({ ... })]`. */
-// Typed with @soundor/config's RuntimeFactory, which every project installs, so
-// a project's declarations can name the type of its config.
-export const juceRuntime: RuntimeFactory<JuceOptions> =
-  defineRuntime<JuceOptions>({
-    id: RUNTIME_ID,
-    capabilities: {
-      devtools: {
-        inspector: true,
-        accessibility: true,
-        animations: true,
-        performance: true,
-        input: true,
-        capture: true,
-      },
+export const juceRuntime = defineRuntime<JuceOptions>({
+  id: RUNTIME_ID,
+  capabilities: {
+    devtools: {
+      inspector: true,
+      accessibility: true,
+      animations: true,
+      performance: true,
+      input: true,
+      capture: true,
     },
-    init: juceInit,
-    gen: juceGen,
-    dev: (config, ctx) => juceDev(config, ctx),
-    build: (config, ctx) => juceBuild(config, ctx),
-    doctor: juceDoctor,
-  });
+  },
+  init: juceInit,
+  gen: juceGen,
+  dev: (config, ctx) => juceDev(config, ctx),
+  build: (config, ctx) => juceBuild(config, ctx),
+  doctor: juceDoctor,
+});
 
 export default juceRuntime;
 

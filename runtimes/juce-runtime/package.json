@@ -39,12 +39,11 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
-    "@soundor/config": "workspace:^",
-    "@soundor/core": "workspace:^",
     "@soundor/engine": "workspace:*",
     "@soundor/runtime-sdk": "workspace:^"
   },
   "devDependencies": {
+    "@soundor/config": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@soundor/vst3-host": "workspace:^",

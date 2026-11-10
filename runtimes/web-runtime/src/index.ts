@@ -11,7 +11,6 @@
 
 import { join, relative, sep } from 'node:path';
 
-import type { RuntimeFactory } from '@soundor/config';
 import {
   ConfigError,
   defineRuntime,
@@ -180,18 +179,14 @@ export async function webDoctor(
 }
 
 /** The factory a config author registers: `runtimes: [webRuntime({ ... })]`. */
-// Typed with @soundor/config's RuntimeFactory, which every project installs, so
-// a project's declarations can name the type of its config.
-export const webRuntime: RuntimeFactory<WebOptions> = defineRuntime<WebOptions>(
-  {
-    id: RUNTIME_ID,
-    init: webInit,
-    gen: webGen,
-    dev: (config, ctx) => webDev(config, ctx),
-    build: (config, ctx) => webBuild(config, ctx),
-    doctor: webDoctor,
-  },
-);
+export const webRuntime = defineRuntime<WebOptions>({
+  id: RUNTIME_ID,
+  init: webInit,
+  gen: webGen,
+  dev: (config, ctx) => webDev(config, ctx),
+  build: (config, ctx) => webBuild(config, ctx),
+  doctor: webDoctor,
+});
 
 export default webRuntime;
 

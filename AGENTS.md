@@ -278,6 +278,9 @@ A package declares what its emitted code or declarations import as
 Vitest, Vite, the VST3 host). Values crossing packages are recognized by
 protocol, never by `instanceof` or module identity: a project can hold
 several copies of `@soundor/core` (`isSoundorError()`, `isConfigError()`).
+A runtime depends on `@soundor/runtime-sdk` alone, which re-exports all of
+config and core; `defineSoundorConfig` returns a plain `SoundorConfig`, so a
+project's config type never names a runtime's packages.
 Runtimes and the CLI agree on `RUNTIME_API_VERSION` (`@soundor/config`), the
 version of what runtimes depend on (the `Runtime` interface, its context, the
 config they receive, the error protocol), not of the packages: `defineRuntime()`

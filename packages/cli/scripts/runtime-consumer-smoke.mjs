@@ -98,13 +98,34 @@ export default defineSoundorConfig({
 `,
   );
   run(soundor, ['gen']);
+  // The project's config type checks with declarations (composite, as
+  // create-soundor-app's tsconfig.node.json): its type names only
+  // @soundor/config, not the runtimes' SDK, which the project does not have.
+  await writeFile(
+    resolve(temporary, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        target: 'ES2023',
+        module: 'ESNext',
+        moduleResolution: 'bundler',
+        strict: true,
+        skipLibCheck: true,
+        composite: true,
+        noEmit: true,
+        types: [],
+      },
+      include: ['soundor.config.ts'],
+    }),
+  );
+  run(resolve(repository, 'packages/cli/node_modules/.bin/tsc'), ['-p', '.']);
   assert.ok(
     existsSync(resolve(temporary, '.soundor/generated/parameters.d.ts')),
   );
   run(soundor, ['gen', '--check']);
 
-  // A runtime's API version is that of its own SDK copy: one release line of
-  // it, so that sharing the CLI's copy (deduplicated) cannot change it.
+  // A runtime depends on one Soundor package, the SDK, of one release line:
+  // its runtime API version is that of its copy, which sharing the CLI's
+  // (deduplicated) cannot change, and its declarations name nothing else.
   for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
     const manifest = JSON.parse(
       await readFile(
@@ -112,10 +133,15 @@ export default defineSoundorConfig({
         'utf8',
       ),
     );
-    for (const name of ['@soundor/runtime-sdk', '@soundor/config'])
-      assert.match(
+    assert.match(
+      manifest.dependencies['@soundor/runtime-sdk'],
+      /^\^0\.\d+\.\d+$/,
+      runtime,
+    );
+    for (const name of ['@soundor/config', '@soundor/core'])
+      assert.equal(
         manifest.dependencies[name],
-        /^\^0\.\d+\.\d+$/,
+        undefined,
         `${runtime}: ${name}`,
       );
   }

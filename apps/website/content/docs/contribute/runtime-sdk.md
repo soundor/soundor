@@ -15,13 +15,13 @@ describes the environment a runtime must provide in addition to these hooks.
 ## Install
 
 ```sh
-pnpm add @soundor/runtime-sdk @soundor/config
+pnpm add @soundor/runtime-sdk
 ```
 
-It depends on `@soundor/config` and `@soundor/core` and re-exports what a
-runtime needs of them. Depend on `@soundor/config` yourself too, and type the
-exported factory with its `RuntimeFactory`, so your declarations name a
-package every project installs; add `@soundor/core` if you import it.
+It is the one Soundor package a runtime depends on: it re-exports all of
+`@soundor/config` and `@soundor/core`, so import everything from it. A
+runtime that also installed those would risk copies of them that its SDK's do
+not share, and declarations naming packages its users may not have.
 
 ## Usage
 

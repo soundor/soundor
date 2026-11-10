@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describeNativeApi, type NativeApiDeclaration } from '@soundor/core';
+import {
+  describeNativeApi,
+  type NativeApiDeclaration,
+} from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { generateNativeModuleSources } from './native-codegen';

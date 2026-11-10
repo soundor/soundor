@@ -42,8 +42,12 @@ depend on does.
 
 A peer is not a way to avoid duplicates: if a package runs another's code,
 it depends on it. Shared packages depend on each other at `workspace:*` (they
-are one fixed version group, tested together); runtimes, released on their
-own, depend on them at `workspace:^`. Check the emitted entry points after a
+are one fixed version group, tested together). A runtime, released on its
+own, depends on one: `@soundor/runtime-sdk` at `workspace:^`, which
+re-exports all of `@soundor/config` and `@soundor/core`, so it has no copies
+of them that its SDK's do not share, and its declarations name no package a
+project lacks: a project's config type names only its own `@soundor/config`,
+since `defineSoundorConfig` returns a `SoundorConfig`. Check the emitted entry points after a
 change (`grep 'from "@soundor/' dist/*.mjs dist/*.d.mts`): bundlers inline a
 development dependency and keep a dependency external.
 
@@ -127,7 +131,8 @@ a newer Soundor is refused by an older one.
 **Deduplication.** A runtime's API version is that of its own copy of the
 SDK, which the package manager may share with the CLI's when the versions
 allow. That cannot change the answer as long as a runtime depends on one
-release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0) and the
+release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0), its only
+Soundor dependency, and the
 version changes only in a minor release: every copy of a line has the same
 version. A runtime that depends on a wider range (or makes the SDK a peer)
 reports whatever copy it is given.
@@ -178,9 +183,8 @@ code, and check it with `isSoundorError(error, code)`.
 
 1. Make the runtime with `defineRuntime()` from `@soundor/runtime-sdk` 0.17 or
    later; it gets its runtime API version from it.
-2. Depend on `@soundor/runtime-sdk` and `@soundor/config` (whose
-   `RuntimeFactory` types the exported factory, so projects can name it), and
-   `@soundor/core` if it imports it, as regular dependencies of one release
-   line (`^0.17.0`); drop a `@soundor/config` peer.
+2. Depend on `@soundor/runtime-sdk` alone, at one release line (`^0.17.0`),
+   and import from it what you imported from `@soundor/config` and
+   `@soundor/core`; drop those dependencies and a `@soundor/config` peer.
 3. Replace `instanceof SoundorError` or `instanceof ConfigError` on errors from
    other packages with `isSoundorError()` and `isConfigError()`.

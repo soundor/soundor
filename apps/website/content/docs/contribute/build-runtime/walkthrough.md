@@ -14,12 +14,14 @@ Create a TypeScript package with an ESM entry and declarations. Install the
 runtime SDK:
 
 ```sh
-pnpm add @soundor/runtime-sdk @soundor/config
+pnpm add @soundor/runtime-sdk
 pnpm add -D typescript @types/node
 ```
 
-Keep both at one release line (`^%version:@soundor/runtime-sdk%`): the
-runtime's API version, which the CLI checks, is that of its copy (see
+It is the only Soundor package the runtime needs: it re-exports all of
+`@soundor/config` and `@soundor/core`. Keep it at one release line
+(`^%version:@soundor/runtime-sdk%`): the runtime's API version, which the CLI
+checks, is that of its copy (see
 [Dependencies and compatibility](/docs/contribute/compatibility)).
 
 Use exact matching Soundor versions while developing the package. Its public
@@ -32,14 +34,13 @@ and the published exports.
 Put this in `src/index.ts`:
 
 ```ts
-import type { RuntimeFactory } from '@soundor/config';
 import { defineRuntime, RuntimeError } from '@soundor/runtime-sdk';
 
 export interface DemoOptions {
   label?: string;
 }
 
-export const demoRuntime: RuntimeFactory<DemoOptions> = defineRuntime({
+export const demoRuntime = defineRuntime<DemoOptions>({
   id: 'demo',
 
   async init(_config, ctx) {
@@ -96,8 +97,7 @@ export const demoRuntime: RuntimeFactory<DemoOptions> = defineRuntime({
 The runtime ID is the directory and dispatch identity, independent of the npm
 package name. `defineRuntime` gives the runtime the runtime API version of the
 `@soundor/config` it is built with, which the CLI checks before running any
-phase. The factory's type comes from
-`@soundor/config`, which projects install, so their declarations can name it. `init` writes through the filesystem only when the user file is
+phase. `init` writes through the filesystem only when the user file is
 missing. `gen` emits contents through the sink, so the CLI controls writes and
 check mode. Options need runtime validation even though the factory is typed.
 
