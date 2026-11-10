@@ -148,6 +148,14 @@ jobs:
           cmake --build build/prebuilt-debug --target soundor_svg_tests --config Debug --parallel 3
           ctest --test-dir build/prebuilt-debug -C Debug -R '^soundor_svg_tests$' --output-on-failure
 
+      - name: Ganesh rendering tests on Windows (${{ env.DEBUG_VARIANT }})
+        if: inputs.tests && runner.os == 'Windows'
+        working-directory: engines/engine
+        run: |
+          cmake --preset "prebuilt-$DEBUG_VARIANT" -DSOUNDOR_BUILD_TESTS=ON
+          cmake --build "build/prebuilt-$DEBUG_VARIANT" --target soundor_ganesh_tests --config Debug --parallel 3
+          ctest --test-dir "build/prebuilt-$DEBUG_VARIANT" -C Debug -R '^soundor_ganesh_tests$' --output-on-failure
+
       - name: Pack
         run: |
           for variant in $VARIANTS; do

@@ -35,6 +35,20 @@ if(NOT SOUNDOR_ENGINE_PREBUILT)
   set_tests_properties(soundor_svg_tests PROPERTIES TIMEOUT 30)
 endif()
 
+# Ganesh interop uses private Skia/GPU seams, so check it against the source
+# build independently of the runtime tests that also consume prebuilts in CI.
+if(NOT SOUNDOR_ENGINE_PREBUILT AND SOUNDOR_HAS_GPU AND SOUNDOR_ENABLE_GANESH AND SOUNDOR_JS_SOURCE)
+  add_executable(soundor_ganesh_tests main.cpp gpu/GaneshTests.cpp)
+  target_include_directories(soundor_ganesh_tests PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
+  target_link_libraries(soundor_ganesh_tests PRIVATE Soundor::Engine soundor_skia soundor_angle soundor_hermes soundor_doctest)
+  if(WIN32)
+    target_link_libraries(soundor_ganesh_tests PRIVATE dbghelp)
+  endif()
+  soundor_configure_target(soundor_ganesh_tests)
+  add_test(NAME soundor_ganesh_tests COMMAND soundor_ganesh_tests)
+  set_tests_properties(soundor_ganesh_tests PROPERTIES TIMEOUT 60)
+endif()
+
 # Nested builds use this build's C runtime. Only when it is set: an empty value
 # would leave them with no runtime flag at all.
 set(soundor_tests_crt "")
@@ -152,9 +166,6 @@ if(SOUNDOR_JS_SOURCE)
       target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.cpp)
     endif()
     target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
-    if(SOUNDOR_ENABLE_GANESH AND NOT SOUNDOR_ENGINE_PREBUILT)
-      target_sources(soundor_runtime_tests PRIVATE gpu/GaneshTests.cpp)
-    endif()
   endif()
 
   if(SOUNDOR_HAS_ACCESSKIT)
