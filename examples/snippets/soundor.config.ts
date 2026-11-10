@@ -10,30 +10,19 @@ export default defineSoundorConfig({
     name: 'Soundor Snippets',
   },
   runtimes: [webRuntime()],
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
-      label: 'Gain',
-      min: 0,
-      max: 1,
-      default: 0.5,
-    },
-    {
-      type: 'int',
-      id: 'voices',
-      label: 'Voices',
-      min: 1,
-      max: 8,
-      default: 4,
-    },
-    { type: 'bool', id: 'bypass', label: 'Bypass', default: false },
-    {
-      type: 'enum',
-      id: 'mode',
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+    voices: { type: 'int32', label: 'Voices', min: 1, max: 8, default: 4 },
+    bypass: { type: 'boolean', label: 'Bypass', default: false },
+    mode: {
+      type: 'choice',
       label: 'Mode',
-      values: ['clean', 'warm', 'bright'],
+      options: [
+        { value: 'clean', label: 'Clean' },
+        { value: 'warm', label: 'Warm' },
+        { value: 'bright', label: 'Bright' },
+      ],
       default: 'clean',
     },
-  ],
+  },
 });

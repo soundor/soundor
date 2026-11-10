@@ -66,12 +66,12 @@ export default function Parameters() {
         />
       </Row>
       <Row label="Mode">
-        {parameters.mode.info.values.map((value) => (
+        {parameters.mode.info.options.map((option) => (
           <Button
-            key={value}
-            label={value}
-            selected={value === mode}
-            onPress={() => parameters.mode.set(value)}
+            key={option.value}
+            label={option.label}
+            selected={option.value === mode}
+            onPress={() => parameters.mode.set(option.value)}
           />
         ))}
       </Row>

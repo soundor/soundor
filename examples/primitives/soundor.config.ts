@@ -15,15 +15,14 @@ export default defineSoundorConfig({
     }),
     webRuntime(),
   ],
-  parameters: [
-    {
-      type: 'float',
-      id: 'gain',
+  parameters: {
+    gain: {
+      type: 'float32',
       label: 'Gain',
       min: 0,
       max: 1,
       default: 0.5,
       unit: 'dB',
     },
-  ],
+  },
 });
