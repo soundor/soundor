@@ -3,9 +3,11 @@
 //
 //   node scripts/clang-format.mjs --check <dir...>
 //   node scripts/clang-format.mjs --fix <dir...>
+//   node scripts/clang-format.mjs --check|--fix --files <file...>
 //
-// Only git-tracked (or new, unignored) C/C++ files under the given directories
-// are touched; generated code (any `generated/` directory) is skipped, since
+// Directory mode touches only git-tracked (or new, unignored) C/C++ files under
+// the given directories; `--files` mode is given the list directly (lint-staged).
+// Generated code (any `generated/` directory) is skipped, since
 // it is rewritten by its generator, never edited. Formatting output differs between clang-format majors, so the
 // expected major is pinned; a mismatch is a warning locally and an error in CI.
 // Without clang-format the check is skipped locally but fails in CI.
@@ -17,9 +19,17 @@ const EXPECTED_MAJOR = 18;
 const EXTENSIONS = /\.(c|cc|cpp|cxx|h|hh|hpp|hxx|mm)$/;
 const inCI = Boolean(process.env.CI);
 
-const [mode, ...dirs] = process.argv.slice(2);
-if ((mode !== '--check' && mode !== '--fix') || dirs.length === 0) {
+const [mode, ...rest] = process.argv.slice(2);
+const withFileList = mode === '--files';
+const op = withFileList ? rest[0] : mode;
+const targets = withFileList ? rest.slice(1) : rest;
+if (
+  (op !== '--check' && op !== '--fix') ||
+  targets.length === 0 ||
+  (withFileList && !rest[0])
+) {
   console.error('usage: clang-format.mjs --check|--fix <dir...>');
+  console.error('       clang-format.mjs --files --check|--fix <file...>');
   process.exit(2);
 }
 
@@ -31,14 +41,16 @@ if (binary === undefined) {
   process.exit(0);
 }
 
-const files = listFiles(dirs);
+const files = (withFileList ? targets : listFiles(targets)).filter(
+  (file) => EXTENSIONS.test(file) && !file.split('/').includes('generated'),
+);
 if (files.length === 0) process.exit(0);
 
 const args =
-  mode === '--check' ? ['--dry-run', '--Werror', ...files] : ['-i', ...files];
+  op === '--check' ? ['--dry-run', '--Werror', ...files] : ['-i', ...files];
 const result = spawnSync(binary.path, args, { stdio: 'inherit' });
 if (result.status !== 0) {
-  if (mode === '--check') {
+  if (op === '--check') {
     fail('Native sources are not formatted. Run `pnpm format:fix`.');
   }
   process.exit(result.status ?? 1);
