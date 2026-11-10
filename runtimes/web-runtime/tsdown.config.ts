@@ -27,7 +27,7 @@ export default defineConfig([
     // inlined: the page gets no import of it to resolve.
     deps: {
       neverBundle: [/^soundor:/],
-      alwaysBundle: ['@soundor/runtime-sdk/client', '@soundor/core/spring'],
+      alwaysBundle: ['@soundor/runtime-sdk/client'],
     },
     outputOptions: { chunkFileNames: 'client/[name]-[hash].js' },
   }),
