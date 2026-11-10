@@ -108,12 +108,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 return 2;
             case parameters::Type::Choice:
                 return std::max(1, static_cast<int>(declared.choices.size()));
-            default:
+            case parameters::Type::Int8:
+            case parameters::Type::Uint8:
+            case parameters::Type::Int16:
+            case parameters::Type::Uint16:
+            case parameters::Type::Int32:
+            case parameters::Type::Uint32:
             {
                 const double step = declared.step > 0 ? declared.step : 1;
                 return static_cast<int>(std::lround((declared.max - declared.min) / step)) + 1;
             }
         }
+        return juce::AudioProcessorParameter::getNumSteps();
     }
 
     bool JuceParameter::isDiscrete() const

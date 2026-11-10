@@ -3,8 +3,10 @@
 
 #if defined(__clang__)
 #pragma clang fp contract(off)
+#pragma clang diagnostic ignored "-Wfloat-equal"
 #elif defined(__GNUC__)
 #pragma GCC optimize("fp-contract=off")
+#pragma GCC diagnostic ignored "-Wfloat-equal"
 #elif defined(_MSC_VER)
 #pragma fp_contract(off)
 #endif
@@ -595,6 +597,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::generated
             return static_cast<double>(*value);
         }
     } // namespace
+
+    std::span<const parameters::Info> parameterInfos();
+    std::span<const backend::ParameterBehavior> parameterBehaviors();
 
     // The config's parameters, in the order soundor:parameters indexes them.
     std::span<const parameters::Info> parameterInfos()

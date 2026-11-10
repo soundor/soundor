@@ -41,11 +41,16 @@ export const CPP_INCLUDES: readonly string[] = [
   '<type_traits>',
 ];
 
-/** File-scope pragmas: no floating-point contraction in this file. */
+/**
+ * File-scope pragmas: no floating-point contraction in this file, and no
+ * warning for comparing floats exactly, which the language defines.
+ */
 export const CPP_PRAGMAS = `#if defined(__clang__)
 #pragma clang fp contract(off)
+#pragma clang diagnostic ignored "-Wfloat-equal"
 #elif defined(__GNUC__)
 #pragma GCC optimize("fp-contract=off")
+#pragma GCC diagnostic ignored "-Wfloat-equal"
 #elif defined(_MSC_VER)
 #pragma fp_contract(off)
 #endif

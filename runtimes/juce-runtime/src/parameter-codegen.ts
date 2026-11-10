@@ -171,6 +171,9 @@ ${cppRuntime()
   .join('\n')}
 ${parameters.map(renderFunctions).join('\n')}    } // namespace
 
+    std::span<const parameters::Info> parameterInfos();
+    std::span<const backend::ParameterBehavior> parameterBehaviors();
+
     // The config's parameters, in the order soundor:parameters indexes them.
     std::span<const parameters::Info> parameterInfos()
     {
