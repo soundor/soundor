@@ -1,4 +1,4 @@
-import type { SoundorConfig } from '@soundor/runtime-sdk';
+import type { ResolvedSoundorConfig } from '@soundor/runtime-sdk';
 import { describe, expect, it } from 'vitest';
 
 import { generateJuceSources } from './codegen';
@@ -30,7 +30,7 @@ const config = {
   native: {
     methods: { render: { args: { request: 'string' }, returns: 'float64' } },
   },
-} as unknown as SoundorConfig;
+} as unknown as ResolvedSoundorConfig;
 
 const options = resolveJuceOptions(
   { formats: ['vst3', 'au'], companyName: 'Acme', pluginCode: 'Syn1' },
@@ -42,7 +42,10 @@ const params = {
   nativeDir: '/opt/soundor/native',
 };
 
-function fileMap(cfg: SoundorConfig, jucePath?: string): Map<string, string> {
+function fileMap(
+  cfg: ResolvedSoundorConfig,
+  jucePath?: string,
+): Map<string, string> {
   return new Map(
     generateJuceSources(cfg, { ...params, jucePath }).map((f) => [
       f.path,
@@ -305,8 +308,8 @@ describe('generateJuceSources', () => {
   });
 
   describe('editor size', () => {
-    const editorSource = (editor?: SoundorConfig['editor']) =>
-      fileMap({ ...config, editor } as SoundorConfig).get(
+    const editorSource = (editor?: ResolvedSoundorConfig['editor']) =>
+      fileMap({ ...config, editor } as ResolvedSoundorConfig).get(
         'soundor/SoundorEditor.cpp',
       )!;
 
@@ -609,8 +612,8 @@ describe('generateJuceSources', () => {
     const reversed = {
       ...config,
       parameters: [...config.parameters].reverse(),
-    } as SoundorConfig;
-    const table = (input: SoundorConfig) => {
+    } as ResolvedSoundorConfig;
+    const table = (input: ResolvedSoundorConfig) => {
       const proc = fileMap(input).get('soundor/SoundorProcessor.cpp')!;
       return proc.slice(proc.indexOf('parameterInfos()'));
     };
@@ -632,7 +635,7 @@ describe('generateJuceSources', () => {
       plugin: config.plugin,
       runtimes: [],
       parameters: [],
-    } as unknown as SoundorConfig;
+    } as unknown as ResolvedSoundorConfig;
     const proc = fileMap(empty).get('soundor/SoundorProcessor.cpp')!;
     expect(proc).toContain('// no parameters');
     const native = fileMap(empty).get('soundor/native/SoundorNative.h')!;

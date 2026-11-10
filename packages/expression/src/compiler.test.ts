@@ -201,9 +201,9 @@ static void put(const char* key, const std::string& v)
 {
     std::string text = "s:";
     char buffer[4];
-    for (unsigned char c : v)
+    for (char c : v)
     {
-        std::snprintf(buffer, sizeof buffer, "%02x", c);
+        std::snprintf(buffer, sizeof buffer, "%02x", static_cast<unsigned>(static_cast<unsigned char>(c)));
         text += buffer;
     }
     line(key, text);
@@ -234,8 +234,16 @@ ${lines.join('\n')}
     const flags = [
       '-std=c++17',
       '-O2',
+      // The warnings Soundor's own native code builds with.
       '-Wall',
       '-Wextra',
+      '-Wpedantic',
+      '-Wshadow',
+      '-Wconversion',
+      '-Wsign-conversion',
+      '-Wold-style-cast',
+      '-Wnull-dereference',
+      '-Wimplicit-fallthrough',
       '-Werror',
       '-fsanitize=undefined,float-cast-overflow',
       '-fsanitize-trap=all',

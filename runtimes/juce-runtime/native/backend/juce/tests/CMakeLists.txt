@@ -8,6 +8,8 @@ juce_add_console_app(soundor_juce_tests)
 target_sources(soundor_juce_tests
   PRIVATE
     JuceParameterHostTests.cpp
+    generated/TestParameters.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceParameter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../soundor/backend/JuceParameterHost.cpp)
 
 juce_add_console_app(soundor_juce_platform_tests)
@@ -44,7 +46,7 @@ if(SOUNDOR_ENABLE_DEVTOOLS)
   set_tests_properties(soundor_debug_session PROPERTIES TIMEOUT 120)
 endif()
 add_test(NAME soundor_juce_platform_tests COMMAND soundor_juce_platform_tests)
-target_include_directories(soundor_juce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(soundor_juce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(soundor_juce_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_tests
   PRIVATE

@@ -15,7 +15,7 @@ import {
   type DevShortcut,
   type DevSummaryRow,
   type RunCommandOptions,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -31,7 +31,7 @@ const config = {
     { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
   ],
   native: {},
-} as unknown as SoundorConfig;
+} as unknown as ResolvedSoundorConfig;
 
 const okProbe: CommandProbe = () => ({ ok: true, version: '1.2.3' });
 

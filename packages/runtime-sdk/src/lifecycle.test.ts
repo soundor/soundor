@@ -12,7 +12,7 @@ import {
   type FileSystemHost,
   type Logger,
   type RuntimePhase,
-  type SoundorConfig,
+  type ResolvedSoundorConfig,
 } from './index';
 
 /** An in-memory FileSystemHost backed by a Map. */
@@ -89,7 +89,7 @@ describe('runtime lifecycle', () => {
       },
     });
 
-    const config: SoundorConfig = {
+    const config: ResolvedSoundorConfig = {
       plugin: { id: 'com.example.test', name: 'Test' },
       runtimes: [juceRuntime({ format: 'vst3' })],
       parameters: [],
@@ -149,7 +149,7 @@ describe('runtime lifecycle', () => {
       },
       doctor: async () => ({ checks: [] }),
     });
-    const config: SoundorConfig = {
+    const config: ResolvedSoundorConfig = {
       plugin: { id: 'com.example.test', name: 'Test' },
       runtimes: [runtime()],
       parameters: [],

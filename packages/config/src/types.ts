@@ -118,10 +118,11 @@ export interface SoundorConfig<
  */
 export interface ResolvedSoundorConfig {
   plugin: PluginIdentity;
-  editor: ResolvedEditorConfig;
+  /** Always set by validation; resolve it with `resolveEditor` either way. */
+  editor?: ResolvedEditorConfig;
   runtimes: RuntimeDescriptor[];
   /** In declaration order, which is the order hosts list them in. */
   parameters: readonly ResolvedParameter[];
-  native: NativeApiDeclaration;
-  signing: SigningConfig;
+  native?: NativeApiDeclaration;
+  signing?: SigningConfig;
 }
