@@ -13,9 +13,14 @@
 #include <span>
 #include <string_view>
 
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+{
+    class DrawingSurface;
+}
+
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
-    // Draws a Surface with Skia, on the CPU. It also supplies the text engine
+    // Draws a Surface with Skia, on the CPU or its shared ANGLE device. It also supplies the text engine
     // and image source a surface needs to lay out what it draws.
     class Renderer
     {
@@ -57,6 +62,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             bool subtrees = false;
         };
         void render(Surface& surface, const render::Bitmap& target, double seconds,
+                    const render::Region* only = nullptr, const Layering* layering = nullptr);
+        // Enables Ganesh when it was built and the shared device supports it.
+        // A null device keeps CPU rendering. Must be set before creating canvases.
+        bool setGpuDevice(std::shared_ptr<gpu::Device> device);
+        [[nodiscard]] bool usesGpu(const gpu::Device* device) const;
+        bool prepare(render::DrawingSurface& target, int width, int height, const gpu::Device* device);
+        void render(Surface& surface, render::DrawingSurface& target, double seconds,
                     const render::Region* only = nullptr, const Layering* layering = nullptr);
 #if SOUNDOR_DEVTOOLS
         void renderHighlights(Surface& surface, std::span<const NodeId> ids, const render::Bitmap& target);

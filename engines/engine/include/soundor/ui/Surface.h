@@ -32,6 +32,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     class SvgGeometryCache;
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
+{
+    class GaneshSurface;
+}
+
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 {
     using NodeId = std::uint32_t;
@@ -64,6 +69,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // layer of its own; otherwise it is read back into `pixels`.
         std::shared_ptr<render::GpuImage> gpuImage;
         bool gpuDrawn = false;
+        // Private 2D renderer storage; WebGL leaves this empty.
+        std::shared_ptr<render::GaneshSurface> drawingSurface;
     };
 
     struct Rect

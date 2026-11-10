@@ -1,10 +1,12 @@
 #pragma once
 
+#include "render/DrawingSurface.h"
+
 #include <soundor/Abi.h>
 
 // Private to soundor_runtime: the 2D context of a canvas node
-// (CanvasRenderingContext2D), drawing with Skia on the CPU into the node's
-// buffer. Coordinates and sizes are the Web's: doubles, in canvas pixels, under
+// (CanvasRenderingContext2D), drawing with Skia into the node's GPU surface
+// where Ganesh is available, or its CPU buffer. Coordinates and sizes are the Web's: doubles, in canvas pixels, under
 // the current transform. The JavaScript side (canvas.js) converts and checks
 // arguments as WebIDL would; this side assumes finite numbers.
 
@@ -45,6 +47,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         // Catches up with the buffer: a resized buffer resets the context's
         // state and path. Every operation starts with it.
         void sync();
+        // Hold for a native call (including a batch of path commands), then
+        // restore the host's context. CPU contexts return an empty scope.
+        [[nodiscard]] std::unique_ptr<GaneshContext::Scope> makeCurrent();
 
         // ── State ────────────────────────────────────────────────────────────
         void save();

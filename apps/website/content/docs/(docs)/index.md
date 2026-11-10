@@ -86,7 +86,7 @@ and appropriate background execution.
 `Text`, `Pressable`, and `Canvas` update a Soundor node tree.
 
 - **JUCE:** Hermes executes JavaScript on the message thread. Yoga computes
-  layout, Skia draws CPU layers, and Soundor composes them on the GPU where
+  layout, Skia draws GPU layers on Windows (CPU layers elsewhere), and Soundor composes them on the GPU where
   supported, or on the CPU. Canvas WebGL uses ANGLE.
 - **Web:** the browser executes JavaScript and Soundor maps nodes to DOM
   elements, layout, canvas contexts, and ARIA attributes.

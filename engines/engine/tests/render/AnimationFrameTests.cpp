@@ -30,6 +30,26 @@ namespace
         void present(const render::Region&) override {}
     };
 
+#if SOUNDOR_TEST_GPU
+    bool hasDamagedRasterSource(const render::Frame& frame)
+    {
+        for (const auto& layer : frame.layers)
+        {
+            if (const auto* raster = std::get_if<render::RasterContent>(&layer.content))
+            {
+                if (! raster->damage.empty())
+                    return true;
+            }
+            else if (const auto* group = std::get_if<render::GroupContent>(&layer.content))
+            {
+                if (group->frame && hasDamagedRasterSource(*group->frame))
+                    return true;
+            }
+        }
+        return false;
+    }
+#endif
+
     struct Scene
     {
         double time = 0;
@@ -143,7 +163,7 @@ TEST_SUITE("native animation frames")
     }
 
 #if SOUNDOR_TEST_GPU
-    TEST_CASE("GPU paint animation reuploads damaged pixels and keeps opacity presentation cached")
+    TEST_CASE("GPU paint animation updates content and keeps opacity presentation cached")
     {
         const auto device = test::testDevice();
         if (! device)
@@ -171,7 +191,8 @@ TEST_SUITE("native animation frames")
         CHECK(frame.statistics.gpuReadbacks == 0);
         CHECK(f.host.statistics().surface.layoutPasses == before.surface.layoutPasses);
         compositor.composite(frame);
-        CHECK(compositor.statistics().bytesUploaded > 0);
+        // Source and prebuilt engines may use Ganesh or raster UI layers.
+        CHECK((compositor.statistics().bytesUploaded > 0) == hasDamagedRasterSource(frame));
         const auto gpuPixels = compositor.readPixels();
         Target target;
         render::RasterCompositor cpu(target);

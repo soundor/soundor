@@ -164,12 +164,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         };
     } // namespace
 
-    int ViewRenderer::readBackCanvases(ui::Surface& surface)
+    int ViewRenderer::readBackCanvases(ui::Surface& surface, const gpu::Device* drawingDevice)
     {
         int read = 0;
         for (const ui::NodeId id : surface.canvases())
         {
             const auto buffer = surface.canvasBuffer(id);
+            flushCanvas(*buffer);
+            if (buffer->drawingSurface && buffer->gpuImage && buffer->gpuImage->device() == drawingDevice)
+                continue;
             if (buffer->gpuImage == nullptr || ! buffer->gpuDrawn)
                 continue;
             buffer->gpuDrawn = false;
@@ -184,6 +187,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
     void ViewRenderer::promote(ui::Surface& surface, const gpu::Device* gpuDevice)
     {
+        for (const auto id : surface.canvases())
+            flushCanvas(*surface.canvasBuffer(id));
         Planner planner { surface, gpuDevice, surface.scale(), {}, std::vector<Region>(1) };
         planner.walk(surface.root(), 0, 0, 1, std::nullopt);
         planner.walk(surface.overlay(), 0, 0, 1, std::nullopt);
@@ -250,7 +255,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         for (const ui::NodeId id : wereHoles)
             if (std::ranges::find(holes, id) == holes.end() && surface.find(id) != nullptr)
                 surface.canvasBuffer(id)->gpuDrawn = true; // drawn on the CPU again: needs its pixels
-        frame.statistics.gpuReadbacks = readBackCanvases(surface);
+        frame.statistics.gpuReadbacks = readBackCanvases(surface, painter.usesGpu(gpuDevice) ? gpuDevice : nullptr);
         frame.statistics.gpuLayers = static_cast<int>(promoted.size());
 
         ui::Surface::Invalidation invalid = surface.takeInvalidation();
@@ -261,7 +266,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             segments.resize(holes.size() + 1);
         }
         for (Segment& segment : segments)
-            if (segment.pixels.resize(width, height))
+            if (painter.prepare(segment.pixels, width, height, gpuDevice))
                 invalid.everything = true;
 
         frame.width = width;
@@ -284,7 +289,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             if (redraw.empty())
                 continue;
             const ui::Renderer::Layering layering { holes, static_cast<int>(i) };
-            painter.render(surface, segment.pixels.bitmap(), seconds, &redraw, holes.empty() ? nullptr : &layering);
+            painter.render(surface, segment.pixels, seconds, &redraw, holes.empty() ? nullptr : &layering);
             ++frame.statistics.layersRasterized;
             frame.statistics.pixelsRasterized += redraw.area();
         }
@@ -296,9 +301,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             // A layer that paints nothing is left out (most often the one
             // above a canvas with nothing over it).
             if (holes.empty() || ! segments[i].painted.empty())
-                frame.layers.push_back({ .id = segments[i].id,
-                                         .bounds = bounds,
-                                         .content = RasterContent { &segments[i].pixels, damages[i] } });
+            {
+                Layer layer = segments[i].pixels.content(damages[i]);
+                layer.id = segments[i].id;
+                layer.bounds = bounds;
+                frame.layers.push_back(std::move(layer));
+            }
             if (i < promoted.size())
             {
                 Layer layer = promoted[i].layer;

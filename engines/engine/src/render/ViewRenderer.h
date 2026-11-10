@@ -2,6 +2,7 @@
 
 #include "render/AnimationRenderer.h"
 #include "render/Damage.h"
+#include "render/DrawingSurface.h"
 
 #include <soundor/Abi.h>
 #if SOUNDOR_DEVTOOLS
@@ -41,7 +42,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 
         // Reads back the GPU canvases' new images into their pixels, for
         // drawing the surface on the CPU; returns how many were read.
-        static int readBackCanvases(ui::Surface& surface);
+        static int readBackCanvases(ui::Surface& surface, const gpu::Device* drawingDevice = nullptr);
 
     private:
         // A GPU canvas shown as a layer of its own.
@@ -55,7 +56,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         struct Segment
         {
             LayerId id = newLayerId();
-            RasterSurface pixels;
+            DrawingSurface pixels;
             // Where it painted in the previous frame (device pixels).
             Region painted;
         };

@@ -29,7 +29,7 @@ plugin (JUCE)                     your processor, editor, DSP
        └─ Soundor::Engine          @soundor/engine
             ├─ Hermes              JavaScript (interpreter; hermesc compiles bytecode at build time)
             ├─ Yoga, ada           layout, URLs
-            ├─ Skia                2D drawing (CPU, into layers)
+            ├─ Skia                2D drawing (Ganesh GPU on Windows, CPU fallback)
             ├─ ANGLE               WebGL 2 and the GPU compositor (Metal, Direct3D 11)
             └─ AccessKit           accessibility on Windows and Linux (own bridges on macOS)
 ```

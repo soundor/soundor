@@ -59,7 +59,8 @@ surface, runtime modules, services, and pending work. React updates the surface'
 node tree through `soundor:ui`.
 
 1. Yoga computes logical layout when it changes.
-2. Skia rasterizes damaged UI content and 2D canvases into CPU layers.
+2. Skia draws damaged UI content and 2D canvases into GPU surfaces on Windows
+   when Ganesh is available, or CPU layers otherwise.
 3. Canvas WebGL draws through ANGLE into GPU textures when a device exists.
 4. Soundor's compositor combines the layers and presents the frame.
 

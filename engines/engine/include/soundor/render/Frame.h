@@ -164,14 +164,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         [[nodiscard]] bool samePlacement(const Layer& other) const noexcept;
     };
 
-    // What producing a frame cost: the CPU rasterization behind it, and the
-    // GPU images read back because the compositor could not draw them.
+    // What producing a frame cost: CPU or GPU rasterization, promoted canvas
+    // layers, and images read back because the compositor could not draw them.
     struct FrameStatistics
     {
         int layersRasterized = 0;
         long long pixelsRasterized = 0;
+        // Canvas images promoted into their own layers (UI source layers excluded).
         int gpuLayers = 0;
         int gpuReadbacks = 0;
+        // Cached animation source surfaces, in CPU or GPU memory.
         std::uint64_t cachedRasterBytes = 0;
     };
 

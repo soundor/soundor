@@ -850,6 +850,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         else
             YGNodeMarkDirty(node.yoga);
+        if (buffer.drawingSurface)
+        {
+            buffer.drawingSurface.reset();
+            buffer.gpuImage.reset();
+            buffer.gpuDrawn = false;
+        }
         ++buffer.resets;
         buffer.drawn = false;
         markChanged(node);

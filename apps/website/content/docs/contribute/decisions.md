@@ -38,15 +38,16 @@ The cost is lower JavaScript throughput than a design that could assume a JIT.
 Soundor handles layout, drawing, compositing and native animation timelines in
 C++, and performance work measures the JavaScript that remains on each frame.
 
-## Skia on the CPU, ANGLE for the GPU
+## Skia drawing, ANGLE for GPU rendering
 
-Skia rasterizes UI content and Canvas 2D into CPU layers. ANGLE provides WebGL
-and the GPU composition path where supported. Soundor's compositor combines
+Skia draws UI content and Canvas 2D into GPU surfaces through Ganesh on Windows
+when available, with CPU layers as fallback and on other platforms. ANGLE
+provides WebGL and the GPU composition path where supported. Soundor's compositor combines
 those layers, with a CPU fallback. A compatible GPU compositor shares WebGL
 textures without readback. See [Rendering](/docs/contribute/engine-reference#rendering).
 
 This division keeps ordinary UI painting available without a GPU and lets
-platform presentation evolve separately from drawing. Cached CPU layers can be
+platform presentation evolve separately from drawing. Cached UI layers can be
 reused until their content changes; GPU composition can move or fade those
 layers without repainting them. ANGLE supplies the graphics API adaptation for
 WebGL and composition on supported platforms.

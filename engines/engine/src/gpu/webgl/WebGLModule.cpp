@@ -3,6 +3,7 @@
 #include "gpu/webgl/WebGLContext.h"
 #include "js/Bindings.h"
 #include "js/Internal.h"
+#include "render/CanvasPixels.h"
 
 #include <algorithm>
 #include <cmath>
@@ -383,9 +384,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
 
         // A canvas's pixels as RGBA bytes, rows top first (or flipped), not
         // premultiplied unless asked: what texImage2D takes from a canvas.
-        std::span<const std::byte> canvasPixels(WebGL& webgl, const ui::CanvasBuffer& canvas, bool flipY,
-                                                bool premultiply)
+        std::span<const std::byte> canvasPixels(WebGL& webgl, ui::CanvasBuffer& canvas, bool flipY, bool premultiply)
         {
+            if (! render::readCanvasPixels(canvas))
+                throw std::runtime_error("could not read the Canvas 2D texture source");
             const render::RasterSurface& pixels = canvas.pixels;
             const auto w = static_cast<std::size_t>(pixels.width());
             const auto h = static_cast<std::size_t>(pixels.height());

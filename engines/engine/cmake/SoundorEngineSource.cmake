@@ -48,6 +48,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp
   src/render/Canvas2D.cpp
+  src/render/DrawingSurface.cpp
   src/render/Damage.cpp
   src/render/Frame.cpp
   src/render/RasterCompositor.cpp
@@ -87,6 +88,7 @@ endif()
 # presents (see SoundorAngle.cmake).
 if(SOUNDOR_HAS_GPU)
   list(APPEND SOUNDOR_RUNTIME_SOURCES
+    src/gpu/DrawingContext.cpp
     src/gpu/Context.cpp
     src/gpu/Device.cpp
     src/gpu/GpuCompositor.cpp
@@ -137,6 +139,7 @@ soundor_embed_module(soundor_runtime uiWebGLGeneratedModule src/gpu/webgl/genera
 # Everything a runtime library is besides its sources: `namespace` is the
 # inline ABI namespace its symbols are mangled into.
 function(soundor_configure_runtime target)
+  target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_GANESH=$<AND:$<BOOL:${SOUNDOR_ENABLE_GANESH}>,$<BOOL:${SOUNDOR_HAS_GPU}>>)
   target_compile_features(${target} PUBLIC cxx_std_20)
   
   target_compile_definitions(${target} PUBLIC SOUNDOR_DEVTOOLS=$<AND:$<BOOL:${SOUNDOR_ENABLE_DEVTOOLS}>,$<CONFIG:Debug>>)

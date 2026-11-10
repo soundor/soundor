@@ -683,7 +683,7 @@ Beyond views and text there are the primitives a plugin UI is made of:
     and the pixels are stretched over it; size the buffer by `viewSize().scale`
     for crisp lines (`devicePixelRatio` does not count the host's scaling).
   - **`getContext('2d')`:** a `CanvasRenderingContext2D` drawn with Skia on
-    the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
+    the GPU where Ganesh is enabled, otherwise the CPU (`src/render/Canvas2D.cpp`), the same object every time; other
     types give null, as on the Web for a canvas that already has a
     context. The JavaScript side (`canvas.js`) converts arguments as WebIDL
     does and makes one native call per method, except for path commands
@@ -731,13 +731,13 @@ A frame goes through three stages, each with its own owner:
    _layers_, bottom to top. A layer is content placed at device-pixel
    `bounds`, with a `transform`, `opacity` and rounded `clip`, and a stable
    `id` while it exists. The content is either CPU pixels (a
-   `render::RasterSurface`) or a `render::GpuImage` drawn elsewhere (a WebGL
-   canvas). The UI (content and overlay) is one CPU layer. A WebGL canvas the
-   compositor can draw (see "WebGL") becomes a layer of its own, and the UI
+   `render::RasterSurface`) or a `render::GpuImage` (a GPU canvas or Ganesh
+   UI layer). Without Ganesh, the UI (content and overlay) is one CPU layer.
+   A GPU canvas the compositor can draw (see "WebGL") becomes a layer of its own, and the UI
    is cut around it, into what paints before it and what paints after. So a
    canvas drawing every frame re-rasterizes and re-uploads none of the UI.
    Damage is split the same way: a change to what paints above a canvas
-   redraws only the layer above it, and only there. A CPU layer that paints
+   redraws only the layer above it, and only there. A UI layer that paints
    nothing (often the one above a canvas) is left out of the frame.
    `frame(capabilities)` takes the compositor's capabilities to know which
    GPU images it can draw.
@@ -747,8 +747,8 @@ A frame goes through three stages, each with its own owner:
    focus); the damage tracker compares where every node drew last frame with
    where it draws now, so a node that moved, resized (by any fraction of a
    pixel) or went away is caught as well as one that changed. Only the damage
-   is drawn again: each rectangle with Skia into a scratch bitmap with a
-   margin, then copied in. An unchanged frame rasterizes nothing.
+   is drawn again: each rectangle with Skia into a scratch surface with a
+   margin, then copied in (GPU surfaces with Ganesh, CPU bitmaps otherwise). An unchanged frame rasterizes nothing.
    - Skia flattens a curve cut by a clip slightly differently, so where damage
      cuts a curve its edge pixels may differ from a full redraw by a few
      levels (tests bound it). Everything else is exact.
@@ -779,7 +779,30 @@ lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
 repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
 still draws the whole view in one go, for tests and tools.
 
-`ui::Renderer` draws nodes with [Skia](https://skia.org) on the CPU:
+`ui::Renderer` draws nodes with [Skia](https://skia.org). Windows builds enable
+Ganesh's GLES backend by default (`SOUNDOR_ENABLE_GANESH`); macOS and Linux
+keep raster drawing by default. Ganesh uses a separate context on the
+compositor's existing ANGLE device, with an assembled GLES function table
+and no native OpenGL loader or second ANGLE copy. Without shared textures,
+GPU-side fences or successful Ganesh initialization, drawing stays on the CPU.
+
+`render::DrawingSurface` keeps retained layers on the GPU when possible,
+including animation segments. Damage repair uses padded GPU scratch surfaces
+and GPU copies; unchanged layers are reused. `gpu::DrawingContext` and
+`DrawingTexture` isolate GLES/EGL types and hand textures to the existing
+`SharedImage` compositor protocol with producer/consumer fences. Skia types
+stay in `src/render/`. CPU snapshots, the animation cache-budget fallback,
+and the DevTools highlight overlay retain their raster paths.
+
+Canvas 2D shares the Ganesh context through the renderer's image source. One
+native canvas call makes the context current, including an entire batch of
+path commands; frames flush pending drawing before composition or readback.
+GPU snapshots preserve `drawImage()` self-copies and pattern immutability.
+Pixel reads synchronize explicitly; writes ignore transforms and clips.
+A GPU reset clears an immediate canvas's contents and resets its drawing
+state on its next native operation, while retained layers repaint on the CPU.
+
+Drawing behavior:
 
 - **Output:** 32-bit premultiplied pixels, B, G, R, A in memory everywhere
   (`render::Bitmap`), which is `juce::Image::ARGB`'s layout.
@@ -1258,7 +1281,12 @@ GCC, no-GPU and lint suites do not supply release dependency snapshots.
 
 ### Skia
 
-Skia is built from source, CPU-only, at the pinned `chrome/m144` commit. It
+Skia is built from source at the pinned `chrome/m144` commit, with raster
+support everywhere and Ganesh/GLES enabled by default on Windows. The internal
+`SOUNDOR_ENABLE_GANESH=ON` option enables the same integration for headless
+GPU tests on other platforms; it does not add Linux window presentation.
+`SOUNDOR_ENABLE_GPU=OFF` disables Ganesh too. An overridden `SOUNDOR_SKIA_DIR`
+must contain the matching variant (the build script takes `-DGANESH=ON`). It
 gets its PNG, JPEG, WebP, zlib and Expat code, each at the commit Skia's `DEPS`
 pins. SVG documents use `modules/svg`, resources and primitive shaping. It
 has no GPU backends, PDF, ICU or HarfBuzz.

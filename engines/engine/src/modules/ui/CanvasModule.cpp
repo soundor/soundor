@@ -228,6 +228,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 {
                     const Args all { ctx, static_cast<int>(count), argv };
                     render::Canvas2D& c = contextOf(ctx, all.node(0));
+                    const auto current = c.makeCurrent();
                     c.sync();
                     const auto op = static_cast<Canvas2DOp>(all.integer(1));
                     const Args a { ctx, static_cast<int>(count) - 2, argv + 2 };
@@ -494,6 +495,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                 {
                                     const Args a { ctx, static_cast<int>(count), argv };
                                     render::Canvas2D& c = contextOf(ctx, a.node(0));
+                                    const auto current = c.makeCurrent();
+                                    c.sync();
                                     return keep(ctx, c.pattern(*surfaceOf(ctx).canvasBuffer(a.node(1)), a.string(2)));
                                 });
         }
