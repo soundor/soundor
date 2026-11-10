@@ -47,9 +47,9 @@ which re-exports all of `@soundor/config` and `@soundor/core`: their code
 imports everything from it, and their declarations name nothing else. A
 project's config type names only its own `@soundor/config`
 (`defineSoundorConfig` returns a `SoundorConfig`), so the runtime's packages
-need not be installed in the project. Code that only a build inlines, such as
-the web runtime's springs from `@soundor/core/spring`, is a development
-dependency. Review the emitted entry point and declarations (`dist/*.mjs`,
+need not be installed in the project. Client code, which runs with the
+plugin's UI rather than in Node, imports from `@soundor/runtime-sdk/client`
+(no Node code); the web runtime inlines it into its browser client. Review the emitted entry point and declarations (`dist/*.mjs`,
 `dist/*.d.mts`) to check that every package they import is declared. See
 [Dependencies and compatibility](/docs/contribute/compatibility) for the rules.
 

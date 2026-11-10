@@ -23,6 +23,12 @@ It is the one Soundor package a runtime depends on: it re-exports all of
 runtime that also installed those would risk copies of them that its SDK's do
 not share, and declarations naming packages its users may not have.
 
+The root entry is for the runtime's Node side (its lifecycle phases). Code
+that runs with the plugin's UI, in a browser or an embedded engine, imports
+from `@soundor/runtime-sdk/client` instead: helpers that import nothing of
+Node or the toolchain, such as core's springs (`springParameters`,
+`sampleSpring`, `springDuration`), the same the other runtimes animate with.
+
 ## Usage
 
 Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
