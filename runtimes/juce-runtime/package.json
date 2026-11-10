@@ -39,12 +39,12 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "@soundor/config": "workspace:^",
     "@soundor/core": "workspace:^",
-    "@soundor/engine": "workspace:*"
+    "@soundor/engine": "workspace:*",
+    "@soundor/runtime-sdk": "workspace:^"
   },
   "devDependencies": {
-    "@soundor/config": "workspace:^",
-    "@soundor/runtime-sdk": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@soundor/vst3-host": "workspace:^",
@@ -55,12 +55,20 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0",
     "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0"
   },
   "peerDependenciesMeta": {
     "@soundor/vst3-host": {
       "optional": true
+    }
+  },
+  "soundor": {
+    "compatibility": {
+      "config": ">=0.16.0 <0.18.0",
+      "core": ">=0.16.0 <0.18.0",
+      "schemas": [
+        1
+      ]
     }
   }
 }

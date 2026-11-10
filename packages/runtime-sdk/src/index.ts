@@ -1,4 +1,5 @@
 export { defineRuntime } from './runtime';
+export type { RuntimeDefinition } from './runtime';
 
 // Runtime contract + config surface, re-exported so a runtime author imports
 // everything from one place.
@@ -13,9 +14,14 @@ export type {
   RuntimeCapabilities,
   LifecycleContext,
   Runtime,
+  RuntimeCompatibility,
+  RuntimeCompatibilityStatus,
   RuntimeConfig,
   RuntimeDescriptor,
   RuntimeFactory,
+  RuntimePackage,
+  HostVersions,
+  ConfigErrorInfo,
   PluginIdentity,
   EditorConfig,
   EditorFit,
@@ -39,7 +45,12 @@ export type {
 } from '@soundor/config';
 export {
   AD_HOC_IDENTITY,
+  CONFIG_SCHEMA_VERSION,
+  CONFIG_VERSION,
   ConfigError,
+  HOST_VERSIONS,
+  checkRuntimeCompatibility,
+  isConfigError,
   MACOS_KEYCHAIN_ENV,
   MACOS_SIGNING_IDENTITY_ENV,
   resolveEditor,
@@ -64,10 +75,14 @@ export {
   EXIT_CODES,
   EnvError,
   GeneratedFilesOutOfDateError,
+  CORE_VERSION,
+  RuntimeCompatibilityError,
   RuntimeError,
   SoundorError,
   UnknownRuntimeError,
   exitCodeFor,
+  isSoundorError,
+  satisfiesRange,
   describeNativeApi,
   nativeTsType,
 } from '@soundor/core';
@@ -93,6 +108,7 @@ export type {
   Logger,
   ProjectPaths,
   SoundorErrorCode,
+  SoundorErrorInfo,
   SoundorIssue,
   NativeApiDeclaration,
   NativeApiModel,

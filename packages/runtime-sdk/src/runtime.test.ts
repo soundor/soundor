@@ -1,12 +1,21 @@
-import type { Runtime } from '@soundor/config';
+import { CONFIG_SCHEMA_VERSION, CONFIG_VERSION } from '@soundor/config';
 import { describe, expect, it } from 'vitest';
 
-import { defineRuntime } from './runtime';
+import { defineRuntime, type RuntimeDefinition } from './runtime';
 
-function makeRuntime(id = 'juce'): Runtime {
+function makeRuntime(id = 'juce'): RuntimeDefinition {
   const noop = async (): Promise<void> => {};
   return {
     id,
+    package: {
+      name: 'soundor-runtime-test',
+      version: '1.0.0',
+      compatibility: {
+        config: `^${CONFIG_VERSION}`,
+        core: `^${CONFIG_VERSION}`,
+        schemas: [CONFIG_SCHEMA_VERSION],
+      },
+    },
     init: noop,
     gen: noop,
     dev: noop,

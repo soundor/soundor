@@ -46,6 +46,25 @@ describe('runGen', () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  it('refuses an incompatible runtime before generating anything', async () => {
+    await writeIncompatibleConfig(root);
+
+    const error = await runGen({ cwd: root }).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toMatchObject({
+      name: 'RuntimeCompatibilityError',
+      code: 'INCOMPATIBLE_RUNTIME',
+      runtimeId: 'old',
+    });
+    expect((error as { format(): string }).format()).toContain(
+      "Runtime 'old' (soundor-runtime-old@1.0.0) does not support this project's Soundor version.",
+    );
+    // Neither the portable files nor the compatible runtime's were written.
+    await expect(readdir(root)).resolves.toEqual(['soundor.config.ts']);
+  });
+
   it('writes portable and runtime generated files, then passes check mode', async () => {
     await writeConfig(root, 'gain');
 
@@ -175,6 +194,48 @@ async function pathExists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * A config with two runtimes: `good`, which supports any host, and `old`, which
+ * supports only @soundor/config 0.0.x.
+ */
+async function writeIncompatibleConfig(root: string): Promise<void> {
+  const runtime = (id: string, config: string) => `{
+  id: '${id}',
+  package: {
+    name: 'soundor-runtime-${id}',
+    version: '1.0.0',
+    compatibility: { config: '${config}', core: '>=0.0.0', schemas: [1] },
+  },
+  async init() {},
+  async gen(_config, ctx) {
+    ctx.codegen.emit({ path: '${id}.txt', contents: '${id}\\n' });
+  },
+  async dev() {},
+  async build() {},
+  async doctor() {
+    return { checks: [] };
+  },
+}`;
+  await writeFile(
+    join(root, 'soundor.config.ts'),
+    `import { defineSoundorConfig } from '@soundor/config';
+
+const good = ${runtime('good', '>=0.0.0')};
+const old = ${runtime('old', '>=0.0.0 <0.1.0')};
+
+export default defineSoundorConfig({
+  runtimes: [
+    { id: 'good', options: {}, runtime: good },
+    { id: 'old', options: {}, runtime: old },
+  ],
+  parameters: [],
+  plugin: { id: 'com.example.test', name: 'Test' },
+});
+`,
+    'utf8',
+  );
 }
 
 async function writeConfig(root: string, parameterId: string): Promise<void> {

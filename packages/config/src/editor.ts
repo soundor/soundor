@@ -168,7 +168,7 @@ const maximum = z.union([dimension, z.literal(Infinity)], {
   error: 'expected a whole number of logical pixels, or Infinity',
 });
 
-export const editorSchema = z.object({
+export const editorSchema = z.strictObject({
   width: dimension.optional(),
   height: dimension.optional(),
   minWidth: dimension.optional(),

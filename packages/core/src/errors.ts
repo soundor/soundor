@@ -6,6 +6,12 @@
  * EXIT_CODES}. Downstream packages subclass the base (e.g. `ConfigError` in
  * `@soundor/config`) so a CLI can classify any thrown value with {@link
  * exitCodeFor} and exit deterministically.
+ *
+ * Errors cross package boundaries: a runtime throws one from its own copy of
+ * this package, and the CLI, with another copy, classifies it. So they are
+ * recognized by a protocol ({@link isSoundorError}: a global brand, a string
+ * `code` and an `issues` list), never by `instanceof`, which only holds within
+ * one copy.
  */
 
 /** Machine-stable error codes. Each maps to a fixed CLI exit code. */
@@ -14,6 +20,7 @@ export type SoundorErrorCode =
   | 'ENV'
   | 'UNKNOWN_RUNTIME'
   | 'INVALID_RUNTIME'
+  | 'INCOMPATIBLE_RUNTIME'
   | 'RUNTIME'
   | 'INTERNAL';
 
@@ -23,6 +30,7 @@ export const EXIT_CODES: Readonly<Record<SoundorErrorCode, number>> = {
   ENV: 3,
   UNKNOWN_RUNTIME: 4,
   INVALID_RUNTIME: 4,
+  INCOMPATIBLE_RUNTIME: 4,
   RUNTIME: 5,
   INTERNAL: 70, // sysexits EX_SOFTWARE
 };
@@ -42,10 +50,32 @@ export interface SoundorErrorOptions {
   issues?: SoundorIssue[];
 }
 
+/**
+ * The brand of every {@link SoundorError}, whichever copy of this package made
+ * it. A global symbol on purpose: it names one protocol shared by every copy
+ * and version (the `.v1` changes only if the protocol below does).
+ */
+const SOUNDOR_ERROR = Symbol.for('soundor.error.v1');
+
+/**
+ * What every Soundor error carries, whatever copy of `@soundor/core` made it:
+ * the protocol {@link isSoundorError} checks. `code` is a string, since a
+ * newer copy may know codes this one does not.
+ */
+export interface SoundorErrorInfo extends Error {
+  readonly code: string;
+  readonly issues: readonly SoundorIssue[];
+}
+
 /** Base for every Soundor-originated error. Carries a stable code + exit code. */
-export class SoundorError extends Error {
+export class SoundorError extends Error implements SoundorErrorInfo {
   readonly code: SoundorErrorCode;
   readonly issues: SoundorIssue[];
+
+  /** The cross-copy brand {@link isSoundorError} checks. */
+  get [SOUNDOR_ERROR](): true {
+    return true;
+  }
 
   constructor(message: string, options: SoundorErrorOptions) {
     super(message, { cause: options.cause });
@@ -120,11 +150,78 @@ export class EnvError extends SoundorError {
 }
 
 /**
+ * A runtime does not support the Soundor packages or the config schema of the
+ * project's host (the CLI): it declares ranges that exclude them, or declares
+ * them in a form that cannot be read (`INVALID_RUNTIME`).
+ */
+export class RuntimeCompatibilityError extends SoundorError {
+  readonly runtimeId: string;
+  /** How to resolve it. */
+  readonly hint: string;
+
+  constructor(
+    message: string,
+    options: {
+      runtimeId: string;
+      code?: 'INCOMPATIBLE_RUNTIME' | 'INVALID_RUNTIME';
+      issues?: SoundorIssue[];
+      hint: string;
+    },
+  ) {
+    super(message, {
+      code: options.code ?? 'INCOMPATIBLE_RUNTIME',
+      issues: options.issues,
+    });
+    this.name = 'RuntimeCompatibilityError';
+    this.runtimeId = options.runtimeId;
+    this.hint = options.hint;
+  }
+
+  /** The message, one line per issue, and the hint. */
+  format(): string {
+    return [
+      this.message,
+      ...this.issues.map((issue) =>
+        issue.path === ''
+          ? `  ${issue.message}`
+          : `  ${issue.path}: ${issue.message}`,
+      ),
+      this.hint,
+    ].join('\n');
+  }
+}
+
+/**
+ * Whether `value` is a Soundor error from any copy or version of
+ * `@soundor/core` (and with `code`, one with that code). Checks the protocol
+ * every {@link SoundorError} carries (its brand, a string `code` and an
+ * `issues` array), so an error a runtime throws from its own copy is still
+ * recognized by the CLI's.
+ */
+export function isSoundorError(
+  value: unknown,
+  code?: SoundorErrorCode,
+): value is SoundorErrorInfo {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<PropertyKey, unknown>;
+  return (
+    record[SOUNDOR_ERROR] === true &&
+    typeof record['message'] === 'string' &&
+    typeof record['code'] === 'string' &&
+    Array.isArray(record['issues']) &&
+    (code === undefined || record['code'] === code)
+  );
+}
+
+/**
  * Classifies any thrown value into a stable process exit code. Recognizes every
- * {@link SoundorError} subclass (including config's `ConfigError`) via its
- * `code`; anything else maps to `INTERNAL`.
+ * Soundor error (including config's `ConfigError`, and those of other copies of
+ * this package) via {@link isSoundorError} and its `code`; anything else, and a
+ * code this copy does not know, maps to `INTERNAL`.
  */
 export function exitCodeFor(error: unknown): number {
-  if (error instanceof SoundorError) return error.exitCode;
-  return EXIT_CODES.INTERNAL;
+  if (!isSoundorError(error)) return EXIT_CODES.INTERNAL;
+  return Object.hasOwn(EXIT_CODES, error.code)
+    ? EXIT_CODES[error.code as SoundorErrorCode]
+    : EXIT_CODES.INTERNAL;
 }

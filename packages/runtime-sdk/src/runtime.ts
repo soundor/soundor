@@ -2,7 +2,18 @@ import type {
   Runtime,
   RuntimeDescriptor,
   RuntimeFactory,
+  RuntimePackage,
 } from '@soundor/config';
+
+/**
+ * What {@link defineRuntime} takes: a {@link Runtime} that declares its
+ * package and compatibility, which the host checks before any phase runs.
+ */
+export interface RuntimeDefinition<
+  Options extends object = object,
+> extends Runtime<Options> {
+  readonly package: RuntimePackage;
+}
 
 /**
  * Authors a runtime and returns the config-callable factory a runtime package
@@ -10,8 +21,13 @@ import type {
  * RuntimeDescriptor} to drop into a config's `runtimes[]`:
  *
  * ```ts
+ * import { name, soundor, version } from '../package.json';
+ *
  * export const juceRuntime = defineRuntime<JuceOptions>({
  *   id: 'juce',
+ *   // package.json: "soundor": { "compatibility": {
+ *   //   "config": ">=0.16.0 <0.17.0", "core": ">=0.16.0 <0.17.0", "schemas": [1] } }
+ *   package: { name, version, compatibility: soundor.compatibility },
  *   async init(config, ctx) { ... },
  *   async gen(config, ctx) { ... },
  *   async dev(config, ctx) { ... },
@@ -27,7 +43,7 @@ import type {
  * implementation; the factory object also exposes `id` and `runtime` directly.
  */
 export function defineRuntime<Options extends object = object>(
-  definition: Runtime<Options>,
+  definition: RuntimeDefinition<Options>,
 ): RuntimeFactory<Options> {
   const factory = (options?: Options): RuntimeDescriptor<Options> => ({
     id: definition.id,

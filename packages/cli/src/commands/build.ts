@@ -14,6 +14,7 @@ import {
   createNodeFileSystem,
   createProjectPaths,
   rootFromConfigPath,
+  isSoundorError,
   SoundorError,
   type SoundorErrorCode,
 } from '@soundor/core';
@@ -86,10 +87,12 @@ export async function runBuild(
       `The ${options.runtime} runtime has no debug build: --debug is for runtimes with DevTools`,
     );
   const mode = debug ? 'debug' : 'production';
-  const runtimeEntries = options.runtime
-    ? [resolveRuntime(config, options.runtime).config]
-    : config.runtimes;
-  const runtimeIds = runtimeEntries.map((runtime) => runtime.id);
+  // Every runtime is resolved, and its compatibility checked, before anything
+  // is generated or bundled.
+  const resolvedRuntimes = (
+    options.runtime ? [options.runtime] : config.runtimes.map(({ id }) => id)
+  ).map((id) => resolveRuntime(config, id));
+  const runtimeIds = resolvedRuntimes.map((resolved) => resolved.config.id);
 
   await runGen({ cwd, configPath, mode, runtimeIds });
 
@@ -115,9 +118,9 @@ export async function runBuild(
     );
   }
 
-  for (const runtimeEntry of runtimeEntries) {
+  for (const resolved of resolvedRuntimes) {
+    const runtimeEntry = resolved.config;
     try {
-      const resolved = resolveRuntime(config, runtimeEntry.id);
       const paths = createProjectPaths({
         root,
         config: configPath,
@@ -212,8 +215,8 @@ function aggregateFailureCode(
   if (
     failures.length > 0 &&
     failures.every(
-      (failure) =>
-        failure.error instanceof SoundorError && failure.error.code === 'ENV',
+      // A runtime throws from its own copy of @soundor/core.
+      (failure) => isSoundorError(failure.error, 'ENV'),
     )
   ) {
     return 'ENV';

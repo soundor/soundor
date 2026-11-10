@@ -20,10 +20,12 @@
     "dev": "tsdown --watch",
     "test": "vitest run",
     "test:watch": "vitest watch",
-    "test:devtools-consumer": "node scripts/devtools-consumer-smoke.mjs"
+    "test:devtools-consumer": "node scripts/devtools-consumer-smoke.mjs",
+    "test:runtime-consumer": "node scripts/runtime-consumer-smoke.mjs"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",
+    "@soundor/config": "workspace:*",
     "@soundor/core": "workspace:*",
     "@soundor/devtools-client": "workspace:^",
     "@soundor/devtools-server": "workspace:^",
@@ -32,7 +34,6 @@
     "tsdown": "catalog:"
   },
   "devDependencies": {
-    "@soundor/config": "workspace:^",
     "@soundor/devtools-protocol": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
@@ -41,9 +42,6 @@
     "react": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "@soundor/config": "workspace:>=0.0.0 <1.0.0"
   },
   "engines": {
     "node": "^22.18.0 || >=24.11.0"

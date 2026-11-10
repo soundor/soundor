@@ -11,6 +11,7 @@
 
 import { join, relative, sep } from 'node:path';
 
+import type { RuntimeFactory } from '@soundor/config';
 import {
   ConfigError,
   defineRuntime,
@@ -27,6 +28,7 @@ import {
   type Logger as ViteLogger,
 } from 'vite';
 
+import { name, soundor, version } from '../package.json';
 import { generateWebSources, nativeModel } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
@@ -179,14 +181,21 @@ export async function webDoctor(
 }
 
 /** The factory a config author registers: `runtimes: [webRuntime({ ... })]`. */
-export const webRuntime = defineRuntime<WebOptions>({
-  id: RUNTIME_ID,
-  init: webInit,
-  gen: webGen,
-  dev: (config, ctx) => webDev(config, ctx),
-  build: (config, ctx) => webBuild(config, ctx),
-  doctor: webDoctor,
-});
+// Typed with @soundor/config's RuntimeFactory, which every project installs, so
+// a project's declarations can name the type of its config.
+export const webRuntime: RuntimeFactory<WebOptions> = defineRuntime<WebOptions>(
+  {
+    id: RUNTIME_ID,
+    // The host refuses a runtime outside its declared compatibility, in
+    // package.json (`soundor.compatibility`), before running any phase.
+    package: { name, version, compatibility: soundor.compatibility },
+    init: webInit,
+    gen: webGen,
+    dev: (config, ctx) => webDev(config, ctx),
+    build: (config, ctx) => webBuild(config, ctx),
+    doctor: webDoctor,
+  },
+);
 
 export default webRuntime;
 

@@ -31,7 +31,8 @@ flowchart TD
 
 The runtime package exports a factory made with `defineRuntime<Options>()`.
 Calling it returns a live descriptor for `config.runtimes[]`; the CLI resolves
-its ID and calls its implementation. Options are owned and validated by the
+its ID, checks that the runtime supports the project's Soundor versions (its
+declared `package.compatibility`), and calls its implementation. Options are owned and validated by the
 runtime. The SDK preserves their TypeScript type, but does not validate their
 values for you.
 
@@ -52,8 +53,10 @@ should fit that boundary without adding runtime-specific branches to the CLI.
    build the lifecycle integration, then connect execution.
 5. [Conformance](/docs/contribute/build-runtime/conformance): what to test now
    and a proposed suite shared by all runtimes.
-6. [Publishing](/docs/contribute/build-runtime/publishing): entry points, peers,
-   engine compatibility and packed consumer checks.
+6. [Publishing](/docs/contribute/build-runtime/publishing): entry points,
+   dependencies, Soundor and engine compatibility, and packed consumer checks;
+   [Dependencies and compatibility](/docs/contribute/compatibility) for the
+   declaration the CLI checks.
 
 ## Invariants and tests
 

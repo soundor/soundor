@@ -29,6 +29,33 @@ export interface RuntimeCapabilities {
   readonly devtools?: DevToolsCapabilities;
 }
 
+/**
+ * What a runtime supports of the host that loads it: the versions of the
+ * host's `@soundor/config` (which parses the config and drives the phases) and
+ * `@soundor/core` (whose context seams and errors the runtime receives), and
+ * the config schema versions it implements in full. The host refuses a
+ * runtime outside them before any phase runs.
+ */
+export interface RuntimeCompatibility {
+  /** Versions of `@soundor/config` supported, as a range: `>=0.16.0 <0.17.0`. */
+  readonly config: string;
+  /** Versions of `@soundor/core` supported, as a range. */
+  readonly core: string;
+  /** `CONFIG_SCHEMA_VERSION`s the runtime handles every field of. */
+  readonly schemas: readonly number[];
+}
+
+/**
+ * The package a runtime ships in, as the host reports it, and its
+ * compatibility: usually the `name`, `version` and `soundor.compatibility` of
+ * its `package.json`.
+ */
+export interface RuntimePackage {
+  readonly name: string;
+  readonly version: string;
+  readonly compatibility: RuntimeCompatibility;
+}
+
 /** Result of a single environment/toolchain check performed by `doctor`. */
 export interface DoctorCheck {
   label: string;
@@ -51,6 +78,12 @@ export interface DoctorReport {
 export interface Runtime<Options extends object = object> {
   /** Stable id; must match the `id` used in `config.runtimes[]`. */
   readonly id: string;
+  /**
+   * The runtime's package and the host versions it supports. Optional only
+   * for runtimes made before it existed, which the host warns about; one made
+   * with `defineRuntime` declares it.
+   */
+  readonly package?: RuntimePackage;
   readonly capabilities?: RuntimeCapabilities;
   /** Scaffold/prepare a project for this runtime. */
   init(config: SoundorConfig, ctx: LifecycleContext<Options>): Promise<void>;

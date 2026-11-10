@@ -1,6 +1,6 @@
 ---
 title: 'Runtime SDK'
-description: 'Writing a runtime: lifecycle context, DevTools capabilities, and signing.'
+description: 'Writing a runtime: compatibility, lifecycle context, DevTools capabilities, and signing.'
 ---
 
 Source: [`packages/runtime-sdk/`](https://github.com/soundor/soundor/tree/main/packages/runtime-sdk).
@@ -15,13 +15,31 @@ describes the environment a runtime must provide in addition to these hooks.
 ## Install
 
 ```sh
-pnpm add @soundor/runtime-sdk @soundor/config @soundor/core
+pnpm add @soundor/runtime-sdk @soundor/config
 ```
+
+It depends on `@soundor/config` and `@soundor/core` and re-exports what a
+runtime needs of them. Depend on `@soundor/config` yourself too, and type the
+exported factory with its `RuntimeFactory`, so your declarations name a
+package every project installs; add `@soundor/core` if you import it.
 
 ## Usage
 
 Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
 `dev`, `build`, and `doctor` commands.
+
+### Compatibility
+
+`defineRuntime` requires `package: { name, version, compatibility }`: the
+runtime's package and the host versions it supports, best read from its
+`package.json` (`soundor.compatibility`), as
+[Dependencies and compatibility](/docs/contribute/compatibility) describes.
+The CLI refuses the runtime before any phase when the project's
+`@soundor/config`, `@soundor/core` or config schema is outside it. The SDK
+re-exports the check (`checkRuntimeCompatibility`, with `HOST_VERSIONS`), so a
+runtime's tests can assert that it accepts the versions they run with, and
+the error protocol (`isSoundorError`, `isConfigError`) for errors from other
+copies of the packages.
 
 ### Optional DevTools capability
 

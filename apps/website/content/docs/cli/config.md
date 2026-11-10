@@ -26,7 +26,18 @@ export default defineSoundorConfig({
 ```
 
 The config is declarative: it describes what the plugin is and exposes, never
-how. `parseConfig` validates it and reports every problem with its path.
+how. `parseConfig` validates it and reports every problem with its path. A
+property the schema does not have is one of them, never dropped: a typo, or a
+setting of a newer Soundor release that this one, and its runtimes, would
+otherwise ignore.
+
+Install `soundor` and `@soundor/config` at the same version, as
+`create-soundor-app` does: the CLI parses the config with its own
+`@soundor/config`, and refuses a project whose `@soundor/config` is of another
+release line (another minor before 1.0). Each runtime declares which versions
+it supports; the CLI refuses one that does not support the project's before
+running it, saying which versions it supports
+([Dependencies and compatibility](/docs/contribute/compatibility)).
 
 ### `plugin`
 

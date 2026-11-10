@@ -271,6 +271,21 @@ in the other. Layout is the same Yoga in both: a style's mapping to it is
 `engines/engine/tests/layout/corpus.json` holds the engine's frames, which the
 web runtime's tests must match exactly.
 
+### Dependencies and compatibility
+
+A package declares what its emitted code or declarations import as
+`dependencies`; peers are only for what the project must share (React,
+Vitest, Vite, the VST3 host). Values crossing packages are recognized by
+protocol, never by `instanceof` or module identity: a project can hold
+several copies of `@soundor/core` (`isSoundorError()`, `isConfigError()`).
+Each runtime declares the host versions it supports in `package.json`
+`soundor.compatibility` (`config`, `core` ranges, config `schemas`), passed to
+`defineRuntime()`'s `package`; `resolveRuntime()` refuses one outside them
+before any phase. A new config field bumps `CONFIG_SCHEMA_VERSION` and goes
+into the `schemas` of the runtimes that implement it;
+`.github/scripts/runtime-compatibility.mjs` (Verify) checks the ranges cover
+the tested and pending versions. See `contribute/compatibility.md`.
+
 ### Accessibility
 
 Soundor owns its accessibility semantics: React props → `node.accessibility`
