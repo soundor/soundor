@@ -1,0 +1,48 @@
+{
+  "name": "@soundor/expression",
+  "version": "0.16.0",
+  "description": "A small, typed, portable expression language and its C++ and JavaScript compilers.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soundor/soundor.git",
+    "directory": "packages/expression"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./compiler/cpp": {
+      "types": "./dist/compiler/cpp.d.mts",
+      "import": "./dist/compiler/cpp.mjs"
+    },
+    "./compiler/js": {
+      "types": "./dist/compiler/js.d.mts",
+      "import": "./dist/compiler/js.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b && tsdown --clean",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "devDependencies": {
+    "@soundor/tsdown-config": "workspace:^",
+    "@soundor/typescript-config": "workspace:^",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
