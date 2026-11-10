@@ -149,8 +149,13 @@ pnpm --filter soundor-benchmark bench --only ui,canvas # some groups or scenario
 Regenerating checked-in generated files:
 
 - `UPDATE_GOLDEN=1 pnpm --filter @soundor/juce-runtime test` — the golden
-  `soundor:native` C++ output in `engines/engine/tests/generated`, compiled by the
+  `soundor:native` C++ output in `engines/engine/tests/generated`, and the
+  generated parameters (`TestParameters.cpp`) with their JavaScript-computed
+  parity table (`ParameterParity.h`) in
+  `runtimes/juce-runtime/native/backend/juce/tests/generated`, compiled by the
   native tests.
+- `UPDATE_FIXTURES=1 pnpm --filter @soundor/web-runtime exec vitest run src/fixtures.test.ts`
+  — the Web runtime's generated client fixtures in `src/client/testing/`.
 - `UPDATE_GOLDEN=1 ./build/dev/tests/soundor_runtime_tests --test-suite="layout corpus"`
   (from `engines/engine`, after a dev build) — the engine's frames in
   `tests/layout/corpus.json`, for a change meant to change layout.
@@ -175,6 +180,12 @@ read the docs bundled with the installed package
 - `packages/config` — `defineSoundorConfig`, the zod schema, `parseConfig`
   (reports every problem with its path), config loading (bundled with rolldown).
   Also defines the `Runtime` interface types.
+- `packages/expression` — `@soundor/expression`: a typed, pure,
+  JSON-serializable expression language (AST, builder, checks) and its C++ and
+  JavaScript compilers, with identical semantics checked by a differential
+  test. Config resolves every parameter into expressions (`ParameterSemantics`:
+  mapping, snapping, format, parse); runtimes only compile them. See the docs'
+  `contribute/expression.md`.
 - `packages/runtime-sdk` — `defineRuntime()`, which turns a runtime definition
   (`init`, `gen`, `dev`, `build`, `doctor`) into the factory a config calls
   (`juceRuntime({...})`).
@@ -270,7 +281,8 @@ read the docs bundled with the installed package
 `soundor.config.ts` → generated contract → each runtime implements the same
 `soundor:*` modules (`parameters`, `host`, `ui`, `native`, `storage`, `fs`)
 and the same subset of Web globals. The web runtime deliberately reproduces
-the JUCE runtime's semantics (parameter clamping/gestures, event routing, error
+the JUCE runtime's semantics (parameter behavior, compiled from the same
+expressions, and gestures, event routing, error
 messages), so a behavior change in one runtime usually needs the matching change
 in the other. Layout is the same Yoga in both: a style's mapping to it is
 `src/client/ui/layout.ts` here and `UiModule.cpp` with `Surface.cpp` there, and
@@ -385,7 +397,7 @@ generated framework or the runtime package, not in `init` templates.
   The pre-commit hook runs lint-staged.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
-- Releases are Changesets; the sixteen packages under `packages/` are a fixed version group;
+- Releases are Changesets; the seventeen packages under `packages/` are a fixed version group;
   `@soundor/engine`, `@soundor/yoga-wasm`, `@soundor/juce-runtime`,
   `@soundor/web-runtime` and `@soundor/vst3-host` are versioned on their own.
   A change to the engine's Yoga also needs a `@soundor/yoga-wasm` changeset,

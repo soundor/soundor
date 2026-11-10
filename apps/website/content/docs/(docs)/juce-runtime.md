@@ -6,8 +6,8 @@ description: 'Native plugin integration, C++ API bindings, formats, JUCE discove
 Source: [`runtimes/juce-runtime/`](https://github.com/soundor/soundor/tree/main/runtimes/juce-runtime).
 
 **The official reference Soundor runtime.** It builds the plugin with JUCE,
-binds parameters through an `AudioProcessorValueTreeState`, generates the C++
-side of the plugin's `soundor:native` API, and owns the build/packaging and dev
+binds parameters through an `AudioProcessorValueTreeState`, compiles their
+behavior and the C++ side of the plugin's `soundor:native` API, and owns the build/packaging and dev
 workflows for VST3/AU.
 
 Each plugin view hosts the [Soundor Engine](/docs/contribute/engine-reference), running the
@@ -32,9 +32,9 @@ export default defineSoundorConfig({
       jucePath: './JUCE',
     }),
   ],
-  parameters: [
-    { type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 },
-  ],
+  parameters: {
+    gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+  },
 });
 ```
 
@@ -270,6 +270,36 @@ JUCE's parameter listeners only set a lock-free flag (they may run on the audio
 thread). Host automation, preset loads and UI changes all reach subscribers on
 the message thread. Gestures (`beginGesture`/`endGesture`) map to JUCE's change
 gestures, so hosts record UI drags as automation.
+
+Each parameter is a Soundor `JuceParameter`, which runs the parameter's
+behavior as plain C++ that `gen` compiles from the config
+(`SoundorParameters.cpp`): its mapping to the host's normalized range, its
+step, and its `format` and `parse`. So the host's text for a value, and the
+value it reads from typed text, are the plugin's own, with the editor closed,
+and match the browser and the tests. A `manual` parameter is not automatable;
+a `readOnly` one is a meter (JUCE's output-meter category), not automatable
+either. A value the UI sets is stored exactly; one from the host's
+automation arrives as a normalized 32-bit float and is mapped and snapped.
+
+The generated base processor has a typed handle for each parameter, named
+after its id (`gainParameter`). `load()` reads it on any thread, realtime-safe,
+as the parameter's C++ type: `float`, `std::int32_t` and the other integer
+types, `bool`, or a choice's enum, in `namespace choices`, its enumerators in
+the options' order:
+
+```cpp
+void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+{
+    buffer.applyGain(juce::Decibels::decibelsToGain(gainParameter.load()));
+    if (modeParameter.load() == choices::Mode::warm)
+        saturate(buffer);
+    // A read-only parameter: lock-free, no allocation.
+    reductionParameter.publish(currentReduction);
+}
+```
+
+`publish()` stores the value; the message thread hands what was published to
+the host and the UI about 30 times a second.
 
 ### `soundor:native`
 

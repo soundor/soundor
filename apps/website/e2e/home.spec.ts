@@ -26,7 +26,7 @@ test('the homepage demo plays and expands without opening an editor', async ({
   const mix = frame.getByRole('slider', { name: 'Mix', exact: true });
   await mix.focus();
   await page.keyboard.press('ArrowUp');
-  await expect(mix).toHaveAttribute('aria-valuenow', '0.61');
+  await expect(mix).toHaveAttribute('aria-valuenow', String(Math.fround(0.61)));
 
   await page.getByRole('button', { name: 'Full screen', exact: true }).click();
   const figure = page.getByRole('figure', {
@@ -36,7 +36,7 @@ test('the homepage demo plays and expands without opening an editor', async ({
     .poll(async () => (await figure.boundingBox())?.height)
     .toBe(page.viewportSize()?.height);
   await expect(page.locator('.cm-content')).toHaveCount(0);
-  await expect(mix).toHaveAttribute('aria-valuenow', '0.61');
+  await expect(mix).toHaveAttribute('aria-valuenow', String(Math.fround(0.61)));
   await page
     .getByRole('button', { name: 'Exit full screen', exact: true })
     .click();

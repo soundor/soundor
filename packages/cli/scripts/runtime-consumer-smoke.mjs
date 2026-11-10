@@ -35,6 +35,7 @@ try {
     'packages/core',
     'packages/environment',
     'packages/config',
+    'packages/expression',
     'packages/runtime-sdk',
     'packages/cli',
     'packages/devtools-protocol',
@@ -92,7 +93,7 @@ import { webRuntime } from '@soundor/web-runtime';
 
 export default defineSoundorConfig({
   plugin: { id: 'com.soundor.packed-runtimes', name: 'Packed runtimes' },
-  parameters: [{ type: 'float', id: 'gain', label: 'Gain', min: 0, max: 1, default: 0.5 }],
+  parameters: { gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 } },
   runtimes: [juceRuntime(), webRuntime()],
 });
 `,
@@ -164,7 +165,7 @@ const newer = {
 
 export default defineSoundorConfig({
   plugin: { id: 'com.soundor.packed-runtimes', name: 'Packed runtimes' },
-  parameters: [],
+  parameters: {},
   runtimes: [webRuntime(), { id: 'newer', options: {}, runtime: newer }],
 });
 `,

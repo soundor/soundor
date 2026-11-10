@@ -20,6 +20,7 @@
       "@soundor/devtools-server",
       "@soundor/driver",
       "@soundor/environment",
+      "@soundor/expression",
       "@soundor/test-runtime",
       "@soundor/testing-library",
       "@soundor/vitest",

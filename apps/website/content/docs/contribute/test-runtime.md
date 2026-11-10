@@ -11,11 +11,17 @@ Applications normally install the Vitest integration and Testing Library rather
 than this package directly.
 
 ```ts
+import { resolveConfig } from '@soundor/config';
 import { createTestRuntime } from '@soundor/test-runtime';
 const runtime = createTestRuntime({
-  parameters: [
-    { id: 'gain', label: 'Gain', type: 'float', min: 0, max: 1, default: 0.5 },
-  ],
+  // Resolved parameters: their metadata and their behavior as expressions.
+  parameters: resolveConfig({
+    plugin: { id: 'com.example.test', name: 'Test' },
+    runtimes: [],
+    parameters: {
+      gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+    },
+  }).parameters,
 });
 const node = runtime.create('view', { opacity: 0 });
 runtime.root.appendChild(node);
@@ -43,8 +49,12 @@ Pressables recognize keyboard activation and virtual-clock long presses.
 values, using semantic ownership for portals and hiding content outside the
 active modal. It reports `textinput` and `adjustable`, rather than DOM roles.
 
-Parameters use the production Web runtime's clamping, rounding, enum validation,
-change notifications and nested gesture semantics. `setHost` publishes snapshots;
+Parameters run the behavior the config resolved them into: `createTestRuntime`
+takes resolved parameters, whose mapping, snapping, `format` and `parse` it
+compiles to JavaScript with `@soundor/expression`, as the Web runtime does. Type
+checks, change notifications, read-only access and nested gestures match the
+Web runtime's. `setParameterAsHost` writes a value as the host or the plugin's
+processing does, read-only parameters included. `setHost` publishes snapshots;
 `mockNative` configures deterministic functions (missing mocks throw).
 Storage serializes JSON on write and returns independent copies on read.
 

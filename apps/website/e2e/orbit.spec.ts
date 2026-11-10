@@ -116,7 +116,7 @@ test('Orbit plays real audio and edits its delay through the portable controls',
   await page.keyboard.press('ArrowUp');
   await expect(
     page.getByRole('slider', { name: 'Mix', exact: true }),
-  ).toHaveAttribute('aria-valuenow', '0.61');
+  ).toHaveAttribute('aria-valuenow', String(Math.fround(0.61)));
   await page.getByRole('radio', { name: 'Original', exact: true }).click();
   await expect(
     page.getByText('Bypassed · original audio', { exact: true }),
