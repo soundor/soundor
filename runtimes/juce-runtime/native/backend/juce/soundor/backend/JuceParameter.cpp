@@ -38,9 +38,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     } // namespace
 
     JuceParameter::JuceParameter(const parameters::Info& info, const ParameterBehavior& behavior)
-        : juce::RangedAudioParameter(juce::ParameterID { juce::String::fromUTF8(info.id.data(), int(info.id.size())), 1 },
-                                     juce::String::fromUTF8(info.label.data(), int(info.label.size())),
-                                     attributesOf(info)),
+        : juce::RangedAudioParameter(
+              juce::ParameterID { juce::String::fromUTF8(info.id.data(), int(info.id.size())), 1 },
+              juce::String::fromUTF8(info.label.data(), int(info.label.size())), attributesOf(info)),
           declared(info),
           functions(behavior),
           range(rangeOf(info, behavior)),

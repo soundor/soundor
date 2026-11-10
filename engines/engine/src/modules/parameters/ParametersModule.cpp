@@ -77,7 +77,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         {
             const Info& info = binding.host->infos()[index];
             if (info.access == Access::ReadOnly)
-                bind::throwTypeError(context, "Parameter '" + info.id + "' is read-only: only the plugin's processing sets it");
+                bind::throwTypeError(context,
+                                     "Parameter '" + info.id + "' is read-only: only the plugin's processing sets it");
         }
 
         // The value argument at `position`: a number, never NaN.

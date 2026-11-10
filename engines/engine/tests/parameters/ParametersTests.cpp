@@ -155,8 +155,9 @@ TEST_SUITE("soundor:parameters")
         CHECK(
             f.value("globalThis.result = JSON.stringify(p.gain.info);").asString()
             == R"({"id":"gain","label":"Gain","access":"automatable","type":"float32","min":-60,"max":6,"default":0,"step":0.5,"unit":"dB"})");
-        CHECK(f.value("globalThis.result = JSON.stringify(p.voices.info);").asString()
-              == R"({"id":"voices","label":"Voices","access":"automatable","type":"int32","min":1,"max":16,"default":4})");
+        CHECK(
+            f.value("globalThis.result = JSON.stringify(p.voices.info);").asString()
+            == R"({"id":"voices","label":"Voices","access":"automatable","type":"int32","min":1,"max":16,"default":4})");
         CHECK(f.value("globalThis.result = JSON.stringify(p.bypass.info);").asString()
               == R"({"id":"bypass","label":"Bypass","access":"automatable","type":"boolean","default":false})");
         CHECK(

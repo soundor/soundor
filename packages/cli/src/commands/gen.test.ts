@@ -226,7 +226,7 @@ export default defineSoundorConfig({
     { id: 'good', options: {}, runtime: good },
     { id: 'newer', options: {}, runtime: newer },
   ],
-  parameters: [],
+  parameters: {},
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
@@ -257,16 +257,15 @@ const runtime = {
 
 export default defineSoundorConfig({
   runtimes: [{ id: 'test', options: {}, runtime }],
-  parameters: [
-    {
-      type: 'float',
-      id: '${parameterId}',
+  parameters: {
+    '${parameterId}': {
+      type: 'float32',
       label: '${parameterId}',
       min: 0,
       max: 1,
       default: 0.5,
     },
-  ],
+  },
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,
@@ -281,7 +280,7 @@ async function writeInvalidConfig(root: string): Promise<void> {
 
 export default defineSoundorConfig({
   runtimes: [{ id: 'test' }],
-  parameters: [],
+  parameters: {},
   plugin: { id: 'com.example.test', name: 'Test' },
 });
 `,

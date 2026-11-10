@@ -45,10 +45,14 @@ function installed(from: string, name: string): string {
 }
 const configRoot = installed(sdkRoot, '@soundor/config');
 const coreRoot = installed(configRoot, '@soundor/core');
-/** Third-party packages the copies import, linked into every tree. */
+/**
+ * Packages the copies import, linked into every tree: third-party ones, and
+ * `@soundor/expression`, whose plain data no copy recognizes by identity.
+ */
 const shared = {
   zod: installed(configRoot, 'zod'),
   rolldown: installed(configRoot, 'rolldown'),
+  '@soundor/expression': installed(configRoot, '@soundor/expression'),
 };
 
 type Package = 'core' | 'config' | 'runtime-sdk';
@@ -156,6 +160,7 @@ function install(
   if (!linkShared) return;
   for (const [name, target] of Object.entries(shared)) {
     const link = join(dir, 'node_modules', name);
+    mkdirSync(dirname(link), { recursive: true });
     if (!existsSync(link)) symlinkSync(target, link, 'dir');
   }
 }
@@ -264,7 +269,7 @@ import { thirdRuntime } from 'soundor-runtime-third';
 export default defineSoundorConfig({
   plugin: { id: 'com.example.copies', name: 'Copies' },
   runtimes: [thirdRuntime({ mode: 'fast' })],
-  parameters: [],
+  parameters: {},
 });
 `,
   );

@@ -103,8 +103,8 @@ namespace
     struct Fixture
     {
         Fixture()
-            : host({ .parameters = std::make_shared<backend::JuceParameterHost>(*processor.state,
-                                                                                 generated::parameterInfos()) })
+            : host({ .parameters =
+                         std::make_shared<backend::JuceParameterHost>(*processor.state, generated::parameterInfos()) })
         {
         }
 
@@ -283,8 +283,9 @@ TEST_CASE("reads values in their declared types, with their metadata")
     CHECK(f.run("globalThis.result = [p.gain.get(), p.filterType.get(), p.voices.get(), p.bypass.get()].join();")
               .asString()
           == "0,bell,4,false");
-    CHECK(f.run("globalThis.result = JSON.stringify(p.gain.info);").asString()
-          == R"({"id":"gain","label":"Gain","access":"automatable","type":"float32","min":-24,"max":24,"default":0,"step":0.01,"unit":"dB"})");
+    CHECK(
+        f.run("globalThis.result = JSON.stringify(p.gain.info);").asString()
+        == R"({"id":"gain","label":"Gain","access":"automatable","type":"float32","min":-24,"max":24,"default":0,"step":0.01,"unit":"dB"})");
     CHECK(f.run("globalThis.result = p.frequency.format(1250) + '|' + p.frequency.parse('2 kHz') + '|'"
                 " + p.frequency.toNormalized(20000) + '|' + p.filterType.fromNormalized(0.5);")
               .asString()
@@ -310,8 +311,8 @@ TEST_CASE("a read-only parameter is published by the processing, never written b
     Fixture f;
     CHECK(f.error("p.reduction.set(-3);")
           == "TypeError: Parameter 'reduction' is read-only: only the plugin's processing sets it");
-    REQUIRE(f.run("globalThis.seen = []; p.reduction.subscribe((v) => seen.push(v)); globalThis.result = 0;")
-                .isNumber());
+    REQUIRE(
+        f.run("globalThis.seen = []; p.reduction.subscribe((v) => seen.push(v)); globalThis.result = 0;").isNumber());
     backend::ParameterOutput<float> reduction(f.processor.parameter("reduction"));
     std::thread audio([&] { reduction.publish(-6.5f); });
     audio.join();
@@ -371,7 +372,7 @@ TEST_CASE("detaches from the APVTS when the runtime is torn down")
     TestProcessor processor;
     {
         RuntimeHost host({ .parameters = std::make_shared<backend::JuceParameterHost>(*processor.state,
-                                                                                       generated::parameterInfos()) });
+                                                                                      generated::parameterInfos()) });
         REQUIRE(host.context()
                     .evaluateModule(soundor::test::module("import { parameters } from 'soundor:parameters';"
                                                           "parameters.gain.subscribe(() => {});"),

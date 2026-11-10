@@ -114,7 +114,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     namespace detail
     {
-        template <class T> [[nodiscard]] T fromPlain(float value) noexcept
+        template <class T>
+        [[nodiscard]] T fromPlain(float value) noexcept
         {
             if constexpr (std::is_same_v<T, float>)
                 return value;
@@ -126,7 +127,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 return static_cast<T>(std::lround(value));
         }
 
-        template <class T> [[nodiscard]] double toPlain(T value) noexcept
+        template <class T>
+        [[nodiscard]] double toPlain(T value) noexcept
         {
             if constexpr (std::is_same_v<T, bool>)
                 return value ? 1.0 : 0.0;
@@ -139,7 +141,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     // A parameter's value in its declared C++ type (float, a sized integer,
     // bool, or the choice's enum), for the processing. Realtime-safe.
-    template <class T> class ParameterValue
+    template <class T>
+    class ParameterValue
     {
     public:
         ParameterValue() = default;
@@ -154,7 +157,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     // A read-only parameter: the processing publishes it (a meter); the UI and
     // the host read it.
-    template <class T> class ParameterOutput final : public ParameterValue<T>
+    template <class T>
+    class ParameterOutput final : public ParameterValue<T>
     {
     public:
         using ParameterValue<T>::ParameterValue;
