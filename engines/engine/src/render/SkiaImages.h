@@ -29,10 +29,13 @@
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
 {
+    class GaneshContext;
+
     // Decoded images by asset id; a failed decode is remembered too.
     class SkiaImages final : public ui::ImageSource
     {
     public:
+        std::shared_ptr<GaneshContext> gpu;
         explicit SkiaImages(ui::Renderer::AssetLoader loader) : assets(std::move(loader)) {}
 
         struct Image

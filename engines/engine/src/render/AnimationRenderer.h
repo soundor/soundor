@@ -1,5 +1,7 @@
 #pragma once
 
+#include "render/DrawingSurface.h"
+
 #include <soundor/Abi.h>
 #include <soundor/ui/Renderer.h>
 
@@ -21,7 +23,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         struct Segment
         {
             LayerId id = newLayerId();
-            RasterSurface pixels;
+            DrawingSurface pixels;
             IntRect bounds;
         };
         struct Hole

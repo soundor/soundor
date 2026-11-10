@@ -775,7 +775,7 @@ export class UiNode extends EventTarget {
 
   /**
    * A canvas's drawing context: '2d' (CanvasRenderingContext2D, drawn with
-   * Skia on the CPU) or 'webgl2' (WebGL2RenderingContext, on the GPU; null
+   * Skia, GPU-backed where available) or 'webgl2' (WebGL2RenderingContext, on the GPU; null
    * where there is no acceptable GPU). The same object every time; null for
    * other types, and for a type other than the one the canvas already has,
    * as on the Web.

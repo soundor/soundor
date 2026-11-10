@@ -19,6 +19,12 @@ include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 
+# Ganesh uses our assembled GLES interface, never a second ANGLE or native GL.
+option(SOUNDOR_ENABLE_GANESH "Draw UI with Skia Ganesh on the compositor's ANGLE device" ${WIN32})
+if((DEFINED SOUNDOR_ENABLE_GPU AND NOT SOUNDOR_ENABLE_GPU) OR IOS)
+  set(SOUNDOR_ENABLE_GANESH OFF)
+endif()
+
 set(SOUNDOR_SKIA_DIR "" CACHE PATH "A Skia install made by SoundorSkiaBuild.cmake; empty: build one into the Soundor cache")
 
 if(WIN32)
@@ -85,7 +91,7 @@ if(NOT SOUNDOR_SKIA_DIR)
     set(skia_win_vc "${CMAKE_MATCH_1}")
     set(skia_win_toolchain "${CMAKE_MATCH_2}")
   endif()
-  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name};${skia_win_toolchain};${SOUNDOR_WINDOWS_CRT_RELEASE}")
+  string(SHA256 key "${SOUNDOR_SKIA_REVISION};${SOUNDOR_SKIA_DEPENDENCIES};${script_hash};${prefix_hash};${skia_cxx_name};${skia_win_toolchain};${SOUNDOR_WINDOWS_CRT_RELEASE};${SOUNDOR_ENABLE_GANESH}")
   if(SOUNDOR_ENABLE_SANITIZERS)
     # ASan adds state to Skia's inline containers. A non-ASan archive has a
     # different SVG node layout and cannot be read through these headers.
@@ -116,6 +122,7 @@ if(NOT SOUNDOR_SKIA_DIR)
           "-DCC=${skia_cc}"
           "-DCXX=${skia_cxx}"
           "-DADDRESS_SANITIZER=${SOUNDOR_ENABLE_SANITIZERS}"
+          "-DGANESH=${SOUNDOR_ENABLE_GANESH}"
           -P "${CMAKE_CURRENT_LIST_DIR}/SoundorSkiaBuild.cmake"
         RESULT_VARIABLE status)
       if(NOT status EQUAL 0)
@@ -144,7 +151,13 @@ else()
 endif()
 
 file(STRINGS "${SOUNDOR_SKIA_DIR}/defines.txt" soundor_skia_defines REGEX "^SK")
+if(SOUNDOR_ENABLE_GANESH AND NOT "SK_GANESH" IN_LIST soundor_skia_defines)
+  message(FATAL_ERROR "SOUNDOR_ENABLE_GANESH needs a Ganesh-enabled Skia; rebuild SOUNDOR_SKIA_DIR with -DGANESH=ON")
+endif()
 # Skia is always a release build; its headers must agree whatever we build.
 target_compile_definitions(soundor_skia INTERFACE SK_RELEASE ${soundor_skia_defines})
+if(SOUNDOR_ENABLE_GANESH)
+  target_compile_definitions(soundor_skia INTERFACE SK_DISABLE_LEGACY_GL_MAKE_NATIVE_INTERFACE)
+endif()
 target_include_directories(soundor_skia SYSTEM INTERFACE "${SOUNDOR_SKIA_DIR}")
 target_link_libraries(soundor_skia INTERFACE ${SOUNDOR_SKIA_SYSTEM_LIBRARIES})

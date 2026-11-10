@@ -54,6 +54,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
                                  });
         if (options.parameters != nullptr)
             parameters::install(*jsContext, std::move(options.parameters));
+        if (renderer->setGpuDevice(options.gpuDevice) && options.runtime.log)
+            options.runtime.log(js::LogLevel::Info, "UI renderer: Skia Ganesh / ANGLE");
         ui::install(*jsContext, uiSurface);
         gpu::installWebGL(*jsContext, std::move(options.gpuDevice), options.allowSoftwareGpu);
         if (options.installModules)

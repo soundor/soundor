@@ -2,7 +2,7 @@
 // CanvasGradient, CanvasPattern and TextMetrics, as on the Web.
 //
 // Embedded into the native runtime; part of soundor:ui. Drawing happens
-// natively (Skia, on the CPU) into the canvas's pixels: each method converts
+// natively (Skia, GPU-backed where available) into the canvas's pixels: each method converts
 // its arguments the way WebIDL would, then makes one native call,
 // call2d(node, op, ...). Path commands are the exception: they draw nothing
 // by themselves, so they are gathered (in a Float64Array) and sent in one

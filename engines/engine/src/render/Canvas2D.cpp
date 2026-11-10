@@ -1,5 +1,6 @@
 #include "render/Canvas2D.h"
 
+#include "render/DrawingSurface.h"
 #include "render/SkiaImages.h"
 #include "render/SkiaText.h"
 #include "ui/Color.h"
@@ -412,6 +413,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         std::shared_ptr<ui::CanvasBuffer> buffer;
         std::shared_ptr<ui::ImageSource> images;
         std::unique_ptr<SkCanvas> canvas;
+        std::shared_ptr<GaneshContext> gpu;
         std::uint64_t seenResets = 0;
         std::vector<State> states { State {} };
         // In canvas pixels: each point is transformed when it is added.
@@ -423,27 +425,70 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         State& state() { return states.back(); }
         [[nodiscard]] const State& state() const { return states.back(); }
 
-        // The canvas over the buffer; a (re)sized buffer resets everything.
+        // Each public operation makes our context current for its scope;
+        // JavaScript and other editors never inherit this context.
+        std::unique_ptr<GaneshContext::Scope> current()
+        {
+            if (! gpu)
+                return nullptr;
+            auto scope = gpu->makeCurrent();
+            if (! scope || ! gpu->healthy())
+            {
+                // A reset loses GPU canvas contents, as WebGL does. Retained
+                // UI can repaint; an immediate canvas starts transparent.
+                buffer->drawingSurface.reset();
+                buffer->gpuImage.reset();
+                buffer->gpuDrawn = false;
+                canvas.reset();
+                const auto pixels = buffer->pixels.bitmap();
+                if (! pixels.empty())
+                    std::memset(pixels.pixels, 0, pixels.rowBytes * static_cast<std::size_t>(pixels.height));
+                ++buffer->resets;
+                gpu.reset();
+                return nullptr;
+            }
+            return scope;
+        }
+
+        // A resized buffer resets the native context's state and path.
         SkCanvas& surface()
         {
-            if (canvas == nullptr || seenResets != buffer->resets)
+            if ((canvas == nullptr && ! buffer->drawingSurface) || seenResets != buffer->resets)
             {
                 const Bitmap bitmap = buffer->pixels.bitmap();
-                canvas = SkCanvas::MakeRasterDirect(
-                    SkImageInfo::Make(std::max(bitmap.width, 1), std::max(bitmap.height, 1), kBGRA_8888_SkColorType,
-                                      kPremul_SkAlphaType),
-                    bitmap.empty() ? &scratchPixel : bitmap.pixels, bitmap.empty() ? 4 : bitmap.rowBytes);
+                buffer->drawingSurface.reset();
+                if (gpu && ! bitmap.empty())
+                    buffer->drawingSurface = GaneshSurface::create(gpu, bitmap.width, bitmap.height);
+                if (buffer->drawingSurface)
+                {
+                    buffer->gpuImage = buffer->drawingSurface->image();
+                    buffer->gpuDrawn = true;
+                    canvas.reset();
+                }
+                else
+                {
+                    buffer->gpuImage.reset();
+                    canvas = SkCanvas::MakeRasterDirect(
+                        SkImageInfo::Make(std::max(bitmap.width, 1), std::max(bitmap.height, 1), kBGRA_8888_SkColorType,
+                                          kPremul_SkAlphaType),
+                        bitmap.empty() ? &scratchPixel : bitmap.pixels, bitmap.empty() ? 4 : bitmap.rowBytes);
+                }
                 seenResets = buffer->resets;
                 states.assign(1, State {});
                 path.reset();
                 hasCurrentPoint = false;
             }
-            return *canvas;
+            return buffer->drawingSurface ? buffer->drawingSurface->begin() : *canvas;
         }
 
         [[nodiscard]] SkMatrix matrix() { return surface().getTotalMatrix(); }
 
-        void drawn() { buffer->drawn = true; }
+        void drawn()
+        {
+            buffer->drawn = true;
+            if (buffer->drawingSurface)
+                buffer->gpuDrawn = true;
+        }
 
         [[nodiscard]] SkPaint paintFor(const Style& style, bool stroke) const
         {
@@ -686,10 +731,24 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         impl->buffer = target;
         impl->images = std::move(images);
         impl->fonts = std::move(fonts);
+        if (auto* source = dynamic_cast<SkiaImages*>(impl->images.get()))
+            impl->gpu = source->gpu;
+        const auto current = impl->current();
         impl->surface();
     }
 
-    Canvas2D::~Canvas2D() = default;
+    Canvas2D::~Canvas2D()
+    {
+        const auto current = impl->current();
+        target->drawingSurface.reset();
+        target->gpuImage.reset();
+        impl.reset();
+    }
+
+    std::unique_ptr<GaneshContext::Scope> Canvas2D::makeCurrent()
+    {
+        return impl->current();
+    }
 
     void Canvas2D::sync()
     {
@@ -879,12 +938,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     {
         auto paint = std::make_shared<Paint>();
         paint->kind = Paint::Kind::Pattern;
-        const RasterSurface& pixels = source.pixels;
-        if (pixels.width() > 0 && pixels.height() > 0)
-            // The source as it is now: later drawing does not change the pattern.
-            paint->image = SkImages::RasterFromPixmapCopy(SkPixmap(
-                SkImageInfo::Make(pixels.width(), pixels.height(), kBGRA_8888_SkColorType, kPremul_SkAlphaType),
-                pixels.pixels(), static_cast<std::size_t>(pixels.width()) * 4));
+        paint->image = canvasImage(source, target->drawingSurface != nullptr, true);
         const bool repeatX = repetition.empty() || repetition == "repeat" || repetition == "repeat-x";
         const bool repeatY = repetition.empty() || repetition == "repeat" || repetition == "repeat-y";
         paint->tileX = repeatX ? SkTileMode::kRepeat : SkTileMode::kDecal;
@@ -1231,15 +1285,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
     void Canvas2D::drawCanvas(const ui::CanvasBuffer& source, double sx, double sy, double sw, double sh, double dx,
                               double dy, double dw, double dh)
     {
-        const RasterSurface& pixels = source.pixels;
-        if (pixels.width() == 0 || pixels.height() == 0)
-            return;
-        const SkPixmap pixmap(
-            SkImageInfo::Make(pixels.width(), pixels.height(), kBGRA_8888_SkColorType, kPremul_SkAlphaType),
-            pixels.pixels(), static_cast<std::size_t>(pixels.width()) * 4);
-        // Drawing a canvas into itself reads a copy.
-        const sk_sp<SkImage> image = &source == target.get() ? SkImages::RasterFromPixmapCopy(pixmap)
-                                                             : SkImages::RasterFromPixmap(pixmap, nullptr, nullptr);
+        const sk_sp<SkImage> image = canvasImage(source, target->drawingSurface != nullptr, &source == target.get());
         if (image == nullptr)
             return;
         impl->drawImage(image,
@@ -1290,7 +1336,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                            + (static_cast<std::size_t>(area.top() - y) * static_cast<std::size_t>(width)
                               + static_cast<std::size_t>(area.left() - x))
                                  * 4;
-        source.readPixels(destination, at, static_cast<std::size_t>(width) * 4, area.left(), area.top());
+        if (target->drawingSurface)
+            target->drawingSurface->readPixels(destination, at, static_cast<std::size_t>(width) * 4, area.left(),
+                                               area.top());
+        else
+            source.readPixels(destination, at, static_cast<std::size_t>(width) * 4, area.left(), area.top());
         return rgba;
     }
 
@@ -1316,8 +1366,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                    + (static_cast<std::size_t>(onCanvas.top()) * static_cast<std::size_t>(pixels.width())
                       + static_cast<std::size_t>(onCanvas.left()))
                          * 4;
-        source.readPixels(destination, at, static_cast<std::size_t>(pixels.width()) * 4, onCanvas.left() - dx,
-                          onCanvas.top() - dy);
+        if (target->drawingSurface)
+        {
+            const SkPixmap part(
+                SkImageInfo::Make(onCanvas.width(), onCanvas.height(), kRGBA_8888_SkColorType, kUnpremul_SkAlphaType),
+                source.addr(onCanvas.left() - dx, onCanvas.top() - dy), source.rowBytes());
+            target->drawingSurface->writePixels(part, onCanvas.left(), onCanvas.top());
+        }
+        else
+            source.readPixels(destination, at, static_cast<std::size_t>(pixels.width()) * 4, onCanvas.left() - dx,
+                              onCanvas.top() - dy);
         impl->drawn();
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render

@@ -2,11 +2,12 @@
 #
 #   cmake -DOUT=<dir> -DREVISION=<sha> -DREPOSITORY=<url> -DDEPENDENCIES=<a;b>
 #         -DTARGET_OS=<linux|mac|win> -DCPUS=<x64;arm64> -DFLAVORS=<name;...>
-#         [-DCC=<c compiler> -DCXX=<c++ compiler>] -P SoundorSkiaBuild.cmake
+#         [-DGANESH=ON] [-DCC=<c compiler> -DCXX=<c++ compiler>] -P SoundorSkiaBuild.cmake
 #
 # Skia is fetched at REVISION and its third-party code only for DEPENDENCIES,
-# each at the commit Skia's own DEPS file pins. The build is CPU-only: no GPU
-# backends, no PDF, no ICU or HarfBuzz. SVG uses Expat and primitive shaping. Every file is compiled with
+# each at the commit Skia's own DEPS file pins. GANESH adds the GLES backend
+# with an assembled interface supplied by our ANGLE, never native OpenGL.
+# No PDF, ICU or HarfBuzz. SVG uses Expat and primitive shaping. Every file is compiled with
 # skia/SoundorSkiaPrefix.h forced in, which renames libjpeg-turbo's, libpng's
 # and libwebp's symbols to soundor_*: a plugin can also contain JUCE's copies
 # of those libraries (or any other), and the names would otherwise clash. OUT
@@ -121,6 +122,7 @@ is_debug = false
 skia_enable_ganesh = false
 skia_enable_graphite = false
 skia_use_gl = false
+skia_enable_tools = false
 skia_use_vulkan = false
 skia_use_metal = false
 skia_use_dawn = false
@@ -161,6 +163,12 @@ else()
 endif()
 
 set(built_libraries "")
+if(GANESH)
+  string(REPLACE "skia_enable_ganesh = false" "skia_enable_ganesh = true" common_args "${common_args}")
+  string(REPLACE "skia_use_gl = false" "skia_use_gl = true" common_args "${common_args}")
+  string(APPEND common_args "skia_gl_standard = \"gles\"\nskia_use_egl = false\nskia_use_angle = false\n")
+endif()
+
 foreach(flavor IN LISTS FLAVORS)
   set(per_cpu "")
   foreach(cpu IN LISTS CPUS)
@@ -199,6 +207,14 @@ foreach(flavor IN LISTS FLAVORS)
       endif()
       if(DEFINED CC AND NOT CC STREQUAL "")
         string(APPEND args "cc = \"${CC}\"\ncxx = \"${CXX}\"\n")
+      endif()
+    endif()
+    if(GANESH)
+      # No native GL loader: all entry points come from our private ANGLE.
+      if(TARGET_OS STREQUAL "win")
+        string(APPEND args "extra_cflags += [ \"/DSK_DISABLE_LEGACY_GL_MAKE_NATIVE_INTERFACE\" ]\n")
+      else()
+        string(APPEND args "extra_cflags += [ \"-DSK_DISABLE_LEGACY_GL_MAKE_NATIVE_INTERFACE\" ]\n")
       endif()
     endif()
     file(WRITE "${source}/out/${name}/args.gn" "${args}")

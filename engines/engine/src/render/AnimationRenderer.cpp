@@ -228,8 +228,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             // A resized segment must not retain a larger old allocation outside
             // the reservation budget. Presentation-only frames keep its size.
             if (segment.pixels.width() != area.width || segment.pixels.height() != area.height)
-                segment.pixels = RasterSurface {};
-            const bool resize = segment.pixels.resize(area.width, area.height);
+                segment.pixels = DrawingSurface {};
+            const bool resize = painter.prepare(segment.pixels, area.width, area.height, device);
             statistics.cachedRasterBytes += static_cast<std::uint64_t>(segment.pixels.width())
                                             * static_cast<std::uint64_t>(segment.pixels.height()) * 4;
             Region damage;
@@ -241,15 +241,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                                                         static_cast<float>(area.x) / scale,
                                                         static_cast<float>(area.y) / scale,
                                                         true };
-                painter.render(surface, segment.pixels.bitmap(), seconds, nullptr, &layering);
+                painter.render(surface, segment.pixels, seconds, nullptr, &layering);
                 damage.add({ 0, 0, area.width, area.height });
                 ++statistics.layersRasterized;
                 statistics.pixelsRasterized += damage.area();
             }
             if (! area.empty())
-                content.layers.push_back({ .id = segment.id,
-                                           .bounds = { area.x - extent.x, area.y - extent.y, area.width, area.height },
-                                           .content = RasterContent { &segment.pixels, damage } });
+            {
+                Layer layer = segment.pixels.content(damage);
+                layer.id = segment.id;
+                layer.bounds = { area.x - extent.x, area.y - extent.y, area.width, area.height };
+                content.layers.push_back(std::move(layer));
+            }
             if (i >= holes.size())
                 continue;
             const Hole& hole = holes[i];
@@ -319,6 +322,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
         for (const auto id : surface.canvases())
         {
             const auto canvas = surface.canvasBuffer(id);
+            flushCanvas(*canvas);
             if (changedDevice && canvas->gpuImage && canvas->gpuImage->device() != device)
                 canvas->gpuDrawn = true;
             if (canvas->gpuImage == nullptr || canvas->gpuImage->device() == device || ! canvas->gpuDrawn)

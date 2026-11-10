@@ -1,3 +1,4 @@
+#include "render/DrawingSurface.h"
 #include "render/SkiaImages.h"
 #include "render/SkiaText.h"
 #include "render/VectorScene.h"
@@ -121,6 +122,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         }
         // Where part of a view is drawn before being copied in.
         render::RasterSurface scratch;
+        std::shared_ptr<render::GaneshSurface> gpuScratch;
 
         void draw(SkCanvas& canvas);
         void drawNode(SkCanvas& canvas, const Node& node);
@@ -152,6 +154,122 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     std::shared_ptr<ImageSource> Renderer::images() const
     {
         return impl->images;
+    }
+
+    bool Renderer::setGpuDevice(const std::shared_ptr<gpu::Device>& device)
+    {
+        impl->images->gpu = render::GaneshContext::create(device);
+        return impl->images->gpu != nullptr;
+    }
+
+    bool Renderer::usesGpu(const gpu::Device* device) const
+    {
+        const auto& context = impl->images->gpu;
+        if (! context || context->device() != device)
+            return false;
+        const auto current = context->makeCurrent();
+        return current && context->healthy();
+    }
+
+    bool Renderer::prepare(render::DrawingSurface& target, int width, int height, const gpu::Device* device)
+    {
+        auto context = impl->images->gpu;
+        if (context)
+        {
+            const auto current = context->makeCurrent();
+            if (context->device() != device || ! current || ! context->healthy())
+                context.reset();
+        }
+        return target.resize(width, height, context);
+    }
+
+    void Renderer::render(Surface& surface, render::DrawingSurface& target, double seconds, const render::Region* only,
+                          const Layering* layering)
+    {
+        if (! target.gpu)
+        {
+            render(surface, target.raster.bitmap(), seconds, only, layering);
+            return;
+        }
+        if (only && only->empty())
+            return;
+        auto& context = target.gpu->context();
+        const auto current = context.makeCurrent();
+        if (! current || ! context.healthy())
+            return;
+        surface.layout();
+#if SOUNDOR_DEVTOOLS
+        const bool profiling = surface.debugRecording();
+        const auto rasterStarted =
+            profiling ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point {};
+#endif
+        impl->surface = &surface;
+        impl->seconds = seconds;
+        impl->layering = layering;
+        if (! only)
+        {
+            auto& canvas = target.gpu->begin();
+            canvas.save();
+            canvas.clear(SK_ColorTRANSPARENT);
+            impl->draw(canvas);
+            canvas.restore();
+        }
+        else
+        {
+            const render::IntRect all { 0, 0, target.width(), target.height() };
+            for (const auto& rect : only->rects())
+            {
+                const auto inside = rect.intersected(all);
+                if (inside.empty())
+                    continue;
+                constexpr int margin = 4;
+                const auto drawn = render::IntRect { inside.x - margin, inside.y - margin, inside.width + margin * 2,
+                                                     inside.height + margin * 2 }
+                                       .intersected(all);
+                auto& scratch = impl->gpuScratch;
+                if (! scratch || scratch->image()->width() != drawn.width || scratch->image()->height() != drawn.height
+                    || scratch->image()->device() != context.device())
+                    scratch = render::GaneshSurface::create(impl->images->gpu, drawn.width, drawn.height);
+                if (! scratch)
+                {
+                    // Allocation failure: repaint this layer fully on the CPU.
+                    target.gpu.reset();
+                    target.raster.resize(all.width, all.height);
+                    impl->surface = nullptr;
+                    impl->layering = nullptr;
+                    render(surface, target.raster.bitmap(), seconds, nullptr, layering);
+                    return;
+                }
+                auto& canvas = scratch->begin();
+                canvas.save();
+                canvas.clear(SK_ColorTRANSPARENT);
+                canvas.translate(static_cast<float>(-drawn.x), static_cast<float>(-drawn.y));
+                impl->draw(canvas);
+                canvas.restore();
+                scratch->publish();
+                auto& destination = target.gpu->begin();
+                destination.save();
+                destination.clipRect(SkRect::MakeXYWH(static_cast<float>(inside.x), static_cast<float>(inside.y),
+                                                      static_cast<float>(inside.width),
+                                                      static_cast<float>(inside.height)));
+                SkPaint paint;
+                paint.setBlendMode(SkBlendMode::kSrc);
+                destination.drawImage(scratch->snapshot(), static_cast<float>(drawn.x), static_cast<float>(drawn.y),
+                                      SkSamplingOptions(), &paint);
+                destination.restore();
+            }
+        }
+        target.gpu->publish();
+        impl->surface = nullptr;
+        impl->layering = nullptr;
+#if SOUNDOR_DEVTOOLS
+        // CPU submission time, not GPU completion time: never synchronize the
+        // device merely to measure it.
+        if (profiling)
+            surface.debugRasterTime(static_cast<std::uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - rasterStarted)
+                    .count()));
+#endif
     }
 
     void Renderer::render(Surface& surface, const render::Bitmap& target, double seconds, const render::Region* only,
@@ -530,14 +648,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
     void Renderer::Impl::drawCanvas(SkCanvas& canvas, const Node& node, const SkRRect& outer)
     {
-        const render::RasterSurface& pixels = node.canvas()->pixels;
-        if (pixels.width() == 0 || pixels.height() == 0)
-            return;
-        const SkPixmap pixmap(
-            SkImageInfo::Make(pixels.width(), pixels.height(), kBGRA_8888_SkColorType, kPremul_SkAlphaType),
-            pixels.pixels(), static_cast<std::size_t>(pixels.width()) * 4);
-        // Borrows the pixels: nothing is copied.
-        const sk_sp<SkImage> image = SkImages::RasterFromPixmap(pixmap, nullptr, nullptr);
+        const auto image = render::canvasImage(*node.canvas(), canvas.recordingContext() != nullptr);
         if (image == nullptr)
             return;
         const Rect content = node.contentBox();
