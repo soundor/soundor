@@ -126,7 +126,9 @@ class Parameter {
 
   set(value) {
     this.#writable();
-    host.set(this.#index, toHost(this.#info, value));
+    const next = typeof value === 'function' ? value(this.get()) : value;
+    // The type conversion rejects promises and thenables before entering native code.
+    host.set(this.#index, toHost(this.#info, next));
   }
 
   subscribe(listener) {

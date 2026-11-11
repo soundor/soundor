@@ -36,8 +36,11 @@ describe('standalone persistence', () => {
     const a = application();
     await a.ready;
     expect(a.store.fields.selected!.get()).toBeNull();
-    a.store.fields.selected!.set('Warm');
-    a.store.fields.bands!.set([{ gain: -3.125 }]);
+    a.store.fields.selected!.set((current: unknown) => current ?? 'Warm');
+    a.store.fields.bands!.set((current: unknown) => [
+      ...(current as { gain: number }[]),
+      { gain: -3.125 },
+    ]);
     a.parameters.byId.gain!.set(0.75);
     await a.flush();
     const b = application(a.manifest.plugin.id);

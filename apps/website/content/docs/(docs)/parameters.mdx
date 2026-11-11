@@ -246,17 +246,16 @@ One parameter of each type, in React:
 ## Group a user edit into a gesture
 
 A gesture tells the host when a user starts and finishes changing a parameter.
-For a discrete action, bracket the write:
+A discrete action automatically gets a one-shot gesture when the normalized value changes:
 
 ```ts
-const gain = parameters.gain;
-gain.beginGesture();
-try {
-  gain.set(gain.info.default);
-} finally {
-  gain.endGesture();
-}
+parameters.gain.set(parameters.gain.info.default);
+parameters.enabled.set((current) => !current);
 ```
+
+A functional updater runs synchronously against the latest parameter value,
+including changes since the last React render. It must return a valid value;
+async functions and thenables are rejected. See [the setter contract](/docs/api/parameters#synchronous-updates-and-gestures).
 
 For a drag, begin on pointer down, set values as the pointer moves, and end
 when the interaction finishes or is cancelled. Balance gestures across every

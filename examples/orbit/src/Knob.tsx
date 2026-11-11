@@ -41,9 +41,7 @@ export function Knob({
   const normalized = (value - min) / (max - min);
   const change = (next: number) => parameter.set(clamp(next, min, max));
   const edit = (next: number) => {
-    parameter.beginGesture();
     change(next);
-    parameter.endGesture();
   };
   const end = () => {
     if (drag.current === null) return;

@@ -269,7 +269,10 @@ const stop = parameters.gain.subscribe((gain) => drawKnob(gain));
 JUCE's parameter listeners only set a lock-free flag (they may run on the audio
 thread). Host automation, preset loads and UI changes all reach subscribers on
 the message thread. Gestures (`beginGesture`/`endGesture`) map to JUCE's change
-gestures, so hosts record UI drags as automation.
+gestures, so hosts record UI drags as automation. A changed automatable `set()`
+without an explicit gesture gets a one-shot gesture automatically. Setters and
+functional updaters execute synchronously on the UI thread; `get()` sees the
+completed write immediately, while subscriber notifications arrive on the tick.
 
 Each parameter is a Soundor `JuceParameter`, which runs the parameter's
 behavior as plain C++ that `gen` compiles from the config

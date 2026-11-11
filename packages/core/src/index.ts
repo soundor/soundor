@@ -89,3 +89,5 @@ export {
 export { nativeTsType, renderNativeDts } from './native-dts';
 
 export * from './state';
+
+export { resolveSetter, type ValueOrUpdater } from './setter';

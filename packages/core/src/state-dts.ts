@@ -14,7 +14,8 @@ ${schema.types.map((t) => '  ' + renderNativeTsType(t, 'export ')).join('\n')}
   /** Values are detached and deeply frozen. Equivalent writes do not notify. */
   export interface StateField<T> {
     get(): T;
-    set(value: T): void;
+    /** Sets a value or runs a synchronous updater against the latest immutable value. No automatic gesture. */
+    set(value: T | ((current: T) => T)): void;
     /** Starts an optional editing interaction. Nested calls form one gesture; writes remain immediate. */
     beginGesture(): void;
     /** Ends an interaction. Unmatched calls do nothing; gestures never automate the host. */

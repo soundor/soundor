@@ -47,3 +47,8 @@ It takes anything with `get()` and `subscribe()`, as
 [`soundor:parameters`](/docs/api/parameters)' parameters have. The
 [Parameters guide](/docs/parameters) shows how to declare them and connect
 them to audio.
+
+For a discrete toggle, `parameters.enabled.set(current => !current)` reads the
+latest store value and automatically brackets a changed automatable value in a
+host gesture. The hook still returns only the subscribed value. Use the updater
+when the next value depends on the current value, avoiding a stale render closure.

@@ -140,11 +140,18 @@ void install(js::Context& context, PersistentState& state) {
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.enabled.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.enabled.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "enabled", binding(ctx).state.storage().get("enabled"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.enabled" };
           bool value {};
-          read(ctx, args[0], path, value);
+          read(ctx, resolved, path, value);
           binding(ctx).state.enabled.set(std::move(value));
           return jsi::Value::undefined();
         });
@@ -178,11 +185,18 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.groups.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.groups.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "groups", binding(ctx).state.storage().get("groups"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.groups" };
           std::vector<native::Group> value {};
-          bind::readArray(ctx, args[0], path, value, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Group& item) { read(elementCtx, element, elementPath, item); });
+          bind::readArray(ctx, resolved, path, value, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Group& item) { read(elementCtx, element, elementPath, item); });
           binding(ctx).state.groups.set(std::move(value));
           return jsi::Value::undefined();
         });
@@ -216,11 +230,18 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.precise.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.precise.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "precise", binding(ctx).state.storage().get("precise"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.precise" };
           double value {};
-          bind::readFloat64(ctx, args[0], path, value);
+          bind::readFloat64(ctx, resolved, path, value);
           binding(ctx).state.precise.set(std::move(value));
           return jsi::Value::undefined();
         });
@@ -254,11 +275,18 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.selectedPreset.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.selectedPreset.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "selectedPreset", binding(ctx).state.storage().get("selectedPreset"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.selectedPreset" };
           std::optional<std::string> value {};
-          bind::readNullable(ctx, args[0], path, value, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& present) { read(innerCtx, inner, innerPath, present); });
+          bind::readNullable(ctx, resolved, path, value, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& present) { read(innerCtx, inner, innerPath, present); });
           binding(ctx).state.selectedPreset.set(std::move(value));
           return jsi::Value::undefined();
         });
@@ -292,11 +320,18 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.signedValue.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.signedValue.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "signedValue", binding(ctx).state.storage().get("signedValue"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.signedValue" };
           std::int64_t value {};
-          read(ctx, args[0], path, value);
+          read(ctx, resolved, path, value);
           binding(ctx).state.signedValue.set(std::move(value));
           return jsi::Value::undefined();
         });
@@ -330,11 +365,18 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.unsignedValue.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.unsignedValue.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "unsignedValue", binding(ctx).state.storage().get("unsignedValue"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.unsignedValue" };
           std::uint64_t value {};
-          read(ctx, args[0], path, value);
+          read(ctx, resolved, path, value);
           binding(ctx).state.unsignedValue.set(std::move(value));
           return jsi::Value::undefined();
         });

@@ -5,6 +5,9 @@ import {
   type NativeApiModel,
   type NativeType,
 } from './native-api';
+import { resolveSetter, type ValueOrUpdater } from './setter';
+
+export { resolveSetter, type ValueOrUpdater } from './setter';
 
 export interface StateDeclaration {
   readonly type: string;
@@ -296,7 +299,7 @@ export function readSnapshot(text: string): SoundorSnapshot {
 
 export interface StateCell<T = unknown> {
   get(): T;
-  set(value: T): void;
+  set(value: ValueOrUpdater<T>): void;
   beginGesture(): void;
   endGesture(): void;
   subscribe(listener: (value: T) => void): () => void;
@@ -405,7 +408,7 @@ export class StateStore {
     const value = stateValue(
       this.schema,
       field.type,
-      raw,
+      resolveSetter(raw, () => this.#values.get(field.name)),
       `state.${field.name}`,
     );
     if (stateJson(value) === stateJson(this.#values.get(field.name))) return;

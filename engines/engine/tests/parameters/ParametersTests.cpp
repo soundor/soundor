@@ -10,6 +10,7 @@
 #include <cmath>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -58,6 +59,8 @@ namespace
         void setValue(std::size_t index, double value) override
         {
             log.push_back("set " + declared[index].id + " " + Value::number(value).toString());
+            if (failWrite)
+                throw std::runtime_error("publication failed");
             values[index] = value;
             flags.markChanged(index);
         }
@@ -112,6 +115,7 @@ namespace
         std::vector<double> values;
         parameters::ChangeFlags flags;
         std::vector<std::string> log;
+        bool failWrite = false;
     };
 
     struct Fixture
@@ -198,8 +202,9 @@ TEST_SUITE("soundor:parameters")
                         "p.voices.set(7.6); p.gain.set(100); p.lowCut.set(-5); globalThis.result = 0;")
                     .isNumber());
         CHECK(f.host->log
-              == std::vector<std::string> { "set gain -12.5", "set bypass 1", "set mode 0", "set voices 8",
-                                            "set gain 6", "set lowCut 20" });
+              == std::vector<std::string> { "begin gain", "set gain -12.5", "end gain", "begin bypass", "set bypass 1",
+                                            "end bypass", "begin mode", "set mode 0", "end mode", "begin voices",
+                                            "set voices 8", "end voices", "begin gain", "set gain 6", "end gain" });
         CHECK(f.value("globalThis.result = p.gain.get();").asNumber() == 6);
     }
 
@@ -352,6 +357,46 @@ TEST_SUITE("soundor:parameters")
                         "p.mode.endGesture(); globalThis.result = 0;")
                     .isNumber());
         CHECK(f.host->log == std::vector<std::string> { "begin gain", "set gain -1", "end gain" });
+    }
+
+    TEST_CASE("functional writes use current values once, balance automatic gestures and skip no-ops")
+    {
+        Fixture f;
+        CHECK(f.value("let calls = 0; p.voices.set(v => { calls++; return v + 1; });"
+                      "p.voices.set(v => v + 1); p.voices.set(v => v); p.voices.set(6.2);"
+                      "p.bypass.set(v => !v); p.mode.set(v => v === 'stereo' ? 'mono' : 'stereo');"
+                      "globalThis.result = calls + ',' + p.voices.get() + ',' + p.bypass.get() + ',' + p.mode.get();")
+                  .asString()
+              == "1,6,true,mono");
+        CHECK(f.host->log
+              == std::vector<std::string> { "begin voices", "set voices 5", "end voices", "begin voices",
+                                            "set voices 6", "end voices", "begin bypass", "set bypass 1", "end bypass",
+                                            "begin mode", "set mode 0", "end mode" });
+        f.host->log.clear();
+        CHECK(f.error("p.gain.set(() => { throw Error('failed'); });") == "Error: failed");
+        const auto asyncError = f.error("p.gain.set(async function(v) { return v + 1; });");
+        CHECK_MESSAGE(asyncError.find("TypeError:") == 0, asyncError);
+        CHECK(f.error("p.gain.set(() => ({ then() {} }));").find("TypeError:") == 0);
+        CHECK(f.error("p.gain.set(() => 'wrong');").find("TypeError:") == 0);
+        CHECK(f.host->log.empty());
+        CHECK(f.value("globalThis.result = p.gain.get();").asNumber() == 0);
+        f.host->automate(4, 9);
+        CHECK(f.value("p.voices.set(v => v + 1); globalThis.result = p.voices.get();").asNumber() == 10);
+        CHECK(f.host->log == std::vector<std::string> { "begin voices", "set voices 10", "end voices" });
+    }
+
+    TEST_CASE("publication failure closes an automatic gesture and leaves explicit depth intact")
+    {
+        Fixture f;
+        f.host->failWrite = true;
+        CHECK(f.error("p.gain.set(-1);").find("publication failed") != std::string::npos);
+        CHECK(f.host->log == std::vector<std::string> { "begin gain", "set gain -1", "end gain" });
+        f.host->failWrite = false;
+        f.host->log.clear();
+        REQUIRE(f.value("p.gain.beginGesture(); p.gain.beginGesture(); p.gain.set(v => v - 1);"
+                        "p.gain.set(v => v - 1); p.gain.endGesture(); p.gain.endGesture(); globalThis.result = 0;")
+                    .isNumber());
+        CHECK(f.host->log == std::vector<std::string> { "begin gain", "set gain -1", "set gain -2", "end gain" });
     }
 
     TEST_CASE("a gesture left open when the runtime goes away is ended")

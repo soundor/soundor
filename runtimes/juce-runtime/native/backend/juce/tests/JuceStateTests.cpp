@@ -279,7 +279,7 @@ TEST_CASE("state gestures share processor storage and clean up only their UI ses
                         "state.enabled.beginGesture(); state.enabled.beginGesture();"
                         "state.groups.beginGesture(); state.selectedPreset.beginGesture();"
                         "state.precise.beginGesture(); state.precise.endGesture(); state.precise.endGesture();"
-                        "state.enabled.set(false); state.selectedPreset.set('Warm'); state.enabled.endGesture();")
+                        "state.enabled.set(v => !v); state.selectedPreset.set('Warm'); state.enabled.endGesture();")
                     .ok());
         CHECK(store.gestureDepth("enabled") == 2);
         CHECK(store.gestureDepth("groups") == 1);
@@ -331,4 +331,46 @@ TEST_CASE("restoration invalidates gestures without serializing them or touching
     gain->removeListener(&listener);
     // Destruction with native gestures open owns no JS values or callbacks.
     processor.state.enabled.beginGesture();
+}
+
+TEST_CASE("state bridge resolves synchronous updaters once and persists immutable replacements")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    js::Runtime runtime;
+    js::Context context(runtime);
+    persistent::install(context, processor.state);
+    REQUIRE(context
+                .evaluateModule("(function(exports, require) { globalThis.state = require('soundor:state').state; })",
+                                "/updater.js")
+                .ok());
+    const auto result = context.evaluateScript(R"(
+      let calls = 0;
+      state.precise.set(v => { calls++; return v + 1; });
+      state.precise.set(v => v + 1);
+      if (calls !== 1 || state.precise.get() < 2) throw Error('stale updater');
+      state.selectedPreset.set(v => v ?? 'Default');
+      state.selectedPreset.set(v => v + '!');
+      state.enabled.set(v => !v);
+      const before = state.groups.get();
+      state.groups.set(groups => groups.map(group => ({...group, bands: group.bands.map(band => ({...band, gain: band.gain + 1}))})));
+      if (before[0].bands[0].gain !== -3.125 || state.groups.get()[0].bands[0].gain !== -2.125) throw Error('mutable');
+      for (const updater of [() => { throw Error('failed'); }, async function() { return 'Async'; }, () => ({then() {}}), () => 42]) {
+        let failed = false;
+        try { state.selectedPreset.set(updater); } catch { failed = true; }
+        if (!failed || state.selectedPreset.get() !== 'Default!') throw Error('invalid updater committed');
+      }
+    )");
+    REQUIRE_MESSAGE(result.ok(), (result.ok() ? "" : result.error().toString()));
+    CHECK(processor.state.selectedPreset.get() == "Default!");
+    CHECK(processor.state.storage().gestureDepth("groups") == 0);
+    CHECK(processor.state.storage().gestureDepth("precise") == 0);
+    CHECK(! processor.state.enabled.get());
+    processor.getParameters().getParameter("gain")->setValueNotifyingHost(0.75f);
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    Processor copy;
+    restore(copy, saved);
+    CHECK(copy.state.selectedPreset.get() == "Default!");
+    CHECK(copy.state.groups.get()[0].bands[0].gain == -2.125);
 }

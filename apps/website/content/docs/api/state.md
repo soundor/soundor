@@ -51,7 +51,10 @@ import { state } from 'soundor:state';
 
 state.selectedPreset.get(); // string | null
 state.selectedPreset.set('Warm Vocal');
-state.bands.set([...state.bands.get(), { frequency: 1000, gain: -3, q: 1.2 }]);
+state.bands.set((current) => [
+  ...current,
+  { frequency: 1000, gain: -3, q: 1.2 },
+]);
 
 const stop = state.selectedPreset.subscribe((value) => console.log(value));
 const stopRestored = state.onRestored(() =>
@@ -241,3 +244,23 @@ Saving does not invoke restoration callbacks.
 All mutations go through the store's setter/replacement path. StateHistory,
 transactions and undo/redo are separate future features;
 no `history` hook option exists in this API.
+
+## Functional setters
+
+A JavaScript field's `set()` accepts a direct value or a synchronous updater:
+
+```ts
+state.counter.set((current) => current + 1);
+state.bands.set((current) => [...current, newBand]);
+```
+
+The updater runs once against the latest immutable store value, rather than the
+value captured by a React render. Sequential calls see each preceding write,
+and `get()` reflects a successful write immediately. Returned arrays and structs
+are validated, detached and deeply frozen. Equivalent values do not notify.
+Exceptions propagate without committing a value; async callbacks, thenables and
+invalid results are rejected. The native C++ setter continues taking a value.
+
+State setters create no automatic gesture. State gestures remain optional,
+explicit Soundor editing boundaries and never automate the JUCE host. Subscription,
+saving and restoration behavior is the same for direct and functional updates.

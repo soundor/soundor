@@ -26,14 +26,9 @@ export function App() {
     applyPreset(index);
   };
   const toggle = (parameter: {
-    get(): boolean;
-    set(value: boolean): void;
-    beginGesture(): void;
-    endGesture(): void;
+    set(value: boolean | ((current: boolean) => boolean)): void;
   }) => {
-    parameter.beginGesture();
-    parameter.set(!parameter.get());
-    parameter.endGesture();
+    parameter.set((current) => !current);
   };
   return (
     <View style={styles.root}>
@@ -138,9 +133,7 @@ export function App() {
                   : 'Hear the current Orbit settings'
               }
               onPress={() => {
-                parameters.bypass.beginGesture();
                 parameters.bypass.set(dry);
-                parameters.bypass.endGesture();
               }}
               style={({ focusVisible }) => [
                 styles.compareOption,

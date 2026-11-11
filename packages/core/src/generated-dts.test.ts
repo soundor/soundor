@@ -76,11 +76,16 @@ const config: CoreSoundorConfig = {
     },
   ],
   state: {
+    counter: { type: 'int32', default: 0 },
+    enabled: { type: 'boolean', default: true },
+    mode: { type: 'Mode', default: 'a' },
+    preset: { type: 'Preset', default: { name: 'Warm', gains: [], id: 1n } },
     selectedPreset: { type: 'string?', default: null },
     presets: { type: 'Preset[]', default: [] },
   },
   native: {
     types: {
+      Mode: { enum: ['a', 'b'] },
       Level: { struct: { rms: 'float32', peak: 'float32' } },
       Preset: { struct: { name: 'string', gains: 'float32[]', id: 'uint64' } },
     },
@@ -110,6 +115,32 @@ createImage(svgAsset, { width: 200, height: 100 });
 const selected: string | null = state.selectedPreset.get();
 void selected;
 state.selectedPreset.set('Warm');
+state.counter.set(current => current + 1);
+state.enabled.set(current => !current);
+state.mode.set(current => current === 'a' ? 'b' : 'a');
+state.preset.set(current => ({...current, gains: [...current.gains, 1]}));
+// @ts-expect-error state enum values are checked
+state.mode.set(current => current + 'invalid');
+// @ts-expect-error state integer updater returns a number
+state.counter.set(current => String(current));
+state.selectedPreset.set(current => current ?? 'Default');
+state.presets.set(current => [...current, { name: 'New', gains: [1], id: 1n }]);
+parameters.gain.set(current => current + 1);
+parameters.voices.set(current => current + 1);
+parameters.bypass.set(current => !current);
+parameters.mode.set(current => current === 'mono' ? 'stereo' : 'mono');
+// @ts-expect-error updater return must match the generated field
+parameters.mode.set(current => current.length);
+// @ts-expect-error boolean updater receives boolean
+parameters.bypass.set(current => current + 1);
+// @ts-expect-error async parameter callbacks are rejected
+parameters.gain.set(async current => current + 1);
+// @ts-expect-error async state callbacks are rejected
+state.selectedPreset.set(async current => current ?? 'Default');
+// @ts-expect-error thenable results are rejected
+state.presets.set(current => ({ then() {}, values: current }));
+// @ts-expect-error nested state updater return is checked
+state.presets.set(current => [...current, {name: 1, gains: [], id: 1n}]);
 state.selectedPreset.set(null);
 state.presets.set([{ name: 'Warm', gains: [1], id: 1n }]);
 // @ts-expect-error nullable means null, not undefined
