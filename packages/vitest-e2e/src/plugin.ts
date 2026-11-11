@@ -16,6 +16,7 @@ const globalSetup = fileURLToPath(
 );
 // A real plugin starts, reacts and closes in real time.
 const TEST_TIMEOUT = 30_000;
+const POLL_TIMEOUT = 5000;
 
 /** Tests a built plugin: tells them which, and adds the locator matchers. */
 export function soundor(options: SoundorE2EOptions): Plugin {
@@ -37,6 +38,9 @@ export function soundor(options: SoundorE2EOptions): Plugin {
           },
           ...(config.test?.testTimeout === undefined
             ? { testTimeout: TEST_TIMEOUT }
+            : {}),
+          ...(config.test?.expect?.poll?.timeout === undefined
+            ? { expect: { poll: { timeout: POLL_TIMEOUT } } }
             : {}),
         },
       };

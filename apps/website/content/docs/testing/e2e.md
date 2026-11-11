@@ -80,6 +80,9 @@ export default defineConfig({
 The tests run in Node, beside the plugin: they cannot import its components or
 the `soundor:*` modules. The plugin raises the project's `testTimeout` to 30
 seconds unless the project sets its own.
+It also defaults `test.expect.poll.timeout` to 5000 ms for reads across the
+native host process. An explicit project setting or a per-assertion
+`expect.poll(read, { timeout })` takes precedence.
 
 ## Build first
 

@@ -15,13 +15,7 @@ export default defineConfig({
       },
       {
         plugins: [e2e({ vst3: '.soundor/debug/juce/VST3/Orbit.vst3' })],
-        test: {
-          name: 'e2e',
-          include: ['e2e/**/*.test.ts'],
-          // Native UI reads cross the host process and can wait for GPU startup.
-          // Match the five-second budget of the E2E locator assertions.
-          expect: { poll: { timeout: 5000 } },
-        },
+        test: { name: 'e2e', include: ['e2e/**/*.test.ts'] },
       },
     ],
   },

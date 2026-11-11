@@ -106,7 +106,7 @@ test('runs beside the simulated runtime, in one config', async () => {
   const { code, report, stderr } = await run([]);
   expect(stderr).toBe('');
   expect(code).toBe(0);
-  expect(report?.['numPassedTests']).toBe(5);
+  expect(report?.['numPassedTests']).toBe(6);
 }, 35_000);
 
 test('a missing bundle fails once, naming how to build it', async () => {
