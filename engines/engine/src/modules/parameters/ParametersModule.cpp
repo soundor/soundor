@@ -95,8 +95,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
             requireWritable(context, binding, index);
-            const double value = readValue(context, args, count, 1);
-            binding.host->setValue(index, binding.host->constrain(index, value));
+            const double value = binding.host->constrain(index, readValue(context, args, count, 1));
+            if (value == binding.host->value(index))
+                return jsi::Value::undefined();
+            const bool automatic =
+                binding.host->infos()[index].access == Access::Automatable && binding.gestures[index] == 0;
+            if (automatic)
+                binding.host->beginGesture(index);
+            try
+            {
+                binding.host->setValue(index, value);
+            }
+            catch (...)
+            {
+                if (automatic)
+                    binding.host->endGesture(index);
+                throw;
+            }
+            if (automatic)
+                binding.host->endGesture(index);
             return jsi::Value::undefined();
         }
 

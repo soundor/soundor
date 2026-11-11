@@ -10,6 +10,11 @@
  * the JUCE runtime's C++; the API and its errors are the JUCE runtime's.
  */
 
+import {
+  resolveSetter,
+  type ValueOrUpdater,
+} from '@soundor/runtime-sdk/client';
+
 import { Listeners } from './listeners';
 import type { WebParameterInfo } from './manifest';
 
@@ -80,9 +85,9 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
    * type, or any value of a read-only parameter, is a TypeError. Listeners
    * hear of changes only.
    */
-  set(value: ParameterValue<Info>): void {
+  set(value: ValueOrUpdater<ParameterValue<Info>>): void {
     this.#writable();
-    this.#store(this.#toPlain(value));
+    this.#store(this.#toPlain(resolveSetter(value, () => this.get())), true);
   }
 
   /**
@@ -151,11 +156,18 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
     return this.#fromPlain(this.#behavior.toValue(normalized));
   }
 
-  #store(plain: number): void {
+  #store(plain: number, userEdit = false): void {
     const next = this.#behavior.constrain(plain);
     if (Object.is(next, this.#plain)) return;
-    this.#plain = next;
-    this.#listeners.notify(this.#fromPlain(next));
+    const automatic =
+      userEdit && this.#info.access === 'automatable' && !this.inGesture;
+    if (automatic) this.beginGesture();
+    try {
+      this.#plain = next;
+      this.#listeners.notify(this.#fromPlain(next));
+    } finally {
+      if (automatic) this.endGesture();
+    }
   }
 
   #writable(): void {

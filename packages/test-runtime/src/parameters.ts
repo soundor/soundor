@@ -6,6 +6,7 @@
  * so a test sees what a plugin does.
  */
 
+import { resolveSetter, type ValueOrUpdater } from '@soundor/core';
 import { compileJsFunction } from '@soundor/expression/compiler/js';
 
 import { Listeners } from './listeners';
@@ -84,10 +85,10 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
    * type, or any value of a read-only parameter, is a TypeError. Listeners
    * hear of changes only.
    */
-  set(value: ParameterValue<Info>): void {
+  set(value: ValueOrUpdater<ParameterValue<Info>>): void {
     this.#active();
     this.#writable();
-    this.#store(this.#toPlain(value));
+    this.#store(this.#toPlain(resolveSetter(value, () => this.get())), true);
   }
 
   /**
@@ -170,11 +171,18 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
     return this.#fromPlain(this.#behavior.toValue(normalized));
   }
 
-  #store(plain: number): void {
+  #store(plain: number, userEdit = false): void {
     const next = this.#behavior.constrain(plain);
     if (Object.is(next, this.#plain)) return;
-    this.#plain = next;
-    this.#listeners.notify(this.#fromPlain(next));
+    const automatic =
+      userEdit && this.#info.access === 'automatable' && !this.inGesture;
+    if (automatic) this.beginGesture();
+    try {
+      this.#plain = next;
+      this.#listeners.notify(this.#fromPlain(next));
+    } finally {
+      if (automatic) this.endGesture();
+    }
   }
 
   #writable(): void {

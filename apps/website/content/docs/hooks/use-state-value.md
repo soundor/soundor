@@ -18,7 +18,9 @@ the component is mounted. It refreshes on native writes, JavaScript writes and
 snapshot restoration, and unsubscribes on cleanup. Equivalent writes keep the
 same immutable snapshot, avoiding unnecessary renders. Nullable fields return
 `null`, and arrays/structs are deeply frozen. Use the field's `set()` method to
-write a replacement value.
+write a replacement value, or pass a synchronous updater such as
+`state.bands.set(current => [...current, newBand])`. The updater reads the latest
+store value even before React renders again. State setters never open automatic gestures.
 
 A reopened editor reads the processor's current values. See
 [`soundor:state`](/docs/api/state) for configuration, native access, persistence,

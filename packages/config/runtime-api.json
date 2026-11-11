@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "min": 1,
   "declarations": {
     "config/context.ts#DevSessionContext": "b3757e5c6b31",
@@ -101,9 +101,10 @@
     "core/native-api.ts#PrimitiveTypeName": "f1c5af78d699",
     "core/paths.ts#CreateProjectPathsInput": "2b0e55f15c00",
     "core/paths.ts#ProjectPaths": "313dde8b26d1",
+    "core/setter.ts#ValueOrUpdater": "4a55ee00b4fe",
     "core/state.ts#CheckedState": "1ee60760d622",
     "core/state.ts#SoundorSnapshot": "eca5f983408e",
-    "core/state.ts#StateCell": "fd2b55154d3c",
+    "core/state.ts#StateCell": "4e5eff215d5f",
     "core/state.ts#StateDeclaration": "255b9817a997",
     "core/state.ts#StateDeclarations": "b566b0095c71",
     "core/state.ts#StateField": "04db22d86efb",

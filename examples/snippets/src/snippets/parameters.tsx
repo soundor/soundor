@@ -62,7 +62,7 @@ export default function Parameters() {
         <Button
           label={bypass ? 'On' : 'Off'}
           selected={bypass}
-          onPress={() => parameters.bypass.set(!bypass)}
+          onPress={() => parameters.bypass.set((current) => !current)}
         />
       </Row>
       <Row label="Mode">

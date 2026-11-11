@@ -388,3 +388,29 @@ int main(int argc, char** argv)
     juce::ScopedJuceInitialiser_GUI juce;
     return doctest::Context(argc, argv).run();
 }
+
+TEST_CASE("one-shot boolean writes reach JUCE in begin-value-end order and no-ops stay silent")
+{
+    Fixture f;
+    struct Log final : juce::AudioProcessorParameter::Listener
+    {
+        std::vector<std::string> events;
+        void parameterValueChanged(int, float) override { events.push_back("value"); }
+        void parameterGestureChanged(int, bool starting) override { events.push_back(starting ? "begin" : "end"); }
+    } log;
+    auto& parameter = f.processor.parameter("bypass");
+    parameter.addListener(&log);
+    CHECK(f.run("p.bypass.set(v => !v); globalThis.result = p.bypass.get();").asBoolean());
+    CHECK(log.events == std::vector<std::string> { "begin", "value", "end" });
+    log.events.clear();
+    REQUIRE(f.run("p.bypass.set(true); globalThis.result = 0;").isNumber());
+    CHECK(log.events.empty());
+    REQUIRE(f.run("p.bypass.beginGesture(); p.bypass.beginGesture(); p.bypass.set(false); p.bypass.set(true);"
+                  "p.bypass.endGesture(); p.bypass.endGesture(); globalThis.result = 0;")
+                .isNumber());
+    CHECK(log.events == std::vector<std::string> { "begin", "value", "value", "end" });
+    log.events.clear();
+    parameter.setValueNotifyingHost(0);
+    CHECK(log.events == std::vector<std::string> { "value" });
+    parameter.removeListener(&log);
+}

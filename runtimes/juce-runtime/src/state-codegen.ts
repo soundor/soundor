@@ -211,11 +211,18 @@ void install(js::Context& context, PersistentState& state) {
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
         return bind::invoke(ctx, "state.${f.name}.set", [&]() -> jsi::Value {
           bind::expectArgumentCount(ctx, "state.${f.name}.set", count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, ${quote(f.name)}, binding(ctx).state.storage().get(${quote(f.name)}));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
           std::size_t budget = 100000;
-          validateInput(ctx, args[0], 0, budget);
+          validateInput(ctx, resolved, 0, budget);
           const bind::Path path { "state.${f.name}" };
           ${cppType(f.type)} value {};
-          ${readStatement(f.type, 'ctx', 'args[0]', 'path', 'value', false)};
+          ${readStatement(f.type, 'ctx', 'resolved', 'path', 'value', false)};
           binding(ctx).state.${f.name}.set(std::move(value));
           return jsi::Value::undefined();
         });

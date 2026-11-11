@@ -36,7 +36,9 @@ describe('soundor:parameters', () => {
     expectTypeOf(parameters.mode.get()).toEqualTypeOf<
       'clean' | 'warm' | 'hot'
     >();
-    expectTypeOf(parameters.bypass.set).parameter(0).toEqualTypeOf<boolean>();
+    expectTypeOf(parameters.bypass.set)
+      .parameter(0)
+      .toEqualTypeOf<boolean | ((current: boolean) => boolean)>();
     expect(parameters.steps.info).toMatchObject({ min: 1, max: 8 });
   });
 });

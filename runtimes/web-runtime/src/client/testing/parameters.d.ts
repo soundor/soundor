@@ -44,10 +44,11 @@ declare module 'soundor:parameters' {
     /** The current value. */
     get(): Value;
     /**
-     * Sets the value, snapped to the range and step, and notifies the host.
+     * Sets a value or runs an updater synchronously against the latest value, then snaps to the range and step.
+     * Changed automatable values notify the host within a gesture; an explicit gesture is reused.
      * Throws a TypeError for a read-only parameter, or a value of the wrong type.
      */
-    set(value: Value): void;
+    set(value: Value | ((current: Value) => Value)): void;
     /**
      * Calls `listener` with the new value after every change, from any source:
      * the UI, host automation, or a preset. Returns a function that unsubscribes.

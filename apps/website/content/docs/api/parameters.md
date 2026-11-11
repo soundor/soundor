@@ -32,7 +32,7 @@ numeric parameter's value is a `number` (in its range, on its step's grid), a
 | Member                     | What it does                                                                                                                                                                                                  |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `get()`                    | The current value.                                                                                                                                                                                            |
-| `set(value)`               | Sets the value and tells the host. Numbers are clamped to the range and snapped to the step; a value of the wrong type, a choice value that is not an option, or any write to a `readOnly` parameter, throws. |
+| `set(valueOrUpdater)`      | Sets the value and tells the host. Numbers are clamped to the range and snapped to the step; a value of the wrong type, a choice value that is not an option, or any write to a `readOnly` parameter, throws. |
 | `subscribe(listener)`      | Calls `listener` with the new value after every change, whoever made it (the UI, the host's automation, a preset, the processing). Returns a function that unsubscribes.                                      |
 | `beginGesture()`           | Starts a user's edit (a drag): the host records the changes until `endGesture()` as one.                                                                                                                      |
 | `endGesture()`             | Ends it.                                                                                                                                                                                                      |
@@ -51,3 +51,42 @@ numeric parameter's value is a `number` (in its range, on its step's grid), a
   ended.
 - **The types** are generated into `.soundor/generated/parameters.d.ts`, so
   `parameters.gain` exists exactly when the config declares `gain`.
+
+## Synchronous updates and gestures
+
+Pass a value directly, or a synchronous function of the latest parameter value:
+
+```ts
+parameters.enabled.set((current) => !current);
+parameters.frequency.set((current) => current + 100);
+```
+
+An updater runs exactly once, synchronously, against the current effective value,
+including host automation received since the last React render. `get()` immediately
+reflects a successful write; host automation may subsequently change it. Updater
+exceptions propagate without publishing a value. Promises, thenables and invalid
+return values are rejected. Values still pass through the parameter's normal
+validation, range, step and float32 conversion. An unchanged result after this
+conversion sends no notification or gesture.
+
+A changed automatable parameter automatically opens and closes a one-shot host
+gesture. Manual parameters keep their nonautomatable write behavior; read-only
+parameters reject writes. Host automation and restoration do not open user gestures.
+The Web and test runtimes track the same logical interaction without a DAW.
+
+Keep an explicit gesture for continuous edits. Setters inside it reuse the outer
+boundaries, including when gestures nest:
+
+```ts
+parameters.frequency.beginGesture();
+try {
+  parameters.frequency.set(500);
+  parameters.frequency.set(800);
+} finally {
+  parameters.frequency.endGesture();
+}
+```
+
+`useParameter()` returns a React render value, which can become outdated between
+renders. For a toggle or increment, use the field's updater instead of computing
+from that render value. The field stays the single source of truth.

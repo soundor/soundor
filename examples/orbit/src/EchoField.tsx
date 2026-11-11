@@ -64,9 +64,7 @@ function Echo({
     [index],
   );
   const step = (direction: number) => {
-    times[index]!.beginGesture();
-    updateTime(time + direction * 0.125);
-    times[index]!.endGesture();
+    updateTime(times[index]!.get() + direction * 0.125);
   };
   return (
     <View
@@ -92,9 +90,7 @@ function Echo({
           event.actionName === 'setValue' &&
           Number.isFinite(Number(event.value))
         ) {
-          times[index]!.beginGesture();
           updateTime(Number(event.value));
-          times[index]!.endGesture();
         } else return;
         event.preventDefault();
       }}
@@ -104,11 +100,9 @@ function Echo({
         if (event.key === 'ArrowLeft') step(-1);
         else if (event.key === 'ArrowRight') step(1);
         else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-          levels[index]!.beginGesture();
-          levels[index]!.set(
-            clamp(level + (event.key === 'ArrowUp' ? 0.05 : -0.05)),
+          levels[index]!.set((current) =>
+            clamp(current + (event.key === 'ArrowUp' ? 0.05 : -0.05)),
           );
-          levels[index]!.endGesture();
         } else return;
         event.preventDefault();
       }}

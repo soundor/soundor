@@ -433,7 +433,10 @@ parameters.gain.info; // { id, label, type, min, max, default, unit }
 - **One parameter store.** A backend implements `parameters::Host` over its own
   parameter system: `JuceParameterHost` wraps the `AudioProcessorValueTreeState`.
   Values pass in plain units; `set()` validates the JavaScript type, then clamps
-  (and rounds, for discrete kinds).
+  (and rounds, for discrete kinds). Functional updaters run once on the UI thread
+  against the current host value. After constraining, an unchanged value is skipped;
+  a changed automatable value gets a one-shot host gesture unless an explicit
+  gesture is already active. Host-originated changes bypass this user write path.
 - **Realtime-safe change propagation.** Backend listeners, which may run on the
   audio thread, only set a lock-free `ChangeFlags` bit. On the UI thread,
   `RuntimeHost::tick()` drains the flags and calls each changed parameter's

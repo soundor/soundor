@@ -126,14 +126,7 @@ function App() {
       <Text>Gain: {gain.toFixed(2)}</Text>
       <Pressable
         accessibilityLabel="Reset gain"
-        onPress={() => {
-          parameters.gain.beginGesture();
-          try {
-            parameters.gain.set(parameters.gain.info.default);
-          } finally {
-            parameters.gain.endGesture();
-          }
-        }}
+        onPress={() => parameters.gain.set(parameters.gain.info.default)}
       >
         <Text>Reset</Text>
       </Pressable>

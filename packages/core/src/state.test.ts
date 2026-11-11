@@ -214,3 +214,78 @@ it('tracks nested independent gestures without changing writes, notifications or
   expect(store.gestureDepth('selected')).toBe(0);
   expect(selected.get()).toBeNull();
 });
+
+it('resolves synchronous state updaters once against immutable current values without gestures', () => {
+  const store = new StateStore(
+    describeState(
+      {
+        ...declaration,
+        count: { type: 'int32', default: 0 },
+        mode: { type: 'Mode', default: 'a' },
+      },
+      { types: { ...native.types, Mode: { enum: ['a', 'b'] } } },
+    ),
+  );
+  const count = store.fields.count!;
+  const heard = vi.fn();
+  count.subscribe(heard);
+  const increment = vi.fn((current: unknown) => Number(current) + 1);
+  count.set(increment);
+  count.set(increment);
+  expect(increment.mock.calls).toEqual([[0], [1]]);
+  expect(count.get()).toBe(2);
+  count.set((current: unknown) => current);
+  expect(heard).toHaveBeenCalledTimes(2);
+  expect(store.gestureDepth('count')).toBe(0);
+  count.beginGesture();
+  count.set((current: unknown) => Number(current) + 1);
+  expect(store.gestureDepth('count')).toBe(1);
+  count.endGesture();
+  store.fields.enabled!.set((current: unknown) => !current);
+  store.fields.selected!.set((current: unknown) => current ?? 'Default');
+  store.fields.selected!.set((current: unknown) => String(current) + '!');
+  store.fields.mode!.set((current: unknown) => (current === 'a' ? 'b' : 'a'));
+  const groups = store.fields.groups!;
+  const before = groups.get() as typeof declaration.groups.default;
+  groups.set((current: unknown) =>
+    (current as typeof before).map((group) => ({
+      ...group,
+      bands: group.bands.map((band) => ({ ...band, gain: band.gain + 1 })),
+    })),
+  );
+  expect(before[0]!.bands[0]!.gain).toBe(-3.125);
+  expect((groups.get() as typeof before)[0]!.bands[0]!.gain).toBe(-2.125);
+  expect(() =>
+    groups.set((current: unknown) => {
+      (current as typeof before)[0]!.bands.push(before[0]!.bands[0]!);
+      return current;
+    }),
+  ).toThrow();
+  const saved = readSnapshot(
+    stateJson({ version: 1, parameters: {}, state: store.snapshot() }),
+  );
+  const restored = new StateStore(store.schema);
+  restored.restore(restored.prepare(saved.state));
+  expect(restored.snapshot()).toEqual(store.snapshot());
+});
+
+it.each([
+  () => 'invalid',
+  () => {
+    throw new Error('updater failed');
+  },
+  async () => 1,
+  () => ({ then() {} }),
+])('does not publish a failed or asynchronous state updater', (updater) => {
+  const store = new StateStore(
+    describeState({ count: { type: 'int32', default: 0 } }),
+  );
+  const listener = vi.fn(),
+    call = vi.fn(updater);
+  store.fields.count!.subscribe(listener);
+  expect(() => store.fields.count!.set(call)).toThrow();
+  expect(call).toHaveBeenCalledOnce();
+  expect(store.fields.count!.get()).toBe(0);
+  expect(listener).not.toHaveBeenCalled();
+  expect(store.gestureDepth('count')).toBe(0);
+});
