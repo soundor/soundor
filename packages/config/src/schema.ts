@@ -1,4 +1,4 @@
-import { describeNativeApi } from '@soundor/core';
+import { describeNativeApi, describeState } from '@soundor/core';
 import { z } from 'zod';
 
 import { checkEditor, editorSchema, resolveEditor } from './editor';
@@ -73,6 +73,7 @@ const soundorConfigSchema = z.strictObject({
   // Checked by resolveParameters, which reports each problem precisely.
   parameters: z.unknown().optional(),
   native: nativeSchema.optional(),
+  state: z.unknown().optional(),
   signing: signingSchema.optional(),
 });
 
@@ -135,6 +136,14 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
   if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
   const native = describeNativeApi(data.native as SoundorConfig['native']);
   if (!native.ok) issues.push(...native.issues);
+  try {
+    describeState(
+      data.state as SoundorConfig['state'],
+      data.native as SoundorConfig['native'],
+    );
+  } catch (error) {
+    issues.push({ path: 'state', message: String(error) });
+  }
 
   if (issues.length > 0) {
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
@@ -177,6 +186,7 @@ function normalize(
       runtime: runtime.runtime,
     })),
     parameters,
+    state: structuredClone(data.state ?? {}) as ResolvedSoundorConfig['state'],
     // Validated above; a structured clone detaches it from the user's object.
     native: structuredClone(
       data.native ?? {},

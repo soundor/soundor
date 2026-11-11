@@ -4,3 +4,5 @@
 // whatever the bundler; the package's root entry is for the Node side.
 
 export * from '@soundor/core/spring';
+
+export * from '@soundor/core/state';

@@ -113,9 +113,14 @@ declare module 'soundor:native' {
 /// <reference path="./globals.d.ts" />
 /// <reference path="./native.d.ts" />
 /// <reference path="./parameters.d.ts" />
+/// <reference path="./state.d.ts" />
 /// <reference path="./platform.d.ts" />
 /// <reference path="./ui.d.ts" />
 `,
+      },
+      {
+        path: 'state.d.ts',
+        contents: expect.stringContaining("declare module 'soundor:state'"),
       },
       {
         path: 'ui.d.ts',
@@ -175,6 +180,7 @@ describe('generated file writer', () => {
       { path: 'parameters.d.ts', status: 'up-to-date' },
       { path: 'platform.d.ts', status: 'up-to-date' },
       { path: 'soundor.d.ts', status: 'up-to-date' },
+      { path: 'state.d.ts', status: 'up-to-date' },
       { path: 'ui.d.ts', status: 'up-to-date' },
       { path: 'webgl.d.ts', status: 'up-to-date' },
     ]);

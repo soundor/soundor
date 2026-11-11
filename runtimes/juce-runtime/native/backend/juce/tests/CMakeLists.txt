@@ -47,7 +47,7 @@ if(SOUNDOR_ENABLE_DEVTOOLS)
 endif()
 add_test(NAME soundor_juce_platform_tests COMMAND soundor_juce_platform_tests)
 target_include_directories(soundor_juce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_definitions(soundor_juce_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_compile_definitions(soundor_juce_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
 target_link_libraries(soundor_juce_tests
   PRIVATE
     Soundor::Engine
@@ -102,3 +102,16 @@ foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_ta
     soundor_attach_plugin_shim(${consumer})
   endif()
 endforeach()
+
+# Compile the actual generated persistent processor and its Hermes bindings.
+juce_add_console_app(soundor_juce_state_tests)
+target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
+  generated/state/soundor/SoundorProcessor.cpp
+  generated/state/soundor/SoundorState.cpp
+  generated/state/soundor/SoundorParameters.cpp
+  ../soundor/backend/JuceParameter.cpp
+  ../soundor/backend/JuceTransport.cpp)
+target_include_directories(soundor_juce_state_tests PRIVATE generated/state ..)
+target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${engine_dir}/../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
+target_link_libraries(soundor_juce_state_tests PRIVATE Soundor::Engine soundor::runtime_internal soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
+add_test(NAME soundor_juce_state_tests COMMAND soundor_juce_state_tests)

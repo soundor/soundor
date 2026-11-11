@@ -1,9 +1,9 @@
+import { describeState, stateJson } from '@soundor/runtime-sdk';
 /**
  * The Web runtime's `gen` output: only what is specific to the project. The
  * host itself (parameters, transport, `soundor:*` modules) is generic and
  * ships in this package; the project contributes its manifest.
  */
-
 import {
   describeNativeApi,
   resolveEditor,
@@ -83,6 +83,7 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
   return {
     plugin: { id: config.plugin.id, name: config.plugin.name },
     editor: webEditor(config),
+    state: JSON.parse(stateJson(describeState(config.state, config.native))),
     parameters: config.parameters.map((parameter): WebParameterInfo => {
       const base = {
         id: parameter.id,

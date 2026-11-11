@@ -15,6 +15,7 @@ import {
   type ParameterBehavior,
   type ParameterStore,
 } from './parameters';
+import { ApplicationState } from './state';
 import { UiView } from './ui/view';
 
 export interface WebHostContext {
@@ -23,6 +24,7 @@ export interface WebHostContext {
   readonly plugin: { readonly id: string; readonly name: string };
   readonly parameters: ParameterStore;
   readonly host: WebHost;
+  readonly state: ApplicationState;
 }
 
 /** Creates a context; pages use the one {@link hostContext} returns. */
@@ -32,10 +34,15 @@ export function createHostContext(
   parameterBehaviors: readonly ParameterBehavior[] = behaviors,
 ): WebHostContext {
   manifest = readManifest(manifest);
+  const parameters = createParameterStore(
+    manifest.parameters,
+    parameterBehaviors,
+  );
   return {
     manifest,
     plugin: Object.freeze({ ...manifest.plugin }),
-    parameters: createParameterStore(manifest.parameters, parameterBehaviors),
+    parameters,
+    state: new ApplicationState(manifest, parameters),
     host: new WebHost(options),
   };
 }

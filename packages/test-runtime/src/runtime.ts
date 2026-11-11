@@ -1,3 +1,5 @@
+import { StateStore } from '@soundor/core/state';
+
 import { TestAnimation } from './animation';
 import { VirtualClock } from './clock';
 import { Listeners } from './listeners';
@@ -34,6 +36,7 @@ export class TestRuntime {
   readonly pressables = new Map<TestNode, Record<string, unknown>>();
   readonly root: TestNode;
   readonly overlayRoot: TestNode;
+  readonly state: StateStore;
   readonly parameters: ReturnType<typeof createParameterStore>;
   readonly storage = new MemoryStorage(() => this.assertActive());
   readonly plugin: Readonly<{ id: string; name: string }>;
@@ -83,6 +86,7 @@ export class TestRuntime {
     this.root = new TestNode(this, 'view');
     this.overlayRoot = new TestNode(this, 'view');
     this.parameters = createParameterStore(options.parameters ?? []);
+    this.state = new StateStore(options.state ?? { fields: [], types: [] });
     this.plugin = Object.freeze({
       ...(options.plugin ?? { id: 'soundor.test', name: 'Soundor Test' }),
     });

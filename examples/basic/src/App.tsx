@@ -7,13 +7,14 @@ import {
   Text,
   TextInput,
   useParameter,
+  useStateValue,
   useViewSize,
   View,
 } from '@soundor/react';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 import { plugin, snapshot, subscribe } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
-import { storage } from 'soundor:storage';
+import { state } from 'soundor:state';
 import type { PointerEvent, KeyboardEvent, WheelEvent } from 'soundor:ui';
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -86,22 +87,14 @@ function HostStatus() {
   );
 }
 
-/** A preset name kept in the plugin's storage across sessions. */
+/** Application state belongs to the processor, even with the editor closed. */
 function PresetName() {
-  const [name, setName] = useState('');
-  useEffect(() => {
-    void storage
-      .get<string>('presetName')
-      .then((saved) => setName(saved ?? 'Init'));
-  }, []);
-  const save = (value: string) => void storage.set('presetName', value);
+  const name = useStateValue(state.presetName);
   return (
     <TextInput
       value={name}
       placeholder="Preset name"
-      onChangeText={setName}
-      onSubmitEditing={save}
-      onBlur={() => save(name)}
+      onChangeText={(value) => state.presetName.set(value)}
       style={styles.input}
     />
   );

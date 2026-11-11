@@ -292,6 +292,7 @@ describe('webGen', () => {
         },
       ],
       native: { types: [], methods: [] },
+      state: { fields: [], types: [] },
     });
   });
 

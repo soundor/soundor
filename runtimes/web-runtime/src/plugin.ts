@@ -106,6 +106,7 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
 
 /** The runtime's modules, by specifier: what plugin code imports. */
 const MODULES: Readonly<Record<string, string>> = {
+  'soundor:state': 'modules/state',
   'soundor:parameters': 'modules/parameters',
   'soundor:host': 'modules/host',
   'soundor:ui': 'modules/ui',

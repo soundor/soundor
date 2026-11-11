@@ -5,6 +5,7 @@
   "pages": [
     "index",
     "use-parameter",
+    "use-state-value",
     "use-animation-frame",
     "use-view-size",
     "use-canvas-size",

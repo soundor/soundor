@@ -30,11 +30,11 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "@soundor/core": "workspace:^",
     "@soundor/expression": "workspace:*"
   },
   "devDependencies": {
     "@soundor/config": "workspace:*",
-    "@soundor/core": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",

@@ -1,3 +1,9 @@
+import type {
+  StateDeclarations,
+  NativeApiDeclaration,
+  CheckedState,
+} from '@soundor/core';
+
 import type { ParameterDeclarations } from './parameters';
 import type { SoundorConfig } from './types';
 
@@ -17,6 +23,13 @@ import type { SoundorConfig } from './types';
  */
 export function defineSoundorConfig<
   const P extends ParameterDeclarations = Record<never, never>,
->(config: SoundorConfig<P>): SoundorConfig {
+  const S extends StateDeclarations = Record<never, never>,
+  const N extends NativeApiDeclaration = NativeApiDeclaration,
+>(
+  config: Omit<SoundorConfig<P>, 'state' | 'native'> & {
+    native?: N;
+    state?: S & CheckedState<S, N>;
+  },
+): SoundorConfig {
   return config as unknown as SoundorConfig;
 }

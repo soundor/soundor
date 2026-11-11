@@ -30,7 +30,7 @@ export function renderNativeDts(model: NativeApiModel): string {
 }
 
 /** A declared type as an exported member of the module declaration. */
-function renderNativeTsType(
+export function renderNativeTsType(
   type: NativeTypeModel,
   prefix: string,
   indent = '  ',

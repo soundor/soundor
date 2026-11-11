@@ -1299,6 +1299,9 @@ importers:
 
   packages/test-runtime:
     dependencies:
+      '@soundor/core':
+        specifier: workspace:^
+        version: link:../core
       '@soundor/expression':
         specifier: workspace:*
         version: link:../expression
@@ -1306,9 +1309,6 @@ importers:
       '@soundor/config':
         specifier: workspace:*
         version: link:../config
-      '@soundor/core':
-        specifier: workspace:^
-        version: link:../core
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config

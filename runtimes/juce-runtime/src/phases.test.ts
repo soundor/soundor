@@ -124,6 +124,8 @@ describe('juceGen', () => {
       'soundor/SoundorEditor.cpp',
       'soundor/native/SoundorNative.h',
       'soundor/native/SoundorNative.cpp',
+      'soundor/SoundorState.h',
+      'soundor/SoundorState.cpp',
     ]);
   });
 });

@@ -360,3 +360,11 @@ the DevTools server may choose a higher available port only for the default.
 `cwd` and its parent directories. It throws a `ConfigError` with kind
 `not-found` when discovery fails. Integrations can reuse discovery before
 calling `parseConfig({ path })`.
+
+## Persistent state
+
+The optional top-level `state` section declares typed application data persisted
+with the plugin, independently of its editor. Types reuse `native.types`; every
+field requires a validated default. See [`soundor:state`](/docs/api/state) for
+configuration and JavaScript/native examples. Runtime API 2 adds this feature;
+a runtime implementing an older API is refused when state is declared.
