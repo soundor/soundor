@@ -11,6 +11,9 @@ import {
 } from '@soundor/config';
 import {
   describeNativeApi,
+  describeState,
+  stateJson,
+  type StateDeclarations,
   generateSoundorFiles,
   createNodeFileSystem,
   writeGeneratedFiles,
@@ -42,9 +45,14 @@ export interface SoundorOptions {
   /** Discover soundor.config.ts, use an explicit path, or disable discovery for library tests. */
   config?: string | false;
   /** Deterministic initial state for each test. Native functions are configured with mockNative() from @soundor/testing-library. */
-  runtime?: Omit<RuntimeOptions, 'native' | 'nativeMethods' | 'parameters'> & {
+  runtime?: Omit<
+    RuntimeOptions,
+    'native' | 'nativeMethods' | 'parameters' | 'state'
+  > & {
     /** Parameter declarations for tests without a project config, as soundor.config declares them. */
     parameters?: ParameterDeclarations;
+    /** Persistent declarations for tests without a project config. */
+    state?: StateDeclarations;
   };
   /** Native declarations for tests without a project config. */
   native?: NativeApiDeclaration;
@@ -53,6 +61,7 @@ const prefix = '\0soundor:test:';
 const modules = new Set([
   'ui',
   'parameters',
+  'state',
   'host',
   'native',
   'storage',
@@ -72,6 +81,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
     options.runtime?.parameters === undefined
       ? []
       : resolveParameters(options.runtime.parameters);
+  let state = options.runtime?.state ?? {};
   let configPath: string | undefined;
   return {
     name: 'soundor:vitest',
@@ -88,7 +98,11 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         );
       enabled = true;
       const projectRoot = resolve(config.root ?? process.cwd());
-      const { parameters: _declared, ...given } = options.runtime ?? {};
+      const {
+        parameters: _declared,
+        state: _state,
+        ...given
+      } = options.runtime ?? {};
       let runtime: Omit<RuntimeOptions, 'native' | 'nativeMethods'> = {
         ...given,
         ...(options.runtime?.parameters !== undefined && { parameters }),
@@ -106,11 +120,16 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         }
         if (configPath) {
           const project = await parseConfig({ path: configPath });
-          if (options.runtime?.parameters || options.native)
+          if (
+            options.runtime?.parameters ||
+            options.runtime?.state ||
+            options.native
+          )
             throw new Error(
-              'Parameter and native declarations come from soundor.config.ts. Use config: false for library declarations, or Testing Library setup helpers in beforeEach to configure state and native mocks.',
+              'Parameter, state and native declarations come from soundor.config.ts. Use config: false for library declarations, or Testing Library setup helpers in beforeEach to configure state and native mocks.',
             );
           native = project.native ?? {};
+          state = project.state ?? {};
           parameters = project.parameters;
           // The view opens at the editor's size, as in the runtimes, and the
           // editor takes requests within its limits.
@@ -153,10 +172,12 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         }
       }
       parameters = runtime.parameters ?? parameters;
+      runtime.state = JSON.parse(stateJson(describeState(state, native)));
       const generated = generateSoundorFiles({
         plugin: runtime.plugin ?? { id: 'soundor.test', name: 'Soundor Test' },
         parameters: parameters as never,
         native,
+        state,
       });
       await writeGeneratedFiles(
         createNodeFileSystem(configPath ? dirname(configPath) : projectRoot),
@@ -227,6 +248,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         id.slice(prefix.length),
         parameters.map((p) => p.id),
         native,
+        Object.keys(state),
       );
     },
   };
@@ -251,6 +273,7 @@ function virtualModule(
   name: string,
   ids: readonly string[],
   native: NativeApiDeclaration,
+  stateIds: readonly string[],
 ): string {
   const header = `import { getTestRuntime, createUiModule, subscribeTestRuntime, TestNode, TestEvent } from ${JSON.stringify(runtimeModule)};\n`;
   if (name === 'ui') {
@@ -284,6 +307,11 @@ function virtualModule(
         )} };\n${functions.join('\n')}\nexport const clipboard = { readText: () => getTestRuntime().clipboard.readText(), writeText: text => getTestRuntime().clipboard.writeText(text) };`
     );
   }
+  if (name === 'state')
+    return (
+      header +
+      `export const state = Object.freeze({ ...Object.fromEntries(${JSON.stringify(stateIds)}.map(id => [id, { get: () => getTestRuntime().state.fields[id].get(), set: value => getTestRuntime().state.fields[id].set(value), subscribe: listener => getTestRuntime().state.fields[id].subscribe(listener) }])), onRestored: listener => getTestRuntime().state.onRestored(listener) });`
+    );
   if (name === 'parameters')
     return (
       header +

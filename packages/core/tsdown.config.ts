@@ -3,7 +3,7 @@ import { defineConfig } from 'tsdown';
 
 export default defineConfig(
   withPreset(node, {
-    entry: ['src/index.ts', 'src/spring.ts'],
+    entry: ['src/index.ts', 'src/spring.ts', 'src/state.ts'],
     tsconfig: './tsconfig.app.json',
     dts: true,
   }),

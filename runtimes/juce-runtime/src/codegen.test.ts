@@ -89,6 +89,8 @@ describe('generateJuceSources', () => {
       'soundor/SoundorEditor.cpp',
       'soundor/native/SoundorNative.h',
       'soundor/native/SoundorNative.cpp',
+      'soundor/SoundorState.h',
+      'soundor/SoundorState.cpp',
     ]);
   });
 
@@ -247,7 +249,7 @@ describe('generateJuceSources', () => {
       /add_subdirectory\("[^"\n]+\/engine" soundor-engine\)/,
     );
     expect(setup).toContain(
-      'target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal)',
+      'target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal juce::juce_core)',
     );
     expect(setup).toContain(
       '"/opt/soundor/native/backend/juce/soundor/backend/JuceParameterHost.cpp"',

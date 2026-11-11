@@ -65,6 +65,8 @@ export interface WebHost {
   readonly viewport: HTMLElement;
   /** Removes the host from the page and stops its audio. */
   dispose(): void;
+  /** Restore parameter and state defaults and persist them. */
+  reset(): void;
 }
 
 let forwarding = false;
@@ -84,6 +86,7 @@ export async function startSoundorWebHost(
   const container =
     options.container ?? document.getElementById('soundor') ?? document.body;
   const context = hostContext();
+  await context.state.ready;
   const audio = new WebAudioHost(context.host, {
     inputs: options.audioInputs,
     defaultInput: options.defaultAudioInput,
@@ -158,7 +161,9 @@ export async function startSoundorWebHost(
   return {
     element: shell.element,
     viewport: shell.viewport,
+    reset: () => context.state.reset(),
     dispose: () => {
+      void context.state.flush();
       audio.dispose();
       view.rootElement.remove();
       view.setEditorRequester(null);

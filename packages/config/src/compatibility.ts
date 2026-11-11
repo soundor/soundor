@@ -36,7 +36,14 @@ export interface ConfigFeature {
  * version that added it. Add one with each config field a raise of
  * {@link RUNTIME_API_VERSION} brings.
  */
-export const CONFIG_FEATURES: readonly ConfigFeature[] = [];
+export const CONFIG_FEATURES: readonly ConfigFeature[] = [
+  {
+    since: 2,
+    name: 'persistent state',
+    find: (config) =>
+      Object.keys(config.state ?? {}).length > 0 ? ['state'] : [],
+  },
+];
 
 /** The runtime API versions a host runs runtimes of. */
 export interface HostRuntimeApi {

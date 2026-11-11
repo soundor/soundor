@@ -148,3 +148,9 @@ export type {
 export { locateConfig } from './load';
 export { loadUserSettings, parseUserSettings, userConfigPath } from './user';
 export type { DevToolsSettings, UserSettings, UserConfigOptions } from './user';
+
+export type {
+  StateDeclaration,
+  StateDeclarations,
+  StateValue,
+} from '@soundor/core';

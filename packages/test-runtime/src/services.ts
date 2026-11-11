@@ -1,3 +1,4 @@
+import type { StateSchema } from '@soundor/core/state';
 /** Who may change a parameter: the UI and automation, the UI only, or the processing only. */
 export type ParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
@@ -139,6 +140,8 @@ export interface EditorInit {
   applyRequests?: boolean;
 }
 export interface RuntimeOptions {
+  /** Persistent schema, supplied by the Vitest plugin. */
+  state?: StateSchema;
   plugin?: { id: string; name: string };
   /** Resolved parameters (`resolveConfig(...).parameters`), as the Vitest plugin passes them. */
   parameters?: readonly ParameterInit[];

@@ -71,11 +71,12 @@ export async function startPlayground(
 ): Promise<void> {
   // Loaded only now: importing the host must not create its modules (the UI
   // module makes the plugin view, which needs a document).
-  const [fs, host, native, parameters, storage, ui] = await Promise.all([
+  const [fs, host, native, parameters, state, storage, ui] = await Promise.all([
     import('./modules/fs'),
     import('./modules/host'),
     import('soundor:native'),
     import('./modules/parameters'),
+    import('./modules/state'),
     import('./modules/storage'),
     import('./modules/ui'),
   ]);
@@ -84,6 +85,7 @@ export async function startPlayground(
     'soundor:host': host,
     'soundor:native': native,
     'soundor:parameters': parameters,
+    'soundor:state': state,
     'soundor:storage': storage,
     'soundor:ui': ui,
   });

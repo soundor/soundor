@@ -75,6 +75,10 @@ const config: CoreSoundorConfig = {
       default: 0,
     },
   ],
+  state: {
+    selectedPreset: { type: 'string?', default: null },
+    presets: { type: 'Preset[]', default: [] },
+  },
   native: {
     types: {
       Level: { struct: { rms: 'float32', peak: 'float32' } },
@@ -89,6 +93,7 @@ const config: CoreSoundorConfig = {
 };
 
 const consumer = `/// <reference path="./soundor.d.ts" />
+import { state } from 'soundor:state';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
@@ -102,6 +107,19 @@ const asset: string = logo;
 const svgAsset: string = vector;
 createImage(svgAsset, { width: 200, height: 100 });
 
+const selected: string | null = state.selectedPreset.get();
+void selected;
+state.selectedPreset.set('Warm');
+state.selectedPreset.set(null);
+state.presets.set([{ name: 'Warm', gains: [1], id: 1n }]);
+// @ts-expect-error nullable means null, not undefined
+state.selectedPreset.set(undefined);
+// @ts-expect-error state type is inferred
+state.selectedPreset.set(1);
+// @ts-expect-error nested fields are typed
+state.presets.set([{ name: 1, gains: [], id: 1n }]);
+// @ts-expect-error unknown fields are rejected
+state.unknown.get();
 const gain: number = parameters.gain.get();
 parameters.gain.set(gain - 1);
 const unit: 'dB' = parameters.gain.info.unit;

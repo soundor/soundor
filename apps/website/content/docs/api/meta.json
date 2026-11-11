@@ -6,6 +6,7 @@
     "index",
     "---Modules---",
     "parameters",
+    "state",
     "host",
     "ui",
     "storage",

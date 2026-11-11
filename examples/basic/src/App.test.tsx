@@ -8,7 +8,7 @@ import {
   waitFor,
 } from '@soundor/testing-library/react';
 import { parameters } from 'soundor:parameters';
-import { storage } from 'soundor:storage';
+import { state } from 'soundor:state';
 import { expect, test, vi } from 'vitest';
 
 import { App } from './App';
@@ -16,7 +16,7 @@ import { App } from './App';
 test('changes gain, edits and saves a preset, then navigates to reset in one session', async () => {
   const changed = vi.fn<(value: number) => void>();
   parameters.gain.subscribe(changed);
-  await storage.set('presetName', 'Init');
+  state.presetName.set('Init');
   await render(<App />);
   const user = userEvent.setup();
   await user.tab(); // The application's first focusable control is the gain fader.
@@ -29,9 +29,7 @@ test('changes gain, edits and saves a preset, then navigates to reset in one ses
   await user.clear(input);
   await user.type(input, 'Warm');
   await user.keyboard('{Enter}');
-  await waitFor(async () =>
-    expect(await storage.get('presetName')).toBe('Warm'),
-  );
+  await waitFor(async () => expect(state.presetName.get()).toBe('Warm'));
   await user.tab();
   expect(screen.getByRole('button', { name: 'Reset gain' })).toHaveFocus();
   await user.keyboard('{Enter}');
@@ -53,7 +51,7 @@ test('host and parameter subscriptions update the real application', async () =>
   expect(parameters.gain.get()).toBe(0.5);
 });
 test('loads a stored preset into the controlled input', async () => {
-  await storage.set('presetName', 'Bright');
+  state.presetName.set('Bright');
   await render(<App />);
   await waitFor(() =>
     expect(screen.getByRole('textinput').value).toBe('Bright'),

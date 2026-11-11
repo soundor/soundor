@@ -220,6 +220,7 @@ describe('validateConfig — validation rules', () => {
       },
       runtimes: [{ id: 'juce', options: {}, runtime }],
       parameters: [],
+      state: {},
       native: {},
       signing: {},
     });

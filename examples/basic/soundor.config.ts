@@ -27,6 +27,7 @@ export default defineSoundorConfig({
     }),
     webRuntime(),
   ],
+  state: { presetName: { type: 'string', default: 'Init' } },
   parameters: {
     gain: {
       type: 'float32',

@@ -20,6 +20,14 @@ export function useParameter<T>(parameter: ParameterLike<T>): T {
   );
 }
 
+/** A persistent state's value. The store supplies stable immutable snapshots. */
+export function useStateValue<T>(field: ParameterLike<T>): T {
+  return useSyncExternalStore(
+    (onChange) => field.subscribe(() => onChange()),
+    () => field.get(),
+  );
+}
+
 /** Calls `callback` on every frame while the component is mounted. */
 export function useAnimationFrame(callback: (time: number) => void): void {
   const latest = useRef(callback);

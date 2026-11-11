@@ -39,6 +39,10 @@ import {
 import { generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
+import {
+  generateStateSources,
+  persistentProcessorSource,
+} from './state-codegen';
 
 type Parameter = ResolvedParameter;
 type SoundorConfig = ResolvedSoundorConfig;
@@ -108,6 +112,7 @@ export function generateJuceSources(
       ),
     },
     ...generateNativeModuleSources(nativeApi.model),
+    ...generateStateSources(config),
   ];
 }
 
@@ -209,9 +214,13 @@ set(SOUNDOR_BUILD_TESTS OFF)
 add_subdirectory(${cmakeString(cmakePath(ENGINE_DIR))} soundor-engine)
 
 # Bindings generated from the config's native API.
-add_library(soundor_generated STATIC \${CMAKE_CURRENT_LIST_DIR}/soundor/native/SoundorNative.cpp)
-target_include_directories(soundor_generated PUBLIC \${CMAKE_CURRENT_LIST_DIR})
-target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal)
+add_library(soundor_generated STATIC
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/native/SoundorNative.cpp
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorState.cpp)
+target_include_directories(soundor_generated PUBLIC \${CMAKE_CURRENT_LIST_DIR}
+    PRIVATE ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce`))})
+target_compile_definitions(soundor_generated PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(soundor_generated PUBLIC Soundor::Engine PRIVATE soundor::runtime_internal juce::juce_core)
 soundor_configure_target(soundor_generated)
 
 # Expose the generated headers as <soundor/soundor.h> and compile the base
@@ -387,6 +396,9 @@ function renderProcessorHeader(
 #include <soundor/backend/JuceTransport.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
+#include "SoundorState.h"
+#include <deque>
+#include <mutex>
 
 #include <atomic>
 #include <cstdint>
@@ -404,12 +416,12 @@ namespace ${NS}
 ${renderChoiceEnums(parameters, enums)}
     // Base processor: owns the parameter tree generated from soundor.config.
     // Derive your plugin's processor from this and implement the DSP.
-    class AudioProcessor : public juce::AudioProcessor
+    class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
         AudioProcessor() : AudioProcessor(BusesProperties()) {}
         explicit AudioProcessor(const BusesProperties& ioLayouts);
-        ~AudioProcessor() override = default;
+        ~AudioProcessor() override;
 
         // The plugin's identity (soundor.config \`plugin\`).
         static constexpr const char* pluginId = ${cppString(plugin.id)};
@@ -446,11 +458,22 @@ ${renderChoiceEnums(parameters, enums)}
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 
     protected:
+        // Called on the message thread after a complete accepted host restoration.
+        virtual void stateRestored() {}
+        // Persistent control-thread data; never call get/set from process().
+        PersistentState state;
+
         // The parameters, typed as declared, for the processing: load() reads
         // one on any thread (realtime-safe); a read-only one's publish() sets it.
 ${handles || '        // no parameters'}
 
     private:
+        struct Restoration { juce::ValueTree parameters; backend::StateStore::Values state; };
+        std::mutex restorationMutex;
+        std::deque<Restoration> restorations;
+        bool deliveringRestorations = false;
+        void handleAsyncUpdate() override;
+        friend class AudioProcessorEditor;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
         backend::TransportCapture transport;
@@ -499,18 +522,7 @@ namespace ${NS}
 ${bindings || '        // no parameters'}
     }
 
-    void AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
-    {
-        if (auto xml = parameters->copyState().createXml())
-            copyXmlToBinary(*xml, destData);
-    }
-
-    void AudioProcessor::setStateInformation(const void* data, int sizeInBytes)
-    {
-        if (auto xml = getXmlFromBinary(data, sizeInBytes))
-            if (xml->hasTagName(parameters->state.getType()))
-                parameters->replaceState(juce::ValueTree::fromXml(*xml));
-    }
+${persistentProcessorSource(parameters)}
 } // namespace ${NS}
 `;
 }
@@ -971,6 +983,7 @@ namespace ${NS}
             std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos());
         options.installModules = [&owner](js::Context& context)
         {
+            persistent::install(context, owner.state);
             if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));
         };
@@ -1191,6 +1204,7 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::timerCallback()
     {
+        persistent::dispatch(runtimeHost().context());
         // Every frame, so a reloaded UI (soundor dev) gets the size at once.
         sizeSurface();
 #if SOUNDOR_UI_DEV

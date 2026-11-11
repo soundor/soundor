@@ -7,6 +7,7 @@
  * factory), which the CLI dispatches; core itself stays declarative.
  */
 
+import type { StateDeclarations } from '@soundor/core';
 import type { NativeApiDeclaration } from '@soundor/core';
 
 import type { EditorConfig, ResolvedEditorConfig } from './editor';
@@ -108,6 +109,8 @@ export interface SoundorConfig<
   parameters?: CheckedParameters<P>;
   /** The plugin's typed native API, exposed to JavaScript as `soundor:native`. */
   native?: NativeApiDeclaration;
+  /** Application data persisted with the plugin; never host parameters. */
+  state?: StateDeclarations;
   /** Code signing; runtimes read the resolved settings from `ctx.signing`. */
   signing?: SigningConfig;
 }
@@ -127,5 +130,7 @@ export interface ResolvedSoundorConfig {
   /** In declaration order, which is the order hosts list them in. */
   parameters: readonly ResolvedParameter[];
   native?: NativeApiDeclaration;
+  /** Application data persisted with the plugin; never host parameters. */
+  state?: StateDeclarations;
   signing?: SigningConfig;
 }

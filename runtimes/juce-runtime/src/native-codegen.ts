@@ -142,7 +142,7 @@ function argumentType(type: NativeType): string {
 }
 
 /** How a value is returned or stored in a struct. */
-function valueType(type: NativeType): string {
+export function valueType(type: NativeType): string {
   switch (type.kind) {
     case 'void':
       return 'void';
@@ -272,7 +272,7 @@ function conversionUsage(model: NativeApiModel): {
   return { reads, writes };
 }
 
-function renderEnumConversions(
+export function renderEnumConversions(
   type: Extract<NativeTypeModel, { kind: 'enum' }>,
   readable: boolean,
   writable: boolean,
@@ -298,10 +298,11 @@ function renderEnumConversions(
   return parts.join('\n\n');
 }
 
-function renderStructConversions(
+export function renderStructConversions(
   type: Extract<NativeTypeModel, { kind: 'struct' }>,
   readable: boolean,
   writable: boolean,
+  strict = false,
 ): string {
   const reads = type.fields.map(
     (field) =>
@@ -315,7 +316,7 @@ function renderStructConversions(
   if (readable) {
     parts.push(`        void read(bind::ContextState& ctx, const jsi::Value& value, const bind::Path& path, ${type.name}& out)
         {
-            const jsi::Object object = bind::expectObject(ctx, value, path);
+            const jsi::Object object = bind::expectObject(ctx, value, path);${strict ? `\n            if (object.getPropertyNames(ctx.rt).size(ctx.rt) != ${type.fields.length}) bind::throwTypeError(ctx, path.toString() + ": unexpected struct fields");` : ''}
 ${reads.join('\n')}
         }`);
   }
@@ -395,7 +396,7 @@ function renderArgumentRead(arg: NativeField, index: number): string {
  * buffer is borrowed (a span) where `borrow` is set, a method's own argument,
  * and copied (a vector) elsewhere.
  */
-function readStatement(
+export function readStatement(
   type: NativeType,
   ctx: string,
   value: string,
@@ -448,7 +449,7 @@ function readStatement(
  * A C++ expression converting `value` (consumed) into a new jsi::Value. A named
  * `value` is moved from; a temporary (a call result) is passed as is.
  */
-function writeExpression(
+export function writeExpression(
   type: NativeType,
   ctx: string,
   value: string,

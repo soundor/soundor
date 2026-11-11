@@ -42,6 +42,7 @@ export { Modal, type ModalProps } from './modal';
 export {
   useAnimationFrame,
   useParameter,
+  useStateValue,
   useViewSize,
   type ParameterLike,
 } from './hooks';

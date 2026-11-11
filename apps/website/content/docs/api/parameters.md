@@ -21,6 +21,8 @@ In React, [`useParameter`](/docs/hooks) reads one and re-renders
 on its changes. The [Parameters guide](/docs/parameters) shows how to declare
 them and connect them to audio.
 
+For persistent application data without automation, use [`soundor:state`](/docs/api/state).
+
 ## `parameters`
 
 One object per declared parameter, by `id`, typed from the config: a
