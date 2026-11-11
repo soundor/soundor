@@ -310,7 +310,7 @@ function virtualModule(
   if (name === 'state')
     return (
       header +
-      `export const state = Object.freeze({ ...Object.fromEntries(${JSON.stringify(stateIds)}.map(id => [id, { get: () => getTestRuntime().state.fields[id].get(), set: value => getTestRuntime().state.fields[id].set(value), subscribe: listener => getTestRuntime().state.fields[id].subscribe(listener) }])), onRestored: listener => getTestRuntime().state.onRestored(listener) });`
+      `export const state = Object.freeze({ ...Object.fromEntries(${JSON.stringify(stateIds)}.map(id => [id, { get: () => getTestRuntime().state.fields[id].get(), set: value => getTestRuntime().state.fields[id].set(value), beginGesture: () => getTestRuntime().state.fields[id].beginGesture(), endGesture: () => getTestRuntime().state.fields[id].endGesture(), subscribe: listener => getTestRuntime().state.fields[id].subscribe(listener) }])), onRestored: listener => getTestRuntime().state.onRestored(listener) });`
     );
   if (name === 'parameters')
     return (

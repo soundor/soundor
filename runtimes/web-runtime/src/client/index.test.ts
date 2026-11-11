@@ -1,3 +1,4 @@
+import { describeState } from '@soundor/runtime-sdk/client';
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +8,7 @@ afterEach(() => {
   document.body.replaceChildren();
   document.head.replaceChildren();
   vi.doUnmock('soundor:internal/ui');
+  vi.doUnmock('soundor:internal/manifest');
   vi.resetModules();
   vi.restoreAllMocks();
 });
@@ -81,4 +83,31 @@ it('forwards registered inputs and their default to the shared host panel', asyn
   expect(option?.selected).toBe(true);
   expect(source).not.toHaveBeenCalled();
   host.dispose();
+});
+
+it('ends unfinished state gestures on host disposal and retains values on recreation', async () => {
+  const fixture = await import('./testing/manifest.json');
+  vi.doMock('soundor:internal/manifest', () => ({
+    default: {
+      ...fixture.default,
+      state: describeState({ selected: { type: 'string?', default: null } }),
+    },
+  }));
+  const host = await start();
+  const { hostContext } = await import('./context');
+  const store = hostContext().state.store;
+  const selected = store.fields.selected!;
+  selected.beginGesture();
+  selected.beginGesture();
+  selected.set('Warm');
+  expect(store.gestureDepth('selected')).toBe(2);
+  host.dispose();
+  expect(store.gestureDepth('selected')).toBe(0);
+  const reopened = await start();
+  expect(selected.get()).toBe('Warm');
+  selected.endGesture();
+  selected.beginGesture();
+  expect(store.gestureDepth('selected')).toBe(1);
+  reopened.dispose();
+  expect(store.gestureDepth('selected')).toBe(0);
 });

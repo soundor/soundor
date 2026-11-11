@@ -95,6 +95,7 @@ namespace ${ns} {
       return out;
     }
     void apply(const backend::StateStore::Values& values) {
+      store.resetGestures();
       store.replace(values);
       store.restored();
     }
@@ -128,9 +129,10 @@ ${conversions}
   struct Listener { std::string field; bool active = true; };
   struct Cache { std::string json; };
   struct Binding {
-    explicit Binding(PersistentState& owner) : state(owner) { state.storage().connect(); }
-    ~Binding() { state.storage().disconnect(); }
+    explicit Binding(PersistentState& owner) : state(owner), session(state.storage().connect()) {}
+    ~Binding() { state.storage().disconnect(session); }
     PersistentState& state;
+    backend::StateStore::Session session;
     std::list<Listener> listeners;
     std::map<std::string, Cache> caches;
   };
@@ -218,6 +220,20 @@ void install(js::Context& context, PersistentState& state) {
           return jsi::Value::undefined();
         });
       }));
+      ${['beginGesture', 'endGesture']
+        .map(
+          (
+            method,
+          ) => `field.set("${method}", bind::closure(ctx, "${method}", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.${f.name}.${method}", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.${f.name}.${method}", count, 0);
+          auto& view = binding(c);
+          view.state.storage().${method}(${quote(f.name)}, view.session);
+          return jsi::Value::undefined();
+        });
+      }));`,
+        )
+        .join('\n')}
       field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, ${quote(f.name)}, args, count); });
       }));

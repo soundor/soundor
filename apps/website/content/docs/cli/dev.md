@@ -49,7 +49,7 @@ Standalone.
 whenever a project file changes. The plugin loads the UI from
 `.soundor/ui/development` instead of embedding it, and on every successful build
 replaces its JavaScript runtime with a fresh one: timers, subscriptions, open
-parameter gestures and pending work of the old UI all end. State lives in the
+parameter and state gestures and pending work of the old UI all end. State lives in the
 plugin (parameters) or in `soundor:storage`, so it survives a reload.
 
 - A failed build is reported in the terminal; the plugin keeps running the last

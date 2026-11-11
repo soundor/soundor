@@ -25,7 +25,7 @@ export const CONFIG_VERSION: string = version;
  * `runtime-api.json` records the contract it describes; a test fails when the
  * contract changes without it.
  */
-export const RUNTIME_API_VERSION = 2;
+export const RUNTIME_API_VERSION = 3;
 
 /** The oldest runtime API version this host still runs runtimes of. */
 export const MIN_RUNTIME_API_VERSION = 1;

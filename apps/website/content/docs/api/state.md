@@ -5,7 +5,8 @@ description: 'Typed application data persisted independently of the plugin edito
 
 Declared state is application data, such as a preset name or a list of bands.
 [Parameters](/docs/api/parameters) represent values shared with host automation;
-state has no host parameter ID, normalized range, gesture or implicit smoothing.
+state has no host parameter ID, normalized range or implicit smoothing. State
+gestures describe editing lifecycles only.
 
 ## Declare state
 
@@ -93,6 +94,45 @@ export function PresetName() {
 }
 ```
 
+## Editing gestures
+
+Gestures are optional. `set()` works normally without them. Use a gesture to
+mark a continuous user interaction, such as dragging an EQ band:
+
+```ts
+state.bands.beginGesture();
+try {
+  state.bands.set(updatedBands);
+} finally {
+  state.bands.endGesture();
+}
+```
+
+Writes apply immediately and retain their usual notifications and persistence.
+Gestures do not buffer writes or create History entries. A gesture describes the
+lifetime of a user interaction; it does not decide whether it is undoable.
+
+|                           | Parameter gesture    | State gesture |
+| ------------------------- | -------------------- | ------------- |
+| Defines editing lifecycle | Yes                  | Yes           |
+| Updates immediately       | Yes                  | Yes           |
+| DAW automation gesture    | Yes, where supported | No            |
+| Creates History entry     | Not yet              | Not yet       |
+| Future History grouping   | Yes                  | Yes           |
+
+Nested begins form one logical interaction: only the first begin and final end
+are outer boundaries. Each field has its own lifecycle. Extra or unmatched ends
+are ignored, and gestures containing no writes are valid. Closing or reloading
+the editor clears that UI session's unfinished gestures without changing state.
+Native processor gestures survive editor closure. Restoration clears all active
+gestures before notifying state subscribers, without replaying gesture boundaries.
+Gesture metadata is never saved. Cleanup of an older editor cannot close a new
+editor's gesture after restoration.
+
+`useStateValue(state.bands)` still returns the value. React event handlers can
+call `state.bands.beginGesture()`, `set()` and `endGesture()` directly. No History
+options, transactions or rollback are provided yet.
+
 ## Native JUCE code
 
 The generated `soundor::AudioProcessor` base owns `state`. It survives closing
@@ -110,14 +150,17 @@ void MyProcessor::selectPreset()
 
 Types reuse `soundor::native`: `bool`, sized integers, `float`/`double`,
 `std::string`, `std::optional<T>`, `std::vector<T>` and generated structs/enums.
-Native getters return independent copies. Setters reject invalid values.
+Native fields also expose `beginGesture()` and `endGesture()`. Native and
+JavaScript calls contribute to the same processor-owned field lifecycle; each
+caller balances its own begins and ends. Native getters return independent
+copies. Setters reject invalid values.
 A native field also has `subscribe(std::function<void(T)>)`, returning an
 unsubscribe closure. Native subscribers run synchronously on the writing
 thread; unsubscribe before destroying the processor.
 
 **State access is control-thread work, never real-time safe.** It allocates and
-uses synchronization. Do not read, write or subscribe in `process()`. Maintain
-your own real-time-safe derived DSP representation and publish it with your
+uses synchronization. Do not read, write, subscribe or begin/end gestures in
+`process()`. Maintain your own real-time-safe derived DSP representation and publish it with your
 usual control-to-audio mechanism. Ordinary parameter handles retain their
 existing real-time-safe reads.
 
@@ -196,5 +239,5 @@ Snapshots are limited to 8 MiB, nesting to 64 levels and collection sizes to
 Saving does not invoke restoration callbacks.
 
 All mutations go through the store's setter/replacement path. StateHistory,
-transactions, undo/redo and gesture integration are separate future features;
+transactions and undo/redo are separate future features;
 no `history` hook option exists in this API.

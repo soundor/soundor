@@ -246,7 +246,89 @@ TEST_CASE("frontend field notifications precede restoration callbacks")
                 "globalThis.events = []; state.selectedPreset.subscribe(v => events.push(v)); state.onRestored(() => { "
                 "if(state.selectedPreset.get() !== 'Saved') throw Error('old state'); events.push('restored'); });")
             .ok());
+    REQUIRE(context.evaluateScript("state.selectedPreset.beginGesture(); state.groups.beginGesture();").ok());
+    CHECK(processor.state.storage().gestureDepth("selectedPreset") == 1);
     restore(processor, saved);
+    CHECK(processor.state.storage().gestureDepth("selectedPreset") == 0);
+    CHECK(processor.state.storage().gestureDepth("groups") == 0);
     persistent::dispatch(context);
     CHECK(context.evaluateScript("events.join(',')").value().asString() == "Saved,restored");
+}
+
+TEST_CASE("state gestures share processor storage and clean up only their UI session")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    auto& store = processor.state.storage();
+    processor.state.enabled.endGesture();
+    processor.state.enabled.beginGesture();
+    processor.state.enabled.beginGesture();
+    CHECK(store.gestureDepth("enabled") == 2);
+    processor.state.enabled.endGesture();
+    {
+        js::Runtime runtime;
+        js::Context context(runtime);
+        persistent::install(context, processor.state);
+        REQUIRE(
+            context
+                .evaluateModule("(function(exports, require) { globalThis.state = require('soundor:state').state; })",
+                                "/state.js")
+                .ok());
+        REQUIRE(context
+                    .evaluateScript(
+                        "state.enabled.beginGesture(); state.enabled.beginGesture();"
+                        "state.groups.beginGesture(); state.selectedPreset.beginGesture();"
+                        "state.precise.beginGesture(); state.precise.endGesture(); state.precise.endGesture();"
+                        "state.enabled.set(false); state.selectedPreset.set('Warm'); state.enabled.endGesture();")
+                    .ok());
+        CHECK(store.gestureDepth("enabled") == 2);
+        CHECK(store.gestureDepth("groups") == 1);
+        CHECK(store.gestureDepth("selectedPreset") == 1);
+        CHECK(store.gestureDepth("precise") == 0);
+        CHECK(! processor.state.enabled.get());
+    }
+    CHECK(store.gestureDepth("enabled") == 1); // Native owner survives UI teardown.
+    CHECK(store.gestureDepth("groups") == 0);
+    CHECK(store.gestureDepth("selectedPreset") == 0);
+    CHECK(processor.state.selectedPreset.get() == "Warm");
+    processor.state.enabled.endGesture();
+    processor.state.enabled.endGesture();
+    CHECK(store.gestureDepth("enabled") == 0);
+}
+
+TEST_CASE("restoration invalidates gestures without serializing them or touching automation")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    struct AutomationListener final : juce::AudioProcessorParameter::Listener
+    {
+        int gestures = 0;
+        void parameterValueChanged(int, float) override {}
+        void parameterGestureChanged(int, bool) override { ++gestures; }
+    } listener;
+    auto* gain = processor.getParameters().getParameter("gain");
+    gain->addListener(&listener);
+    processor.state.enabled.beginGesture();
+    auto& store = processor.state.storage();
+    const auto oldSession = store.connect();
+    store.beginGesture("enabled", oldSession);
+    juce::MemoryBlock withGesture, withoutGesture;
+    processor.getStateInformation(withGesture);
+    processor.state.enabled.endGesture();
+    store.endGesture("enabled", oldSession);
+    processor.getStateInformation(withoutGesture);
+    CHECK(withGesture == withoutGesture);
+    store.beginGesture("enabled", oldSession);
+    processor.state.apply(PersistentState::prepare(processor.state.snapshot()));
+    CHECK(store.gestureDepth("enabled") == 0);
+    const auto newSession = store.connect();
+    store.beginGesture("enabled", newSession);
+    store.disconnect(oldSession);
+    CHECK(store.gestureDepth("enabled") == 1);
+    store.disconnect(newSession);
+    CHECK(store.gestureDepth("enabled") == 0);
+    CHECK(listener.gestures == 0);
+    gain->removeListener(&listener);
+    // Destruction with native gestures open owns no JS values or callbacks.
+    processor.state.enabled.beginGesture();
 }

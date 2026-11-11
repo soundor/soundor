@@ -498,6 +498,46 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     {
     public:
         using Values = std::map<std::string, std::string>;
+        using Session = std::uint64_t;
+        // Owner zero is native processor code. Other owners are UI contexts.
+        // All owners contribute to the same field lifecycle, but cleanup removes
+        // only its own contribution, including after restoration/recreation.
+        void beginGesture(const std::string& field, Session owner = 0)
+        {
+            const std::lock_guard guard(lock);
+            ++gestures[field][owner];
+        }
+        void endGesture(const std::string& field, Session owner = 0)
+        {
+            const std::lock_guard guard(lock);
+            const auto found = gestures.find(field);
+            if (found == gestures.end())
+                return;
+            auto& owners = found->second;
+            const auto entry = owners.find(owner);
+            if (entry != owners.end() && --entry->second == 0)
+                owners.erase(entry);
+            if (owners.empty())
+                gestures.erase(found);
+        }
+        std::size_t gestureDepth(const std::string& field) const
+        {
+            const std::lock_guard guard(lock);
+            const auto found = gestures.find(field);
+            std::size_t depth = 0;
+            if (found != gestures.end())
+                for (const auto& [owner, count] : found->second)
+                {
+                    static_cast<void>(owner);
+                    depth += count;
+                }
+            return depth;
+        }
+        void resetGestures()
+        {
+            const std::lock_guard guard(lock);
+            gestures.clear();
+        }
         struct Event
         {
             std::string field;
@@ -574,17 +614,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             if (connected)
                 events.push_back({ {}, {}, true });
         }
-        void connect()
+        Session connect()
         {
             const std::lock_guard guard(lock);
             connected = true;
             events.clear();
+            return ++session;
         }
-        void disconnect()
+        void disconnect(Session owner)
         {
             const std::lock_guard guard(lock);
-            connected = false;
-            events.clear();
+            for (auto field = gestures.begin(); field != gestures.end();)
+            {
+                field->second.erase(owner);
+                if (field->second.empty())
+                    field = gestures.erase(field);
+                else
+                    ++field;
+            }
+            if (owner == session)
+            {
+                connected = false;
+                events.clear();
+            }
         }
         std::vector<Event> drain()
         {
@@ -597,6 +649,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     private:
         mutable std::recursive_mutex lock;
         Values values;
+        Session session = 0;
+        std::map<std::string, std::map<Session, std::size_t>> gestures;
         std::size_t nextListener = 0;
         std::map<std::string, std::map<std::size_t, Callback>> listeners;
         bool notifyingNative = false;
@@ -613,6 +667,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             set(std::move(initial));
         }
+        // Control-thread only, like get/set. No JUCE automation is involved.
+        void beginGesture() { store.beginGesture(field); }
+        void endGesture() { store.endGesture(field); }
         T get() const { return StateCodec<T>::decode(parseStateJson(store.get(field))); }
         // The unsubscribe closure must be destroyed/called before the processor.
         std::function<void()> subscribe(std::function<void(T)> callback)

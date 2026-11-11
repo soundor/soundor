@@ -97,6 +97,7 @@ backend::StateField<std::uint64_t> unsignedValue;
       return out;
     }
     void apply(const backend::StateStore::Values& values) {
+      store.resetGestures();
       store.replace(values);
       store.restored();
     }

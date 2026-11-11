@@ -947,6 +947,7 @@ export class TestRuntime {
     this.animationsByNode.clear();
     this.clock.clear();
     this.parameters.list.forEach((parameter) => parameter.dispose());
+    this.state.resetGestures();
     this.hostListeners.clear();
     this.sizeListeners.clear();
     this.editorListeners.clear();

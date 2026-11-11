@@ -5,6 +5,7 @@ import { readText } from 'soundor:fs';
 import { snapshot, subscribe } from 'soundor:host';
 import { probe, load } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
+import { state } from 'soundor:state';
 import { storage } from 'soundor:storage';
 import {
   root,
@@ -22,6 +23,8 @@ function expectFreshRuntime() {
   expect(overlayRoot).toBe(getTestRuntime().overlayRoot);
   expect(root.children).toEqual([]);
   expect(gain.get()).toBe(0.5);
+  expect(state.selected.get()).toBeNull();
+  expect(getTestRuntime().state.gestureDepth('selected')).toBe(0);
   expect(previous?.isDisposed ?? true).toBe(true);
 }
 afterEach(() => {
@@ -54,6 +57,13 @@ test('normal imports dispatch to the active runtime', async () => {
     vi.fn(() => 7),
   );
   expect(await load()).toBe(7);
+  state.selected.beginGesture();
+  state.selected.beginGesture();
+  state.selected.set('Warm');
+  state.selected.endGesture();
+  expect(state.selected.get()).toBe('Warm');
+  expect(getTestRuntime().state.gestureDepth('selected')).toBe(1);
+  // Leave one begin open to exercise per-test teardown.
   userMock();
   const animationNode = createView();
   root.appendChild(animationNode);

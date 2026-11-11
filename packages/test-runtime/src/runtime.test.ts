@@ -1166,3 +1166,29 @@ it('scrolls smoothly over the virtual clock, eased, and stops for a scroll at on
   list.scrollTo({ top: 50, behavior: 'smooth' });
   expect(list.scrollTop).toBe(50);
 });
+
+it('cleans up unfinished state gestures without resetting persistent values', () => {
+  const runtime = createTestRuntime({
+    state: {
+      fields: [
+        {
+          name: 'selected',
+          type: {
+            kind: 'nullable',
+            inner: { kind: 'primitive', name: 'string' },
+          },
+          default: null,
+        },
+      ],
+      types: [],
+    },
+  });
+  const field = runtime.state.fields.selected!;
+  field.beginGesture();
+  field.beginGesture();
+  field.set('Warm');
+  expect(runtime.state.gestureDepth('selected')).toBe(2);
+  runtime.dispose();
+  expect(runtime.state.gestureDepth('selected')).toBe(0);
+  expect(field.get()).toBe('Warm');
+});
