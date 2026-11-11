@@ -63,7 +63,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             void composite(const Frame& frame) override
             {
                 stats = {};
-                if (! working || frame.width <= 0 || frame.height <= 0)
+                if (! healthy() || frame.width <= 0 || frame.height <= 0)
                     return;
                 const gpu::CurrentContext current(*context, surface);
                 // A GPU reset (or a removed GPU) loses its contexts: the
@@ -103,7 +103,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
                 stale = true;
             }
 
-            [[nodiscard]] bool healthy() const noexcept override { return working; }
+            [[nodiscard]] bool healthy() const noexcept override { return working && presentation->healthy(); }
 
             [[nodiscard]] std::shared_ptr<gpu::Device> device() const override { return shared; }
 
@@ -140,7 +140,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             return nullptr;
         }
         return gpu::Device::create(
-            { .policy = allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly }, failure);
+            { .policy = allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly,
+              .presentation = true },
+            failure);
     }
 
     std::unique_ptr<GpuCompositor> GpuCompositor::create(const Options& options, std::string* failure)
@@ -159,9 +161,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::render
             return fail(reason);
         auto device = options.device;
         if (device == nullptr)
-            device = gpu::Device::create({ .policy = options.allowSoftware ? gpu::DevicePolicy::AllowSoftware
-                                                                           : gpu::DevicePolicy::HardwareOnly },
-                                         &reason);
+            device = gpu::Device::create(
+                { .policy = options.allowSoftware ? gpu::DevicePolicy::AllowSoftware : gpu::DevicePolicy::HardwareOnly,
+                  .presentation = true },
+                &reason);
         if (device == nullptr)
             return fail(reason);
         auto context = gpu::Context::create(device, {}, &reason);

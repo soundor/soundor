@@ -134,6 +134,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
                 candidate.deviceType,
                 EGL_PLATFORM_ANGLE_DISPLAY_KEY_ANGLE,
                 nextDisplayKey(),
+#if defined(__linux__)
+                EGL_PLATFORM_ANGLE_NATIVE_PLATFORM_TYPE_ANGLE,
+                options.presentation && candidate.backend == Backend::Vulkan ? EGL_PLATFORM_X11_EXT
+                                                                             : EGL_PLATFORM_SURFACELESS_MESA,
+#endif
                 EGL_NONE,
             };
             EGLDisplay display = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE,

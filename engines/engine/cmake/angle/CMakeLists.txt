@@ -45,6 +45,10 @@ function(angle_target name)
   set(angle_objects ${angle_objects} $<TARGET_OBJECTS:${name}> PARENT_SCOPE)
 endfunction()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_compile_definitions(SOUNDOR_ANGLE_USE_XCB VK_USE_PLATFORM_XCB_KHR)
+endif()
+
 include(${ANGLE_TARGETS})
 
 add_library(angle STATIC ${angle_objects})

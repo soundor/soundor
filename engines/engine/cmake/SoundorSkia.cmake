@@ -21,7 +21,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/SoundorWindowsCrt.cmake)
 
 # Ganesh uses our assembled GLES interface, never a second ANGLE or native GL.
 set(soundor_ganesh_default OFF)
-if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(soundor_ganesh_default ON)
 endif()
 option(SOUNDOR_ENABLE_GANESH "Draw UI with Skia Ganesh on the compositor's ANGLE device" ${soundor_ganesh_default})

@@ -779,7 +779,7 @@ lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
 repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
 still draws the whole view in one go, for tests and tools.
 
-`ui::Renderer` draws nodes with [Skia](https://skia.org). macOS and Windows builds
+`ui::Renderer` draws nodes with [Skia](https://skia.org). macOS, Windows and Linux builds
 enable Ganesh's GLES backend by default (`SOUNDOR_ENABLE_GANESH`). Ganesh uses a
 separate context on the compositor's existing ANGLE device, with an assembled GLES function table
 and no native OpenGL loader or second ANGLE copy. Shared textures and ordered
@@ -883,10 +883,13 @@ its headers.
   - Windows: a child window of the system's `STATIC` class over the `HWND`,
     for ANGLE's Direct3D 11 swap chain; it answers `HTTRANSPARENT` to hit
     tests, so input goes to the view's window.
-  - Linux: none. Presenting from Vulkan into the host's X11 window would need
-    ANGLE built with X11 and xcb, linked into every plugin, and a plugin must
-    load where they are missing (JUCE loads X11 at run time for this reason).
-    So Linux composites on the CPU, and the GPU's work (WebGL) is read back.
+  - Linux: an X11 child window with an empty input shape, so the parent
+    keeps pointer, scroll and focus handling. ANGLE's Vulkan XCB backend
+    presents into it. XCB and XCB Shape load at run time; none is a mandatory
+    engine dependency. X Shape 1.1 is required for input transparency. Wayland
+    sessions work through XWayland when the host supplies an X11 editor
+    window; native Wayland views are not supported. Without a display or an
+    acceptable GPU, the editor uses CPU composition.
 - **WebGL** (`src/gpu/webgl/`): a canvas's `WebGL2RenderingContext` is an
   OpenGL ES 3.0 context in ANGLE's WebGL compatibility mode, so ANGLE checks
   every call the way a browser's WebGL does. Its `*RobustANGLE` entry points
@@ -927,7 +930,7 @@ its headers.
     the image is read back into the
     canvas's pixels when the frame is made, and drawn like a 2D canvas's
     (converted when `alpha` or `premultipliedAlpha` is false). That happens
-    with another device, a CPU compositor (Linux, `SOUNDOR_RENDERER=cpu`, a
+    with another device, a CPU compositor (`SOUNDOR_RENDERER=cpu`, a
     lost GPU), `RuntimeHost::render()`, or a clip that one rounded
     rectangle can't express. Read-backs are counted
     (`FrameStatistics::gpuReadbacks`, `WebGLContext::readbacks()`).
@@ -1284,9 +1287,8 @@ GCC, no-GPU and lint suites do not supply release dependency snapshots.
 ### Skia
 
 Skia is built from source at the pinned `chrome/m144` commit, with raster
-support everywhere and Ganesh/GLES enabled by default on macOS and Windows.
-The internal `SOUNDOR_ENABLE_GANESH=ON` option enables the same integration for
-headless GPU tests on Linux.
+support everywhere and Ganesh/GLES enabled by default on macOS, Windows and Linux.
+The same integration supports offscreen GPU tests without an X11 display.
 `SOUNDOR_ENABLE_GPU=OFF` disables Ganesh too. An overridden `SOUNDOR_SKIA_DIR`
 must contain the matching variant (the build script takes `-DGANESH=ON`). It
 gets its PNG, JPEG, WebP, zlib and Expat code, each at the commit Skia's `DEPS`
@@ -1448,22 +1450,27 @@ compositor and WebGL (see "The GPU").
   them rebuilds ANGLE. A function ANGLE needs and Skia's zlib lacks fails the
   link. The `soundor_dependencies_share_no_symbols` test fails when two
   dependency archives define the same C symbol.
-- **Patched:** `cmake/SoundorAnglePatch.cmake` changes one thing after the
-  checkout. `Display::terminate` joins ANGLE's worker threads before the
+- **Patched:** `cmake/SoundorAnglePatch.cmake` enables Linux's Vulkan XCB
+  presentation independently of GLX and Xlib GPU discovery. Its XCB calls go
+  through `cmake/angle/XcbLoader.h`, which loads `libxcb.so.1` dynamically.
+  `Display::terminate` joins ANGLE's worker threads before the
   backend terminates instead of after: on Vulkan, terminating destroys the
   instance and the loader unloads the driver, and a worker that had made
   Vulkan calls would then exit into the driver's unloaded thread-exit code
   (Mesa's Venus driver crashes the process on every `eglTerminate`). The patch
   fails the build when ANGLE's code no longer matches, so an ANGLE update has
   to revisit it.
-- **Prerequisites:** git, Python 3 and ninja, as for Skia.
+- **Prerequisites:** git, Python 3 and ninja, as for Skia; Linux also needs
+  XCB and XCB Shape development headers (plus X11 and Xext for tests). Native presentation tests use Xvfb
+  when installed.
 - **Using your own build:** set `SOUNDOR_ANGLE_DIR` to an install made by that
   script. `-DSOUNDOR_ENABLE_GPU=OFF` builds without ANGLE (CPU only).
 - **Backends:** only the platform's own. On macOS that excludes ANGLE's OpenGL
   backend, which defines an Objective-C class. Linux also has OpenGL through
   the system's EGL, used only when asked for (see "The GPU").
-- **No new dependencies:** the Vulkan loader and EGL are loaded at run time,
-  so a plugin still loads on a machine without them; it just has no GPU.
+- **Runtime dependencies:** the Vulkan loader, EGL and Linux's X11/XCB
+  libraries load at run time, so a plugin still loads without them; it uses
+  CPU rendering when GPU presentation is unavailable.
 - **Hiding symbols:** ANGLE marks its API `ANGLE_EXPORT` and the Khronos
   headers `KHRONOS_APICALL`. The build defines both to nothing
   (`ANGLE_EXPORT=`, `KHRONOS_STATIC`), so no EGL, GLES or ANGLE symbol leaves

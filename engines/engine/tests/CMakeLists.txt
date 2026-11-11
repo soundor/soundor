@@ -165,6 +165,11 @@ if(SOUNDOR_JS_SOURCE)
     else()
       target_sources(soundor_runtime_tests PRIVATE gpu/TestWindow.cpp)
     endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      find_package(X11 REQUIRED)
+      target_sources(soundor_runtime_tests PRIVATE gpu/LinuxPresentationTests.cpp)
+      target_link_libraries(soundor_runtime_tests PRIVATE X11::X11 X11::Xext)
+    endif()
     target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
   endif()
 
@@ -181,7 +186,14 @@ if(SOUNDOR_JS_SOURCE)
     target_compile_options(soundor_runtime_tests PRIVATE $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc -Wno-old-style-cast>)
   endif()
 
-  add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SOUNDOR_HAS_GPU)
+    find_program(SOUNDOR_XVFB_RUN xvfb-run)
+  endif()
+  if(SOUNDOR_XVFB_RUN)
+    add_test(NAME soundor_runtime_tests COMMAND "${SOUNDOR_XVFB_RUN}" -a $<TARGET_FILE:soundor_runtime_tests>)
+  else()
+    add_test(NAME soundor_runtime_tests COMMAND soundor_runtime_tests)
+  endif()
 
   # soundor_embed_directory() called from another project's scope (as setup.cmake
   # does) must still find its script.
@@ -225,6 +237,13 @@ if(NOT WIN32 AND NOT SOUNDOR_ENABLE_SANITIZERS)
         -DAPPLE=${APPLE}
         -DALLOWED=soundor_probe_entry
         -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckExportedSymbols.cmake)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+      find_program(SOUNDOR_READELF NAMES readelf llvm-readelf REQUIRED)
+      add_test(NAME soundor_optional_gpu_libraries
+        COMMAND ${CMAKE_COMMAND} -DLIBRARY=$<TARGET_FILE:soundor_symbol_probe>
+          -DREADELF=${SOUNDOR_READELF}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/symbols/CheckOptionalGpuLibraries.cmake)
+    endif()
   endif()
 
   # Negative control: proves the check really fails on a leaked symbol.

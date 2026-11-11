@@ -63,6 +63,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::gpu
         {
             DevicePolicy policy = DevicePolicy::HardwareOnly;
             Backend backend = Backend::Default;
+            // Linux: an XCB-capable EGL display for window presentation.
+            // Offscreen devices remain independent of DISPLAY and X11 libraries.
+            bool presentation = false;
         };
 
         // A device that `options` accepts, or null (with the reason in

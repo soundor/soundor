@@ -19,7 +19,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     {
         // The platform's view a GPU compositor presents in: an NSView* on
         // macOS (it gets a sublayer), an HWND on Windows (it gets a child
-        // window that lets input through). Soundor never subclasses or
+        // window that lets input through), an X11 Window cast to void* on
+        // Linux (an input-transparent child window). Soundor never subclasses or
         // registers anything for it.
         struct NativeView
         {
@@ -31,7 +32,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // drawn as quads with their transforms, opacity and clips.
         //
         // Created and used on the UI thread. Where there is no GPU
-        // presentation (no acceptable device, Linux, SOUNDOR_RENDERER=cpu),
+        // presentation (no acceptable device or display, SOUNDOR_RENDERER=cpu),
         // create() returns null: use a RasterCompositor then.
         class GpuCompositor : public Compositor
         {
@@ -63,7 +64,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
                                                                        std::string* failure = nullptr);
 
             // Where it presents in the view, in the view's coordinates
-            // (points on macOS, physical pixels on Windows), at `scale`
+            // (points on macOS, physical pixels on Windows and Linux), at `scale`
             // device pixels per unit.
             virtual void setBounds(float x, float y, float width, float height, float scale) = 0;
             virtual void setVisible(bool visible) = 0;
