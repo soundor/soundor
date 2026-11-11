@@ -157,7 +157,8 @@ skia_enable_fontmgr_android = false
 if(TARGET_OS STREQUAL "linux")
   # fontconfig finds fonts, FreeType reads them; the (tiny) empty custom font
   # manager is what pulls Skia's FreeType typeface into the library.
-  string(APPEND common_args "skia_use_system_freetype2 = true\nskia_enable_fontmgr_custom_empty = true\n")
+  # The GLES interface is assembled from ANGLE: never build Skia's native GLX loader.
+  string(APPEND common_args "skia_use_system_freetype2 = true\nskia_enable_fontmgr_custom_empty = true\nskia_use_x11 = false\n")
 else()
   string(APPEND common_args "skia_enable_fontmgr_custom_empty = false\n")
 endif()
