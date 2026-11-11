@@ -369,6 +369,10 @@ ANGLE device as WebGL and the compositor, avoiding CPU layer uploads.
 If a GPU reset loses a 2D canvas, its contents and context state reset to
 transparent/defaults; plugin code must redraw it. Retained UI is repainted
 on the CPU. `SOUNDOR_RENDERER=cpu` keeps drawing and presentation on the CPU.
+In a Debug build or `soundor dev`, set `SOUNDOR_SHOW_RENDERER=1` to show a
+small, input-transparent badge with the active compositor: **GPU composition**
+or **CPU composition**. It updates when the editor falls back to CPU rendering
+and survives UI reloads. The badge is disabled by default and absent from Release builds.
 
 On the CPU presentation path, a native paint callback displays the last
 completed frame. The UI timer applies the new editor size, settles

@@ -663,6 +663,10 @@ namespace ${NS}
         js::LogSink log;
 #if SOUNDOR_DEVTOOLS
         std::unique_ptr<backend::JuceDebugBridge> debug;
+        const bool showRendererBadge =
+            juce::SystemStats::getEnvironmentVariable("SOUNDOR_SHOW_RENDERER", {}) == "1";
+        ui::NodeId rendererBadge = ui::noNode;
+        void updateRendererBadge();
 #endif
         bool releaseKeys(bool all);
 
@@ -1121,9 +1125,45 @@ ${renderEditorArea(editor)}
         }
     }
 
+#if SOUNDOR_DEVTOOLS
+    void AudioProcessorEditor::updateRendererBadge()
+    {
+        if (! showRendererBadge)
+            return;
+        auto& surface = runtimeHost().surface();
+        const auto* node = surface.find(rendererBadge);
+        // A development reload replaces the surface and its node IDs.
+        if (node == nullptr || node->debugId() != "soundor.renderer")
+        {
+            rendererBadge = surface.createNode(ui::NodeType::Text);
+            surface.setDebugId(rendererBadge, "soundor.renderer");
+            ui::Style style;
+            style.position = ui::Position::Absolute;
+            style.inset.right = ui::Length::points(12);
+            style.inset.bottom = ui::Length::points(12);
+            style.padding = { ui::Length::points(5), ui::Length::points(8),
+                              ui::Length::points(5), ui::Length::points(8) };
+            style.backgroundColor = { 25, 30, 36, 245 };
+            style.borderRadius = { 4, 4, 4, 4 };
+            style.text.color = { 255, 255, 255, 255 };
+            style.text.fontSize = 11;
+            style.text.fontWeight = 600;
+            style.pointerEvents = ui::PointerEvents::None;
+            style.zIndex = 1000000;
+            surface.setStyle(rendererBadge, style);
+            surface.insertChild(surface.overlay().id(), rendererBadge);
+            node = surface.find(rendererBadge);
+        }
+        const std::string label = compositorCapabilities.gpu ? "GPU composition" : "CPU composition";
+        if (node->text() != label)
+            surface.setText(rendererBadge, label);
+    }
+#endif
+
     void AudioProcessorEditor::renderFrame()
     {
 #if SOUNDOR_DEVTOOLS
+        updateRendererBadge();
         if (debug && debug->recording()) {
             debug->renderFrame(runtimeHost(), *compositor, compositorCapabilities);
             return;
