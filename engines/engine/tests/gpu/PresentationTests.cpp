@@ -26,12 +26,10 @@ TEST_SUITE("render::GpuCompositor")
         void* view = test::createTestWindow(160, 120);
         if (view == nullptr)
         {
-#if defined(__linux__)
-            // Linux composites on the CPU (see NoPresentation.cpp), and says so.
-            std::string failure;
-            CHECK(render::GpuCompositor::create({ .allowSoftware = true }, &failure).get() == nullptr);
-            CHECK(failure.find("Linux") != std::string::npos);
-#endif
+            if (test::gpuRequired())
+                FAIL("no native test window, though SOUNDOR_REQUIRE_GPU=1");
+            else
+                MESSAGE("skipped: no native test window (Linux needs DISPLAY, e.g. xvfb-run)");
             return;
         }
         std::string failure;

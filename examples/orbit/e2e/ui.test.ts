@@ -156,3 +156,26 @@ test('the tempo the host plays at shows in the plugin', async () => {
 
   await expect(plugin.getByText('90 BPM')).toBeVisible();
 });
+
+test.each(['auto', 'cpu'] as const)(
+  'the debug badge shows the active compositor (%s)',
+  async (renderer) => {
+    const plugin = await launchPlugin({
+      env: {
+        SOUNDOR_SHOW_RENDERER: '1',
+        SOUNDOR_RENDERER: renderer === 'cpu' ? 'cpu' : undefined,
+      },
+    });
+    const badge = plugin.getByDebugId('soundor.renderer');
+    await expect(badge).toBeVisible();
+    if (renderer === 'cpu') {
+      await expect(badge).toHaveText('CPU composition');
+    } else {
+      // Hardware availability varies by runner; Windows logs go to its debugger.
+      expect((await badge.getNode()).text).toMatch(/^(GPU|CPU) composition$/);
+    }
+    expect(await badge.getStyles()).toMatchObject({
+      base: { pointerEvents: 'none' },
+    });
+  },
+);

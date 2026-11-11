@@ -6,6 +6,8 @@
 
 #if SOUNDOR_HAS_GPU
     #include "gpu/Context.h"
+
+    #include <soundor/render/GpuCompositor.h>
 #endif
 
 #include <cstdint>
@@ -45,6 +47,8 @@ SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
     if (accessibility != nullptr)
         accessibility->tick(host);
 #if SOUNDOR_HAS_GPU
+    // Include native presentation too, so its platform dependencies are checked.
+    (void)soundor::render::GpuCompositor::create({});
     // Links ANGLE in, for the export and Objective-C checks.
     if (auto device = soundor::gpu::Device::create({ .policy = soundor::gpu::DevicePolicy::AllowSoftware }))
         (void)soundor::gpu::Context::create(device, { .webgl = true });

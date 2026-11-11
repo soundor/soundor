@@ -100,7 +100,8 @@ angle_use_custom_libvulkan = false
 ]=])
 if(TARGET_OS STREQUAL "linux")
   # Vulkan, and OpenGL through the system's EGL (both loaded at run time).
-  # No window system or GLib is linked, nor looked for with pkg-config.
+  # XCB presentation is added by SoundorAnglePatch.cmake and loaded at
+  # run time. No window system or GLib is linked or found with pkg-config.
   string(APPEND common_args [=[
 is_clang = true
 use_sysroot = false

@@ -354,21 +354,25 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
 ### Canvases: 2D and WebGL
 
 A canvas node draws with `getContext('2d')`, which uses Skia (GPU-backed on
-macOS and Windows when Ganesh and the GPU compositor are available, otherwise CPU), or
+macOS, Windows and Linux when Ganesh and the GPU compositor are available, otherwise CPU), or
 with `getContext('webgl2')`, which uses ANGLE on the GPU. WebGL needs a
 hardware GPU. Where there is none (a VM, a headless Linux machine),
 `getContext('webgl2')` returns null and the plugin log says why, so code
 should fall back. Three.js's `WebGLRenderer` runs on it unmodified, and the
 native tests check that. The GPU compositor shows WebGL as it is, without copies;
-where the UI is composited on the CPU (Linux), WebGL is read back. See
+with a CPU compositor, WebGL is read back. See
 [the engine reference](/docs/contribute/engine-reference).
 
-On macOS and Windows, retained UI layers and Canvas 2D use Skia Ganesh on the same
+On macOS, Windows and Linux, retained UI layers and Canvas 2D use Skia Ganesh on the same
 ANGLE device as WebGL and the compositor, avoiding CPU layer uploads.
 `getImageData()` explicitly reads pixels back; `putImageData()` uploads pixels.
 If a GPU reset loses a 2D canvas, its contents and context state reset to
 transparent/defaults; plugin code must redraw it. Retained UI is repainted
 on the CPU. `SOUNDOR_RENDERER=cpu` keeps drawing and presentation on the CPU.
+In a Debug build or `soundor dev`, set `SOUNDOR_SHOW_RENDERER=1` to show a
+small, input-transparent badge with the active compositor: **GPU composition**
+or **CPU composition**. It updates when the editor falls back to CPU rendering
+and survives UI reloads. The badge is disabled by default and absent from Release builds.
 
 On the CPU presentation path, a native paint callback displays the last
 completed frame. The UI timer applies the new editor size, settles
