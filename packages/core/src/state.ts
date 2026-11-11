@@ -297,10 +297,13 @@ export function readSnapshot(text: string): SoundorSnapshot {
 export interface StateCell<T = unknown> {
   get(): T;
   set(value: T): void;
+  beginGesture(): void;
+  endGesture(): void;
   subscribe(listener: (value: T) => void): () => void;
 }
 export class StateStore {
   readonly fields: Readonly<Record<string, StateCell>>;
+  readonly #gestures = new Map<string, number>();
   readonly #values = new Map<string, unknown>();
   readonly #listeners = new Map<string, Set<(value: unknown) => void>>();
   readonly #restored = new Set<() => void>();
@@ -325,6 +328,14 @@ export class StateStore {
             Object.freeze({
               get: () => this.#values.get(f.name),
               set: (v: unknown) => this.write(f, v),
+              beginGesture: () => {
+                this.#gestures.set(f.name, this.gestureDepth(f.name) + 1);
+              },
+              endGesture: () => {
+                const depth = this.gestureDepth(f.name);
+                if (depth > 1) this.#gestures.set(f.name, depth - 1);
+                else this.#gestures.delete(f.name);
+              },
               subscribe: (fn: (v: unknown) => void) => {
                 if (typeof fn !== 'function')
                   throw new TypeError('subscribe expects a function');
@@ -340,6 +351,14 @@ export class StateStore {
         }),
       ),
     );
+  }
+  /** Internal lifecycle inspection; gesture metadata is never part of a snapshot. */
+  gestureDepth(field: string): number {
+    return this.#gestures.get(field) ?? 0;
+  }
+  /** End unfinished interactions when the UI goes away, without changing values. */
+  resetGestures(): void {
+    this.#gestures.clear();
   }
   onRestored = (fn: () => void): (() => void) => {
     if (typeof fn !== 'function')
@@ -368,6 +387,7 @@ export class StateStore {
     );
   }
   restore(prepared: Readonly<Record<string, unknown>>): void {
+    this.resetGestures();
     const changed = this.schema.fields.filter(
       (f) =>
         stateJson(this.#values.get(f.name)) !== stateJson(prepared[f.name]),

@@ -163,6 +163,7 @@ export async function startSoundorWebHost(
     viewport: shell.viewport,
     reset: () => context.state.reset(),
     dispose: () => {
+      context.state.store.resetGestures();
       void context.state.flush();
       audio.dispose();
       view.rootElement.remove();

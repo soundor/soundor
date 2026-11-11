@@ -44,9 +44,10 @@ namespace {
   struct Listener { std::string field; bool active = true; };
   struct Cache { std::string json; };
   struct Binding {
-    explicit Binding(PersistentState& owner) : state(owner) { state.storage().connect(); }
-    ~Binding() { state.storage().disconnect(); }
+    explicit Binding(PersistentState& owner) : state(owner), session(state.storage().connect()) {}
+    ~Binding() { state.storage().disconnect(session); }
     PersistentState& state;
+    backend::StateStore::Session session;
     std::list<Listener> listeners;
     std::map<std::string, Cache> caches;
   };
@@ -148,6 +149,22 @@ void install(js::Context& context, PersistentState& state) {
           return jsi::Value::undefined();
         });
       }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.enabled.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.enabled.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("enabled", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.enabled.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.enabled.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("enabled", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
       field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "enabled", args, count); });
       }));
@@ -167,6 +184,22 @@ void install(js::Context& context, PersistentState& state) {
           std::vector<native::Group> value {};
           bind::readArray(ctx, args[0], path, value, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, Group& item) { read(elementCtx, element, elementPath, item); });
           binding(ctx).state.groups.set(std::move(value));
+          return jsi::Value::undefined();
+        });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.groups.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.groups.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("groups", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.groups.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.groups.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("groups", view.session);
           return jsi::Value::undefined();
         });
       }));
@@ -192,6 +225,22 @@ void install(js::Context& context, PersistentState& state) {
           return jsi::Value::undefined();
         });
       }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.precise.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.precise.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("precise", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.precise.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.precise.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("precise", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
       field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "precise", args, count); });
       }));
@@ -211,6 +260,22 @@ void install(js::Context& context, PersistentState& state) {
           std::optional<std::string> value {};
           bind::readNullable(ctx, args[0], path, value, [](bind::ContextState& innerCtx, const jsi::Value& inner, const bind::Path& innerPath, std::string& present) { read(innerCtx, inner, innerPath, present); });
           binding(ctx).state.selectedPreset.set(std::move(value));
+          return jsi::Value::undefined();
+        });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.selectedPreset.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.selectedPreset.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("selectedPreset", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.selectedPreset.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.selectedPreset.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("selectedPreset", view.session);
           return jsi::Value::undefined();
         });
       }));
@@ -236,6 +301,22 @@ void install(js::Context& context, PersistentState& state) {
           return jsi::Value::undefined();
         });
       }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.signedValue.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.signedValue.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("signedValue", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.signedValue.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.signedValue.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("signedValue", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
       field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "signedValue", args, count); });
       }));
@@ -255,6 +336,22 @@ void install(js::Context& context, PersistentState& state) {
           std::uint64_t value {};
           read(ctx, args[0], path, value);
           binding(ctx).state.unsignedValue.set(std::move(value));
+          return jsi::Value::undefined();
+        });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.unsignedValue.beginGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.unsignedValue.beginGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().beginGesture("unsignedValue", view.session);
+          return jsi::Value::undefined();
+        });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto*, auto count) {
+        return bind::invoke(c, "state.unsignedValue.endGesture", [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "state.unsignedValue.endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("unsignedValue", view.session);
           return jsi::Value::undefined();
         });
       }));

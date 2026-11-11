@@ -15,6 +15,10 @@ ${schema.types.map((t) => '  ' + renderNativeTsType(t, 'export ')).join('\n')}
   export interface StateField<T> {
     get(): T;
     set(value: T): void;
+    /** Starts an optional editing interaction. Nested calls form one gesture; writes remain immediate. */
+    beginGesture(): void;
+    /** Ends an interaction. Unmatched calls do nothing; gestures never automate the host. */
+    endGesture(): void;
     subscribe(listener: (value: T) => void): () => void;
   }
   export const state: {

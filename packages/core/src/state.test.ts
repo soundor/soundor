@@ -118,6 +118,8 @@ describe('persistent state', () => {
     expect(output).toContain('readonly selected: StateField<string | null>');
     expect(output).toContain('readonly groups: StateField<Group[]>');
     expect(output).toContain('index: bigint');
+    expect(output).toContain('beginGesture(): void');
+    expect(output).toContain('endGesture(): void');
   });
 });
 
@@ -162,4 +164,53 @@ it('preserves reentrant write ordering and independent repeated subscriptions', 
   off();
   store.fields.count!.set(3);
   expect(seen).toEqual([1, 1, 2, 2, 3]);
+});
+
+it('tracks nested independent gestures without changing writes, notifications or snapshots', () => {
+  const store = new StateStore(
+    describeState(
+      {
+        ...declaration,
+        band: {
+          type: 'Band',
+          default: { frequency: 1000, gain: 0, label: null },
+        },
+      },
+      native,
+    ),
+  );
+  for (const [name, field] of Object.entries(store.fields)) {
+    const changed = vi.fn();
+    field.subscribe(changed);
+    field.endGesture();
+    field.beginGesture();
+    field.beginGesture();
+    expect(store.gestureDepth(name)).toBe(2);
+    field.set(field.get());
+    expect(changed).not.toHaveBeenCalled();
+    field.endGesture();
+    expect(store.gestureDepth(name)).toBe(1);
+  }
+  const selected = store.fields.selected!;
+  const changed = vi.fn();
+  selected.subscribe(changed);
+  selected.set('Warm');
+  selected.set('Warm');
+  selected.set(null);
+  expect(changed.mock.calls).toEqual([['Warm'], [null]]);
+  const saved = store.snapshot();
+  selected.endGesture();
+  selected.endGesture();
+  expect(store.gestureDepth('selected')).toBe(0);
+  expect(store.gestureDepth('groups')).toBe(1);
+  expect(store.snapshot()).toEqual(saved);
+  store.restore(store.prepare(saved));
+  for (const name of Object.keys(store.fields))
+    expect(store.gestureDepth(name)).toBe(0);
+  selected.endGesture();
+  selected.beginGesture();
+  expect(store.gestureDepth('selected')).toBe(1);
+  store.resetGestures();
+  expect(store.gestureDepth('selected')).toBe(0);
+  expect(selected.get()).toBeNull();
 });

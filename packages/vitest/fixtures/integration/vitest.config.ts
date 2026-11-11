@@ -5,6 +5,7 @@ export default defineConfig({
     soundor({
       config: false,
       runtime: {
+        state: { selected: { type: 'string?', default: null } },
         parameters: {
           gain: {
             type: 'float32',
