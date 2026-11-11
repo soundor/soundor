@@ -15,6 +15,15 @@ test('runs in Node with a real-time timeout', ({ task }) => {
   expect(task.timeout).toBe(30_000);
 });
 
+test('allows a native read to take longer than one second', async () => {
+  await expect
+    .poll(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return '60%';
+    })
+    .toBe('60%');
+});
+
 test('has the matchers, which want a locator', async () => {
   await expect(expect('text').toBeVisible()).rejects.toThrow(
     'toBeVisible expects a locator',
