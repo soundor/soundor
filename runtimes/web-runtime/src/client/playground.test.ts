@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as state from './modules/state';
 import * as ui from './modules/ui';
 import {
   type PlaygroundHost,
@@ -57,6 +59,7 @@ describe('startPlayground', () => {
     const load = vi.fn<(url: URL) => Promise<void>>(async () => {
       // A bundle of @soundor/react reads soundor:ui here as it loads.
       expect(globalThis.__soundorModules?.['soundor:ui']).toBe(ui);
+      expect(globalThis.__soundorModules?.['soundor:state']).toBe(state);
       globalThis.soundorPlayground = { start: (host) => (started = host) };
     });
     const host = shell();
@@ -68,9 +71,11 @@ describe('startPlayground', () => {
       'soundor:host',
       'soundor:native',
       'soundor:parameters',
+      'soundor:state',
       'soundor:storage',
       'soundor:ui',
     ]);
+    expect(started!.modules['soundor:state']).toBe(state);
     started!.showMessage('Failed', 'detail');
     started!.clearMessages();
     expect(host.showMessage).toHaveBeenCalledWith('Failed', 'detail');
