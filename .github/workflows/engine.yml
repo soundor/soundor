@@ -148,8 +148,8 @@ jobs:
           cmake --build build/prebuilt-debug --target soundor_svg_tests --config Debug --parallel 3
           ctest --test-dir build/prebuilt-debug -C Debug -R '^soundor_svg_tests$' --output-on-failure
 
-      - name: Ganesh rendering tests on Windows (${{ env.DEBUG_VARIANT }})
-        if: inputs.tests && runner.os == 'Windows'
+      - name: Ganesh rendering tests (${{ env.DEBUG_VARIANT }})
+        if: inputs.tests && (runner.os == 'macOS' || runner.os == 'Windows')
         working-directory: engines/engine
         run: |
           cmake --preset "prebuilt-$DEBUG_VARIANT" -DSOUNDOR_BUILD_TESTS=ON

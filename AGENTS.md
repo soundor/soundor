@@ -13,7 +13,8 @@ same lifecycle phases. Two runtimes exist:
 - `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
   hosting an embedded Hermes runtime (interpreted, bytecode compiled at build
   time) that runs the UI bundle, laid out with
-  Yoga and drawn with Skia on the CPU into layers. Soundor's own compositor
+  Yoga and drawn with Skia Ganesh on macOS and Windows, with CPU drawing on
+  Linux and as a fallback. Soundor's own compositor
   puts the layers together on the GPU (ANGLE: Metal, Direct3D 11) where it
   can, and on the CPU otherwise (Linux, fallback). Canvas nodes have a 2D
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor

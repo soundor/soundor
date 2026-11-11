@@ -779,14 +779,14 @@ lost later, it composites on the CPU into a `backend::JuceImageTarget`: a
 repainted. `SOUNDOR_RENDERER=cpu` forces the CPU. `RuntimeHost::render(bitmap)`
 still draws the whole view in one go, for tests and tools.
 
-`ui::Renderer` draws nodes with [Skia](https://skia.org). Windows builds enable
-Ganesh's GLES backend by default (`SOUNDOR_ENABLE_GANESH`); macOS and Linux
-keep raster drawing by default. Ganesh uses a separate context on the
-compositor's existing ANGLE device, with an assembled GLES function table
+`ui::Renderer` draws nodes with [Skia](https://skia.org). macOS and Windows builds
+enable Ganesh's GLES backend by default (`SOUNDOR_ENABLE_GANESH`). Ganesh uses a
+separate context on the compositor's existing ANGLE device, with an assembled GLES function table
 and no native OpenGL loader or second ANGLE copy. Shared textures and ordered
 submissions are required: ANGLE's D3D11 backend serializes virtual contexts on
-one immediate device context; other backends require GPU-side fences. If
-these capabilities or Ganesh initialization are unavailable, drawing stays on the CPU.
+one immediate device context. On Metal, ANGLE implements GPU-side fences
+with shared Metal events. If these capabilities or Ganesh initialization are
+unavailable, drawing stays on the CPU.
 
 `render::DrawingSurface` keeps retained layers on the GPU when possible,
 including animation segments. Damage repair uses padded GPU scratch surfaces
@@ -1284,14 +1284,14 @@ GCC, no-GPU and lint suites do not supply release dependency snapshots.
 ### Skia
 
 Skia is built from source at the pinned `chrome/m144` commit, with raster
-support everywhere and Ganesh/GLES enabled by default on Windows. The internal
-`SOUNDOR_ENABLE_GANESH=ON` option enables the same integration for headless
-GPU tests on other platforms; it does not add Linux window presentation.
+support everywhere and Ganesh/GLES enabled by default on macOS and Windows.
+The internal `SOUNDOR_ENABLE_GANESH=ON` option enables the same integration for
+headless GPU tests on Linux.
 `SOUNDOR_ENABLE_GPU=OFF` disables Ganesh too. An overridden `SOUNDOR_SKIA_DIR`
 must contain the matching variant (the build script takes `-DGANESH=ON`). It
 gets its PNG, JPEG, WebP, zlib and Expat code, each at the commit Skia's `DEPS`
-pins. SVG documents use `modules/svg`, resources and primitive shaping. It
-has no GPU backends, PDF, ICU or HarfBuzz.
+pins. SVG documents use `modules/svg`, resources and primitive shaping. The
+build excludes PDF, ICU and HarfBuzz.
 
 - **The build:** `cmake/SoundorSkiaBuild.cmake` runs gn and ninja.
   `cmake/SoundorSkia.cmake` runs it during the first configure on a machine
