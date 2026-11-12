@@ -154,6 +154,8 @@ interface Phase {
     allocations?: number;
     allocatedBytes: number;
     heapBytesMax: number;
+    /** Resident memory at the end of a frame's largest sample. */
+    rssBytesMax?: number;
   };
 }
 /** What the benchmark's soundorBenchmark.run() resolves to, per scenario. */
@@ -167,7 +169,13 @@ interface ScenarioResult {
 }
 interface RunReport {
   /** Creating the host (its modules, the UI's entry) and the heap after. */
-  startup?: { ms: number; heapBytes: number; objects: number };
+  startup?: {
+    ms: number;
+    heapBytes: number;
+    objects: number;
+    /** Resident at startup; older reports do not have it. */
+    rssBytes?: number;
+  };
   device: {
     backend: string;
     renderer: string;
@@ -229,6 +237,7 @@ const MEASURES = {
   collections: { label: 'GCs', timing: false, compare: false },
   allocations: { label: 'allocations', timing: false, compare: false },
   allocatedKB: { label: 'allocated KB', timing: false, compare: false },
+  rssKB: { label: 'RSS KB', timing: false, compare: false },
   rasterized: { label: 'rasterized', timing: false, compare: true },
   uploadedKB: { label: 'uploaded KB', timing: false, compare: true },
   readbacks: { label: 'read-backs', timing: false, compare: true },
@@ -275,12 +284,15 @@ interface Report {
 }
 
 /**
- * Startup, measured once a run: its time, and the engine's heap after it
- * (deterministic for a build, so compared as a count).
+ * Startup, measured once a run: its time, what the engine's heap holds
+ * after it (deterministic for a build, so compared as a count) and the
+ * process's resident memory — the floor a plugin editor gets with nothing
+ * of its own in it. Builds from before RSS was measured report it as NaN.
  */
 const STARTUP = {
   startupMs: { label: 'startup ms', timing: true },
   heapKB: { label: 'engine heap KB', timing: false },
+  rssKB: { label: 'RSS KB', timing: false },
 } as const;
 type StartupMeasure = keyof typeof STARTUP;
 
@@ -289,6 +301,13 @@ function startupOf(reports: RunReport[]): Record<StartupMeasure, Statistic> {
     startupMs: statistic(reports.map((report) => report.startup!.ms)),
     heapKB: statistic(
       reports.map((report) => report.startup!.heapBytes / 1024),
+    ),
+    rssKB: statistic(
+      reports.map((report) =>
+        report.startup!.rssBytes !== undefined
+          ? report.startup!.rssBytes / 1024
+          : NaN,
+      ),
     ),
   };
 }
@@ -426,6 +445,7 @@ function measures(phase: Phase, scenario: ScenarioResult | undefined) {
     collections: phase.engine.collections ?? 0,
     allocations: phase.engine.allocations ?? 0,
     allocatedKB: phase.engine.allocatedBytes / 1024,
+    rssKB: (phase.engine.rssBytesMax ?? NaN) / 1024,
     rasterized: perFrame(phase.layersRasterized),
     uploadedKB: perFrame(phase.bytesUploaded) / 1024,
     readbacks: perFrame(phase.gpuReadbacks),
@@ -537,7 +557,7 @@ function printSummary(summary: Summary): void {
     | undefined;
   if (startup) {
     console.log(
-      `\nStartup: ${format(startup.startupMs.median)} ms ±${startup.startupMs.spread.toFixed(0)}%, engine heap ${format(startup.heapKB.median)} KB`,
+      `\nStartup: ${format(startup.startupMs.median)} ms ±${startup.startupMs.spread.toFixed(0)}%, engine heap ${format(startup.heapKB.median)} KB, resident ${format(startup.rssKB.median)} KB`,
     );
   }
 }

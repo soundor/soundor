@@ -168,10 +168,11 @@ function summaryTables(
 
 function startup(summary: Summary): string | undefined {
   const values = summary['(startup)'] as
-    | Partial<Record<'startupMs' | 'heapKB', Statistic>>
+    | Partial<Record<'startupMs' | 'heapKB' | 'rssKB', Statistic>>
     | undefined;
   if (!values?.startupMs || !values.heapKB) return undefined;
-  return `${format(values.startupMs.median)} ms ±${values.startupMs.spread.toFixed(0)}%, engine heap ${format(values.heapKB.median)} KB`;
+  const rss = values.rssKB?.median;
+  return `${format(values.startupMs.median)} ms ±${values.startupMs.spread.toFixed(0)}%, engine heap ${format(values.heapKB.median)} KB${rss === undefined ? '' : `, resident ${format(rss)} KB`}`;
 }
 
 /** The PR description's benchmark section: what was, what is, what it ran on.

@@ -85,6 +85,7 @@ const input = {
     '(startup)': {
       startupMs: { median: 10.6, spread: 2 },
       heapKB: { median: 1975, spread: 0 },
+      rssKB: { median: 204_800, spread: 0 },
     },
     'animation-react-500': {
       frame: { median: 8.1, spread: 2 },
@@ -95,6 +96,7 @@ const input = {
     '(startup)': {
       startupMs: { median: 11.0, spread: 3 },
       heapKB: { median: 1975, spread: 0 },
+      rssKB: { median: 205_000, spread: 0 },
     },
     'animation-react-500': {
       frame: { median: 10.3, spread: 3 },
@@ -133,7 +135,7 @@ describe('prMarkdown', () => {
     expect(details).toContain('Full medians');
     expect(details).toContain('8.10 ±2%');
     expect(details).toContain('| animation-react-500 | 500 |');
-    expect(details).toContain('Startup: 10.6 ms ±2%');
+    expect(details).toContain('engine heap 1975 KB, resident 204800 KB');
     expect(details).toMatch(/<summary>[^\n]*\n\n/);
     expect(details.trimEnd().endsWith('</details>')).toBe(true);
   });
