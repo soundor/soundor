@@ -147,8 +147,11 @@ runs its JavaScript source instead, as `soundor dev` does. A build saved
 before Hermes (QuickJS bytecode, `bundle.js.qjsbc`) runs as it was saved, so
 `--against` compares the engines too. The engine's work counts differ between
 them: Hermes reports garbage collections (GCs) and the bytes its heap
-allocated, QuickJS reported C allocator calls and their bytes. Each run also reports startup: how long the
-runtime took to start and run the bundle, and the engine's heap after it.
+allocated, QuickJS reported C allocator calls and their bytes. Each run also
+reports startup: how long the runtime took to start and run the bundle, what
+the engine's heap holds after it, and the process's resident memory — the
+floor any plugin's editor gets with nothing of its own in it (its own
+content, canvases and WebViews add on top; a host process adds more).
 
 Under the hood, `soundor_run_ui` runs a bundle on the GPU like the editor
 would, and times its frames, per scenario (the driver names each measured
@@ -168,10 +171,10 @@ node ../../engines/engine/cmake/SoundorLowerJs.mjs \
 
 The `js` group is JavaScript on purpose: each frame runs pure computation
 with no view changes, and the only native work is one small cell's opacity,
-so frames are real and the run reports GCs, allocated KB and heap max next
-to the times. The `JS` column is what the interpreter charged; `frame ms`
-adds that cell. Fixtures are built when a scenario mounts, during warm-up,
-so the group costs startup nothing.
+so frames are real and the run reports GCs, allocated KB, heap max and RSS
+next to the times. The `JS` column is what the interpreter charged;
+`frame ms` adds that cell. Fixtures are built when a scenario mounts, during
+warm-up, so the group costs startup nothing.
 
 It exists to compare Hermes versions. The pin is
 `engines/engine/cmake/SoundorDependencies.cmake` (`main@602befe`), and
@@ -188,7 +191,10 @@ The promise scenario's callbacks settle between frames, so their drain
 lands in `tick` rather than in the frame — compare both measures there.
 GC pressure (`alloc-small`, `alloc-large`, `retained`) is the memory side:
 `GCs`, `allocated KB` and heap max, shown but not auto-compared, because
-when the collector runs is not the workload's choice.
+when the collector runs is not the workload's choice. `RSS KB` — resident
+at a scenario's largest frame — is in the same family: it moves with the
+allocator's and the collector's history, and the engine's own floor is the
+startup number.
 
 ## Animation baselines
 

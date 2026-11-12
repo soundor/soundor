@@ -45,6 +45,15 @@
     #include <soundor/debug/Inspector.h>
 #endif
 
+#if defined(_WIN32)
+    #include <psapi.h>
+    #include <windows.h>
+#elif defined(__APPLE__)
+    #include <mach/mach.h>
+#else
+    #include <unistd.h>
+#endif
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -98,6 +107,29 @@ namespace
         return std::chrono::duration<double, std::milli>(to - from).count();
     }
 
+    // Resident memory of this process: the number a task manager shows, so
+    // the floor a plugin editor gets with nothing of its own in it.
+    long long residentBytes()
+    {
+#if defined(_WIN32)
+        PROCESS_MEMORY_COUNTERS counters {};
+        GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters));
+        return static_cast<long long>(counters.WorkingSetSize);
+#elif defined(__APPLE__)
+        mach_task_basic_info_data_t info {};
+        mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+        if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count)
+            != KERN_SUCCESS)
+            return 0;
+        return static_cast<long long>(info.resident_size);
+#else
+        std::ifstream statm("/proc/self/statm");
+        long long total = 0, resident = 0;
+        statm >> total >> resident;
+        return resident * static_cast<long long>(sysconf(_SC_PAGESIZE));
+#endif
+    }
+
     double milliseconds(std::uint64_t nanoseconds)
     {
         return static_cast<double>(nanoseconds) / 1e6;
@@ -139,6 +171,7 @@ namespace
         long long collections = 0;
         long long allocatedBytes = 0;
         long long heapBytes = 0; // at the end of the frame
+        long long rssBytes = 0;  // resident at the end of the frame
     };
 
     // What the host did between `before` and `after`, into `sample`.
@@ -167,6 +200,7 @@ namespace
         sample.collections = count(before.runtime.collections, after.runtime.collections);
         sample.allocatedBytes = count(before.runtime.allocatedBytes, after.runtime.allocatedBytes);
         sample.heapBytes = static_cast<long long>(after.runtime.heapBytes);
+        sample.rssBytes = residentBytes();
     }
 
     struct Phase
@@ -361,7 +395,8 @@ namespace
         out += ", "
                + field("engine", "{ " + field("collections", mean(&Sample::collections)) + ", "
                                      + field("allocatedBytes", mean(&Sample::allocatedBytes)) + ", "
-                                     + field("heapBytesMax", std::to_string(largest(s, &Sample::heapBytes))) + " }");
+                                     + field("heapBytesMax", std::to_string(largest(s, &Sample::heapBytes))) + ", "
+                                     + field("rssBytesMax", std::to_string(largest(s, &Sample::rssBytes))) + " }");
         return out + " }";
     }
 
@@ -523,8 +558,9 @@ try
     RuntimeHost host(std::move(options));
     const double startupMs = milliseconds(creating, Clock::now());
     const js::MemoryUsage startupMemory = host.runtime().memoryUsage();
+    const long long startupRss = residentBytes();
     std::cerr << "startup: " << number(startupMs) << " ms, engine heap " << startupMemory.allocatedBytes / 1024
-              << " KB in " << startupMemory.objectCount << " objects\n";
+              << " KB in " << startupMemory.objectCount << " objects, resident " << startupRss / 1024 << " KB\n";
     host.surface().setSize({ width, height });
     host.surface().setScale(scale);
     gpu::OffscreenCompositor compositor(device, 0xFF000000);
@@ -728,7 +764,8 @@ try
         report += "  "
                   + field("startup", "{ " + field("ms", number(startupMs)) + ", "
                                          + field("heapBytes", std::to_string(startupMemory.allocatedBytes)) + ", "
-                                         + field("objects", std::to_string(startupMemory.objectCount)) + " }")
+                                         + field("objects", std::to_string(startupMemory.objectCount)) + ", "
+                                         + field("rssBytes", std::to_string(startupRss)) + " }")
                   + ",\n";
         report += "  \"total\": " + json(all) + ",\n";
         report += "  \"phases\": [";
