@@ -16,6 +16,8 @@ import {
   type GenerateOptions,
 } from 'fumadocs-typescript';
 
+import { addedIn } from './api-added.ts';
+
 /** The repository's root: `path` in `<auto-type-table>` starts there. */
 export const REPOSITORY = join(import.meta.dirname, '../../..');
 
@@ -29,6 +31,11 @@ const SHORT_TYPE = 40;
 /** How a table shows types: `boolean`, not `union`, while they are short. */
 export const typeTableOptions: GenerateOptions & { basePath: string } = {
   basePath: REPOSITORY,
+  transform(entry) {
+    const since = entry.tags.find((tag) => tag.name === 'since')?.text.trim();
+    if (since)
+      entry.description = `*${addedIn(since)}*\n\n${entry.description}`;
+  },
   typeSimplifier: {
     override: ({ checker, type, location }) => {
       // An optional prop's type has `undefined` in it; the table says

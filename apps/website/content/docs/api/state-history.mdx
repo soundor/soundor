@@ -3,6 +3,8 @@ title: 'soundor:state-history'
 description: 'Opt-in undo/redo for parameter and persistent-state edits, with gestures and synchronous buffered transactions.'
 ---
 
+<ApiAdded path="packages/environment/state-history.d.ts" name="stateHistory" />
+
 StateHistory records edits to Soundor-managed parameters and persistent state.
 Each JUCE processor owns one manager, shared by JavaScript and C++. It works
 with the editor closed and survives editor recreation. Each standalone Web

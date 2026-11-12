@@ -129,6 +129,19 @@ does not exist yet; at the release the resolver writes the package's new
 version over every placeholder, from the nearest `package.json` (which
 `changeset version` has already written).
 
+The website shows a compact `Added in: v0.17.0` line, or `Added in: next
+release` while the annotation is pending. Generated prop descriptions read
+it from the member's `@since`, including inherited props. For a hook or API
+page, put a source-backed marker below its heading in an `.mdx` file:
+
+```mdx
+<ApiAdded path="packages/react/src/hooks.ts" name="useStateHistory" />
+```
+
+The marker reads the declaration's annotation at build time; a missing
+declaration or annotation fails the build. Both forms are included in the
+page's Markdown export, so the version is available without the UI too.
+
 The check is `scripts/check-since.mjs`, run by CI's Workspace job:
 
 ```sh

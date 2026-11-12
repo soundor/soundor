@@ -6,6 +6,12 @@ html {
   scrollbar-gutter: stable;
 }
 
+.prose .api-added {
+  margin-block: 0.5rem 1.25rem;
+  color: var(--color-fd-muted-foreground);
+  font-size: 0.8125rem;
+}
+
 html > body[data-scroll-locked] {
   margin-right: 0px !important;
   --removed-body-scroll-bar-size: 0px !important;

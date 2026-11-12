@@ -12,6 +12,7 @@ import { remarkAutoTypeTable } from 'fumadocs-typescript';
 import { defineConfig } from 'vite';
 
 import { packageManagers } from './plugins/package-managers.ts';
+import { remarkApiAdded } from './plugins/remark-api-added.ts';
 import { remarkPlaceholders } from './plugins/remark-placeholders.ts';
 import { remarkSnippets } from './plugins/remark-snippets.ts';
 import { typeTableGenerator, typeTableOptions } from './plugins/type-tables.ts';
@@ -81,6 +82,7 @@ export default defineConfig({
       globalOptions: {
         mdxOptions: {
           remarkPlugins: (defaults) => [
+            remarkApiAdded,
             remarkPlaceholders(values),
             remarkSnippets(readSnippet),
             remarkMdxMermaid,

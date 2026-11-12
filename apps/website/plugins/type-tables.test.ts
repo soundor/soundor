@@ -1,3 +1,4 @@
+import { typeTableToMarkdown } from 'fumadocs-typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { typeTableGenerator, typeTableOptions } from './type-tables.ts';
@@ -18,6 +19,19 @@ async function table(name: string, type?: string) {
 }
 
 describe('type tables', () => {
+  it('renders @since on inherited props and includes it in Markdown exports', async () => {
+    const props = await table('ViewProps');
+    expect(props['onDoubleClick']?.description).toMatch(
+      /^\*Added in: next release\*\n\nThe node was double-clicked/,
+    );
+    expect(props['onClick']?.description).not.toContain('Added in:');
+    const [doc] = await tables.generator.generateTypeTable(
+      { path: 'packages/react/src/components.tsx', name: 'Style' },
+      typeTableOptions,
+    );
+    expect(typeTableToMarkdown(doc!)).toContain('*Added in: next release*');
+  });
+
   it("lists a component's own props, with their doc comments", async () => {
     const props = await table(
       'PressableOwnProps',
