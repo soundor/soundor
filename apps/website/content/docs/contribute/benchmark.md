@@ -23,23 +23,30 @@ runtimes/juce/          JUCE (C++): applies `gain`
 runtimes/web/           Web (TypeScript): applies `gain` with a GainNode
 ```
 
-| Group          | Scenario                     | Stresses                                                          |
-| -------------- | ---------------------------- | ----------------------------------------------------------------- |
-| `webgl-stress` | `meshes`                     | 2,000 separate meshes: draw calls                                 |
-|                | `instanced`                  | 50,000 instance matrices written by JavaScript per frame: uploads |
-|                | `lit`                        | physical materials, two shadow maps, a PMREM environment          |
-|                | `particles`                  | 200,000 points moved by JavaScript per frame                      |
-|                | `post`                       | meshes into a multisampled half-float target, a full-screen pass  |
-| `webgl`        | `gpu-particles`              | `particles`, moved by the vertex shader                           |
-|                | `gpu-instanced`              | `instanced`, placed by the vertex shader                          |
-|                | `webgl-calls`                | 6,000 raw WebGL calls per frame (Meshes' pattern, no Three.js)    |
-| `canvas`       | `waveform-1k`, `-5k`, `-10k` | one path of 1,000 to 10,000 points per frame                      |
-|                | `canvas-complex`             | bars, knobs, curves, clips, text and state changes                |
-| `ui`           | `react-100`, `-500`, `-1000` | React re-rendering a grid whose every cell changes                |
-|                | `style-opacity`              | 500 nodes' `style.opacity` set directly: paint only               |
-|                | `style-height`               | 500 nodes' `style.height` set directly: layout                    |
-|                | `static`                     | 330 nodes, nothing changes: frames should find nothing to do      |
-| `mixed`        | `mixed`                      | a readout, 8 canvas knobs, meters, a waveform and a 3D view       |
+| Group          | Scenario                             | Stresses                                                                                                                         |
+| -------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `webgl-stress` | `meshes`                             | 2,000 separate meshes: draw calls                                                                                                |
+|                | `instanced`                          | 50,000 instance matrices written by JavaScript per frame: uploads                                                                |
+|                | `lit`                                | physical materials, two shadow maps, a PMREM environment                                                                         |
+|                | `particles`                          | 200,000 points moved by JavaScript per frame                                                                                     |
+|                | `post`                               | meshes into a multisampled half-float target, a full-screen pass                                                                 |
+| `webgl`        | `gpu-particles`                      | `particles`, moved by the vertex shader                                                                                          |
+|                | `gpu-instanced`                      | `instanced`, placed by the vertex shader                                                                                         |
+|                | `webgl-calls`                        | 6,000 raw WebGL calls per frame (Meshes' pattern, no Three.js)                                                                   |
+| `canvas`       | `waveform-1k`, `-5k`, `-10k`         | one path of 1,000 to 10,000 points per frame                                                                                     |
+|                | `canvas-complex`                     | bars, knobs, curves, clips, text and state changes                                                                               |
+| `ui`           | `react-100`, `-500`, `-1000`         | React re-rendering a grid whose every cell changes                                                                               |
+|                | `style-opacity`                      | 500 nodes' `style.opacity` set directly: paint only                                                                              |
+|                | `style-height`                       | 500 nodes' `style.height` set directly: layout                                                                                   |
+|                | `static`                             | 330 nodes, nothing changes: frames should find nothing to do                                                                     |
+| `mixed`        | `mixed`                              | a readout, 8 canvas knobs, meters, a waveform and a 3D view                                                                      |
+| `js`           | `dispatch`                           | 180,000 integer and 55,000 float operations, no allocation                                                                       |
+|                | `alloc-small`, `alloc-large`         | 80,000 small objects; megabytes of typed arrays, arrays and a 500 KB string, per frame                                           |
+|                | `props`, `keys`                      | property access across shapes and shape transitions; wide objects with `Object.keys` and `for-in`                                |
+|                | `calls`, `classes`, `generators`     | closures, bound and spread calls, deep recursion; class instances and getters; pipeline yields                                   |
+|                | `strings`, `regex`, `json`, `errors` | string churn, ASCII and UTF-16; the regex engine; stringify and parse of a plugin-sized config; thrown errors with stack capture |
+|                | `arrays`, `collections`, `retained`  | sort/filter/map/reduce; Map and Set at scale; a live object graph churned every frame                                            |
+|                | `async`                              | promise allocation and async/await state machines (the drain shows in `tick`)                                                    |
 
 `webgl-stress` is the worst case on purpose: per-frame work in JavaScript.
 The `webgl` versions show what a plugin should do instead: give the GPU the
@@ -156,6 +163,32 @@ node ../../engines/engine/cmake/SoundorLowerJs.mjs \
   .soundor/ui/production --size 700x520 --eval 'soundorBenchmark.run()' \
   --time-native-calls --json report.json
 ```
+
+## JavaScript scenarios
+
+The `js` group is JavaScript on purpose: each frame runs pure computation
+with no view changes, and the only native work is one small cell's opacity,
+so frames are real and the run reports GCs, allocated KB and heap max next
+to the times. The `JS` column is what the interpreter charged; `frame ms`
+adds that cell. Fixtures are built when a scenario mounts, during warm-up,
+so the group costs startup nothing.
+
+It exists to compare Hermes versions. The pin is
+`engines/engine/cmake/SoundorDependencies.cmake` (`main@602befe`), and
+`SOUNDOR_HERMES_DIR` points the engine at another Hermes install instead.
+Build and save a build per version, then run them paired:
+
+```sh
+pnpm bench --only js --save hermes-current
+# point the engine at the other Hermes, rebuild, then:
+pnpm bench --only js --against hermes-current
+```
+
+The promise scenario's callbacks settle between frames, so their drain
+lands in `tick` rather than in the frame — compare both measures there.
+GC pressure (`alloc-small`, `alloc-large`, `retained`) is the memory side:
+`GCs`, `allocated KB` and heap max, shown but not auto-compared, because
+when the collector runs is not the workload's choice.
 
 ## Animation baselines
 

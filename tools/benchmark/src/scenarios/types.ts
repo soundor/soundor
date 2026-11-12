@@ -19,6 +19,7 @@ export type Group =
   | 'canvas'
   | 'ui'
   | 'mixed'
+  | 'js'
   | 'animation'
   | 'advanced-animation'
   | 'svg';
@@ -29,6 +30,7 @@ export const GROUPS: readonly Group[] = [
   'canvas',
   'ui',
   'mixed',
+  'js',
   'animation',
   'advanced-animation',
   'svg',
