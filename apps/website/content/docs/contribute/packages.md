@@ -43,6 +43,8 @@ flowchart LR
     juce["@soundor/juce-runtime"] --> sdk
     juce --> engine["@soundor/engine"]
     web["@soundor/web-runtime"] --> sdk
+    juce -. peer .-> cli
+    web -. peer .-> cli
     vitest["@soundor/vitest"] --> config
     vitest --> core
     vitest --> testruntime["@soundor/test-runtime"]
@@ -53,9 +55,10 @@ flowchart LR
     tl --> testruntime
 ```
 
-The runtimes depend on one Soundor package, the SDK, which re-exports all of
+The runtimes import their toolchain APIs from the SDK, which re-exports all of
 config and core. The CLI's own `@soundor/config` parses the project's config,
-and runs runtimes of the runtime API versions it supports
+and dispatches their lifecycles. Runtime packages declare supported CLI
+releases through their `soundor` peer dependency
 ([Dependencies and compatibility](/docs/contribute/compatibility)).
 
 `@soundor/react` depends on no Soundor package: it compiles against the

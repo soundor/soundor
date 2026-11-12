@@ -9,7 +9,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { RUNTIME_API_VERSION } from '@soundor/config';
 import { ConfigError } from '@soundor/config';
 import type { CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,25 +44,6 @@ describe('runGen', () => {
 
   afterEach(async () => {
     await rm(root, { recursive: true, force: true });
-  });
-
-  it('refuses an incompatible runtime before generating anything', async () => {
-    await writeIncompatibleConfig(root);
-
-    const error = await runGen({ cwd: root }).catch(
-      (caught: unknown) => caught,
-    );
-
-    expect(error).toMatchObject({
-      name: 'RuntimeCompatibilityError',
-      code: 'INCOMPATIBLE_RUNTIME',
-      runtimeId: 'newer',
-    });
-    expect((error as { format(): string }).format()).toContain(
-      "Runtime 'newer' implements runtime API 999, newer than this soundor",
-    );
-    // Neither the portable files nor the compatible runtime's were written.
-    await expect(readdir(root)).resolves.toEqual(['soundor.config.ts']);
   });
 
   it('writes portable and runtime generated files, then passes check mode', async () => {
@@ -199,51 +179,12 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-/**
- * A config with two runtimes: `good`, of this host's runtime API version, and
- * `newer`, of a version beyond it.
- */
-async function writeIncompatibleConfig(root: string): Promise<void> {
-  const runtime = (id: string, apiVersion: number) => `{
-  id: '${id}',
-  apiVersion: ${apiVersion},
-  async init() {},
-  async gen(_config, ctx) {
-    ctx.codegen.emit({ path: '${id}.txt', contents: '${id}\\n' });
-  },
-  async dev() {},
-  async build() {},
-  async doctor() {
-    return { checks: [] };
-  },
-}`;
-  await writeFile(
-    join(root, 'soundor.config.ts'),
-    `import { defineSoundorConfig } from '@soundor/config';
-
-const good = ${runtime('good', RUNTIME_API_VERSION)};
-const newer = ${runtime('newer', 999)};
-
-export default defineSoundorConfig({
-  runtimes: [
-    { id: 'good', options: {}, runtime: good },
-    { id: 'newer', options: {}, runtime: newer },
-  ],
-  parameters: {},
-  plugin: { id: 'com.example.test', name: 'Test' },
-});
-`,
-    'utf8',
-  );
-}
-
 async function writeConfig(root: string, parameterId: string): Promise<void> {
   await writeFile(
     join(root, 'soundor.config.ts'),
     `import { defineSoundorConfig } from '@soundor/config';
 
 const runtime = {
-  apiVersion: ${RUNTIME_API_VERSION},
   id: 'test',
   async init() {},
   async gen(config, ctx) {

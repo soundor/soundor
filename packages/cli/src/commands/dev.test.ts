@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { RUNTIME_API_VERSION } from '@soundor/config';
 import type { ArgsDef, CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -224,7 +223,6 @@ async function writeConfig(
     `import { defineSoundorConfig } from '@soundor/config';
 
 const runtime = {
-  apiVersion: ${RUNTIME_API_VERSION},
   id: 'test',
   ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
   async init() {},

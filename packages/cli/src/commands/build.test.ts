@@ -9,7 +9,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { RUNTIME_API_VERSION } from '@soundor/config';
 import type { ArgsDef, CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -199,23 +198,6 @@ describe('runBuild', () => {
     ).resolves.toBe('beta:production\n');
   });
 
-  it('refuses an incompatible runtime before generating or bundling', async () => {
-    await writeConfig(root, ['alpha', 'beta'], { incompatible: 'beta' });
-    await mkdir(join(root, 'src'), { recursive: true });
-    await writeFile(join(root, 'src', 'main.ts'), 'console.info(1);\n');
-
-    const error = await runBuild({ cwd: root }).catch(
-      (caught: unknown) => caught,
-    );
-
-    expect(error).toMatchObject({
-      code: 'INCOMPATIBLE_RUNTIME',
-      runtimeId: 'beta',
-    });
-    expect(globalThis.__soundorBuildEvents).toEqual([]);
-    await expect(readdir(root)).resolves.not.toContain('.soundor');
-  });
-
   it('aggregates failures and fails the build after remaining runtimes run', async () => {
     await writeConfig(root, ['alpha', 'beta', 'gamma'], { fail: 'beta' });
 
@@ -252,7 +234,7 @@ declare global {
 async function writeConfig(
   root: string,
   runtimeIds: readonly string[],
-  options: { fail?: string; devtools?: boolean; incompatible?: string } = {},
+  options: { fail?: string; devtools?: boolean } = {},
 ): Promise<void> {
   await writeFile(
     join(root, 'soundor.config.ts'),
@@ -262,7 +244,6 @@ function runtime(id) {
   return {
     id,
     ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
-    apiVersion: id === ${JSON.stringify(options.incompatible)} ? 999 : ${RUNTIME_API_VERSION},
     async init() {},
     async gen(_config, ctx) {
       globalThis.__soundorBuildEvents.push('gen:' + id + ':' + ctx.mode);

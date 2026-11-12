@@ -1,10 +1,6 @@
 import { expect, it } from 'vitest';
 
-import {
-  defineSoundorConfig,
-  resolveConfig,
-  checkRuntimeCompatibility,
-} from '../index';
+import { defineSoundorConfig, resolveConfig } from '../index';
 const base = {
   plugin: { id: 'com.example.state', name: 'State' },
   runtimes: [],
@@ -45,19 +41,4 @@ it('infers defaults from native types and validates them at build time', () => {
       bands: { type: 'Band[]', default: [{ frequency: 'invalid' }] },
     },
   });
-});
-
-it('refuses state on runtimes that predate runtime API 2', () => {
-  const config = resolveConfig({
-    ...base,
-    state: { enabled: { type: 'boolean', default: true } },
-  });
-  const old = { id: 'old', apiVersion: 1 } as never;
-  const options = { host: { min: 1, current: 2, configVersion: '0.16.0' } };
-  expect(() => checkRuntimeCompatibility(old, config, options)).toThrow(
-    /does not have/,
-  );
-  expect(() =>
-    checkRuntimeCompatibility(old, resolveConfig(base), options),
-  ).not.toThrow();
 });

@@ -8,7 +8,6 @@ export type {
 export {
   EXIT_CODES,
   SoundorError,
-  RuntimeCompatibilityError,
   RuntimeError,
   UnknownRuntimeError,
   EnvError,

@@ -1,14 +1,12 @@
 // Installs the packed Soundor packages and both runtimes the way a project
 // does (strict, isolated pnpm; no peers installed automatically), then runs
-// the installed CLI: each package must resolve what it imports from its own
-// manifest, the runtimes must depend on one release line of the SDK (their
-// runtime API version is that of their copy), and a runtime of a newer
-// runtime API is refused before anything is generated.
+// the installed CLI. Runtime host compatibility is declared through the
+// soundor peer dependency and checked by the package manager.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,9 +122,7 @@ export default defineSoundorConfig({
   );
   run(soundor, ['gen', '--check']);
 
-  // A runtime depends on one Soundor package, the SDK, of one release line:
-  // its runtime API version is that of its copy, which sharing the CLI's
-  // (deduplicated) cannot change, and its declarations name nothing else.
+  // The SDK is a regular dependency; the CLI is the runtime's host peer.
   for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
     const manifest = JSON.parse(
       await readFile(
@@ -139,6 +135,11 @@ export default defineSoundorConfig({
       /^\^0\.\d+\.\d+$/,
       runtime,
     );
+    assert.equal(
+      manifest.peerDependencies.soundor,
+      manifest.dependencies['@soundor/runtime-sdk'],
+      runtime,
+    );
     for (const name of ['@soundor/config', '@soundor/core'])
       assert.equal(
         manifest.dependencies[name],
@@ -147,38 +148,39 @@ export default defineSoundorConfig({
       );
   }
 
-  // A runtime of a newer runtime API: refused, exit code 4, nothing written.
-  await rm(resolve(temporary, '.soundor'), { recursive: true, force: true });
+  // An incompatible host peer fails a strict install before the CLI runs.
+  const third = resolve(temporary, 'third-runtime');
+  await mkdir(third);
   await writeFile(
-    resolve(temporary, 'soundor.config.ts'),
-    `
-import { defineSoundorConfig } from '@soundor/config';
-import { webRuntime } from '@soundor/web-runtime';
-
-const noop = async () => {};
-const newer = {
-  id: 'newer',
-  apiVersion: 999,
-  init: noop, gen: noop, dev: noop, build: noop,
-  doctor: async () => ({ checks: [] }),
-};
-
-export default defineSoundorConfig({
-  plugin: { id: 'com.soundor.packed-runtimes', name: 'Packed runtimes' },
-  parameters: {},
-  runtimes: [webRuntime(), { id: 'newer', options: {}, runtime: newer }],
-});
-`,
+    resolve(third, 'package.json'),
+    JSON.stringify({
+      name: 'soundor-runtime-third',
+      version: '1.0.0',
+      peerDependencies: { soundor: '^99.0.0' },
+    }),
   );
-  const refused = run(soundor, ['gen'], { status: 4 });
-  assert.match(
-    refused,
-    /Runtime 'newer' implements runtime API 999, newer than this soundor/,
+  await writeFile(
+    resolve(temporary, 'package.json'),
+    JSON.stringify({
+      private: true,
+      type: 'module',
+      dependencies: {
+        ...project,
+        'soundor-runtime-third': 'file:./third-runtime',
+      },
+    }),
   );
-  assert.ok(!existsSync(resolve(temporary, '.soundor')));
+  const refused = run(
+    'pnpm',
+    ['install', '--prefer-offline', '--ignore-scripts'],
+    { status: 1 },
+  );
+  assert.match(refused, /ERR_PNPM_PEER_DEP_ISSUES/);
+  assert.match(refused, /soundor/);
+  assert.match(refused, /99\.0\.0/);
 
   console.log(
-    'Packed runtimes: strict pnpm install, gen with both runtimes, and an incompatible runtime refused.',
+    'Packed runtimes: strict pnpm install, gen with both runtimes, and an incompatible host peer refused by pnpm.',
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

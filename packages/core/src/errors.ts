@@ -19,8 +19,6 @@ export type SoundorErrorCode =
   | 'CONFIG'
   | 'ENV'
   | 'UNKNOWN_RUNTIME'
-  | 'INVALID_RUNTIME'
-  | 'INCOMPATIBLE_RUNTIME'
   | 'RUNTIME'
   | 'INTERNAL'
   | 'TRANSACTION_ABORTED';
@@ -30,8 +28,6 @@ export const EXIT_CODES: Readonly<Record<SoundorErrorCode, number>> = {
   CONFIG: 2,
   ENV: 3,
   UNKNOWN_RUNTIME: 4,
-  INVALID_RUNTIME: 4,
-  INCOMPATIBLE_RUNTIME: 4,
   RUNTIME: 5,
   TRANSACTION_ABORTED: 5,
   INTERNAL: 70, // sysexits EX_SOFTWARE
@@ -148,49 +144,6 @@ export class EnvError extends SoundorError {
       issues: options.issues,
     });
     this.name = 'EnvError';
-  }
-}
-
-/**
- * A runtime and the host (the CLI) do not share a runtime API version, or the
- * project's config uses what the runtime's version does not have
- * (`INCOMPATIBLE_RUNTIME`); or the runtime's API version cannot be read
- * (`INVALID_RUNTIME`).
- */
-export class RuntimeCompatibilityError extends SoundorError {
-  readonly runtimeId: string;
-  /** How to resolve it. */
-  readonly hint: string;
-
-  constructor(
-    message: string,
-    options: {
-      runtimeId: string;
-      code?: 'INCOMPATIBLE_RUNTIME' | 'INVALID_RUNTIME';
-      issues?: SoundorIssue[];
-      hint: string;
-    },
-  ) {
-    super(message, {
-      code: options.code ?? 'INCOMPATIBLE_RUNTIME',
-      issues: options.issues,
-    });
-    this.name = 'RuntimeCompatibilityError';
-    this.runtimeId = options.runtimeId;
-    this.hint = options.hint;
-  }
-
-  /** The message, one line per issue, and the hint. */
-  format(): string {
-    return [
-      this.message,
-      ...this.issues.map((issue) =>
-        issue.path === ''
-          ? `  ${issue.message}`
-          : `  ${issue.path}: ${issue.message}`,
-      ),
-      this.hint,
-    ].join('\n');
   }
 }
 

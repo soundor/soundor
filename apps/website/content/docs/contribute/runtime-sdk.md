@@ -18,7 +18,7 @@ describes the environment a runtime must provide in addition to these hooks.
 pnpm add @soundor/runtime-sdk
 ```
 
-It is the one Soundor package a runtime depends on: it re-exports all of
+It is the one Soundor package a runtime imports: it re-exports all of
 `@soundor/config` and `@soundor/core`, so import everything from it. A
 runtime that also installed those would risk copies of them that its SDK's do
 not share, and declarations naming packages its users may not have.
@@ -36,15 +36,18 @@ Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
 
 ### Compatibility
 
-`defineRuntime` gives the runtime `apiVersion`, the `RUNTIME_API_VERSION` of
-the `@soundor/config` it is built with: the version of everything a runtime
-depends on of its host, which changes only when that does, not with every
-Soundor release. The CLI refuses the runtime before any phase when it does not
-run that version, or when the config uses a setting added after it
-([Dependencies and compatibility](/docs/contribute/compatibility)). The SDK
-re-exports the check (`checkRuntimeCompatibility`) and the error protocol
-(`isSoundorError`, `isConfigError`) for errors from other copies of the
-packages.
+Declare supported CLI releases through a required `soundor` peer dependency,
+using a caret range such as `^%version:soundor%`. Keep
+`@soundor/runtime-sdk` as a regular dependency. They share the fixed package
+version, so the SDK release you build against identifies the host release
+line to support. Before 1.0, the caret range accepts patches within that minor.
+
+Runtime providers own compatibility and update their peer range after testing
+a new release. The package manager handles peer mismatches; the CLI does not
+perform an additional runtime-version check. See
+[Dependencies and compatibility](/docs/contribute/compatibility).
+The SDK re-exports the error protocol (`isSoundorError`, `isConfigError`) for
+errors from other copies of the packages.
 
 ### Optional DevTools capability
 

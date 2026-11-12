@@ -15,7 +15,6 @@ import {
   type ProjectPaths,
 } from '@soundor/core';
 
-import { checkRuntimeCompatibility } from './compatibility';
 import type { LifecycleContext, RuntimeMode, RuntimePhase } from './context';
 import type { DoctorReport, Runtime } from './runtime';
 import { resolveSigning } from './signing';
@@ -25,17 +24,13 @@ import type { ResolvedSoundorConfig, RuntimeConfig } from './types';
 export interface ResolvedRuntime {
   runtime: Runtime;
   config: RuntimeConfig;
-  /** The runtime API version it implements, which the host runs. */
-  apiVersion: number;
 }
 
 /**
- * Finds the runtime registered under `id` in `config.runtimes[]` and checks
- * that this host runs its runtime API version, and that it has what the config
- * uses (`checkRuntimeCompatibility`). Throws {@link
- * UnknownRuntimeError} (listing the available ids) when none matches, and a
- * `RuntimeCompatibilityError` when it does not support the host: entry points
- * resolve every runtime they will run before generating anything.
+ * Finds the runtime registered under `id` in `config.runtimes[]`. Throws
+ * {@link UnknownRuntimeError} (listing the available ids) when none matches.
+ * Runtime providers declare host compatibility through their package's
+ * `soundor` peer dependency; the package manager handles that requirement.
  */
 export function resolveRuntime(
   config: ResolvedSoundorConfig,
@@ -51,7 +46,6 @@ export function resolveRuntime(
   return {
     runtime: entry.runtime,
     config: { id: entry.id, options: entry.options },
-    apiVersion: checkRuntimeCompatibility(entry.runtime, config),
   };
 }
 

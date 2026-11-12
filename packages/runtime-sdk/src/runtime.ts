@@ -1,18 +1,12 @@
 import {
-  RUNTIME_API_VERSION,
   type Runtime,
   type RuntimeDescriptor,
   type RuntimeFactory,
 } from '@soundor/config';
 
-/**
- * What {@link defineRuntime} takes: a {@link Runtime}, whose `apiVersion` it
- * sets itself.
- */
-export type RuntimeDefinition<Options extends object = object> = Omit<
-  Runtime<Options>,
-  'apiVersion'
->;
+/** The lifecycle implementation accepted by {@link defineRuntime}. */
+export type RuntimeDefinition<Options extends object = object> =
+  Runtime<Options>;
 
 /**
  * Authors a runtime and returns the config-callable factory a runtime package
@@ -35,9 +29,7 @@ export type RuntimeDefinition<Options extends object = object> = Omit<
  * runtimes: [juceRuntime({ plugin: { formats: ['vst3'] } })]
  * ```
  *
- * The runtime is given the `RUNTIME_API_VERSION` of the `@soundor/config` the
- * runtime is built with, which the host checks before running it. The returned
- * descriptor carries the declarative `{ id, options }` plus the implementation;
+ * The returned descriptor carries the declarative `{ id, options }` plus the implementation;
  * the factory object also exposes `id` and `runtime` directly.
  */
 export function defineRuntime<Options extends object = object>(
@@ -45,7 +37,6 @@ export function defineRuntime<Options extends object = object>(
 ): RuntimeFactory<Options> {
   const runtime: Runtime<Options> = {
     ...definition,
-    apiVersion: RUNTIME_API_VERSION,
   };
   const factory = (options?: Options): RuntimeDescriptor<Options> => ({
     id: runtime.id,

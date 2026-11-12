@@ -34,9 +34,9 @@ otherwise ignore.
 Install `soundor` and `@soundor/config` at the same version, as
 `create-soundor-app` does: the CLI parses the config with its own
 `@soundor/config`, and refuses a project whose `@soundor/config` is of another
-release line (another minor before 1.0). The CLI refuses a runtime of a
-runtime API version it does not run, or one older than a setting the config
-uses, before running it
+release line (another minor before 1.0). Runtime packages declare supported
+CLI releases through their `soundor` peer dependency; the package manager
+handles mismatches
 ([Dependencies and compatibility](/docs/contribute/compatibility)).
 
 ### `plugin`

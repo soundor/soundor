@@ -42,7 +42,7 @@ working directory. Exercise those paths from an installed tarball.
 
 ### Dependencies and compatibility
 
-The reference runtimes depend on one Soundor package, `@soundor/runtime-sdk`,
+The reference runtimes import their toolchain APIs from `@soundor/runtime-sdk`,
 which re-exports all of `@soundor/config` and `@soundor/core`: their code
 imports everything from it, and their declarations name nothing else. A
 project's config type names only its own `@soundor/config`
@@ -53,13 +53,20 @@ plugin's UI rather than in Node, imports from `@soundor/runtime-sdk/client`
 `dist/*.d.mts`) to check that every package they import is declared. See
 [Dependencies and compatibility](/docs/contribute/compatibility) for the rules.
 
-Depend on one release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0).
-`defineRuntime()` gives the runtime the runtime API version of that copy, and
-the CLI refuses the runtime, before running any phase, when its own does not
-run that version. A wider range lets the package manager hand the runtime a
-copy of another line, whose version it would then report. When a Soundor
-release raises the runtime API version, check the runtime against it, and
-release it built with that release if it implements what the raise adds.
+Keep `@soundor/runtime-sdk` as a regular dependency and declare `soundor` as a
+required peer at the host versions you support:
+
+```json
+{
+  "dependencies": { "@soundor/runtime-sdk": "^%version:@soundor/runtime-sdk%" },
+  "peerDependencies": { "soundor": "^%version:soundor%" }
+}
+```
+
+The SDK and CLI are released at the same version. Before 1.0, a caret range
+supports the current minor and its patches. Test each new Soundor minor and
+publish an updated peer range when the runtime supports it. Package managers
+handle mismatches; the CLI does not perform another runtime-version check.
 
 Before 1.0, plugin projects pin exact Soundor versions. Document your runtime's
 tested versions and upgrade steps. Keep your package version and the engine ABI

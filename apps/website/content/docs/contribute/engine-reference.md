@@ -2027,6 +2027,6 @@ installation replaces prepared values before host or state observers run.
 Each editor bridge contributes its own gesture owner. Teardown cancels only
 that owner's unfinished recordings and host gesture contribution. Project
 restoration clears History before the application's `stateRestored()` hook.
-Runtime API 5 requires this module and editing contract; no new config field
-or `CONFIG_FEATURES` entry is needed. See [StateHistory](/docs/api/state-history)
+Runtimes providing StateHistory implement this module and editing contract.
+See [StateHistory](/docs/api/state-history)
 for transaction poisoning, automation, memory and notification semantics.

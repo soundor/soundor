@@ -2,7 +2,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { RUNTIME_API_VERSION } from '@soundor/config';
 import type { ArgsDef, CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -284,7 +283,6 @@ async function writeConfig(
 
 function runtime(id, checks) {
   return {
-    apiVersion: ${RUNTIME_API_VERSION},
     id,
     async init() {},
     async gen() {},

@@ -5,8 +5,6 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { RUNTIME_API_VERSION } from '@soundor/config';
-
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const temporary = await mkdtemp(
   resolve(tmpdir(), 'soundor-devtools-consumer-'),
@@ -118,7 +116,7 @@ import { defineSoundorConfig } from '@soundor/config';
 export default defineSoundorConfig({
   plugin: { id: 'com.soundor.packed-test', name: 'Packed test' }, parameters: {},
   runtimes: [{ id: 'smoke', options: {}, runtime: {
-    id: 'smoke', apiVersion: ${RUNTIME_API_VERSION}, capabilities: { devtools: { inspector: true } },
+    id: 'smoke', capabilities: { devtools: { inspector: true } },
     async init() {}, async gen() {}, async build() {}, async doctor() { return { checks: [] }; },
     async dev(_config, ctx) {
       if (!ctx.devtools) throw new Error('DevTools startup failed');
