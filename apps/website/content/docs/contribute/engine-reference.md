@@ -2012,3 +2012,21 @@ Paths, groups, transforms, gradients, and clipping use Skia's implementation.
 Browser support is broader, especially for CSS, text shaping, filters, and
 resources. Rendering remains on the existing SkCanvas and compositor; the
 foundation adds no UI node or public React API.
+
+## StateHistory ownership and publication
+
+The generated JUCE processor owns `history::StateHistory` independently of its
+editor. Typed parameter controls and persistent-state fields register stable
+identifiers and storage adapters; entries store before/after values rather
+than JavaScript callbacks. Parameter `load()` and host automation still use
+the existing atomics directly. Control-thread `get()` checks the transaction
+buffer, and setters validate through their ordinary write pathway before
+staging. Preparation allocates the complete entry and storage/event payloads;
+installation replaces prepared values before host or state observers run.
+
+Each editor bridge contributes its own gesture owner. Teardown cancels only
+that owner's unfinished recordings and host gesture contribution. Project
+restoration clears History before the application's `stateRestored()` hook.
+Runtime API 5 requires this module and editing contract; no new config field
+or `CONFIG_FEATURES` entry is needed. See [StateHistory](/docs/api/state-history)
+for transaction poisoning, automation, memory and notification semantics.

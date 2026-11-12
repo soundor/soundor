@@ -1,3 +1,5 @@
+import { StateHistory, type HistoryOptions } from './history';
+export * from './history';
 /** Portable persistent values and the versioned Soundor snapshot wire format. */
 import {
   describeNativeApi,
@@ -299,8 +301,8 @@ export function readSnapshot(text: string): SoundorSnapshot {
 
 export interface StateCell<T = unknown> {
   get(): T;
-  set(value: ValueOrUpdater<T>): void;
-  beginGesture(): void;
+  set(value: ValueOrUpdater<T>, options?: HistoryOptions): void;
+  beginGesture(options?: HistoryOptions): void;
   endGesture(): void;
   subscribe(listener: (value: T) => void): () => void;
 }
@@ -317,7 +319,10 @@ export class StateStore {
     value: unknown;
   }[] = [];
   #notifying = false;
-  constructor(readonly schema: StateSchema) {
+  constructor(
+    readonly schema: StateSchema,
+    readonly history = new StateHistory(),
+  ) {
     this.fields = Object.freeze(
       Object.fromEntries(
         schema.fields.map((f) => {
@@ -326,15 +331,36 @@ export class StateStore {
             stateValue(schema, f.type, f.default, `state.${f.name}`, true),
           );
           this.#listeners.set(f.name, new Set());
+          const id = `state:${f.name}`;
+          this.history.register({
+            id,
+            label: f.name,
+            read: () => this.#values.get(f.name),
+            equal: (a, b) => stateJson(a) === stateJson(b),
+            prepare: (raw) => {
+              const value = stateValue(schema, f.type, raw, `state.${f.name}`);
+              stateJson(value);
+              const listeners = [...this.#listeners.get(f.name)!];
+              return {
+                install: () => {
+                  this.#values.set(f.name, value);
+                },
+                notify: () => this.publish([{ listeners, value }]),
+              };
+            },
+          });
           return [
             f.name,
             Object.freeze({
-              get: () => this.#values.get(f.name),
-              set: (v: unknown) => this.write(f, v),
-              beginGesture: () => {
+              get: () => this.history.read(id),
+              set: (v: unknown, options?: HistoryOptions) =>
+                this.write(f, v, options),
+              beginGesture: (options?: HistoryOptions) => {
+                this.history.beginGesture(id, options);
                 this.#gestures.set(f.name, this.gestureDepth(f.name) + 1);
               },
               endGesture: () => {
+                this.history.endGesture(id);
                 const depth = this.gestureDepth(f.name);
                 if (depth > 1) this.#gestures.set(f.name, depth - 1);
                 else this.#gestures.delete(f.name);
@@ -361,6 +387,8 @@ export class StateStore {
   }
   /** End unfinished interactions when the UI goes away, without changing values. */
   resetGestures(): void {
+    for (const field of this.#gestures.keys())
+      this.history.cancelGesture(`state:${field}`);
     this.#gestures.clear();
   }
   onRestored = (fn: () => void): (() => void) => {
@@ -396,6 +424,7 @@ export class StateStore {
         stateJson(this.#values.get(f.name)) !== stateJson(prepared[f.name]),
     );
     for (const f of changed) this.#values.set(f.name, prepared[f.name]);
+    this.history.clear();
     this.publish([
       ...changed.map((f) => ({
         listeners: [...this.#listeners.get(f.name)!],
@@ -404,16 +433,26 @@ export class StateStore {
       { listeners: [...this.#restored], value: undefined },
     ]);
   }
-  private write(field: StateField, raw: unknown): void {
-    const value = stateValue(
-      this.schema,
-      field.type,
-      resolveSetter(raw, () => this.#values.get(field.name)),
-      `state.${field.name}`,
+  private write(
+    field: StateField,
+    raw: unknown,
+    options?: HistoryOptions,
+  ): void {
+    const id = `state:${field.name}`;
+    this.history.edit(
+      id,
+      () => {
+        const value = stateValue(
+          this.schema,
+          field.type,
+          resolveSetter(raw, () => this.history.read(id)),
+          `state.${field.name}`,
+        );
+        stateJson(value);
+        return value;
+      },
+      options,
     );
-    if (stateJson(value) === stateJson(this.#values.get(field.name))) return;
-    this.#values.set(field.name, value);
-    this.publish([{ listeners: [...this.#listeners.get(field.name)!], value }]);
   }
   private publish(
     events: {

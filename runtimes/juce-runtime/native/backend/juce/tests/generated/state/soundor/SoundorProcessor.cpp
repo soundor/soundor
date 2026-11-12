@@ -25,6 +25,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         parameters = std::make_unique<juce::AudioProcessorValueTreeState>(
             *this, nullptr, "SOUNDOR", std::move(layout));
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
+        parameterEditors.reserve(created.size());
+        for (auto* parameter : created)
+            parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, stateHistory));
 
         gainParameter = backend::ParameterValue<float>(*created[0]);
         bypassParameter = backend::ParameterValue<bool>(*created[1]);
@@ -36,6 +39,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 
     void AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     {
+        const std::lock_guard historyGuard(stateHistory.mutex());
         const std::lock_guard guard(state.storage().mutex());
         // APVTS flushes pending parameter changes before we copy them.
         const auto parameterTree = parameters->copyState();
@@ -148,9 +152,11 @@ if (saved.hasProperty("mode")) {
           next = std::move(restorations.front());
           restorations.pop_front();
         }
+        const std::lock_guard historyGuard(stateHistory.mutex());
         const std::lock_guard guard(state.storage().mutex());
         parameters->replaceState(next->parameters);
         state.apply(next->state);
+        stateHistory.clear();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }
         catch (...) { juce::Logger::writeToLog("Soundor stateRestored hook failed"); }

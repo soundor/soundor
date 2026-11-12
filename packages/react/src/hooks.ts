@@ -1,4 +1,5 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { stateHistory, type HistoryStatus } from 'soundor:state-history';
 import { subscribeViewSize, viewSize, type ViewSize } from 'soundor:ui';
 
 /** What useParameter needs of a parameter (soundor:parameters' shape). */
@@ -54,4 +55,19 @@ export function useAnimationFrame(callback: (time: number) => void): void {
  */
 export function useViewSize(): ViewSize {
   return useSyncExternalStore(subscribeViewSize, viewSize);
+}
+
+/** Reactive History availability and stable undo/redo actions. Field hooks remain value subscriptions. */
+export function useStateHistory(): HistoryStatus & {
+  undo(): void;
+  redo(): void;
+} {
+  const status = useSyncExternalStore(
+    stateHistory.subscribe,
+    stateHistory.snapshot,
+  );
+  return useMemo(
+    () => ({ ...status, undo: stateHistory.undo, redo: stateHistory.redo }),
+    [status],
+  );
 }

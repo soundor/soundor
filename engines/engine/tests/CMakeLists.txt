@@ -71,6 +71,7 @@ if(SOUNDOR_JS_SOURCE)
     js/RuntimeTests.cpp
     native/NativeModuleTests.cpp
     parameters/ParametersTests.cpp
+    history/HistoryTests.cpp
     render/CompositorTests.cpp
     render/AnimationFrameTests.cpp
     render/FrameTests.cpp

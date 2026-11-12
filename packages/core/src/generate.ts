@@ -123,6 +123,7 @@ const ENVIRONMENT_FILES = [
   'platform.d.ts',
   'ui.d.ts',
   'webgl.d.ts',
+  'state-history.d.ts',
 ];
 
 function environmentFiles(): CodegenFile[] {
@@ -213,7 +214,7 @@ function nativeApiModel(config: CoreSoundorConfig) {
  * the declarations of the runtime-provided `soundor:*` modules and globals.
  */
 function renderSoundorDts(): string {
-  return `${HEADER}/// <reference path="./assets.d.ts" />\n/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./state.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
+  return `${HEADER}/// <reference path="./assets.d.ts" />\n/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./state.d.ts" />\n/// <reference path="./state-history.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
 }
 
 function sortFiles(files: readonly CodegenFile[]): CodegenFile[] {

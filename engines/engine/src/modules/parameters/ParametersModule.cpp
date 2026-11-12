@@ -1,5 +1,6 @@
 #include "js/Bindings.h"
 #include "modules/Embedded.h"
+#include "modules/history/HistoryBindings.h"
 
 #include <soundor/parameters/Parameters.h>
 
@@ -31,6 +32,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             // one.
             ~Binding()
             {
+                if (host->historyManager())
+                {
+                    host->disconnectEdits();
+                    return;
+                }
                 for (std::size_t index = 0; index < gestures.size(); ++index)
                     if (gestures[index] > 0)
                         host->endGesture(index);
@@ -94,7 +100,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         {
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
+            if (auto* manager = binding.host->historyManager())
+            {
+                return history::invoke(context, *manager,
+                                       [&]() -> jsi::Value
+                                       {
+                                           requireWritable(context, binding, index);
+                                           const auto options = history::readOptions(context, args, count, 2);
+                                           binding.host->edit(index, readValue(context, args, count, 1), options);
+                                           return jsi::Value::undefined();
+                                       });
+            }
             requireWritable(context, binding, index);
+            if (history::readOptions(context, args, count, 2).enabled)
+                bind::throwError(context, "parameter host does not support StateHistory");
             const double value = binding.host->constrain(index, readValue(context, args, count, 1));
             if (value == binding.host->value(index))
                 return jsi::Value::undefined();
@@ -154,7 +173,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         {
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
+            if (auto* manager = binding.host->historyManager())
+            {
+                return history::invoke(context, *manager,
+                                       [&]() -> jsi::Value
+                                       {
+                                           requireWritable(context, binding, index);
+                                           binding.host->beginEdit(index,
+                                                                   history::readOptions(context, args, count, 1));
+                                           ++binding.gestures[index];
+                                           return jsi::Value::undefined();
+                                       });
+            }
             requireWritable(context, binding, index);
+            if (history::readOptions(context, args, count, 1).enabled)
+                bind::throwError(context, "parameter host does not support StateHistory");
             int& depth = binding.gestures[index];
             if (depth == 0)
                 binding.host->beginGesture(index);
@@ -166,6 +199,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         {
             Binding& binding = bindingOf(context);
             const std::size_t index = readIndex(context, binding, args, count);
+            if (auto* manager = binding.host->historyManager())
+            {
+                return history::invoke(context, *manager,
+                                       [&]() -> jsi::Value
+                                       {
+                                           if (manager->inTransaction())
+                                               throw std::logic_error("cannot end a gesture inside a transaction");
+                                           if (binding.gestures[index] > 0)
+                                           {
+                                               binding.host->endEdit(index);
+                                               --binding.gestures[index];
+                                           }
+                                           return jsi::Value::undefined();
+                                       });
+            }
             // An unmatched endGesture() is ignored rather than unbalancing the
             // host.
             int& depth = binding.gestures[index];
@@ -233,6 +281,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
             const auto exportFunction = [&](const char* name, bind::NativeFunction function, unsigned length)
             { bind::setProperty(context, exports, name, bind::function(context, name, length, function)); };
             bind::setProperty(context, exports, "infos", makeInfos(context, binding.host->infos()));
+            exportFunction(
+                "fail",
+                [](ContextState& c, const jsi::Value&, const jsi::Value* args, std::size_t count)
+                {
+                    if (auto* manager = bindingOf(c).host->historyManager())
+                    {
+                        try
+                        {
+                            if (count)
+                                throw jsi::JSError(c.rt, jsi::Value(c.rt, args[0]));
+                            throw std::runtime_error("parameter edit failed");
+                        }
+                        catch (...)
+                        {
+                            manager->poison(std::current_exception());
+                        }
+                    }
+                    return jsi::Value::undefined();
+                },
+                1);
             exportFunction("get", getValue, 1);
             exportFunction("set", setValue, 2);
             exportFunction("beginGesture", beginGesture, 1);

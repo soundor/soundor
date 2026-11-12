@@ -12,6 +12,7 @@ import type { DispatchContextInput } from '../registry';
 import { resolveRuntime, runPhase } from '../registry';
 import type { DoctorReport, Runtime, RuntimeDescriptor } from '../runtime';
 import type { ResolvedSoundorConfig } from '../types';
+import { RUNTIME_API_VERSION } from '../version';
 
 const noopFs: FileSystemHost = {
   resolve: (...s) => s.join('/'),
@@ -64,6 +65,7 @@ function config(...runtimes: RuntimeDescriptor[]): ResolvedSoundorConfig {
 
 describe('resolveRuntime', () => {
   const juce: Runtime = {
+    apiVersion: RUNTIME_API_VERSION,
     id: 'juce',
     init: async () => {},
     gen: async () => {},
@@ -102,6 +104,7 @@ describe('runPhase', () => {
       seen.push(ctx.devtools);
     };
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'custom',
       capabilities: { devtools: {} },
       init: record,
@@ -144,6 +147,7 @@ describe('runPhase', () => {
   it('dispatches by phase and threads options + mode into the context', async () => {
     const seen: Array<{ phase: string; mode: string; options: unknown }> = [];
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'juce',
       init: async (_c, ctx) => {
         seen.push({ phase: ctx.phase, mode: ctx.mode, options: ctx.options });
@@ -179,6 +183,7 @@ describe('runPhase', () => {
   it('resolves signing from the environment and the config', async () => {
     const seen: unknown[] = [];
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'juce',
       init: async () => {},
       gen: async () => {},
@@ -221,6 +226,7 @@ describe('runPhase', () => {
   it('wraps a thrown error as RuntimeError tagged with id and phase', async () => {
     const boom = new Error('kaboom');
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'juce',
       init: async () => {},
       gen: async () => {},
@@ -245,6 +251,7 @@ describe('runPhase', () => {
   it('passes an already-typed SoundorError through unwrapped', async () => {
     const original = new RuntimeError('explicit', { runtimeId: 'juce' });
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'juce',
       init: async () => {
         throw original;
@@ -264,6 +271,7 @@ describe('runPhase', () => {
   it('provides a default abort signal when none is passed', async () => {
     const signals: AbortSignal[] = [];
     const runtime: Runtime = {
+      apiVersion: RUNTIME_API_VERSION,
       id: 'juce',
       init: async (_c, ctx) => {
         signals.push(ctx.signal);

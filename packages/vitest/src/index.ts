@@ -62,6 +62,7 @@ const modules = new Set([
   'ui',
   'parameters',
   'state',
+  'state-history',
   'host',
   'native',
   'storage',
@@ -307,10 +308,12 @@ function virtualModule(
         )} };\n${functions.join('\n')}\nexport const clipboard = { readText: () => getTestRuntime().clipboard.readText(), writeText: text => getTestRuntime().clipboard.writeText(text) };`
     );
   }
+  if (name === 'state-history')
+    return `${header}export const stateHistory = Object.freeze({ ${['undo', 'redo', 'clear', 'canUndo', 'canRedo', 'undoLabel', 'redoLabel', 'snapshot', 'subscribe', 'transaction'].map((name) => `${name}: (...args) => getTestRuntime().history.${name}(...args)`).join(', ')} });`;
   if (name === 'state')
     return (
       header +
-      `export const state = Object.freeze({ ...Object.fromEntries(${JSON.stringify(stateIds)}.map(id => [id, { get: () => getTestRuntime().state.fields[id].get(), set: value => getTestRuntime().state.fields[id].set(value), beginGesture: () => getTestRuntime().state.fields[id].beginGesture(), endGesture: () => getTestRuntime().state.fields[id].endGesture(), subscribe: listener => getTestRuntime().state.fields[id].subscribe(listener) }])), onRestored: listener => getTestRuntime().state.onRestored(listener) });`
+      `export const state = Object.freeze({ ...Object.fromEntries(${JSON.stringify(stateIds)}.map(id => [id, { get: () => getTestRuntime().state.fields[id].get(), set: (...args) => getTestRuntime().state.fields[id].set(...args), beginGesture: (...args) => getTestRuntime().state.fields[id].beginGesture(...args), endGesture: () => getTestRuntime().state.fields[id].endGesture(), subscribe: listener => getTestRuntime().state.fields[id].subscribe(listener) }])), onRestored: listener => getTestRuntime().state.onRestored(listener) });`
     );
   if (name === 'parameters')
     return (

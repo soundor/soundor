@@ -7,14 +7,15 @@ import {
   type ParameterLike,
 } from '@soundor/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { HistoryOptions } from 'soundor:state-history';
 import type { UiNode } from 'soundor:ui';
 
 import { bufferDensity, clamp } from './model';
 
 type KnobParameter = ParameterLike<number> & {
   info: { min: number; max: number; default: number };
-  set(value: number): void;
-  beginGesture(): void;
+  set(value: number, options?: HistoryOptions): void;
+  beginGesture(options?: HistoryOptions): void;
   endGesture(): void;
 };
 
@@ -41,7 +42,9 @@ export function Knob({
   const normalized = (value - min) / (max - min);
   const change = (next: number) => parameter.set(clamp(next, min, max));
   const edit = (next: number) => {
-    change(next);
+    parameter.set(clamp(next, min, max), {
+      history: { label: `Adjust ${label}` },
+    });
   };
   const end = () => {
     if (drag.current === null) return;
@@ -139,7 +142,7 @@ export function Knob({
         onPointerDown={(event) => {
           if (event.button !== 0) return;
           drag.current = { y: event.pageY, value };
-          parameter.beginGesture();
+          parameter.beginGesture({ history: { label: `Adjust ${label}` } });
         }}
         onPointerMove={(event) => {
           if (drag.current)

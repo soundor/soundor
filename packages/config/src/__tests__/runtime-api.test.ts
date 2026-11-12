@@ -40,6 +40,7 @@ const CONTRACT: Record<string, string> = {
   'core/paths.ts': join(coreRoot, 'src/paths.ts'),
   'core/state.ts': join(coreRoot, 'src/state.ts'),
   'core/setter.ts': join(coreRoot, 'src/setter.ts'),
+  'core/history.ts': join(coreRoot, 'src/history.ts'),
   'core/native-api.ts': join(coreRoot, 'src/native-api.ts'),
   'core/errors.ts': join(coreRoot, 'src/errors.ts'),
   // The parameters' expressions, and the compilers runtimes turn them into code with.

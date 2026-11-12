@@ -9,6 +9,7 @@ import Cursor from './cursor';
 import DoubleClick from './double-click';
 import FocusScope from './focus-scope';
 import Gain from './gain';
+import History from './history';
 import Image from './image';
 import SvgImage from './image-svg';
 import Modal from './modal';
@@ -33,6 +34,7 @@ export const snippets: Readonly<Record<string, ComponentType>> = {
   'double-click': DoubleClick,
   'focus-scope': FocusScope,
   gain: Gain,
+  history: History,
   image: Image,
   'image-svg': SvgImage,
   svg: Svg,

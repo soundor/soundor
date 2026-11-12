@@ -110,6 +110,7 @@ target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   generated/state/soundor/SoundorState.cpp
   generated/state/soundor/SoundorParameters.cpp
   ../soundor/backend/JuceParameter.cpp
+  ../soundor/backend/JuceParameterHost.cpp
   ../soundor/backend/JuceTransport.cpp)
 target_include_directories(soundor_juce_state_tests PRIVATE generated/state ..)
 target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${engine_dir}/../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)

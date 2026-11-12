@@ -71,7 +71,7 @@ namespace ${ns} {
   class PersistentState {
     backend::StateStore store;
   public:
-    PersistentState() : ${schema.fields.map((f) => `${f.name}(store, ${quote(f.name)}, backend::StateCodec<${cppType(f.type)}>::decode(backend::parseStateJson(${quote(stateJson(f.default))})))`).join(', ') || 'store()'} {}
+    explicit PersistentState(history::StateHistory* history = nullptr) : store(history)${schema.fields.length ? ', ' : ''}${schema.fields.map((f) => `${f.name}(store, ${quote(f.name)}, backend::StateCodec<${cppType(f.type)}>::decode(backend::parseStateJson(${quote(stateJson(f.default))})))`).join(', ')} {}
     ${schema.fields.map((f) => `backend::StateField<${cppType(f.type)}> ${f.name};`).join('\n')}
     backend::StateStore& storage() { return store; }
     juce::var snapshot() const {
@@ -117,6 +117,7 @@ function stateBindings(schema: StateSchema): string {
     .join('\n');
   return `${header}#include "SoundorState.h"
 #include "js/Bindings.h"
+#include "modules/history/HistoryBindings.h"
 #include <list>
 namespace ${ns}::persistent {
 namespace {
@@ -209,8 +210,9 @@ void install(js::Context& context, PersistentState& state) {
         return bind::invoke(c, "state.${f.name}.get", [&] { return valueFor(c, ${quote(f.name)}, binding(c).state.storage().get(${quote(f.name)})); });
       }));
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
-        return bind::invoke(ctx, "state.${f.name}.set", [&]() -> jsi::Value {
-          bind::expectArgumentCount(ctx, "state.${f.name}.set", count, 1);
+        return bind::invoke(ctx, "state.${f.name}.set", [&] { return history::invoke(ctx, binding(ctx).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count < 1 || count > 2) bind::throwTypeError(ctx, "set expects a value and optional History options");
+          const auto options = history::readOptions(ctx, args, count, 1);
           auto resolved = jsi::Value(ctx.rt, args[0]);
           if (bind::isFunction(ctx, resolved)) {
             auto current = valueFor(ctx, ${quote(f.name)}, binding(ctx).state.storage().get(${quote(f.name)}));
@@ -223,21 +225,21 @@ void install(js::Context& context, PersistentState& state) {
           const bind::Path path { "state.${f.name}" };
           ${cppType(f.type)} value {};
           ${readStatement(f.type, 'ctx', 'resolved', 'path', 'value', false)};
-          binding(ctx).state.${f.name}.set(std::move(value));
+          binding(ctx).state.${f.name}.set(std::move(value), options);
           return jsi::Value::undefined();
-        });
+        }); });
       }));
       ${['beginGesture', 'endGesture']
         .map(
           (
             method,
-          ) => `field.set("${method}", bind::closure(ctx, "${method}", 0, [](auto& c, const auto&, const auto*, auto count) {
-        return bind::invoke(c, "state.${f.name}.${method}", [&]() -> jsi::Value {
-          bind::expectArgumentCount(c, "state.${f.name}.${method}", count, 0);
+          ) => `field.set("${method}", bind::closure(ctx, "${method}", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.${f.name}.${method}", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          ${method === 'beginGesture' ? 'if (count > 1) bind::throwTypeError(c, "beginGesture expects optional History options");' : 'bind::expectArgumentCount(c, "endGesture", count, 0);'}
           auto& view = binding(c);
-          view.state.storage().${method}(${quote(f.name)}, view.session);
+          view.state.storage().${method}(${quote(f.name)}, view.session${method === 'beginGesture' ? ', history::readOptions(c, args, count, 0)' : ''});
           return jsi::Value::undefined();
-        });
+        }); });
       }));`,
         )
         .join('\n')}
@@ -320,6 +322,7 @@ export function persistentProcessorSource(
 
     void AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     {
+        const std::lock_guard historyGuard(stateHistory.mutex());
         const std::lock_guard guard(state.storage().mutex());
         // APVTS flushes pending parameter changes before we copy them.
         const auto parameterTree = parameters->copyState();
@@ -406,9 +409,11 @@ export function persistentProcessorSource(
           next = std::move(restorations.front());
           restorations.pop_front();
         }
+        const std::lock_guard historyGuard(stateHistory.mutex());
         const std::lock_guard guard(state.storage().mutex());
         parameters->replaceState(next->parameters);
         state.apply(next->state);
+        stateHistory.clear();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }
         catch (...) { juce::Logger::writeToLog("Soundor stateRestored hook failed"); }

@@ -9,6 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { RUNTIME_API_VERSION } from '@soundor/config';
 import { ConfigError } from '@soundor/config';
 import type { CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -82,6 +83,7 @@ describe('runGen', () => {
             { path: 'parameters.d.ts', status: 'created' },
             { path: 'platform.d.ts', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
+            { path: 'state-history.d.ts', status: 'created' },
             { path: 'state.d.ts', status: 'created' },
             { path: 'ui.d.ts', status: 'created' },
             { path: 'webgl.d.ts', status: 'created' },
@@ -219,7 +221,7 @@ async function writeIncompatibleConfig(root: string): Promise<void> {
     join(root, 'soundor.config.ts'),
     `import { defineSoundorConfig } from '@soundor/config';
 
-const good = ${runtime('good', 1)};
+const good = ${runtime('good', RUNTIME_API_VERSION)};
 const newer = ${runtime('newer', 999)};
 
 export default defineSoundorConfig({
@@ -241,6 +243,7 @@ async function writeConfig(root: string, parameterId: string): Promise<void> {
     `import { defineSoundorConfig } from '@soundor/config';
 
 const runtime = {
+  apiVersion: ${RUNTIME_API_VERSION},
   id: 'test',
   async init() {},
   async gen(config, ctx) {

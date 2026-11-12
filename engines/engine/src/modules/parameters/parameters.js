@@ -124,11 +124,15 @@ class Parameter {
     return fromHost(this.#info, host.get(this.#index));
   }
 
-  set(value) {
-    this.#writable();
-    const next = typeof value === 'function' ? value(this.get()) : value;
-    // The type conversion rejects promises and thenables before entering native code.
-    host.set(this.#index, toHost(this.#info, next));
+  set(value, options) {
+    try {
+      this.#writable();
+      const next = typeof value === 'function' ? value(this.get()) : value;
+      host.set(this.#index, toHost(this.#info, next), options);
+    } catch (error) {
+      host.fail(error);
+      throw error;
+    }
   }
 
   subscribe(listener) {
@@ -151,9 +155,14 @@ class Parameter {
     };
   }
 
-  beginGesture() {
-    this.#writable();
-    host.beginGesture(this.#index);
+  beginGesture(options) {
+    try {
+      this.#writable();
+      host.beginGesture(this.#index, options);
+    } catch (error) {
+      host.fail(error);
+      throw error;
+    }
   }
 
   endGesture() {

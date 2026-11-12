@@ -6,6 +6,7 @@
     "index",
     "use-parameter",
     "use-state-value",
+    "use-state-history",
     "use-animation-frame",
     "use-view-size",
     "use-canvas-size",

@@ -11,7 +11,7 @@ const config = resolveConfig({
   runtimes: [],
   parameters: {
     gain: { type: 'float32', min: 0, max: 1, default: 0.5 },
-    bypass: { type: 'boolean', default: false },
+    bypass: { type: 'boolean', label: 'Bypass', default: false },
     mode: {
       type: 'choice',
       options: [

@@ -6,7 +6,12 @@
  * so a test sees what a plugin does.
  */
 
-import { resolveSetter, type ValueOrUpdater } from '@soundor/core';
+import {
+  StateHistory,
+  type HistoryOptions,
+  resolveSetter,
+  type ValueOrUpdater,
+} from '@soundor/core';
 import { compileJsFunction } from '@soundor/expression/compiler/js';
 
 import { Listeners } from './listeners';
@@ -54,13 +59,43 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   #disposed = false;
   readonly #listeners = new Listeners<ParameterValue<Info>>();
 
-  constructor(info: Info, behavior: ParameterBehavior) {
+  constructor(
+    info: Info,
+    behavior: ParameterBehavior,
+    readonly history = new StateHistory(),
+  ) {
     this.#info = freezeInfo(info);
     this.#behavior = behavior;
     this.#plain = behavior.constrain(this.#toPlain(info.default));
     hostWriters.set(this as TestParameter, (value) => {
       this.#active();
       this.#store(this.#toPlain(value));
+    });
+    this.history.register({
+      id: `parameter:${info.id}`,
+      label: info.label,
+      read: () => this.#plain,
+      equal: Object.is,
+      prepare: (value) => {
+        if (typeof value !== 'number' || !Number.isFinite(value))
+          throw new TypeError('Invalid History parameter value');
+        const next = this.#behavior.constrain(value);
+        return {
+          install: () => {
+            this.#plain = next;
+          },
+          notify: () => {
+            const automatic =
+              this.#info.access === 'automatable' && !this.inGesture;
+            if (automatic) this.#gestures++;
+            try {
+              this.#listeners.notify(this.#fromPlain(next));
+            } finally {
+              if (automatic) this.#gestures--;
+            }
+          },
+        };
+      },
     });
     Object.freeze(this);
   }
@@ -77,7 +112,7 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   /** The current value. */
   get(): ParameterValue<Info> {
     this.#active();
-    return this.#fromPlain(this.#plain);
+    return this.#fromPlain(this.history.read(`parameter:${this.id}`) as number);
   }
 
   /**
@@ -85,10 +120,21 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
    * type, or any value of a read-only parameter, is a TypeError. Listeners
    * hear of changes only.
    */
-  set(value: ValueOrUpdater<ParameterValue<Info>>): void {
-    this.#active();
-    this.#writable();
-    this.#store(this.#toPlain(resolveSetter(value, () => this.get())), true);
+  set(
+    value: ValueOrUpdater<ParameterValue<Info>>,
+    options?: HistoryOptions,
+  ): void {
+    this.history.edit(
+      `parameter:${this.id}`,
+      () => {
+        this.#active();
+        this.#writable();
+        return this.#behavior.constrain(
+          this.#toPlain(resolveSetter(value, () => this.get())),
+        );
+      },
+      options,
+    );
   }
 
   /**
@@ -104,15 +150,17 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   }
 
   /** Starts a user interaction (a drag, say). Interactions may nest. */
-  beginGesture(): void {
+  beginGesture(options?: HistoryOptions): void {
     this.#active();
-    this.#writable();
+    this.history.editGuard(() => this.#writable());
+    this.history.beginGesture(`parameter:${this.id}`, options);
     this.#gestures++;
   }
 
   /** Ends the interaction started with beginGesture(); extra calls do nothing. */
   endGesture(): void {
     this.#active();
+    this.history.endGesture(`parameter:${this.id}`);
     if (this.#gestures > 0) this.#gestures--;
   }
 
@@ -122,6 +170,7 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   }
 
   dispose(): void {
+    this.history.cancelGesture(`parameter:${this.id}`);
     this.#disposed = true;
     this.#listeners.clear();
     this.#gestures = 0;
@@ -136,7 +185,7 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   format(...value: [] | [ParameterValue<Info>]): string {
     const plain =
       value.length === 0
-        ? this.#plain
+        ? (this.history.read(`parameter:${this.id}`) as number)
         : this.#behavior.constrain(this.#toPlain(value[0]));
     return this.#behavior.format(plain);
   }
@@ -156,7 +205,7 @@ export class TestParameter<Info extends TestParameterInfo = TestParameterInfo> {
   toNormalized(...value: [] | [ParameterValue<Info>]): number {
     const plain =
       value.length === 0
-        ? this.#plain
+        ? (this.history.read(`parameter:${this.id}`) as number)
         : this.#behavior.constrain(this.#toPlain(value[0]));
     return this.#behavior.toNormalized(plain);
   }
@@ -271,6 +320,7 @@ export function compileBehavior(
 
 /** Every parameter of a plugin, by id and in declaration order. */
 export interface ParameterStore {
+  readonly history: StateHistory;
   readonly list: readonly TestParameter[];
   readonly byId: Readonly<Record<string, TestParameter>>;
 }
@@ -278,6 +328,7 @@ export interface ParameterStore {
 /** Creates the store for a plugin's resolved parameters. */
 export function createParameterStore(
   parameters: readonly ParameterInit[],
+  history = new StateHistory(),
 ): ParameterStore {
   const list = Object.freeze(
     parameters.map(({ semantics, mapping: _mapping, ...info }) => {
@@ -288,10 +339,12 @@ export function createParameterStore(
       return new TestParameter(
         info as TestParameterInfo,
         compileBehavior(semantics),
+        history,
       );
     }),
   );
   return {
+    history,
     list,
     byId: Object.freeze(
       Object.fromEntries(list.map((parameter) => [parameter.id, parameter])),

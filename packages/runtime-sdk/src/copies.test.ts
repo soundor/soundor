@@ -405,7 +405,7 @@ describe('separate copies of the Soundor packages', () => {
 
   it('work across package versions of one runtime API version', () => {
     const outcome = run({
-      host: { version: '0.30.0', api: 3 },
+      host: { version: '0.30.0', api: 3, min: 1 },
       runtimeCopies: { version: '0.27.4', api: 3 },
       gen: 'env-error',
     });
@@ -424,7 +424,7 @@ describe('separate copies of the Soundor packages', () => {
 
   it('refuse a runtime newer than the host before it generates anything', () => {
     const outcome = run({
-      host: { version: '0.30.0', api: 3 },
+      host: { version: '0.30.0', api: 3, min: 1 },
       runtimeCopies: { version: '0.31.0', api: 4 },
       gen: 'ok',
     });
@@ -458,7 +458,7 @@ describe('separate copies of the Soundor packages', () => {
 
   it('take a runtime from before API versions for version 1', () => {
     const outcome = run({
-      host: workspace,
+      host: { ...workspace, min: 1 },
       runtimeCopies: workspace,
       legacy: true,
       gen: 'ok',

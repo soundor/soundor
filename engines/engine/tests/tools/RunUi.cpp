@@ -37,6 +37,7 @@
 #include "gpu/Device.h"
 #include "gpu/OffscreenCompositor.h"
 
+#include <soundor/history/Module.h>
 #include <soundor/platform/Resources.h>
 #include <soundor/render/GpuCompositor.h>
 #include <soundor/runtime/RuntimeHost.h>
@@ -500,7 +501,11 @@ try
     }
     std::cerr << "device: " << gpu::name(device->info().backend) << ", " << device->info().renderer << "\n";
 
+    // This standalone runner owns the application's History, as a processor
+    // does in JUCE. React's public hooks import the module even when unused.
+    history::StateHistory stateHistory;
     RuntimeHost::Options options;
+    options.installModules = [&](js::Context& context) { history::install(context, stateHistory); };
     if (animationStepMs > 0)
         options.animationClock = [&] { return animationTimeMs; };
     if (bytecode)
