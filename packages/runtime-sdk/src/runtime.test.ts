@@ -1,4 +1,3 @@
-import { RUNTIME_API_VERSION } from '@soundor/config';
 import { describe, expect, it } from 'vitest';
 
 import { defineRuntime, type RuntimeDefinition } from './runtime';
@@ -29,17 +28,8 @@ describe('defineRuntime', () => {
     const factory = defineRuntime(runtime);
     expect(typeof factory).toBe('function');
     expect(factory.id).toBe('juce');
-    expect(factory.runtime).toEqual({
-      ...runtime,
-      apiVersion: RUNTIME_API_VERSION,
-    });
+    expect(factory.runtime).toEqual(runtime);
     expect(factory().runtime).toBe(factory.runtime);
-  });
-
-  it('gives the runtime the API version of the config it is built with', () => {
-    expect(defineRuntime(makeRuntime()).runtime.apiVersion).toBe(
-      RUNTIME_API_VERSION,
-    );
   });
 
   it('produces a descriptor carrying id, options, and the runtime', () => {
@@ -49,7 +39,7 @@ describe('defineRuntime', () => {
     expect(descriptor).toEqual({
       id: 'juce',
       options: { format: 'vst3' },
-      runtime: { ...runtime, apiVersion: RUNTIME_API_VERSION },
+      runtime,
     });
   });
 

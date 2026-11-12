@@ -18,10 +18,10 @@ pnpm add @soundor/runtime-sdk
 pnpm add -D typescript @types/node
 ```
 
-It is the only Soundor package the runtime needs: it re-exports all of
-`@soundor/config` and `@soundor/core`. Keep it at one release line
-(`^%version:@soundor/runtime-sdk%`): the runtime's API version, which the CLI
-checks, is that of its copy (see
+The SDK re-exports all of `@soundor/config` and `@soundor/core`, so the runtime
+imports everything from it. Keep it as a regular dependency at
+`^%version:@soundor/runtime-sdk%`, and declare a required `soundor` peer at
+`^%version:soundor%` to identify the supported host release line (see
 [Dependencies and compatibility](/docs/contribute/compatibility)).
 
 Use exact matching Soundor versions while developing the package. Its public
@@ -95,9 +95,8 @@ export const demoRuntime = defineRuntime<DemoOptions>({
 ```
 
 The runtime ID is the directory and dispatch identity, independent of the npm
-package name. `defineRuntime` gives the runtime the runtime API version of the
-`@soundor/config` it is built with, which the CLI checks before running any
-phase. `init` writes through the filesystem only when the user file is
+package name. `defineRuntime` wraps the lifecycle implementation in a
+config-callable factory. `init` writes through the filesystem only when the user file is
 missing. `gen` emits contents through the sink, so the CLI controls writes and
 check mode. Options need runtime validation even though the factory is typed.
 

@@ -1,6 +1,6 @@
 ---
 title: 'Dependencies and compatibility'
-description: 'How Soundor packages declare dependencies, communicate across installed copies, and how the runtime API version keeps independently released runtimes compatible.'
+description: 'Package dependencies, runtime host peer ranges, and communication across installed copies.'
 ---
 
 ## Purpose
@@ -9,25 +9,20 @@ Soundor's shared packages are released together; its runtimes, first-party or
 not, are released on their own. A project can therefore hold several copies of
 `@soundor/config` or `@soundor/core`: the CLI's, and a runtime's own, of the
 same version or another. These rules keep that working: each package declares
-what it uses, nothing depends on two copies being one, and runtimes and the
-CLI agree on a runtime API version, which changes only when what runtimes
-depend on does.
+what it uses, nothing depends on two copies being one, and each runtime
+provider declares its supported CLI versions through a `soundor` peer
+dependency.
 
 ## Where the code is
 
-- `packages/core/src/errors.ts`: the error protocol, `isSoundorError()` and
-  `RuntimeCompatibilityError`.
-- `packages/config/src/version.ts`: `RUNTIME_API_VERSION` and
-  `MIN_RUNTIME_API_VERSION`; `compatibility.ts`: `checkRuntimeCompatibility()`,
-  which `resolveRuntime()` calls, and `CONFIG_FEATURES`; `project.ts`: the
-  project's `@soundor/config` check.
-- `packages/config/runtime-api.json`: the contract the version describes,
-  checked by `src/__tests__/runtime-api.test.ts`.
-- `packages/runtime-sdk/src/runtime.ts`: `defineRuntime()`, which gives a
-  runtime its API version; `copies.test.ts`: separately installed copies
-  working together.
-- `packages/cli/scripts/runtime-consumer-smoke.mjs`: the runtimes installed
-  from their tarballs.
+- `packages/core/src/errors.ts`: the error protocol and `isSoundorError()`.
+- `packages/config/src/project.ts`: the project's `@soundor/config` check.
+- `packages/config/src/registry.ts`: runtime resolution and lifecycle dispatch.
+- `packages/runtime-sdk/src/runtime.ts`: `defineRuntime()`; `copies.test.ts`:
+  separately installed copies working together.
+- `runtimes/*/package.json`: SDK dependencies and `soundor` peer ranges.
+- `packages/cli/scripts/runtime-consumer-smoke.mjs`: strict installation of
+  packed runtimes, generation, and rejection of an incompatible host peer.
 
 ## How it works
 
@@ -37,13 +32,14 @@ depend on does.
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dependencies`                      | The package's emitted JavaScript imports it, or its published declarations name its types. Declare it directly, even when another dependency happens to bring it.                                                                                                                        |
 | `devDependencies`                   | Tests, build tools, fixtures, and code inlined into the bundle (such as `@soundor/core/spring` in the test runtime). A type-only import belongs here only if no published `.d.ts` refers to it.                                                                                          |
-| `peerDependencies`                  | The project must provide the one copy everything shares: React for `@soundor/react`'s reconciler, Vitest and Vite for their plugins, the VST3 host for `@soundor/vitest-e2e`.                                                                                                            |
+| `peerDependencies`                  | The package integrates with a host or a shared library: `soundor` for runtimes; React for `@soundor/react`'s reconciler, Vitest and Vite for their plugins, the VST3 host for `@soundor/vitest-e2e`.                                                                                     |
 | `peerDependenciesMeta` (`optional`) | An integration the package supports when the project installs it, and works without: `@soundor/vst3-host` for the Driver's `vst3` entry and for `soundor dev` of the JUCE runtime, React for Testing Library. The code must import it lazily and say what to install when it is missing. |
 
 A peer is not a way to avoid duplicates: if a package runs another's code,
 it depends on it. Shared packages depend on each other at `workspace:*` (they
 are one fixed version group, tested together). A runtime, released on its
-own, depends on one: `@soundor/runtime-sdk` at `workspace:^`, which
+own, has one regular Soundor dependency: `@soundor/runtime-sdk` at
+`workspace:^`, which
 re-exports all of `@soundor/config` and `@soundor/core`, so it has no copies
 of them that its SDK's do not share, and its declarations name no package a
 project lacks: a project's config type names only its own `@soundor/config`,
@@ -56,6 +52,11 @@ project installs `@soundor/config` too, for its types: the CLI never loads
 that copy (it replaces the config's import of it with a shim when it
 evaluates the file), but requires it to be of its own release line, the same
 minor before 1.0, since it says which schema the config was written for.
+
+VST3 host consumers also declare a caret peer range (`workspace:^` in the
+repository, published as `^%version:@soundor/vst3-host%`). Host API compatibility
+is scoped to the current minor and its patches before 1.0. The host remains
+optional for the Driver and JUCE runtime, and required for `@soundor/vitest-e2e`.
 
 ### Cross-package protocols
 
@@ -82,109 +83,66 @@ CLI hands a phase) is therefore recognized by a data contract, never by
   `globalThis`. A global symbol names a protocol; it is not a general
   substitute for module identity.
 
-### The runtime API version
+### Runtime host compatibility
 
-Runtimes are released on their own, and the shared packages release a new
-minor for changes most runtimes never see: React components, DevTools, the
-Driver. So compatibility is not a matter of package versions. It is a
-contract version, `RUNTIME_API_VERSION` in `@soundor/config`, which covers
-only what a runtime depends on of its host: the `Runtime` interface, the
-`LifecycleContext` and what it carries, the config a runtime receives, and
-the error protocol.
+A runtime declares its supported CLI releases in its package manifest:
 
-A runtime declares nothing. `defineRuntime()` gives it the
-`RUNTIME_API_VERSION` of the `@soundor/config` it is built with, its own copy
-(through `@soundor/runtime-sdk`), as `runtime.apiVersion`; a runtime made
-before API versions existed has none and implements version 1. The host
-(`soundor`, through its own `@soundor/config`) runs runtimes from
-`MIN_RUNTIME_API_VERSION` to its `RUNTIME_API_VERSION`.
-
-`resolveRuntime()`, through which `soundor init`, `gen`, `dev`, `build` and
-`doctor` reach a runtime, calls `checkRuntimeCompatibility()`, and each
-command resolves every runtime it will run before it generates, bundles or
-compiles anything. A runtime outside the host's range is refused
-(`INCOMPATIBLE_RUNTIME`, exit code 4):
-
-```text
-Runtime 'acme' implements runtime API 5, newer than this soundor (@soundor/config 0.18.0), which runs runtime API 3 to 4.
-Upgrade soundor and @soundor/config to a release the runtime is made for, or use an older release of the runtime.
+```json
+{
+  "dependencies": {
+    "@soundor/runtime-sdk": "^%version:@soundor/runtime-sdk%"
+  },
+  "peerDependencies": {
+    "soundor": "^%version:soundor%"
+  }
+}
 ```
 
-An API version that is not a positive integer is refused too
-(`INVALID_RUNTIME`). `doctor` reports a refused runtime as a failed check.
+The SDK and CLI share the fixed package version. Before 1.0, a caret range
+such as `^0.16.0` accepts `0.16.x` and excludes `0.17.0`. The runtime provider
+owns that range: check a new Soundor minor, then publish a runtime release
+that declares support. A wider range is appropriate only when the provider
+supports all releases it includes.
 
-**Config features.** A config field added after the first runtime API version
-is listed in `CONFIG_FEATURES` with the version that added it. A runtime of
-an older version still runs, unless the project's config uses the field: then
-it is refused, by path, rather than ignoring it:
+The SDK is a regular dependency because the runtime imports its helpers and
+types. The CLI is a peer because it loads and invokes the runtime; the runtime
+does not need to import `soundor`. First-party runtimes use `workspace:^` for
+both requirements, which pnpm writes as caret ranges when packing them.
 
-```text
-Runtime 'acme' implements runtime API 3, which does not have what this config uses:
-  parameters[0].mapping: parameter mappings, from runtime API 4
-Upgrade the runtime to a release that supports them, or remove them from the config.
-```
-
-And the config schema rejects properties it does not have (a typo, or a
-setting of a newer release) instead of dropping them, so a config written for
-a newer Soundor is refused by an older one.
-
-**Deduplication.** A runtime's API version is that of its own copy of the
-SDK, which the package manager may share with the CLI's when the versions
-allow. That cannot change the answer as long as a runtime depends on one
-release line of `@soundor/runtime-sdk` (`^0.17.0` before 1.0), its only
-Soundor dependency, and the
-version changes only in a minor release: every copy of a line has the same
-version. A runtime that depends on a wider range (or makes the SDK a peer)
-reports whatever copy it is given.
-
-### Changing the runtime API version
-
-A change to the contract fails `runtime-api.test.ts`, which records a hash of
-each of its declarations (comments excluded) in
-`packages/config/runtime-api.json`. Whoever makes the change decides:
-
-- **runtimes cannot notice** (a rename of a private type, a stricter check):
-  record it, the version stays;
-- **a compatible addition** (a context field, an optional config field):
-  raise `RUNTIME_API_VERSION` and keep `MIN_RUNTIME_API_VERSION`; tag a new
-  config field in `CONFIG_FEATURES`; runtimes made for older versions run on;
-- **a break** (a removed or changed field, a new requirement): raise both.
-
-Then `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` records it.
-Only change the version in a release with a minor changeset (before 1.0), so
-that copies of one release line agree. The first-party runtimes' tests
-check that they implement the version they are built with; a runtime must
-be checked against a raise, and released with it if it implements what the
-raise adds.
+The package manager reports an incompatible host peer according to its own
+settings. Soundor does not read the peer range at startup, stamp a separate
+contract version onto runtimes, or gate config fields by runtime version.
+The config schema still rejects unknown fields, and the CLI still checks that
+the project's `@soundor/config` belongs to its own release line.
 
 ## Invariants and tests
 
 - No cross-package value is recognized by `instanceof`, constructor or module
   identity. `packages/runtime-sdk/src/copies.test.ts` installs separately
   bundled copies of core, config and the SDK into distinct `node_modules`
-  trees and runs the CLI's steps in a child Node process: same versions,
-  other package versions of one API version, an older runtime the host still
-  runs, runtimes newer and older than the host supports, a runtime from
-  before API versions, and a project `@soundor/config` of another line.
-- Every entry point refuses an incompatible runtime before writing anything
-  (`gen.test.ts`, `build.test.ts` in the CLI).
+  trees. It checks lifecycle dispatch and error protocols across copies and
+  compatible patch releases, plus the project's config version check.
 - The runtimes install from their tarballs with strict, isolated pnpm and no
-  automatic peers, depend on one release line of the SDK, and the installed
-  CLI generates with them (`pnpm --filter soundor test:runtime-consumer`).
+  automatic peers. The installed CLI generates with both runtimes, and an
+  incompatible host peer fails installation
+  (`pnpm --filter soundor test:runtime-consumer`).
 
 ## How to change it
 
-Adding a field to the config, or to what a phase receives: see
-[Changing the runtime API version](#changing-the-runtime-api-version). A new
-error that crosses packages: give it a code in `SoundorErrorCode` and an exit
-code, and check it with `isSoundorError(error, code)`.
+When changing what a runtime receives, update the types and first-party
+runtimes together, add a changeset, and check their supported CLI peer ranges.
+A third-party provider must test the new host release and publish an updated
+range before claiming compatibility.
+
+A new error that crosses packages needs a code in `SoundorErrorCode` and an
+exit code, and must be recognized with `isSoundorError(error, code)`.
 
 ### Migrating a third-party runtime
 
-1. Make the runtime with `defineRuntime()` from `@soundor/runtime-sdk` 0.17 or
-   later; it gets its runtime API version from it.
-2. Depend on `@soundor/runtime-sdk` alone, at one release line (`^0.17.0`),
-   and import from it what you imported from `@soundor/config` and
-   `@soundor/core`; drop those dependencies and a `@soundor/config` peer.
-3. Replace `instanceof SoundorError` or `instanceof ConfigError` on errors from
+1. Declare `soundor` as a required peer at the CLI versions you support.
+2. Depend on `@soundor/runtime-sdk` as a regular dependency and import from it
+   what you imported from `@soundor/config` and `@soundor/core`.
+3. Remove the runtime's numeric `apiVersion` and any runtime API version
+   constants, feature gates or compatibility checks it imported.
+4. Replace `instanceof SoundorError` or `instanceof ConfigError` on errors from
    other packages with `isSoundorError()` and `isConfigError()`.

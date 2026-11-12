@@ -49,7 +49,7 @@
     "vitest-environment-soundor": "workspace:^"
   },
   "peerDependencies": {
-    "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0",
+    "@soundor/vst3-host": "workspace:^",
     "vitest": "^5.0.3"
   },
   "engines": {

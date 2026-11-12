@@ -51,13 +51,6 @@ export interface DoctorReport {
 export interface Runtime<Options extends object = object> {
   /** Stable id; must match the `id` used in `config.runtimes[]`. */
   readonly id: string;
-  /**
-   * The runtime API version (`RUNTIME_API_VERSION`) the runtime implements.
-   * `defineRuntime` sets it from the `@soundor/config` it was built with;
-   * runtimes made before it existed implement version 1. The host refuses a
-   * runtime outside the versions it supports.
-   */
-  readonly apiVersion?: number;
   readonly capabilities?: RuntimeCapabilities;
   /** Scaffold/prepare a project for this runtime. */
   init(

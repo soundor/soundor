@@ -27,16 +27,9 @@ import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import {
-  CONFIG_VERSION,
-  MIN_RUNTIME_API_VERSION,
-  RUNTIME_API_VERSION,
-} from './index';
+import { CONFIG_VERSION } from './index';
 
 const PLACEHOLDER = '0.0.0-soundor-copy';
-/** RUNTIME_API_VERSION and MIN_RUNTIME_API_VERSION, set per copy. */
-const API_PLACEHOLDER = '7340021';
-const MIN_PLACEHOLDER = '7340022';
 
 const sdkRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 /** Where `name` is installed for the package at `from`, as Node finds it. */
@@ -80,27 +73,6 @@ beforeAll(async () => {
         !id.startsWith('.') && !id.startsWith('/') && !id.startsWith('\0'),
       plugins: [
         {
-          name: 'copy-api-version',
-          transform(code, id) {
-            if (!id.endsWith('/config/src/version.ts')) return null;
-            const replaced = code
-              .replace(
-                /RUNTIME_API_VERSION = \d+;/,
-                `RUNTIME_API_VERSION = ${API_PLACEHOLDER};`,
-              )
-              .replace(
-                /MIN_RUNTIME_API_VERSION = \d+;/,
-                `MIN_RUNTIME_API_VERSION = ${MIN_PLACEHOLDER};`,
-              );
-            if (
-              !replaced.includes(API_PLACEHOLDER) ||
-              !replaced.includes(MIN_PLACEHOLDER)
-            )
-              throw new Error(`no runtime API versions to replace in ${id}`);
-            return replaced;
-          },
-        },
-        {
           name: 'copy-version',
           load(id) {
             return id.endsWith('package.json')
@@ -124,12 +96,9 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-/** A copy of the Soundor packages: their version, and runtime API versions. */
+/** A separately installed copy of the Soundor packages. */
 interface Copy {
   version: string;
-  /** RUNTIME_API_VERSION, and MIN_RUNTIME_API_VERSION, in its config. */
-  api?: number;
-  min?: number;
 }
 
 /** Installs copies of `packages` as `copy` into `dir/node_modules`. */
@@ -151,10 +120,7 @@ function install(
         exports: './index.mjs',
       }),
     );
-    const code = bundles[key]
-      .replaceAll(PLACEHOLDER, copy.version)
-      .replaceAll(API_PLACEHOLDER, String(copy.api ?? RUNTIME_API_VERSION))
-      .replaceAll(MIN_PLACEHOLDER, String(copy.min ?? MIN_RUNTIME_API_VERSION));
+    const code = bundles[key].replaceAll(PLACEHOLDER, copy.version);
     writeFileSync(join(pkgDir, 'index.mjs'), code);
   }
   if (!linkShared) return;
@@ -170,8 +136,6 @@ interface Scenario {
   host: Copy;
   /** The runtime's own copies of the SDK, config and core. */
   runtimeCopies: Copy;
-  /** A runtime from before API versions: no defineRuntime, no apiVersion. */
-  legacy?: boolean;
   /** The project's own @soundor/config, which its config is typed against. */
   project?: string;
   /** What the runtime's `gen` does. */
@@ -180,7 +144,6 @@ interface Scenario {
 
 interface Outcome {
   stage: 'parse' | 'resolve' | 'gen' | 'done';
-  apiVersion?: number;
   warnings: string[];
   generated: boolean;
   error?: {
@@ -224,8 +187,7 @@ function run(scenario: Scenario): Outcome {
       exports: './index.mjs',
     }),
   );
-  // A third-party runtime, as its author would write it with the SDK; an old
-  // one, from before API versions, is a plain object.
+  // A third-party runtime, as its author would write it with the SDK.
   writeFileSync(
     join(runtime, 'index.mjs'),
     `
@@ -253,11 +215,7 @@ const definition = {
   build: noop,
   doctor: async () => ({ checks: [] }),
 };
-export const thirdRuntime = ${
-      scenario.legacy === true
-        ? '(options = {}) => ({ id: definition.id, options, runtime: definition })'
-        : 'defineRuntime(definition)'
-    };
+export const thirdRuntime = defineRuntime(definition);
 `,
   );
   writeFileSync(
@@ -295,7 +253,6 @@ try {
   const config = await parseConfig({ path: process.argv[2] });
   stage = 'resolve';
   const resolved = resolveRuntime(config, 'third');
-  outcome.apiVersion = resolved.apiVersion;
   stage = 'gen';
   await runPhase(resolved, 'gen', config, {
     paths: { root: '/p', config: '/p/c', dist: '/p/d', gen: '/p/g', cache: '/p/x', state: '/p/s' },
@@ -349,7 +306,6 @@ describe('separate copies of the Soundor packages', () => {
     });
     expect(outcome).toMatchObject({
       stage: 'done',
-      apiVersion: RUNTIME_API_VERSION,
       warnings: [],
       generated: true,
     });
@@ -403,67 +359,13 @@ describe('separate copies of the Soundor packages', () => {
     });
   });
 
-  it('work across package versions of one runtime API version', () => {
+  it('preserve error protocols across compatible patch releases', () => {
     const outcome = run({
-      host: { version: '0.30.0', api: 3, min: 1 },
-      runtimeCopies: { version: '0.27.4', api: 3 },
+      host: { version: '0.30.1' },
+      runtimeCopies: { version: '0.30.0' },
       gen: 'env-error',
     });
-    expect(outcome.apiVersion).toBe(3);
     expect(outcome.error).toMatchObject({ code: 'ENV', exitCode: 3 });
-  });
-
-  it('run an older runtime the host still supports', () => {
-    const outcome = run({
-      host: { version: '0.30.0', api: 4, min: 2 },
-      runtimeCopies: { version: '0.25.0', api: 2 },
-      gen: 'ok',
-    });
-    expect(outcome).toMatchObject({ stage: 'done', apiVersion: 2 });
-  });
-
-  it('refuse a runtime newer than the host before it generates anything', () => {
-    const outcome = run({
-      host: { version: '0.30.0', api: 3, min: 1 },
-      runtimeCopies: { version: '0.31.0', api: 4 },
-      gen: 'ok',
-    });
-    expect(outcome.stage).toBe('resolve');
-    expect(outcome.generated).toBe(false);
-    expect(outcome.error).toMatchObject({
-      name: 'RuntimeCompatibilityError',
-      code: 'INCOMPATIBLE_RUNTIME',
-      exitCode: 4,
-    });
-    expect(outcome.error?.text).toBe(
-      [
-        "Runtime 'third' implements runtime API 4, newer than this soundor (@soundor/config 0.30.0), which runs runtime API 1 to 3.",
-        'Upgrade soundor and @soundor/config to a release the runtime is made for, or use an older release of the runtime.',
-      ].join('\n'),
-    );
-  });
-
-  it('refuse a runtime older than the host still runs', () => {
-    const outcome = run({
-      host: { version: '0.30.0', api: 4, min: 3 },
-      runtimeCopies: { version: '0.25.0', api: 2 },
-      gen: 'ok',
-    });
-    expect(outcome.stage).toBe('resolve');
-    expect(outcome.generated).toBe(false);
-    expect(outcome.error?.text).toContain(
-      "Runtime 'third' implements runtime API 2, which this soundor (@soundor/config 0.30.0) no longer runs: it runs runtime API 3 to 4.",
-    );
-  });
-
-  it('take a runtime from before API versions for version 1', () => {
-    const outcome = run({
-      host: { ...workspace, min: 1 },
-      runtimeCopies: workspace,
-      legacy: true,
-      gen: 'ok',
-    });
-    expect(outcome).toMatchObject({ stage: 'done', apiVersion: 1 });
   });
 
   it("refuse a project whose @soundor/config is of another line than the host's", () => {

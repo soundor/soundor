@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   EnvError,
   EXIT_CODES,
-  RuntimeCompatibilityError,
   RuntimeError,
   SoundorError,
   UnknownRuntimeError,
@@ -90,8 +89,6 @@ describe('EXIT_CODES', () => {
       CONFIG: 2,
       ENV: 3,
       UNKNOWN_RUNTIME: 4,
-      INVALID_RUNTIME: 4,
-      INCOMPATIBLE_RUNTIME: 4,
       RUNTIME: 5,
       INTERNAL: 70,
       TRANSACTION_ABORTED: 5,
@@ -141,20 +138,5 @@ describe('isSoundorError', () => {
     });
     expect(isSoundorError(newer)).toBe(true);
     expect(exitCodeFor(newer)).toBe(EXIT_CODES.INTERNAL);
-  });
-});
-
-describe('RuntimeCompatibilityError', () => {
-  it('formats its issues and hint, with the INCOMPATIBLE_RUNTIME exit code', () => {
-    const error = new RuntimeCompatibilityError('Runtime x does not fit.', {
-      runtimeId: 'x',
-      issues: [{ path: '', message: '@soundor/config 0.9.0: needs ^0.8.0' }],
-      hint: 'Upgrade it.',
-    });
-    expect(error.code).toBe('INCOMPATIBLE_RUNTIME');
-    expect(error.exitCode).toBe(4);
-    expect(error.format()).toBe(
-      'Runtime x does not fit.\n  @soundor/config 0.9.0: needs ^0.8.0\nUpgrade it.',
-    );
   });
 });
