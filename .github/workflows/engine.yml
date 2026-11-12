@@ -476,6 +476,13 @@ jobs:
         shell: bash
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
 
+      # The Vulkan loader also probes unused drivers, which can leak at exit.
+      # These tests use lavapipe; select its ICD explicitly for leak checking.
+      - name: Select lavapipe for sanitizer tests
+        if: matrix.preset == 'sanitize'
+        shell: bash
+        run: echo "VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json" >> "$GITHUB_ENV"
+
       - name: Build and test the native runtime
         timeout-minutes: 60
         shell: bash
