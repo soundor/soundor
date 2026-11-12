@@ -9,7 +9,12 @@
 //              [--backend vulkan|opengl|metal|d3d11] [--software]
 //              [--save <name>] [--against <name>] [--baseline <report.json>]
 //              [--threshold 3] [--check] [--out <report.json>] [--no-build]
-//              [--source] [--script-scale]
+//              [--source] [--script-scale] [--pr]
+//
+// --pr writes the paired comparison as Markdown into .soundor/bench/, ready
+// to paste into the change's PR description (scripts/pr.ts). It needs
+// --against; nothing benchmark-shaped is committed: the numbers live in the
+// PR description and in the full report under .soundor/bench/.
 //
 // The bundle runs as a built plugin runs it: compiled to Hermes bytecode by
 // the same build's hermesc (build/bench/soundor-compile-js.cmake); --source
@@ -41,6 +46,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { prMarkdown, type BuildFacts, type Change } from './pr.ts';
+
 const benchmark = path.resolve(import.meta.dirname, '..');
 const native = path.resolve(benchmark, '../../engines/engine');
 
@@ -63,6 +70,7 @@ const { values: options } = parseArgs({
     out: { type: 'string' },
     'no-build': { type: 'boolean', default: false },
     source: { type: 'boolean', default: false },
+    pr: { type: 'boolean', default: false },
   },
 });
 
@@ -91,6 +99,11 @@ const only = options.only
   ?.split(',')
   .map((each) => each.trim())
   .filter(Boolean);
+if (options.pr && !options.against) {
+  throw new Error(
+    '--pr needs --against: it describes a paired comparison (save the base with --save first)',
+  );
+}
 
 /** soundor_run_ui's --json report (see tests/tools/RunUi.cpp). */
 interface Distribution {
@@ -529,14 +542,12 @@ function printSummary(summary: Summary): void {
   }
 }
 
-/** What changed from `before` to `now`: the rows, and whether anything got worse. */
+/** What changed from `before` to `now`, per compared measure. */
 function compare(
   now: Summary,
   before: Summary,
-): { rows: string[][]; regressed: boolean } {
-  const rows = [
-    ['scenario', 'measure', 'before', 'now', 'change', 'noise', ''],
-  ];
+): { rows: Change[]; regressed: boolean } {
+  const rows: Change[] = [];
   let regressed = false;
   for (const [scenario, values] of Object.entries(now)) {
     const previous = before[scenario];
@@ -570,20 +581,36 @@ function compare(
       const significant = Math.abs(change) > noise;
       const worse = change > 0;
       if (significant && worse) regressed = true;
-      rows.push([
+      rows.push({
         scenario,
-        known[measure]!.label,
-        format(then.median),
-        format(after.median),
-        Number.isFinite(change)
-          ? `${change > 0 ? '+' : ''}${change.toFixed(1)}%`
-          : 'new',
-        `±${noise.toFixed(0)}%`,
-        significant ? (worse ? 'WORSE' : 'better') : '',
-      ]);
+        measure: known[measure]!.label,
+        before: then.median,
+        after: after.median,
+        change: Number.isFinite(change) ? change : null,
+        noise,
+        significant,
+        worse,
+      });
     }
   }
   return { rows, regressed };
+}
+
+function printCompare(rows: Change[]): string {
+  return table([
+    ['scenario', 'measure', 'before', 'after', 'change', 'noise', ''],
+    ...rows.map((row) => [
+      row.scenario,
+      row.measure,
+      format(row.before),
+      format(row.after),
+      row.change === null
+        ? 'new'
+        : `${row.change > 0 ? '+' : ''}${row.change.toFixed(1)}%`,
+      `±${row.noise.toFixed(0)}%`,
+      row.significant ? (row.worse ? 'WORSE' : 'better') : '',
+    ]),
+  ]);
 }
 
 function differences(current: Report, baseline: Report): string[] {
@@ -851,13 +878,59 @@ if (options.out) writeFileSync(path.resolve(options.out), text);
 console.log(`\nReport: ${path.relative(process.cwd(), saved)}`);
 
 let regressed = false;
+let compared: { rows: Change[]; regressed: boolean } | null = null;
 if (report.against) {
   console.log(
     `\nThis build (${describeBuild(current.info)}) against "${report.against.name}" (${describeBuild(report.against.build)}), run alternately:`,
   );
-  const compared = compare(report.summary, report.against.summary);
-  console.log(table(compared.rows));
+  compared = compare(report.summary, report.against.summary);
+  console.log(printCompare(compared.rows));
   regressed ||= compared.regressed;
+}
+if (options.pr) {
+  // The PR description's benchmark section: what was, what is, what it ran
+  // on. Nothing benchmark-shaped is committed.
+  const scope = only?.length ? only.join(', ') : 'all';
+  const file = path.join(
+    bench,
+    `pr-${options.against}.${only?.join('_') ?? 'all'}.md`,
+  );
+  writeFileSync(
+    file,
+    prMarkdown(
+      {
+        scope,
+        against: options.against!,
+        base: report.against!.build as BuildFacts,
+        candidate: current.info as BuildFacts,
+        run: {
+          platform: report.environment.platform,
+          cpu: report.environment.cpu,
+          cores: report.environment.cores,
+          backend: report.environment.backend,
+          vendor: reports[0]!.device.vendor,
+          renderer: report.environment.renderer,
+          software: report.environment.software,
+          node: process.version,
+        },
+        config: {
+          runs,
+          frames,
+          warmup,
+          size: options.size,
+          animations: options.animations,
+        },
+        regressed: compared?.regressed ?? false,
+        changes: compared?.rows ?? [],
+        summary: report.summary,
+        baseSummary: report.against!.summary,
+      },
+      measuresOf,
+    ),
+  );
+  console.log(
+    `\nPR description snippet: ${path.relative(process.cwd(), file)}`,
+  );
 }
 if (options.baseline) {
   const baseline = JSON.parse(
@@ -874,7 +947,7 @@ if (options.baseline) {
       'refusing comparison across different measurement environments',
     );
   const compared = compare(report.summary, baseline.summary);
-  console.log(table(compared.rows));
+  console.log(printCompare(compared.rows));
   regressed ||= compared.regressed;
 }
 if (options.check && regressed) {
