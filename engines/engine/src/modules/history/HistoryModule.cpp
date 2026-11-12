@@ -81,9 +81,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
     } // namespace
     void install(js::Context& context, StateHistory& manager)
     {
-        auto view = std::make_shared<Binding>(manager);
-        view->connect(view);
-        bind::setContextData(context, &bindingKey, std::move(view));
+        auto contextBinding = std::make_shared<Binding>(manager);
+        contextBinding->connect(contextBinding);
+        bind::setContextData(context, &bindingKey, std::move(contextBinding));
         js::registerNativeModule(
             context, "soundor:state-history",
             { [](bind::ContextState& ctx, jsi::Object& exports)
