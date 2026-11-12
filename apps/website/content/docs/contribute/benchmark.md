@@ -112,6 +112,23 @@ report is kept in `.soundor/bench/`. Other options: `--runs`, `--frames`,
 `--warmup`, `--size`, `--backend vulkan|opengl|metal|d3d11`, `--software`
 (allow a software GPU), `--no-build`.
 
+### For the PR description
+
+When a change is made for performance, its evidence belongs in the change's
+PR description, and nothing benchmark-shaped is committed: the numbers live
+in PR descriptions and in the full reports under `.soundor/bench/`. Run the
+`--against` command above with `--pr`,
+and it writes a ready-to-paste Markdown section into `.soundor/bench/` —
+what was before and what is now (the marked changes, both sides' medians,
+startup), with everything about the run (machine, GPU and backend, Node,
+Hermes revision, parameters, both builds' commits). Paste it into the PR
+description.
+
+A PR that changes the measured workload retires older numbers by simply not
+carrying them: comparisons are made against a build of the base, saved in
+the same session — `--save main` on the base, `--against main` on the change
+— never against a past report.
+
 **Virtual machines:** measure on a backend whose uploads are not the
 bottleneck. With Mesa's Venus (Vulkan in a virtio-gpu VM) on an NVIDIA host,
 uploading a 640×360 canvas took about 38 ms (0.2 ms through virgl's OpenGL
@@ -193,9 +210,8 @@ measured; it is not whole-process resident memory. Static scenarios may render
 no frames and therefore report idle tick cost instead of a frame distribution.
 No extra hot-path animation instrumentation is enabled in normal plugins.
 
-Transforms are absent from the current public style contract. Their JS baseline
-cannot yet be measured; PR 1 must add a comparable fixed-step workload when it
-introduces transforms. No transform feature is added by these benchmarks.
+Transforms were added to the benchmark with the `animation-transform-*`
+workloads, so there is no baseline without them.
 Startup uses the existing static UI rather than a discarded Three.js scene,
 so its later GPU resource collection cannot contaminate animation-only runs.
 Stage changes happen on unmeasured ticks. The runner collects garbage and
@@ -208,33 +224,6 @@ and a native bytecode smoke run without an FPS threshold. GPU measurements
 require verifying the actual selected device; sandboxed runs may hide `/dev/dri`
 and select software rendering even when the host has a virtual GPU.
 
-### Recorded Hermes baseline
-
-[Machine-readable baseline](https://github.com/soundor/soundor/blob/main/tools/benchmark/reports/hermes-animation.json), source commit
-`629fca5f447ca4dad6a86c9cad9fe2a911e5c69d`, Hermes
-`602befee340da188ea1560cde7a9cc33e6b180dc`: Linux 7.0.0-38-generic,
-Intel Core 5 210H (4 available cores), OpenGL/ANGLE through virgl on an
-NVIDIA RTX 4050 Laptop GPU, Mesa 25.2.8. Release, Hermes bytecode, five runs,
-600 measured frames after 30 warmup frames, 700×520 viewport. Phase-boundary
-GC/cleanup is excluded; steady-state GC is included. CPU/compositor timings
-are the median across runs of each run's statistic.
-
-| Scenario              | Frame mean ms | P95 ms | P99 ms | JS ms | UI calls/frame | Yoga/frame | Uploaded KB/frame |
-| --------------------- | ------------: | -----: | -----: | ----: | -------------: | ---------: | ----------------: |
-| animation-opacity-50  |         0.551 |  0.742 |  0.938 | 0.210 |         50.000 |      0.000 |           100.000 |
-| animation-opacity-500 |         3.113 |  3.441 |  8.887 | 2.035 |        500.000 |      0.000 |           800.000 |
-| animation-react-500   |         9.101 | 10.490 | 15.878 | 7.768 |        500.000 |      0.000 |           800.000 |
-| animation-mixed-20    |         4.554 |  4.991 | 11.146 | 1.796 |         84.000 |      1.000 |           474.366 |
-
-All four rasterize one CPU layer per intermediate frame and perform zero
-GPU readbacks. Static counterparts make no intermediate frames and cost
-idle ticks instead. The full report includes allocation/collection counts,
-peak engine heaps, per-run spreads and all other workloads. The saved
-`hermes-animation` runner and its matching bytecode remain local for PR 1
-comparisons; re-run them alternately with a candidate rather than treating
-these timings as a machine-independent target. No native-animation
-improvement is claimed by this baseline alone.
-
 ## Comparing native timing animations
 
 ```sh
@@ -243,10 +232,10 @@ pnpm --filter soundor-benchmark bench --animations js --only animation-transform
 pnpm --filter soundor-benchmark bench --animations native --only animation-transform-1,animation-transform-50,animation-transform-500 --backend opengl --against transform-js
 ```
 
-Keep the PR 0 `hermes-animation` saved build intact. Native comparisons require
+Native comparisons require
 matching Hermes revision, compiler and execution mode and alternate the saved
 runner/bundle with the candidate on the same device. Native time advances by
-exactly 1000/60 ms per driver tick, preserving the PR 0 simulation inputs.
+exactly 1000/60 ms per driver tick, preserving the simulation inputs.
 The unchanged opacity, React-mounted control, plugin and mixed workloads use
 native interpolation; one JS completion submission per second reverses the ramp.
 This measures zero intermediate React reconciliation for the React-mounted
@@ -254,20 +243,17 @@ workload; plugin knobs, slider widths, meters and readouts keep their existing J
 updates because they require layout/text changes. Canvas/WebGL content stays
 static. Static scenarios use the original rendering path.
 
-New `animation-transform-{1,50,500}` workloads compare the same translateY/scale
-ramps within PR 1. PR 0 had no public transforms, so there is no PR 0 transform
-baseline. Do not attribute Hermes migration gains to native animations.
+The `animation-transform-{1,50,500}` workloads compare the same translateY/scale
+ramps. Do not attribute engine gains to native animations.
 Reports include native timeline CPU time and peak cached CPU raster bytes, alongside
 frame tails, JS, bindings, layout, raster and CPU-side composition. Missing metrics
 from the saved runner remain unavailable. Cache bytes exclude composition targets,
 GPU physical memory and allocator overhead; uncapped throughput is not display FPS.
 
-Recorded PR 1 measurements and tradeoffs: [native timing comparison](https://github.com/soundor/soundor/blob/main/tools/benchmark/reports/native-timing.md).
-
 ## Advanced animation workloads
 
 The `advanced-animation` group extends the same Hermes-bytecode, fixed-step
-Release runner. It is hidden from the toolbar so the PR 0/1 surrounding UI and
+Release runner. It is hidden from the toolbar so the surrounding UI and
 node counts remain unchanged. Each JS/native pair has identical nodes, endpoints,
 physics, duration, viewport and background content. The group includes 50/500
 springs, 400 ms spring interruption/retargeting, parallel opacity/transforms,
@@ -283,8 +269,8 @@ pnpm --filter soundor-benchmark bench --only animation --animations native --bac
 pnpm --filter soundor-benchmark bench --only ui,canvas --backend opengl --against native-timing
 ```
 
-Preserve saved `hermes-animation` and `native-timing` builds. Their runner,
-bytecode and matching compiler/runtime metadata are retained; comparisons run
+Saved builds keep their runner,
+bytecode and matching compiler/runtime metadata; comparisons run
 baseline and candidate alternately in the same session. New `allTickMs`
 (mean/P95/P99) includes idle ticks, which matter when an opacity spring overshoots
 and clamps at one. Existing frame distributions describe rendered frames;
@@ -310,9 +296,6 @@ style mutations, Yoga passes, rasterizations or texture uploads. Retargeting
 submits only on each 400 ms target change. CPU-side compositor time is measured;
 GPU execution time, process RSS and GPU VRAM are not. Native timings and
 regressions must be read alongside sample counts, idle ticks and work counts.
-
-The [recorded advanced results](https://github.com/soundor/soundor/blob/main/tools/benchmark/reports/advanced-native.md) include matched Hermes
-comparisons, P95/P99, storage estimates and rendering/kernel regressions.
 
 ## SVG workloads
 
