@@ -1,0 +1,158 @@
+[
+  {
+    "name": "discrete toggle and replay",
+    "steps": [
+      { "op": "set", "field": "bypass", "value": true, "history": true },
+      { "op": "undo" },
+      { "op": "redo" }
+    ],
+    "bypass": true,
+    "selected": null,
+    "undo": "Change Bypass",
+    "redo": null
+  },
+  {
+    "name": "ordinary writes stay outside History",
+    "steps": [{ "op": "set", "field": "bypass", "value": true }],
+    "bypass": true,
+    "selected": null,
+    "undo": null,
+    "redo": null
+  },
+  {
+    "name": "no-op preserves redo",
+    "steps": [
+      { "op": "set", "field": "bypass", "value": true, "history": true },
+      { "op": "undo" },
+      { "op": "set", "field": "bypass", "value": false, "history": true }
+    ],
+    "bypass": false,
+    "selected": null,
+    "undo": null,
+    "redo": "Change Bypass"
+  },
+  {
+    "name": "outer gesture owns inner labels",
+    "steps": [
+      { "op": "begin", "field": "bypass", "history": { "label": "Drag" } },
+      { "op": "begin", "field": "bypass", "history": { "label": "Inner" } },
+      {
+        "op": "set",
+        "field": "bypass",
+        "value": true,
+        "history": { "label": "Toggle" }
+      },
+      { "op": "end", "field": "bypass" },
+      { "op": "end", "field": "bypass" }
+    ],
+    "bypass": true,
+    "selected": null,
+    "undo": "Drag",
+    "redo": null
+  },
+  {
+    "name": "gesture returning to origin is empty",
+    "steps": [
+      { "op": "begin", "field": "bypass", "history": true },
+      { "op": "set", "field": "bypass", "value": true },
+      { "op": "set", "field": "bypass", "value": false },
+      { "op": "end", "field": "bypass" }
+    ],
+    "bypass": false,
+    "selected": null,
+    "undo": null,
+    "redo": null
+  },
+  {
+    "name": "automation alone is external",
+    "steps": [
+      { "op": "begin", "field": "bypass", "history": true },
+      { "op": "host", "value": true },
+      { "op": "end", "field": "bypass" }
+    ],
+    "bypass": true,
+    "selected": null,
+    "undo": null,
+    "redo": null
+  },
+  {
+    "name": "gesture captures effective automated final value",
+    "steps": [
+      { "op": "begin", "field": "bypass", "history": { "label": "Drag" } },
+      { "op": "set", "field": "bypass", "value": true },
+      { "op": "host", "value": false },
+      { "op": "host", "value": true },
+      { "op": "end", "field": "bypass" },
+      { "op": "undo" }
+    ],
+    "bypass": false,
+    "selected": null,
+    "undo": null,
+    "redo": "Drag"
+  },
+  {
+    "name": "mixed transaction and replay",
+    "steps": [
+      {
+        "op": "transaction",
+        "label": "Preset",
+        "steps": [
+          { "op": "set", "field": "bypass", "value": true },
+          { "op": "set", "field": "selected", "value": "Warm" }
+        ]
+      },
+      { "op": "undo" },
+      { "op": "redo" }
+    ],
+    "bypass": true,
+    "selected": "Warm",
+    "undo": "Preset",
+    "redo": null
+  },
+  {
+    "name": "nested transaction keeps outer label",
+    "steps": [
+      {
+        "op": "transaction",
+        "label": "Outer",
+        "steps": [
+          { "op": "set", "field": "bypass", "value": true },
+          {
+            "op": "transaction",
+            "label": "Inner",
+            "steps": [
+              {
+                "op": "set",
+                "field": "selected",
+                "value": "Warm",
+                "history": true
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "bypass": true,
+    "selected": "Warm",
+    "undo": "Outer",
+    "redo": null
+  },
+  {
+    "name": "state gesture groups immediate writes",
+    "steps": [
+      {
+        "op": "begin",
+        "field": "selected",
+        "history": { "label": "Edit State" }
+      },
+      { "op": "set", "field": "selected", "value": "A" },
+      { "op": "set", "field": "selected", "value": "B" },
+      { "op": "end", "field": "selected" },
+      { "op": "undo" }
+    ],
+    "bypass": false,
+    "selected": null,
+    "undo": null,
+    "redo": "Edit State"
+  }
+]

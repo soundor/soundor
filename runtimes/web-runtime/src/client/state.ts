@@ -21,7 +21,10 @@ export class ApplicationState {
     readonly manifest: WebManifest,
     readonly parameters: ParameterStore,
   ) {
-    this.store = new StateStore(manifest.state ?? { fields: [], types: [] });
+    this.store = new StateStore(
+      manifest.state ?? { fields: [], types: [] },
+      parameters.history,
+    );
     this.ready = this.load();
     const changed = () => {
       if (this.#hydrated) this.schedule();

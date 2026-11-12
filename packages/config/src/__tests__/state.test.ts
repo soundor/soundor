@@ -53,8 +53,11 @@ it('refuses state on runtimes that predate runtime API 2', () => {
     state: { enabled: { type: 'boolean', default: true } },
   });
   const old = { id: 'old', apiVersion: 1 } as never;
-  expect(() => checkRuntimeCompatibility(old, config)).toThrow(/does not have/);
+  const options = { host: { min: 1, current: 2, configVersion: '0.16.0' } };
+  expect(() => checkRuntimeCompatibility(old, config, options)).toThrow(
+    /does not have/,
+  );
   expect(() =>
-    checkRuntimeCompatibility(old, resolveConfig(base)),
+    checkRuntimeCompatibility(old, resolveConfig(base), options),
   ).not.toThrow();
 });

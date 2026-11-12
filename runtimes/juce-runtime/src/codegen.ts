@@ -461,7 +461,9 @@ ${renderChoiceEnums(parameters, enums)}
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}
         // Persistent control-thread data; never call get/set from process().
-        PersistentState state;
+        // Control-thread History is shared by C++ and every editor context.
+        history::StateHistory stateHistory;
+        PersistentState state { &stateHistory };
 
         // The parameters, typed as declared, for the processing: load() reads
         // one on any thread (realtime-safe); a read-only one's publish() sets it.
@@ -476,6 +478,7 @@ ${handles || '        // no parameters'}
         friend class AudioProcessorEditor;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
+        std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
@@ -518,6 +521,9 @@ namespace ${NS}
         parameters = std::make_unique<juce::AudioProcessorValueTreeState>(
             *this, nullptr, "SOUNDOR", std::move(layout));
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
+        parameterEditors.reserve(created.size());
+        for (auto* parameter : created)
+            parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, stateHistory));
 
 ${bindings || '        // no parameters'}
     }
@@ -915,6 +921,7 @@ function renderEditorSource(
 #include <soundor/backend/JuceHttpClient.h>
 #include <soundor/backend/JuceInput.h>
 #include <soundor/backend/JuceParameterHost.h>
+#include <soundor/history/Module.h>
 #include <soundor/platform/FileLog.h>
 
 #include <algorithm>
@@ -983,6 +990,7 @@ namespace ${NS}
             std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos());
         options.installModules = [&owner](js::Context& context)
         {
+            history::install(context, owner.stateHistory);
             persistent::install(context, owner.state);
             if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));
@@ -1204,6 +1212,7 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::timerCallback()
     {
+        history::dispatch(runtimeHost().context());
         persistent::dispatch(runtimeHost().context());
         // Every frame, so a reloaded UI (soundor dev) gets the size at once.
         sizeSurface();

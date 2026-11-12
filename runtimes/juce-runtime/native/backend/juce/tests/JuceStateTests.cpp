@@ -1,6 +1,8 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "generated/state/soundor/SoundorProcessor.h"
 
+#include <soundor/backend/JuceParameterHost.h>
+#include <soundor/history/Module.h>
 #include <soundor/js/Runtime.h>
 
 #include <doctest/doctest.h>
@@ -12,7 +14,10 @@ namespace
     using namespace soundor;
     struct Processor final : AudioProcessor
     {
+        using AudioProcessor::bypassParameter;
+        using AudioProcessor::gainParameter;
         using AudioProcessor::state;
+        using AudioProcessor::stateHistory;
         int restored = 0;
         std::vector<std::string> observations;
         void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
@@ -373,4 +378,316 @@ TEST_CASE("state bridge resolves synchronous updaters once and persists immutabl
     restore(copy, saved);
     CHECK(copy.state.selectedPreset.get() == "Default!");
     CHECK(copy.state.groups.get()[0].bands[0].gain == -2.125);
+}
+
+TEST_CASE("processor History buffers native parameter and state transactions with the editor closed")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    const auto initial = p.gainParameter.load();
+    bool observed = false;
+    auto off = p.state.selectedPreset.subscribe(
+        [&](auto value)
+        {
+            CHECK(value == "Preset");
+            CHECK(p.gainParameter.load() == 0.75f);
+            observed = true;
+        });
+    p.stateHistory.transaction("Load Preset",
+                               [&]
+                               {
+                                   p.gainParameter.set(0.75f);
+                                   p.state.selectedPreset.set(std::string("Preset"));
+                                   CHECK(p.gainParameter.get() == 0.75f);
+                                   CHECK(p.gainParameter.load() == initial);
+                                   CHECK(! observed);
+                               });
+    CHECK(observed);
+    off();
+    CHECK(p.stateHistory.status().undoLabel == "Load Preset");
+    p.stateHistory.undo();
+    CHECK(p.gainParameter.load() == initial);
+    CHECK(! p.state.selectedPreset.get());
+    p.stateHistory.redo();
+    CHECK(p.gainParameter.load() == 0.75f);
+    CHECK(p.state.selectedPreset.get() == "Preset");
+    CHECK_THROWS(p.stateHistory.transaction("Failed",
+                                            [&]
+                                            {
+                                                p.gainParameter.set(0.5f);
+                                                p.state.selectedPreset.set(std::string("Bad"));
+                                                throw std::runtime_error("fail");
+                                            }));
+    CHECK(p.gainParameter.load() == 0.75f);
+    CHECK(p.state.selectedPreset.get() == "Preset");
+    Processor other;
+    CHECK(! other.stateHistory.canUndo());
+}
+TEST_CASE("processor History gestures and poisoned nested transactions preserve ownership")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    p.bypassParameter.beginGesture(history::Options(std::string("Toggle")));
+    p.bypassParameter.beginGesture(history::Options(std::string("Ignored")));
+    p.bypassParameter.set(true, history::Options(true));
+    CHECK_THROWS(p.stateHistory.transaction("Conflict", [&] { p.bypassParameter.set(false); }));
+    p.stateHistory.transaction("Other field", [&] { p.state.selectedPreset.set(std::string("OK")); });
+    p.bypassParameter.endGesture();
+    p.bypassParameter.endGesture();
+    CHECK(p.stateHistory.status().undoLabel == "Toggle");
+    p.stateHistory.undo();
+    CHECK(! p.bypassParameter.load());
+    CHECK_THROWS_AS(p.stateHistory.transaction("Outer",
+                                               [&]
+                                               {
+                                                   try
+                                                   {
+                                                       p.stateHistory.transaction("Inner",
+                                                                                  [&]
+                                                                                  {
+                                                                                      p.bypassParameter.set(true);
+                                                                                      throw std::runtime_error("bad");
+                                                                                  });
+                                                   }
+                                                   catch (...)
+                                                   {
+                                                   }
+                                                   p.state.selectedPreset.set(std::string("discard"));
+                                               }),
+                    history::TransactionAbortedError);
+    CHECK(! p.bypassParameter.load());
+    CHECK(p.state.selectedPreset.get() == "OK");
+}
+TEST_CASE("JavaScript and native code share processor History across editor recreation")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    const auto initial = p.gainParameter.load();
+    {
+        js::Runtime runtime;
+        js::Context context(runtime);
+        history::install(context, p.stateHistory);
+        persistent::install(context, p.state);
+        parameters::install(context,
+                            std::make_shared<backend::JuceParameterHost>(p.getParameters(), p.parameterInfos()));
+        REQUIRE(context
+                    .evaluateModule(
+                        "(function(exports, require) { globalThis.h = require('soundor:state-history').stateHistory; "
+                        "globalThis.s = require('soundor:state').state; globalThis.p = "
+                        "require('soundor:parameters').parameters; })",
+                        "/history.js")
+                    .ok());
+        const auto run = [&](const char* text)
+        {
+            const auto result = context.evaluateScript(text);
+            REQUIRE_MESSAGE(result.ok(), (result.ok() ? "" : result.error().toString()));
+        };
+        run("globalThis.historyEvents = []; globalThis.historyOff = h.subscribe(s => historyEvents.push(s.undoLabel)); "
+            "if(h.snapshot() !== h.snapshot() || !Object.isFrozen(h.snapshot())) throw Error('unstable history "
+            "snapshot');");
+        run("h.transaction('JS Preset', () => { p.gain.set(v => v + 0.1); p.gain.set(v => v + 0.1); "
+            "s.selectedPreset.set('JS'); if(s.selectedPreset.get() !== 'JS') throw Error('staging'); });");
+        CHECK(p.state.selectedPreset.get() == "JS");
+        CHECK(p.stateHistory.status().undoLabel == "JS Preset");
+        run("let before = p.gain.get(); try { h.transaction('Bad', () => { p.gain.set(0.9); try { "
+            "s.selectedPreset.set(3); } catch(e) {} }); throw Error('not poisoned'); } catch(e) { if(e.name !== "
+            "'TransactionAbortedError' || !e.cause) throw e; } if(p.gain.get() !== before) throw Error('partial');");
+        run("try { h.transaction('Async', async function() { s.selectedPreset.set('Bad'); }); throw Error('accepted "
+            "async'); } catch(e) { if(e.message === 'accepted async') throw e; } if(s.selectedPreset.get() !== 'JS') "
+            "throw Error('async committed');");
+        run("p.bypass.beginGesture({history:{label:'Drag'}}); p.bypass.set(v=>!v); p.bypass.endGesture(); "
+            "if(h.undoLabel() !== 'Drag') throw Error('label'); h.undo();");
+        history::dispatch(context);
+        run("if(historyEvents.join(',') !== 'JS Preset,Drag,JS Preset') throw Error('missing History statuses: ' + "
+            "historyEvents.join(',')); historyOff();");
+    }
+    // Closing the context does not clear committed processor History.
+    CHECK(p.stateHistory.canUndo());
+    p.stateHistory.undo();
+    CHECK(p.gainParameter.load() == initial);
+    CHECK(! p.state.selectedPreset.get());
+    p.stateHistory.redo();
+    CHECK(p.state.selectedPreset.get() == "JS");
+}
+TEST_CASE("host automation alone creates no History; gesture records observed final effective value")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    p.gainParameter.juceParameter().setValueNotifyingHost(0.2f);
+    CHECK(! p.stateHistory.canUndo());
+    p.gainParameter.beginGesture(history::Options(true));
+    p.gainParameter.juceParameter().setValueNotifyingHost(0.3f);
+    p.gainParameter.endGesture();
+    CHECK(! p.stateHistory.canUndo());
+    p.gainParameter.beginGesture(history::Options(true));
+    p.gainParameter.set(0.5f);
+    p.gainParameter.juceParameter().setValueNotifyingHost(0.75f);
+    p.gainParameter.endGesture();
+    CHECK(p.stateHistory.canUndo());
+    p.stateHistory.undo();
+    CHECK(p.gainParameter.load() == doctest::Approx(0.3));
+    p.stateHistory.redo();
+    CHECK(p.gainParameter.load() == 0.75f);
+    juce::MemoryBlock saved;
+    p.getStateInformation(saved);
+    restore(p, saved);
+    CHECK(! p.stateHistory.canUndo());
+    CHECK(! p.stateHistory.canRedo());
+}
+
+TEST_CASE("shared History conformance corpus matches Web and simulated runtimes")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    const auto file = juce::File(SOUNDOR_STATE_CORPUS).getSiblingFile("history-cases.json");
+    const auto corpus = backend::parseStateJson(file.loadFileAsString().toStdString());
+    REQUIRE(corpus.isArray());
+    for (const auto& scenario : *corpus.getArray())
+    {
+        INFO(scenario["name"].toString().toStdString());
+        Processor p;
+        std::function<void(const juce::var&)> execute = [&](const juce::var& steps)
+        {
+            REQUIRE(steps.isArray());
+            for (const auto& step : *steps.getArray())
+            {
+                const auto op = step["op"].toString();
+                const bool parameter = step["field"].toString() == "bypass";
+                history::Options options;
+                if (step["history"].isBool())
+                    options = history::Options(static_cast<bool>(step["history"]));
+                else if (step["history"].isObject())
+                    options = history::Options(step["history"]["label"].toString().toStdString());
+                if (op == "set")
+                {
+                    if (parameter)
+                        p.bypassParameter.set(static_cast<bool>(step["value"]), options);
+                    else
+                        p.state.selectedPreset.set(step["value"].isVoid()
+                                                       ? std::nullopt
+                                                       : std::optional(step["value"].toString().toStdString()),
+                                                   options);
+                }
+                else if (op == "begin")
+                {
+                    if (parameter)
+                        p.bypassParameter.beginGesture(options);
+                    else
+                        p.state.selectedPreset.beginGesture(options);
+                }
+                else if (op == "end")
+                {
+                    if (parameter)
+                        p.bypassParameter.endGesture();
+                    else
+                        p.state.selectedPreset.endGesture();
+                }
+                else if (op == "host")
+                    p.bypassParameter.juceParameter().setValueNotifyingHost(static_cast<bool>(step["value"]) ? 1.0f
+                                                                                                             : 0.0f);
+                else if (op == "undo")
+                    p.stateHistory.undo();
+                else if (op == "redo")
+                    p.stateHistory.redo();
+                else if (op == "transaction")
+                    p.stateHistory.transaction(step["label"].toString().toStdString(), [&] { execute(step["steps"]); });
+                else
+                    FAIL("unknown History operation");
+            }
+        };
+        execute(scenario["steps"]);
+        CHECK(p.bypassParameter.load() == static_cast<bool>(scenario["bypass"]));
+        const auto optional = [](const juce::var& v) -> std::optional<std::string>
+        { return v.isVoid() ? std::nullopt : std::optional(v.toString().toStdString()); };
+        CHECK(p.state.selectedPreset.get() == optional(scenario["selected"]));
+        CHECK(p.stateHistory.status().undoLabel == optional(scenario["undo"]));
+        CHECK(p.stateHistory.status().redoLabel == optional(scenario["redo"]));
+    }
+}
+
+TEST_CASE("History edits and replay preserve JUCE one-shot and explicit host gesture order")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    struct Listener final : juce::AudioProcessorParameter::Listener
+    {
+        std::vector<std::string> events;
+        void parameterValueChanged(int, float) override { events.push_back("value"); }
+        void parameterGestureChanged(int, bool begin) override { events.push_back(begin ? "begin" : "end"); }
+    } listener;
+    auto& parameter = p.bypassParameter.juceParameter();
+    parameter.addListener(&listener);
+    p.bypassParameter.set(true, history::Options(true));
+    CHECK(listener.events == std::vector<std::string> { "begin", "value", "end" });
+    listener.events.clear();
+    p.stateHistory.undo();
+    CHECK(listener.events == std::vector<std::string> { "begin", "value", "end" });
+    listener.events.clear();
+    p.bypassParameter.beginGesture(history::Options(true));
+    p.bypassParameter.beginGesture();
+    p.bypassParameter.set(true);
+    p.bypassParameter.set(false);
+    p.bypassParameter.set(true);
+    p.bypassParameter.endGesture();
+    p.bypassParameter.endGesture();
+    CHECK(listener.events == std::vector<std::string> { "begin", "value", "value", "value", "end" });
+    listener.events.clear();
+    p.bypassParameter.set(true, history::Options(true));
+    CHECK(listener.events.empty());
+    parameter.removeListener(&listener);
+}
+
+TEST_CASE("editor cleanup releases only its gesture contribution and never records unfinished edits")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    p.bypassParameter.beginGesture(history::Options(std::string("Native Drag")));
+    {
+        backend::JuceParameterHost editor(p.getParameters(), p.parameterInfos());
+        CHECK_THROWS(editor.beginEdit(1, history::Options(true)));
+        editor.beginEdit(1, {});
+        editor.edit(1, 1, {});
+    }
+    CHECK(! p.stateHistory.canUndo());
+    p.bypassParameter.endGesture();
+    CHECK(p.stateHistory.status().undoLabel == "Native Drag");
+    p.stateHistory.clear();
+    {
+        backend::JuceParameterHost editor(p.getParameters(), p.parameterInfos());
+        editor.beginEdit(1, history::Options(true));
+        editor.edit(1, 0, {});
+    }
+    CHECK(! p.stateHistory.canUndo());
+    p.bypassParameter.set(true, history::Options(true));
+    CHECK(p.stateHistory.canUndo());
+}
+
+TEST_CASE("background project snapshots wait for complete transactional publication")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    std::atomic<bool> requested { false }, completed { false };
+    std::thread reader;
+    juce::MemoryBlock saved;
+    p.stateHistory.transaction("Atomic Preset",
+                               [&]
+                               {
+                                   p.gainParameter.set(0.75f);
+                                   p.state.selectedPreset.set(std::string("Atomic"));
+                                   reader = std::thread(
+                                       [&]
+                                       {
+                                           requested.store(true, std::memory_order_release);
+                                           p.getStateInformation(saved);
+                                           completed.store(true, std::memory_order_release);
+                                       });
+                                   while (! requested.load(std::memory_order_acquire))
+                                       std::this_thread::yield();
+                                   CHECK(! completed.load(std::memory_order_acquire));
+                               });
+    reader.join();
+    CHECK(completed.load(std::memory_order_acquire));
+    Processor restored;
+    restore(restored, saved);
+    CHECK(restored.state.selectedPreset.get() == "Atomic");
+    CHECK(restored.gainParameter.load() == 0.75f);
 }

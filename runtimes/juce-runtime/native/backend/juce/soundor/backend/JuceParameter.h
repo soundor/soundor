@@ -3,6 +3,7 @@
 // JUCE backend: compiled into the plugin (it needs JUCE), not into the
 // backend-independent soundor_runtime library.
 
+#include <soundor/history/StateHistory.h>
 #include <soundor/parameters/Parameters.h>
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -44,6 +46,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     //
     // It holds the plain value: host automation sets it from its normalized
     // position (32-bit, as hosts carry it), the UI sets it exactly.
+    class ParameterEditor;
+
     class JuceParameter final : public juce::RangedAudioParameter
     {
     public:
@@ -58,6 +62,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         // From the UI, on the message thread: the value, constrained, and the
         // host and listeners told.
         void setPlain(double value);
+        // Transaction publication separates installing atomics from host callbacks.
+        void installPlain(float value) noexcept { current.store(value, std::memory_order_relaxed); }
+        void notifyPlain() { sendValueChangedMessageToListeners(getValue()); }
+        ParameterEditor* editor = nullptr;
 
         // From the processing, on any thread including the audio thread: a
         // read-only parameter's new value. Realtime-safe: it only stores it;
@@ -90,6 +98,151 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         juce::NormalisableRange<float> range;
         std::atomic<float> current;
         std::atomic<bool> published { false };
+    };
+
+    // One processor-owned editing control per parameter. Host automation bypasses it.
+    class ParameterEditor final : public history::Field
+    {
+    public:
+        using Owner = std::uint64_t;
+        ParameterEditor(JuceParameter& target, history::StateHistory& history) : parameter(target), manager(history)
+        {
+            id = "parameter:" + target.info().id;
+            label = target.info().label;
+            manager.registerField(*this);
+            parameter.editor = this;
+        }
+        ~ParameterEditor() override { parameter.editor = nullptr; }
+        history::Value read() const override { return static_cast<double>(parameter.plain()); }
+        double get() const { return std::get<double>(manager.read(id)); }
+        void set(double value, const history::Options& options = {})
+        {
+            manager.edit(
+                id,
+                [&]() -> history::Value
+                {
+                    if (parameter.info().access == parameters::Access::ReadOnly || ! std::isfinite(value))
+                        throw std::invalid_argument("invalid or read-only parameter write");
+                    return static_cast<double>(static_cast<float>(parameter.behavior().constrain(value)));
+                },
+                options);
+        }
+        void beginGesture(const history::Options& options = {}, Owner owner = 0)
+        {
+            manager.guard(
+                [&]
+                {
+                    if (parameter.info().access == parameters::Access::ReadOnly)
+                        throw std::invalid_argument("read-only parameter gesture");
+                    if (options.enabled && manager.ownsGesture(id) && ! owners.contains(owner))
+                        throw std::logic_error("field already belongs to another History gesture owner");
+                    auto [entry, inserted] = owners.try_emplace(owner, 0);
+                    bool recording = false;
+                    try
+                    {
+                        manager.beginGesture(id, options, owner);
+                        recording = true;
+                        if (total == 0 && automatable())
+                            parameter.beginChangeGesture();
+                        ++entry->second;
+                        ++total;
+                    }
+                    catch (...)
+                    {
+                        if (recording)
+                            manager.cancelGesture(id, 1, owner);
+                        if (inserted)
+                            owners.erase(entry);
+                        throw;
+                    }
+                });
+        }
+        void endGesture(Owner owner = 0)
+        {
+            manager.guard(
+                [&]
+                {
+                    if (manager.inTransaction())
+                        throw std::logic_error("cannot end a gesture inside a transaction");
+                    const auto it = owners.find(owner);
+                    if (it == owners.end())
+                        return;
+                    manager.endGesture(id);
+                    if (--it->second == 0)
+                        owners.erase(it);
+                    if (--total == 0 && automatable())
+                        parameter.endChangeGesture();
+                });
+        }
+        void disconnect(Owner owner) noexcept
+        {
+            const std::lock_guard lock(manager.mutex());
+            const auto it = owners.find(owner);
+            if (it == owners.end())
+                return;
+            manager.cancelGesture(id, it->second, owner);
+            total -= it->second;
+            owners.erase(it);
+            if (total == 0 && automatable())
+            {
+                try
+                {
+                    parameter.endChangeGesture();
+                }
+                catch (...)
+                {
+                }
+            }
+        }
+        std::unique_ptr<history::Prepared> prepare(const history::Value& value) override
+        {
+            const auto number = std::get<double>(value);
+            if (! std::isfinite(number) || parameter.info().access == parameters::Access::ReadOnly)
+                throw std::invalid_argument("invalid History parameter replay");
+            struct Write final : history::Prepared
+            {
+                ParameterEditor& field;
+                float next;
+                Write(ParameterEditor& owner, float value) : field(owner), next(value) {}
+                void install() noexcept override { field.parameter.installPlain(next); }
+                void notify() noexcept override
+                {
+                    const bool automatic = field.total == 0 && field.automatable();
+                    bool opened = false;
+                    try
+                    {
+                        if (automatic)
+                        {
+                            field.parameter.beginChangeGesture();
+                            opened = true;
+                        }
+                        field.parameter.notifyPlain();
+                    }
+                    catch (...)
+                    {
+                    }
+                    if (opened)
+                    {
+                        try
+                        {
+                            field.parameter.endChangeGesture();
+                        }
+                        catch (...)
+                        {
+                        }
+                    }
+                }
+            };
+            return std::make_unique<Write>(*this, static_cast<float>(parameter.behavior().constrain(number)));
+        }
+        history::StateHistory& historyManager() const { return manager; }
+
+    private:
+        bool automatable() const { return parameter.info().access == parameters::Access::Automatable; }
+        JuceParameter& parameter;
+        history::StateHistory& manager;
+        std::map<Owner, std::size_t> owners;
+        std::size_t total = 0;
     };
 
     // Tells the host and listeners, ~30 times a second on the message thread,
@@ -150,8 +303,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
         [[nodiscard]] T load() const noexcept { return detail::fromPlain<T>(parameter->plain()); }
         [[nodiscard]] JuceParameter& juceParameter() const noexcept { return *parameter; }
+        // Control-thread editing API. load() remains the realtime-safe DSP read.
+        T get() const { return detail::fromPlain<T>(static_cast<float>(editing().get())); }
+        void set(T value, const history::Options& options = {}) { editing().set(detail::toPlain(value), options); }
+        void beginGesture(const history::Options& options = {}) { editing().beginGesture(options); }
+        void endGesture() { editing().endGesture(); }
 
     protected:
+        ParameterEditor& editing() const
+        {
+            if (! parameter || ! parameter->editor)
+                throw std::logic_error("parameter editing is not attached to a processor");
+            return *parameter->editor;
+        }
         JuceParameter* parameter = nullptr;
     };
 

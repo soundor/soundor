@@ -43,6 +43,7 @@ export {
   useAnimationFrame,
   useParameter,
   useStateValue,
+  useStateHistory,
   useViewSize,
   type ParameterLike,
 } from './hooks';

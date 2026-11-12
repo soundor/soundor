@@ -1,6 +1,7 @@
 #pragma once
 
 #include <soundor/Abi.h>
+#include <soundor/history/StateHistory.h>
 
 #include <juce_core/juce_core.h>
 
@@ -11,6 +12,7 @@
 #include <functional>
 #include <iomanip>
 #include <limits>
+#include <list>
 #include <locale>
 #include <map>
 #include <mutex>
@@ -499,23 +501,64 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     public:
         using Values = std::map<std::string, std::string>;
         using Session = std::uint64_t;
+        explicit StateStore(history::StateHistory* shared = nullptr) : history(shared ? *shared : ownedHistory) {}
+        history::StateHistory& historyManager() { return history; }
+        using Validator = std::function<void(const std::string&)>;
+        void initialize(const std::string& name, std::string value, Validator validate)
+        {
+            values.emplace(name, std::move(value));
+            auto entry = std::make_unique<HistoryField>(*this, name, std::move(validate));
+            history.registerField(*entry);
+            historyFields.emplace(name, std::move(entry));
+        }
         // Owner zero is native processor code. Other owners are UI contexts.
         // All owners contribute to the same field lifecycle, but cleanup removes
         // only its own contribution, including after restoration/recreation.
-        void beginGesture(const std::string& field, Session owner = 0)
+        void beginGesture(const std::string& field, Session owner = 0, const history::Options& options = {})
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
-            ++gestures[field][owner];
+            history.guard(
+                [&]
+                {
+                    auto& owners = gestures[field];
+                    if (options.enabled && history.ownsGesture("state:" + field) && ! owners.contains(owner))
+                        throw std::logic_error("field already belongs to another History gesture owner");
+                    auto [entry, inserted] = owners.try_emplace(owner, 0);
+                    try
+                    {
+                        history.beginGesture("state:" + field, options, owner);
+                        ++entry->second;
+                    }
+                    catch (...)
+                    {
+                        if (inserted)
+                            owners.erase(entry);
+                        if (owners.empty())
+                            gestures.erase(field);
+                        throw;
+                    }
+                });
         }
         void endGesture(const std::string& field, Session owner = 0)
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
+            history.guard(
+                [&]
+                {
+                    if (history.inTransaction())
+                        throw std::logic_error("cannot end a gesture inside a transaction");
+                });
             const auto found = gestures.find(field);
             if (found == gestures.end())
                 return;
             auto& owners = found->second;
             const auto entry = owners.find(owner);
-            if (entry != owners.end() && --entry->second == 0)
+            if (entry == owners.end())
+                return;
+            history.endGesture("state:" + field);
+            if (--entry->second == 0)
                 owners.erase(entry);
             if (owners.empty())
                 gestures.erase(found);
@@ -535,7 +578,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         }
         void resetGestures()
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
+            for (const auto& [name, owners] : gestures)
+            {
+                static_cast<void>(owners);
+                history.cancelGesture("state:" + name);
+            }
             gestures.clear();
         }
         struct Event
@@ -559,12 +608,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         std::recursive_mutex& mutex() const { return lock; }
         std::string get(const std::string& field) const
         {
-            const std::lock_guard guard(lock);
-            return values.at(field);
+            return std::get<std::string>(history.read("state:" + field));
         }
-        void set(const std::string& field, std::string value) { replace({ { field, std::move(value) } }); }
+        void set(const std::string& field, std::string value, const history::Options& options = {})
+        {
+            history.edit(
+                "state:" + field,
+                [&]() -> history::Value
+                {
+                    historyFields.at(field)->validate(value);
+                    return std::move(value);
+                },
+                options);
+        }
         void replace(const Values& next)
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
             std::vector<Event> changed;
             for (const auto& [field, value] : next)
@@ -605,6 +664,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         }
         Values snapshot() const
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
             return values;
         }
@@ -623,9 +683,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         }
         void disconnect(Session owner)
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
             for (auto field = gestures.begin(); field != gestures.end();)
             {
+                if (field->second.contains(owner))
+                    history.cancelGesture("state:" + field->first, field->second.at(owner), owner);
                 field->second.erase(owner);
                 if (field->second.empty())
                     field = gestures.erase(field);
@@ -642,11 +705,99 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         {
             const std::lock_guard guard(lock);
             std::vector<Event> out;
-            out.swap(events);
+            out.reserve(events.size());
+            for (auto& event : events)
+                out.push_back(std::move(event));
+            events.clear();
             return out;
         }
 
     private:
+        struct Notification
+        {
+            std::string value;
+            std::vector<Callback> callbacks;
+        };
+        std::list<Notification> preparedNotifications;
+        bool deliveringPrepared = false;
+        void deliverPrepared() noexcept
+        {
+            if (deliveringPrepared)
+                return;
+            const juce::ScopedValueSetter<bool> guard(deliveringPrepared, true);
+            while (! preparedNotifications.empty())
+            {
+                auto event = std::move(preparedNotifications.front());
+                preparedNotifications.pop_front();
+                for (const auto& callback : event.callbacks)
+                {
+                    try
+                    {
+                        callback(event.value);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
+            }
+        }
+        struct HistoryField final : history::Field
+        {
+            StateStore& store;
+            std::string name;
+            Validator validate;
+            HistoryField(StateStore& owner, std::string field, Validator validator)
+                : store(owner), name(std::move(field)), validate(std::move(validator))
+            {
+                id = "state:" + name;
+                label = name;
+            }
+            history::Value read() const override
+            {
+                const std::lock_guard guard(store.lock);
+                return store.values.at(name);
+            }
+            std::unique_ptr<history::Prepared> prepare(const history::Value& raw) override
+            {
+                const auto& json = std::get<std::string>(raw);
+                validate(json);
+                if (json.size() > maxSnapshotBytes)
+                    throw std::length_error("state exceeds 8 MiB");
+                struct Write final : history::Prepared
+                {
+                    StateStore& store;
+                    std::string& current;
+                    std::string next;
+                    std::list<Event> ui;
+                    std::list<Notification> native;
+                    Write(HistoryField& field, const std::string& value)
+                        : store(field.store), current(store.values.at(field.name)), next(value)
+                    {
+                        if (store.connected)
+                            ui.push_back({ field.name, value, false });
+                        Notification event { value, {} };
+                        for (const auto& [id, callback] : store.listeners[field.name])
+                        {
+                            static_cast<void>(id);
+                            event.callbacks.push_back(callback);
+                        }
+                        native.push_back(std::move(event));
+                    }
+                    void install() noexcept override
+                    {
+                        const std::lock_guard guard(store.lock);
+                        current.swap(next);
+                        store.events.splice(store.events.end(), ui);
+                        store.preparedNotifications.splice(store.preparedNotifications.end(), native);
+                    }
+                    void notify() noexcept override { store.deliverPrepared(); }
+                };
+                return std::make_unique<Write>(*this, json);
+            }
+        };
+        history::StateHistory ownedHistory;
+        history::StateHistory& history;
+        std::map<std::string, std::unique_ptr<HistoryField>> historyFields;
         mutable std::recursive_mutex lock;
         Values values;
         Session session = 0;
@@ -656,7 +807,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         bool notifyingNative = false;
         std::deque<Event> nativeEvents;
         bool connected = false;
-        std::vector<Event> events;
+        std::list<Event> events;
     };
 
     template <typename T>
@@ -665,10 +816,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     public:
         StateField(StateStore& owner, std::string name, T initial) : store(owner), field(std::move(name))
         {
-            set(std::move(initial));
+            auto value = stateJson(StateCodec<T>::encode(initial));
+            store.initialize(field, std::move(value),
+                             [](const std::string& json)
+                             {
+                                 checkSnapshotText(json);
+                                 static_cast<void>(StateCodec<T>::decode(parseStateJson(json)));
+                             });
         }
         // Control-thread only, like get/set. No JUCE automation is involved.
-        void beginGesture() { store.beginGesture(field); }
+        void beginGesture(const history::Options& options = {}) { store.beginGesture(field, 0, options); }
         void endGesture() { store.endGesture(field); }
         T get() const { return StateCodec<T>::decode(parseStateJson(store.get(field))); }
         // The unsubscribe closure must be destroyed/called before the processor.
@@ -677,14 +834,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             return store.subscribe(field, [callback = std::move(callback)](const std::string& json)
                                    { callback(StateCodec<T>::decode(parseStateJson(json))); });
         }
-        void set(T value)
+        void set(T value, const history::Options& options = {})
         {
-            // Round-trip validates native struct values (including finite floats).
-            auto encoded = StateCodec<T>::encode(value);
-            static_cast<void>(StateCodec<T>::decode(encoded));
-            const auto json = stateJson(encoded);
-            checkSnapshotText(json);
-            store.set(field, json);
+            store.historyManager().guard(
+                [&]
+                {
+                    // Round-trip validates native struct values (including finite floats).
+                    auto encoded = StateCodec<T>::encode(value);
+                    static_cast<void>(StateCodec<T>::decode(encoded));
+                    const auto json = stateJson(encoded);
+                    checkSnapshotText(json);
+                    store.set(field, json, options);
+                });
         }
 
     private:

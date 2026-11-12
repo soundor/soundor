@@ -35,6 +35,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         void setValue(std::size_t index, double value) override;
         void beginGesture(std::size_t index) override;
         void endGesture(std::size_t index) override;
+        history::StateHistory* historyManager() override;
+        void edit(std::size_t, double, const history::Options&) override;
+        void beginEdit(std::size_t, const history::Options&) override;
+        void endEdit(std::size_t) override;
+        void disconnectEdits() noexcept override;
         [[nodiscard]] parameters::ChangeFlags& changes() override { return flags; }
         [[nodiscard]] double constrain(std::size_t index, double value) const override;
         [[nodiscard]] double toNormalized(std::size_t index, double value) const override;

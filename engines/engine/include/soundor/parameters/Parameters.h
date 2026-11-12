@@ -2,6 +2,7 @@
 
 #include <soundor/Abi.h>
 #include <soundor/Config.h>
+#include <soundor/history/StateHistory.h>
 #include <soundor/js/Context.h>
 
 #include <atomic>
@@ -118,6 +119,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         virtual void endGesture(std::size_t index) = 0;
         // Marked by the backend whenever a value changes, from any source.
         [[nodiscard]] virtual ChangeFlags& changes() = 0;
+        // Optional processor-owned editing pathway. Backends without History use the ordinary methods above.
+        virtual history::StateHistory* historyManager() { return nullptr; }
+        virtual void edit(std::size_t index, double value, const history::Options&) { setValue(index, value); }
+        virtual void beginEdit(std::size_t index, const history::Options&) { beginGesture(index); }
+        virtual void endEdit(std::size_t index) { endGesture(index); }
+        virtual void disconnectEdits() noexcept {}
 
         // Any finite value → the nearest legal one (range, step, integer).
         [[nodiscard]] virtual double constrain(std::size_t index, double value) const = 0;

@@ -83,7 +83,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}
         // Persistent control-thread data; never call get/set from process().
-        PersistentState state;
+        // Control-thread History is shared by C++ and every editor context.
+        history::StateHistory stateHistory;
+        PersistentState state { &stateHistory };
 
         // The parameters, typed as declared, for the processing: load() reads
         // one on any thread (realtime-safe); a read-only one's publish() sets it.
@@ -100,6 +102,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         friend class AudioProcessorEditor;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
+        std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)

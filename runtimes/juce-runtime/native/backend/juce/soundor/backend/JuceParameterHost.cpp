@@ -36,13 +36,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
     JuceParameterHost::~JuceParameterHost()
     {
+        disconnectEdits();
         for (auto* parameter : bound)
             parameter->removeListener(this);
     }
 
     double JuceParameterHost::value(std::size_t index) const
     {
-        return static_cast<double>(bound[index]->plain());
+        return bound[index]->editor ? bound[index]->editor->get() : static_cast<double>(bound[index]->plain());
     }
 
     void JuceParameterHost::setValue(std::size_t index, double value)
@@ -83,6 +84,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     void JuceParameterHost::endGesture(std::size_t index)
     {
         bound[index]->endChangeGesture();
+    }
+
+    history::StateHistory* JuceParameterHost::historyManager()
+    {
+        return ! bound.empty() && bound.front()->editor ? &bound.front()->editor->historyManager() : nullptr;
+    }
+    void JuceParameterHost::edit(std::size_t index, double value, const history::Options& options)
+    {
+        if (auto* editor = bound[index]->editor)
+            editor->set(value, options);
+        else
+            setValue(index, value);
+    }
+    void JuceParameterHost::beginEdit(std::size_t index, const history::Options& options)
+    {
+        if (auto* editor = bound[index]->editor)
+            editor->beginGesture(options, reinterpret_cast<std::uintptr_t>(this));
+        else
+            beginGesture(index);
+    }
+    void JuceParameterHost::endEdit(std::size_t index)
+    {
+        if (auto* editor = bound[index]->editor)
+            editor->endGesture(reinterpret_cast<std::uintptr_t>(this));
+        else
+            endGesture(index);
+    }
+    void JuceParameterHost::disconnectEdits() noexcept
+    {
+        for (auto* parameter : bound)
+            if (parameter->editor)
+                parameter->editor->disconnect(reinterpret_cast<std::uintptr_t>(this));
     }
 
     void JuceParameterHost::parameterValueChanged(int parameterIndex, float)

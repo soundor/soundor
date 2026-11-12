@@ -38,6 +38,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/Runtime.cpp
   src/js/Value.cpp
   src/js/ValueConversion.cpp
+  src/modules/history/HistoryModule.cpp
   src/modules/parameters/ParametersModule.cpp
   src/modules/ui/CanvasModule.cpp
   src/modules/ui/UiModule.cpp

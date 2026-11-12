@@ -168,6 +168,14 @@ const unsubscribe: () => void = parameters.voices.subscribe((voices: number) => 
   void voices;
 });
 unsubscribe();
+parameters.gain.set(current => current + 1, { history: true });
+parameters.bypass.set(current => !current, { history: { label: 'Toggle' } });
+parameters.gain.beginGesture({ history: { label: 'Adjust Gain' } });
+state.counter.set(current => current + 1, { history: true });
+// @ts-expect-error History labels are strings.
+parameters.gain.set(1, { history: { label: 5 } });
+// @ts-expect-error History options do not weaken field value types.
+parameters.bypass.set(current => 1, { history: true });
 parameters.gain.beginGesture();
 parameters.gain.endGesture();
 

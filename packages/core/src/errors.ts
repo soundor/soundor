@@ -22,7 +22,8 @@ export type SoundorErrorCode =
   | 'INVALID_RUNTIME'
   | 'INCOMPATIBLE_RUNTIME'
   | 'RUNTIME'
-  | 'INTERNAL';
+  | 'INTERNAL'
+  | 'TRANSACTION_ABORTED';
 
 /** Stable, documented process exit codes — one per {@link SoundorErrorCode}. */
 export const EXIT_CODES: Readonly<Record<SoundorErrorCode, number>> = {
@@ -32,6 +33,7 @@ export const EXIT_CODES: Readonly<Record<SoundorErrorCode, number>> = {
   INVALID_RUNTIME: 4,
   INCOMPATIBLE_RUNTIME: 4,
   RUNTIME: 5,
+  TRANSACTION_ABORTED: 5,
   INTERNAL: 70, // sysexits EX_SOFTWARE
 };
 

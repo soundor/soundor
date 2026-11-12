@@ -9,6 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { RUNTIME_API_VERSION } from '@soundor/config';
 import type { ArgsDef, CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -261,7 +262,7 @@ function runtime(id) {
   return {
     id,
     ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
-    apiVersion: id === ${JSON.stringify(options.incompatible)} ? 999 : 1,
+    apiVersion: id === ${JSON.stringify(options.incompatible)} ? 999 : ${RUNTIME_API_VERSION},
     async init() {},
     async gen(_config, ctx) {
       globalThis.__soundorBuildEvents.push('gen:' + id + ':' + ctx.mode);

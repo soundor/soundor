@@ -94,6 +94,7 @@ describe('EXIT_CODES', () => {
       INCOMPATIBLE_RUNTIME: 4,
       RUNTIME: 5,
       INTERNAL: 70,
+      TRANSACTION_ABORTED: 5,
     });
   });
 });

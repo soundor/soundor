@@ -11,6 +11,8 @@
  */
 
 import {
+  StateHistory,
+  type HistoryOptions,
   resolveSetter,
   type ValueOrUpdater,
 } from '@soundor/runtime-sdk/client';
@@ -56,13 +58,43 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
   #gestures = 0;
   readonly #listeners = new Listeners<ParameterValue<Info>>();
 
-  constructor(info: Info, behavior: ParameterBehavior) {
+  constructor(
+    info: Info,
+    behavior: ParameterBehavior,
+    readonly history = new StateHistory(),
+  ) {
     this.#info = freezeInfo(info);
     this.#behavior = behavior;
     this.#plain = behavior.constrain(this.#toPlain(info.default));
     publishers.set(this as WebParameter, (value) =>
       this.#store(this.#toPlain(value)),
     );
+    this.history.register({
+      id: `parameter:${info.id}`,
+      label: info.label,
+      read: () => this.#plain,
+      equal: Object.is,
+      prepare: (value) => {
+        if (typeof value !== 'number' || !Number.isFinite(value))
+          throw new TypeError('Invalid History parameter value');
+        const next = this.#behavior.constrain(value);
+        return {
+          install: () => {
+            this.#plain = next;
+          },
+          notify: () => {
+            const automatic =
+              this.#info.access === 'automatable' && !this.inGesture;
+            if (automatic) this.#gestures++;
+            try {
+              this.#listeners.notify(this.#fromPlain(next));
+            } finally {
+              if (automatic) this.#gestures--;
+            }
+          },
+        };
+      },
+    });
     Object.freeze(this);
   }
 
@@ -77,7 +109,7 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
 
   /** The current value. */
   get(): ParameterValue<Info> {
-    return this.#fromPlain(this.#plain);
+    return this.#fromPlain(this.history.read(`parameter:${this.id}`) as number);
   }
 
   /**
@@ -85,9 +117,20 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
    * type, or any value of a read-only parameter, is a TypeError. Listeners
    * hear of changes only.
    */
-  set(value: ValueOrUpdater<ParameterValue<Info>>): void {
-    this.#writable();
-    this.#store(this.#toPlain(resolveSetter(value, () => this.get())), true);
+  set(
+    value: ValueOrUpdater<ParameterValue<Info>>,
+    options?: HistoryOptions,
+  ): void {
+    this.history.edit(
+      `parameter:${this.id}`,
+      () => {
+        this.#writable();
+        return this.#behavior.constrain(
+          this.#toPlain(resolveSetter(value, () => this.get())),
+        );
+      },
+      options,
+    );
   }
 
   /**
@@ -102,13 +145,15 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
   }
 
   /** Starts a user interaction (a drag, say). Interactions may nest. */
-  beginGesture(): void {
-    this.#writable();
+  beginGesture(options?: HistoryOptions): void {
+    this.history.editGuard(() => this.#writable());
+    this.history.beginGesture(`parameter:${this.id}`, options);
     this.#gestures++;
   }
 
   /** Ends the interaction started with beginGesture(); extra calls do nothing. */
   endGesture(): void {
+    this.history.endGesture(`parameter:${this.id}`);
     if (this.#gestures > 0) this.#gestures--;
   }
 
@@ -121,7 +166,7 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
   format(...value: [] | [ParameterValue<Info>]): string {
     const plain =
       value.length === 0
-        ? this.#plain
+        ? (this.history.read(`parameter:${this.id}`) as number)
         : this.#behavior.constrain(this.#toPlain(value[0]));
     return this.#behavior.format(plain);
   }
@@ -141,7 +186,7 @@ export class WebParameter<Info extends WebParameterInfo = WebParameterInfo> {
   toNormalized(...value: [] | [ParameterValue<Info>]): number {
     const plain =
       value.length === 0
-        ? this.#plain
+        ? (this.history.read(`parameter:${this.id}`) as number)
         : this.#behavior.constrain(this.#toPlain(value[0]));
     return this.#behavior.toNormalized(plain);
   }
@@ -238,6 +283,7 @@ export function publishParameter<Info extends WebParameterInfo>(
 
 /** Every parameter of a plugin, by id and in declaration order. */
 export interface ParameterStore {
+  readonly history: StateHistory;
   readonly list: readonly WebParameter[];
   readonly byId: Readonly<Record<string, WebParameter>>;
 }
@@ -246,15 +292,19 @@ export interface ParameterStore {
 export function createParameterStore(
   infos: readonly WebParameterInfo[],
   behaviors: readonly ParameterBehavior[],
+  history = new StateHistory(),
 ): ParameterStore {
   if (behaviors.length !== infos.length)
     throw new Error(
       `The parameters' behavior (${behaviors.length}) does not match the manifest (${infos.length}); run soundor gen`,
     );
   const list = Object.freeze(
-    infos.map((info, index) => new WebParameter(info, behaviors[index]!)),
+    infos.map(
+      (info, index) => new WebParameter(info, behaviors[index]!, history),
+    ),
   );
   return {
+    history,
     list,
     byId: Object.freeze(
       Object.fromEntries(list.map((parameter) => [parameter.id, parameter])),

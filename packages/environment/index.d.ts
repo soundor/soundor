@@ -4,3 +4,5 @@
 /// <reference path="./globals.d.ts" />
 /// <reference path="./platform.d.ts" />
 /// <reference path="./ui.d.ts" />
+
+/// <reference path="./state-history.d.ts" />
