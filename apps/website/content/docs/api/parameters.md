@@ -90,3 +90,10 @@ try {
 `useParameter()` returns a React render value, which can become outdated between
 renders. For a toggle or increment, use the field's updater instead of computing
 from that render value. The field stays the single source of truth.
+
+## Undo and redo
+
+Pass `{ history: true }` to a setter for one undo entry, or
+`{ history: { label: 'Edit' } }` to `beginGesture()` to group a continuous edit.
+[StateHistory](/docs/api/state-history) also provides synchronous buffered
+transactions across parameters and state. Recording remains opt-in.

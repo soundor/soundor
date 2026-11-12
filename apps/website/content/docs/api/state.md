@@ -264,3 +264,10 @@ invalid results are rejected. The native C++ setter continues taking a value.
 State setters create no automatic gesture. State gestures remain optional,
 explicit Soundor editing boundaries and never automate the JUCE host. Subscription,
 saving and restoration behavior is the same for direct and functional updates.
+
+## Undo and redo
+
+Pass `{ history: true }` to a setter for one undo entry, or
+`{ history: { label: 'Edit' } }` to `beginGesture()` to group a continuous edit.
+[StateHistory](/docs/api/state-history) also provides synchronous buffered
+transactions across parameters and state. Recording remains opt-in.

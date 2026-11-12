@@ -8,6 +8,7 @@ import {
 import { useState, useSyncExternalStore } from 'react';
 import { snapshot, subscribe } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
+import type { HistoryOptions } from 'soundor:state-history';
 
 import { EchoField } from './EchoField';
 import { Knob } from './Knob';
@@ -26,9 +27,12 @@ export function App() {
     applyPreset(index);
   };
   const toggle = (parameter: {
-    set(value: boolean | ((current: boolean) => boolean)): void;
+    set(
+      value: boolean | ((current: boolean) => boolean),
+      options?: HistoryOptions,
+    ): void;
   }) => {
-    parameter.set((current) => !current);
+    parameter.set((current) => !current, { history: true });
   };
   return (
     <View style={styles.root}>
@@ -133,7 +137,7 @@ export function App() {
                   : 'Hear the current Orbit settings'
               }
               onPress={() => {
-                parameters.bypass.set(dry);
+                parameters.bypass.set(dry, { history: true });
               }}
               style={({ focusVisible }) => [
                 styles.compareOption,

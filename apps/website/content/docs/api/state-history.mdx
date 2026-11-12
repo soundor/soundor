@@ -1,0 +1,238 @@
+---
+title: 'soundor:state-history'
+description: 'Opt-in undo/redo for parameter and persistent-state edits, with gestures and synchronous buffered transactions.'
+---
+
+StateHistory records edits to Soundor-managed parameters and persistent state.
+Each JUCE processor owns one manager, shared by JavaScript and C++. It works
+with the editor closed and survives editor recreation. Each standalone Web
+application owns one equivalent manager. Plugin instances have independent
+History.
+
+```ts
+import { parameters } from 'soundor:parameters';
+import { state } from 'soundor:state';
+import { stateHistory } from 'soundor:state-history';
+```
+
+## Discrete edits
+
+History is opt-in. Ordinary setters retain their existing behavior. Supply
+`{ history: true }` to record one changed value, or a label to name the edit:
+
+```ts
+parameters.enabled.set((current) => !current, { history: true });
+state.selectedPreset.set('Warm Vocal', {
+  history: { label: 'Select Preset' },
+});
+state.bands.set((current) => [...current, newBand], {
+  history: { label: 'Add EQ Band' },
+});
+```
+
+A direct value and a synchronous functional updater use the same setter.
+The updater runs exactly once against the current store value, including a
+staged value inside a transaction. React render values remain subscription
+snapshots; reading them in a closure does not replace an updater.
+
+Values are validated and normalized before recording. Unchanged writes,
+including writes that snap back to the same parameter value, create no entry
+and leave the redo branch intact. The default label is `Change ` followed by
+the parameter label or state field name.
+
+## Continuous interactions
+
+Parameter gestures delimit JUCE host automation. State gestures are
+Soundor-only editing boundaries. Neither records History by default.
+Enable History on the outermost gesture to group immediate edits:
+
+```ts
+parameters.frequency.beginGesture({
+  history: { label: 'Adjust Frequency' },
+});
+try {
+  parameters.frequency.set(500);
+  parameters.frequency.set(800);
+} finally {
+  parameters.frequency.endGesture();
+}
+
+state.bands.beginGesture({ history: { label: 'Move EQ Band' } });
+try {
+  state.bands.set((current) => updateBand(current, id, position));
+} finally {
+  state.bands.endGesture();
+}
+```
+
+A gesture captures its initial value at the outermost start and its final
+value at the outermost end. Nested starts retain the outer configuration
+and label, including when the outer gesture has History disabled. Inside a
+History-enabled gesture, setter-level History options join that gesture.
+Inside an ordinary gesture, each history-enabled setter creates its own entry.
+A gesture with no user edit, or one ending at its initial value, creates none.
+Balance gestures during component cleanup. Closing the JUCE editor cancels
+that editor's unfinished recordings and ends its host gestures; committed
+entries survive. A second native/editor owner cannot acquire a field already
+owned by another History-enabled gesture.
+
+## Atomic transactions
+
+Transactions buffer synchronous writes to several fields and create one entry:
+
+```ts
+stateHistory.transaction('Load Preset', () => {
+  parameters.frequency.set(1200);
+  parameters.gain.set(-3);
+  state.selectedPreset.set('Warm Vocal');
+  state.bands.set(newBands);
+
+  parameters.gain.set((current) => current + 1);
+  // get() sees the staged -2 value here.
+});
+```
+
+During the callback, getters and updaters see staged values. Live parameter
+storage, snapshots, host notifications and subscriptions remain unchanged.
+On success, Soundor prepares all values and the entry, installs the complete
+change, then delivers notifications. Observers see the complete committed
+state. JUCE receives parameter notifications sequentially: DAWs cannot be
+guaranteed to see several parameter atomics change at exactly the same instant.
+Real-time DSP reads continue reading the live parameter atomics.
+
+A thrown callback or failed setter discards all staged writes. Async callbacks
+and Promise/thenable results are rejected. Transactions cannot undo external
+side effects such as file writes or application callbacks; keep their bodies
+to synchronous Soundor edits and ordinary computation.
+
+Nested transactions reuse the outer buffer and label. There are no savepoints.
+A failed nested transaction or Soundor staged operation poisons the whole
+transaction even if caught. If the outer callback then returns normally,
+Soundor throws `TransactionAbortedError` with code `TRANSACTION_ABORTED` and
+the original `cause`. An application exception handled entirely within the
+callback does not poison it.
+
+Starting or ending any gesture inside a transaction is rejected and poisons
+it. A transaction may edit an unrelated field while a gesture is active. It
+cannot edit a field owned by a History-enabled gesture; rejection leaves that
+gesture available to finish normally. Setter History options within a
+transaction join the outer transaction.
+
+## Undo, redo and subscriptions
+
+```ts
+stateHistory.undo();
+stateHistory.redo();
+
+const unsubscribe = stateHistory.subscribe((status) => {
+  console.log(status.canUndo, status.undoLabel);
+  console.log(status.canRedo, status.redoLabel);
+});
+```
+
+`canUndo()`, `canRedo()`, `undoLabel()` and `redoLabel()` read availability;
+labels are `null` when unavailable. `snapshot()` returns a stable immutable
+status object. Subscriptions report commits, replay and clearing, without
+notifications for no-op edits. They do not call immediately on subscription.
+`clear()` discards both stacks and invalidates unfinished recordings.
+
+Replay validates and prepares all affected values before installing them,
+uses the existing parameter host-notification pathway, and never records
+itself. State subscribers receive the restored values. A new committed
+Soundor edit after undo clears redo, including a changed setter without History.
+A History gesture defers that decision until its final net change is known. Undo/redo
+rejects entries touching fields currently owned by History gestures, and is
+not allowed inside a transaction. A failed replay leaves the stacks intact.
+
+## React
+
+<Snippet name="history" height={200} />
+
+[`useParameter()`](/docs/hooks/use-parameter) and
+[`useStateValue()`](/docs/hooks/use-state-value) keep returning values. Pass
+History options to the field's setter or gesture start explicitly. Merely
+subscribing to a field never configures how other components edit it.
+
+```tsx
+const frequency = useParameter(parameters.frequency);
+
+<Slider
+  value={frequency}
+  onSlidingStart={() =>
+    parameters.frequency.beginGesture({
+      history: { label: 'Adjust Frequency' },
+    })
+  }
+  onValueChange={(value) => parameters.frequency.set(value)}
+  onSlidingComplete={() => parameters.frequency.endGesture()}
+/>;
+```
+
+Use [`useStateHistory()`](/docs/hooks/use-state-history) for reactive buttons.
+It exposes `canUndo`, `canRedo`, `undoLabel`, `redoLabel` and stable `undo` and
+`redo` callbacks, without polling or field-wide hook configuration.
+
+## Native C++
+
+The generated processor exposes `stateHistory`, `state` and its existing
+`<id>Parameter` handles to derived processors. `load()` remains the
+real-time-safe DSP read. `get()`, `set()` and gestures are control-thread
+operations:
+
+```cpp
+stateHistory.transaction("Load Preset", [&] {
+    frequencyParameter.set(1200.0f);
+    gainParameter.set(-3.0f);
+    state.selectedPreset.set(std::string("Warm Vocal"));
+});
+
+frequencyParameter.set(1000.0f, soundor::history::Options(true));
+frequencyParameter.beginGesture(
+    soundor::history::Options(std::string("Adjust Frequency")));
+frequencyParameter.set(1500.0f);
+frequencyParameter.endGesture();
+stateHistory.undo();
+stateHistory.redo();
+```
+
+C++ transaction callbacks return `void`. Native subscriptions use
+`stateHistory.subscribe(callback)` and return an unsubscribe closure, which
+must be called before the processor is destroyed. Use `status()` for labels
+and availability. All History APIs, including persistent-state edits, belong
+on the message thread, never in `process()`. A shared recursive control mutex
+serializes native reads and project snapshots with transaction publication;
+background snapshot readers wait for the completed commit rather than reading
+staged or partially installed values. Do not join such readers from inside a
+transaction callback. History adds no locks or
+allocations to audio-thread parameter reads or DAW automation callbacks.
+JavaScript callbacks are delivered on the UI thread through runtime dispatch.
+
+## Automation and restoration
+
+DAW automation is external input and never creates History entries. A
+History-enabled gesture records the observed effective value at its end,
+provided a Soundor user edit occurred. If the user changes 200 Hz to 500 Hz
+and automation then changes it to 600 Hz before the gesture ends, the entry
+records 200 Hz to 600 Hz. Automation alone creates none.
+
+Later automation does not invalidate committed entries. Undo/redo applies the
+stored values through the normal host-aware setter; the DAW may overwrite
+them again. StateHistory does not replace the DAW's automation or undo
+systems, change automation timelines, or model Read/Touch/Latch/Write modes.
+
+Accepted project restoration restores parameter and state values, invalidates
+unfinished History recordings, clears both stacks, and then calls the
+application's existing native `stateRestored()` hook. JS History status is
+delivered through the next runtime dispatch. History is never serialized or
+saved to IndexedDB. Editor reopening alone does not clear it.
+
+## Limits
+
+Managers retain at most 100 entries and approximately 16 MiB of accounted
+value data by default, evicting the oldest entries first. Before/after values
+are stored in full; there is no structural diffing. A single entry exceeding
+the budget is not retained and clears older undo and redo entries, so replay
+cannot cross that unrecordable edit. Allocation and validation happen before
+transaction publication. Arbitrary host/plugin callback side effects cannot
+be rolled back. The Web and simulated runtimes use the same public semantics
+without introducing another value store or persisting History.

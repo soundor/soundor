@@ -7,6 +7,7 @@
     "---Modules---",
     "parameters",
     "state",
+    "state-history",
     "host",
     "ui",
     "storage",
