@@ -170,9 +170,11 @@ export default defineSoundorConfig({
       },
     }),
   );
+  // This fixture intentionally changes its manifest after the first install.
+  // CI defaults to frozen lockfiles; resolve the new peer before checking it.
   const refused = run(
     'pnpm',
-    ['install', '--prefer-offline', '--ignore-scripts'],
+    ['install', '--no-frozen-lockfile', '--prefer-offline', '--ignore-scripts'],
     { status: 1 },
   );
   assert.match(refused, /ERR_PNPM_PEER_DEP_ISSUES/);
