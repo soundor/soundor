@@ -23,6 +23,7 @@ describe('siteValues', () => {
       ['@soundor/juce-runtime', 'runtimes/juce-runtime'],
       ['@soundor/web-runtime', 'runtimes/web-runtime'],
       ['@soundor/engine', 'engines/engine'],
+      ['@soundor/vst3-host', 'hosts/vst3-host'],
     ]) {
       expect({ [name!]: values.versions[name!] }).toEqual({
         [name!]: manifest(path!).version,
