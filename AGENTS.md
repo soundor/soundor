@@ -313,8 +313,7 @@ contract fails `runtime-api.test.ts`: set the record's `next` (`"raise"`, or
 config field in `CONFIG_FEATURES` with `since: NEXT_API_VERSION`), then
 `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` — the release
 resolves the shipped number (`scripts/resolve-release.mjs`, run by
-`pnpm run version`). Docs annotations for new APIs are `@since next`
-(`scripts/check-since.mjs` guards them). See `contribute/versions.md`.
+`pnpm run version`). See `contribute/versions.md`.
 
 ### Accessibility
 

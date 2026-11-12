@@ -179,7 +179,7 @@ change raises the version, as
 [Changing the runtime API version](/docs/contribute/compatibility#changing-the-runtime-api-version)
 describes — a PR records the pending change in the contract's `next` field,
 and the release resolves the number
-([Controlling versions](/docs/contribute/versions)). The other
+([Runtime API versions](/docs/contribute/versions)). The other
 declarations in `packages/environment` are written by hand. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.

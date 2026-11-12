@@ -20,35 +20,27 @@ declare module 'soundor:ui' {
   /**
    * One shadow of `Style.boxShadow`, as CSS's `box-shadow`. Every field is
    * optional; lengths are logical pixels.
-   *
-   * @since next
    */
   export interface BoxShadow {
-    /** How far right the shadow is moved (left when negative). 0 by default. @since next */
+    /** How far right the shadow is moved (left when negative). 0 by default. */
     offsetX?: number;
-    /** How far down the shadow is moved (up when negative). 0 by default. @since next */
+    /** How far down the shadow is moved (up when negative). 0 by default. */
     offsetY?: number;
     /**
      * How soft its edge is, 0 or more: a Gaussian blur with half this as its
      * standard deviation, as in CSS. 0 (the default) is a sharp edge.
-     *
-     * @since next
      */
     blur?: number;
     /**
      * How much larger than the box the shadow is on each side (smaller
      * when negative), its rounded corners growing with it. 0 by default.
-     *
-     * @since next
      */
     spread?: number;
-    /** Any CSS color. Black by default. @since next */
+    /** Any CSS color. Black by default. */
     color?: Color;
     /**
      * Inside the box instead (CSS's `inset`): over the background, within
      * the padding box, under the border and what the node holds.
-     *
-     * @since next
      */
     inset?: boolean;
   }
@@ -349,8 +341,6 @@ declare module 'soundor:ui' {
      * the border (never under the box, even a translucent one), or inside
      * with `inset`. They follow its corners, take no room in layout and are
      * not hit. Animations do not change them.
-     *
-     * @since next
      */
     boxShadow?: readonly BoxShadow[];
     /** 0 to 1, for the node and everything in it. */
@@ -487,8 +477,6 @@ declare module 'soundor:ui' {
     /**
      * The second click of a series, right after its `click` (both have
      * `detail` 2): a double click, as the platform counts them.
-     *
-     * @since next
      */
     dblclick: PointerEvent;
     /** The secondary button went down (or the platform's equivalent). */
@@ -1048,7 +1036,6 @@ declare module 'soundor:ui' {
     pressure?: number;
     isPrimary?: boolean;
     relatedTarget?: UiNode | null;
-    /** `click` and `dblclick`: which click of a series this is. @since next */
     detail?: number;
   }
   export class PointerEvent extends Event implements ModifierState {

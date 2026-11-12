@@ -29,9 +29,8 @@ depend on does.
   working together.
 - `packages/cli/scripts/runtime-consumer-smoke.mjs`: the runtimes installed
   from their tarballs.
-- `scripts/resolve-release.mjs` and `scripts/check-since.mjs`: what the
-  release and CI resolve; [Controlling versions](/docs/contribute/versions)
-  is the guide to them.
+- `scripts/resolve-release.mjs`: resolves the pending runtime API version
+  at release; [Runtime API versions](/docs/contribute/versions) is its guide.
 
 ## How it works
 
@@ -164,7 +163,7 @@ the workspace already runs as the version it will ship. The release resolver
 ships it as `released + 1`, advancing the record; a break raises `min` with
 it; and a pending change ships only in a minor release before 1.0 (a major
 from 1.0 on), which the resolver enforces.
-[Controlling versions](/docs/contribute/versions) is the full guide. The
+[Runtime API versions](/docs/contribute/versions) is the full guide. The
 first-party runtimes' tests
 check that they implement the version they are built with; a runtime must
 be checked against a raise, and released with it if it implements what the

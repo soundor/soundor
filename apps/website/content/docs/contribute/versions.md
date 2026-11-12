@@ -1,22 +1,14 @@
 ---
-title: 'Controlling versions'
-description: 'Package versions, the runtime API version and the docs @since annotations: who records what, and what the release resolves.'
+title: 'Runtime API versions'
+description: 'Record pending runtime API changes and resolve their version numbers at release.'
 ---
 
 ## Purpose
 
-Three kinds of versioning meet at a release, and none of them is a hand-edited
-number in a PR:
-
-- **Package versions** (`0.18.0`) say what npm has. Changesets decides them,
-  from changesets PRs leave in `.changeset/`.
-- **The runtime API version** (`RUNTIME_API_VERSION`) says what a runtime
-  depends on of its host. PRs record a pending change; the release resolves
-  the number, so published values are dense — one per contract-bearing
-  release, however many PRs made it.
-- **The docs' `@since` annotations** say when an API the docs show was
-  introduced. PRs annotate with the placeholder `@since next`; the release
-  writes the version over it.
+Package versions say what npm has. The runtime API version says what a
+runtime depends on of its host. PRs record a pending contract change; the
+release resolves the number, so published values are dense — one per
+contract-bearing release, however many PRs made it.
 
 Everything is materialized in one place: `pnpm run version`, which the
 release pipeline runs to make the release pull request. What that script
@@ -115,32 +107,8 @@ it if it implements what the raise adds.
   because a change merged after the release PR's last update is not in the
   release.
 
-The script is idempotent: a resolved record has no pending change, and
-materialized annotations are no longer placeholders, so a re-run — as the
-release PR gets on every push to main — changes nothing.
-
-## Docs `@since` annotations
-
-Every declaration or interface member that the docs show — `@soundor/react`'s
-source and the runtime-provided modules in `packages/environment` — carries
-`@since` in its doc comment, which the generated props tables render. A PR
-adding one annotates it `@since next`, the version of its own release, which
-does not exist yet; at the release the resolver writes the package's new
-version over every placeholder, from the nearest `package.json` (which
-`changeset version` has already written).
-
-The check is `scripts/check-since.mjs`, run by CI's Workspace job:
-
-```sh
-node scripts/check-since.mjs
-```
-
-It compares each file with the newest tag of the package that owns it, and
-calls out what the tag's file does not have whose doc comment lacks `@since`.
-The parse is plain text: what it does not recognize is silently unchecked,
-never wrongly failed. Because the baseline is a tag, an annotation already
-materialized counts — the check only ever demands `@since next` from what is
-genuinely unreleased.
+The script is idempotent: a resolved record has no pending change, so a
+re-run — as the release PR gets on every push to main — changes nothing.
 
 ## Where things are
 
@@ -150,5 +118,4 @@ genuinely unreleased.
 | The numbers a workspace runs with               | `packages/config/src/version.ts`, written, never hand-edited     |
 | Config features and their versions              | `CONFIG_FEATURES` in `packages/config/src/compatibility.ts`      |
 | The release resolver                            | `scripts/resolve-release.mjs`, with its tests beside it          |
-| The `@since` check                              | `scripts/check-since.mjs`, run by the Workspace job              |
 | What the compatibility numbers mean and enforce | [Dependencies and compatibility](/docs/contribute/compatibility) |

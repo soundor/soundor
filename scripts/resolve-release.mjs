@@ -10,22 +10,13 @@
  *   change ships only in a minor release before 1.0 (a major after), and only
  *   when `@soundor/config` is released in this run; otherwise it stays
  *   pending for the next one.
- * - every `@since next` annotation in doc comments becomes `@since <the
- *   package's new version>`, so the docs' version badges say what npm has.
  *
- * Nothing here hand-edits a version number: PRs record a pending change and
- * annotate new APIs with `@since next`; this script turns both into the
- * release's numbers, and the changesets action commits the result.
+ * PRs record a pending contract change; this script resolves its version
+ * number, and the changesets action commits the result.
  */
 
 import { execFileSync } from 'node:child_process';
-import {
-  readFileSync,
-  readdirSync,
-  realpathSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -192,86 +183,8 @@ export function resolveRuntimeApi(root) {
   ];
 }
 
-/** The tree a `@since next` annotation may live in, and what not to walk. */
-const SKIP = new Set([
-  '.git',
-  '.soundor',
-  '.turbo',
-  '.worktrees',
-  'build',
-  'coverage',
-  'dist',
-  'node_modules',
-  '__tests__',
-]);
-
-/** Source files a `@since next` annotation may live in. */
-function sourceFiles(root) {
-  const files = [];
-  function walk(directory) {
-    for (const entry of readdirSync(directory)) {
-      if (SKIP.has(entry)) continue;
-      const path = join(directory, entry);
-      if (statSync(path).isDirectory()) {
-        walk(path);
-        continue;
-      }
-      if (/\.(?:d\.)?tsx?$/.test(entry) && !/\.test\./.test(entry))
-        files.push(path);
-    }
-  }
-  for (const top of ['packages', 'runtimes', 'hosts', 'engines']) {
-    const directory = join(root, top);
-    if (statSync(directory, { throwIfNoEntry: false }) === undefined) continue;
-    walk(directory);
-  }
-  return files;
-}
-
-/** The version of the nearest package.json, for a file's `@since` badge. */
-function packageVersion(file) {
-  for (
-    let directory = dirname(file);
-    directory !== dirname(directory);
-    directory = dirname(directory)
-  ) {
-    try {
-      return JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
-        .version;
-    } catch {
-      // No package.json at this level; the nearest is higher up.
-    }
-  }
-  throw new Error(
-    `${file} has no package.json above it to take a version from.`,
-  );
-}
-
-/**
- * Every `@since next` annotation becomes `@since <the package's new
- * version>`, read from the nearest package.json, which `changeset version`
- * has already written.
- */
-export function materializeSince(root) {
-  const notes = [];
-  for (const file of sourceFiles(root)) {
-    const text = readFileSync(file, 'utf8');
-    const count = text.split(/@since next(?![\w.])/).length - 1;
-    if (count === 0) continue;
-    const version = packageVersion(file);
-    writeFileSync(
-      file,
-      text.replaceAll(/@since next(?![\w.])/g, `@since ${version}`),
-    );
-    notes.push(
-      `${file}: ${count} annotation${count === 1 ? '' : 's'} -> ${version}.`,
-    );
-  }
-  return notes;
-}
-
 function main() {
-  const notes = [...resolveRuntimeApi(ROOT), ...materializeSince(ROOT)];
+  const notes = resolveRuntimeApi(ROOT);
   if (notes.length === 0) console.log('The release has nothing to resolve.');
   else for (const note of notes) console.log(note);
 }
