@@ -691,3 +691,35 @@ TEST_CASE("background project snapshots wait for complete transactional publicat
     CHECK(restored.state.selectedPreset.get() == "Atomic");
     CHECK(restored.gainParameter.load() == 0.75f);
 }
+
+TEST_CASE("native control-thread History events are queued safely for JavaScript UI dispatch")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    js::Runtime runtime;
+    js::Context context(runtime);
+    history::install(context, p.stateHistory);
+    REQUIRE(context
+                .evaluateModule("(function(exports, require) { globalThis.historyEvents = 0; "
+                                "require('soundor:state-history').stateHistory.subscribe(() => ++historyEvents); })",
+                                "/history-events.js")
+                .ok());
+    std::atomic<bool> finished { false };
+    std::thread writer(
+        [&]
+        {
+            for (int n = 0; n < 100; ++n)
+                p.state.selectedPreset.set(std::to_string(n), history::Options(true));
+            finished.store(true, std::memory_order_release);
+        });
+    while (! finished.load(std::memory_order_acquire))
+    {
+        history::dispatch(context);
+        std::this_thread::yield();
+    }
+    writer.join();
+    history::dispatch(context);
+    const auto result = context.evaluateScript(
+        "if(historyEvents !== 100) throw Error('missing native History events: ' + historyEvents);");
+    REQUIRE(result.ok());
+}

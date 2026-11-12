@@ -596,11 +596,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         using Callback = std::function<void(const std::string&)>;
         std::function<void()> subscribe(const std::string& field, Callback callback)
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
             const auto id = ++nextListener;
             listeners[field].emplace(id, std::move(callback));
             return [this, field, id]
             {
+                const std::lock_guard historyGuard(history.mutex());
                 const std::lock_guard removeGuard(lock);
                 listeners[field].erase(id);
             };
@@ -676,6 +678,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         }
         Session connect()
         {
+            const std::lock_guard historyGuard(history.mutex());
             const std::lock_guard guard(lock);
             connected = true;
             events.clear();
@@ -759,6 +762,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             }
             std::unique_ptr<history::Prepared> prepare(const history::Value& raw) override
             {
+                const std::lock_guard guard(store.lock);
                 const auto& json = std::get<std::string>(raw);
                 validate(json);
                 if (json.size() > maxSnapshotBytes)

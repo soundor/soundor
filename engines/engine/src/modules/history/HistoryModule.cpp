@@ -71,6 +71,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
         jsi::Value snapshot(bind::ContextState& ctx)
         {
             auto& view = binding(ctx);
+            const std::lock_guard lock(view.manager.mutex());
             if (view.cached != view.manager.revision())
             {
                 bind::retainValue(ctx, &view.snapshotKey, statusValue(ctx, view.manager.status()));
@@ -168,29 +169,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                                       });
                               }));
                   api.set("subscribe",
-                          bind::closure(ctx, "subscribe", 1,
-                                        [](auto& c, const auto&, const auto* args, auto count)
-                                        {
-                                            return bind::invoke(
-                                                c, "stateHistory.subscribe",
-                                                [&]() -> jsi::Value
-                                                {
-                                                    if (count != 1 || ! bind::isFunction(c, args[0]))
-                                                        bind::throwTypeError(c, "subscribe expects a function");
-                                                    auto& view = binding(c);
-                                                    auto& entry =
-                                                        view.listeners.emplace_back(true, ++view.nextListener);
-                                                    bind::retainValue(c, &entry, jsi::Value(c.rt, args[0]));
-                                                    return bind::closure(
-                                                        c, "unsubscribe", 0,
-                                                        [&entry](auto& inner, const auto&, const auto*, auto)
-                                                        {
-                                                            entry.active = false;
-                                                            bind::retainValue(inner, &entry, jsi::Value::undefined());
-                                                            return jsi::Value::undefined();
-                                                        });
-                                                });
-                                        }));
+                          bind::closure(
+                              ctx, "subscribe", 1,
+                              [](auto& c, const auto&, const auto* args, auto count)
+                              {
+                                  return bind::invoke(
+                                      c, "stateHistory.subscribe",
+                                      [&]() -> jsi::Value
+                                      {
+                                          if (count != 1 || ! bind::isFunction(c, args[0]))
+                                              bind::throwTypeError(c, "subscribe expects a function");
+                                          auto& view = binding(c);
+                                          const std::lock_guard subscriptionLock(view.manager.mutex());
+                                          auto& entry = view.listeners.emplace_back(true, ++view.nextListener);
+                                          bind::retainValue(c, &entry, jsi::Value(c.rt, args[0]));
+                                          return bind::closure(
+                                              c, "unsubscribe", 0,
+                                              [&entry](auto& inner, const auto&, const auto*, auto)
+                                              {
+                                                  const std::lock_guard removalLock(binding(inner).manager.mutex());
+                                                  entry.active = false;
+                                                  bind::retainValue(inner, &entry, jsi::Value::undefined());
+                                                  return jsi::Value::undefined();
+                                              });
+                                      });
+                              }));
                   auto value = api.release();
                   ctx.rt.global()
                       .getPropertyAsObject(ctx.rt, "Object")
@@ -208,7 +211,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
         if (! view || ctx.halted())
             return;
         std::list<Event> events;
-        events.splice(events.end(), view->pending);
+        {
+            const std::lock_guard lock(view->manager.mutex());
+            events.splice(events.end(), view->pending);
+        }
         for (const auto& event : events)
         {
             auto value = statusValue(ctx, event.status);
