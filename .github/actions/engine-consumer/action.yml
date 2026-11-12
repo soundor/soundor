@@ -1,5 +1,10 @@
 name: Engine consumer dependencies
 description: Build tools and system libraries for consumers, without restoring engine source dependency builds
+inputs:
+  cache:
+    description: Whether to cache downloaded engine archives
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -17,6 +22,7 @@ runs:
       shell: bash
       run: echo "SOUNDOR_CACHE=${{ runner.temp }}/soundor-cache" >> "$GITHUB_ENV"
     - name: Restore downloaded engine archives
+      if: inputs.cache == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |

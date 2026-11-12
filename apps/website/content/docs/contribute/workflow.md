@@ -55,8 +55,12 @@ source; the shipped Release engine is bytecode-only.
 
 Release is a separate pipeline on main pushes. It selects `version`, `publish`
 or `none` without waiting for Verify. Version mode maintains the release PR.
-Publish mode runs its own package checks, builds and tests the engine/host
-binaries being published, validates the packed packages, and publishes them.
+Publish mode builds, then tests, then publishes. It runs its own package
+checks and builds and tests the engine/host binaries being published, each
+package with its own checks. Then it tests what uses them: when the engine or
+the JUCE runtime is published, the JUCE workflow, against the engine to be
+published. Only once every one of these has passed does it publish anything:
+the engine's prebuilt release, then the packed packages on npm.
 It neither calls Verify nor consumes its required results or binary artifacts.
 Release disables pnpm store caching throughout its jobs, reusable engine/host
 builds, and website deployment. Verify retains pnpm caching.
@@ -214,7 +218,8 @@ each a reusable workflow called from `verify.yml`:
 | Orbit E2E                                    | `orbit.yml`               | `orbit`                 | End-to-end tests of a real plugin                                                                |
 
 What uses the engine or the host waits for its whole group, so it starts from one that
-passed. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
+passed. Each group checks its own package only: the engine's never builds or tests a runtime,
+and a new runtime gets its own group. Benchmark smoke follows `soundor-benchmark`. A change only under `hosts/vst3-host/`
 runs VST3 (host) and Orbit E2E alone. Verify is the one required check, and it runs for pull
 requests into `main` and main pushes. Each build input must be a dependency of the package whose
 job consumes it. See

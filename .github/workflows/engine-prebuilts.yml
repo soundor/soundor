@@ -5,31 +5,33 @@ name: Engine prebuilts
 # "Prebuilt engines"). Modes:
 #
 #   validate  build, test and pack every archive; keep them as run artifacts
-#             only (pull requests that change the prebuilt tooling)
+#             only (by hand)
 #   stage     validate, then upload them to a draft release, verify it and
 #             delete it: the release path, without publishing (main only)
 #   publish   validate, then publish the release and verify its public assets
-#             (main only; the release workflow calls this before npm)
+#             (main only, and only from the release workflow)
+#
+# The release workflow calls it in two phases, so that it publishes nothing
+# before every package it releases has passed its tests: `build` plans, builds
+# and tests the archives (run artifacts); `release` plans again and releases
+# those same artifacts. A run by hand (validate, stage) does both.
 #
 # A published release of the same version, commit and revision is verified
 # and reused, never rebuilt or replaced; a draft left by an interrupted run is
-# finished. A defective published release needs a higher revision.
+# finished. A defective published release needs a higher revision (the release
+# workflow's engine-revision).
 
 on:
   workflow_dispatch:
     inputs:
-      integration:
-        description: Run JUCE consumer checks
-        type: boolean
-        default: true
       tests:
         description: Run native tests
         type: boolean
         default: true
       mode:
-        description: validate, stage (draft release, then deleted) or publish
+        description: validate, or stage (draft release, then deleted)
         type: choice
-        options: [validate, stage, publish]
+        options: [validate, stage]
         default: validate
       revision:
         description: Build revision (empty, the highest published one or 1)
@@ -37,17 +39,13 @@ on:
         default: ''
   workflow_call:
     inputs:
-      integration:
-        description: Run JUCE consumer checks
-        type: boolean
-        default: true
-      tests:
-        description: Run native tests against packed engines
-        type: boolean
-        default: true
       mode:
         type: string
         default: publish
+      phase:
+        description: build (plan, build and test the archives) or release (release them)
+        type: string
+        required: true
       revision:
         type: string
         default: ''
@@ -55,12 +53,15 @@ on:
       tag:
         description: The prebuilt release of this commit
         value: ${{ jobs.result.outputs.tag }}
+      action:
+        description: build (this run's archives) or reuse (the published release)
+        value: ${{ jobs.result.outputs.action }}
 
 concurrency:
-  # One run per commit and mode at a time; a pull request's newer push
-  # cancels its older run. Releases are never cancelled halfway.
-  group: engine-prebuilts-${{ github.event_name == 'pull_request' && github.ref || github.sha }}-${{ inputs.mode || 'validate' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # One run per commit, mode and phase at a time. Releases are never
+  # cancelled halfway.
+  group: engine-prebuilts-${{ github.sha }}-${{ inputs.mode || 'validate' }}-${{ inputs.phase || 'all' }}
+  cancel-in-progress: false
 
 permissions: {}
 
@@ -68,7 +69,7 @@ jobs:
   # Validation needs no GitHub access: build revision 1 of this commit.
   plan-validate:
     name: Plan
-    if: (inputs.mode || 'validate') == 'validate'
+    if: (inputs.mode || 'validate') == 'validate' && inputs.phase != 'release'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -87,7 +88,9 @@ jobs:
             console.log(planned.tag);"
 
   # A release is planned against the releases that exist (drafts included,
-  # which only a token that can write sees), from main only.
+  # which only a token that can write sees), from main only. The release
+  # phase plans again: nothing is released between the two phases, so it
+  # decides the same.
   plan-release:
     name: Plan release
     if: inputs.mode == 'stage' || inputs.mode == 'publish'
@@ -120,6 +123,7 @@ jobs:
     needs: [plan-validate, plan-release]
     if: >-
       always() && !cancelled() && !contains(needs.*.result, 'failure') &&
+      inputs.phase != 'release' &&
       (needs.plan-validate.outputs.action || needs.plan-release.outputs.action) == 'build'
     permissions:
       contents: read
@@ -129,18 +133,20 @@ jobs:
     uses: ./.github/workflows/engine.yml
     with:
       release-build: true
+      # Only a validate run by hand can leave them out.
       tests: ${{ inputs.mode != 'validate' || inputs.tests != false }}
-      integration: ${{ inputs.mode != 'validate' || inputs.integration != false }}
 
   # Every archive of every target, checked as one set, then released. Nothing
-  # is uploaded unless all of them were built and passed.
+  # is uploaded unless all of them were built and passed: in this run, or in
+  # the build phase the release workflow ran before it.
   release:
     name: Release
     needs: [plan-release, build]
     if: >-
-      always() && !cancelled() && needs.plan-release.result == 'success' &&
+      always() && !cancelled() && inputs.phase != 'build' &&
+      needs.plan-release.result == 'success' &&
       needs.plan-release.outputs.action == 'build' &&
-      needs.build.result == 'success'
+      (needs.build.result == 'success' || inputs.phase == 'release')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -182,6 +188,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ needs.plan-release.outputs.tag || needs.plan-validate.outputs.tag }}
+      action: ${{ needs.plan-release.outputs.action || needs.plan-validate.outputs.action }}
     steps:
       - name: Require every applicable job
         env:
