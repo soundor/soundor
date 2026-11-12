@@ -53,6 +53,11 @@ that copy (it replaces the config's import of it with a shim when it
 evaluates the file), but requires it to be of its own release line, the same
 minor before 1.0, since it says which schema the config was written for.
 
+VST3 host consumers also declare a caret peer range (`workspace:^` in the
+repository, published as `^%version:@soundor/vst3-host%`). Host API compatibility
+is scoped to the current minor and its patches before 1.0. The host remains
+optional for the Driver and JUCE runtime, and required for `@soundor/vitest-e2e`.
+
 ### Cross-package protocols
 
 Two copies of a package are two module instances: their classes, symbols and

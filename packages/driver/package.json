@@ -45,7 +45,7 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@soundor/vst3-host": "workspace:>=0.0.0 <1.0.0"
+    "@soundor/vst3-host": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@soundor/vst3-host": {
