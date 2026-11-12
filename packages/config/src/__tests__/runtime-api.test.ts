@@ -201,16 +201,6 @@ describe('the runtime API', () => {
       next: raw.next,
       declarations: current(),
     };
-    const changed = [
-      ...new Set([
-        ...Object.keys(now.declarations),
-        ...Object.keys(raw.declarations),
-      ]),
-    ].filter((name) => now.declarations[name] !== raw.declarations[name]);
-    expect(
-      changed,
-      `The runtime API's contract changed: ${changed.join(', ')}. If runtimes can notice, set "next" in packages/config/runtime-api.json to "raise" (a compatible addition; tag a new config field in CONFIG_FEATURES) or "break" (older runtimes cannot run). If they cannot, re-record without a pending change. Then: UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`,
-    ).toEqual([]);
     const versions = pendingVersions(now);
     if (process.env['UPDATE_RUNTIME_API'] === '1') {
       writeFileSync(
@@ -231,6 +221,16 @@ describe('the runtime API', () => {
         writeVersionSource(versions, readFileSync(versionSource, 'utf8')),
       );
     } else {
+      const changed = [
+        ...new Set([
+          ...Object.keys(now.declarations),
+          ...Object.keys(raw.declarations),
+        ]),
+      ].filter((name) => now.declarations[name] !== raw.declarations[name]);
+      expect(
+        changed,
+        `The runtime API's contract changed: ${changed.join(', ')}. If runtimes can notice, set "next" in packages/config/runtime-api.json to "raise" (a compatible addition; tag a new config field in CONFIG_FEATURES) or "break" (older runtimes cannot run). If they cannot, re-record without a pending change. Then: UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`,
+      ).toEqual([]);
       expect(
         versionConstants(readFileSync(versionSource, 'utf8')),
         `src/version.ts's constants are not what the record derives (${versions.version}/${versions.min}). The file is written from runtime-api.json; run UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test, and never edit the numbers by hand.`,
