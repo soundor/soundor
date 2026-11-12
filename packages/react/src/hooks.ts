@@ -21,7 +21,7 @@ export function useParameter<T>(parameter: ParameterLike<T>): T {
   );
 }
 
-/** A persistent state's value. The store supplies stable immutable snapshots. */
+/** A persistent state's value. The store supplies stable immutable snapshots. @since next */
 export function useStateValue<T>(field: ParameterLike<T>): T {
   return useSyncExternalStore(
     (onChange) => field.subscribe(() => onChange()),
@@ -57,7 +57,7 @@ export function useViewSize(): ViewSize {
   return useSyncExternalStore(subscribeViewSize, viewSize);
 }
 
-/** Reactive History availability and stable undo/redo actions. Field hooks remain value subscriptions. */
+/** Reactive History availability and stable undo/redo actions. Field hooks remain value subscriptions. @since next */
 export function useStateHistory(): HistoryStatus & {
   undo(): void;
   redo(): void;

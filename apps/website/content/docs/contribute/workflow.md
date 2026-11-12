@@ -172,12 +172,14 @@ pnpm --filter @soundor/juce-runtime gen:webgl
 
 These update the native API golden C++, the runtime API contract
 (`packages/config/runtime-api.json`), and the WebGL bindings with their
-declarations (`packages/environment/webgl.d.ts`) respectively. Record the
-runtime API contract only after deciding whether the change raises
-`RUNTIME_API_VERSION`, as
+declarations (`packages/environment/webgl.d.ts`) respectively. The runtime
+API contract's command also writes the version numbers in
+`packages/config/src/version.ts`; record it only after deciding whether the
+change raises the version, as
 [Changing the runtime API version](/docs/contribute/compatibility#changing-the-runtime-api-version)
-describes: the record holds the version, so raising it later needs recording
-again. The other
+describes — a PR records the pending change in the contract's `next` field,
+and the release resolves the number
+([Controlling versions](/docs/contribute/versions)). The other
 declarations in `packages/environment` are written by hand. Use only the relevant generator, and include its output
 in the change. The [WebGL code generation notes](/docs/contribute/webgl-codegen) explain the
 IDL inputs.

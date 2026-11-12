@@ -163,6 +163,12 @@ jobs:
       - name: Storage cleanup policy tests
         run: node --test .github/scripts/cleanup-storage.test.mjs
 
+      - name: Release resolver tests
+        run: node --test scripts/resolve-release.test.mjs scripts/check-since.test.mjs
+
+      - name: Docs @since annotations cover what the last release adds
+        run: node scripts/check-since.mjs
+
       - name: Run formatter
         run: pnpm run format
 

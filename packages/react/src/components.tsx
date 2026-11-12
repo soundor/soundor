@@ -51,8 +51,11 @@ export interface EventProps {
    * The node was double-clicked, as the platform counts clicks (its
    * double-click time and distance): right after the second click's
    * `onClick`.
+   *
+   * @since next
    */
   onDoubleClick?: (event: PointerEvent) => void;
+  /** The capture-phase {@link onDoubleClick}. @since next */
   onDoubleClickCapture?: (event: PointerEvent) => void;
   /**
    * The secondary button went down: where to open a custom menu

@@ -1,6 +1,7 @@
 {
-  "version": 5,
-  "min": 5,
+  "released": 1,
+  "min": 1,
+  "next": "break",
   "declarations": {
     "config/context.ts#DevSessionContext": "b3757e5c6b31",
     "config/context.ts#DevShortcut": "225654284939",

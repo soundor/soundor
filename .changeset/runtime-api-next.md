@@ -1,0 +1,7 @@
+---
+'@soundor/config': minor
+---
+
+The runtime API version is no longer hand-bumped per PR. `packages/config/runtime-api.json` records, per release line, the version the last published `@soundor/config` shipped (`released`), the oldest it runs (`min`), and a pending contract change (`next`: `"raise"`, or `"break"` when runtimes for older versions cannot run). `src/version.ts`'s constants are written from the record by `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`, and the release resolver (`scripts/resolve-release.mjs`, run by the release's version step) ships a pending change as `released + 1` — dense published numbers, one per contract-bearing release, whatever number of PRs made it — advancing the record, raising `min` with a break, refusing a pending change in the wrong release (a minor before 1.0, a major for a break from 1.0 on), and leaving it pending when the release does not publish `@soundor/config`. A new config field in `CONFIG_FEATURES` gets `since: NEXT_API_VERSION` until the resolver writes the number.
+
+The docs' new APIs are annotated `@since next` and the release writes the package's version over the placeholder; `scripts/check-since.mjs` (CI's Workspace job) calls out what the last release tag lacks without an annotation. Doc comments and tables are unchanged in shape; the only observable difference is that error messages and the shipped contract carry dense version numbers from here on.

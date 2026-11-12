@@ -11,6 +11,7 @@ import type { ResolvedSoundorConfig } from './types';
 import {
   CONFIG_VERSION,
   MIN_RUNTIME_API_VERSION,
+  NEXT_API_VERSION,
   RUNTIME_API_VERSION,
 } from './version';
 
@@ -34,11 +35,12 @@ export interface ConfigFeature {
 /**
  * Every config setting added after the first runtime API version, with the
  * version that added it. Add one with each config field a raise of
- * {@link RUNTIME_API_VERSION} brings.
+ * {@link RUNTIME_API_VERSION} brings, its `since` as
+ * {@link NEXT_API_VERSION}; the release resolver materializes the number.
  */
 export const CONFIG_FEATURES: readonly ConfigFeature[] = [
   {
-    since: 2,
+    since: NEXT_API_VERSION,
     name: 'persistent state',
     find: (config) =>
       Object.keys(config.state ?? {}).length > 0 ? ['state'] : [],

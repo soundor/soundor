@@ -1,11 +1,18 @@
 /**
  * The runtime API's contract, as `runtime-api.json` records it: the
  * declarations (interfaces and types) of what a runtime depends on of its
- * host, each hashed without its comments. A change to one fails this test
- * until the record is updated, so whoever changes the contract decides
- * whether runtimes can notice, and raises `RUNTIME_API_VERSION` if so.
+ * host, each hashed without its comments, and the version metadata the
+ * pending release ships. A change to one fails this test until the record is
+ * updated, so whoever changes the contract decides whether runtimes can
+ * notice, and marks the pending change if so.
  *
  *   UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test
+ *
+ * The command re-records the declarations and writes the version numbers in
+ * `src/version.ts` from the record's metadata. `version.ts` is never edited
+ * by hand: a PR that changes the contract sets `"next"` in the record
+ * (`"raise"`, or `"break"` when older runtimes cannot run), or, when runtimes
+ * cannot notice, re-records without a pending change and the version stays.
  */
 
 import { createHash } from 'node:crypto';
@@ -23,6 +30,7 @@ const expressionRoot = realpathSync(
   join(configRoot, 'node_modules/@soundor/expression'),
 );
 const record = join(configRoot, 'runtime-api.json');
+const versionSource = join(configRoot, 'src/version.ts');
 
 /** The files whose declarations make the contract. */
 const CONTRACT: Record<string, string> = {
@@ -97,6 +105,76 @@ function current(): Record<string, string> {
   return Object.fromEntries(Object.entries(hashes).sort());
 }
 
+/** What the record must say, and what the version constants follow from. */
+interface RuntimeApiRecord {
+  released: number;
+  min: number;
+  next: null | 'raise' | 'break';
+  declarations: Record<string, string>;
+}
+
+function checkMetadata(raw: RuntimeApiRecord): void {
+  expect(
+    raw.next === null || raw.next === 'raise' || raw.next === 'break',
+    `"next" in runtime-api.json is ${JSON.stringify(raw.next)}; it is null, "raise" or "break".`,
+  ).toBe(true);
+  expect(
+    Number.isInteger(raw.released) && raw.released >= 1,
+    `"released" in runtime-api.json is ${JSON.stringify(raw.released)}; it is the last published line's version.`,
+  ).toBe(true);
+  expect(
+    Number.isInteger(raw.min) && raw.min >= 1 && raw.min <= raw.released,
+    `"min" in runtime-api.json is ${JSON.stringify(raw.min)}; it is at least 1 and at most "released".`,
+  ).toBe(true);
+}
+
+/** The version numbers `src/version.ts` shows while the pending change ships. */
+export function pendingVersions(record: RuntimeApiRecord): {
+  version: number;
+  min: number;
+} {
+  return {
+    version: record.released + (record.next === null ? 0 : 1),
+    min: record.next === 'break' ? record.released + 1 : record.min,
+  };
+}
+
+/** Writes the version numbers `src/version.ts` shows from the record. */
+export function writeVersionSource(
+  versions: { version: number; min: number },
+  text: string,
+): string {
+  const written = text
+    .replace(
+      /export const RUNTIME_API_VERSION = \d+;/,
+      `export const RUNTIME_API_VERSION = ${versions.version};`,
+    )
+    .replace(
+      /export const MIN_RUNTIME_API_VERSION = \d+;/,
+      `export const MIN_RUNTIME_API_VERSION = ${versions.min};`,
+    );
+  if (
+    !written.includes(
+      `export const RUNTIME_API_VERSION = ${versions.version};`,
+    ) ||
+    !written.includes(`export const MIN_RUNTIME_API_VERSION = ${versions.min};`)
+  )
+    throw new Error(
+      `${versionSource} does not have the two version constants to write; restore it.`,
+    );
+  return written;
+}
+
+function versionConstants(text: string): { version: number; min: number } {
+  const version = /export const RUNTIME_API_VERSION = (\d+);/.exec(text)?.[1];
+  const min = /export const MIN_RUNTIME_API_VERSION = (\d+);/.exec(text)?.[1];
+  if (version === undefined || min === undefined)
+    throw new Error(
+      `${versionSource} does not have the two version constants; restore it.`,
+    );
+  return { version: Number(version), min: Number(min) };
+}
+
 describe('the runtime API', () => {
   it('finds declarations without their comments', () => {
     const found = declarations(`
@@ -114,28 +192,53 @@ describe('the runtime API', () => {
     );
   });
 
-  it('is the contract runtime-api.json records for its version', () => {
-    const now = {
-      version: RUNTIME_API_VERSION,
-      min: MIN_RUNTIME_API_VERSION,
+  it('is the contract runtime-api.json records for the pending release', () => {
+    const raw = JSON.parse(readFileSync(record, 'utf8')) as RuntimeApiRecord;
+    checkMetadata(raw);
+    const now: RuntimeApiRecord = {
+      released: raw.released,
+      min: raw.min,
+      next: raw.next,
       declarations: current(),
     };
-    if (process.env['UPDATE_RUNTIME_API'] === '1')
-      writeFileSync(record, `${JSON.stringify(now, null, 2)}\n`);
-    const recorded = JSON.parse(readFileSync(record, 'utf8')) as typeof now;
     const changed = [
       ...new Set([
         ...Object.keys(now.declarations),
-        ...Object.keys(recorded.declarations),
+        ...Object.keys(raw.declarations),
       ]),
-    ].filter((name) => now.declarations[name] !== recorded.declarations[name]);
+    ].filter((name) => now.declarations[name] !== raw.declarations[name]);
     expect(
       changed,
-      `The runtime API's contract changed: ${changed.join(', ')}. If a runtime could notice, raise RUNTIME_API_VERSION (and MIN_RUNTIME_API_VERSION for a break; tag a new config field in CONFIG_FEATURES). Then record it: UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`,
+      `The runtime API's contract changed: ${changed.join(', ')}. If runtimes can notice, set "next" in packages/config/runtime-api.json to "raise" (a compatible addition; tag a new config field in CONFIG_FEATURES) or "break" (older runtimes cannot run). If they cannot, re-record without a pending change. Then: UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`,
     ).toEqual([]);
-    expect({ version: now.version, min: now.min }).toEqual({
-      version: recorded.version,
-      min: recorded.min,
-    });
+    const versions = pendingVersions(now);
+    if (process.env['UPDATE_RUNTIME_API'] === '1') {
+      writeFileSync(
+        record,
+        `${JSON.stringify(
+          {
+            released: now.released,
+            min: now.min,
+            next: now.next,
+            declarations: now.declarations,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      writeFileSync(
+        versionSource,
+        writeVersionSource(versions, readFileSync(versionSource, 'utf8')),
+      );
+    } else {
+      expect(
+        versionConstants(readFileSync(versionSource, 'utf8')),
+        `src/version.ts's constants are not what the record derives (${versions.version}/${versions.min}). The file is written from runtime-api.json; run UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test, and never edit the numbers by hand.`,
+      ).toEqual(versions);
+      expect({
+        version: RUNTIME_API_VERSION,
+        min: MIN_RUNTIME_API_VERSION,
+      }).toEqual(versions);
+    }
   });
 });

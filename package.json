@@ -21,7 +21,7 @@
     "test:native": "turbo run test:native",
     "test": "turbo run test --filter=!./examples/* --filter=!./tools/* --filter=!@soundor/react-tests",
     "test:watch": "turbo run dev test:watch --parallel --filter=!./examples/* --filter=!./tools/* --filter=!@soundor/react-tests",
-    "version": "changeset version && pnpm install --lockfile-only"
+    "version": "changeset version && node scripts/resolve-release.mjs && pnpm install --lockfile-only"
   },
   "devDependencies": {
     "@changesets/changelog-github": "catalog:",

@@ -164,9 +164,11 @@ Regenerating checked-in generated files:
 - `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` — the runtime API
   contract in `packages/config/runtime-api.json`, after a change to what
   runtimes depend on (the `Runtime` interface, its context, the config they
-  receive, the error protocol). Decide first whether runtimes could notice and
-  raise `RUNTIME_API_VERSION` if so (see `contribute/compatibility.md`); the
-  record holds the version too.
+  receive, the error protocol). Decide first whether runtimes could notice,
+  set `"next"` (`"raise"`, or `"break"` if older runtimes cannot run) in the
+  record if so, then run the command: it writes the contract's hashes and the
+  version numbers in `src/version.ts` (see `contribute/versions.md`); the
+  release resolves the number.
 - `pnpm --filter @soundor/juce-runtime gen:webgl` — the WebGL bindings and
   their declarations, `packages/environment/webgl.d.ts`. The other
   `packages/environment/*.d.ts` are written by hand.
@@ -306,10 +308,13 @@ version of what runtimes depend on (the `Runtime` interface, its context, the
 config they receive, the error protocol), not of the packages: `defineRuntime()`
 records it, and `resolveRuntime()` refuses a runtime outside
 `MIN_RUNTIME_API_VERSION`…`RUNTIME_API_VERSION` before any phase. Changing that
-contract fails `runtime-api.test.ts`: raise the version if runtimes could
-notice (both for a break; tag a new config field in `CONFIG_FEATURES`), then
-`UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test`. See
-`contribute/compatibility.md`.
+contract fails `runtime-api.test.ts`: set the record's `next` (`"raise"`, or
+`"break"` if older runtimes cannot run) if runtimes could notice (tag a new
+config field in `CONFIG_FEATURES` with `since: NEXT_API_VERSION`), then
+`UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` — the release
+resolves the shipped number (`scripts/resolve-release.mjs`, run by
+`pnpm run version`). Docs annotations for new APIs are `@since next`
+(`scripts/check-since.mjs` guards them). See `contribute/versions.md`.
 
 ### Accessibility
 

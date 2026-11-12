@@ -17,17 +17,21 @@ depend on does.
 
 - `packages/core/src/errors.ts`: the error protocol, `isSoundorError()` and
   `RuntimeCompatibilityError`.
-- `packages/config/src/version.ts`: `RUNTIME_API_VERSION` and
-  `MIN_RUNTIME_API_VERSION`; `compatibility.ts`: `checkRuntimeCompatibility()`,
+- `packages/config/src/version.ts`: the version numbers, written from the
+  record; `compatibility.ts`: `checkRuntimeCompatibility()`,
   which `resolveRuntime()` calls, and `CONFIG_FEATURES`; `project.ts`: the
   project's `@soundor/config` check.
-- `packages/config/runtime-api.json`: the contract the version describes,
+- `packages/config/runtime-api.json`: the record the versions follow — the
+  contract's hashes and the release metadata (`released`, `min`, `next`) —
   checked by `src/__tests__/runtime-api.test.ts`.
 - `packages/runtime-sdk/src/runtime.ts`: `defineRuntime()`, which gives a
   runtime its API version; `copies.test.ts`: separately installed copies
   working together.
 - `packages/cli/scripts/runtime-consumer-smoke.mjs`: the runtimes installed
   from their tarballs.
+- `scripts/resolve-release.mjs` and `scripts/check-since.mjs`: what the
+  release and CI resolve; [Controlling versions](/docs/contribute/versions)
+  is the guide to them.
 
 ## How it works
 
@@ -106,7 +110,7 @@ compiles anything. A runtime outside the host's range is refused
 (`INCOMPATIBLE_RUNTIME`, exit code 4):
 
 ```text
-Runtime 'acme' implements runtime API 5, newer than this soundor (@soundor/config 0.18.0), which runs runtime API 3 to 4.
+Runtime 'acme' implements runtime API 3, newer than this soundor (@soundor/config 0.18.0), which runs runtime API 2.
 Upgrade soundor and @soundor/config to a release the runtime is made for, or use an older release of the runtime.
 ```
 
@@ -144,15 +148,24 @@ each of its declarations (comments excluded) in
 `packages/config/runtime-api.json`. Whoever makes the change decides:
 
 - **runtimes cannot notice** (a rename of a private type, a stricter check):
-  record it, the version stays;
+  record it, no pending change, the version stays;
 - **a compatible addition** (a context field, an optional config field):
-  raise `RUNTIME_API_VERSION` and keep `MIN_RUNTIME_API_VERSION`; tag a new
-  config field in `CONFIG_FEATURES`; runtimes made for older versions run on;
-- **a break** (a removed or changed field, a new requirement): raise both.
+  record `"next": "raise"` and keep `min`; tag a new config field in
+  `CONFIG_FEATURES` with `since: NEXT_API_VERSION`; runtimes made for older
+  versions run on;
+- **a break** (a removed or changed field, a new requirement): record
+  `"next": "break"`. Older runtimes are refused, so the shipped version
+  becomes `min`.
 
-Then `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` records it.
-Only change the version in a release with a minor changeset (before 1.0), so
-that copies of one release line agree. The first-party runtimes' tests
+Then `UPDATE_RUNTIME_API=1 pnpm --filter @soundor/config test` re-records
+the declarations and writes the version numbers in `version.ts` — the file
+is written from the record, never hand-edited. While the change is pending
+the workspace already runs as the version it will ship. The release resolver
+ships it as `released + 1`, advancing the record; a break raises `min` with
+it; and a pending change ships only in a minor release before 1.0 (a major
+from 1.0 on), which the resolver enforces.
+[Controlling versions](/docs/contribute/versions) is the full guide. The
+first-party runtimes' tests
 check that they implement the version they are built with; a runtime must
 be checked against a raise, and released with it if it implements what the
 raise adds.
