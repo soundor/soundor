@@ -11,6 +11,9 @@ execute_process(COMMAND "${SOUNDOR_NODE_EXE}" --input-type=module -e
 get_filename_component(engine_dir "${engine_package}" DIRECTORY)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(SOUNDOR_JUCE_CLANG_TIDY "Check JUCE adapters and tests with clang-tidy" OFF)
+# Apply directory-wide sanitizer flags here so they reach both the engine
+# and its sibling JUCE adapters, including JUCE's modules and test executables.
+include("${engine_dir}/cmake/SoundorCompilerOptions.cmake")
 enable_testing()
 add_subdirectory("${engine_dir}" engine)
 if(SOUNDOR_JUCE_TESTS)
