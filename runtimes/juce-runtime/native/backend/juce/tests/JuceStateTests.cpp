@@ -7,6 +7,7 @@
 #include <soundor/js/Context.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Runtime.h>
+#include <soundor/runtime/RuntimeHost.h>
 
 #include <doctest/doctest.h>
 
@@ -782,4 +783,38 @@ TEST_CASE("the processor's native channels carry the audio thread's latest value
     audio.join();
     CHECK(js::deliverChannels(context) == 1);
     CHECK(context.evaluateScript("seen.join()").value().asString() == "3:3/0.5");
+}
+
+TEST_CASE("RuntimeHost::tick delivers state and History notifications through dispatchModules")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    RuntimeHost::Options options;
+    options.installModules = [&processor](js::Context& context)
+    {
+        history::install(context, processor.stateHistory);
+        persistent::install(context, processor.state);
+    };
+    options.dispatchModules = [](js::Context& context)
+    {
+        history::dispatch(context);
+        persistent::dispatch(context);
+    };
+    RuntimeHost host(std::move(options));
+    REQUIRE(host.context()
+                .evaluateModule("(function(exports, require) { const { state } = require('soundor:state');"
+                                "const { stateHistory } = require('soundor:state-history');"
+                                "globalThis.state = state; globalThis.seen = [];"
+                                "state.selectedPreset.subscribe((v) => seen.push('preset ' + v));"
+                                "stateHistory.subscribe((s) => seen.push('undo ' + s.canUndo)); })",
+                                "/ui.js")
+                .ok());
+    processor.state.selectedPreset.set(std::string("Warm"), history::Options(true));
+    // A field nobody subscribed to: delivered to nobody, read as it is.
+    processor.state.enabled.set(false);
+    CHECK(host.context().evaluateScript("seen.join()").value().asString().empty());
+    host.tick();
+    CHECK(host.context().evaluateScript("seen.join()").value().asString() == "undo true,preset Warm");
+    CHECK(host.context().evaluateScript("String(state.enabled.get())").value().asString() == "false");
+    CHECK(host.statistics().tick.modules > 0);
 }

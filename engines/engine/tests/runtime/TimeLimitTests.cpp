@@ -160,4 +160,24 @@ TEST_SUITE("time limit")
         f.eval("globalThis.ticks = 0; setInterval(() => { globalThis.ticks++; " + busyFor(20) + " }, 0);");
         REQUIRE(f.tickUntil("globalThis.ticks >= 20"));
     }
+
+    TEST_CASE("a backend's module notifications share the tick's limit")
+    {
+        // Four notifications of 150 ms each: within a 400 ms limit one by
+        // one, but not as one tick.
+        RuntimeHost::Options options;
+        options.runtime.timeLimit = 400ms;
+        options.dispatchModules = [](js::Context& context)
+        {
+            for (int index = 0; index < 4; ++index)
+                static_cast<void>(context.evaluateScript(busyFor(150)));
+        };
+        WebFixture f(std::move(options));
+        const auto took = timed([&] { f.host.tick(); });
+        CHECK(took < 1s);
+        // Stopped: the context fails from then on.
+        const auto after = f.host.context().evaluateScript("1");
+        REQUIRE_FALSE(after.ok());
+        checkStopped(after.error());
+    }
 }

@@ -59,6 +59,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::filesystem::path dataDirectory;
             // Installs further modules (e.g. the generated `soundor:native`).
             std::function<void(js::Context&)> installModules;
+            // Delivers what those modules queued for JavaScript since the
+            // last tick (a runtime's state and history notifications): tick()
+            // calls it right after the parameter changes, under the tick's
+            // time limit, and times it (TickStatistics::modules). Optional.
+            std::function<void(js::Context&)> dispatchModules;
             // The plugin's UI files (its JavaScript bundle and assets). With
             // them, the context loads modules from these resources.
             std::shared_ptr<const platform::Resources> resources;
@@ -88,6 +93,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::uint64_t ticks = 0;
             std::uint64_t web = 0;              // timers, finished async work (fetch, files)
             std::uint64_t parameters = 0;       // parameter and host changes
+            std::uint64_t modules = 0;          // Options::dispatchModules
             std::uint64_t events = 0;           // soundor:native events
             std::uint64_t channels = 0;         // soundor:native channels
             std::uint64_t jobs = 0;             // promise jobs
@@ -115,8 +121,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         RuntimeHost& operator=(RuntimeHost&&) = delete;
 
         // Settles finished asynchronous work (fetch, files), runs due timers,
-        // delivers parameter and host changes, native events and the latest
-        // values of native channels, runs animation frame callbacks
+        // delivers parameter and host changes, the notifications of the
+        // backend's modules (Options::dispatchModules), native events and the
+        // latest values of native channels, runs animation frame callbacks
         // (requestAnimationFrame), then runs pending jobs.
         void tick();
 
@@ -169,6 +176,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::unique_ptr<js::Context> jsContext;
         js::Result<void> entryOutcome;
         bool hasParameters;
+        std::function<void(js::Context&)> dispatchModules;
         std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
         long long blinkPhase = -1;
         TickStatistics ticked;

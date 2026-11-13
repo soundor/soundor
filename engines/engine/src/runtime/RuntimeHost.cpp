@@ -42,7 +42,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
           semantics(std::make_unique<a11y::SurfaceSemantics>(*uiSurface)),
           jsRuntime(std::make_unique<js::Runtime>(options.runtime)),
           jsContext(std::make_unique<js::Context>(*jsRuntime, js::ContextOptions { loaderFor(options) })),
-          hasParameters(options.parameters != nullptr)
+          hasParameters(options.parameters != nullptr),
+          dispatchModules(std::move(options.dispatchModules))
     {
         if (options.animationClock)
             uiSurface->animations().setClock(std::move(options.animationClock));
@@ -106,6 +107,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         {
             parameters::dispatchChanges(*jsContext);
             lap(ticked.parameters);
+        }
+        // The backend's own modules (state, history): in the order their
+        // changes were made, next to the parameters', under the same limit.
+        if (dispatchModules)
+        {
+            dispatchModules(*jsContext);
+            lap(ticked.modules);
         }
         // What native code published (soundor:native events) since the last
         // tick.

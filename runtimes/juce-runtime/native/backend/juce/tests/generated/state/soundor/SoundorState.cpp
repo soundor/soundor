@@ -421,9 +421,11 @@ void dispatch(js::Context& context) {
   if (view == nullptr || ctx.halted()) return;
   for (const auto& event : view->state.storage().drain()) {
     const auto field = event.restored ? std::string() : event.field;
-    const auto value = event.restored ? jsi::Value::undefined() : valueFor(ctx, field, event.value);
     std::vector<const Listener*> entries;
     for (const auto& entry : view->listeners) if (entry.active && entry.field == field) entries.push_back(&entry);
+    // Nobody listens to the field: its value is not converted.
+    if (entries.empty()) continue;
+    const auto value = event.restored ? jsi::Value::undefined() : valueFor(ctx, field, event.value);
     for (const auto* entry : entries) {
       const auto* retained = bind::retainedValue(ctx, entry);
       if (!entry->active || retained == nullptr || !bind::isFunction(ctx, *retained)) continue;
