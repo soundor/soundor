@@ -8,6 +8,7 @@ import {
   assetId,
   bundleUi,
   findUiEntry,
+  isSourceChange,
   type UiBundle,
   watchUi,
 } from './bundle';
@@ -398,6 +399,36 @@ describe('bundleUi', () => {
       `import { missing } from './nowhere';\nmissing();`,
     );
     await expect(bundle()).rejects.toThrow(/nowhere/);
+  });
+});
+
+describe('source change filtering', () => {
+  it('ignores events without filenames on every platform', () => {
+    for (const platform of ['win32', 'darwin', 'linux'] as const)
+      expect(isSourceChange(null, platform)).toBe(false);
+  });
+
+  it.each([
+    '.soundor/cache/juce/build-debug/generated.cpp',
+    '.SOUNDOR\\dev\\ui.log',
+    'Build\\generated.cpp',
+    'DIST/bundle.mjs',
+    'NODE_MODULES\\package\\index.js',
+    'Runtimes/juce/CMakeLists.txt',
+  ])('ignores Windows output changes in %s', (file) => {
+    expect(isSourceChange(file, 'win32')).toBe(false);
+  });
+
+  it('keeps source paths with either Windows separator and preserves POSIX case', () => {
+    for (const file of [
+      'src/main.tsx',
+      'src\\main.tsx',
+      'Assets/logo.svg',
+      'package.json',
+    ])
+      expect(isSourceChange(file, 'win32')).toBe(true);
+    expect(isSourceChange('Build/component.ts', 'linux')).toBe(true);
+    expect(isSourceChange('build/component.ts', 'linux')).toBe(false);
   });
 });
 

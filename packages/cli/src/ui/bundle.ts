@@ -21,7 +21,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, watch as watchFiles } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { extname, join, relative, resolve, sep } from 'node:path';
+import { extname, join, relative, resolve } from 'node:path';
 
 import { build, type TsdownPlugin } from 'tsdown';
 
@@ -230,11 +230,24 @@ export interface UiWatcher {
 }
 
 /** Directories of a project that never hold UI sources. */
-const IGNORED = new Set(['node_modules', 'dist', 'build', 'runtimes']);
+const IGNORED = new Set([
+  '.soundor',
+  'node_modules',
+  'dist',
+  'build',
+  'runtimes',
+]);
 
-function isSourceChange(file: string | null): boolean {
-  if (file === null) return true;
-  const top = file.split(sep)[0]!;
+export function isSourceChange(
+  file: string | null,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  // Windows can omit filenames during rename bursts in generated output.
+  // Rebuilding for those events feeds our own writes back into the watcher.
+  if (file === null) return false;
+  const path =
+    platform === 'win32' ? file.replaceAll('\\', '/').toLowerCase() : file;
+  const top = path.split('/')[0]!;
   return !top.startsWith('.') && !IGNORED.has(top);
 }
 

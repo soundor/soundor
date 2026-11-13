@@ -52,6 +52,12 @@ replaces its JavaScript runtime with a fresh one: timers, subscriptions, open
 parameter and state gestures and pending work of the old UI all end. State lives in the
 plugin (parameters) or in `soundor:storage`, so it survives a reload.
 
+The UI watcher ignores top-level hidden directories (including `.soundor`),
+`node_modules`, `dist`, `build` and `runtimes`. On Windows, these checks ignore
+case and accept either path separator. Filesystem events without a filename are
+ignored: generated-file rename bursts can produce them, and rebuilding for them
+would let the build trigger itself.
+
 - A failed build is reported in the terminal; the plugin keeps running the last
   good build.
 - The plugin's `console` output and uncaught errors appear in the terminal,
