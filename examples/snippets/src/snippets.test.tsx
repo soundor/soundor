@@ -54,9 +54,9 @@ test('snippets use the parameters of every type', async () => {
   const user = userEvent.setup();
   const Parameters = snippets['parameters']!;
   await render(<Parameters />);
-  await user.click(screen.getByRole('button', { name: 'warm' }));
+  await user.click(screen.getByRole('button', { name: 'Warm' }));
   expect(
-    screen.getByRole('button', { name: 'warm', selected: true }),
+    screen.getByRole('button', { name: 'Warm', selected: true }),
   ).toBeDefined();
   await user.click(screen.getByRole('button', { name: 'Off' }));
   expect(screen.getByRole('button', { name: 'On' })).toBeDefined();
