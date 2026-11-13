@@ -154,5 +154,10 @@ export const fixtureConfig = {
       levels: { values: 'buffer<float32>', curve: 'Curve' },
       ready: {},
     },
+    channels: {
+      spectrum: { type: 'buffer<float32>', maxLength: 4 },
+      level: { type: 'float32' },
+      frames: { type: 'uint64' },
+    },
   },
 } as const;

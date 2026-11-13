@@ -442,11 +442,100 @@ per event taking `events::<Name>`, the struct of its value. It derives from
   was published and dropped. So a closed, hidden or stalled UI never makes
   memory grow, and a UI never sees an event from before it connected.
 - **Not realtime-safe:** publishing allocates and locks. Events are for
-  discrete notifications; data the audio thread produces continuously needs
-  a lock-free handoff of its own.
+  discrete notifications; data the audio thread produces continuously goes
+  through a channel.
 
 The web runtime delivers with the same rules (`web-runtime/src/client/native-events.ts`):
 the generated contract's `events` publishes, a `setTimeout` delivers.
+
+#### Channels
+
+`native.channels` adds `soundor::native::Channels`, a struct with one member
+per channel: `js::ValueChannel<T>` for a number, `js::BufferChannel<T>` (its
+`maxLength` given in the member's initializer) for a buffer. Both are
+`js/Channels.h`, header-only on the publishing side so it inlines into the
+audio callback:
+
+- **A triple buffer.** A channel has three slots, each with storage for
+  `maxLength` elements, its length and its sequence number, allocated when
+  the channel is made. The producer owns one (`back`), the UI thread one
+  (`front`), and the third (`middle`) is the one handed between them: an
+  atomic word holding its index and a _fresh_ bit. Publishing writes the
+  value into `back` (`publish()` copies; `buffer()` is `back` itself, written
+  in place, then `commit(length)`), numbers it, and exchanges `back` with
+  `middle`, setting _fresh_. The UI, when _fresh_ is set, exchanges `front`
+  with `middle`, clearing it. Each side only ever touches the slot it owns,
+  so neither waits for the other, and the UI never reads a slot the producer
+  is writing: a double buffer cannot promise that, since the producer would
+  have to wait for the UI to let go of the other slot.
+- **Memory order.** Both exchanges are acquire-release: the producer's
+  release publishes the slot's contents to the UI's acquire, and the UI's
+  release orders its reads of the slot it gives back before the producer's
+  acquire of it, and so before any write to it.
+- **Realtime-safe:** publishing is a copy into memory the producer owns, two
+  plain stores and one atomic exchange (`std::atomic<std::uint32_t>`,
+  checked lock-free at compile time), plus a relaxed counter. No lock, no
+  allocation, no system call, no JavaScript. The producer side assumes one
+  thread at a time (a host moving the audio callback between threads still
+  runs one at a time); the UI side runs on the UI thread only.
+- **Connecting.** `install(context, api, events, channels)` gives the
+  context a connection holding each channel's shared state and the sequence
+  number of the value it last received (`bind::connectChannels`). The state
+  is shared: a channel and its contexts may go in either order. The
+  module's initializer (`bind::installChannels`) creates the JavaScript
+  `channels` (`src/modules/native/channels.js`) and sets each to the value
+  published last, so a UI that opens or reloads starts with it.
+- **Delivering.** `RuntimeHost::tick()` calls `js::deliverChannels()` after
+  the events: for each channel it takes the newest slot if there is one, and
+  if its sequence number is newer than the context's, copies it into a typed
+  array JavaScript owns (one allocation and one copy, the size of the value;
+  numbers are a `jsi::Value`) and calls the module's update function, which
+  sets `get()`'s value and calls the subscribers. Several contexts of one
+  channel (several editors) each receive the newest; the slot stays the
+  UI's until a newer one is taken, at their next tick.
+- **Coalescing.** Values published between two takes replace each other in
+  `back` and `middle`; nothing is queued, so a closed, hidden or stalled UI
+  costs nothing and holds three slots. `Channel::statistics()` counts what
+  was published and taken; JavaScript sees the gaps in sequence numbers.
+- **Runtime-independent.** Nothing here knows JUCE: the generated
+  `native::Channels` and `native::Events` and `install()` are the engine's,
+  and a runtime only owns them (the JUCE processor's `nativeChannels`) and
+  installs them into each context it creates. Another plugin framework's
+  runtime, iPlug2's for instance, would do the same from its own processor
+  and editor, publishing from its own audio callback.
+
+`tests/native/NativeChannelsTests.cpp` checks the semantics, and has a
+producer thread publishing values that carry their own number and length
+while the UI delivers, checking every element of every value received, with
+and without JavaScript.
+
+`soundor_channel_benchmark` (`tests/tools/ChannelBenchmark.cpp`, built by
+the `bench` preset, and run briefly by ctest, where it fails if publishing
+allocates or a value arrives torn) measures a producer thread publishing at
+a fixed rate and a UI thread ticking and delivering to a subscriber. In a
+Release build on a 4-core laptop CPU (Linux, 2 s per row):
+
+| Producer | Value                    | UI                    | Published | Delivered | Coalesced | Publish (mean) | Deliver (per value) | Latency p50 / p99 |
+| -------- | ------------------------ | --------------------- | --------- | --------- | --------- | -------------- | ------------------- | ----------------- |
+| 60 Hz    | `float32`                | 60 Hz                 | 120       | 103       | 17        | 198 ns         | 10.6 µs             | 0.06 / 16.7 ms    |
+| 60 Hz    | `buffer<float32>` × 2048 | 60 Hz                 | 120       | 103       | 17        | 505 ns         | 16.0 µs             | 16.6 / 16.7 ms    |
+| 120 Hz   | `buffer<float32>` × 256  | 60 Hz                 | 240       | 119       | 121       | 264 ns         | 13.5 µs             | 0.09 / 8.4 ms     |
+| 375 Hz   | `float32`                | 60 Hz                 | 750       | 119       | 631       | 113 ns         | 8.8 µs              | 1.35 / 2.7 ms     |
+| 375 Hz   | `buffer<float32>` × 2048 | 60 Hz                 | 751       | 119       | 632       | 319 ns         | 15.6 µs             | 1.33 / 2.7 ms     |
+| 375 Hz   | `buffer<float32>` × 2048 | 15 Hz                 | 751       | 29        | 722       | 303 ns         | 25.5 µs             | 0.09 / 2.7 ms     |
+| 375 Hz   | `buffer<float32>` × 2048 | 60 Hz, 30 ms listener | 760       | 67        | 693       | 319 ns         | (30 ms listener)    | 31.3 / 32.6 ms    |
+
+- Publishing includes writing the value (2048 floats is 8 KiB) and two clock
+  reads; it never allocated. Its rare maxima, a few microseconds, are the
+  thread being preempted, not the channel.
+- Delivering a value is about 9 µs of JavaScript call and conversion plus
+  the copy: 2048 floats add about 6 µs. Hermes allocates the typed array; the
+  publisher never does.
+- Latency is from the start of the publication delivered to its subscriber
+  returning: at most a tick plus the delivery, less when the producer
+  publishes more often than the UI ticks, since the newest value is always
+  the one taken. A UI slower than the producer, or a subscriber that takes
+  30 ms, only skips more values; the producer's cost is unchanged.
 
 The generator's output for a fixture covering every type is checked in under
 `tests/generated` and compiled by the native tests. A TypeScript test fails if
@@ -1186,7 +1275,7 @@ profiling and benchmarks; take differences for a frame or a phase. Counting is
 always on and costs an increment:
 
 - **`tick`:** the time each step of `tick()` took: Web timers and finished
-  async work, parameter changes, native events, promise jobs, animation frame callbacks,
+  async work, parameter changes, native events, native channels, promise jobs, animation frame callbacks,
   showing what WebGL drew.
 - **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
   and WebGL, counted at their native entry points. With

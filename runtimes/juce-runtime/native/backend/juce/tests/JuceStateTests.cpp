@@ -3,12 +3,14 @@
 
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
+#include <soundor/js/Channels.h>
 #include <soundor/js/Context.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Runtime.h>
 
 #include <doctest/doctest.h>
 
+#include <span>
 #include <thread>
 
 namespace
@@ -18,6 +20,7 @@ namespace
     {
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
+        using AudioProcessor::nativeChannels;
         using AudioProcessor::nativeEvents;
         using AudioProcessor::state;
         using AudioProcessor::stateHistory;
@@ -733,7 +736,7 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
                                 "globalThis.seen = [];"
@@ -749,4 +752,34 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     worker.join();
     CHECK(js::deliverEvents(context) == 1);
     CHECK(context.evaluateScript("seen.join()").value().asString() == "2:440");
+}
+
+TEST_CASE("the processor's native channels carry the audio thread's latest value to the UI")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    js::Runtime runtime;
+    js::Context context(runtime);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
+    REQUIRE(context
+                .evaluateModule("(function (exports, require) { const { channels } = require('soundor:native');"
+                                "globalThis.seen = [];"
+                                "channels.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
+                                "/ui.js")
+                .ok());
+    // As process() would, on another thread: in place, without allocating.
+    std::thread audio(
+        [&processor]
+        {
+            for (int block = 1; block <= 3; ++block)
+            {
+                const std::span<float> levels = processor.nativeChannels.meter.buffer();
+                levels[0] = static_cast<float>(block);
+                levels[1] = 0.5F;
+                processor.nativeChannels.meter.commit(2);
+            }
+        });
+    audio.join();
+    CHECK(js::deliverChannels(context) == 1);
+    CHECK(context.evaluateScript("seen.join()").value().asString() == "3:3/0.5");
 }

@@ -116,4 +116,32 @@ declare module 'soundor:native' {
     readonly presetLoaded: NativeEvent<{ path: string; preset: Preset | null }>;
     readonly ready: NativeEvent<Record<string, never>>;
   };
+
+  /**
+   * A value native code keeps publishing, of which the UI receives the latest:
+   * at most once a frame, the values published in between skipped. `get` and
+   * `subscribe` need no `this` (`useSyncExternalStore(c.subscribe, c.get)`).
+   */
+  export interface NativeChannel<T> {
+    /**
+     * The latest value the UI received; the same one until a newer arrives,
+     * and undefined until native code published one. A UI opened later starts
+     * with the value published last. Treat it as read-only: subscribers and
+     * `get()` share it.
+     */
+    get(): T | undefined;
+    /**
+     * Calls `listener` with each newer value from now on, until the function
+     * it returns is called. `sequence` counts native code's publications
+     * (1 for the first): a gap is how many were skipped.
+     */
+    subscribe(listener: (value: T, sequence: number) => void): () => void;
+  }
+
+  /** The channels declared under `native.channels`. */
+  export const channels: {
+    readonly frames: NativeChannel<bigint>;
+    readonly level: NativeChannel<number>;
+    readonly spectrum: NativeChannel<Float32Array>;
+  };
 }

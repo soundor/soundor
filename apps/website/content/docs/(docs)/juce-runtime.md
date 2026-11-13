@@ -342,6 +342,29 @@ logging how many; with no editor open, events are dropped. A publisher
 returns whether an editor took the event. The audio callback should not
 publish (it allocates): hand what it has to another thread first.
 
+Channels declared under `native.channels` are the processor's
+`nativeChannels` (a `soundor::native::Channels`, one member per channel: a
+`js::ValueChannel<T>` for a number, a `js::BufferChannel<T>` for a buffer),
+which the audio callback can publish to:
+
+```cpp
+void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
+{
+    // ...
+    nativeChannels.peak.publish(peakDecibels);
+    const std::span<float> bins = nativeChannels.spectrum.buffer();
+    computeSpectrum(bins);
+    nativeChannels.spectrum.commit(bins.size());
+}
+```
+
+Publishing takes no lock, never allocates and never waits: it writes into a
+slot of storage allocated when the processor was made and hands it over with
+one atomic exchange. One thread at a time publishes a channel. Each editor's
+runtime takes the newest value of every channel at its tick, on the message
+thread; values in between are skipped, so with no editor open, or a slow one,
+nothing accumulates. See [`soundor:native`](/docs/api/native#channels).
+
 JavaScript imports the methods from `soundor:native` with full types (from
 `.soundor/generated/native.d.ts`). Buffer arguments are lent to C++ without
 copying, every other value is converted and checked, and a C++ exception becomes

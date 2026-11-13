@@ -1,0 +1,22 @@
+{
+  // The Web host's code runs in the browser: DOM and Web Audio types, and the
+  // soundor:* modules declared from soundor.config.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src",
+    "../../.soundor/generated/native.d.ts",
+    "../../.soundor/generated/parameters.d.ts",
+    "../../.soundor/generated/platform.d.ts"
+  ]
+}

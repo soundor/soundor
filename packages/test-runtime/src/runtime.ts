@@ -45,6 +45,15 @@ export class TestRuntime {
   private readonly nativeMethods?: ReadonlySet<string>;
   private readonly nativeEvents?: ReadonlySet<string>;
   private readonly nativeEventListeners = new Map<string, Listeners<unknown>>();
+  private readonly nativeChannelNames?: ReadonlySet<string>;
+  private readonly nativeChannelStates = new Map<
+    string,
+    {
+      value: unknown;
+      sequence: number;
+      listeners: Listeners<{ value: unknown; sequence: number }>;
+    }
+  >();
   private focused: TestNode | null = null;
   /**
    * Whether the focused node shows its focus, and whether the last input
@@ -102,6 +111,8 @@ export class TestRuntime {
     this.nativeMethods =
       options.nativeMethods && new Set(options.nativeMethods);
     this.nativeEvents = options.nativeEvents && new Set(options.nativeEvents);
+    this.nativeChannelNames =
+      options.nativeChannels && new Set(options.nativeChannels);
     this.native = Object.assign(Object.create(null), options.native);
     this.hostState = Object.freeze({
       sampleRate: 48000,
@@ -954,6 +965,46 @@ export class TestRuntime {
   emitNativeEvent(name: string, value: unknown = {}) {
     this.assertActive();
     this.nativeEvent(name).notify(value);
+  }
+  private nativeChannel(name: string) {
+    if (this.nativeChannelNames && !this.nativeChannelNames.has(name))
+      throw new Error(`Unknown soundor:native channel '${name}'`);
+    let state = this.nativeChannelStates.get(name);
+    if (state === undefined) {
+      state = { value: undefined, sequence: 0, listeners: new Listeners() };
+      this.nativeChannelStates.set(name, state);
+    }
+    return state;
+  }
+  /** What `channels.<name>.get()` of soundor:native returns. */
+  nativeChannelValue(name: string): unknown {
+    this.assertActive();
+    return this.nativeChannel(name).value;
+  }
+  /** What `channels.<name>.subscribe()` of soundor:native does. */
+  subscribeNativeChannel(
+    name: string,
+    listener: (value: unknown, sequence: number) => void,
+  ) {
+    this.assertActive();
+    if (typeof listener !== 'function')
+      throw new TypeError(`channels.${name}.subscribe() expects a function`);
+    return this.nativeChannel(name).listeners.add(
+      ({ value, sequence }) => listener(value, sequence),
+      `channels.${name}.subscribe()`,
+    );
+  }
+  /**
+   * Publishes a declared native channel's latest value, as the plugin's
+   * native code does: `get()` returns it and its subscribers receive it now,
+   * numbered (the runtimes deliver the newest at their next tick).
+   */
+  publishNativeChannel(name: string, value: unknown) {
+    this.assertActive();
+    const state = this.nativeChannel(name);
+    state.value = value;
+    state.sequence += 1;
+    state.listeners.notify({ value, sequence: state.sequence });
   }
   callNative(name: string, args: never[]) {
     this.assertActive();

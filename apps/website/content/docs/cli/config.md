@@ -325,6 +325,29 @@ Event names are camelCase; `events`, `publish`, `statistics` and `hub` are
 taken, and no method can be called `events`. See
 [`soundor:native`](/docs/api/native#events) for how they are delivered.
 
+`channels` declares values native code keeps publishing, of which the UI
+reads the latest: each one number (`int8` … `float64`) or a `buffer<T>` of
+numbers, which needs `maxLength`, the most elements one value holds (1 to
+16777216; the storage for it is allocated once, so publishing never does):
+
+```ts
+native: {
+  channels: {
+    spectrum: { type: 'buffer<float32>', maxLength: 512 },
+    peak: { type: 'float32' },
+  },
+}
+```
+
+| Channel `type`    | TypeScript (`get()`) | C++ (`native::Channels` member)   |
+| ----------------- | -------------------- | --------------------------------- |
+| `float32`         | `number`             | `js::ValueChannel<float>`         |
+| `uint64`          | `bigint`             | `js::ValueChannel<std::uint64_t>` |
+| `buffer<float32>` | `Float32Array`       | `js::BufferChannel<float>`        |
+
+Channel names are camelCase, and no method can be called `channels`. See
+[`soundor:native`](/docs/api/native#channels) for how they are delivered.
+
 ### `signing`
 
 How runtimes sign the binaries they build. Optional; nothing here is secret.

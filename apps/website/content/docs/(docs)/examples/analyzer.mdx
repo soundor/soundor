@@ -1,0 +1,120 @@
+---
+title: 'Analyzer'
+description: 'A spectrum analyzer: native channels carry the audio thread’s spectrum to a React UI.'
+---
+
+Source: [`examples/analyzer/`](https://github.com/soundor/soundor/tree/main/examples/analyzer).
+
+Run this page’s package-local commands from `examples/analyzer/`, unless noted otherwise.
+
+<Example name="analyzer" />
+
+A spectrum analyzer: the plugin's audio code publishes the spectrum and the
+peak of what it hears through [native channels](/docs/api/native#channels),
+and the React UI draws the newest once a frame. The same UI runs in both
+runtimes.
+
+```text
+soundor.config.ts   identity, both runtimes, two native channels:
+                    `spectrum` (buffer<float32>, 128 bands) and `peak`
+src/App.tsx         the plugin UI: draws each spectrum into a Canvas,
+                    shows the peak with useSyncExternalStore
+src/spectrum.ts     decibels to bar heights, bars that fall slowly
+
+runtimes/juce/      JUCE (C++): an FFT on the audio thread, written
+                    straight into the channel in PluginProcessor.cpp
+runtimes/web/       Web (TypeScript): an AnalyserNode read every animation
+                    frame in src/audio.ts
+```
+
+The config declares what the audio code publishes:
+
+```ts
+native: {
+  channels: {
+    spectrum: { type: 'buffer<float32>', maxLength: 128 },
+    peak: { type: 'float32' },
+  },
+},
+```
+
+## The audio thread publishes
+
+`PluginProcessor.cpp` keeps the last 2048 samples, and every 1024 it windows
+them, runs an FFT (`juce::dsp::FFT`) and sums the bins into 128 bands, written
+into the channel's own storage and then published whole:
+
+```cpp
+const std::span<float> spectrum = nativeChannels.spectrum.buffer();
+for (int band = 0; band < bands; ++band)
+    spectrum[band] = /* the band's level, in dB */;
+nativeChannels.spectrum.commit(bands);
+// ...
+nativeChannels.peak.publish(decibels(peak));
+```
+
+Both calls run on the audio thread: they take no lock, never allocate and
+never wait for the UI. The UI never sees a spectrum half written, and one it
+had no frame for is skipped, not queued: at 96 kHz the plugin publishes about
+94 spectra a second, and a 60 Hz UI draws 60 of them. With the editor closed
+nothing is delivered and nothing piles up.
+
+## The UI draws the latest
+
+```tsx
+useEffect(() => {
+  const show = (spectrum: Float32Array) => {
+    bars.current = hold(bars.current, spectrum, FALL);
+    draw(canvas.current!.getContext('2d')!, size, bars.current);
+  };
+  const latest = channels.spectrum.get();
+  if (latest !== undefined) show(latest);
+  return channels.spectrum.subscribe(show);
+}, [size]);
+```
+
+The spectrum is drawn from the channel's subscriber, without rendering React
+again; the peak is ordinary React state:
+
+```tsx
+const peak = useSyncExternalStore(channels.peak.subscribe, channels.peak.get);
+```
+
+## In the browser
+
+```sh
+pnpm dev:web     # soundor dev web: the host, with an inspector
+pnpm build:web   # soundor build web: a static site in .soundor/dist/web
+```
+
+Press ▶ to play the host's input. `runtimes/web/src/audio.ts` passes it
+through an `AnalyserNode`, reads it every animation frame and publishes the
+same channels through the generated contract:
+
+```ts
+import { channels } from '../../../.soundor/generated/runtimes/web/native';
+
+channels.spectrum.publish(spectrum); // copied: `spectrum` is reused
+channels.peak.publish(peakDecibels);
+```
+
+## As a JUCE plugin
+
+```sh
+pnpm dev          # soundor dev juce: a debug build, the VST3 opened in the host
+pnpm build:juce   # soundor build juce: VST3 and Standalone in .soundor/dist/juce
+```
+
+JUCE must be installed (see `soundor doctor`).
+
+## Tests
+
+```sh
+pnpm test
+pnpm typecheck
+pnpm build:web
+```
+
+The tests render `App` and publish channel values with
+[`publishChannel()`](/docs/testing/mock-native#channels), as the plugin's
+audio code would.

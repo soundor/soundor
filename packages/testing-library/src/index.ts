@@ -24,4 +24,5 @@ export {
   testEditor,
   mockNative,
   emitNative,
+  publishChannel,
 } from './setup';

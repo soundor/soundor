@@ -8,6 +8,7 @@
 import {
   BUFFER_ARRAY_TYPES,
   type NativeApiModel,
+  type NativeChannelModel,
   type NativeEventModel,
   type NativeType,
   type NativeTypeModel,
@@ -26,6 +27,7 @@ export function renderNativeDts(model: NativeApiModel): string {
       return `  export function ${method.name}(${args}): ${method.async ? `Promise<${result}>` : result};`;
     }),
     ...(model.events.length > 0 ? [renderEvents(model.events)] : []),
+    ...(model.channels.length > 0 ? [renderChannels(model.channels)] : []),
   ];
   const body = blocks.length > 0 ? `\n${blocks.join('\n\n')}\n` : '\n';
   return `${HEADER}declare module 'soundor:native' {${body}}\n`;
@@ -55,6 +57,46 @@ function renderEvents(events: readonly NativeEventModel[]): string {
   export const events: {
 ${members.join('\n')}
   };`;
+}
+
+/** `channels` and the interface its members share. */
+function renderChannels(channels: readonly NativeChannelModel[]): string {
+  const members = channels.map(
+    (channel) =>
+      `    readonly ${channel.name}: NativeChannel<${nativeTsChannelType(channel)}>;`,
+  );
+  return `  /**
+   * A value native code keeps publishing, of which the UI receives the latest:
+   * at most once a frame, the values published in between skipped. \`get\` and
+   * \`subscribe\` need no \`this\` (\`useSyncExternalStore(c.subscribe, c.get)\`).
+   */
+  export interface NativeChannel<T> {
+    /**
+     * The latest value the UI received; the same one until a newer arrives,
+     * and undefined until native code published one. A UI opened later starts
+     * with the value published last. Treat it as read-only: subscribers and
+     * \`get()\` share it.
+     */
+    get(): T | undefined;
+    /**
+     * Calls \`listener\` with each newer value from now on, until the function
+     * it returns is called. \`sequence\` counts native code's publications
+     * (1 for the first): a gap is how many were skipped.
+     */
+    subscribe(listener: (value: T, sequence: number) => void): () => void;
+  }
+
+  /** The channels declared under \`native.channels\`. */
+  export const channels: {
+${members.join('\n')}
+  };`;
+}
+
+/** What a channel's value is: a number (bigint) or a typed array. */
+export function nativeTsChannelType(channel: NativeChannelModel): string {
+  return channel.kind === 'buffer'
+    ? nativeTsType({ kind: 'buffer', element: channel.element }, 'result')
+    : nativeTsType({ kind: 'primitive', name: channel.element }, 'result');
 }
 
 /** The value an event's subscribers receive: its fields, as an object. */

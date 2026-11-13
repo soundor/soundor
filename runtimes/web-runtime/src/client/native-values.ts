@@ -16,6 +16,7 @@
  */
 
 import type {
+  WebNativeChannel,
   WebNativeEvent,
   WebNativeMethod,
   WebNativeNumeric,
@@ -286,6 +287,20 @@ export function nativeEventValue(
     { name: `events.${event.name}` },
     types,
   );
+}
+
+/**
+ * A value published to a channel, checked: a number of its type, or a typed
+ * array of its element type (the caller's own; the channel copies it).
+ */
+export function nativeChannelValue(
+  channel: WebNativeChannel,
+  value: unknown,
+): unknown {
+  const path = { name: `channels.${channel.name}.publish` };
+  return channel.kind === 'buffer'
+    ? convertBuffer(channel.element, value, path, true)
+    : convertPrimitive(channel.element, value, path);
 }
 
 /** A short description of a value's type, as the engine gives it. */

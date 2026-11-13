@@ -217,6 +217,34 @@ describe('generateJuceSources', () => {
     );
   });
 
+  it('owns the native channels and installs them into every editor runtime', () => {
+    const withNative = (native: ResolvedSoundorConfig['native']) =>
+      fileMap({ ...config, native });
+    const all = withNative({
+      methods: { probe: {} },
+      events: { ready: {} },
+      channels: { level: { type: 'float32' } },
+    });
+    expect(all.get('soundor/SoundorProcessor.h')).toContain(
+      '        native::Channels nativeChannels;',
+    );
+    expect(all.get('soundor/SoundorEditor.cpp')).toContain(
+      'native::install(context, std::move(api), owner.nativeEvents, owner.nativeChannels);',
+    );
+    const channelsOnly = withNative({
+      channels: { spectrum: { type: 'buffer<float32>', maxLength: 512 } },
+    });
+    expect(channelsOnly.get('soundor/SoundorEditor.cpp')).toContain(
+      'native::install(context, owner.createNativeApi(), owner.nativeChannels);',
+    );
+    expect(channelsOnly.get('soundor/SoundorProcessor.h')).not.toContain(
+      'nativeEvents',
+    );
+    expect(fileMap(config).get('soundor/SoundorProcessor.h')).not.toContain(
+      'nativeChannels',
+    );
+  });
+
   it("sizes the UI surface and forwards the view's input to it", () => {
     const editor = [
       fileMap(config).get('soundor/SoundorEditor.h')!,

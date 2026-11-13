@@ -843,6 +843,24 @@
         "name": "ready",
         "fields": []
       }
+    ],
+    "channels": [
+      {
+        "name": "frames",
+        "kind": "number",
+        "element": "uint64"
+      },
+      {
+        "name": "level",
+        "kind": "number",
+        "element": "float32"
+      },
+      {
+        "name": "spectrum",
+        "kind": "buffer",
+        "element": "float32",
+        "maxLength": 4
+      }
     ]
   }
 }

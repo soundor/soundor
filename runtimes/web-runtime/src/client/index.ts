@@ -202,7 +202,8 @@ export type {
   WebAudioSetup,
   WebAudioSetupContext,
 } from './audio';
-// The generated `events` of runtimes/web's native contract.
+// The generated `events` and `channels` of runtimes/web's native contract.
+export { nativeChannelPublishers } from './native-channels';
 export { nativeEventPublishers } from './native-events';
 export type { Presentation } from './shell';
 export type { PlaygroundHost, PlaygroundScript } from './playground';

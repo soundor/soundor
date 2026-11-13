@@ -3,6 +3,7 @@
 #include "render/ViewRenderer.h"
 #include "web/Web.h"
 
+#include <soundor/js/Channels.h>
 #include <soundor/js/Events.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -110,6 +111,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // tick.
         js::deliverEvents(*jsContext);
         lap(ticked.events);
+        // The newest value of each soundor:native channel, once a tick.
+        js::deliverChannels(*jsContext);
+        lap(ticked.channels);
         // What code scrolled since the last tick, before the frame's callbacks.
         uiSurface->deliverScrolls();
         // The size the backend gave the surface (and its editor) since the

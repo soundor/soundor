@@ -98,7 +98,7 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, and
+Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`, and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
 `build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web

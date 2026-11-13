@@ -108,4 +108,76 @@ nativeEvents.presetLoaded({ .path = path, .preset = preset });
   object. A subscriber that throws is reported, and the others still run.
 - **Not for audio-rate data:** publishing allocates and takes a short lock,
   so it is not for the audio callback, and an event per audio block is too
-  many. Hand such data to another thread first.
+  many. Use a [channel](#channels) for values the audio thread keeps
+  producing.
+
+## Channels
+
+Native code keeps the UI up to date with values it keeps producing, a level,
+a spectrum, a playhead, through channels. The UI shows the latest: values it
+had no frame for are skipped, never queued. The config declares each as one
+number or a `buffer<T>` of numbers, with the most elements one value holds:
+
+```ts
+// soundor.config.ts
+native: {
+  channels: {
+    spectrum: { type: 'buffer<float32>', maxLength: 512 },
+    peak: { type: 'float32' },
+  },
+},
+```
+
+```tsx
+import { useSyncExternalStore } from 'react';
+// in the UI
+import { channels } from 'soundor:native';
+
+// React state, re-rendered when a newer value arrives
+const peak = useSyncExternalStore(channels.peak.subscribe, channels.peak.get);
+
+// or drawn as it arrives, without rendering again
+useEffect(() => channels.spectrum.subscribe((spectrum) => draw(spectrum)), []);
+```
+
+```cpp
+// in the plugin (JUCE): the audio callback included
+nativeChannels.peak.publish(peakDecibels);
+nativeChannels.spectrum.publish(std::span<const float>(magnitudes)); // copied
+// or written in place, without a copy:
+auto bins = nativeChannels.spectrum.buffer(); // 512 floats
+fillSpectrum(bins);
+nativeChannels.spectrum.commit(bins.size());
+```
+
+- **`get()`** returns the latest value the UI received: the same object until
+  a newer one arrives, so it works as `useSyncExternalStore`'s snapshot, and
+  `undefined` before native code published one. A UI that opens, or reloads,
+  starts with the value published last.
+- **`subscribe(listener)`** calls `listener(value, sequence)` with each newer
+  value, at most once a frame. `sequence` counts the values native code
+  published, 1 for the first: a gap of more than 1 is how many were skipped.
+  `get` and `subscribe` need no `this`.
+- **Latest only:** a value replaces the one not yet delivered. A slow UI, a
+  subscriber that takes long, a hidden page or a closed editor never makes
+  anything pile up, and costs the publisher nothing.
+- **Realtime-safe publishing (JUCE):** `publish()`, and a buffer's `buffer()`
+  and `commit()`, take no lock, never allocate (a buffer's storage is
+  allocated for `maxLength` when the plugin is made), never wait and never run
+  JavaScript, so the audio callback can publish. One thread at a time
+  publishes a given channel.
+- **Never torn:** the UI reads a value only once it was published whole,
+  from memory the publisher no longer writes; a buffer the UI receives is a
+  copy of its own, never changed afterwards. Treat it as read-only: its
+  subscribers and `get()` share it.
+- **Buffers** arrive as typed arrays of the length published, up to
+  `maxLength`; publishing more publishes nothing and returns `false`.
+  64-bit integers arrive as `bigint`s.
+- **Delivered on the UI thread:** the JUCE runtime takes the newest value of
+  each channel at its tick (60 times a second), the web runtime at the next
+  animation frame. A subscriber that throws is reported, and the others still
+  run.
+
+How channels work and what they cost, measured, is in the
+[engine reference](/docs/contribute/engine-reference#channels).
+[Analyzer](/docs/examples/analyzer) is a complete example.

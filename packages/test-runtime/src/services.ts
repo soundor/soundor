@@ -162,6 +162,8 @@ export interface RuntimeOptions {
   nativeMethods?: readonly string[];
   /** Declared native events in the simulated project; omitted for direct runtime unit tests. */
   nativeEvents?: readonly string[];
+  /** Declared native channels in the simulated project; omitted for direct runtime unit tests. */
+  nativeChannels?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;
 }
 /** JSON serialization matches storage; returned objects are independent copies. */

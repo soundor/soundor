@@ -94,7 +94,7 @@ export function generateJuceSources(
       contents: renderProcessorHeader(
         parameters,
         config.plugin,
-        nativeApi.model.events.length > 0,
+        nativeApi.model,
       ),
     },
     {
@@ -124,14 +124,18 @@ export function generateJuceSources(
 
 /** The editor's install() of soundor:native into each new context. */
 function renderNativeInstall(native: NativeApiModel): string {
-  if (native.events.length === 0)
+  const feeds = [
+    ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
+    ...(native.channels.length > 0 ? ['owner.nativeChannels'] : []),
+  ];
+  if (feeds.length === 0)
     return `            if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));`;
-  // Events need no implementation of methods: there may be none.
+  // Events and channels need no implementation of methods: there may be none.
   if (native.methods.length === 0)
-    return `            native::install(context, owner.createNativeApi(), owner.nativeEvents);`;
+    return `            native::install(context, owner.createNativeApi(), ${feeds.join(', ')});`;
   return `            if (auto api = owner.createNativeApi())
-                native::install(context, std::move(api), owner.nativeEvents);`;
+                native::install(context, std::move(api), ${feeds.join(', ')});`;
 }
 
 // ── CMake ──────────────────────────────────────────────────────────────────
@@ -398,8 +402,10 @@ function handleType(
 function renderProcessorHeader(
   parameters: readonly Parameter[],
   plugin: SoundorConfig['plugin'],
-  hasEvents: boolean,
+  native: NativeApiModel,
 ): string {
+  const hasEvents = native.events.length > 0;
+  const hasChannels = native.channels.length > 0;
   const enums = choiceEnums(parameters);
   const handles = parameters
     .map(
@@ -484,7 +490,16 @@ ${
         native::Events nativeEvents;
 `
     : ''
-}
+}${
+    hasChannels
+      ? `
+        // The config's native channels (\`channels\` of soundor:native):
+        // publish their latest values from any one thread, the audio callback
+        // (process()) included, and every open editor reads the newest.
+        native::Channels nativeChannels;
+`
+      : ''
+  }
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}

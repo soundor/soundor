@@ -181,10 +181,10 @@ jobs:
 
       - name: Example application tests, types and web builds
         run: |
-          pnpm --filter basic --filter primitives --filter orbit test &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer test &&
           pnpm --filter orbit test:native &&
-          pnpm --filter basic --filter primitives --filter orbit typecheck &&
-          pnpm --filter basic --filter primitives --filter orbit build:web
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer typecheck &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer build:web
 
       # The docs and the examples' web builds they embed; fails on a broken
       # internal link or anchor. Deployed by website.yml.

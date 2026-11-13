@@ -98,6 +98,10 @@ const config: CoreSoundorConfig = {
       presetLoaded: { path: 'string', preset: 'Preset?' },
       ready: {},
     },
+    channels: {
+      spectrum: { type: 'buffer<float32>', maxLength: 512 },
+      level: { type: 'float32' },
+    },
   },
 };
 
@@ -106,7 +110,7 @@ import { state } from 'soundor:state';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
-import { events, loadPreset, measure, setSolo, type Level, type NativeEvent, type Preset } from 'soundor:native';
+import { channels, events, loadPreset, measure, setSolo, type Level, type NativeChannel, type NativeEvent, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
@@ -129,6 +133,25 @@ void ready;
 events.missing.subscribe(() => {});
 // @ts-expect-error event fields are typed
 events.presetLoaded.subscribe(({ path }) => { const wrong: number = path; void wrong; });
+
+const spectrum: Float32Array | undefined = channels.spectrum.get();
+void spectrum;
+const stopLevel: () => void = channels.level.subscribe((value, sequence) => {
+  const level: number = value;
+  const count: number = sequence;
+  void level;
+  void count;
+});
+stopLevel();
+const unbound: NativeChannel<Float32Array> = channels.spectrum;
+const { get: snapshotOf, subscribe: subscribeTo } = unbound;
+void snapshotOf;
+void subscribeTo;
+// @ts-expect-error channels are declared ones only
+channels.missing.get();
+// @ts-expect-error channel values are typed
+const wrongLevel: string | undefined = channels.level.get();
+void wrongLevel;
 
 const selected: string | null = state.selectedPreset.get();
 void selected;

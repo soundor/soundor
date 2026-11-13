@@ -21,10 +21,15 @@ function modelOf(declaration: NativeApiDeclaration) {
 
 describe('describeNativeApi', () => {
   it('accepts an absent or empty declaration', () => {
-    expect(modelOf({})).toEqual({ types: [], methods: [], events: [] });
+    expect(modelOf({})).toEqual({
+      types: [],
+      methods: [],
+      events: [],
+      channels: [],
+    });
     expect(describeNativeApi(undefined)).toEqual({
       ok: true,
-      model: { types: [], methods: [], events: [] },
+      model: { types: [], methods: [], events: [], channels: [] },
     });
   });
 
@@ -403,6 +408,94 @@ describe('native events', () => {
   });
 });
 
+describe('native channels', () => {
+  it('resolves numbers and buffers, sorted', () => {
+    expect(
+      modelOf({
+        channels: {
+          spectrum: { type: 'buffer<float32>', maxLength: 512 },
+          level: { type: 'float32' },
+          frames: { type: 'uint64' },
+        },
+      }).channels,
+    ).toEqual([
+      { name: 'frames', kind: 'number', element: 'uint64' },
+      { name: 'level', kind: 'number', element: 'float32' },
+      {
+        name: 'spectrum',
+        kind: 'buffer',
+        element: 'float32',
+        maxLength: 512,
+      },
+    ]);
+  });
+
+  it('reports bad channels with their paths', () => {
+    expect(
+      issuesOf({
+        types: { Preset: { struct: { name: 'string' } } },
+        methods: { channels: {} },
+        channels: {
+          Level: { type: 'float32' },
+          name: { type: 'string' },
+          preset: { type: 'Preset' },
+          optional: { type: 'float32?' },
+          list: { type: 'float32[]' },
+          unbounded: { type: 'buffer<float32>' },
+          zero: { type: 'buffer<float32>', maxLength: 0 },
+          huge: { type: 'buffer<uint8>', maxLength: 2 ** 30 },
+          scalar: { type: 'float32', maxLength: 4 },
+          typo: { type: 'float32', capacity: 4 } as never,
+          missing: { type: 'Missing' },
+          broken: 'float32' as never,
+          class: { type: 'float32' },
+        },
+      }),
+    ).toEqual([
+      "native.methods.channels: method name 'channels' is taken by soundor:native's own 'channels' export",
+      "native.channels.Level: channel name 'Level' must be camelCase (start with a lowercase letter; letters, digits and _)",
+      'native.channels.broken: expected { type, maxLength? }',
+      "native.channels.class: channel name 'class' is reserved in JavaScript, C++ or generated code",
+      'native.channels.huge.maxLength: expected an integer from 1 to 16777216',
+      "native.channels.list.type: 'float32[]' cannot be a channel; a channel holds one number (int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64) or a 'buffer<T>' of them",
+      "native.channels.missing.type: unknown type 'Missing'; use boolean, string, int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64, a type declared in native.types, 'T[]', 'buffer<T>' or 'T?'",
+      "native.channels.name.type: 'string' cannot be a channel; a channel holds one number (int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64) or a 'buffer<T>' of them",
+      "native.channels.optional.type: 'float32?' cannot be a channel; a channel holds one number (int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64) or a 'buffer<T>' of them",
+      "native.channels.preset.type: 'Preset' cannot be a channel; a channel holds one number (int8, uint8, int16, uint16, int32, uint32, int64, uint64, float32, float64) or a 'buffer<T>' of them",
+      "native.channels.scalar.maxLength: maxLength is only for a buffer channel; 'float32' is one number",
+      "native.channels.typo.capacity: unknown channel option 'capacity'; a channel has a type and, for a buffer, a maxLength",
+      'native.channels.unbounded: a buffer channel needs maxLength, the most elements one value holds: its storage is allocated for it before publishing starts',
+      'native.channels.zero.maxLength: expected an integer from 1 to 16777216',
+    ]);
+    expect(issuesOf({ channels: [] as never })).toEqual([
+      'native.channels: expected an object mapping channel names to { type, maxLength? }',
+    ]);
+  });
+
+  it('declares channels, only when there are some', () => {
+    const dts = renderNativeDts(
+      modelOf({
+        channels: {
+          spectrum: { type: 'buffer<float32>', maxLength: 512 },
+          level: { type: 'float32' },
+          frames: { type: 'uint64' },
+        },
+      }),
+    );
+    expect(dts).toContain('  export interface NativeChannel<T> {');
+    expect(dts).toContain('    get(): T | undefined;');
+    expect(dts).toContain(
+      '    subscribe(listener: (value: T, sequence: number) => void): () => void;',
+    );
+    expect(dts).toContain(
+      '  export const channels: {\n    readonly frames: NativeChannel<bigint>;\n    readonly level: NativeChannel<number>;\n    readonly spectrum: NativeChannel<Float32Array>;\n  };',
+    );
+    expect(renderNativeDts(modelOf({ methods: { f: {} } }))).not.toContain(
+      'channels',
+    );
+  });
+});
+
 describe('enumeratorName', () => {
   it('derives PascalCase C++ enumerators', () => {
     expect(enumeratorName('linear')).toBe('Linear');
@@ -414,7 +507,9 @@ describe('enumeratorName', () => {
 
 describe('renderNativeDts', () => {
   it('declares an empty module for an empty API', () => {
-    expect(renderNativeDts({ types: [], methods: [], events: [] })).toBe(
+    expect(
+      renderNativeDts({ types: [], methods: [], events: [], channels: [] }),
+    ).toBe(
       "// This file was generated by Soundor. Do not edit.\n\ndeclare module 'soundor:native' {\n}\n",
     );
   });
