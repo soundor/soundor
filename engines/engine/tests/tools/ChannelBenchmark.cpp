@@ -40,6 +40,20 @@ namespace bind = soundor::js::bind;
 using Clock = std::chrono::steady_clock;
 
 // ── Allocations, counted on the threads that ask ────────────────────────────
+//
+// By replacing the global operator new, which AddressSanitizer replaces
+// itself: under it nothing is counted (and the sanitizers check memory).
+
+#if defined(__SANITIZE_ADDRESS__)
+    #define SOUNDOR_COUNT_ALLOCATIONS 0
+#elif defined(__has_feature)
+    #if __has_feature(address_sanitizer)
+        #define SOUNDOR_COUNT_ALLOCATIONS 0
+    #endif
+#endif
+#ifndef SOUNDOR_COUNT_ALLOCATIONS
+    #define SOUNDOR_COUNT_ALLOCATIONS 1
+#endif
 
 namespace
 {
@@ -47,6 +61,7 @@ namespace
     std::atomic<std::uint64_t> counted { 0 };
 } // namespace
 
+#if SOUNDOR_COUNT_ALLOCATIONS
 void* operator new(std::size_t size)
 {
     if (countAllocations)
@@ -80,6 +95,29 @@ void operator delete[](void* memory, std::size_t) noexcept
 {
     std::free(memory);
 }
+
+void* operator new(std::size_t size, const std::nothrow_t&) noexcept
+{
+    if (countAllocations)
+        counted.fetch_add(1, std::memory_order_relaxed);
+    return std::malloc(size == 0 ? 1 : size);
+}
+
+void* operator new[](std::size_t size, const std::nothrow_t& tag) noexcept
+{
+    return operator new(size, tag);
+}
+
+void operator delete(void* memory, const std::nothrow_t&) noexcept
+{
+    std::free(memory);
+}
+
+void operator delete[](void* memory, const std::nothrow_t&) noexcept
+{
+    std::free(memory);
+}
+#endif
 
 namespace
 {
