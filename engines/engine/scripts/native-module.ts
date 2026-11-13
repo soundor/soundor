@@ -22,7 +22,6 @@
 
 import {
   transformAsync,
-  type InputOptions,
   type PluginAPI,
   type PluginObject,
   type types,
@@ -38,13 +37,24 @@ import modulesCommonjs from '@babel/plugin-transform-modules-commonjs';
 import privateMethods from '@babel/plugin-transform-private-methods';
 import privatePropertyInObject from '@babel/plugin-transform-private-property-in-object';
 
+/** A source map to compose with the lowered module's generated map. */
+export interface NativeModuleSourceMap {
+  readonly version: number;
+  readonly sources: string[];
+  readonly names: string[];
+  readonly sourceRoot?: string;
+  readonly sourcesContent?: string[];
+  readonly mappings: string;
+  readonly file: string;
+}
+
 export interface NativeModuleOptions {
   /** The file's name in diagnostics and the source map. */
   readonly filename?: string;
   /** Produce a source map of the result (to `inputSourceMap`'s sources). */
   readonly sourceMap?: boolean;
   /** The map of `code` to its own sources, composed into the result's. */
-  readonly inputSourceMap?: Exclude<InputOptions['inputSourceMap'], boolean>;
+  readonly inputSourceMap?: NativeModuleSourceMap;
   /** No whitespace or comments in the result. */
   readonly compact?: boolean;
   /** Keep every statement on its line in `code`, so lines still match it. */

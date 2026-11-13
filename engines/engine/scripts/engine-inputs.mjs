@@ -79,7 +79,13 @@ export function loweringInputs(root) {
     const edges = [];
     dependencies.set(key, edges);
     dependencyFiles.add(file);
-    for (const name of Object.keys(pkg.dependencies ?? {}).sort()) {
+    const names = new Set(Object.keys(pkg.dependencies ?? {}));
+    // The bundled transform plugins are build dependencies, but their live
+    // versions still affect workspace source builds. Other dev tools do not.
+    if (key === '@soundor/engine')
+      for (const name of Object.keys(pkg.devDependencies ?? {}))
+        if (name.startsWith('@babel/')) names.add(name);
+    for (const name of [...names].sort()) {
       // Some dependencies deliberately do not export their package.json.
       const childFile = require.resolve
         .paths(name)

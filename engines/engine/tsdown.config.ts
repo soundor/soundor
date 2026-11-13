@@ -10,11 +10,11 @@ export default defineConfig(
     entry: ['scripts/native-module.ts'],
     tsconfig: './tsconfig.node.json',
     dts: true,
-    // Freeze runtime lowering code with the engine release. Keep declaration
-    // imports external: NativeModuleOptions references Babel's input types.
+    // Freeze runtime lowering code with the engine release. The public
+    // declarations use engine-owned types and need no Babel installation.
     deps: {
       alwaysBundle: () => true,
-      onlyImport: ['@babel/core'],
+      onlyImport: [],
       dts: { neverBundle: true, alwaysBundle: () => false },
     },
     onSuccess() {

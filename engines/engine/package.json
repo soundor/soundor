@@ -36,7 +36,7 @@
     "test:native": "cmake --workflow --preset dev",
     "build": "tsc -p tsconfig.node.json && tsdown --clean"
   },
-  "dependencies": {
+  "devDependencies": {
     "@babel/core": "catalog:",
     "@babel/plugin-transform-async-generator-functions": "catalog:",
     "@babel/plugin-transform-async-to-generator": "catalog:",
@@ -47,9 +47,7 @@
     "@babel/plugin-transform-dynamic-import": "catalog:",
     "@babel/plugin-transform-modules-commonjs": "catalog:",
     "@babel/plugin-transform-private-methods": "catalog:",
-    "@babel/plugin-transform-private-property-in-object": "catalog:"
-  },
-  "devDependencies": {
+    "@babel/plugin-transform-private-property-in-object": "catalog:",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",

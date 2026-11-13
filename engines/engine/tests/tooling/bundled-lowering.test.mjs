@@ -78,3 +78,10 @@ test('bundled and workspace lowering produce identical embedded runtime modules'
     );
   }
 });
+
+test('published declarations do not require Babel packages', () => {
+  assert.doesNotMatch(
+    readFileSync(join(packaged, 'dist/native-module.d.mts'), 'utf8'),
+    /from ["']@babel\//,
+  );
+});

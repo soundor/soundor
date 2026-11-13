@@ -567,7 +567,7 @@ importers:
   configs/typescript-config: {}
 
   engines/engine:
-    dependencies:
+    devDependencies:
       '@babel/core':
         specifier: 'catalog:'
         version: 8.1.0
@@ -601,7 +601,6 @@ importers:
       '@babel/plugin-transform-private-property-in-object':
         specifier: 'catalog:'
         version: 8.0.5(@babel/core@8.1.0)
-    devDependencies:
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config

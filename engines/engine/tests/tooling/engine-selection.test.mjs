@@ -145,6 +145,27 @@ test('installed lowering dependencies contribute their transitive versions', () 
   assert.notEqual(engineInputs(root).fingerprint, before);
 });
 
+test('workspace identity tracks Babel build dependencies but ignores unrelated dev tools', () => {
+  const root = fixture();
+  write(
+    join(root, 'package.json'),
+    JSON.stringify({
+      version: '1.0.0',
+      devDependencies: { '@babel/transform': '*', testRunner: '*' },
+    }),
+  );
+  const plugin = join(root, 'node_modules/@babel/transform/package.json');
+  write(plugin, JSON.stringify({ name: '@babel/transform', version: '1.0.0' }));
+  const before = engineInputs(root).fingerprint;
+  write(
+    join(root, 'node_modules/testRunner/package.json'),
+    JSON.stringify({ version: '2.0.0' }),
+  );
+  assert.equal(engineInputs(root).fingerprint, before);
+  write(plugin, JSON.stringify({ name: '@babel/transform', version: '1.0.1' }));
+  assert.notEqual(engineInputs(root).fingerprint, before);
+});
+
 test('bundled lowering identity survives transitive dependency drift on fresh installs', async () => {
   const root = fixture();
   write(
