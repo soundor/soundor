@@ -16,6 +16,7 @@
  */
 
 import type {
+  WebNativeEvent,
   WebNativeMethod,
   WebNativeNumeric,
   WebNativeType,
@@ -267,6 +268,24 @@ function convertStruct(
     );
   }
   return result;
+}
+
+/**
+ * The value an event's subscribers receive: what its publisher was given,
+ * checked and copied as a struct of the event's fields. An event without
+ * fields may be published without a value.
+ */
+export function nativeEventValue(
+  event: WebNativeEvent,
+  value: unknown,
+  types: NativeTypes,
+): Record<string, unknown> {
+  return convertStruct(
+    { kind: 'struct', name: event.name, fields: event.fields },
+    value === undefined && event.fields.length === 0 ? {} : value,
+    { name: `events.${event.name}` },
+    types,
+  );
 }
 
 /** A short description of a value's type, as the engine gives it. */

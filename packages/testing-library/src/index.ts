@@ -23,4 +23,5 @@ export {
   testView,
   testEditor,
   mockNative,
+  emitNative,
 } from './setup';

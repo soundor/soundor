@@ -31,6 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::embedded
 
     extern const ModuleCode languageModule;         // js/language.js
     extern const ModuleCode parametersModule;       // modules/parameters/parameters.js
+    extern const ModuleCode nativeEventsModule;     // modules/native/events.js
     extern const ModuleCode fsModule;               // modules/fs/fs.js
     extern const ModuleCode hostModule;             // modules/host/host.js
     extern const ModuleCode storageModule;          // modules/storage/storage.js

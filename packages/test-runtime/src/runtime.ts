@@ -43,6 +43,8 @@ export class TestRuntime {
   readonly plugin: Readonly<{ id: string; name: string }>;
   readonly native: Record<string, (...args: never[]) => unknown>;
   private readonly nativeMethods?: ReadonlySet<string>;
+  private readonly nativeEvents?: ReadonlySet<string>;
+  private readonly nativeEventListeners = new Map<string, Listeners<unknown>>();
   private focused: TestNode | null = null;
   /**
    * Whether the focused node shows its focus, and whether the last input
@@ -99,6 +101,7 @@ export class TestRuntime {
     });
     this.nativeMethods =
       options.nativeMethods && new Set(options.nativeMethods);
+    this.nativeEvents = options.nativeEvents && new Set(options.nativeEvents);
     this.native = Object.assign(Object.create(null), options.native);
     this.hostState = Object.freeze({
       sampleRate: 48000,
@@ -927,6 +930,30 @@ export class TestRuntime {
     if (typeof implementation !== 'function')
       throw new TypeError(`soundor:native.${name} mock must be a function`);
     this.native[name] = implementation;
+  }
+  private nativeEvent(name: string): Listeners<unknown> {
+    if (this.nativeEvents && !this.nativeEvents.has(name))
+      throw new Error(`Unknown soundor:native event '${name}'`);
+    let listeners = this.nativeEventListeners.get(name);
+    if (listeners === undefined) {
+      listeners = new Listeners<unknown>();
+      this.nativeEventListeners.set(name, listeners);
+    }
+    return listeners;
+  }
+  /** What `events.<name>.subscribe()` of soundor:native does. */
+  subscribeNativeEvent(name: string, listener: (value: unknown) => void) {
+    this.assertActive();
+    return this.nativeEvent(name).add(listener, `events.${name}.subscribe()`);
+  }
+  /**
+   * Publishes a declared native event, as the plugin's native code does: its
+   * subscribers receive `value` now (the runtimes deliver it at their next
+   * tick).
+   */
+  emitNativeEvent(name: string, value: unknown = {}) {
+    this.assertActive();
+    this.nativeEvent(name).notify(value);
   }
   callNative(name: string, args: never[]) {
     this.assertActive();

@@ -60,6 +60,7 @@ export type {
 
 export type {
   NativeApiDeclaration,
+  NativeEventDeclaration,
   NativeMethodDeclaration,
   NativeTypeDeclaration,
   NativeTypeRef,

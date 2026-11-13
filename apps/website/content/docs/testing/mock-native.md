@@ -1,6 +1,6 @@
 ---
 title: 'mockNative'
-description: "Implements one of the plugin's native methods for a test."
+description: "Implements one of the plugin's native methods for a test, and publishes its native events (emitNative)."
 ---
 
 ```ts
@@ -31,3 +31,22 @@ test('loads a preset', async () => {
   errors and rejections reach the UI as they would.
 - **Other modules** are mocked with Vitest itself: `vi.mock('soundor:fs')`
   for files. Storage is real, in memory, and empty in every test.
+
+## Native events
+
+```ts
+emitNative(name: string, value?: unknown): void;
+```
+
+Publishes the native event `name`, declared under `native.events`, as the
+plugin's native code does: its subscribers (`events.<name>` of
+`soundor:native`) receive `value` now, inside `act()` with
+`@soundor/testing-library/react`. An undeclared name throws.
+
+```ts
+test('shows the loaded preset', async () => {
+  await render(<App />);
+  emitNative('presetLoaded', { path: 'warm.json', preset: null });
+  expect(screen.getByText('warm.json')).toBeDefined();
+});
+```

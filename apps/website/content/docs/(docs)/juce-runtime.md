@@ -324,6 +324,24 @@ std::shared_ptr<soundor::native::NativeApi> createNativeApi() override
 }
 ```
 
+Events declared under `native.events` are published through the processor's
+`nativeEvents` (a `soundor::native::Events`, with one function per event and
+a struct of its value in `soundor::native::events`), from any thread but the
+audio callback:
+
+```cpp
+// a worker thread, a timer, a method of the native API
+nativeEvents.presetLoaded({ .path = path, .preset = std::move(preset) });
+```
+
+A publisher copies the value into a queue for each open editor, takes a short
+lock and returns; it never waits for JavaScript. Each editor's runtime
+delivers what was published at its next tick, on the message thread, in
+order. An editor holds at most 1024 undelivered events and drops newer ones,
+logging how many; with no editor open, events are dropped. A publisher
+returns whether an editor took the event. The audio callback should not
+publish (it allocates): hand what it has to another thread first.
+
 JavaScript imports the methods from `soundor:native` with full types (from
 `.soundor/generated/native.d.ts`). Buffer arguments are lent to C++ without
 copying, every other value is converted and checked, and a C++ exception becomes

@@ -59,6 +59,14 @@ export const testEditor = {
   },
 };
 
+/**
+ * Publish a declared native event, as the plugin's native code does: the
+ * UI's subscribers (`events.<name>` of soundor:native) receive `value`.
+ */
+export function emitNative(name: string, value?: unknown): void {
+  getTestRuntime().emitNativeEvent(name, value);
+}
+
 /** Register a declared simulated native method with an ordinary function or vi.fn(). */
 export function mockNative(
   name: string,

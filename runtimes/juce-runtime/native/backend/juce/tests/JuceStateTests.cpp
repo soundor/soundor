@@ -3,6 +3,8 @@
 
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
+#include <soundor/js/Context.h>
+#include <soundor/js/Events.h>
 #include <soundor/js/Runtime.h>
 
 #include <doctest/doctest.h>
@@ -16,6 +18,7 @@ namespace
     {
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
+        using AudioProcessor::nativeEvents;
         using AudioProcessor::state;
         using AudioProcessor::stateHistory;
         int restored = 0;
@@ -722,4 +725,28 @@ TEST_CASE("native control-thread History events are queued safely for JavaScript
     const auto result = context.evaluateScript(
         "if(historyEvents !== 100) throw Error('missing native History events: ' + historyEvents);");
     REQUIRE(result.ok());
+}
+
+TEST_CASE("the processor's native events reach an editor runtime from another thread")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    js::Runtime runtime;
+    js::Context context(runtime);
+    native::install(context, nullptr, processor.nativeEvents);
+    REQUIRE(context
+                .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
+                                "globalThis.seen = [];"
+                                "events.bandChanged.subscribe((e) => seen.push(e.index + ':' + e.band.frequency)); })",
+                                "/ui.js")
+                .ok());
+    std::thread worker(
+        [&processor]
+        {
+            processor.nativeEvents.bandChanged(
+                { .band = { .frequency = 440, .gain = 0, .label = std::nullopt }, .index = 2 });
+        });
+    worker.join();
+    CHECK(js::deliverEvents(context) == 1);
+    CHECK(context.evaluateScript("seen.join()").value().asString() == "2:440");
 }

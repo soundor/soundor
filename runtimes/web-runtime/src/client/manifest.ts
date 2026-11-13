@@ -57,10 +57,11 @@ export interface WebManifest {
   readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */
   readonly parameters: readonly WebParameterInfo[];
-  /** The native API (soundor:native): its declared types and its methods, by name. */
+  /** The native API (soundor:native): its declared types, its methods and its events, by name. */
   readonly native: {
     readonly types: readonly WebNativeTypeDeclaration[];
     readonly methods: readonly WebNativeMethod[];
+    readonly events: readonly WebNativeEvent[];
   };
 }
 
@@ -120,6 +121,12 @@ export interface WebNativeMethod {
   /** Its arguments, in order. */
   readonly args: readonly WebNativeField[];
   readonly returns: WebNativeType;
+}
+
+/** An event of the native API: the fields of its value, in order. */
+export interface WebNativeEvent {
+  readonly name: string;
+  readonly fields: readonly WebNativeField[];
 }
 
 /** A sized number, as the native API declares one. */

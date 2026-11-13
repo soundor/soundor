@@ -31,6 +31,7 @@ import { describeNativeApi } from '@soundor/runtime-sdk';
 import {
   resolveEditor,
   type CodegenFile,
+  type NativeApiModel,
   type ResolvedEditorConfig,
   type ResolvedParameter,
   type ResolvedSoundorConfig,
@@ -90,7 +91,11 @@ export function generateJuceSources(
     { path: 'soundor/soundor.h', contents: renderUmbrella() },
     {
       path: 'soundor/SoundorProcessor.h',
-      contents: renderProcessorHeader(parameters, config.plugin),
+      contents: renderProcessorHeader(
+        parameters,
+        config.plugin,
+        nativeApi.model.events.length > 0,
+      ),
     },
     {
       path: 'soundor/SoundorProcessor.cpp',
@@ -109,11 +114,24 @@ export function generateJuceSources(
       contents: renderEditorSource(
         params.options,
         resolveEditor(config.editor),
+        nativeApi.model,
       ),
     },
     ...generateNativeModuleSources(nativeApi.model),
     ...generateStateSources(config),
   ];
+}
+
+/** The editor's install() of soundor:native into each new context. */
+function renderNativeInstall(native: NativeApiModel): string {
+  if (native.events.length === 0)
+    return `            if (auto api = owner.createNativeApi())
+                native::install(context, std::move(api));`;
+  // Events need no implementation of methods: there may be none.
+  if (native.methods.length === 0)
+    return `            native::install(context, owner.createNativeApi(), owner.nativeEvents);`;
+  return `            if (auto api = owner.createNativeApi())
+                native::install(context, std::move(api), owner.nativeEvents);`;
 }
 
 // ── CMake ──────────────────────────────────────────────────────────────────
@@ -380,6 +398,7 @@ function handleType(
 function renderProcessorHeader(
   parameters: readonly Parameter[],
   plugin: SoundorConfig['plugin'],
+  hasEvents: boolean,
 ): string {
   const enums = choiceEnums(parameters);
   const handles = parameters
@@ -456,7 +475,16 @@ ${renderChoiceEnums(parameters, enums)}
         // on the message thread for every new UI runtime; return nullptr when
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
-
+${
+  hasEvents
+    ? `
+        // The config's native events (\`events\` of soundor:native): publish
+        // them from any thread but the audio callback (process()), and every
+        // open editor receives them on its UI thread.
+        native::Events nativeEvents;
+`
+    : ''
+}
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}
@@ -915,6 +943,7 @@ function renderEditorArea(editor: ResolvedEditorConfig): string {
 function renderEditorSource(
   options: ResolvedJuceOptions,
   editor: ResolvedEditorConfig,
+  native: NativeApiModel,
 ): string {
   return `${HEADER}#include "SoundorEditor.h"
 
@@ -992,8 +1021,7 @@ namespace ${NS}
         {
             history::install(context, owner.stateHistory);
             persistent::install(context, owner.state);
-            if (auto api = owner.createNativeApi())
-                native::install(context, std::move(api));
+${renderNativeInstall(native)}
         };
 #if SOUNDOR_UI_DEV
         // soundor dev: the UI comes from the bundle the CLI keeps rebuilding,

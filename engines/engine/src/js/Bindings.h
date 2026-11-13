@@ -19,6 +19,7 @@
 
 #include "Internal.h"
 
+#include <soundor/js/Events.h>
 #include <soundor/js/Promise.h>
 
 #include <hermes/Public/JSOutOfMemoryError.h>
@@ -460,6 +461,29 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::bind
     void retainValue(ContextState& context, const void* key, jsi::Value value);
     // The value retained under `key`, or nullptr.
     [[nodiscard]] const jsi::Value* retainedValue(ContextState& context, const void* key);
+
+    // ── Native events (js/Events.h) ──────────────────────────────────────────
+
+    // Delivers one event of a source to JavaScript, on the UI thread: `value`
+    // is what the source published as number `event`, still owned by it (and
+    // shared by every context it delivers to).
+    using DeliverEvent = void (*)(ContextState& context, std::uint32_t event, const void* value);
+
+    // Connects `source` to `context`: from now on every context connected
+    // receives the events it publishes, delivered through `deliver` by
+    // js::deliverEvents(). Disconnects when the context goes.
+    void connectEvents(Context& context, const EventSource& source, DeliverEvent deliver);
+
+    // In a module's initializer: sets `exports.events` to an object of one
+    // subscribable event per name (in the order of their numbers), whose
+    // dispatcher is retained under `key`.
+    void installEvents(ContextState& context, jsi::Object& exports, std::span<const char* const> names,
+                       const void* key);
+
+    // Calls the subscribers of event number `event` (installEvents(), `key`)
+    // with `value`; a subscriber's exception is logged. Nothing when the
+    // module was never imported.
+    void dispatchEvent(ContextState& context, const void* key, std::uint32_t event, const jsi::Value& value);
 
     // ── Promises ─────────────────────────────────────────────────────────────
 

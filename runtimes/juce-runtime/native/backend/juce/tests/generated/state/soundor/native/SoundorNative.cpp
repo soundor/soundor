@@ -19,20 +19,61 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         // Identifies this context's NativeApi in its module data.
         const char apiKey = 0;
 
+        jsi::Value write(bind::ContextState& ctx, Band value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("frequency", write(ctx, value.frequency));
+            object.set("gain", write(ctx, value.gain));
+            object.set("label", bind::writeNullable(ctx, std::move(value.label), [](bind::ContextState& innerCtx, std::string&& present) { return write(innerCtx, present); }));
+            return object.release();
+        }
 
 
 
+        // Identifies this context's event dispatcher among its retained values.
+        const char eventsKey = 0;
+        // By event number: what each publisher of Events sends.
+        constexpr std::array<const char*, 1> eventNames { "bandChanged" };
+
+        jsi::Value write(bind::ContextState& ctx, events::BandChanged value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("band", write(ctx, std::move(value.band)));
+            object.set("index", write(ctx, value.index));
+            return object.release();
+        }
+
+        void deliverEvent(bind::ContextState& ctx, std::uint32_t event, const void* value)
+        {
+            switch (event)
+            {
+            case 0:
+            {
+                // Shared by every context it is delivered to: converted from a copy.
+                auto copy = *static_cast<const events::BandChanged*>(value);
+                bind::dispatchEvent(ctx, &eventsKey, 0, write(ctx, std::move(copy)));
+                return;
+            }
+            default:
+                return;
+            }
+        }
     } // namespace
 
-    void install(js::Context& context, std::shared_ptr<NativeApi> api)
+    bool Events::bandChanged(events::BandChanged event) const
     {
-        if (api == nullptr)
-            throw std::invalid_argument("soundor:native needs a NativeApi implementation");
+        return publish(0, std::make_shared<const events::BandChanged>(std::move(event)));
+    }
+
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events)
+    {
         bind::setContextData(context, &apiKey, std::move(api));
+        bind::connectEvents(context, events, deliverEvent);
         js::registerNativeModule(context, "soundor:native",
                                  {
-                                     [](bind::ContextState&, jsi::Object&)
+                                     [](bind::ContextState& ctx, jsi::Object& exports)
                                      {
+                                         bind::installEvents(ctx, exports, eventNames, &eventsKey);
                                      },
                                      {},
                                      {},

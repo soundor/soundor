@@ -1,7 +1,7 @@
 import { createTestRuntime, getTestRuntime } from '@soundor/test-runtime';
 import type {} from '@soundor/vitest';
 import { snapshot, subscribe } from 'soundor:host';
-import { loadPreset, probe } from 'soundor:native';
+import { events, loadPreset, probe } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { createTextInput, root } from 'soundor:ui';
 import { expect, test, vi } from 'vitest';
@@ -10,6 +10,7 @@ import {
   testParameters,
   testHost,
   mockNative,
+  emitNative,
   screen,
   userEvent,
 } from './index';
@@ -142,4 +143,16 @@ test('parameter setup preserves boolean, enum, and integer constraints', () => {
     "expects one of 'a', 'b'",
   );
   expect(() => testParameters.set('voices', '4')).toThrow('expects a number');
+});
+test('emitNative publishes a declared native event to its subscribers', () => {
+  const loaded = vi.fn();
+  const stop = events.presetLoaded.subscribe(loaded);
+  emitNative('presetLoaded', { path: 'a.json' });
+  expect(loaded).toHaveBeenCalledExactlyOnceWith({ path: 'a.json' });
+  stop();
+  emitNative('presetLoaded', { path: 'b.json' });
+  expect(loaded).toHaveBeenCalledOnce();
+  expect(() => emitNative('missing')).toThrow(
+    "Unknown soundor:native event 'missing'",
+  );
 });

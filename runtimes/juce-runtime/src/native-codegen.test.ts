@@ -111,6 +111,11 @@ export const fixtureNativeApi: NativeApiDeclaration = {
     save: { args: { preset: 'Preset' }, async: true },
     reset: {},
   },
+  events: {
+    presetLoaded: { path: 'string', preset: 'Preset?' },
+    levels: { values: 'buffer<float32>', curve: 'Curve' },
+    ready: {},
+  },
 };
 
 const goldenDir = resolve(
@@ -149,8 +154,46 @@ describe('generateNativeModuleSources', () => {
       types: Object.fromEntries(
         Object.entries(fixtureNativeApi.types!).reverse(),
       ),
+      events: Object.fromEntries(
+        Object.entries(fixtureNativeApi.events!).reverse(),
+      ),
     };
     expect(generateNativeModuleSources(modelOf(reversed))).toEqual(files);
+  });
+
+  it('declares a publisher for each event and connects them on install', () => {
+    const [header, source] = files.map((file) => file.contents);
+    expect(header).toContain(
+      '        struct PresetLoaded\n        {\n            std::string path {};\n            std::optional<Preset> preset {};\n        };',
+    );
+    expect(header).toContain('        struct Ready\n        {\n        };');
+    expect(header).toContain('    class Events : public js::EventSource');
+    expect(header).toContain(
+      '        bool presetLoaded(events::PresetLoaded event) const;',
+    );
+    expect(header).toContain(
+      '        bool ready(events::Ready event = {}) const;',
+    );
+    expect(header).toContain(
+      'void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events);',
+    );
+    expect(source).toContain(
+      'constexpr std::array<const char*, 3> eventNames { "levels", "presetLoaded", "ready" };',
+    );
+    expect(source).toContain(
+      'bind::connectEvents(context, events, deliverEvent);',
+    );
+    expect(source).toContain(
+      'bind::installEvents(ctx, exports, eventNames, &eventsKey);',
+    );
+  });
+
+  it('installs events without a NativeApi when there are no methods', () => {
+    const [header, source] = generateNativeModuleSources(
+      modelOf({ events: { tick: { count: 'uint32' } } }),
+    ).map((file) => file.contents);
+    expect(header).toContain('(nullptr when the config declares no methods)');
+    expect(source).not.toContain('needs a NativeApi implementation');
   });
 
   it('keeps engine headers out of the public header', () => {
@@ -208,6 +251,7 @@ describe('generateNativeModuleSources', () => {
     const [header, source] = generateNativeModuleSources({
       types: [],
       methods: [],
+      events: [],
     });
     expect(header!.contents).toContain(
       'virtual ~NativeApi() = default;\n    };',

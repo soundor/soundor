@@ -651,13 +651,85 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 return bind::writeNullable(ctx, api->sumWords(std::move(arg_values)), [](bind::ContextState& innerCtx, std::uint64_t&& present) { return write(innerCtx, present); });
                                 });
         }
+
+        // Identifies this context's event dispatcher among its retained values.
+        const char eventsKey = 0;
+        // By event number: what each publisher of Events sends.
+        constexpr std::array<const char*, 3> eventNames { "levels", "presetLoaded", "ready" };
+
+        jsi::Value write(bind::ContextState& ctx, events::Levels value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("values", bind::writeBuffer(ctx, std::move(value.values)));
+            object.set("curve", write(ctx, std::move(value.curve)));
+            return object.release();
+        }
+
+        jsi::Value write(bind::ContextState& ctx, events::PresetLoaded value)
+        {
+            bind::ObjectBuilder object(ctx);
+            object.set("path", write(ctx, value.path));
+            object.set("preset", bind::writeNullable(ctx, std::move(value.preset), [](bind::ContextState& innerCtx, Preset&& present) { return write(innerCtx, std::move(present)); }));
+            return object.release();
+        }
+
+        jsi::Value write(bind::ContextState& ctx, events::Ready)
+        {
+            return bind::ObjectBuilder(ctx).release();
+        }
+
+        void deliverEvent(bind::ContextState& ctx, std::uint32_t event, const void* value)
+        {
+            switch (event)
+            {
+            case 0:
+            {
+                // Shared by every context it is delivered to: converted from a copy.
+                auto copy = *static_cast<const events::Levels*>(value);
+                bind::dispatchEvent(ctx, &eventsKey, 0, write(ctx, std::move(copy)));
+                return;
+            }
+            case 1:
+            {
+                // Shared by every context it is delivered to: converted from a copy.
+                auto copy = *static_cast<const events::PresetLoaded*>(value);
+                bind::dispatchEvent(ctx, &eventsKey, 1, write(ctx, std::move(copy)));
+                return;
+            }
+            case 2:
+            {
+                // Shared by every context it is delivered to: converted from a copy.
+                auto copy = *static_cast<const events::Ready*>(value);
+                bind::dispatchEvent(ctx, &eventsKey, 2, write(ctx, std::move(copy)));
+                return;
+            }
+            default:
+                return;
+            }
+        }
     } // namespace
 
-    void install(js::Context& context, std::shared_ptr<NativeApi> api)
+    bool Events::levels(events::Levels event) const
+    {
+        return publish(0, std::make_shared<const events::Levels>(std::move(event)));
+    }
+
+    bool Events::presetLoaded(events::PresetLoaded event) const
+    {
+        return publish(1, std::make_shared<const events::PresetLoaded>(std::move(event)));
+    }
+
+    bool Events::ready(events::Ready event) const
+    {
+        return publish(2, std::make_shared<const events::Ready>(std::move(event)));
+    }
+
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events)
     {
         if (api == nullptr)
             throw std::invalid_argument("soundor:native needs a NativeApi implementation");
         bind::setContextData(context, &apiKey, std::move(api));
+        bind::connectEvents(context, events, deliverEvent);
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
@@ -692,6 +764,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                          bind::setProperty(ctx, exports, "sumBytes", bind::function(ctx, "sumBytes", 1, call_sumBytes));
                                          bind::setProperty(ctx, exports, "sumInts", bind::function(ctx, "sumInts", 1, call_sumInts));
                                          bind::setProperty(ctx, exports, "sumWords", bind::function(ctx, "sumWords", 1, call_sumWords));
+                                         bind::installEvents(ctx, exports, eventNames, &eventsKey);
                                      },
                                      {},
                                      {},

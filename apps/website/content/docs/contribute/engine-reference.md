@@ -411,6 +411,43 @@ soundor::native::install(context, std::make_shared<Api>());
   runtime's thread. The first settle wins. A promise dropped unsettled rejects,
   and settling after the context is gone does nothing.
 
+#### Events
+
+`native.events` adds a publisher, `soundor::native::Events`, with one function
+per event taking `events::<Name>`, the struct of its value. It derives from
+`js::EventSource` (`js/Events.h`), which is everything that is not per plugin:
+
+- **Publishing** (any thread but a realtime one) puts the value, allocated
+  once (`std::shared_ptr<const T>`), into the queue of every connected
+  context under the source's one mutex, and returns. Nothing runs JavaScript
+  or waits for it; holding the lock is a push per open UI. Since every
+  publisher takes the same lock, a context's queue is in the order publish()
+  was called, so each thread's events keep their order.
+- **Connecting.** `install(context, api, events)` connects the source to the
+  context (`bind::connectEvents`): the context owns the connection, which
+  takes its queue out of the source when the context goes, so either can go
+  first. A reload is a new context, connected anew; what the old one had
+  not delivered goes with it.
+- **Delivering.** `RuntimeHost::tick()` calls `js::deliverEvents()` after the
+  parameter changes: for each connection it swaps the queue out under the
+  lock, then converts each value from a copy (one per context) with the
+  generated `write()` and calls the dispatcher of
+  `soundor:internal/native-events` (`src/modules/native/events.js`), which
+  calls the subscribers. Before the module is imported there is no
+  dispatcher, and events are dropped.
+- **Bounds.** A context holds at most `EventSource::Options::capacity`
+  (1024) undelivered events; one published while it is full is dropped for
+  it and counted, and the next delivery logs how many. With no context
+  connected, an event is dropped. `EventSource::statistics()` counts what
+  was published and dropped. So a closed, hidden or stalled UI never makes
+  memory grow, and a UI never sees an event from before it connected.
+- **Not realtime-safe:** publishing allocates and locks. Events are for
+  discrete notifications; data the audio thread produces continuously needs
+  a lock-free handoff of its own.
+
+The web runtime delivers with the same rules (`web-runtime/src/client/native-events.ts`):
+the generated contract's `events` publishes, a `setTimeout` delivers.
+
 The generator's output for a fixture covering every type is checked in under
 `tests/generated` and compiled by the native tests. A TypeScript test fails if
 it ever drifts from the generator (`UPDATE_GOLDEN=1 pnpm --filter
@@ -1149,7 +1186,7 @@ profiling and benchmarks; take differences for a frame or a phase. Counting is
 always on and costs an increment:
 
 - **`tick`:** the time each step of `tick()` took: Web timers and finished
-  async work, parameter changes, promise jobs, animation frame callbacks,
+  async work, parameter changes, native events, promise jobs, animation frame callbacks,
   showing what WebGL drew.
 - **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
   and WebGL, counted at their native entry points. With

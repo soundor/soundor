@@ -67,6 +67,8 @@ export type {
   NativeApiModel,
   NativeApiResult,
   NativeField,
+  NativeEventDeclaration,
+  NativeEventModel,
   NativeMethodDeclaration,
   NativeMethodModel,
   NativeType,
@@ -85,7 +87,7 @@ export {
   describeNativeApi,
   enumeratorName,
 } from './native-api';
-export { nativeTsType, renderNativeDts } from './native-dts';
+export { nativeTsEventType, nativeTsType, renderNativeDts } from './native-dts';
 
 export * from './state';
 

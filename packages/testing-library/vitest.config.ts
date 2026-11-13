@@ -9,6 +9,7 @@ export default defineConfig({
           loadPreset: { returns: 'string', async: true },
           probe: { returns: 'float64' },
         },
+        events: { presetLoaded: { path: 'string' } },
       },
       runtime: {
         parameters: {

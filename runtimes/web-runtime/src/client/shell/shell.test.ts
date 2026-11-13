@@ -1088,7 +1088,7 @@ describe('readManifest', () => {
         maxHeight: 900,
       } as unknown as WebEditor,
       parameters: [],
-      native: { types: [], methods: [] },
+      native: { types: [], methods: [], events: [] },
     });
     expect([manifest.editor.maxWidth, manifest.editor.maxHeight]).toEqual([
       Infinity,

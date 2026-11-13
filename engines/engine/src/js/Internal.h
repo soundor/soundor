@@ -31,6 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
 {
     struct ContextState;
     struct PendingPromise;
+    struct EventConnection;
 
     struct RuntimeState
     {
@@ -155,6 +156,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         std::optional<jsi::Function> cleanupFinalized;
         // Async native calls not yet settled; orphaned when the context dies.
         std::vector<PendingPromise*> pendingPromises;
+        // The event sources connected to this context (js/Events.h), in the
+        // order deliverEvents() takes their events.
+        std::vector<std::shared_ptr<EventConnection>> eventConnections;
         // JavaScript values native modules hold on to (e.g. a dispatcher
         // function), keyed like moduleData.
         std::vector<std::pair<const void*, jsi::Value>> retainedValues;

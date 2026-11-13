@@ -33,6 +33,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/Bindings.cpp
   src/js/Context.cpp
   src/js/Error.cpp
+  src/js/Events.cpp
   src/js/MemoryModuleLoader.cpp
   src/js/NativeModule.cpp
   src/js/Runtime.cpp
@@ -123,6 +124,7 @@ foreach(module fs host parameters storage)
   soundor_embed_module(soundor_runtime ${module}Module src/modules/${module}/${module}.js soundor:${module})
 endforeach()
 soundor_embed_module(soundor_runtime uiModule src/modules/ui/ui.js soundor:ui)
+soundor_embed_module(soundor_runtime nativeEventsModule src/modules/native/events.js soundor:internal/native-events)
 foreach(module abort base64 blob clone console crypto encoding events fetch inspect timers url)
   soundor_embed_module(soundor_runtime ${module}Module src/web/js/${module}.js soundor:internal/web/${module})
 endforeach()
