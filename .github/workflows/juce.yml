@@ -42,7 +42,7 @@ jobs:
   test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.nogpu && 180 || 60 }}
+    timeout-minutes: ${{ (matrix.nogpu || matrix.sanitize) && 180 || 60 }}
     strategy:
       fail-fast: false
       matrix:
@@ -78,6 +78,14 @@ jobs:
               nogpu: true,
             }
           - {
+              name: linux-sanitizers,
+              os: ubuntu-24.04,
+              cc: clang,
+              cxx: clang++,
+              target: linux-x64,
+              sanitize: true,
+            }
+          - {
               name: macos,
               os: macos-15,
               cc: clang,
@@ -109,20 +117,20 @@ jobs:
         with:
           cache: ${{ inputs.cache }}
       - name: Setup consumer dependencies
-        if: ${{ !matrix.nogpu }}
+        if: ${{ !(matrix.nogpu || matrix.sanitize) }}
         uses: ./.github/actions/engine-consumer
         with:
           cache: ${{ inputs.cache }}
-      # The no-GPU engine is a custom source build; it has no released archive.
+      # No-GPU and instrumented engines are custom source builds; they have no released archives.
       - name: Setup source engine dependencies
-        if: matrix.nogpu
+        if: matrix.nogpu || matrix.sanitize
         id: deps
         uses: ./.github/actions/native-deps
         with:
           cache: ${{ inputs.cache }}
-          job: linux-nogpu
+          job: ${{ matrix.sanitize && 'linux-sanitizers' || 'linux-nogpu' }}
       - name: Download this checkout's engine
-        if: inputs.build-engine && !matrix.nogpu
+        if: inputs.build-engine && !(matrix.nogpu || matrix.sanitize)
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           # Windows has separate artifacts for the dynamic and static C runtimes.
@@ -132,7 +140,7 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/engine-artifacts
       - name: Select this checkout's engine artifacts
-        if: inputs.build-engine && !matrix.nogpu
+        if: inputs.build-engine && !(matrix.nogpu || matrix.sanitize)
         env:
           ENGINE_COMMIT: ${{ inputs.engine-commit || github.sha }}
         run: |
@@ -142,7 +150,7 @@ jobs:
       # The manifest the engine's npm package will carry, from the verified
       # public release (as the release's pack job writes it).
       - name: Select the published prebuilt release
-        if: inputs.engine-release != '' && !matrix.nogpu
+        if: inputs.engine-release != '' && !(matrix.nogpu || matrix.sanitize)
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.engine-release }}
@@ -175,15 +183,26 @@ jobs:
       - name: Install native static analysis
         if: matrix.lint
         run: sudo apt-get install -y --no-install-recommends clang-tidy-18 clang-tools-18
+      - name: Install sanitizer runtime
+        if: matrix.sanitize
+        run: sudo apt-get install -y --no-install-recommends libclang-rt-18-dev
+      # Avoid the Vulkan loader probing unrelated drivers at process exit.
+      - name: Select lavapipe for sanitizer tests
+        if: matrix.sanitize
+        run: echo "VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json" >> "$GITHUB_ENV"
       - name: Configure JUCE adapters
         env:
-          ENGINE_MODE: ${{ matrix.nogpu && 'source' || 'prebuilt' }}
+          ENGINE_MODE: ${{ (matrix.nogpu || matrix.sanitize) && 'source' || 'prebuilt' }}
           ENABLE_GPU: ${{ matrix.nogpu && 'OFF' || 'ON' }}
           CLANG_TIDY: ${{ matrix.lint && 'ON' || 'OFF' }}
+          SANITIZERS: ${{ matrix.sanitize && 'ON' || 'OFF' }}
         run: |
-          cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENGINE_MODE="$ENGINE_MODE" -DSOUNDOR_ENABLE_GPU="$ENABLE_GPU" -DSOUNDOR_JUCE_CLANG_TIDY="$CLANG_TIDY" -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
+          cmake -S runtimes/juce-runtime/native -B .soundor/juce-tests -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON -DSOUNDOR_ENGINE_MODE="$ENGINE_MODE" -DSOUNDOR_ENABLE_GPU="$ENABLE_GPU" -DSOUNDOR_JUCE_CLANG_TIDY="$CLANG_TIDY" -DSOUNDOR_ENABLE_SANITIZERS="$SANITIZERS" -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce"
       - name: Build and test JUCE adapters
         if: ${{ !matrix.lint }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: |
           cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_juce_state_tests soundor_debug_target --config Debug --parallel 3
           if [ "${{ runner.os }}" = "Linux" ]; then
@@ -203,10 +222,10 @@ jobs:
           pnpm --filter @soundor/juce-runtime exec soundor init --config tests/plugin/soundor.config.ts
           sed -i '/^include(/i set(SOUNDOR_ENABLE_GPU OFF CACHE BOOL "" FORCE)' runtimes/juce-runtime/tests/plugin/runtimes/juce/CMakeLists.txt
       - name: Build the test plugin
-        if: ${{ !matrix.lint }}
+        if: ${{ !matrix.lint && !matrix.sanitize }}
         env:
           JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
-          EXPLICIT_ENGINE: ${{ !matrix.nogpu && (inputs.build-engine || inputs.engine-release != '') && 'true' || '' }}
+          EXPLICIT_ENGINE: ${{ !(matrix.nogpu || matrix.sanitize) && (inputs.build-engine || inputs.engine-release != '') && 'true' || '' }}
         run: |
           set -eo pipefail
           pnpm --filter @soundor/juce-runtime test:plugin 2>&1 | tee "$RUNNER_TEMP/plugin.log"
@@ -223,7 +242,7 @@ jobs:
           grep -Fx 'SOUNDOR_ENABLE_GPU:BOOL=OFF' .soundor/juce-tests/CMakeCache.txt
           grep -Fx 'SOUNDOR_ENABLE_GPU:BOOL=OFF' runtimes/juce-runtime/tests/plugin/.soundor/cache/juce/build-release/CMakeCache.txt
       - name: The test plugin links as a release should
-        if: runner.os == 'Linux' && !matrix.lint
+        if: runner.os == 'Linux' && !matrix.lint && !matrix.sanitize
         run: |
           plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-linux/*.so' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
@@ -236,14 +255,14 @@ jobs:
           node .github/scripts/windows-plugin-check.mjs "$plugin"
       # The test plugin's editor, hosted and resized as a DAW does (EditorResize.cpp).
       - name: Resize the test plugin's editor
-        if: runner.os == 'Linux' && !matrix.lint
+        if: runner.os == 'Linux' && !matrix.lint && !matrix.sanitize
         run: |
           cmake --build .soundor/juce-tests --target soundor_juce_editor_resize --config Debug --parallel 3
           plugin="$(find "$GITHUB_WORKSPACE/runtimes/juce-runtime/tests/plugin/.soundor/dist/juce" -name '*.vst3' -type d | head -1)"
           cd "$RUNNER_TEMP"
           xvfb-run -a -s "-screen 0 1920x1200x24" "$GITHUB_WORKSPACE/.soundor/juce-tests/backend/juce/tests/soundor_juce_editor_resize_artefacts/Debug/soundor_juce_editor_resize" "$plugin"
       - name: Save source engine dependencies
-        if: always() && matrix.nogpu && steps.deps.outputs.cache-key != ''
+        if: always() && (matrix.nogpu || matrix.sanitize) && steps.deps.outputs.cache-key != ''
         uses: ./.github/actions/native-deps-save
         with:
           key: ${{ steps.deps.outputs.cache-key }}

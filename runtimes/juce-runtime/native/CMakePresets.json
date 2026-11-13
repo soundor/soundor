@@ -28,6 +28,17 @@
         "SOUNDOR_ENGINE_MODE": "source",
         "SOUNDOR_ENABLE_GPU": "OFF"
       }
+    },
+    {
+      "name": "sanitize",
+      "inherits": "juce",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "SOUNDOR_ENGINE_MODE": "source",
+        "SOUNDOR_ENABLE_SANITIZERS": "ON",
+        "SOUNDOR_ENGINE_PREBUILT_DEBUG_DIR": "",
+        "SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR": ""
+      }
     }
   ],
   "buildPresets": [
@@ -54,6 +65,18 @@
       "name": "nogpu",
       "inherits": "juce",
       "configurePreset": "nogpu"
+    },
+    {
+      "name": "sanitize",
+      "inherits": "juce",
+      "configurePreset": "sanitize",
+      "targets": [
+        "soundor_juce_tests",
+        "soundor_juce_platform_tests",
+        "soundor_juce_state_tests",
+        "soundor_debug_target"
+      ],
+      "jobs": 2
     }
   ],
   "testPresets": [
@@ -74,6 +97,15 @@
       "name": "nogpu",
       "inherits": "juce",
       "configurePreset": "nogpu"
+    },
+    {
+      "name": "sanitize",
+      "inherits": "juce",
+      "configurePreset": "sanitize",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:abort_on_error=1",
+        "UBSAN_OPTIONS": "print_stacktrace=1:halt_on_error=1"
+      }
     }
   ],
   "workflowPresets": [
@@ -121,6 +153,23 @@
         {
           "type": "test",
           "name": "nogpu"
+        }
+      ]
+    },
+    {
+      "name": "sanitize",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "sanitize"
+        },
+        {
+          "type": "build",
+          "name": "sanitize"
+        },
+        {
+          "type": "test",
+          "name": "sanitize"
         }
       ]
     }
