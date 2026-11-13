@@ -1,7 +1,10 @@
 // The test plugins' UI, on soundor:ui itself (no React): what every plugin's
 // UI reads, the generated parameters, the host and the view's size. Each plugin's src/main.ts
 // mounts it.
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import {
   createText,

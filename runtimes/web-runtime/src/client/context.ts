@@ -21,7 +21,11 @@ import { UiView } from './ui/view';
 export interface WebHostContext {
   readonly manifest: WebManifest;
   /** The plugin's identity, frozen, as `soundor:host` exports it. */
-  readonly plugin: { readonly id: string; readonly name: string };
+  readonly plugin: {
+    readonly id: string;
+    readonly name: string;
+    readonly version: string;
+  };
   readonly parameters: ParameterStore;
   readonly host: WebHost;
   readonly state: ApplicationState;
@@ -40,7 +44,10 @@ export function createHostContext(
   );
   return {
     manifest,
-    plugin: Object.freeze({ ...manifest.plugin }),
+    plugin: Object.freeze({
+      ...manifest.plugin,
+      version: manifest.plugin.version ?? '0.1.0',
+    }),
     parameters,
     state: new ApplicationState(manifest, parameters),
     host: new WebHost(options),

@@ -44,6 +44,8 @@ describe('WebHost state', () => {
       sampleRate: 48000,
       blockSize: 128,
       hostName: HOST_NAME,
+      samplePrecision: 'float32',
+      processingMode: 'realtime',
       transport: {
         playing: false,
         recording: false,
@@ -52,6 +54,8 @@ describe('WebHost state', () => {
         timeSignature: { numerator: 4, denominator: 4 },
         ppqPosition: 0,
         barStartPpq: 0,
+        loopStartPpq: 0,
+        loopEndPpq: 16,
         timeInSeconds: 0,
         timeInSamples: 0,
       },

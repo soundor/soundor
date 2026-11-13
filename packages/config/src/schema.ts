@@ -39,6 +39,10 @@ const runtimeSchema = z.object({
 });
 
 const pluginSchema = z.strictObject({
+  version: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$(?![\s\S])/, 'expected a version such as 1.2.0')
+    .default('0.1.0'),
   id: z
     .string()
     .regex(
@@ -180,7 +184,11 @@ function normalize(
   parameters: ResolvedParameter[],
 ): ResolvedSoundorConfig {
   return {
-    plugin: { id: data.plugin.id, name: data.plugin.name.trim() },
+    plugin: {
+      id: data.plugin.id,
+      name: data.plugin.name.trim(),
+      version: data.plugin.version,
+    },
     editor: { ...resolveEditor(data.editor) },
     runtimes: data.runtimes.map((runtime) => ({
       id: runtime.id,

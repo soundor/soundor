@@ -177,6 +177,55 @@ TEST_CASE("TransportCapture copies the play head's position")
         FAIL("TransportCapture did not publish a position");
 }
 
+TEST_CASE("TransportCapture clears unavailable loop and timecode fields")
+{
+    backend::TransportCapture capture;
+    ScriptedPlayHead playHead;
+    juce::AudioPlayHead::PositionInfo position;
+    position.setLoopPoints(juce::AudioPlayHead::LoopPoints { 8, 16 });
+    position.setFrameRate(juce::AudioPlayHead::FrameRate(juce::AudioPlayHead::fps2997drop));
+    position.setEditOriginTime(3600);
+    playHead.position = position;
+    capture.capture(&playHead);
+    const auto first = capture.latest();
+    REQUIRE(first.has_value());
+    CHECK(first->loopStartPpq == 8);
+    CHECK(first->loopEndPpq == 16);
+    REQUIRE(first->timecode.has_value());
+    CHECK(first->timecode->dropFrame);
+    CHECK(first->timecode->framesPerSecond == doctest::Approx(30.0 / 1.001));
+    REQUIRE(first->timecode->smpteOffsetSubframes.has_value());
+    CHECK(*first->timecode->smpteOffsetSubframes == doctest::Approx(3600 * 80 * 30.0 / 1.001));
+    playHead.position = juce::AudioPlayHead::PositionInfo {};
+    capture.capture(&playHead);
+    const auto second = capture.latest();
+    REQUIRE(second.has_value());
+    CHECK_FALSE(second->loopStartPpq.has_value());
+    CHECK_FALSE(second->loopEndPpq.has_value());
+    CHECK_FALSE(second->timecode.has_value());
+}
+
+TEST_CASE("Track metadata uses RGBA and can be withdrawn")
+{
+    backend::TransportCapture capture;
+    juce::AudioProcessor::TrackProperties properties;
+    []<typename Properties>(Properties& value)
+    {
+        value.name = "Vocals";
+        if constexpr (requires { value.colourARGB; })
+            value.colourARGB = 0xff78a8ff;
+        else
+            value.colour = juce::Colour(0xff78a8ff);
+    }(properties);
+    capture.updateTrackProperties(properties);
+    REQUIRE(capture.trackInfo().has_value());
+    CHECK(capture.trackInfo()->name == "Vocals");
+    CHECK(capture.trackInfo()->color == "#78a8ffff");
+    capture.updateTrackProperties({});
+    CHECK_FALSE(capture.trackInfo()->name.has_value());
+    CHECK_FALSE(capture.trackInfo()->color.has_value());
+}
+
 TEST_CASE("fetch() through JuceHttpClient talks to a real server")
 {
     FetchFixture f;

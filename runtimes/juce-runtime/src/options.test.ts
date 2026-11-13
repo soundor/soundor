@@ -13,6 +13,7 @@ describe('resolveJuceOptions', () => {
       formats: ['vst3'],
       bundleId: 'com.acme.reverb',
       pluginName: 'Acme Reverb',
+      pluginVersion: '0.1.0',
       companyName: 'acme',
       pluginCode: fourCharCode(undefined, 'com.acme.reverb'),
       manufacturerCode: fourCharCode(undefined, 'com.acme'),

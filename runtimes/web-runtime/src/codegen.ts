@@ -13,6 +13,7 @@ import {
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
+import { version as runtimeVersion } from '../package.json';
 import type {
   WebEditor,
   WebManifest,
@@ -81,7 +82,12 @@ function webEditor(config: ResolvedSoundorConfig): WebEditor {
 export function webManifest(config: ResolvedSoundorConfig): WebManifest {
   const native = nativeModel(config);
   return {
-    plugin: { id: config.plugin.id, name: config.plugin.name },
+    plugin: {
+      id: config.plugin.id,
+      name: config.plugin.name,
+      version: config.plugin.version ?? '0.1.0',
+    },
+    runtimeVersion,
     editor: webEditor(config),
     state: JSON.parse(stateJson(describeState(config.state, config.native))),
     parameters: config.parameters.map((parameter): WebParameterInfo => {

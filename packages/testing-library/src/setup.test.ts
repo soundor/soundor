@@ -1,6 +1,9 @@
 import { createTestRuntime, getTestRuntime } from '@soundor/test-runtime';
 import type {} from '@soundor/vitest';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { channels, events, loadPreset, probe } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import {

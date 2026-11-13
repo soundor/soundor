@@ -238,7 +238,12 @@ describe('webGen', () => {
       'parameters.js',
     ]);
     expect(JSON.parse(files[0]!.contents)).toEqual({
-      plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
+      plugin: {
+        id: 'com.example.basic',
+        name: 'Soundor Basic',
+        version: '0.1.0',
+      },
+      runtimeVersion: expect.any(String),
       // No editor in the config: the fixed 800×600 view every runtime opens.
       editor: {
         width: 800,

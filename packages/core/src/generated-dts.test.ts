@@ -109,7 +109,7 @@ const consumer = `/// <reference path="./soundor.d.ts" />
 import { state } from 'soundor:state';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
-import { plugin, snapshot, subscribe } from 'soundor:host';
+import { plugin, environment, getHostState as snapshot, subscribeHostState as subscribe } from 'soundor:host';
 import { channels, events, loadPreset, measure, setSolo, type Level, type NativeChannel, type NativeEvent, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
@@ -228,6 +228,12 @@ setSolo(null);
 setSolo(2);
 
 const id: string = plugin.id;
+const version: string = plugin.version;
+const platform: string = environment.platform;
+const format: string = environment.format;
+const trackColor: string | undefined = snapshot().track?.color;
+const loopEnd: number | undefined = snapshot().transport?.loopEndPpq;
+void [version, platform, format, trackColor, loopEnd];
 const bpm: number | undefined = snapshot().transport?.bpm;
 const stopHost: () => void = subscribe((s) => void s.sampleRate);
 const volume: Promise<number | undefined> = storage.get<number>('volume');

@@ -51,7 +51,7 @@ function projectData(config: ResolvedSoundorConfig): unknown {
 
 /** Expected serializable projection of the `valid` fixture. */
 const expectedData = {
-  plugin: { id: 'com.example.valid', name: 'Valid' },
+  plugin: { id: 'com.example.valid', name: 'Valid', version: '0.1.0' },
   runtimes: [{ id: 'juce', options: { format: 'vst3' } }],
   parameters: [
     {
@@ -147,7 +147,11 @@ describe('parseConfig — loading', () => {
     );
     const config = await parseConfig({ path });
     expect(projectData(config)).toEqual({
-      plugin: { id: 'com.example.defaults', name: 'Defaults' },
+      plugin: {
+        id: 'com.example.defaults',
+        name: 'Defaults',
+        version: '0.1.0',
+      },
       runtimes: [{ id: 'juce', options: {} }],
       parameters: [],
       native: {},
@@ -205,7 +209,7 @@ describe('validateConfig — validation rules', () => {
     expect(
       validateConfig({ ...base, runtimes: [{ id: 'juce', runtime }] }),
     ).toEqual({
-      plugin,
+      plugin: { ...plugin, version: '0.1.0' },
       editor: {
         width: 800,
         height: 600,
@@ -324,7 +328,7 @@ describe('validateConfig — validation rules', () => {
 
 describe('validateConfig — editor', () => {
   const base = {
-    plugin: { id: 'com.example.test', name: 'Test' },
+    plugin: { id: 'com.example.test', name: 'Test', version: '0.1.0' },
     runtimes: [],
     parameters: {},
   };
@@ -618,3 +622,28 @@ function expectValidation(raw: unknown): ConfigError {
   expect((caught as ConfigError).kind).toBe('validation');
   return caught as ConfigError;
 }
+
+describe('plugin version', () => {
+  it('defaults the version and preserves an explicit release version', () => {
+    const base = {
+      plugin: { id: 'com.example.version', name: 'Version' },
+      runtimes: [],
+    };
+    expect(validateConfig(base).plugin.version).toBe('0.1.0');
+    expect(
+      validateConfig({ ...base, plugin: { ...base.plugin, version: '2.3.4' } })
+        .plugin.version,
+    ).toBe('2.3.4');
+  });
+  it.each(['', '1.2', '1.2.3-beta', '1.2.3\n', '1;set(EVIL ON)'])(
+    'rejects invalid plugin version %j',
+    (version) => {
+      expect(() =>
+        validateConfig({
+          plugin: { id: 'com.example.version', name: 'Version', version },
+          runtimes: [],
+        }),
+      ).toThrow(ConfigError);
+    },
+  );
+});

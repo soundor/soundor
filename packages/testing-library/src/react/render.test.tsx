@@ -19,7 +19,10 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { expect, test, vi } from 'vitest';
 

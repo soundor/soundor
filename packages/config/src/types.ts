@@ -43,6 +43,8 @@ export interface RuntimeConfig {
  * release.
  */
 export interface PluginIdentity {
+  /** Release version, shared by all formats. Defaults to 0.1.0. */
+  version?: string;
   id: string;
   /** Display name hosts show. */
   name: string;

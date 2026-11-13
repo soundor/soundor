@@ -1260,3 +1260,22 @@ it('cleans up unfinished state gestures without resetting persistent values', ()
   expect(runtime.state.gestureDepth('selected')).toBe(0);
   expect(field.get()).toBe('Warm');
 });
+
+it('owns immutable host metadata and isolates environment between runtimes', () => {
+  const first = createTestRuntime({
+    plugin: { id: 'com.example.test', name: 'Test', version: '2.3.4' },
+    environment: { platform: 'windows', format: 'vst3' },
+  });
+  const second = createTestRuntime();
+  const track = { name: 'Vocals', color: '#78a8ffff' };
+  first.setHost({ track, processingMode: 'offline' });
+  track.name = 'Changed outside the runtime';
+  expect(first.snapshot().track?.name).toBe('Vocals');
+  expect(Object.isFrozen(first.snapshot().track)).toBe(true);
+  expect(first.plugin.version).toBe('2.3.4');
+  expect(first.environment.platform).toBe('windows');
+  expect(second.environment.platform).toBe('unknown');
+  expect(second.snapshot().track).toBeUndefined();
+  first.dispose();
+  second.dispose();
+});

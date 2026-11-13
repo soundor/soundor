@@ -12,7 +12,11 @@ import {
   View,
 } from '@soundor/react';
 import { useRef, useSyncExternalStore } from 'react';
-import { plugin, snapshot, subscribe } from 'soundor:host';
+import {
+  plugin,
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
 import type { PointerEvent, KeyboardEvent, WheelEvent } from 'soundor:ui';

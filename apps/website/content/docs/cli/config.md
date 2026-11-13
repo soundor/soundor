@@ -46,6 +46,10 @@ handles mismatches
 | `id`   | Stable, globally unique reverse-DNS id (`com.acme.reverb`). Runtimes derive format identities from it, and Soundor isolates the plugin's native code by it. Never change it after release. |
 | `name` | The display name hosts show.                                                                                                                                                               |
 
+`plugin.version` is an optional `major.minor.patch` string (for example `1.2.0`),
+defaulting to `0.1.0`. Every runtime exposes it through `soundor:host`; JUCE
+also uses it as the plugin bundle version.
+
 ### `editor`
 
 The plugin editor's size in logical pixels, and whether it can be resized.

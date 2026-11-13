@@ -6,6 +6,8 @@ import {
   hostSnapshot,
   pluginId,
   pluginName,
+  pluginVersion,
+  hostEnvironment,
   setHostListener,
 } from 'soundor:internal/platform';
 import { reportError } from 'soundor:internal/web/console';
@@ -13,12 +15,19 @@ import { reportError } from 'soundor:internal/web/console';
 function freeze(snapshot) {
   if (snapshot.transport !== null) {
     Object.freeze(snapshot.transport.timeSignature);
+    if (snapshot.transport.timecode) Object.freeze(snapshot.transport.timecode);
     Object.freeze(snapshot.transport);
   }
+  if (snapshot.track) Object.freeze(snapshot.track);
   return Object.freeze(snapshot);
 }
 
-export const plugin = Object.freeze({ id: pluginId, name: pluginName });
+export const plugin = Object.freeze({
+  id: pluginId,
+  name: pluginName,
+  version: pluginVersion,
+});
+export const environment = Object.freeze(hostEnvironment);
 
 /** The latest snapshot; replaced (never changed) when the host state changes. */
 let latest = null;
@@ -28,7 +37,7 @@ let latest = null;
  * same object until the state changes, so it works as a store snapshot (e.g.
  * React's useSyncExternalStore(subscribe, snapshot)).
  */
-export function snapshot() {
+export function getHostState() {
   latest ??= freeze(hostSnapshot());
   return latest;
 }
@@ -39,9 +48,9 @@ const listeners = new Set();
  * Calls `listener` with the new snapshot whenever the host state changes —
  * while the transport plays, once per frame. Returns an unsubscribe function.
  */
-export function subscribe(listener) {
+export function subscribeHostState(listener) {
   if (typeof listener !== 'function')
-    throw new TypeError('subscribe() expects a function');
+    throw new TypeError('subscribeHostState() expects a function');
   const entry = { listener };
   listeners.add(entry);
   return () => {

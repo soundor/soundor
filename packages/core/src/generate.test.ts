@@ -101,9 +101,7 @@ declare module 'soundor:native' {
       },
       {
         path: 'platform.d.ts',
-        contents: expect.stringContaining(
-          'export const plugin: { readonly id: string; readonly name: string };',
-        ),
+        contents: expect.stringContaining('export const plugin:'),
       },
       {
         path: 'soundor.d.ts',

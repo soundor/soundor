@@ -2,6 +2,38 @@
 // and soundor:fs (data private to the plugin).
 
 declare module 'soundor:host' {
+  /** The runtime and native binary's environment; browser detection is best effort. */
+  export interface HostEnvironment {
+    readonly runtime: string;
+    readonly runtimeVersion: string;
+    readonly platform:
+      | 'macos'
+      | 'windows'
+      | 'linux'
+      | 'ios'
+      | 'android'
+      | 'unknown';
+    readonly arch: 'arm64' | 'x64' | 'unknown';
+    readonly format: 'vst3' | 'au' | 'standalone' | 'web' | 'unknown';
+  }
+
+  export interface Timecode {
+    readonly framesPerSecond: number;
+    readonly dropFrame: boolean;
+    /** Offset in units of 1/80 of a frame, when reported. */
+    readonly smpteOffsetSubframes?: number;
+  }
+
+  export interface TrackInfo {
+    readonly name?: string;
+    /** CSS hexadecimal RGBA: #rrggbbaa. */
+    readonly color?: string;
+    /** One-based index within the host's channel namespace, when reported. */
+    readonly index?: number;
+    /** Host-provided identifier; stability depends on the host. */
+    readonly id?: string;
+  }
+
   export interface Transport {
     readonly playing: boolean;
     readonly recording: boolean;
@@ -16,26 +48,39 @@ declare module 'soundor:host' {
     readonly barStartPpq: number;
     readonly timeInSeconds: number;
     readonly timeInSamples: number;
+    /** Loop boundaries in quarter notes, when reported. */
+    readonly loopStartPpq?: number;
+    readonly loopEndPpq?: number;
+    readonly timecode?: Timecode;
   }
 
   export interface HostSnapshot {
     readonly sampleRate: number;
+    /** The configured maximum block size; individual processing blocks may be smaller. */
     readonly blockSize: number;
-    /** The host's name, when the plugin can tell (e.g. "Reaper"). */
+    /** The host's name, when the runtime can identify it. */
     readonly hostName: string;
+    readonly hostVersion?: string;
+    readonly samplePrecision: 'float32' | 'float64' | 'unknown';
+    readonly processingMode: 'realtime' | 'prefetch' | 'offline' | 'unknown';
+    readonly track?: TrackInfo;
     /** null until the host reports a transport. */
     readonly transport: Transport | null;
   }
 
-  /** This plugin's identity: `plugin.id` and `plugin.name` in soundor.config. */
-  export const plugin: { readonly id: string; readonly name: string };
-
-  /** The current host state. */
-  export function snapshot(): HostSnapshot;
-
-  /** Calls `listener` whenever the host state changes (every frame while playing). Returns an unsubscribe function. */
-  export function subscribe(
-    listener: (snapshot: HostSnapshot) => void,
+  /** Configured plugin identity. Version defaults to 0.1.0. */
+  export const plugin: {
+    readonly id: string;
+    readonly name: string;
+    readonly version: string;
+  };
+  /** Constant for this editor's lifetime. */
+  export const environment: Readonly<HostEnvironment>;
+  /** The current immutable host state; the same object until it changes. */
+  export function getHostState(): HostSnapshot;
+  /** Calls listener on changes, without an initial call. Returns an unsubscribe function. */
+  export function subscribeHostState(
+    listener: (state: HostSnapshot) => void,
   ): () => void;
 }
 

@@ -109,6 +109,7 @@ export interface ResolvedJuceOptions {
   readonly bundleId: string;
   /** `plugin.name`. */
   readonly pluginName: string;
+  readonly pluginVersion: string;
   readonly companyName: string;
   readonly pluginCode: string;
   readonly manufacturerCode: string;
@@ -163,6 +164,7 @@ export function resolveJuceOptions(
     windowsCrt: windowsCrtOf(options.windows?.crt),
     bundleId: plugin.id,
     pluginName: plugin.name,
+    pluginVersion: plugin.version ?? '0.1.0',
     companyName: options.companyName ?? vendor.name,
     pluginCode: fourCharCode(options.pluginCode, plugin.id),
     manufacturerCode: fourCharCode(options.manufacturerCode, vendor.id),

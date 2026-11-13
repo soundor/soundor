@@ -11,30 +11,69 @@
 
 import { Listeners } from './listeners';
 
-export interface TimeSignature {
-  readonly numerator: number;
-  readonly denominator: number;
+/** The runtime and native binary's environment; browser detection is best effort. */
+export interface HostEnvironment {
+  readonly runtime: string;
+  readonly runtimeVersion: string;
+  readonly platform:
+    | 'macos'
+    | 'windows'
+    | 'linux'
+    | 'ios'
+    | 'android'
+    | 'unknown';
+  readonly arch: 'arm64' | 'x64' | 'unknown';
+  readonly format: 'vst3' | 'au' | 'standalone' | 'web' | 'unknown';
 }
 
-/** The transport, as `soundor:host` declares it. */
+export interface Timecode {
+  readonly framesPerSecond: number;
+  readonly dropFrame: boolean;
+  /** Offset in units of 1/80 of a frame, when reported. */
+  readonly smpteOffsetSubframes?: number;
+}
+
+export interface TrackInfo {
+  readonly name?: string;
+  /** CSS hexadecimal RGBA: #rrggbbaa. */
+  readonly color?: string;
+  /** One-based index within the host's channel namespace, when reported. */
+  readonly index?: number;
+  /** Host-provided identifier; stability depends on the host. */
+  readonly id?: string;
+}
+
 export interface Transport {
   readonly playing: boolean;
   readonly recording: boolean;
   readonly looping: boolean;
   readonly bpm: number;
-  readonly timeSignature: TimeSignature;
+  readonly timeSignature: {
+    readonly numerator: number;
+    readonly denominator: number;
+  };
   /** Musical position in quarter notes, and where its bar starts. */
   readonly ppqPosition: number;
   readonly barStartPpq: number;
   readonly timeInSeconds: number;
   readonly timeInSamples: number;
+  /** Loop boundaries in quarter notes, when reported. */
+  readonly loopStartPpq?: number;
+  readonly loopEndPpq?: number;
+  readonly timecode?: Timecode;
 }
 
-/** The host state, as `soundor:host` declares it. */
 export interface HostSnapshot {
   readonly sampleRate: number;
+  /** The configured maximum block size; individual processing blocks may be smaller. */
   readonly blockSize: number;
+  /** The host's name, when the runtime can identify it. */
   readonly hostName: string;
+  readonly hostVersion?: string;
+  readonly samplePrecision: 'float32' | 'float64' | 'unknown';
+  readonly processingMode: 'realtime' | 'prefetch' | 'offline' | 'unknown';
+  readonly track?: TrackInfo;
+  /** null until the host reports a transport. */
   readonly transport: Transport | null;
 }
 
@@ -77,7 +116,7 @@ export class WebHost {
   #playing = false;
   #looping = false;
   #bpm = 120;
-  #timeSignature: TimeSignature = Object.freeze({
+  #timeSignature: Transport['timeSignature'] = Object.freeze({
     numerator: 4,
     denominator: 4,
   });
@@ -274,6 +313,8 @@ export class WebHost {
       sampleRate: this.#sampleRate,
       blockSize: this.#blockSize,
       hostName: HOST_NAME,
+      samplePrecision: 'float32',
+      processingMode: 'realtime',
       transport: Object.freeze({
         playing: this.#playing,
         recording: false,
@@ -282,6 +323,8 @@ export class WebHost {
         timeSignature: this.#timeSignature,
         ppqPosition: ppq,
         barStartPpq: this.#barStart(ppq),
+        loopStartPpq: this.#barOriginPpq,
+        loopEndPpq: this.#barOriginPpq + LOOP_BARS * this.#barLength(),
         timeInSeconds: seconds,
         timeInSamples: Math.round(seconds * this.#sampleRate),
       }),

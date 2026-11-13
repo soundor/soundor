@@ -2,7 +2,11 @@
 // resolved by the runtime's Vite plugin to the page's one host context.
 
 import * as hostModule from 'soundor:host';
-import { plugin, snapshot, subscribe } from 'soundor:host';
+import {
+  plugin,
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 
@@ -45,7 +49,11 @@ describe('soundor:parameters', () => {
 
 describe('soundor:host', () => {
   it('reports the plugin and the Web host state', () => {
-    expect(plugin).toEqual({ id: 'com.example.fixture', name: 'Fixture' });
+    expect(plugin).toEqual({
+      id: 'com.example.fixture',
+      name: 'Fixture',
+      version: '0.1.0',
+    });
     expect(Object.isFrozen(plugin)).toBe(true);
     expect(snapshot()).toBe(hostContext().host.snapshot());
     expect(snapshot().hostName).toBe('Soundor Web');
@@ -62,9 +70,10 @@ describe('soundor:host', () => {
 
   it('lets the plugin observe the transport, not control it', () => {
     expect(Object.keys(hostModule).sort()).toEqual([
+      'environment',
+      'getHostState',
       'plugin',
-      'snapshot',
-      'subscribe',
+      'subscribeHostState',
     ]);
   });
 });

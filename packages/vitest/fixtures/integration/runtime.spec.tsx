@@ -2,7 +2,10 @@ import { getTestRuntime } from '@soundor/test-runtime';
 import { platform as externalPlatform } from 'conditional-ui';
 import { platform as inlinePlatform } from 'conditional-ui-inline';
 import { readText } from 'soundor:fs';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { probe, load } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
