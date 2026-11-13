@@ -158,7 +158,7 @@ export async function juceDev(
   const platform = deps.platform ?? process.platform;
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
-  requireToolchain(deps.probe ?? probeCommand);
+  requireToolchain(deps.probe ?? probeCommand, platform);
   // Before the build, which can take minutes: a host that cannot run says so.
   const hostAvailability: Vst3HostAvailability = options.formats.includes(
     'vst3',
@@ -348,7 +348,7 @@ export async function juceBuild(
   const configuration = debug ? 'Debug' : 'Release';
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
-  requireToolchain(deps.probe ?? probeCommand);
+  requireToolchain(deps.probe ?? probeCommand, platform);
   const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   const buildDir = join(
     ctx.paths.cache,
@@ -498,7 +498,10 @@ async function requireJuce(
   return resolution.path;
 }
 
-function requireToolchain(probe: CommandProbe): void {
+function requireToolchain(
+  probe: CommandProbe,
+  platform: NodeJS.Platform,
+): void {
   if (!findCMake(probe)) {
     throw new EnvError(
       'CMake not found. Install CMake >= 3.22 and ensure `cmake` is in PATH. Run `soundor doctor` for details.',
@@ -509,7 +512,8 @@ function requireToolchain(probe: CommandProbe): void {
       'Ninja not found. Soundor builds Skia with it, and the plugin too on macOS and Linux; install it and ensure `ninja` is in PATH. Run `soundor doctor` for details.',
     );
   }
-  if (!findCppCompiler(probe)) {
+  // The Visual Studio generator discovers MSVC without a compiler on PATH.
+  if (platform !== 'win32' && !findCppCompiler(probe)) {
     throw new EnvError(
       'No C++ compiler found. Install a C++ toolchain (Xcode Command Line Tools, MSVC Build Tools, or GCC/Clang) and ensure `c++`, `clang++`, or `g++` is in PATH. Run `soundor doctor` for details.',
     );

@@ -694,6 +694,7 @@ describe('build tree', () => {
       keychain?: string;
       macos?: JuceOptions['macos'];
       windows?: JuceOptions['windows'];
+      probe?: CommandProbe;
     } = {},
   ): Promise<string[]> {
     const root = await tempProjectWithJuce();
@@ -721,12 +722,31 @@ describe('build tree', () => {
     const run = async (o: RunCommandOptions) => {
       calls.push([...o.args]);
     };
-    const deps = { run, probe: okProbe, platform };
+    const deps = { run, probe: extra.probe ?? okProbe, platform };
     await (phase === 'dev'
       ? juceDev(config, ctx, deps)
       : juceBuild(config, ctx, deps));
     return calls[0]!;
   }
+
+  it.each(['dev', 'build'] as const)(
+    'lets CMake discover MSVC in %s without a compiler on PATH',
+    async (phase) => {
+      const commands: string[] = [];
+      const args = await configureArgs(phase, 'win32', {
+        probe: (cmd) => {
+          commands.push(cmd);
+          return cmd === 'cmake' || cmd === 'ninja'
+            ? { ok: true, version: '1.0' }
+            : { ok: false, error: 'not found' };
+        },
+      });
+      expect(args).not.toContain('-G');
+      expect(commands).not.toContain('c++');
+      expect(commands).not.toContain('clang++');
+      expect(commands).not.toContain('g++');
+    },
+  );
 
   it('configures macOS and Linux builds with Ninja', async () => {
     for (const phase of ['dev', 'build'] as const) {
