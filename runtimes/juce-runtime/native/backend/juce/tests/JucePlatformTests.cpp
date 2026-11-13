@@ -25,7 +25,7 @@ namespace
 {
     struct ScriptedPlayHead final : juce::AudioPlayHead
     {
-        juce::Optional<PositionInfo> getPosition() const override { return position; }
+        [[nodiscard]] juce::Optional<PositionInfo> getPosition() const override { return position; }
         juce::Optional<PositionInfo> position;
     };
 
@@ -160,18 +160,21 @@ TEST_CASE("TransportCapture copies the play head's position")
     playHead.position = info;
     backend::TransportCapture capture;
     capture.capture(&playHead);
-    const auto transport = capture.latest();
-    REQUIRE(transport.has_value());
-    CHECK(transport->playing);
-    CHECK_FALSE(transport->recording);
-    CHECK(transport->looping);
-    CHECK(transport->bpm == 140.0);
-    CHECK(transport->timeSignatureNumerator == 6);
-    CHECK(transport->timeSignatureDenominator == 8);
-    CHECK(transport->ppqPosition == 12.5);
-    CHECK(transport->barStartPpq == 12.0);
-    CHECK(transport->timeInSeconds == 5.25);
-    CHECK(transport->timeInSamples == 252000);
+    if (const auto transport = capture.latest())
+    {
+        CHECK(transport->playing);
+        CHECK_FALSE(transport->recording);
+        CHECK(transport->looping);
+        CHECK(transport->bpm == 140.0);
+        CHECK(transport->timeSignatureNumerator == 6);
+        CHECK(transport->timeSignatureDenominator == 8);
+        CHECK(transport->ppqPosition == 12.5);
+        CHECK(transport->barStartPpq == 12.0);
+        CHECK(transport->timeInSeconds == 5.25);
+        CHECK(transport->timeInSamples == 252000);
+    }
+    else
+        FAIL("TransportCapture did not publish a position");
 }
 
 TEST_CASE("fetch() through JuceHttpClient talks to a real server")

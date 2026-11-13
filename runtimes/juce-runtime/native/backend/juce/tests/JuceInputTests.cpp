@@ -10,7 +10,7 @@ namespace
 {
     juce::KeyPress press(int code, juce::ModifierKeys modifiers = {}, juce::juce_wchar character = 0)
     {
-        return juce::KeyPress(code, modifiers, character);
+        return { code, modifiers, character };
     }
 
     juce::MouseWheelDetails wheel(float deltaX, float deltaY, bool smooth)

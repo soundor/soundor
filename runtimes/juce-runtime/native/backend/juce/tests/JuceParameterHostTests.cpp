@@ -15,8 +15,9 @@
 #include <doctest/doctest.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <bit>
 #include <cmath>
-#include <cstring>
+#include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -55,7 +56,7 @@ namespace
             published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
         }
 
-        backend::JuceParameter& parameter(const char* id)
+        backend::JuceParameter& parameter(const char* id) const
         {
             return *dynamic_cast<backend::JuceParameter*>(state->getParameter(id));
         }
@@ -113,7 +114,8 @@ namespace
             auto evaluated = host.context().evaluateModule(
                 soundor::test::module("import { parameters as p } from 'soundor:parameters';\n" + body),
                 "/t" + std::to_string(++counter));
-            REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
+            if (! evaluated.ok())
+                throw std::runtime_error(evaluated.error().toString());
             return host.context().evaluateScript("globalThis.result").value();
         }
 
@@ -161,7 +163,7 @@ TEST_CASE("computes what the Web runtime's JavaScript computes")
         else
             CHECK(static_cast<float>(output)
                   == doctest::Approx(static_cast<float>(probe.output)).epsilon(std::numeric_limits<float>::epsilon()));
-        exact += std::memcmp(&output, &probe.output, sizeof output) == 0 ? 1 : 0;
+        exact += std::bit_cast<std::uint64_t>(output) == std::bit_cast<std::uint64_t>(probe.output) ? 1 : 0;
     }
     // All but a few, where a library function's last bit differs.
     CHECK(exact >= std::size(parity::numbers) * 99 / 100);
@@ -395,8 +397,8 @@ TEST_CASE("one-shot boolean writes reach JUCE in begin-value-end order and no-op
     struct Log final : juce::AudioProcessorParameter::Listener
     {
         std::vector<std::string> events;
-        void parameterValueChanged(int, float) override { events.push_back("value"); }
-        void parameterGestureChanged(int, bool starting) override { events.push_back(starting ? "begin" : "end"); }
+        void parameterValueChanged(int, float) override { events.emplace_back("value"); }
+        void parameterGestureChanged(int, bool starting) override { events.emplace_back(starting ? "begin" : "end"); }
     } log;
     auto& parameter = f.processor.parameter("bypass");
     parameter.addListener(&log);

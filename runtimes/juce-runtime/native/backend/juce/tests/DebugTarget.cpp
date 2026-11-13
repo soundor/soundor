@@ -54,8 +54,10 @@ namespace
 // picker's pointer input is generated locally here; Soundor Driver's comes
 // over the wire, through the engine's input dispatch to the application.
 int main()
+try
 {
-    std::cout << "START native target" << std::endl;
+    std::cout << std::unitbuf;
+    std::cout << "START native target" << '\n';
     const auto makeHost = []
     {
         auto host = std::make_unique<RuntimeHost>(RuntimeHost::Options {});
@@ -91,8 +93,8 @@ int main()
     render::RasterCompositor compositor(output);
     auto bridge = std::make_unique<backend::JuceDebugBridge>(
         juce::SystemStats::getEnvironmentVariable("SOUNDOR_DEVTOOLS_SESSION", {}).toStdString(), "Native Bridge Test",
-        [](js::LogLevel, std::string_view message) { std::cerr << message << std::endl; });
-    std::cout << "READY native target" << std::endl;
+        [](js::LogLevel, std::string_view message) { std::cerr << message << '\n'; });
+    std::cout << "READY native target" << '\n';
     unsigned generation = 1;
     std::vector<ui::NodeId> lastHighlights;
     bool picked = false;
@@ -119,17 +121,17 @@ int main()
                 *host, { .phase = ui::PointerInput::Phase::Down, .position = { 70, 10 }, .button = 0, .buttons = 1 });
             bridge->pointer(*host, { .phase = ui::PointerInput::Phase::Up, .position = { 70, 10 }, .button = 0 });
             picked = true;
-            std::cout << "PICKED applicationEvents=" << counter(*host, "events") << std::endl;
+            std::cout << "PICKED applicationEvents=" << counter(*host, "events") << '\n';
         }
         if (const auto now = counter(*host, "clicks"); now != clicks)
         {
             clicks = now;
-            std::cout << "CLICKED generation=" << generation << " clicks=" << clicks << std::endl;
+            std::cout << "CLICKED generation=" << generation << " clicks=" << clicks << '\n';
         }
         if (const auto now = counter(*host, "cancels"); now != cancels)
         {
             cancels = now;
-            std::cout << "CANCELLED generation=" << generation << " cancels=" << cancels << std::endl;
+            std::cout << "CANCELLED generation=" << generation << " cancels=" << cancels << '\n';
         }
         // Every highlighted node, comma-separated; 0 for none.
         const auto& highlights = host->surface().debugHighlights();
@@ -139,7 +141,7 @@ int main()
             for (const auto id : highlights)
                 shown += (shown.empty() ? "" : ",") + std::to_string(id);
             std::cout << "STATE generation=" << generation << " highlight=" << shown << " picking=" << bridge->picking()
-                      << std::endl;
+                      << '\n';
             lastHighlights = highlights;
         }
         if (host->needsRender())
@@ -154,4 +156,9 @@ int main()
     const auto teardown = std::chrono::steady_clock::now();
     bridge.reset();
     return std::chrono::steady_clock::now() - teardown < std::chrono::seconds(1) ? 0 : 2;
+}
+catch (const std::exception& error)
+{
+    std::cerr << error.what() << '\n';
+    return 1;
 }

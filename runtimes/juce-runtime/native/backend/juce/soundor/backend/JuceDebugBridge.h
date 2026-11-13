@@ -14,7 +14,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     class JuceDebugBridge
     {
     public:
-        JuceDebugBridge(std::string descriptor, std::string name, js::LogSink log = {});
+        JuceDebugBridge(std::string descriptor, std::string name, js::LogSink output = {});
         ~JuceDebugBridge();
         JuceDebugBridge(const JuceDebugBridge&) = delete;
         JuceDebugBridge& operator=(const JuceDebugBridge&) = delete;

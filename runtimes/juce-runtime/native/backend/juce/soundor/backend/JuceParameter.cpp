@@ -103,6 +103,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         switch (declared.type)
         {
             case parameters::Type::Float32:
+                // NOLINTNEXTLINE(bugprone-parent-virtual-call): Soundor handles snapping; hosts see a continuous float.
                 return juce::AudioProcessorParameter::getNumSteps();
             case parameters::Type::Boolean:
                 return 2;
@@ -119,6 +120,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 return static_cast<int>(std::lround((declared.max - declared.min) / step)) + 1;
             }
         }
+        // NOLINTNEXTLINE(bugprone-parent-virtual-call): preserve the continuous fallback.
         return juce::AudioProcessorParameter::getNumSteps();
     }
 

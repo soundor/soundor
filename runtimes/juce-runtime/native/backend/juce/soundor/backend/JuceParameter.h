@@ -113,8 +113,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             parameter.editor = this;
         }
         ~ParameterEditor() override { parameter.editor = nullptr; }
-        history::Value read() const override { return static_cast<double>(parameter.plain()); }
-        double get() const { return std::get<double>(manager.read(id)); }
+        [[nodiscard]] history::Value read() const override { return static_cast<double>(parameter.plain()); }
+        [[nodiscard]] double get() const { return std::get<double>(manager.read(id)); }
         void set(double value, const history::Options& options = {})
         {
             manager.edit(
@@ -189,7 +189,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 {
                     parameter.endChangeGesture();
                 }
-                catch (...)
+                catch (...) // NOLINT(bugprone-empty-catch): host callbacks must not escape noexcept cleanup.
                 {
                 }
             }
@@ -218,7 +218,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         }
                         field.parameter.notifyPlain();
                     }
-                    catch (...)
+                    catch (...) // NOLINT(bugprone-empty-catch): host callbacks must not escape noexcept cleanup.
                     {
                     }
                     if (opened)
@@ -227,7 +227,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                         {
                             field.parameter.endChangeGesture();
                         }
-                        catch (...)
+                        catch (...) // NOLINT(bugprone-empty-catch): host callbacks must not escape noexcept cleanup.
                         {
                         }
                     }
@@ -235,10 +235,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             };
             return std::make_unique<Write>(*this, static_cast<float>(parameter.behavior().constrain(number)));
         }
-        history::StateHistory& historyManager() const { return manager; }
+        [[nodiscard]] history::StateHistory& historyManager() const { return manager; }
 
     private:
-        bool automatable() const { return parameter.info().access == parameters::Access::Automatable; }
+        [[nodiscard]] bool automatable() const { return parameter.info().access == parameters::Access::Automatable; }
         JuceParameter& parameter;
         history::StateHistory& manager;
         std::map<Owner, std::size_t> owners;
@@ -304,13 +304,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         [[nodiscard]] T load() const noexcept { return detail::fromPlain<T>(parameter->plain()); }
         [[nodiscard]] JuceParameter& juceParameter() const noexcept { return *parameter; }
         // Control-thread editing API. load() remains the realtime-safe DSP read.
-        T get() const { return detail::fromPlain<T>(static_cast<float>(editing().get())); }
+        [[nodiscard]] T get() const { return detail::fromPlain<T>(static_cast<float>(editing().get())); }
         void set(T value, const history::Options& options = {}) { editing().set(detail::toPlain(value), options); }
         void beginGesture(const history::Options& options = {}) { editing().beginGesture(options); }
         void endGesture() { editing().endGesture(); }
 
     protected:
-        ParameterEditor& editing() const
+        [[nodiscard]] ParameterEditor& editing() const
         {
             if (! parameter || ! parameter->editor)
                 throw std::logic_error("parameter editing is not attached to a processor");

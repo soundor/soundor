@@ -43,7 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     class JuceHostInfo final : public platform::HostInfo
     {
     public:
-        JuceHostInfo(const juce::AudioProcessor& processor, const TransportCapture& transport);
+        JuceHostInfo(const juce::AudioProcessor& owner, const TransportCapture& capture);
 
         [[nodiscard]] platform::HostSnapshot snapshot() const override;
 

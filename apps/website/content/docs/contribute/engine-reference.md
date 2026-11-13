@@ -1738,6 +1738,22 @@ cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
 cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
 
+The JUCE runtime has its own native checks, from `runtimes/juce-runtime/native/`:
+
+```sh
+cmake --workflow --preset juce   # JUCE adapter, state and DevTools tests
+cmake --workflow --preset tidy   # clang-tidy over adapters and tests (needs clang-tools 18)
+cmake --workflow --preset nogpu  # source engine without ANGLE, and JUCE tests
+```
+
+`pnpm --filter @soundor/juce-runtime lint:native` runs the `tidy` workflow.
+It uses a prebuilt engine and analyzes Soundor's JUCE sources, excluding
+JUCE's modules, generated fixtures and engine sources. CI checks each supported
+JUCE version with Clang and GCC on Linux, Apple Clang on macOS and MSVC on
+Windows. Separate Linux jobs run clang-tidy and the no-GPU configuration;
+the latter also builds and resizes the test plugin with
+`SOUNDOR_ENABLE_GPU=OFF`, exercising CPU rendering.
+
 The JUCE adapter tests need a JUCE checkout. JUCE is never part of either
 package; CI checks out a pinned JUCE for them, outside both. Run them wherever
 JUCE is installed, for example the two-plugin host test:

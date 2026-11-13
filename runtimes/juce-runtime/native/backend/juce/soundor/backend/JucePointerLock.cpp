@@ -10,7 +10,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         class DesktopSource final : public PointerLock::Source
         {
         public:
-            explicit DesktopSource(juce::MouseInputSource mouse) : source(std::move(mouse)) {}
+            explicit DesktopSource(const juce::MouseInputSource& mouse) : source(mouse) {}
 
             [[nodiscard]] bool isDragging() const override { return source.isDragging(); }
             [[nodiscard]] juce::Point<float> screenPosition() const override { return source.getScreenPosition(); }
@@ -43,7 +43,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         std::unique_ptr<Source> source = pointerId ? sources(*pointerId) : nullptr;
         // A drag the platform ended without a release ends the lock too.
         const bool wanted = source != nullptr && source->isDragging();
-        if (locked && (! wanted || *locked != *pointerId))
+        if (locked && (! pointerId || ! wanted || *locked != *pointerId))
             release();
         if (wanted && ! locked)
         {
@@ -76,7 +76,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     {
         if (! locked)
             return;
-        if (auto source = sources(*std::exchange(locked, std::nullopt)))
+        const int pointerId = *locked;
+        locked.reset();
+        if (auto source = sources(pointerId))
             source->setScreenPosition(startOnScreen);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
