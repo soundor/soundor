@@ -1227,7 +1227,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         jsi::Value isVisible(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return call(context, "isVisible", count, 0,
-                        [&](Surface& surface) -> jsi::Value { return jsi::Value(surface.isVisible()); });
+                        [&](Surface& surface) { return jsi::Value(surface.isVisible()); });
         }
 
         jsi::Value setVisibilityListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
@@ -1244,7 +1244,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         jsi::Value isFocused(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
         {
             return call(context, "isFocused", count, 0,
-                        [&](Surface& surface) -> jsi::Value { return jsi::Value(surface.isFocused()); });
+                        [&](Surface& surface) { return jsi::Value(surface.isFocused()); });
         }
 
         jsi::Value setFocusListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
