@@ -1903,7 +1903,13 @@ within the seven-day retention period. The planner matches native inputs and
 build recipes, and consumers validate the original commit and archive integrity.
 Missing or expired artifacts select a source build; engine changes still build
 and run native checks. Releases continue using same-commit artifacts. New archives and manifests record `sourceFingerprint`, computed from
-the native inputs and the installed lowering dependency graph. Imports reject
+the native inputs and the lowering tool's dependency graph. The published
+`dist/native-module.mjs` bundles Babel and its runtime dependencies, and
+`dist/lowering-inputs.json` captures their graph at build time. Published engines
+use that captured graph, so later Babel releases cannot alter prebuilt selection
+or the lowering code. Babel is a build dependency only; public lowering options
+use the engine-owned `NativeModuleSourceMap` type. Workspace builds use the installed graph and lowering
+source, so local dependency changes still select a source build. Imports reject
 a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` (by hand) uploads them to a draft release,
 verifies the draft and deletes it (the whole release path, published nowhere),
 and `publish` (only from `release.yml`) publishes the release (never as the
