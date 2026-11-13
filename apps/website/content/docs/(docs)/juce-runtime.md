@@ -495,7 +495,9 @@ plugin reloads it from there.
 `dev` and `build` configure CMake with **Ninja** on macOS and Linux, and with
 CMake's default, **Visual Studio**, on Windows. A build tree configured with
 another generator (as earlier Soundor versions left on macOS and Linux) is
-deleted and configured afresh.
+deleted and configured afresh. On Windows, compiler discovery is left to the
+Visual Studio generator: MSVC does not need to be on `PATH`. `doctor` reports
+this deferred check; a missing MSVC installation fails at CMake configure time.
 
 The last build step of every format is `soundor_finalize_plugin`
 (`native/SoundorPluginBundle.cmake`), deferred to the end of the

@@ -362,6 +362,29 @@ describe('buildDoctorReport', () => {
     expect(cmake.suggestion).toMatch(/Install CMake/);
   });
 
+  it('defers Windows compiler discovery to CMake without probing Unix compilers', async () => {
+    const commands: string[] = [];
+    const report = await buildDoctorReport(
+      memoryFs('/proj'),
+      {},
+      {
+        platform: 'win32',
+        env: {},
+        probe: (cmd) => {
+          commands.push(cmd);
+          return missing(cmd);
+        },
+      },
+    );
+    expect(check(report, 'C++ compiler')).toMatchObject({
+      status: 'ok',
+      detail: expect.stringContaining('checked at configure time'),
+    });
+    expect(commands).not.toContain('c++');
+    expect(commands).not.toContain('clang++');
+    expect(commands).not.toContain('g++');
+  });
+
   it('reports a missing compiler when every front-end fails', async () => {
     const fs = memoryFs('/proj', { '/proj/JUCE/CMakeLists.txt': '#' }, [
       '/proj/JUCE/modules',

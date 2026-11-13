@@ -92,7 +92,7 @@ export async function buildDoctorReport(
   return {
     checks: [
       checkCMake(probe),
-      checkCompiler(probe),
+      checkCompiler(probe, deps.platform ?? process.platform),
       checkNativeBuildTools(probe),
       await checkJuce(fs, options, env),
       checkEngine(
@@ -309,7 +309,17 @@ export function findCppCompiler(
   return undefined;
 }
 
-function checkCompiler(probe: CommandProbe): DoctorCheck {
+function checkCompiler(
+  probe: CommandProbe,
+  platform: NodeJS.Platform,
+): DoctorCheck {
+  if (platform === 'win32')
+    return {
+      label: 'C++ compiler',
+      status: 'ok',
+      detail:
+        "Deferred to CMake's Visual Studio generator, which discovers MSVC without a compiler on PATH; checked at configure time.",
+    };
   for (const compiler of CXX_COMPILERS) {
     const result = probe(compiler, ['--version']);
     if (result.ok) {
