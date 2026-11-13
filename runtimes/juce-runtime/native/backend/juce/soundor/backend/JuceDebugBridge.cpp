@@ -17,7 +17,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     {
         // The DevTools protocol version (`@soundor/devtools-protocol`).
         constexpr int protocolVersion = 2;
-        constexpr std::size_t maxMessage = 1024 * 1024;
+        constexpr std::size_t maxMessage = std::size_t { 1024 } * 1024;
         constexpr std::size_t maxQueue = 128;
         juce::var property(const juce::var& value, const char* name)
         {

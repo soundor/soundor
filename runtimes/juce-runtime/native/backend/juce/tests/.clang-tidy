@@ -1,0 +1,5 @@
+# The embedded doctest implementation reports false leaks in its assertion
+# strings, including CHECK and CHECK_EQ. Keep this checker on for the adapter
+# translation units; disable it only for the test harness.
+InheritParentConfig: true
+Checks: '-clang-analyzer-cplusplus.NewDeleteLeaks'

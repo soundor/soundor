@@ -220,6 +220,13 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(\${PROJECT_NAME} INTERFACE
     -Wl,--as-needed -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
+  # GCC LTO can emit default-visible standard-library instantiations outside
+  # the static archives. Bound the VST3's dynamic symbol table explicitly.
+  if(TARGET \${PROJECT_NAME}_VST3)
+    set(soundor_vst3_exports ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce/VST3.exports`))})
+    target_link_options(\${PROJECT_NAME}_VST3 PRIVATE "-Wl,--version-script=\${soundor_vst3_exports}")
+    set_property(TARGET \${PROJECT_NAME}_VST3 APPEND PROPERTY LINK_DEPENDS "\${soundor_vst3_exports}")
+  endif()
 endif()
 
 # The engine ABI identity is fixed by its exact package version.

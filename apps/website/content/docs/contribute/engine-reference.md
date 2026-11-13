@@ -892,6 +892,8 @@ A frame goes through three stages, each with its own owner:
    - `render::GpuCompositor` composites on the GPU and presents into a native
      view (see "The GPU"). CPU layers become textures, uploaded only where
      they changed; an unchanged frame uploads, draws and presents nothing.
+     With GPU support disabled at build time, its factories return null and
+     provide a diagnostic, so a caller can select the raster compositor.
    - `render::RasterCompositor` composites on the CPU with Skia into a
      `render::RasterTarget` (pixels the platform shows). It is the fallback
      that always works.
@@ -1650,6 +1652,9 @@ or its dependencies define may be exported from a plugin binary:
   layout, standard-library ABI and iterator debugging. Source code keeps writing
   `soundor::js::Context`; plugin copies of the same engine remain isolated by
   hidden visibility and final binary export restrictions.
+- Linux VST3s use a linker export map that exposes only `GetPluginFactory`,
+  `ModuleEntry` and `ModuleExit`. It also hides standard-library symbols
+  emitted by GCC LTO outside the linked static archives.
 - The `soundor_exported_symbols` test links the runtime into a plugin-shaped
   shared library and fails if it exports anything but its own entry point.
   Standard-library template instantiations are tolerated, because `std` headers
@@ -1737,6 +1742,22 @@ cmake --workflow --preset tidy       # + clang-tidy (build only)
 cmake --workflow --preset nogpu      # without ANGLE, as on iOS (no WebGL)
 cd ../../runtimes/juce-runtime/native && cmake --workflow --preset juce   # + JUCE adapter tests
 ```
+
+The JUCE runtime has its own native checks, from `runtimes/juce-runtime/native/`:
+
+```sh
+cmake --workflow --preset juce   # JUCE adapter, state and DevTools tests
+cmake --workflow --preset tidy   # clang-tidy over adapters and tests (needs clang-tools 18)
+cmake --workflow --preset nogpu  # source engine without ANGLE, and JUCE tests
+```
+
+`pnpm --filter @soundor/juce-runtime lint:native` runs the `tidy` workflow.
+It uses a prebuilt engine and analyzes Soundor's JUCE sources, excluding
+JUCE's modules, generated fixtures and engine sources. CI checks each supported
+JUCE version with Clang and GCC on Linux, Apple Clang on macOS and MSVC on
+Windows. Separate Linux jobs run clang-tidy and the no-GPU configuration;
+the latter also builds and resizes the test plugin with
+`SOUNDOR_ENABLE_GPU=OFF`, exercising CPU rendering.
 
 The JUCE adapter tests need a JUCE checkout. JUCE is never part of either
 package; CI checks out a pinned JUCE for them, outside both. Run them wherever

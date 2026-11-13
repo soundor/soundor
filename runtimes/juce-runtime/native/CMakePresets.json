@@ -10,13 +10,50 @@
         "SOUNDOR_ENABLE_DEVTOOLS": "ON",
         "SOUNDOR_JUCE_TESTS": "ON"
       }
+    },
+    {
+      "name": "tidy",
+      "inherits": "juce",
+      "binaryDir": "${sourceDir}/build/tidy",
+      "cacheVariables": {
+        "SOUNDOR_ENGINE_MODE": "prebuilt",
+        "SOUNDOR_JUCE_CLANG_TIDY": "ON"
+      }
+    },
+    {
+      "name": "nogpu",
+      "inherits": "juce",
+      "binaryDir": "${sourceDir}/build/nogpu",
+      "cacheVariables": {
+        "SOUNDOR_ENGINE_MODE": "source",
+        "SOUNDOR_ENABLE_GPU": "OFF"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "juce",
       "configurePreset": "juce",
-      "configuration": "Debug"
+      "configuration": "Debug",
+      "targets": [
+        "soundor_juce_tests",
+        "soundor_juce_platform_tests",
+        "soundor_juce_state_tests",
+        "soundor_debug_target",
+        "soundor_juce_editor_resize",
+        "soundor_juce_coexistence"
+      ]
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "configuration": "Debug",
+      "targets": ["soundor_juce_lint"]
+    },
+    {
+      "name": "nogpu",
+      "inherits": "juce",
+      "configurePreset": "nogpu"
     }
   ],
   "testPresets": [
@@ -26,7 +63,17 @@
       "configuration": "Debug",
       "output": {
         "outputOnFailure": true
+      },
+      "filter": {
+        "include": {
+          "name": "^soundor_(juce_|debug_session$)"
+        }
       }
+    },
+    {
+      "name": "nogpu",
+      "inherits": "juce",
+      "configurePreset": "nogpu"
     }
   ],
   "workflowPresets": [
@@ -44,6 +91,36 @@
         {
           "type": "test",
           "name": "juce"
+        }
+      ]
+    },
+    {
+      "name": "tidy",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "tidy"
+        },
+        {
+          "type": "build",
+          "name": "tidy"
+        }
+      ]
+    },
+    {
+      "name": "nogpu",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "nogpu"
+        },
+        {
+          "type": "build",
+          "name": "nogpu"
+        },
+        {
+          "type": "test",
+          "name": "nogpu"
         }
       ]
     }

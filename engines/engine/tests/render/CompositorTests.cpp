@@ -1,4 +1,5 @@
 #include <soundor/render/Compositor.h>
+#include <soundor/render/GpuCompositor.h>
 
 #include <doctest/doctest.h>
 
@@ -227,3 +228,17 @@ TEST_SUITE("render::RasterCompositor")
         CHECK(target.at(18, 9) == 0);
     }
 }
+
+#if ! defined(SOUNDOR_TEST_GPU)
+TEST_CASE("GPU compositor factories remain callable without GPU support")
+{
+    std::string failure;
+    CHECK(GpuCompositor::createDevice() == nullptr);
+    CHECK(GpuCompositor::createDevice(false, &failure) == nullptr);
+    CHECK_FALSE(failure.empty());
+    failure.clear();
+    CHECK(GpuCompositor::create({}) == nullptr);
+    CHECK(GpuCompositor::create({}, &failure) == nullptr);
+    CHECK_FALSE(failure.empty());
+}
+#endif

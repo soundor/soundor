@@ -26,7 +26,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         int highestIndex = -1;
         for (auto* parameter : bound)
             highestIndex = std::max(highestIndex, parameter->getParameterIndex());
-        declaredIndexOf.assign(static_cast<std::size_t>(highestIndex + 1), notDeclared);
+        declaredIndexOf.assign(static_cast<std::size_t>(highestIndex) + 1, notDeclared);
         for (std::size_t index = 0; index < bound.size(); ++index)
             declaredIndexOf[static_cast<std::size_t>(bound[index]->getParameterIndex())] = index;
 

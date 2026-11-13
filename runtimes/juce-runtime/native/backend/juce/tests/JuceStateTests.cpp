@@ -83,13 +83,13 @@ TEST_CASE("persistent processor state survives editor absence and processor reco
         juce::String::fromUTF8(static_cast<const char*>(saved.getData()), static_cast<int>(saved.getSize())));
     bad.getDynamicObject()->setProperty("version", 99);
     const auto text = juce::JSON::toString(bad);
-    copied.setStateInformation(text.toRawUTF8(), text.getNumBytesAsUTF8());
+    copied.setStateInformation(text.toRawUTF8(), static_cast<int>(text.getNumBytesAsUTF8()));
     CHECK(copied.restored == 1);
     CHECK(! copied.state.selectedPreset.get());
     bad.getDynamicObject()->setProperty("version", 1);
     bad["state"].getDynamicObject()->setProperty("groups", "corrupt");
     const auto corrupt = juce::JSON::toString(bad);
-    copied.setStateInformation(corrupt.toRawUTF8(), corrupt.getNumBytesAsUTF8());
+    copied.setStateInformation(corrupt.toRawUTF8(), static_cast<int>(corrupt.getNumBytesAsUTF8()));
     CHECK(copied.restored == 1);
     CHECK(! copied.state.selectedPreset.get());
 }
@@ -618,8 +618,8 @@ TEST_CASE("History edits and replay preserve JUCE one-shot and explicit host ges
     struct Listener final : juce::AudioProcessorParameter::Listener
     {
         std::vector<std::string> events;
-        void parameterValueChanged(int, float) override { events.push_back("value"); }
-        void parameterGestureChanged(int, bool begin) override { events.push_back(begin ? "begin" : "end"); }
+        void parameterValueChanged(int, float) override { events.emplace_back("value"); }
+        void parameterGestureChanged(int, bool begin) override { events.emplace_back(begin ? "begin" : "end"); }
     } listener;
     auto& parameter = p.bypassParameter.juceParameter();
     parameter.addListener(&listener);

@@ -38,7 +38,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
 
         // juce::Desktop's mouse sources: pointer id n is source n - 1.
         PointerLock();
-        explicit PointerLock(Sources sources);
+        explicit PointerLock(Sources provided);
         ~PointerLock();
 
         PointerLock(const PointerLock&) = delete;
