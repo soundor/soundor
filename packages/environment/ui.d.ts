@@ -980,6 +980,43 @@ declare module 'soundor:ui' {
     listener: (size: EditorSize) => void,
   ): () => void;
 
+  /**
+   * The editor's visibility: the page's visibility on the Web, and whether
+   * the JUCE editor is showing natively. Losing keyboard focus does not hide
+   * it. Native visibility does not detect occlusion by another window;
+   * scrolling offscreen is not detected.
+   * Closing a native editor destroys its JavaScript context; reopening starts
+   * a fresh one, rather than delivering a hidden/visible pair.
+   */
+  export function isVisible(): boolean;
+  /**
+   * Calls `listener` with the new visibility when it changes, without an
+   * initial call. Returns an unsubscribe function. Use with isVisible
+   * to pause optional work while hidden, including through useSyncExternalStore.
+   * Does not pause audio, timers or subscriptions automatically.
+   */
+  export function subscribeVisibility(
+    listener: (visible: boolean) => void,
+  ): () => void;
+
+  /**
+   * Whether keyboard focus is within the editor, including its controls.
+   * On the Web, document.hasFocus(); in JUCE, hasKeyboardFocus(true).
+   * Moving between controls inside the editor keeps this true. Focus is
+   * independent of visibility; a shown editor can be unfocused.
+   */
+  export function isFocused(): boolean;
+  /**
+   * Calls `listener` when focus enters or leaves the editor, with true for
+   * focus and false for blur; no initial call. Returns an unsubscribe
+   * function. Works with useSyncExternalStore(subscribeFocus, isFocused).
+   * Closing a native editor destroys its context, without a guaranteed
+   * final notification.
+   */
+  export function subscribeFocus(
+    listener: (focused: boolean) => void,
+  ): () => void;
+
   export interface FontDescriptors {
     /** The weight the file is, 1 to 1000, 'normal' (400, the default) or 'bold' (700). */
     weight?: number | 'normal' | 'bold';

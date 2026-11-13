@@ -24,6 +24,56 @@ root.appendChild(createText('Gain', { fontSize: 13 }));
 A component's `ref` is its node: `ref.current.animate(…)`,
 `ref.current.getBoundingClientRect()`.
 
+## Focus and visibility
+
+`isVisible()` and `isFocused()` return booleans.
+`subscribeVisibility(listener)` calls the listener once per change, with the
+new boolean, and returns an unsubscribe function. It does not call the listener
+on subscription. The two work with React's `useSyncExternalStore`:
+
+```tsx
+import { useSyncExternalStore } from 'react';
+import { subscribeVisibility, isVisible } from 'soundor:ui';
+
+function Analyzer() {
+  const visible = useSyncExternalStore(subscribeVisibility, isVisible);
+  return visible ? <Spectrum /> : null;
+}
+```
+
+Unmounting `Spectrum` cleans up its subscriptions and animation loops; showing
+it again mounts it and reads the latest data. See the
+[analyzer example](/docs/examples/analyzer).
+
+On the Web, this follows the document's page visibility (including a background
+tab). In JUCE, it follows whether the editor is showing, sampled before each
+UI tick. Losing keyboard focus does not hide an editor; occlusion by another
+window and scrolling offscreen are not detected. A native editor that closes
+destroys its JavaScript context, and reopening creates a fresh one: there is
+no guaranteed final hidden notification at teardown. A headless engine surface
+and the test runtime start visible; tests can use
+`runtime.setVisibility(false)` to exercise changes.
+
+`isFocused()` means keyboard focus is within the editor, including its controls.
+On the Web it uses `document.hasFocus()`; in JUCE it uses
+`hasKeyboardFocus(true)`, sampled before each UI tick. Moving between controls
+inside the editor keeps it focused. Moving to the browser's address bar,
+elsewhere in the DAW, or another application loses focus without necessarily
+hiding the editor. `subscribeFocus(listener)` reports both focus (`true`) and
+blur (`false`), once per change, without an initial call, and returns an
+unsubscribe function. Use `useSyncExternalStore(subscribeFocus, isFocused)`
+to read it in React.
+
+The test runtime starts unfocused. Use `runtime.setFocus(true)` to simulate
+focus. In Testing Library, `testEditor.setVisible(false)` and
+`testEditor.setFocused(true)` simulate these states; the React entry commits
+updates synchronously. These signals are independent of node focus, and
+changing them does not clear the last focused control.
+
+Focus and visibility are signals for optional UI work. They do not automatically
+pause audio processing, timers, animations or channel delivery. Stop the work in the
+subscription or a React effect and resume it when visible.
+
 ## Nodes
 
 | Export                         | What it makes                                                                    |

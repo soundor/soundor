@@ -1259,6 +1259,42 @@ native.setViewSizeListener(() => {
   tell(sizeListeners, size);
 });
 
+/** Whether the backend is showing the editor. */
+export function isVisible() {
+  return native.isVisible();
+}
+const visibilityListeners = new Set();
+export function subscribeVisibility(listener) {
+  if (typeof listener !== 'function')
+    throw new TypeError('subscribeVisibility() expects a function');
+  const entry = { listener };
+  visibilityListeners.add(entry);
+  return () => {
+    visibilityListeners.delete(entry);
+  };
+}
+native.setVisibilityListener(() => {
+  tell(visibilityListeners, isVisible());
+});
+
+/** Whether keyboard focus is within the editor. */
+export function isFocused() {
+  return native.isFocused();
+}
+const focusListeners = new Set();
+export function subscribeFocus(listener) {
+  if (typeof listener !== 'function')
+    throw new TypeError('subscribeFocus() expects a function');
+  const entry = { listener };
+  focusListeners.add(entry);
+  return () => {
+    focusListeners.delete(entry);
+  };
+}
+native.setFocusListener(() => {
+  tell(focusListeners, isFocused());
+});
+
 /** The latest editorSize(); replaced (never changed) when it changes. */
 let currentEditorSize = Object.freeze(native.editorSize());
 

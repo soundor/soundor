@@ -3,11 +3,19 @@ import type {} from '@soundor/vitest';
 import { snapshot, subscribe } from 'soundor:host';
 import { channels, events, loadPreset, probe } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
-import { createTextInput, root } from 'soundor:ui';
+import {
+  createTextInput,
+  root,
+  isVisible,
+  isFocused,
+  subscribeVisibility,
+  subscribeFocus,
+} from 'soundor:ui';
 import { expect, test, vi } from 'vitest';
 
 import {
   testParameters,
+  testEditor,
   testHost,
   mockNative,
   emitNative,
@@ -175,4 +183,27 @@ test('publishChannel sets a declared native channel and notifies its subscribers
   expect(() => publishChannel('missing', 1)).toThrow(
     "Unknown soundor:native channel 'missing'",
   );
+});
+
+test('editor helpers drive visibility and focus independently through soundor:ui', () => {
+  const visible = vi.fn<(value: boolean) => void>();
+  const focused = vi.fn<(value: boolean) => void>();
+  const stopVisible = subscribeVisibility(visible);
+  const stopFocused = subscribeFocus(focused);
+  expect(isVisible()).toBe(true);
+  expect(isFocused()).toBe(false);
+  testEditor.setFocused(true);
+  testEditor.setFocused(true);
+  expect(isFocused()).toBe(true);
+  expect(isVisible()).toBe(true);
+  testEditor.setVisible(false);
+  testEditor.setVisible(false);
+  expect(isVisible()).toBe(false);
+  expect(focused.mock.calls).toEqual([[true]]);
+  testEditor.setFocused(false);
+  testEditor.setVisible(true);
+  expect(focused.mock.calls).toEqual([[true], [false]]);
+  expect(visible.mock.calls).toEqual([[false], [true]]);
+  stopVisible();
+  stopFocused();
 });

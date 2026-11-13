@@ -1,4 +1,9 @@
-import { publishChannel, render, screen } from '@soundor/testing-library/react';
+import {
+  testEditor,
+  publishChannel,
+  render,
+  screen,
+} from '@soundor/testing-library/react';
 import { channels } from 'soundor:native';
 import { expect, test } from 'vitest';
 
@@ -30,4 +35,15 @@ test('bars rise at once and fall slowly', () => {
     '0.90',
     '0.40',
   ]);
+});
+
+test('pauses the analyzer UI while hidden and resumes with the latest peak', async () => {
+  await render(<App />);
+  testEditor.setVisible(false);
+  expect(screen.queryByLabelText("Spectrum of the plugin's audio")).toBeNull();
+  publishChannel('peak', -12);
+  expect(screen.queryByText('Peak -12.0 dB')).toBeNull();
+  testEditor.setVisible(true);
+  expect(screen.getByLabelText("Spectrum of the plugin's audio")).toBeDefined();
+  expect(screen.getByText('Peak -12.0 dB')).toBeDefined();
 });

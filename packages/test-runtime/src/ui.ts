@@ -162,6 +162,13 @@ export function createUiModule(runtime: TestRuntime) {
       listener: Parameters<TestRuntime['subscribeViewSize']>[0],
     ) => runtime.subscribeViewSize(listener),
     /** The simulated editor's size: the same object until set. */
+    isVisible: () => runtime.isVisible(),
+    subscribeVisibility: (
+      listener: Parameters<TestRuntime['subscribeVisibility']>[0],
+    ) => runtime.subscribeVisibility(listener),
+    isFocused: () => runtime.isFocused(),
+    subscribeFocus: (listener: Parameters<TestRuntime['subscribeFocus']>[0]) =>
+      runtime.subscribeFocus(listener),
     editorSize: () => runtime.editorSize(),
     requestEditorSize: (width: number, height: number) =>
       runtime.requestEditorSize(width, height),

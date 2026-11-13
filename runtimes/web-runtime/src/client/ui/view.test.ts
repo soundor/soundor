@@ -12,6 +12,37 @@ afterEach(() => {
 
 const el = (node: UiNode) => UiNode.elementOf(node);
 
+it('reads initial editor state and removes focus and visibility listeners on disposal', () => {
+  const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('hidden');
+  view = new UiView(document);
+  expect(view.isFocused()).toBe(true);
+  expect(view.isVisible()).toBe(false);
+  const focused = vi.fn<(value: boolean) => void>();
+  const visible = vi.fn<(value: boolean) => void>();
+  view.subscribeFocus(focused);
+  view.subscribeVisibility(visible);
+  expect(focused).not.toHaveBeenCalled();
+  expect(visible).not.toHaveBeenCalled();
+  const removeWindow = vi.spyOn(window, 'removeEventListener');
+  const removeDocument = vi.spyOn(document, 'removeEventListener');
+  view.dispose();
+  expect(removeWindow).toHaveBeenCalledWith('focus', expect.any(Function));
+  expect(removeWindow).toHaveBeenCalledWith('blur', expect.any(Function));
+  expect(removeDocument).toHaveBeenCalledWith(
+    'visibilitychange',
+    expect.any(Function),
+  );
+  hasFocus.mockReturnValue(false);
+  visibility.mockReturnValue('visible');
+  window.dispatchEvent(new Event('blur'));
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(focused).not.toHaveBeenCalled();
+  expect(visible).not.toHaveBeenCalled();
+});
+
 /** A view whose style scrolls both ways: a scroll view. */
 function scrollView(view: UiView): UiNode {
   const node = view.createNode('view');

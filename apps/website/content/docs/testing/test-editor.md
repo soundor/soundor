@@ -5,6 +5,8 @@ description: "Resizes the plugin's editor in a test, as a user or a DAW does."
 
 ```ts
 testEditor.resize(size: { width?: number; height?: number; resizable?: boolean }): void;
+testEditor.setVisible(visible: boolean): void;
+testEditor.setFocused(focused: boolean): void;
 testEditor.requests(): readonly { width: number; height: number }[];
 ```
 
@@ -88,3 +90,13 @@ editor: {
   `clientX`/`clientY`.
 - **An unchanged size tells nobody,** as in the runtimes.
 - From `@soundor/testing-library/react`, it re-renders inside `act()`.
+
+## Focus and visibility
+
+`testEditor.setVisible(false)` simulates a hidden editor;
+`testEditor.setFocused(true)` simulates keyboard focus entering the editor.
+They drive `soundor:ui`'s `isVisible()` / `subscribeVisibility()` and
+`isFocused()` / `subscribeFocus()`, notifying once per change. The editor starts
+visible and unfocused. These are independent of the focused node and of each
+other; hiding does not destroy the simulated runtime. Both helpers commit
+React updates synchronously when imported from `@soundor/testing-library/react`.

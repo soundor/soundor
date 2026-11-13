@@ -73,6 +73,10 @@ export class TestRuntime {
   private sizeListeners = new Listeners<ViewSize>();
   private editor: EditorSize;
   private editorListeners = new Listeners<EditorSize>();
+  private visibility = true;
+  private visibilityListeners = new Listeners<boolean>();
+  private editorFocused = false;
+  private focusListeners = new Listeners<boolean>();
   private readonly editorPolicy: Required<
     Omit<EditorInit, 'width' | 'height' | 'resizable'>
   >;
@@ -875,6 +879,40 @@ export class TestRuntime {
     this.size = next;
     this.sizeListeners.notify(this.size);
   }
+  isVisible() {
+    this.assertActive();
+    return this.visibility;
+  }
+  subscribeVisibility(listener: (state: boolean) => void) {
+    this.assertActive();
+    return this.visibilityListeners.add(listener, 'subscribeVisibility()');
+  }
+  /** Changes editor visibility, notifying subscribers once per change. */
+  setVisibility(state: boolean) {
+    this.assertActive();
+    if (typeof state !== 'boolean')
+      throw new TypeError('visibility must be a boolean');
+    if (this.visibility === state) return;
+    this.visibility = state;
+    this.visibilityListeners.notify(state);
+  }
+  isFocused() {
+    this.assertActive();
+    return this.editorFocused;
+  }
+  subscribeFocus(listener: (state: boolean) => void) {
+    this.assertActive();
+    return this.focusListeners.add(listener, 'subscribeFocus()');
+  }
+  /** Changes editor focus, notifying subscribers once per change. */
+  setFocus(state: boolean) {
+    this.assertActive();
+    if (typeof state !== 'boolean')
+      throw new TypeError('focus must be a boolean');
+    if (this.editorFocused === state) return;
+    this.editorFocused = state;
+    this.focusListeners.notify(state);
+  }
   editorSize() {
     this.assertActive();
     return this.editor;
@@ -1036,6 +1074,8 @@ export class TestRuntime {
     this.hostListeners.clear();
     this.sizeListeners.clear();
     this.editorListeners.clear();
+    this.visibilityListeners.clear();
+    this.focusListeners.clear();
     this.storage.dispose();
     for (const node of this.nodes.values()) {
       node.listeners.clear();

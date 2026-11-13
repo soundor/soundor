@@ -20,6 +20,10 @@ import {
   subscribeViewSize,
   UiNode,
   viewSize,
+  isVisible,
+  isFocused,
+  subscribeFocus,
+  subscribeVisibility,
 } from 'soundor:ui';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
@@ -41,6 +45,78 @@ describe('soundor:ui', () => {
     expectTypeOf<Accessibility>().toEqualTypeOf<Contract.Accessibility>();
     expectTypeOf<ViewSize>().toEqualTypeOf<Contract.ViewSize>();
     expectTypeOf<EditorSize>().toEqualTypeOf<Contract.EditorSize>();
+  });
+
+  it('reports page visibility once per transition and unsubscribes', () => {
+    const document = uiView().rootElement.ownerDocument;
+    const initial = document.visibilityState;
+    const listener = vi.fn<(visible: boolean) => void>();
+    const unsubscribe = subscribeVisibility(listener);
+    const change = (state: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: state,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    try {
+      change('visible');
+      listener.mockClear();
+      change('hidden');
+      expect(isVisible()).toBe(false);
+      change('hidden');
+      change('visible');
+      expect(listener.mock.calls).toEqual([[false], [true]]);
+      unsubscribe();
+      change('hidden');
+      expect(listener).toHaveBeenCalledTimes(2);
+      expect(() => subscribeVisibility(1 as never)).toThrow(
+        'subscribeVisibility() expects a function',
+      );
+    } finally {
+      unsubscribe();
+      change(initial);
+    }
+  });
+
+  it('reports window focus and blur while visibility stays independent', () => {
+    const document = uiView().rootElement.ownerDocument;
+    const window = document.defaultView!;
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const listener = vi.fn<(focused: boolean) => void>();
+    // Synchronize the view with the initial simulated browser state.
+    window.dispatchEvent(new Event('blur'));
+    const unsubscribe = subscribeFocus(listener);
+    const visible = isVisible();
+    try {
+      expect(isFocused()).toBe(false);
+      expect(listener).not.toHaveBeenCalled();
+      hasFocus.mockReturnValue(true);
+      window.dispatchEvent(new Event('focus'));
+      expect(isFocused()).toBe(true);
+      window.dispatchEvent(new Event('focus'));
+      // Focus movement inside the page is not a window blur.
+      const input = document.createElement('input');
+      document.body.append(input);
+      input.focus();
+      input.remove();
+      expect(listener.mock.calls).toEqual([[true]]);
+      hasFocus.mockReturnValue(false);
+      window.dispatchEvent(new Event('blur'));
+      expect(isVisible()).toBe(visible);
+      expect(listener.mock.calls).toEqual([[true], [false]]);
+      unsubscribe();
+      hasFocus.mockReturnValue(true);
+      window.dispatchEvent(new Event('focus'));
+      expect(listener).toHaveBeenCalledTimes(2);
+      expect(() => subscribeFocus(1 as never)).toThrow(
+        'subscribeFocus() expects a function',
+      );
+    } finally {
+      unsubscribe();
+      hasFocus.mockRestore();
+      window.dispatchEvent(new Event('focus'));
+    }
   });
 
   it("reports the editor's size the host gives the page view", () => {

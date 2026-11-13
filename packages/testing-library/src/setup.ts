@@ -46,6 +46,14 @@ export const testView = {
  * would, as with an editor that lays out again.
  */
 export const testEditor = {
+  /** Shows or hides the editor without destroying its runtime. */
+  setVisible(visible: boolean): void {
+    getTestRuntime().setVisibility(visible);
+  },
+  /** Moves keyboard focus into or out of the editor. */
+  setFocused(focused: boolean): void {
+    getTestRuntime().setFocus(focused);
+  },
   resize(size: Partial<EditorSize>): void {
     getTestRuntime().setEditorSize(size);
   },

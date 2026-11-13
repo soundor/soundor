@@ -1109,6 +1109,8 @@ ${renderEditorSize(editor)}
 
     void AudioProcessorEditor::sizeSurface()
     {
+        runtimeHost().surface().setVisible(isShowing());
+        runtimeHost().surface().setFocused(hasKeyboardFocus(true));
         const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
         const double displayScale = display != nullptr ? display->scale : 1.0;
         auto& surface = runtimeHost().surface();
