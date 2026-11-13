@@ -89,13 +89,13 @@ import {Pressable, Text, TextInput, useAnimationFrame} from '@soundor/react';
 import {useState} from 'react';
 import {render, screen, userEvent, advanceTime, testParameters, testHost, mockNative} from '@soundor/testing-library/react';
 import {parameters} from 'soundor:parameters';
-import {snapshot} from 'soundor:host';
+import {getHostState} from 'soundor:host';
 import {probe, loadPreset} from 'soundor:native';
 for (const index of [1,2]) test('packed testing library '+index, async () => {
- expect(parameters.gain.get()).toBe(0.5);expect(snapshot().hostName).toBe('Soundor Test');
+ expect(parameters.gain.get()).toBe(0.5);expect(getHostState().hostName).toBe('Soundor Test');
  expect(() => probe()).toThrow('requires a configured test mock');
  testParameters.set('gain', 0.75);testHost.set({hostName: 'Packed DAW'});
- expect(parameters.gain.get()).toBe(0.75);expect(snapshot().hostName).toBe('Packed DAW');
+ expect(parameters.gain.get()).toBe(0.75);expect(getHostState().hostName).toBe('Packed DAW');
  mockNative('probe', vi.fn(() => 42));mockNative('loadPreset', vi.fn(async () => 'Warm'));
  expect(probe()).toBe(42);expect(await loadPreset()).toBe('Warm');
  const onChange = vi.fn();const times: number[] = [];
