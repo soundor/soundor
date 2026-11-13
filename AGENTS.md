@@ -105,8 +105,7 @@ live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web
 builds, and the website embeds those web builds. Orbit also has end-to-end tests
 of its Debug VST3 (`pnpm --filter orbit test:e2e`), the one example a native CI
 job builds. Tests have their own fixtures, inside the package they test:
-`runtimes/juce-runtime/tests/plugin` (and `plugin-prebuilt`, the same plugin
-with a prebuilt engine, which `engine-prebuilts.yml` builds).
+`runtimes/juce-runtime/tests/plugin`.
 
 The website (`apps/website`) embeds the examples' web builds:
 
@@ -133,7 +132,17 @@ Orbit E2E (`orbit.yml`) ← `orbit`, and Benchmark smoke ← `soundor-benchmark`
 only under `hosts/vst3-host/` runs VST3 (host) and Orbit E2E alone. The engine and the host
 share one pattern: `engine-plan` and `host-plan` select, one group builds and
 checks (Engine, VST3 (host)), and jobs wait for it and consume the artifact or the release. What a job
-builds must therefore be a dependency of its package.
+builds must therefore be a dependency of its package. A package's workflow
+runs that package's checks only: the engine's never builds or tests a runtime
+(JUCE is tested in `juce.yml`, against the engine's artifacts), and a new
+runtime gets its own workflow rather than steps in another's.
+
+The release (`release.yml`) builds, then tests, then publishes: each released
+package's own build and checks (the engine in `engine-prebuilts.yml`'s
+`build` phase, the host in `vst3-host-artifacts.yml`), then what uses them
+(`juce.yml` when the engine or the JUCE runtime is released, on the archives
+to be published), and only when all of it passed the engine's prebuilt
+release (`release` phase), npm and the website.
 
 Benchmarks (`tools/benchmark`: rendering scenarios for WebGL, Canvas 2D and
 UI updates in the JUCE runtime, headless; see `contribute/benchmark.md`). Measure an optimization against a saved

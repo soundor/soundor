@@ -1754,9 +1754,10 @@ DevTools code, ABI rejection).
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
 `engine.yml` workflow to build all eight archives on GitHub's
 runners. The Windows dynamic and static C runtime families build on separate
-runners with separate dependency caches. It tests the extracted archives (the
-JUCE adapters and the DevTools bridge included), and releases them as one set,
-named after the engine version, the commit and a build revision:
+runners with separate dependency caches. It tests the extracted archives with
+the engine's own native tests (what uses the engine, such as the JUCE
+adapters, is tested by its own workflow), and releases them as one set, named
+after the engine version, the commit and a build revision:
 
 ```text
 engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
@@ -1766,9 +1767,9 @@ engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
   SHA256SUMS        the same checksums, for sha256sum -c
 ```
 
-The release notes are generated from the same data. Pull requests that change
-the engine or prebuilt tooling run it through Verify in `validate` mode:
-archives as run artifacts, no release. JUCE integration jobs download these
+The release notes are generated from the same data. Verify builds the same
+archives through `engine.yml` as run artifacts, with no release; by hand,
+`engine-prebuilts.yml`'s `validate` mode does too. JUCE integration jobs download these
 same-commit artifacts and set `SOUNDOR_ENGINE_MANIFEST` to a generated local
 manifest. When the engine is unchanged and no published engine matches, PR
 consumers can instead download complete artifacts from a successful `main` push
@@ -1777,18 +1778,19 @@ build recipes, and consumers validate the original commit and archive integrity.
 Missing or expired artifacts select a source build; engine changes still build
 and run native checks. Releases continue using same-commit artifacts. New archives and manifests record `sourceFingerprint`, computed from
 the native inputs and the installed lowering dependency graph. Imports reject
-a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` uploads them to a draft release, verifies
-the draft and deletes it (the whole release path, published nowhere), and
-`publish` publishes the release (never as the repository's latest) and then
-downloads every asset anonymously to check it against `build-info.json`.
+a fingerprint that differs from the checkout. Tests and docs are excluded. From `main` only, `stage` (by hand) uploads them to a draft release,
+verifies the draft and deletes it (the whole release path, published nowhere),
+and `publish` (only from `release.yml`) publishes the release (never as the
+repository's latest) and then downloads every asset anonymously to check it
+against `build-info.json`.
 
 A run first looks for the release of its commit: a published one is verified
 and reused, never rebuilt or replaced; a draft left by an interrupted run is
 finished; a release whose assets or metadata disagree fails the run. Published
 releases are immutable (with the repository's release immutability setting):
-a defective one is never edited. Only a `publish` run given a higher
-`revision` rebuilds a commit; without one, a run reuses the highest published
-revision, or builds `r1`. So a rebuild replaces a defective release only until
+a defective one is never edited. Only a release run given a higher revision
+(`release.yml` run by hand with `engine-revision`) rebuilds a commit; without
+one, a run reuses the highest published revision, or builds `r1`. So a rebuild replaces a defective release only until
 the engine version is on npm, whose manifest is final: after that, the fix is
 a new engine version. A new engine
 version always needs its own release, even when only documentation changed,
@@ -1796,9 +1798,15 @@ since the version is the ABI namespace. This release is separate from the
 engine's own npm release and its Changesets GitHub release.
 
 `.github/workflows/release.yml` publishes it when a Changesets publish plan
-includes `@soundor/engine` (calling `engine-prebuilts.yml` in `publish` mode,
-which verifies and reuses the commit's published release if it exists, or
-builds and tests its own engine artifacts before publishing), then writes
+includes `@soundor/engine`, in three stages. It builds: `engine-prebuilts.yml`
+in `publish` mode, phase `build`, verifies and reuses the commit's published
+release if it exists, or builds and tests its own engine artifacts. It tests
+what uses them: `juce.yml`, on each JUCE version Verify uses, builds the JUCE
+adapters and a real plugin against exactly those archives (or that published
+release), and checks that the plugin linked them rather than compiling the
+engine. Only when these and the checks of every other package it releases
+have passed does it publish: phase `release` releases the same artifacts. It
+then writes
 `artifacts/manifest.json` from the release, downloaded anonymously and checked
 archive by archive, packs the packages and checks that the packed engine
 carries exactly that manifest, and only then publishes to npm. The manifest

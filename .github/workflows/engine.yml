@@ -2,10 +2,13 @@ name: Engine
 
 # Shared by Verify and the release orchestrator. Builds and validates checkout
 # artifacts on every target. Only the isolated main signing job can attest
-# dependency snapshots; no job creates or publishes releases. With `suites` (Verify, when the engine is affected), also the
-# engine's own suites: static analysis and tests on Clang, and the GCC, sanitizer
-# and no-GPU builds. What uses the engine waits for all of it, so that it starts
-# from an engine that passed.
+# dependency snapshots; no job creates or publishes releases. With `suites`
+# (Verify, when the engine is affected), also the engine's own suites: static
+# analysis and tests on Clang, and the GCC, sanitizer and no-GPU builds.
+#
+# The engine's own checks only. A package that uses the engine tests itself
+# against these artifacts in its own workflow (juce.yml), which waits for all
+# of this, so that it starts from an engine that passed.
 on:
   workflow_call:
     inputs:
@@ -13,10 +16,6 @@ on:
         description: Use verified dependencies and attest snapshots for independently built release artifacts
         type: boolean
         default: false
-      integration:
-        description: Run JUCE consumer checks here (Verify runs them downstream)
-        type: boolean
-        default: true
       tests:
         description: Run native tests against the packed engine
         type: boolean
@@ -125,7 +124,7 @@ jobs:
 
       # The DevTools session test serves the DevTools client.
       - name: Build workspace
-        run: pnpm turbo run build --filter=@soundor/juce-runtime... --filter=@soundor/devtools-client...
+        run: pnpm turbo run build --filter=@soundor/engine... --filter=@soundor/devtools-client...
 
       # Universal, with the oldest macOS it supports named.
       - name: Stage the engine
@@ -218,68 +217,6 @@ jobs:
           cmake -S . -B build/prebuilt-check-x86_64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 \
               -DSOUNDOR_BUILD_TESTS=ON "-DSOUNDOR_ENGINE_PREBUILT_RELEASE_DIR=$PREBUILT_RELEASE" &&
             cmake --build build/prebuilt-check-x86_64 --target soundor_coexist_a soundor_coexist_b
-
-      # CI-only checkout, outside either npm package; never distributed.
-      - name: Checkout JUCE integration fixture
-        if: inputs.integration
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: juce-framework/JUCE
-          ref: 2cdfca8feb300fb424002ba2c2751569e5bacb64
-          path: .soundor/ci-juce
-      # JUCE 9 compiles its image libraries with plain C names, as Skia's
-      # (renamed) copies.
-      - name: Checkout JUCE 9 integration fixture
-        if: inputs.integration
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: juce-framework/JUCE
-          ref: 3fb5cbc0340758596dac39f7c8de47d562b4896e
-          path: .soundor/ci-juce9
-      - name: JUCE platform dependencies
-        if: inputs.integration && runner.os == 'Linux'
-        run: sudo apt-get install -y --no-install-recommends libasound2-dev libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxi-dev libgl1-mesa-dev xvfb
-
-      # The JUCE adapters and DevTools bridge use the DLL runtime on Windows;
-      # the plugin below uses JUCE's default static runtime on the other runner.
-      - name: JUCE adapters against the debug engine
-        if: inputs.integration && !matrix.static
-        run: |
-          cmake -S runtimes/juce-runtime/native -B .soundor/juce-prebuilt -DCMAKE_BUILD_TYPE=Debug -DSOUNDOR_BUILD_TESTS=ON \
-            -DSOUNDOR_ENABLE_DEVTOOLS=ON -DSOUNDOR_JUCE_TESTS=ON -DJUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce" \
-            "-DSOUNDOR_ENGINE_PREBUILT_DEBUG_DIR=$PREBUILT_DEBUG"
-          cmake --build .soundor/juce-prebuilt --target soundor_juce_tests soundor_juce_platform_tests soundor_debug_target --config Debug --parallel 3
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            xvfb-run -a ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-          else
-            ctest --test-dir .soundor/juce-prebuilt -C Debug -R 'soundor_juce_(tests|platform_tests)|soundor_debug_session' --output-on-failure
-          fi
-
-      # A plugin as a project builds it by default (juceRuntime's prebuilt
-      # mode), from these archives: a manifest of them by file:// URL stands
-      # in for the release the published package names.
-      - name: A plugin with the prebuilt engine
-        if: inputs.integration && (runner.os != 'Windows' || matrix.static)
-        env:
-          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
-          # JUCE's Release LTO flags emit Clang 18 bitcode (as in juce.yml).
-          LDFLAGS: ${{ runner.os == 'Linux' && '-fuse-ld=lld-18' || '' }}
-        run: |
-          set -eo pipefail
-          {
-            node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" --out engines/engine/artifacts/manifest.json
-            pnpm --filter @soundor/juce-runtime test:plugin-prebuilt
-          } 2>&1 | tee "$RUNNER_TEMP/plugin.log"
-          if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/plugin.log"; then
-            echo "::error::The plugin build compiled the engine instead of linking the prebuilt one"
-            exit 1
-          fi
-          grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/plugin.log"
-          # The same plugin with JUCE 9, whose image libraries have plain C
-          # names, as Skia's (renamed) copies.
-          JUCE_DIR="$GITHUB_WORKSPACE/.soundor/ci-juce9" pnpm --filter @soundor/juce-runtime test:plugin-prebuilt 2>&1 |
-            tee "$RUNNER_TEMP/plugin.log"
-          rm engines/engine/artifacts/manifest.json
 
       - name: Package dependency signing candidate
         if: inputs.release-build && github.ref == 'refs/heads/main'
@@ -392,7 +329,7 @@ jobs:
       - name: Native static analysis
         env:
           SOUNDOR_CLANG_TIDY_CACHE: ${{ runner.temp }}/clang-tidy
-        run: pnpm turbo run lint:native
+        run: pnpm turbo run lint:native --filter=@soundor/engine
       - name: Save clang-tidy results
         if: github.ref == 'refs/heads/main'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
