@@ -187,22 +187,34 @@ TEST_CASE("TransportCapture clears unavailable loop and timecode fields")
     position.setEditOriginTime(3600);
     playHead.position = position;
     capture.capture(&playHead);
-    const auto first = capture.latest();
-    REQUIRE(first.has_value());
-    CHECK(first->loopStartPpq == 8);
-    CHECK(first->loopEndPpq == 16);
-    REQUIRE(first->timecode.has_value());
-    CHECK(first->timecode->dropFrame);
-    CHECK(first->timecode->framesPerSecond == doctest::Approx(30.0 / 1.001));
-    REQUIRE(first->timecode->smpteOffsetSubframes.has_value());
-    CHECK(*first->timecode->smpteOffsetSubframes == doctest::Approx(3600 * 80 * 30.0 / 1.001));
+    if (const auto first = capture.latest())
+    {
+        CHECK(first->loopStartPpq == 8);
+        CHECK(first->loopEndPpq == 16);
+        if (const auto& timecode = first->timecode)
+        {
+            CHECK(timecode->dropFrame);
+            CHECK(timecode->framesPerSecond == doctest::Approx(30.0 / 1.001));
+            if (const auto offset = timecode->smpteOffsetSubframes)
+                CHECK(*offset == doctest::Approx(3600 * 80 * 30.0 / 1.001));
+            else
+                FAIL("missing SMPTE offset");
+        }
+        else
+            FAIL("missing captured timecode");
+    }
+    else
+        FAIL("missing captured transport");
     playHead.position = juce::AudioPlayHead::PositionInfo {};
     capture.capture(&playHead);
-    const auto second = capture.latest();
-    REQUIRE(second.has_value());
-    CHECK_FALSE(second->loopStartPpq.has_value());
-    CHECK_FALSE(second->loopEndPpq.has_value());
-    CHECK_FALSE(second->timecode.has_value());
+    if (const auto second = capture.latest())
+    {
+        CHECK_FALSE(second->loopStartPpq.has_value());
+        CHECK_FALSE(second->loopEndPpq.has_value());
+        CHECK_FALSE(second->timecode.has_value());
+    }
+    else
+        FAIL("missing captured transport");
 }
 
 TEST_CASE("Track metadata uses RGBA and can be withdrawn")
@@ -218,12 +230,21 @@ TEST_CASE("Track metadata uses RGBA and can be withdrawn")
             value.colour = juce::Colour(0xff78a8ff);
     }(properties);
     capture.updateTrackProperties(properties);
-    REQUIRE(capture.trackInfo().has_value());
-    CHECK(capture.trackInfo()->name == "Vocals");
-    CHECK(capture.trackInfo()->color == "#78a8ffff");
+    if (const auto& info = capture.trackInfo())
+    {
+        CHECK(info->name == "Vocals");
+        CHECK(info->color == "#78a8ffff");
+    }
+    else
+        FAIL("missing track metadata");
     capture.updateTrackProperties({});
-    CHECK_FALSE(capture.trackInfo()->name.has_value());
-    CHECK_FALSE(capture.trackInfo()->color.has_value());
+    if (const auto& info = capture.trackInfo())
+    {
+        CHECK_FALSE(info->name.has_value());
+        CHECK_FALSE(info->color.has_value());
+    }
+    else
+        FAIL("missing track metadata");
 }
 
 TEST_CASE("fetch() through JuceHttpClient talks to a real server")

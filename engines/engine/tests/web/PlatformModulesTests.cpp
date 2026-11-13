@@ -243,12 +243,11 @@ TEST_SUITE("soundor:host")
         auto host = std::make_shared<FakeHostInfo>();
         host->current.processingMode = "offline";
         host->current.samplePrecision = "float64";
-        host->current.track = platform::TrackInfo {};
-        host->current.track->name = "Vocals";
-        host->current.transport = platform::Transport {};
-        host->current.transport->loopStartPpq = 8;
-        host->current.transport->loopEndPpq = 16;
-        host->current.transport->timecode = platform::Timecode { 25, false, 80 };
+        host->current.track.emplace().name = "Vocals";
+        auto& transport = host->current.transport.emplace();
+        transport.loopStartPpq = 8;
+        transport.loopEndPpq = 16;
+        transport.timecode = platform::Timecode { 25, false, 80 };
         auto options = withData({});
         options.hostInfo = host;
         options.pluginVersion = "1.2.3";
