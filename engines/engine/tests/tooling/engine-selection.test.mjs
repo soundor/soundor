@@ -15,7 +15,7 @@ import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 
-import { engineInputs } from '../../scripts/engine-inputs.mjs';
+import { engineInputs, loweringInputs } from '../../scripts/engine-inputs.mjs';
 import {
   packageManifest,
   releasedManifest,
@@ -143,6 +143,46 @@ test('installed lowering dependencies contribute their transitive versions', () 
     JSON.stringify({ name: 'helper', version: '1.0.1', exports: './index.js' }),
   );
   assert.notEqual(engineInputs(root).fingerprint, before);
+});
+
+test('bundled lowering identity survives transitive dependency drift on fresh installs', async () => {
+  const root = fixture();
+  write(
+    join(root, 'package.json'),
+    JSON.stringify({ version: '1.0.0', dependencies: { lowering: '*' } }),
+  );
+  const dependency = join(root, 'node_modules/lowering/package.json');
+  write(dependency, JSON.stringify({ name: 'lowering', version: '1.0.0' }));
+  const before = engineInputs(root).fingerprint;
+  write(
+    join(root, 'dist/lowering-inputs.json'),
+    JSON.stringify(loweringInputs(root).dependencies),
+  );
+  write(join(root, 'dist/native-module.mjs'), 'export const bundled = true;');
+  write(join(root, 'artifacts/manifest.json'), JSON.stringify(manifest(root)));
+  assert.equal(engineInputs(root).fingerprint, before);
+  write(dependency, JSON.stringify({ name: 'lowering', version: '1.1.0' }));
+  assert.equal(engineInputs(root).fingerprint, before);
+  assert.equal((await selectEngine(root, work)).mode, 'prebuilt');
+  rmSync(join(root, 'node_modules'), { recursive: true });
+  assert.equal(engineInputs(root).fingerprint, before);
+  assert.equal((await selectEngine(root, work)).mode, 'prebuilt');
+  write(join(root, 'src/engine.cpp'), 'edited');
+  assert.equal((await selectEngine(root, work)).mode, 'source');
+});
+
+test('workspace lowering ignores a stale bundled graph', () => {
+  const workspace = mkdtempSync(join(work, 'workspace-'));
+  write(join(workspace, 'pnpm-workspace.yaml'), 'packages: []');
+  const root = join(workspace, 'engines/engine');
+  cpSync(fixture(), root, { recursive: true });
+  write(
+    join(root, 'dist/lowering-inputs.json'),
+    JSON.stringify([['@soundor/engine', ['stale=dependency@1.0.0']]]),
+  );
+  assert.deepEqual(loweringInputs(root).dependencies, [
+    ['@soundor/engine', []],
+  ]);
 });
 
 test('CMake selection uses matching manifests offline and selects source for edits and old releases', async () => {

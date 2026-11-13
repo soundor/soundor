@@ -1,5 +1,6 @@
 # Selection and staging use the same identity, including dirty/untracked source
-# files and the installed lowering dependency graph. Tests/docs are excluded.
+# files and the lowering tool's dependency graph (captured in npm builds).
+# Tests/docs are excluded.
 include_guard(GLOBAL)
 find_program(SOUNDOR_NODE_EXE NAMES node REQUIRED)
 execute_process(COMMAND "${SOUNDOR_NODE_EXE}" "${SoundorEngine_SOURCE_DIR}/scripts/engine-inputs.mjs"

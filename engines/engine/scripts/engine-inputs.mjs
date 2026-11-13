@@ -46,8 +46,30 @@ export function engineInputs(root) {
     hash.update(createHash('sha256').update(content).digest()).update('\0');
   }
 
-  // Hash the installed lowering dependency graph, not the whole monorepo
-  // lockfile: unrelated dependency updates do not rebuild the native engine.
+  // Published lowering code bundles its dependencies. Its captured graph is
+  // immutable; later installs of Babel (including declaration dependencies)
+  // cannot change the code that produced the engine's embedded modules.
+  const { dependencies, files: dependencyFiles } = loweringInputs(root);
+  for (const [key, edges] of dependencies) {
+    hash.update(key).update('\0').update(edges.join('\n')).update('\0');
+  }
+  return {
+    fingerprint: hash.digest('hex'),
+    files: [...files.map((path) => join(root, path)), ...dependencyFiles],
+  };
+}
+
+/** The graph of the lowering tool actually used: bundled in npm, live in a workspace. */
+export function loweringInputs(root) {
+  const bundled = join(root, 'dist/lowering-inputs.json');
+  if (
+    !existsSync(join(root, '../../pnpm-workspace.yaml')) &&
+    existsSync(bundled)
+  )
+    return {
+      dependencies: JSON.parse(readFileSync(bundled, 'utf8')),
+      files: [bundled, join(root, 'dist/native-module.mjs')],
+    };
   const dependencies = new Map();
   const dependencyFiles = new Set();
   const inspect = (file, key) => {
@@ -75,14 +97,11 @@ export function engineInputs(root) {
     }
   };
   inspect(join(root, 'package.json'), '@soundor/engine');
-  for (const [key, edges] of [...dependencies].sort(([a], [b]) =>
-    a < b ? -1 : a > b ? 1 : 0,
-  )) {
-    hash.update(key).update('\0').update(edges.join('\n')).update('\0');
-  }
   return {
-    fingerprint: hash.digest('hex'),
-    files: [...files.map((path) => join(root, path)), ...dependencyFiles],
+    dependencies: [...dependencies].sort(([a], [b]) =>
+      a < b ? -1 : a > b ? 1 : 0,
+    ),
+    files: [...dependencyFiles],
   };
 }
 
