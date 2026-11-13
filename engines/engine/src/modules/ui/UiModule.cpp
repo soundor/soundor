@@ -32,6 +32,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         const char animationListenerKey = 0;
         const char viewSizeListenerKey = 0;
         const char editorSizeListenerKey = 0;
+        const char visibilityListenerKey = 0;
+        const char focusListenerKey = 0;
 
         // JavaScript indexes strings in UTF-16 code units, the surface in
         // UTF-8 bytes.
@@ -80,6 +82,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             // was last told of.
             Size notifiedEditorSize;
             bool notifiedEditorResizable = false;
+            bool notifiedVisible = true;
+            bool notifiedFocused = false;
         };
 
         bool sameSize(Size a, Size b) noexcept
@@ -1220,6 +1224,39 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             return jsi::Value::undefined();
         }
 
+        jsi::Value isVisible(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "isVisible", count, 0,
+                        [&](Surface& surface) -> jsi::Value { return jsi::Value(surface.isVisible()); });
+        }
+
+        jsi::Value setVisibilityListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
+                                         std::size_t count)
+        {
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setVisibilityListener() expects a function");
+            bind::retainValue(context, &visibilityListenerKey, jsi::Value(context.rt, args[0]));
+            if (auto* binding = bind::contextData<Binding>(context, &bindingKey))
+                binding->notifiedVisible = binding->surface->isVisible();
+            return jsi::Value::undefined();
+        }
+
+        jsi::Value isFocused(ContextState& context, const jsi::Value&, const jsi::Value*, std::size_t count)
+        {
+            return call(context, "isFocused", count, 0,
+                        [&](Surface& surface) -> jsi::Value { return jsi::Value(surface.isFocused()); });
+        }
+
+        jsi::Value setFocusListener(ContextState& context, const jsi::Value&, const jsi::Value* args, std::size_t count)
+        {
+            if (count < 1 || ! bind::isFunction(context, args[0]))
+                bind::throwTypeError(context, "setFocusListener() expects a function");
+            bind::retainValue(context, &focusListenerKey, jsi::Value(context.rt, args[0]));
+            if (auto* binding = bind::contextData<Binding>(context, &bindingKey))
+                binding->notifiedFocused = binding->surface->isFocused();
+            return jsi::Value::undefined();
+        }
+
         jsi::Value setEditorSizeListener(ContextState& context, const jsi::Value&, const jsi::Value* args,
                                          std::size_t count)
         {
@@ -1648,6 +1685,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             { "frame", nodeFrame, 1 },
             { "bounds", bounds, 1 },
             { "size", viewSize, 0 },
+            { "isVisible", isVisible, 0 },
+            { "isFocused", isFocused, 0 },
+            { "setFocusListener", setFocusListener, 1 },
+            { "setVisibilityListener", setVisibilityListener, 1 },
             { "editorSize", editorSize, 0 },
             { "requestEditorSize", requestEditorSize, 2 },
             { "readClipboard", readClipboard, 0 },
@@ -1773,6 +1814,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         binding->notifiedSafeArea = safeArea;
         const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
         bind::call(state, listener, jsi::Value::undefined(), {}, "view size listener failed");
+    }
+
+    void notifyVisibility(js::Context& context)
+    {
+        auto& state = js::stateOf(context);
+        auto* binding = bind::contextData<Binding>(state, &bindingKey);
+        if (binding == nullptr || binding->notifiedVisible == binding->surface->isVisible())
+            return;
+        const jsi::Value* retained = bind::retainedValue(state, &visibilityListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
+            return;
+        binding->notifiedVisible = binding->surface->isVisible();
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        bind::call(state, listener, jsi::Value::undefined(), {}, "visibility listener failed");
+    }
+
+    void notifyFocus(js::Context& context)
+    {
+        auto& state = js::stateOf(context);
+        auto* binding = bind::contextData<Binding>(state, &bindingKey);
+        if (binding == nullptr || binding->notifiedFocused == binding->surface->isFocused())
+            return;
+        const jsi::Value* retained = bind::retainedValue(state, &focusListenerKey);
+        if (retained == nullptr || ! bind::isFunction(state, *retained))
+            return;
+        binding->notifiedFocused = binding->surface->isFocused();
+        const jsi::Function listener = retained->getObject(state.rt).getFunction(state.rt);
+        bind::call(state, listener, jsi::Value::undefined(), {}, "focus listener failed");
     }
 
     void notifyEditorSize(js::Context& context)

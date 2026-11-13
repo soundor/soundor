@@ -21,6 +21,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     // whether it can be asked for, changed since they were last told;
     // nothing when neither did.
     void notifyEditorSize(js::Context& context);
+    // Tells subscribers when the backend changes the editor visibility.
+    void notifyVisibility(js::Context& context);
+    // Tells subscribers when keyboard focus enters or leaves the editor.
+    void notifyFocus(js::Context& context);
 
     // Runs the callbacks requestAnimationFrame() collected.
     void frame(js::Context& context);

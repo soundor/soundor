@@ -194,6 +194,25 @@ describe('generateJuceSources', () => {
     expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
   });
 
+  it('samples editor visibility and focus before ticking the runtime', () => {
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    expect(editor).toContain(
+      'runtimeHost().surface().setVisible(isShowing());',
+    );
+    expect(editor).toContain(
+      'runtimeHost().surface().setFocused(hasKeyboardFocus(true));',
+    );
+    const timer = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::timerCallback()'),
+    );
+    expect(timer.indexOf('sizeSurface();')).toBeLessThan(
+      timer.indexOf('session->tick();'),
+    );
+    expect(timer.indexOf('sizeSurface();')).toBeLessThan(
+      timer.indexOf('host->tick();'),
+    );
+  });
+
   it('delivers state and History notifications in the tick, not before it', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
     expect(editor).toContain(

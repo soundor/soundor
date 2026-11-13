@@ -35,6 +35,24 @@ export function animate(
   return root.animate(description, options);
 }
 
+export function isVisible(): boolean {
+  return view.isVisible();
+}
+export function subscribeVisibility(
+  listener: (visible: boolean) => void,
+): () => void {
+  return view.subscribeVisibility(listener);
+}
+
+export function isFocused(): boolean {
+  return view.isFocused();
+}
+export function subscribeFocus(
+  listener: (focused: boolean) => void,
+): () => void {
+  return view.subscribeFocus(listener);
+}
+
 const view = uiView();
 
 // ResizeObserver observes nodes, as in the engine; DOM elements as before.

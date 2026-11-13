@@ -184,6 +184,8 @@ export const testView: typeof rawTestView = {
   resize: (size) => syncUpdate(() => rawTestView.resize(size)),
 };
 export const testEditor: typeof rawTestEditor = {
+  setVisible: (visible) => syncUpdate(() => rawTestEditor.setVisible(visible)),
+  setFocused: (focused) => syncUpdate(() => rawTestEditor.setFocused(focused)),
   resize: (size) => syncUpdate(() => rawTestEditor.resize(size)),
   requests: () => rawTestEditor.requests(),
 };

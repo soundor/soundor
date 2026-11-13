@@ -20,7 +20,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { channels } from 'soundor:native';
-import type { UiNode } from 'soundor:ui';
+import { subscribeVisibility, isVisible, type UiNode } from 'soundor:ui';
 
 import { hold } from './spectrum';
 
@@ -100,13 +100,20 @@ function Peak() {
 }
 
 export function App() {
+  // Closing the native editor destroys this UI. A hidden editor or browser
+  // tab can keep it alive: stop subscribing until it is shown again.
+  const visible = useSyncExternalStore(subscribeVisibility, isVisible);
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Analyzer</Text>
-        <Peak />
-      </View>
-      <Spectrum />
+      {visible && (
+        <>
+          <View style={styles.header}>
+            <Text style={styles.title}>Analyzer</Text>
+            <Peak />
+          </View>
+          <Spectrum />
+        </>
+      )}
     </View>
   );
 }

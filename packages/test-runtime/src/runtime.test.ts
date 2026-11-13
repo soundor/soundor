@@ -920,6 +920,74 @@ describe('the view size', () => {
   });
 });
 
+describe('editor visibility', () => {
+  it('isolates runtimes, reports transitions and clears subscriptions on disposal', () => {
+    const runtime = createTestRuntime();
+    const second = createTestRuntime();
+    const ui = createUiModule(runtime);
+    const listener = vi.fn<(value: boolean) => void>();
+    const unsubscribe = ui.subscribeVisibility(listener);
+    expect(ui.isVisible()).toBe(true);
+    expect(listener).not.toHaveBeenCalled();
+    runtime.setVisibility(false);
+    runtime.setVisibility(false);
+    expect(ui.isVisible()).toBe(false);
+    expect(second.isVisible()).toBe(true);
+    runtime.setVisibility(true);
+    expect(listener.mock.calls).toEqual([[false], [true]]);
+    unsubscribe();
+    runtime.setVisibility(false);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(() => ui.subscribeVisibility(1 as never)).toThrow(
+      'subscribeVisibility() expects a function',
+    );
+    expect(() => runtime.setVisibility('invalid' as never)).toThrow(
+      'visibility must be a boolean',
+    );
+    runtime.dispose();
+    expect(() => ui.isVisible()).toThrow('disposed');
+    expect(() => runtime.setVisibility(true)).toThrow('disposed');
+    second.dispose();
+  });
+});
+
+describe('editor focus', () => {
+  it('isolates runtimes, reports transitions and clears subscriptions on disposal', () => {
+    const runtime = createTestRuntime();
+    const second = createTestRuntime();
+    const ui = createUiModule(runtime);
+    const listener = vi.fn<(value: boolean) => void>();
+    const unsubscribe = ui.subscribeFocus(listener);
+    const input = ui.createTextInput();
+    ui.root.appendChild(input);
+    input.focus();
+    expect(ui.focusedNode()).toBe(input);
+    expect(ui.isFocused()).toBe(false);
+    expect(listener).not.toHaveBeenCalled();
+    runtime.setFocus(true);
+    runtime.setFocus(true);
+    expect(ui.isFocused()).toBe(true);
+    expect(second.isFocused()).toBe(false);
+    runtime.setFocus(false);
+    expect(ui.focusedNode()).toBe(input);
+    expect(ui.isVisible()).toBe(true);
+    expect(listener.mock.calls).toEqual([[true], [false]]);
+    unsubscribe();
+    runtime.setFocus(true);
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(() => ui.subscribeFocus(1 as never)).toThrow(
+      'subscribeFocus() expects a function',
+    );
+    expect(() => runtime.setFocus('invalid' as never)).toThrow(
+      'focus must be a boolean',
+    );
+    runtime.dispose();
+    expect(() => ui.isFocused()).toThrow('disposed');
+    expect(() => runtime.setFocus(false)).toThrow('disposed');
+    second.dispose();
+  });
+});
+
 describe('the editor size', () => {
   it("is the view's by default, the same object until set", () => {
     const runtime = createTestRuntime({ view: { width: 640, height: 480 } });

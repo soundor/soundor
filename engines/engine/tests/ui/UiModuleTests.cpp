@@ -744,6 +744,64 @@ TEST_SUITE("soundor:ui")
         CHECK(f.eval("JSON.stringify(seen)").asString() == "[[10,1210,820],[30,30,40]]");
     }
 
+    TEST_CASE("visibility reports transitions before frame callbacks, with independent subscriptions")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { isVisible, subscribeVisibility } from 'soundor:ui';
+            globalThis.readVisibility = isVisible;
+            globalThis.seen = [];
+            const listener = state => seen.push(state + ':' + isVisible());
+            subscribeVisibility(() => { throw new Error('visibility listener failed'); });
+            subscribeVisibility(listener);
+            globalThis.unsubscribeVisibility = subscribeVisibility(listener);
+        )");
+        CHECK(f.eval("readVisibility()").asBoolean());
+        f.host.tick();
+        CHECK(f.eval("seen.length").asNumber() == 0);
+        f.host.surface().setVisible(false);
+        CHECK_FALSE(f.eval("readVisibility()").asBoolean());
+        f.host.tick();
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(seen.splice(0))").asString() == R"(["false:false","false:false"])");
+        f.eval("unsubscribeVisibility(); requestAnimationFrame(() => seen.push(readVisibility()))");
+        f.host.surface().setVisible(true);
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(seen)").asString() == R"(["true:true",true])");
+        CHECK(f.error("import { subscribeVisibility } from 'soundor:ui'; subscribeVisibility(1);")
+                  .find("subscribeVisibility() expects a function")
+              != std::string::npos);
+    }
+
+    TEST_CASE("focus reports transitions before frame callbacks, with independent subscriptions")
+    {
+        UiFixture f;
+        f.run(R"(
+            import { isFocused, subscribeFocus } from 'soundor:ui';
+            globalThis.readFocus = isFocused;
+            globalThis.seen = [];
+            const listener = state => seen.push(state + ':' + isFocused());
+            subscribeFocus(() => { throw new Error('focus listener failed'); });
+            subscribeFocus(listener);
+            globalThis.unsubscribeFocus = subscribeFocus(listener);
+        )");
+        CHECK_FALSE(f.eval("readFocus()").asBoolean());
+        f.host.tick();
+        CHECK(f.eval("seen.length").asNumber() == 0);
+        f.host.surface().setFocused(true);
+        CHECK(f.eval("readFocus()").asBoolean());
+        f.host.tick();
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(seen.splice(0))").asString() == R"(["true:true","true:true"])");
+        f.eval("unsubscribeFocus(); requestAnimationFrame(() => seen.push(readFocus()))");
+        f.host.surface().setFocused(false);
+        f.host.tick();
+        CHECK(f.eval("JSON.stringify(seen)").asString() == R"(["false:false",false])");
+        CHECK(f.error("import { subscribeFocus } from 'soundor:ui'; subscribeFocus(1);")
+                  .find("subscribeFocus() expects a function")
+              != std::string::npos);
+    }
+
     TEST_CASE("subscribeEditorSize tells each subscriber once per change, apart from the view's")
     {
         UiFixture f;

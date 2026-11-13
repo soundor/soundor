@@ -101,6 +101,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         lap(ticked.nativeAnimations);
         // One time limit over the whole tick, armed once.
         const js::TimeLimitScope limit(*jsContext);
+        ui::notifyVisibility(*jsContext);
+        ui::notifyFocus(*jsContext);
         web::tick(*jsContext);
         lap(ticked.web);
         if (hasParameters)

@@ -141,6 +141,22 @@ export class UiView implements ViewLink {
     resizable: false,
   });
   readonly #editorListeners = new Listeners<EditorSize>();
+  readonly #visibilityListeners = new Listeners<boolean>();
+  #visibility = true;
+  readonly #visibilityChanged = () => {
+    const next = this.isVisible();
+    if (next === this.#visibility) return;
+    this.#visibility = next;
+    this.#visibilityListeners.notify(next);
+  };
+  readonly #focusListeners = new Listeners<boolean>();
+  #focus = false;
+  readonly #focusChanged = () => {
+    const next = this.isFocused();
+    if (next === this.#focus) return;
+    this.#focus = next;
+    this.#focusListeners.notify(next);
+  };
   /** CSS pixels per editor pixel, as the host last said. */
   #editorFit = 1;
   /** Where requestEditorSize() goes: the host's viewport. */
@@ -188,6 +204,11 @@ export class UiView implements ViewLink {
     );
     this.rootElement.append(elementOf(this.root), elementOf(this.overlay));
     this.#listen();
+    this.#visibility = this.isVisible();
+    document.addEventListener('visibilitychange', this.#visibilityChanged);
+    this.#focus = this.isFocused();
+    document.defaultView?.addEventListener('focus', this.#focusChanged);
+    document.defaultView?.addEventListener('blur', this.#focusChanged);
     // A font arriving changes what text measures.
     document.fonts?.addEventListener('loadingdone', () => {
       this.textMeasurer.reset();
@@ -245,6 +266,20 @@ export class UiView implements ViewLink {
     this.#resizes?.disconnect();
     this.#sizeListeners.clear();
     this.#editorListeners.clear();
+    this.#visibilityListeners.clear();
+    this.#focusListeners.clear();
+    this.rootElement.ownerDocument.defaultView?.removeEventListener(
+      'focus',
+      this.#focusChanged,
+    );
+    this.rootElement.ownerDocument.defaultView?.removeEventListener(
+      'blur',
+      this.#focusChanged,
+    );
+    this.rootElement.ownerDocument.removeEventListener(
+      'visibilitychange',
+      this.#visibilityChanged,
+    );
     if (this.#hoverFrame !== null)
       this.rootElement.ownerDocument.defaultView?.cancelAnimationFrame(
         this.#hoverFrame,
@@ -301,10 +336,23 @@ export class UiView implements ViewLink {
     return this.#size;
   }
 
-  /**
-   * The editor's size in its logical pixels, as the host last said: the
-   * same frozen object until it changes.
-   */
+  isVisible(): boolean {
+    return this.rootElement.ownerDocument.visibilityState !== 'hidden';
+  }
+
+  subscribeVisibility(listener: (visible: boolean) => void): () => void {
+    return this.#visibilityListeners.add(listener, 'subscribeVisibility()');
+  }
+
+  isFocused(): boolean {
+    return this.rootElement.ownerDocument.hasFocus();
+  }
+
+  subscribeFocus(listener: (focused: boolean) => void): () => void {
+    return this.#focusListeners.add(listener, 'subscribeFocus()');
+  }
+
+  /** The editor's size in logical pixels; the same object until it changes. */
   editorSize(): EditorSize {
     return this.#editorSize;
   }

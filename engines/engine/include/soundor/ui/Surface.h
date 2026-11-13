@@ -463,6 +463,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         {
             return safe.value_or(Rect { 0, 0, viewSize.width, viewSize.height });
         }
+        // Whether the backend is showing this editor. Headless surfaces are
+        // visible by default; the backend updates this before each tick.
+        void setVisible(bool visible) noexcept { editorVisible = visible; }
+        [[nodiscard]] bool isVisible() const noexcept { return editorVisible; }
+        // Focus of the editor including its controls, independent of node focus.
+        void setFocused(bool focused) noexcept { editorFocused = focused; }
+        [[nodiscard]] bool isFocused() const noexcept { return editorFocused; }
         // The size of the editor the view is shown in (the plugin's window),
         // in its logical pixels: the view's size times the zoom of an editor
         // that scales. 0×0 until the backend sets it.
@@ -708,6 +715,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Size viewSize;
         float pixelScale = 1;
         std::optional<Rect> safe;
+        bool editorVisible = true;
+        bool editorFocused = false;
         Size editor;
         std::optional<Size> editorRequest;
         SurfaceStatistics counted;
