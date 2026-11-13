@@ -57,11 +57,12 @@ export interface WebManifest {
   readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */
   readonly parameters: readonly WebParameterInfo[];
-  /** The native API (soundor:native): its declared types, its methods and its events, by name. */
+  /** The native API (soundor:native): its declared types, methods, events and channels, by name. */
   readonly native: {
     readonly types: readonly WebNativeTypeDeclaration[];
     readonly methods: readonly WebNativeMethod[];
     readonly events: readonly WebNativeEvent[];
+    readonly channels: readonly WebNativeChannel[];
   };
 }
 
@@ -128,6 +129,20 @@ export interface WebNativeEvent {
   readonly name: string;
   readonly fields: readonly WebNativeField[];
 }
+
+/** A channel of the native API: a number, or a buffer of up to `maxLength`. */
+export type WebNativeChannel =
+  | {
+      readonly name: string;
+      readonly kind: 'number';
+      readonly element: WebNativeNumeric;
+    }
+  | {
+      readonly name: string;
+      readonly kind: 'buffer';
+      readonly element: WebNativeNumeric;
+      readonly maxLength: number;
+    };
 
 /** A sized number, as the native API declares one. */
 export type WebNativeNumeric =

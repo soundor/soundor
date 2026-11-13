@@ -26,6 +26,7 @@ import {
   testView as rawTestView,
   testEditor as rawTestEditor,
   emitNative as rawEmitNative,
+  publishChannel as rawPublishChannel,
 } from '../setup';
 export type {
   TextMatch,
@@ -171,6 +172,8 @@ export const fireEvent: typeof rawFireEvent = new Proxy(rawFireEvent, {
 export { mockNative } from '../setup';
 export const emitNative: typeof rawEmitNative = (name, value) =>
   syncUpdate(() => rawEmitNative(name, value));
+export const publishChannel: typeof rawPublishChannel = (name, value) =>
+  syncUpdate(() => rawPublishChannel(name, value));
 export const testParameters: typeof rawTestParameters = {
   set: (id, value) => syncUpdate(() => rawTestParameters.set(id, value)),
 };

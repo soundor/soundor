@@ -84,6 +84,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // open editor receives them on its UI thread.
         native::Events nativeEvents;
 
+        // The config's native channels (`channels` of soundor:native):
+        // publish their latest values from any one thread, the audio callback
+        // (process()) included, and every open editor reads the newest.
+        native::Channels nativeChannels;
+
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}

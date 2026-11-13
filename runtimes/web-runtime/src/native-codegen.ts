@@ -9,7 +9,11 @@
  * receives them. The runtime checks both against the declared types.
  */
 
-import { nativeTsType, type NativeApiModel } from '@soundor/runtime-sdk';
+import {
+  nativeTsChannelType,
+  nativeTsType,
+  type NativeApiModel,
+} from '@soundor/runtime-sdk';
 
 type NativeTypeModel = NativeApiModel['types'][number];
 
@@ -29,16 +33,50 @@ export function renderWebNative(model: NativeApiModel): string {
     methods.length === 0
       ? 'export type WebNativeApi = Record<never, never>;\n'
       : `export interface WebNativeApi {\n${methods.join('\n')}\n}\n`;
+  const publishers = [
+    ...(model.channels.length > 0 ? ['nativeChannelPublishers'] : []),
+    ...(model.events.length > 0 ? ['nativeEventPublishers'] : []),
+  ];
+  // As oxfmt formats them: the project may format its generated files.
   const imports =
-    model.events.length > 0
-      ? "import { nativeEventPublishers } from '@soundor/web-runtime/client';\n\n"
-      : '';
+    publishers.length === 0
+      ? ''
+      : publishers.length === 1
+        ? `import { ${publishers[0]} } from '@soundor/web-runtime/client';\n\n`
+        : `import {\n${publishers.map((name) => `  ${name},\n`).join('')}} from '@soundor/web-runtime/client';\n\n`;
   return `${HEADER}${imports}${types.map((type) => `${type}\n\n`).join('')}/**
  * The plugin's native API (soundor:native), as runtimes/web/src/native.ts
  * implements it for the Web. A method added to soundor.config is missing
  * here until it is implemented.
  */
-${api}${model.events.length > 0 ? `\n${renderEvents(model.events)}` : ''}`;
+${api}${model.events.length > 0 ? `\n${renderEvents(model.events)}` : ''}${model.channels.length > 0 ? `\n${renderChannels(model.channels)}` : ''}`;
+}
+
+/**
+ * The publishers of the declared channels, for the project's runtimes/web
+ * code: the Web counterpart of the C++ \`native::Channels\`.
+ */
+function renderChannels(channels: NativeApiModel['channels']): string {
+  const members = channels.map((channel) => {
+    const type = nativeTsChannelType(channel);
+    return channel.kind === 'buffer'
+      ? `  /** At most ${channel.maxLength} elements; false, publishing nothing, for more. */
+  readonly ${channel.name}: { publish(value: ${type}): boolean };`
+      : `  readonly ${channel.name}: { publish(value: ${type}): void };`;
+  });
+  return `/**
+ * The plugin's native channels (soundor:native \`channels\`): publish their
+ * latest values from the project's runtimes/web code (an AnalyserNode read
+ * every frame, a meter), and the plugin UI receives the newest once a frame.
+ * A value replaces one not yet delivered; a buffer is copied.
+ */
+export interface WebNativeChannels {
+${members.join('\n')}
+}
+
+export const channels =
+  nativeChannelPublishers() as unknown as WebNativeChannels;
+`;
 }
 
 /**

@@ -43,6 +43,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "analyzer": "workspace:*",
     "basic": "workspace:*",
     "npm-to-yarn": "catalog:",
     "orbit": "workspace:*",

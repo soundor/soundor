@@ -1,6 +1,6 @@
 ---
 title: 'mockNative'
-description: "Implements one of the plugin's native methods for a test, and publishes its native events (emitNative)."
+description: "Implements one of the plugin's native methods for a test, and publishes its native events (emitNative) and channels (publishChannel)."
 ---
 
 ```ts
@@ -48,5 +48,26 @@ test('shows the loaded preset', async () => {
   await render(<App />);
   emitNative('presetLoaded', { path: 'warm.json', preset: null });
   expect(screen.getByText('warm.json')).toBeDefined();
+});
+```
+
+## Channels
+
+```ts
+publishChannel(name: string, value: unknown): void;
+```
+
+Publishes a value to the native channel `name`, declared under
+`native.channels`, as the plugin's native code does: `channels.<name>.get()`
+returns it, and its subscribers receive it now with the next sequence number
+(1 for the first), inside `act()` with `@soundor/testing-library/react`. Every
+value is delivered: there are no frames to skip any. An undeclared name
+throws.
+
+```ts
+test('shows the peak', async () => {
+  await render(<App />);
+  publishChannel('peak', -6.02);
+  expect(screen.getByText('Peak -6.0 dB')).toBeDefined();
 });
 ```

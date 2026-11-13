@@ -89,6 +89,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::uint64_t web = 0;              // timers, finished async work (fetch, files)
             std::uint64_t parameters = 0;       // parameter and host changes
             std::uint64_t events = 0;           // soundor:native events
+            std::uint64_t channels = 0;         // soundor:native channels
             std::uint64_t jobs = 0;             // promise jobs
             std::uint64_t animationFrames = 0;  // requestAnimationFrame callbacks
             std::uint64_t nativeAnimations = 0; // C++ timeline, outside the JS time limit
@@ -114,9 +115,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         RuntimeHost& operator=(RuntimeHost&&) = delete;
 
         // Settles finished asynchronous work (fetch, files), runs due timers,
-        // delivers parameter and host changes and native events, runs
-        // animation frame callbacks (requestAnimationFrame), then runs
-        // pending jobs.
+        // delivers parameter and host changes, native events and the latest
+        // values of native channels, runs animation frame callbacks
+        // (requestAnimationFrame), then runs pending jobs.
         void tick();
 
         // Whether the view looks different from when it was last rendered.

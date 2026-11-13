@@ -2,6 +2,7 @@
 #pragma once
 
 #include <soundor/js/Context.h>
+#include <soundor/js/Channels.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Promise.h>
 
@@ -169,9 +170,25 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         bool ready(events::Ready event = {}) const;
     };
 
-    // Makes `soundor:native` importable in `context`, backed by `api`
-    // (nullptr when the config declares no methods), and delivers `events`
-    // to it. Call before evaluating code that imports it; the context keeps
-    // `api` alive, and stops receiving `events` when it goes.
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events);
+    // The plugin's native channels, declared under `native.channels` in
+    // soundor.config: values the plugin keeps publishing, of which the UI
+    // reads the latest (`channels` of `soundor:native`). Keep one per plugin
+    // instance and install() it into each JavaScript context.
+    //
+    // Publish from the audio callback if you like: publish(), and a buffer's
+    // buffer() and commit(), take no lock, never allocate and never wait.
+    // One thread at a time publishes a channel. The UI takes the newest value
+    // at its next tick, never a partly written one; values in between are
+    // skipped, not queued, so no UI, or a slow one, costs nothing.
+    struct Channels
+    {
+        js::ValueChannel<std::uint64_t> frames;
+        js::ValueChannel<float> level;
+        js::BufferChannel<float> spectrum { 8 };
+    };
+
+    // Makes `soundor:native` importable in `context`, backed by `api`, and
+    // connects `events` and `channels` to it. Call before evaluating code that imports
+    // it; the context keeps `api` alive, and disconnects when it goes.
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Channels& channels);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native

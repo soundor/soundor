@@ -74,7 +74,7 @@ Both examples install the host and use automatic engine selection: matching
 releases use prebuilts; local engine changes or unpublished versions build
 from source. The examples are real applications; native CI uses the runtime's own
 test plugin fixtures, and builds only Orbit, for its end-to-end tests. See [Basic](/docs/examples/basic) and
-[Primitives](/docs/examples/primitives).
+[Primitives](/docs/examples/primitives), and [Analyzer](/docs/examples/analyzer) for native channels.
 
 ## Run the website
 

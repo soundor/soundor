@@ -70,6 +70,7 @@ if(SOUNDOR_JS_SOURCE)
     js/ModuleTests.cpp
     js/RuntimeTests.cpp
     native/NativeModuleTests.cpp
+    native/NativeChannelsTests.cpp
     native/NativeEventsTests.cpp
     parameters/ParametersTests.cpp
     history/HistoryTests.cpp
@@ -490,7 +491,18 @@ if(SOUNDOR_HAS_GPU AND SOUNDOR_JS_SOURCE)
   soundor_configure_target(soundor_run_ui)
 endif()
 
-foreach(consumer soundor_runtime_tests soundor_symbol_probe soundor_coexist_a soundor_coexist_b soundor_apple_module_a soundor_apple_module_b soundor_run_ui soundor_context_init_failure)
+# soundor_channel_benchmark: what native channels cost between an audio-rate
+# producer and a 60 Hz UI (see tools/ChannelBenchmark.cpp). Briefly as a
+# test: it fails if publishing allocates or a value arrives torn.
+if(SOUNDOR_JS_SOURCE)
+  add_executable(soundor_channel_benchmark tools/ChannelBenchmark.cpp)
+  target_include_directories(soundor_channel_benchmark PRIVATE ${SoundorEngine_SOURCE_DIR}/src)
+  target_link_libraries(soundor_channel_benchmark PRIVATE Soundor::Engine soundor_hermes)
+  soundor_configure_target(soundor_channel_benchmark)
+  add_test(NAME soundor_channel_benchmark COMMAND soundor_channel_benchmark --quick)
+endif()
+
+foreach(consumer soundor_runtime_tests soundor_channel_benchmark soundor_symbol_probe soundor_coexist_a soundor_coexist_b soundor_apple_module_a soundor_apple_module_b soundor_run_ui soundor_context_init_failure)
   if(TARGET ${consumer})
     soundor_attach_plugin_shim(${consumer})
   endif()

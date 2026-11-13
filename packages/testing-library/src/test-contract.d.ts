@@ -13,6 +13,14 @@ declare module 'soundor:host' {
 declare module 'soundor:native' {
   export function loadPreset(): Promise<string>;
   export function probe(): number;
+  export const channels: {
+    readonly level: {
+      get(): number | undefined;
+      subscribe(
+        listener: (value: number, sequence: number) => void,
+      ): () => void;
+    };
+  };
   export const events: {
     readonly presetLoaded: {
       subscribe(listener: (event: { path: string }) => void): () => void;

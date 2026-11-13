@@ -32,6 +32,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
     struct ContextState;
     struct PendingPromise;
     struct EventConnection;
+    struct ChannelConnection;
 
     struct RuntimeState
     {
@@ -159,6 +160,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js::detail
         // The event sources connected to this context (js/Events.h), in the
         // order deliverEvents() takes their events.
         std::vector<std::shared_ptr<EventConnection>> eventConnections;
+        // The channels connected to this context (js/Channels.h), one entry
+        // per install().
+        std::vector<std::shared_ptr<ChannelConnection>> channelConnections;
         // JavaScript values native modules hold on to (e.g. a dispatcher
         // function), keyed like moduleData.
         std::vector<std::pair<const void*, jsi::Value>> retainedValues;

@@ -221,11 +221,12 @@ namespace
 
         explicit Fixture(const js::RuntimeOptions& options = {}) : runtime(options)
         {
-            native::install(context, api, events);
+            native::install(context, api, events, channels);
         }
 
         js::Runtime runtime;
         native::Events events;
+        native::Channels channels;
         js::Context context { runtime };
         std::shared_ptr<FixtureApi> api = std::make_shared<FixtureApi>();
         int counter = 0;
@@ -238,7 +239,7 @@ TEST_SUITE("soundor:native")
     {
         Fixture f;
         CHECK(f.value("globalThis.result = Object.keys(n).sort().join(',');").asString()
-              == "add,analyze,applyPreset,centroid,curves,echoBuffers,echoFloat32,echoInt64,echoNumbers,"
+              == "add,analyze,applyPreset,centroid,channels,curves,echoBuffers,echoFloat32,echoInt64,echoNumbers,"
                  "echoOptionals,echoUint64,echoUint8,events,fail,firstPoint,getSpectrum,greet,invert,isEven,joinTags,"
                  "loadPreset,makeRamp,reset,reverseBytes,save,scale,setSolo,solo,sumBytes,sumInts,sumWords");
         CHECK(f.value("globalThis.result = n.add.length;").asNumber() == 2);
@@ -569,10 +570,11 @@ TEST_SUITE("soundor:native")
     {
         auto api = std::make_shared<FixtureApi>();
         native::Events events;
+        native::Channels channels;
         {
             js::Runtime runtime;
             js::Context context(runtime);
-            native::install(context, api, events);
+            native::install(context, api, events, channels);
             REQUIRE(context
                         .evaluateModule(
                             soundor::test::module("import { loadPreset } from 'soundor:native'; loadPreset('later');"),
@@ -602,8 +604,9 @@ TEST_SUITE("soundor:native")
         auto a = std::make_shared<FixtureApi>();
         auto b = std::make_shared<FixtureApi>();
         native::Events events;
-        native::install(first, a, events);
-        native::install(second, b, events);
+        native::Channels channels;
+        native::install(first, a, events, channels);
+        native::install(second, b, events, channels);
         REQUIRE(first
                     .evaluateModule(soundor::test::module("import { reset } from 'soundor:native'; reset(); reset();"),
                                     "/a.js")
@@ -620,6 +623,7 @@ TEST_SUITE("soundor:native")
         js::Runtime runtime;
         js::Context context(runtime);
         native::Events events;
-        CHECK_THROWS_AS(native::install(context, nullptr, events), std::invalid_argument);
+        native::Channels channels;
+        CHECK_THROWS_AS(native::install(context, nullptr, events, channels), std::invalid_argument);
     }
 }

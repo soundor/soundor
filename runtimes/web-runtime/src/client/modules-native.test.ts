@@ -133,6 +133,7 @@ describe('soundor:native', () => {
       'add',
       'analyze',
       'applyPreset',
+      'channels',
       'echo',
       'echoBuffers',
       'echoFloat32',

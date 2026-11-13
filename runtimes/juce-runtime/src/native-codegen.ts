@@ -17,6 +17,7 @@
 
 import type {
   NativeApiModel,
+  NativeChannelModel,
   NativeEventModel,
   NativeField,
   NativeMethodModel,
@@ -69,18 +70,27 @@ function renderHeader(model: NativeApiModel): string {
   );
   const apiBody = methods.length > 0 ? `\n${methods.join('\n')}` : '';
   const hasEvents = model.events.length > 0;
-  const install = hasEvents
-    ? `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`
-    // (nullptr when the config declares no methods), and delivers \`events\`
-    // to it. Call before evaluating code that imports it; the context keeps
-    // \`api\` alive, and stops receiving \`events\` when it goes.
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events);`
-    : `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`. Call
+  const hasChannels = model.channels.length > 0;
+  const feeds = [
+    ...(hasEvents ? ['`events`'] : []),
+    ...(hasChannels ? ['`channels`'] : []),
+  ].join(' and ');
+  const install =
+    feeds.length > 0
+      ? `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`${model.methods.length === 0 ? '\n    // (nullptr: the config declares no methods)' : ''}, and
+    // connects ${feeds} to it. Call before evaluating code that imports
+    // it; the context keeps \`api\` alive, and disconnects when it goes.
+    void install(${installParameters(model)});`
+      : `    // Makes \`soundor:native\` importable in \`context\`, backed by \`api\`. Call
     // before evaluating code that imports it; the context keeps \`api\` alive.
-    void install(js::Context& context, std::shared_ptr<NativeApi> api);`;
+    void install(${installParameters(model)});`;
   return `${HEADER}#pragma once
 
-#include <soundor/js/Context.h>${hasEvents ? '\n#include <soundor/js/Events.h>' : ''}
+${[
+  '#include <soundor/js/Context.h>',
+  ...(hasChannels ? ['#include <soundor/js/Channels.h>'] : []),
+  ...(hasEvents ? ['#include <soundor/js/Events.h>'] : []),
+].join('\n')}
 #include <soundor/js/Promise.h>
 
 #include <cstddef>
@@ -106,7 +116,7 @@ ${types.map((type) => `${type}\n\n`).join('')}    // The plugin's native API, de
     public:
         virtual ~NativeApi() = default;${apiBody}
     };
-${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}
+${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasChannels ? `\n${renderChannelsDeclaration(model.channels)}\n` : ''}
 ${install}
 } // namespace ${NAMESPACE}
 `;
@@ -115,6 +125,48 @@ ${install}
 /** The C++ struct of an event's value: \`presetLoaded\` → \`events::PresetLoaded\`. */
 export function eventStructName(event: NativeEventModel): string {
   return event.name[0]!.toUpperCase() + event.name.slice(1);
+}
+
+/** install()'s parameters: the context, the API, then each feed it has. */
+function installParameters(model: NativeApiModel): string {
+  return [
+    'js::Context& context',
+    'std::shared_ptr<NativeApi> api',
+    ...(model.events.length > 0 ? ['const Events& events'] : []),
+    ...(model.channels.length > 0 ? ['const Channels& channels'] : []),
+  ].join(', ');
+}
+
+/** The C++ type of a channel: \`js::BufferChannel<float>\`, \`js::ValueChannel<double>\`. */
+export function channelType(channel: NativeChannelModel): string {
+  const element = PRIMITIVE_TYPES[channel.element];
+  return channel.kind === 'buffer'
+    ? `js::BufferChannel<${element}>`
+    : `js::ValueChannel<${element}>`;
+}
+
+function renderChannelsDeclaration(
+  channels: readonly NativeChannelModel[],
+): string {
+  const members = channels.map((channel) =>
+    channel.kind === 'buffer'
+      ? `        ${channelType(channel)} ${channel.name} { ${channel.maxLength} };`
+      : `        ${channelType(channel)} ${channel.name};`,
+  );
+  return `    // The plugin's native channels, declared under \`native.channels\` in
+    // soundor.config: values the plugin keeps publishing, of which the UI
+    // reads the latest (\`channels\` of \`soundor:native\`). Keep one per plugin
+    // instance and install() it into each JavaScript context.
+    //
+    // Publish from the audio callback if you like: publish(), and a buffer's
+    // buffer() and commit(), take no lock, never allocate and never wait.
+    // One thread at a time publishes a channel. The UI takes the newest value
+    // at its next tick, never a partly written one; values in between are
+    // skipped, not queued, so no UI, or a slow one, costs nothing.
+    struct Channels
+    {
+${members.join('\n')}
+    };`;
 }
 
 function renderEventsDeclaration(events: readonly NativeEventModel[]): string {
@@ -243,9 +295,11 @@ function renderSource(model: NativeApiModel): string {
         : [renderBinding(method)],
     ),
     ...(model.events.length > 0 ? [renderEventDelivery(model.events)] : []),
+    ...(model.channels.length > 0 ? [renderChannelNames(model.channels)] : []),
   ];
 
   const hasEvents = model.events.length > 0;
+  const hasChannels = model.channels.length > 0;
   const exportSetters = [
     ...model.methods.map(
       (method) =>
@@ -253,6 +307,19 @@ function renderSource(model: NativeApiModel): string {
     ),
     ...(hasEvents
       ? ['bind::installEvents(ctx, exports, eventNames, &eventsKey);']
+      : []),
+    ...(hasChannels
+      ? ['bind::installChannels(ctx, exports, channelNames, &channelsKey);']
+      : []),
+  ];
+  const connections = [
+    ...(hasEvents
+      ? ['        bind::connectEvents(context, events, deliverEvent);']
+      : []),
+    ...(hasChannels
+      ? [
+          `        bind::connectChannels(context, { ${model.channels.map((channel) => `channels.${channel.name}.core()`).join(', ')} }, &channelsKey);`,
+        ]
       : []),
   ];
   const initializeParams =
@@ -280,15 +347,15 @@ namespace ${NAMESPACE}
 ${sections.join('\n\n')}
     } // namespace
 
-${hasEvents ? `${model.events.map(renderPublisher).join('\n\n')}\n\n` : ''}    void install(js::Context& context, std::shared_ptr<NativeApi> api${hasEvents ? ', const Events& events' : ''})
+${hasEvents ? `${model.events.map(renderPublisher).join('\n\n')}\n\n` : ''}    void install(${installParameters(model)})
     {
 ${
-  hasEvents && model.methods.length === 0
+  connections.length > 0 && model.methods.length === 0
     ? ''
     : `        if (api == nullptr)
             throw std::invalid_argument("soundor:native needs a NativeApi implementation");
 `
-}        bind::setContextData(context, &apiKey, std::move(api));${hasEvents ? '\n        bind::connectEvents(context, events, deliverEvent);' : ''}
+}        bind::setContextData(context, &apiKey, std::move(api));${connections.map((line) => `\n${line}`).join('')}
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](${initializeParams})
@@ -438,6 +505,14 @@ ${cases.join('\n')}
                 return;
             }
         }`;
+}
+
+/** The channels' names, by number, as install() connects them. */
+function renderChannelNames(channels: readonly NativeChannelModel[]): string {
+  return `        // Identifies this context's channel update function among its retained values.
+        const char channelsKey = 0;
+        // By channel number: the order install() connects them in.
+        constexpr std::array<const char*, ${channels.length}> channelNames { ${channels.map((channel) => JSON.stringify(channel.name)).join(', ')} };`;
 }
 
 function renderPublisher(event: NativeEventModel, index: number): string {

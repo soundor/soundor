@@ -707,6 +707,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                 return;
             }
         }
+
+        // Identifies this context's channel update function among its retained values.
+        const char channelsKey = 0;
+        // By channel number: the order install() connects them in.
+        constexpr std::array<const char*, 3> channelNames { "frames", "level", "spectrum" };
     } // namespace
 
     bool Events::levels(events::Levels event) const
@@ -724,12 +729,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         return publish(2, std::make_shared<const events::Ready>(std::move(event)));
     }
 
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events)
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Channels& channels)
     {
         if (api == nullptr)
             throw std::invalid_argument("soundor:native needs a NativeApi implementation");
         bind::setContextData(context, &apiKey, std::move(api));
         bind::connectEvents(context, events, deliverEvent);
+        bind::connectChannels(context, { channels.frames.core(), channels.level.core(), channels.spectrum.core() }, &channelsKey);
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
@@ -765,6 +771,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                          bind::setProperty(ctx, exports, "sumInts", bind::function(ctx, "sumInts", 1, call_sumInts));
                                          bind::setProperty(ctx, exports, "sumWords", bind::function(ctx, "sumWords", 1, call_sumWords));
                                          bind::installEvents(ctx, exports, eventNames, &eventsKey);
+                                         bind::installChannels(ctx, exports, channelNames, &channelsKey);
                                      },
                                      {},
                                      {},

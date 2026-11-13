@@ -66,6 +66,8 @@ export type {
   NativeApiIssue,
   NativeApiModel,
   NativeApiResult,
+  NativeChannelDeclaration,
+  NativeChannelModel,
   NativeField,
   NativeEventDeclaration,
   NativeEventModel,
@@ -82,12 +84,18 @@ export {
   BUFFER_ARRAY_TYPES,
   FLOAT_TYPES,
   INTEGER_TYPES,
+  MAX_CHANNEL_LENGTH,
   NUMERIC_TYPES,
   PRIMITIVE_TYPES,
   describeNativeApi,
   enumeratorName,
 } from './native-api';
-export { nativeTsEventType, nativeTsType, renderNativeDts } from './native-dts';
+export {
+  nativeTsChannelType,
+  nativeTsEventType,
+  nativeTsType,
+  renderNativeDts,
+} from './native-dts';
 
 export * from './state';
 

@@ -47,7 +47,12 @@ export interface SoundorOptions {
   /** Deterministic initial state for each test. Native functions are configured with mockNative() from @soundor/testing-library. */
   runtime?: Omit<
     RuntimeOptions,
-    'native' | 'nativeMethods' | 'nativeEvents' | 'parameters' | 'state'
+    | 'native'
+    | 'nativeMethods'
+    | 'nativeEvents'
+    | 'nativeChannels'
+    | 'parameters'
+    | 'state'
   > & {
     /** Parameter declarations for tests without a project config, as soundor.config declares them. */
     parameters?: ParameterDeclarations;
@@ -106,7 +111,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       } = options.runtime ?? {};
       let runtime: Omit<
         RuntimeOptions,
-        'native' | 'nativeMethods' | 'nativeEvents'
+        'native' | 'nativeMethods' | 'nativeEvents' | 'nativeChannels'
       > = {
         ...given,
         ...(options.runtime?.parameters !== undefined && { parameters }),
@@ -214,6 +219,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
                 ...runtime,
                 nativeMethods: Object.keys(native.methods ?? {}),
                 nativeEvents: Object.keys(native.events ?? {}),
+                nativeChannels: Object.keys(native.channels ?? {}),
               },
             },
           },
@@ -344,6 +350,10 @@ function virtualModule(
       result.model.events.length > 0
         ? `\nexport const events = Object.freeze({ ${result.model.events.map((event) => `${JSON.stringify(event.name)}: Object.freeze({ subscribe: (listener) => getTestRuntime().subscribeNativeEvent(${JSON.stringify(event.name)}, listener) })`).join(', ')} });`
         : '';
+    const channels =
+      result.model.channels.length > 0
+        ? `\nexport const channels = Object.freeze({ ${result.model.channels.map((channel) => `${JSON.stringify(channel.name)}: Object.freeze({ get: () => getTestRuntime().nativeChannelValue(${JSON.stringify(channel.name)}), subscribe: (listener) => getTestRuntime().subscribeNativeChannel(${JSON.stringify(channel.name)}, listener) })`).join(', ')} });`
+        : '';
     return (
       header +
       result.model.methods
@@ -352,7 +362,8 @@ function virtualModule(
             `export ${method.async ? 'async ' : ''}function ${method.name}(...args) { return getTestRuntime().callNative(${JSON.stringify(method.name)}, args); }`,
         )
         .join('\n') +
-      events
+      events +
+      channels
     );
   }
   return [

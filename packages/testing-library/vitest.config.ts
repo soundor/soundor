@@ -10,6 +10,7 @@ export default defineConfig({
           probe: { returns: 'float64' },
         },
         events: { presetLoaded: { path: 'string' } },
+        channels: { level: { type: 'float32' } },
       },
       runtime: {
         parameters: {
