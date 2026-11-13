@@ -333,7 +333,7 @@ function virtualModule(
   if (name === 'host')
     return (
       header +
-      `export const plugin = new Proxy({}, { get: (_, key) => getTestRuntime().plugin[key], ownKeys: () => ['id', 'name', 'version'], getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }) });\nexport const environment = new Proxy({}, { get: (_, key) => getTestRuntime().environment[key], ownKeys: () => Object.keys(getTestRuntime().environment), getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }) });\nexport const getHostState = () => getTestRuntime().snapshot();\nexport const subscribeHostState = listener => getTestRuntime().subscribe(listener);`
+      `export let plugin, environment;\nsubscribeTestRuntime(runtime => { plugin = runtime.plugin; environment = runtime.environment; });\nexport const getHostState = () => getTestRuntime().snapshot();\nexport const subscribeHostState = listener => getTestRuntime().subscribe(listener);`
     );
   if (name === 'storage')
     return (
