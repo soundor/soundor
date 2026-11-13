@@ -114,8 +114,7 @@ namespace
             auto evaluated = host.context().evaluateModule(
                 soundor::test::module("import { parameters as p } from 'soundor:parameters';\n" + body),
                 "/t" + std::to_string(++counter));
-            if (! evaluated.ok())
-                throw std::runtime_error(evaluated.error().toString());
+            REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
             return host.context().evaluateScript("globalThis.result").value();
         }
 
