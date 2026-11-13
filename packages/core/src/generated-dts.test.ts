@@ -27,6 +27,7 @@ const tsc = join(
 
 const config: CoreSoundorConfig = {
   plugin: { id: 'com.example.dts', name: 'Dts' },
+  env: { API_URL: 'https://example.test', ENABLED: true, COUNT: 3 },
   parameters: [
     {
       type: 'float32',
@@ -109,6 +110,7 @@ const consumer = `/// <reference path="./soundor.d.ts" />
 import { state } from 'soundor:state';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
+import { env } from 'soundor:env';
 import { plugin, environment, getHostState as snapshot, subscribeHostState as subscribe } from 'soundor:host';
 import { channels, events, loadPreset, measure, setSolo, type Level, type NativeChannel, type NativeEvent, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
@@ -227,6 +229,15 @@ void preset.then((loaded) => loaded && void loaded.gains.map((gain: number) => g
 setSolo(null);
 setSolo(2);
 
+const apiUrl: string = env.API_URL;
+const enabled: boolean = env.ENABLED;
+const count: number = env.COUNT;
+const dev: boolean = env.DEV;
+// @ts-expect-error configured values are readonly
+env.COUNT = 4;
+// @ts-expect-error misspelled keys are not accepted
+env.MISSING;
+void [apiUrl, enabled, count, dev];
 const id: string = plugin.id;
 const version: string = plugin.version;
 const platform: string = environment.platform;

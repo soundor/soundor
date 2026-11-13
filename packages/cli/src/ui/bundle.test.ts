@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -500,4 +500,40 @@ describe('watchUi', () => {
       watcher.close();
     }
   });
+});
+
+describe('soundor:env bundling', () => {
+  it.each(['development', 'production'] as const)(
+    'embeds only configured values in %s',
+    async (mode) => {
+      await write(
+        'src/main.ts',
+        `import { env } from 'soundor:env'; export const captured = env;`,
+      );
+      const values = {
+        API_URL: 'https://example.test/"quoted"',
+        ENABLED: true,
+        COUNT: 3,
+      };
+      const result = await bundleUi({
+        root,
+        mode,
+        env: values,
+        outDir: join(root, 'env-out'),
+      });
+      expect(result).toBeDefined();
+      const file = join(result!.dir, result!.module);
+      const code = await readFile(file, 'utf8');
+      expect(code).not.toMatch(/from\s*["']soundor:env["']/);
+      const { captured } = await import(pathToFileURL(file).href);
+      expect(captured).toEqual({
+        ...values,
+        DEV: mode === 'development',
+        PROD: mode === 'production',
+        MODE: mode,
+      });
+      expect(Object.isFrozen(captured)).toBe(true);
+      expect(captured.PATH).toBeUndefined();
+    },
+  );
 });

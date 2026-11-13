@@ -34,12 +34,13 @@ a development dependency, and name it in your tsconfig:
 Without `"DOM"`, code that touches `window` or `document`, which the runtime
 does not have, fails to compile instead of failing in a plugin.
 
-`@soundor/environment` is four parts, which a library can also name apart in
+`@soundor/environment` has declaration files a library can also name apart in
 `types` (`"@soundor/environment/ui.d.ts"`):
 
 | File            | Declares                                                                                        |
 | --------------- | ----------------------------------------------------------------------------------------------- |
 | `ui.d.ts`       | `soundor:ui`: nodes, styles, events, canvases, fonts, `Asset`                                   |
+| `env.d.ts`      | `soundor:env`: built-in build flags; projects generate their custom keys                        |
 | `platform.d.ts` | `soundor:host`, `soundor:storage` and `soundor:fs`                                              |
 | `assets.d.ts`   | Image and font imports (`import logo from './logo.png'`) as strings                             |
 | `globals.d.ts`  | Exactly the Web globals the runtime provides (WebGL 2 in `webgl.d.ts`), instead of the full DOM |

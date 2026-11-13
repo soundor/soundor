@@ -33,7 +33,9 @@ flowchart TD
 
 `ctx.ui.dir` contains the bundle and its assets. `ctx.ui.module` identifies
 `bundle.mjs`, the UI as one ES2023 module, with `bundle.mjs.map` next to it in
-development. `soundor:*` imports are left for runtime resolution. Other npm
+development. `soundor:*` imports are left for runtime resolution, except
+[`soundor:env`](/docs/api/env), which the CLI embeds from explicit config and
+the build mode. A runtime needs no extra native service for that module. Other npm
 dependencies have been inlined. A runtime whose engine runs another form makes
 it from this one, in a directory of its own: the JUCE runtime lowers it with
 `toNativeModule()` from `@soundor/engine/native-module`, the engine it links.
@@ -54,16 +56,17 @@ identity in either mode. `ctx.ui` can be absent for a project with no UI entry.
 
 Core emits these files under `.soundor/generated/`:
 
-| File              | Contents                                          |
-| ----------------- | ------------------------------------------------- |
-| `soundor.d.ts`    | Entry referencing the portable declarations       |
-| `assets.d.ts`     | Image and font imports, as their ids (strings)    |
-| `parameters.d.ts` | Exactly the configured parameters and their types |
-| `native.d.ts`     | Configured native methods, structs and enums      |
-| `globals.d.ts`    | Supported Web globals, excluding the full DOM     |
-| `webgl.d.ts`      | WebGL 2, generated from the Khronos IDL           |
-| `platform.d.ts`   | Host, storage and filesystem declarations         |
-| `ui.d.ts`         | Nodes, styles, events, canvases and animations    |
+| File              | Contents                                              |
+| ----------------- | ----------------------------------------------------- |
+| `soundor.d.ts`    | Entry referencing the portable declarations           |
+| `assets.d.ts`     | Image and font imports, as their ids (strings)        |
+| `parameters.d.ts` | Exactly the configured parameters and their types     |
+| `env.d.ts`        | Built-in environment flags and configured public keys |
+| `native.d.ts`     | Configured native methods, structs and enums          |
+| `globals.d.ts`    | Supported Web globals, excluding the full DOM         |
+| `webgl.d.ts`      | WebGL 2, generated from the Khronos IDL               |
+| `platform.d.ts`   | Host, storage and filesystem declarations             |
+| `ui.d.ts`         | Nodes, styles, events, canvases and animations        |
 
 The runtime's `gen` adds platform-specific sources under `ctx.paths.gen` through
 `ctx.codegen`. JUCE generates C++ interfaces and bindings plus its build setup;
@@ -80,6 +83,7 @@ review map, rather than a replacement declaration of each method.
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | [parameters](/docs/api/parameters) | Typed values, clamping and integer rounding, invalid values, deduplicated/coalesced subscriptions, nested gestures and teardown                                                                                                                    | Engine `src/parameters/`, web client `parameters.ts`, generated declarations                                               |
 | [native](/docs/api/native)         | Declared argument order and types, the same checks and path-specific `TypeError`/`RangeError`s, `null` only for `T?`, value copies of structs and arrays, typed arrays for `buffer<T>`, synchronous results versus promises, and native exceptions | Core `src/native-api.ts`, JUCE `src/native-codegen.ts` and engine `src/js/Bindings.cpp`, web `src/client/native-values.ts` |
+| [env](/docs/api/env)               | Readonly explicit configuration and build-mode flags, no implicit process environment                                                                                                                                                              | CLI UI bundler, core `src/env.ts`, web Vite plugin, test runtime                                                           |
 | [host](/docs/api/host)             | Plugin identity, host snapshot and transport shape, change subscriptions, platform availability                                                                                                                                                    | Engine `src/web/`, web client `modules/host.ts` and host context                                                           |
 | [ui](/docs/api/ui)                 | Node ownership, style/layout defaults, input routing, focus, portals, semantic visibility, canvases and animation lifetime                                                                                                                         | Engine `src/ui/` and `src/a11y/`, web client `ui/`, React renderer                                                         |
 | [storage](/docs/api/storage)       | Async key/value operations, serialization, missing values, persistence and isolation by plugin ID                                                                                                                                                  | Engine `src/web/`, web client `storage.ts` and `persistence.ts`                                                            |

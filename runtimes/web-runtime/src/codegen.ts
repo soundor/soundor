@@ -88,6 +88,7 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
       version: config.plugin.version ?? '0.1.0',
     },
     runtimeVersion,
+    ...(config.env === undefined ? {} : { env: config.env }),
     editor: webEditor(config),
     state: JSON.parse(stateJson(describeState(config.state, config.native))),
     parameters: config.parameters.map((parameter): WebParameterInfo => {

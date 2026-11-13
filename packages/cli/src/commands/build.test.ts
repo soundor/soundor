@@ -8,6 +8,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import type { ArgsDef, CommandMeta } from 'citty';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -74,6 +75,39 @@ describe('runBuild', () => {
     const module = await readFile(join(ui!.dir, 'bundle.mjs'), 'utf8');
     expect(module).toMatch(/from\s*["']soundor:host["']/);
   });
+
+  it.each([false, true])(
+    'forwards configured environment to the UI (debug=%s)',
+    async (debug) => {
+      await writeConfig(root, ['alpha'], { devtools: true });
+      const configFile = join(root, 'soundor.config.ts');
+      const config = await readFile(configFile, 'utf8');
+      await writeFile(
+        configFile,
+        config.replace(
+          'export default defineSoundorConfig({',
+          "export default defineSoundorConfig({ env: { PUBLIC_LABEL: 'configured', FEATURE: true },",
+        ),
+      );
+      await mkdir(join(root, 'src'), { recursive: true });
+      await writeFile(
+        join(root, 'src/main.ts'),
+        "import { env } from 'soundor:env'; export const values = env;",
+      );
+      await runBuild({ cwd: root, runtime: 'alpha', debug });
+      const ui = globalThis.__soundorBuildUi as { dir: string; module: string };
+      const { values } = await import(
+        pathToFileURL(join(ui.dir, ui.module)).href
+      );
+      expect(values).toEqual({
+        PUBLIC_LABEL: 'configured',
+        FEATURE: true,
+        DEV: debug,
+        PROD: !debug,
+        MODE: debug ? 'development' : 'production',
+      });
+    },
+  );
 
   describe('--debug and --out', () => {
     it('builds one runtime in debug mode, away from releases', async () => {

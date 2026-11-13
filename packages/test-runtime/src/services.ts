@@ -187,6 +187,8 @@ export interface EditorInit {
   applyRequests?: boolean;
 }
 export interface RuntimeOptions {
+  /** Explicit custom values; built-ins use development mode in tests. */
+  env?: Readonly<Record<string, string | boolean | number>>;
   /** Persistent schema, supplied by the Vitest plugin. */
   state?: StateSchema;
   plugin?: { id: string; name: string; version?: string };

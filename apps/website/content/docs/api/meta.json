@@ -9,6 +9,7 @@
     "state",
     "state-history",
     "host",
+    "env",
     "ui",
     "storage",
     "fs",

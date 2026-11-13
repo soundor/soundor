@@ -25,6 +25,7 @@
     "./platform.d.ts": "./platform.d.ts",
     "./ui.d.ts": "./ui.d.ts",
     "./webgl.d.ts": "./webgl.d.ts",
-    "./state-history.d.ts": "./state-history.d.ts"
+    "./state-history.d.ts": "./state-history.d.ts",
+    "./env.d.ts": "./env.d.ts"
   }
 }

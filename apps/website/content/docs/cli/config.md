@@ -39,6 +39,21 @@ CLI releases through their `soundor` peer dependency; the package manager
 handles mismatches
 ([Dependencies and compatibility](/docs/contribute/compatibility)).
 
+### `env`
+
+Optional explicit public values for [`soundor:env`](/docs/api/env). Keys use
+letters, digits and underscores without a leading digit; values are strings,
+booleans or finite numbers. `DEV`, `PROD` and `MODE` are reserved built-ins.
+Nothing is copied from the process environment unless the config explicitly
+reads it. Values are embedded in shipped JavaScript, so never include secrets.
+
+```ts
+env: {
+  API_BASE_URL: process.env.API_BASE_URL ?? 'https://api.example.com',
+  ENABLE_EXPERIMENTAL_UI: false,
+}
+```
+
 ### `plugin`
 
 | Field  | Meaning                                                                                                                                                                                    |

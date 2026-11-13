@@ -58,6 +58,7 @@ export interface WebManifest {
     readonly version?: string;
   };
   readonly runtimeVersion?: string;
+  readonly env?: Readonly<Record<string, string | boolean | number>>;
   /** The plugin view's size, from soundor.config's `editor`, every field decided. */
   readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */

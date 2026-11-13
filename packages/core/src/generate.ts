@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve as resolvePath, sep } from 'node:path';
 
 import type { CodegenFile } from './codegen';
+import { renderEnvironmentDts, type EnvironmentValues } from './env';
 import { SoundorError } from './errors';
 import type { FileSystemHost } from './filesystem';
 import { describeNativeApi, type NativeApiDeclaration } from './native-api';
@@ -69,6 +70,7 @@ export interface CorePluginIdentity {
 }
 
 export interface CoreSoundorConfig {
+  readonly env?: EnvironmentValues;
   readonly plugin: CorePluginIdentity;
   readonly runtimes?: readonly CoreRuntimeDescriptor[];
   readonly parameters: readonly CoreParameter[];
@@ -119,6 +121,7 @@ export class GeneratedFilesOutOfDateError extends SoundorError {
  */
 const ENVIRONMENT_FILES = [
   'assets.d.ts',
+  'env.d.ts',
   'globals.d.ts',
   'platform.d.ts',
   'ui.d.ts',
@@ -126,24 +129,24 @@ const ENVIRONMENT_FILES = [
   'state-history.d.ts',
 ];
 
-function environmentFiles(): CodegenFile[] {
+function environmentFiles(config: CoreSoundorConfig): CodegenFile[] {
   const dir = dirname(
     createRequire(import.meta.url).resolve('@soundor/environment/package.json'),
   );
   return ENVIRONMENT_FILES.map((path) => ({
     path,
-    contents: `${HEADER}${readFileSync(join(dir, path), 'utf8')}`,
+    contents: `${HEADER}${readFileSync(join(dir, path), 'utf8')}${path === 'env.d.ts' ? renderEnvironmentDts(config.env) : ''}`,
   }));
 }
 
 /**
  * The project's `.soundor/generated`: @soundor/environment's declarations,
- * copied so that the project needs no dependency on it, and the two modules
- * its config shapes, soundor:parameters and soundor:native.
+ * copied so that the project needs no dependency on it, plus the configured
+ * environment, parameters, native API and state declarations.
  */
 export function generateSoundorFiles(config: CoreSoundorConfig): CodegenFile[] {
   return sortFiles([
-    ...environmentFiles(),
+    ...environmentFiles(config),
     { path: 'native.d.ts', contents: renderNativeDts(nativeApiModel(config)) },
     {
       path: 'parameters.d.ts',
@@ -214,7 +217,7 @@ function nativeApiModel(config: CoreSoundorConfig) {
  * the declarations of the runtime-provided `soundor:*` modules and globals.
  */
 function renderSoundorDts(): string {
-  return `${HEADER}/// <reference path="./assets.d.ts" />\n/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./state.d.ts" />\n/// <reference path="./state-history.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
+  return `${HEADER}/// <reference path="./assets.d.ts" />\n/// <reference path="./env.d.ts" />\n/// <reference path="./globals.d.ts" />\n/// <reference path="./native.d.ts" />\n/// <reference path="./parameters.d.ts" />\n/// <reference path="./state.d.ts" />\n/// <reference path="./state-history.d.ts" />\n/// <reference path="./platform.d.ts" />\n/// <reference path="./ui.d.ts" />\n`;
 }
 
 function sortFiles(files: readonly CodegenFile[]): CodegenFile[] {

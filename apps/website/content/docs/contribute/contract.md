@@ -35,13 +35,17 @@ flowchart TD
     simulated --> observable
 ```
 
-The six modules are `soundor:parameters`, `soundor:native`, `soundor:host`,
-`soundor:ui`, `soundor:storage` and `soundor:fs`. Config generates parameter and
+The modules include `soundor:parameters`, `soundor:native`, `soundor:host`,
+`soundor:ui`, `soundor:storage`, `soundor:fs` and `soundor:env`. Config generates parameter and
 native API types (`packages/core/src/*-dts.ts`); the other declarations
 describe the shared platform, the same for every plugin, and are written by
 hand in `packages/environment/`. The
 [runtime contract guide](/docs/contribute/build-runtime/contract) maps each
 module to its specification and implementations.
+
+The CLI embeds [`soundor:env`](/docs/api/env) in the shared UI bundle from
+explicit config values and the build mode. Web host sources and the simulated
+runtime resolve the same public contract separately.
 
 The web runtime implements the contract directly with browser services. It
 reproduces native parameter clamping and gesture rules, event routing, layout

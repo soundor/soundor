@@ -1,3 +1,4 @@
+import { resolveEnvironment } from '@soundor/core';
 import { StateHistory, StateStore } from '@soundor/core/state';
 
 import { version as runtimeVersion } from '../package.json';
@@ -44,6 +45,7 @@ export class TestRuntime {
   readonly storage = new MemoryStorage(() => this.assertActive());
   readonly plugin: Readonly<{ id: string; name: string; version: string }>;
   readonly environment: Readonly<HostEnvironment>;
+  readonly env: ReturnType<typeof resolveEnvironment>;
   readonly native: Record<string, (...args: never[]) => unknown>;
   private readonly nativeMethods?: ReadonlySet<string>;
   private readonly nativeEvents?: ReadonlySet<string>;
@@ -112,6 +114,7 @@ export class TestRuntime {
       options.state ?? { fields: [], types: [] },
       this.history,
     );
+    this.env = resolveEnvironment(options.env, 'development');
     this.environment = Object.freeze({
       runtime: 'test',
       runtimeVersion,

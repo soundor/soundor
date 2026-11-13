@@ -1,6 +1,6 @@
+import { env } from 'soundor:env';
 // Plugin code's view: soundor:* imported as a plugin bundle imports it,
 // resolved by the runtime's Vite plugin to the page's one host context.
-
 import * as hostModule from 'soundor:host';
 import {
   plugin,
@@ -75,5 +75,20 @@ describe('soundor:host', () => {
       'plugin',
       'subscribeHostState',
     ]);
+  });
+});
+
+describe('soundor:env', () => {
+  it('exposes a frozen explicit environment without browser or process variables', () => {
+    expect(env).toEqual({
+      DEV: true,
+      PROD: false,
+      MODE: 'development',
+      FEATURE: true,
+      LABEL: 'fixture',
+      COUNT: 3,
+    });
+    expect(Object.isFrozen(env)).toBe(true);
+    expect(env['PATH']).toBeUndefined();
   });
 });

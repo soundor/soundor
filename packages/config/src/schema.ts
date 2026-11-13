@@ -1,4 +1,8 @@
-import { describeNativeApi, describeState } from '@soundor/core';
+import {
+  describeNativeApi,
+  describeState,
+  environmentIssues,
+} from '@soundor/core';
 import { z } from 'zod';
 
 import { checkEditor, editorSchema, resolveEditor } from './editor';
@@ -74,6 +78,9 @@ const signingSchema = z.strictObject({
 
 const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
+  env: z
+    .record(z.string(), z.union([z.string(), z.boolean(), z.number()]))
+    .optional(),
   editor: editorSchema.optional(),
   runtimes: z.array(runtimeSchema),
   // Checked by resolveParameters, which reports each problem precisely.
@@ -132,6 +139,8 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
   const data = result.data;
   const issues: ConfigIssue[] = [];
 
+  if (data.env) issues.push(...environmentIssues(data.env));
+
   checkUniqueIds(data.runtimes, (r) => r.id, 'runtimes', 'runtime', issues);
   const parameters = resolveParameters(
     data.parameters,
@@ -189,6 +198,7 @@ function normalize(
       name: data.plugin.name.trim(),
       version: data.plugin.version,
     },
+    ...(data.env === undefined ? {} : { env: structuredClone(data.env) }),
     editor: { ...resolveEditor(data.editor) },
     runtimes: data.runtimes.map((runtime) => ({
       id: runtime.id,

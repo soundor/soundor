@@ -105,6 +105,7 @@ export async function runBuild(
   const bundle = await bundleUi({
     root,
     mode: debug ? 'development' : 'production',
+    env: config.env,
     outDir: resolve(
       root,
       '.soundor',

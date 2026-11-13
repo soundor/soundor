@@ -7,6 +7,7 @@
  * factory), which the CLI dispatches; core itself stays declarative.
  */
 
+import type { EnvironmentValues } from '@soundor/core';
 import type { StateDeclarations } from '@soundor/core';
 import type { NativeApiDeclaration } from '@soundor/core';
 
@@ -99,6 +100,8 @@ export interface SoundorConfig<
   P extends ParameterDeclarations = ParameterDeclarations,
 > {
   plugin: PluginIdentity;
+  /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */
+  env?: EnvironmentValues;
   /**
    * The plugin editor's size, and whether it can be resized; the same in
    * every runtime. Omitted, the editor is a fixed 800×600 view.
@@ -125,6 +128,8 @@ export interface SoundorConfig<
  */
 export interface ResolvedSoundorConfig {
   plugin: PluginIdentity;
+  /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */
+  env?: EnvironmentValues;
   /**
    * Resolved by validation; runtimes resolve it with `resolveEditor` either
    * way, so a config built by hand may give any editor config.

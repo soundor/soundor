@@ -647,3 +647,26 @@ describe('plugin version', () => {
     },
   );
 });
+
+describe('public build environment configuration', () => {
+  const base = { plugin: { id: 'com.example.env', name: 'Env' }, runtimes: [] };
+  it('preserves explicit primitive values and detaches them from the input', () => {
+    const env = { URL: 'https://example.test', FLAG: false, COUNT: 3 };
+    const result = validateConfig({ ...base, env });
+    expect(result.env).toEqual(env);
+    env.URL = 'changed';
+    expect(result.env?.['URL']).toBe('https://example.test');
+    expect(validateConfig(base).env).toBeUndefined();
+  });
+  it.each([
+    { DEV: false },
+    { PROD: true },
+    { MODE: 'custom' },
+    { 'bad-key': true },
+    { VALUE: {} },
+    { VALUE: undefined },
+    { VALUE: Infinity },
+  ])('rejects invalid env %j', (env) => {
+    expect(() => validateConfig({ ...base, env })).toThrow(ConfigError);
+  });
+});

@@ -5,6 +5,7 @@ export default defineConfig({
     soundor({
       config: false,
       runtime: {
+        env: { FEATURE: true, URL: 'https://fixture.test' },
         state: { selected: { type: 'string?', default: null } },
         parameters: {
           gain: {
