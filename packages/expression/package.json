@@ -1,6 +1,6 @@
 {
   "name": "@soundor/expression",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "A small, typed, portable expression language and its C++ and JavaScript compilers.",
   "license": "MIT",
   "repository": {

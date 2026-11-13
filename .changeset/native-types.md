@@ -1,5 +1,0 @@
----
-'@soundor/core': minor
----
-
-**Breaking:** the native API's types are language-neutral and sized. `number` is gone: use `int8`, `uint8`, `int16`, `uint16`, `int32`, `uint32`, `int64`, `uint64` (`bigint` in TypeScript, so the whole range is exact), `float32` or `float64`. The JavaScript binary types (`ArrayBuffer`, `Uint8Array`, `Int32Array`, `Float32Array`, `Float64Array`) are replaced by `buffer<T>`, contiguous numbers of any sized type (`buffer<float32>` is a `Float32Array`, `buffer<int64>` a `BigInt64Array`), now also allowed in structs. `'handle'` types are removed: declare a struct of the values the UI needs, or pass an ID or path. New: `T?`, nullable (`null`, never `undefined`; an argument is still required) for any type, including structs, arrays and buffers. `T[]` stays a list of values: primitives, enums or structs. Config validation names the replacement of a former type (`'Float32Array' is not a native type; use 'buffer<float32>'`). `nativeTsType()` renders a native type as TypeScript, the same for every runtime.

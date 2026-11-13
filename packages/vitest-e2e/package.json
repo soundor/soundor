@@ -1,6 +1,6 @@
 {
   "name": "@soundor/vitest-e2e",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "End-to-end tests of built VST3 plugins in Vitest: UI and audio, in the real VST3 host",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,53 @@
 # @soundor/web-runtime
 
+## 0.13.0
+
+### Minor Changes
+
+- [#254](https://github.com/soundor/soundor/pull/254) [`0ada0c5`](https://github.com/soundor/soundor/commit/0ada0c58f97b5a60ae76299895e98b0592051624) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Box shadows in the web runtime: `style.boxShadow` becomes CSS's `box-shadow`, checked with the JUCE runtime's errors.
+
+- [#252](https://github.com/soundor/soundor/pull/252) [`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Double clicks in the web runtime: a click's `detail` is the browser's own count (by the platform's double-click time), and the second click of a series is followed by a `dblclick`, as in the JUCE runtime. A real release's click waits for the browser's `click` right after it, and is a single click when none comes; the browser's own `dblclick` no longer leaves the view.
+
+- [#289](https://github.com/soundor/soundor/pull/289) [`a54e1da`](https://github.com/soundor/soundor/commit/a54e1da16a93c0097789c8e9e974632f4b12526c) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Expose plugin version and runtime environment in soundor:host, and extend host state with processing mode, sample precision, optional track metadata, loop boundaries and timecode. Rename snapshot/subscribe to getHostState/subscribeHostState. Configure plugin.version (default 0.1.0) consistently across formats.
+
+- [#266](https://github.com/soundor/soundor/pull/266) [`496fe62`](https://github.com/soundor/soundor/commit/496fe623abcf179945db4b2df92f873cf399bb87) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Accept synchronous functional updaters on parameter and persistent state fields. Resolve once against the latest immutable store value, validate before publishing, and reject asynchronous results. Automatically bracket changed automatable parameter writes in a host gesture when no explicit gesture is active, preserving nested gestures and keeping state gestures explicit.
+
+  Raise the runtime API version to 4 for the compatible setter addition; older runtime API versions remain supported.
+
+- [#281](https://github.com/soundor/soundor/pull/281) [`0354f73`](https://github.com/soundor/soundor/commit/0354f730087bbde8a2f7ad34ca7595c373c20c20) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Native channels on the Web: the generated contract exports `channels`, a `publish()` per declared channel for the project's `runtimes/web` code (`channels.spectrum.publish(values)`, an AnalyserNode read every frame). Each value is checked, a buffer copied, and one longer than its `maxLength` refused; the plugin UI receives the newest at the next animation frame, so a hidden page keeps one value per channel. The manifest lists the channels.
+
+- [#280](https://github.com/soundor/soundor/pull/280) [`27a3303`](https://github.com/soundor/soundor/commit/27a330313c40db624ef897111a5ab37a320f3ea0) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Native events on the Web: the generated contract exports `events`, one publisher per declared event, for `runtimes/web/src/native.ts` (`events.presetLoaded({ path })`). Each checks its value as the JUCE bindings do, and the plugin UI's subscribers receive it right after the publishing code returns, in order; the page holds at most 1024 undelivered events. The manifest lists the events.
+
+- [#255](https://github.com/soundor/soundor/pull/255) [`13da21d`](https://github.com/soundor/soundor/commit/13da21de509056defdaf7959cc7af78eb345ea1a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - **Breaking:** `soundor:native` in the browser checks and converts every call as the JUCE runtime does, with its errors word for word: sized numbers are never coerced (`float32` rounded with `Math.fround`, 64-bit integers bigints), `null` only for `T?`, buffers exactly their typed array, and structs and arrays copied with their declared fields only. What the implementation returns is checked too, and copied. Argument errors of async methods are thrown, not rejected, as natively. `defineHandle()`, `WebNativeHandle` and `WebNativeHandleType` are removed with handles. The manifest carries the native API's types.
+
+- [#258](https://github.com/soundor/soundor/pull/258) [`553d8c4`](https://github.com/soundor/soundor/commit/553d8c430aab0c1e620dbd9d9be62448d41982f6) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Parameters run the behavior `gen` compiles to JavaScript (`parameters.js`) from the same expressions as the JUCE runtime's C++: mapping, steps, `format` and `parse`. The host's controls move through normalized positions and show formatted values and choice labels; read-only parameters are disabled there, and `setupAudio` receives `publish(parameter, value)` to set them.
+
+- [#263](https://github.com/soundor/soundor/pull/263) [`14b7be0`](https://github.com/soundor/soundor/commit/14b7be04bb0262c6359ba08aac2087315f72d71f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add typed persistent application state through `soundor:state`, reusing native type declarations and validated defaults, with field subscriptions and React `useStateValue()`.
+
+  JUCE owns state per processor, saves parameters and state together, accepts legacy APVTS projects, and calls the protected `stateRestored()` hook on the message thread after each complete restoration. Off-thread host restorations queue to that thread. Web hydrates before application startup and automatically saves snapshots to application-namespaced IndexedDB. Runtime API 2 gates state configuration for older runtimes.
+
+- [#289](https://github.com/soundor/soundor/pull/289) [`67ffaac`](https://github.com/soundor/soundor/commit/67ffaacba3038901877563c40af773dfc2122e7d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add soundor:env with explicit, typed, readonly public configuration values and DEV/PROD/MODE built-ins. Embed values in the shared UI bundle, resolve the same module for web host code, and support isolated configuration in the test runtime. No process environment is exposed implicitly.
+
+- [#288](https://github.com/soundor/soundor/pull/288) [`02d06a8`](https://github.com/soundor/soundor/commit/02d06a814f8fb77b2fd8fa78f73d0c8edc809ebd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add boolean `soundor:ui` isVisible()/subscribeVisibility() and isFocused()/subscribeFocus() APIs so plugins can react to editor visibility and keyboard focus across runtimes. Add test runtime setters and Testing Library editor helpers. The analyzer example pauses its UI subscriptions while hidden.
+
+- [#275](https://github.com/soundor/soundor/pull/275) [`258c891`](https://github.com/soundor/soundor/commit/258c8911cecc26d26e22c7bcc0d78d52dde66fc7) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Runtime packages now declare supported Soundor CLI versions through a required `soundor` peer dependency. Both first-party runtimes use a caret range matching their regular `@soundor/runtime-sdk` dependency; the SDK and CLI share the fixed package version. Before 1.0, this supports the current minor and its patches. Runtime providers own the supported range, and package managers handle peer mismatches without an additional CLI compatibility check.
+
+  Remove the numeric `Runtime.apiVersion` and `ResolvedRuntime.apiVersion`, runtime API version constants and contract record, config-feature version gates, compatibility helpers, and `RuntimeCompatibilityError` with its dedicated error codes. Third-party runtimes should remove those imports and fields, keep the SDK as a regular dependency, and declare the supported CLI range in `peerDependencies.soundor`. The existing project config release-line check and cross-copy error protocol remain.
+
+- [#264](https://github.com/soundor/soundor/pull/264) [`61798d1`](https://github.com/soundor/soundor/commit/61798d199d6c5a32d1f8118fba4f67184e280a13) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add optional beginGesture() and endGesture() methods to persistent state fields in JavaScript and native JUCE code. Gestures nest per field, leave writes immediate, reset on restoration, and clean up unfinished UI interactions without host automation or History recording.
+
+  Raise the runtime API version to 3 for the additional state field methods; older runtimes remain accepted.
+
+- [#267](https://github.com/soundor/soundor/pull/267) [`553076d`](https://github.com/soundor/soundor/commit/553076ddfee437804ce959495d967af8bd9081d2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add processor-owned StateHistory with opt-in discrete edits, History-enabled parameter/state gestures, synchronous buffered transactions, undo/redo, subscriptions, and useStateHistory(). JavaScript and native C++ share one manager in JUCE; Web and simulated runtimes implement the same contract. History survives editor recreation and clears on project restoration. Runtime API 5 is now required so older runtimes cannot silently ignore History options.
+
+### Patch Changes
+
+- [#256](https://github.com/soundor/soundor/pull/256) [`d5b9b16`](https://github.com/soundor/soundor/commit/d5b9b167c52bea1113785d84d62fb78e8409d06d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Depends on one Soundor package, `@soundor/runtime-sdk`, which its code imports (instead of inlining it): no `@soundor/config` peer, and no `@soundor/core`. Its browser client imports the springs from `@soundor/runtime-sdk/client` and inlines them. It implements runtime API 1, which the CLI checks before running it.
+- Updated dependencies [[`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3), [`d5b9b16`](https://github.com/soundor/soundor/commit/d5b9b167c52bea1113785d84d62fb78e8409d06d), [`553d8c4`](https://github.com/soundor/soundor/commit/553d8c430aab0c1e620dbd9d9be62448d41982f6), [`14b7be0`](https://github.com/soundor/soundor/commit/14b7be04bb0262c6359ba08aac2087315f72d71f), [`67ffaac`](https://github.com/soundor/soundor/commit/67ffaacba3038901877563c40af773dfc2122e7d), [`258c891`](https://github.com/soundor/soundor/commit/258c8911cecc26d26e22c7bcc0d78d52dde66fc7), [`3a778e2`](https://github.com/soundor/soundor/commit/3a778e22214860be850efe603802a955f3fdda52)]:
+  - soundor@0.17.0
+  - @soundor/runtime-sdk@0.17.0
+  - @soundor/yoga-wasm@0.1.0
+
 ## 0.12.0
 
 ### Minor Changes
