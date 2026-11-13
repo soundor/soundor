@@ -39,13 +39,13 @@ import privatePropertyInObject from '@babel/plugin-transform-private-property-in
 
 /** A source map to compose with the lowered module's generated map. */
 export interface NativeModuleSourceMap {
-  readonly version: number;
-  readonly sources: string[];
-  readonly names: string[];
-  readonly sourceRoot?: string;
-  readonly sourcesContent?: string[];
-  readonly mappings: string;
-  readonly file: string;
+  version: number;
+  sources: string[];
+  names: string[];
+  sourceRoot?: string | undefined;
+  sourcesContent?: string[] | undefined;
+  mappings: string;
+  file: string;
 }
 
 export interface NativeModuleOptions {
