@@ -1,5 +1,21 @@
 # @soundor/environment
 
+## 0.17.0
+
+### Minor Changes
+
+- [#254](https://github.com/soundor/soundor/pull/254) [`0ada0c5`](https://github.com/soundor/soundor/commit/0ada0c58f97b5a60ae76299895e98b0592051624) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Box shadows: `soundor:ui`'s `Style` declares `boxShadow`, a list of `BoxShadow` (`offsetX`, `offsetY`, `blur`, `spread`, `color`, `inset`), as CSS's `box-shadow`. `@soundor/react` nodes take it in `style` and compare it by value, so re-rendering the same shadows in a new array sets no style; the test runtime keeps it.
+
+- [#252](https://github.com/soundor/soundor/pull/252) [`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Double clicks: `soundor:ui` declares the `dblclick` event and `PointerEvent.detail` (which click of a series a `click` is, as the platform counts them), and `@soundor/react` nodes take `onDoubleClick` and `onDoubleClickCapture`. The test runtime counts a press as its `detail` says (1 by default) and fires `dblclick` after a second click; Testing Library adds `user.dblClick()` and `fireEvent.dblClick()`, and `user.pointer` presses take a `detail`. Soundor Driver adds `locator.dblclick()`, `pointer.dblclick()` and a `clickCount` option for `pointer.down()` and `pointer.click()` (`Input.dispatchPointer`'s `clickCount`), and `soundor driver dblclick`.
+
+- [#289](https://github.com/soundor/soundor/pull/289) [`a54e1da`](https://github.com/soundor/soundor/commit/a54e1da16a93c0097789c8e9e974632f4b12526c) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Expose plugin version and runtime environment in soundor:host, and extend host state with processing mode, sample precision, optional track metadata, loop boundaries and timecode. Rename snapshot/subscribe to getHostState/subscribeHostState. Configure plugin.version (default 0.1.0) consistently across formats.
+
+- [#289](https://github.com/soundor/soundor/pull/289) [`67ffaac`](https://github.com/soundor/soundor/commit/67ffaacba3038901877563c40af773dfc2122e7d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add soundor:env with explicit, typed, readonly public configuration values and DEV/PROD/MODE built-ins. Embed values in the shared UI bundle, resolve the same module for web host code, and support isolated configuration in the test runtime. No process environment is exposed implicitly.
+
+- [#288](https://github.com/soundor/soundor/pull/288) [`02d06a8`](https://github.com/soundor/soundor/commit/02d06a814f8fb77b2fd8fa78f73d0c8edc809ebd) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add boolean `soundor:ui` isVisible()/subscribeVisibility() and isFocused()/subscribeFocus() APIs so plugins can react to editor visibility and keyboard focus across runtimes. Add test runtime setters and Testing Library editor helpers. The analyzer example pauses its UI subscriptions while hidden.
+
+- [#267](https://github.com/soundor/soundor/pull/267) [`553076d`](https://github.com/soundor/soundor/commit/553076ddfee437804ce959495d967af8bd9081d2) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Add processor-owned StateHistory with opt-in discrete edits, History-enabled parameter/state gestures, synchronous buffered transactions, undo/redo, subscriptions, and useStateHistory(). JavaScript and native C++ share one manager in JUCE; Web and simulated runtimes implement the same contract. History survives editor recreation and clears on project restoration. Runtime API 5 is now required so older runtimes cannot silently ignore History options.
+
 ## 0.16.0
 
 ### Minor Changes

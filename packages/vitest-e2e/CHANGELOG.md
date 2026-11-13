@@ -1,5 +1,17 @@
 # @soundor/vitest-e2e
 
+## 0.17.0
+
+### Minor Changes
+
+- [#275](https://github.com/soundor/soundor/pull/275) [`6cfc628`](https://github.com/soundor/soundor/commit/6cfc628494cb431a15d98f50d7c696ba19a89348) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Narrow the `@soundor/vst3-host` peer dependency to a caret range matching the host release used for development, instead of accepting every pre-1.0 minor. This supports patches in the current minor without claiming compatibility with future breaking host API changes. The host remains optional for the Driver and JUCE runtime and required for Vitest E2E.
+
+### Patch Changes
+
+- [#261](https://github.com/soundor/soundor/pull/261) [`ca998c9`](https://github.com/soundor/soundor/commit/ca998c9f20b6d455d4a33778fd05601868208c3a) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Default E2E polling assertions to five seconds so native host and UI reads have time to complete. Preserve explicit project and per-assertion timeouts.
+- Updated dependencies [[`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3), [`d5b9b16`](https://github.com/soundor/soundor/commit/d5b9b167c52bea1113785d84d62fb78e8409d06d), [`6cfc628`](https://github.com/soundor/soundor/commit/6cfc628494cb431a15d98f50d7c696ba19a89348)]:
+  - @soundor/driver@0.17.0
+
 ## 0.16.0
 
 ### Minor Changes

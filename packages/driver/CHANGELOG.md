@@ -1,5 +1,20 @@
 # @soundor/driver
 
+## 0.17.0
+
+### Minor Changes
+
+- [#252](https://github.com/soundor/soundor/pull/252) [`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Double clicks: `soundor:ui` declares the `dblclick` event and `PointerEvent.detail` (which click of a series a `click` is, as the platform counts them), and `@soundor/react` nodes take `onDoubleClick` and `onDoubleClickCapture`. The test runtime counts a press as its `detail` says (1 by default) and fires `dblclick` after a second click; Testing Library adds `user.dblClick()` and `fireEvent.dblClick()`, and `user.pointer` presses take a `detail`. Soundor Driver adds `locator.dblclick()`, `pointer.dblclick()` and a `clickCount` option for `pointer.down()` and `pointer.click()` (`Input.dispatchPointer`'s `clickCount`), and `soundor driver dblclick`.
+
+- [#275](https://github.com/soundor/soundor/pull/275) [`6cfc628`](https://github.com/soundor/soundor/commit/6cfc628494cb431a15d98f50d7c696ba19a89348) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Narrow the `@soundor/vst3-host` peer dependency to a caret range matching the host release used for development, instead of accepting every pre-1.0 minor. This supports patches in the current minor without claiming compatibility with future breaking host API changes. The host remains optional for the Driver and JUCE runtime and required for Vitest E2E.
+
+### Patch Changes
+
+- [#256](https://github.com/soundor/soundor/pull/256) [`d5b9b16`](https://github.com/soundor/soundor/commit/d5b9b167c52bea1113785d84d62fb78e8409d06d) Thanks [@dm-balakin](https://github.com/dm-balakin)! - `isDriverError()` recognizes a `DriverError` of any copy of the Driver (such as `@soundor/vitest-e2e`'s), by the brand `Symbol.for('soundor.driver-error.v1')` and its `code`, not by `instanceof`.
+- Updated dependencies [[`3275981`](https://github.com/soundor/soundor/commit/32759813fd8c6ef0f59fa10f7d2c2dc6e2f291a3)]:
+  - @soundor/devtools-protocol@0.17.0
+  - @soundor/devtools-server@0.17.0
+
 ## 0.16.0
 
 ### Minor Changes
