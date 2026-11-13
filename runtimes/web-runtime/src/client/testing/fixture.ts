@@ -148,5 +148,11 @@ export const fixtureConfig = {
       fail: {},
       failLater: { async: true },
     },
+    // The JUCE runtime's fixture's events.
+    events: {
+      presetLoaded: { path: 'string', preset: 'Preset?' },
+      levels: { values: 'buffer<float32>', curve: 'Curve' },
+      ready: {},
+    },
   },
 } as const;

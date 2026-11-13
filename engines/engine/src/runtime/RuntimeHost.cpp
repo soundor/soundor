@@ -3,6 +3,7 @@
 #include "render/ViewRenderer.h"
 #include "web/Web.h"
 
+#include <soundor/js/Events.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <string>
@@ -105,6 +106,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             parameters::dispatchChanges(*jsContext);
             lap(ticked.parameters);
         }
+        // What native code published (soundor:native events) since the last
+        // tick.
+        js::deliverEvents(*jsContext);
+        lap(ticked.events);
         // What code scrolled since the last tick, before the frame's callbacks.
         uiSurface->deliverScrolls();
         // The size the backend gave the surface (and its editor) since the

@@ -123,6 +123,10 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
         args: method.args,
         returns: method.returns,
       })),
+      events: native.events.map((event) => ({
+        name: event.name,
+        fields: event.fields,
+      })),
     },
   };
 }

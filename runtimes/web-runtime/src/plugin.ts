@@ -179,14 +179,18 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
 
 /**
  * `soundor:native`: one export per declared method, each calling the
- * project's implementation directly.
+ * project's implementation directly, and the declared `events`.
  */
 function nativeModule(manifest: WebManifest, bridge: string): string {
   const methods = manifest.native.methods.map(
     (method) =>
       `export const ${method.name} = nativeMethod(${JSON.stringify(method)});\n`,
   );
-  return `import { nativeMethod } from ${JSON.stringify(bridge)};\n${methods.join('')}`;
+  const events =
+    manifest.native.events.length > 0
+      ? 'export const events = nativeEvents();\n'
+      : '';
+  return `import { nativeEvents, nativeMethod } from ${JSON.stringify(bridge)};\n${methods.join('')}${events}`;
 }
 
 /** How the host loads the plugin UI: the CLI's bundle, imported as it is. */

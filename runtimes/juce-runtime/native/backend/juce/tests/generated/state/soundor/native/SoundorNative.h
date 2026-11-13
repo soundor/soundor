@@ -2,6 +2,7 @@
 #pragma once
 
 #include <soundor/js/Context.h>
+#include <soundor/js/Events.h>
 #include <soundor/js/Promise.h>
 
 #include <cstddef>
@@ -41,7 +42,38 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         virtual ~NativeApi() = default;
     };
 
-    // Makes `soundor:native` importable in `context`, backed by `api`. Call
-    // before evaluating code that imports it; the context keeps `api` alive.
-    void install(js::Context& context, std::shared_ptr<NativeApi> api);
+    // The values of the events declared under `native.events`.
+    namespace events
+    {
+        struct BandChanged
+        {
+            Band band {};
+            std::uint32_t index {};
+        };
+    } // namespace events
+
+    // The plugin's native events, declared under `native.events` in
+    // soundor.config: the plugin publishes them, the UI subscribes to them
+    // (`events` of `soundor:native`). Keep one per plugin instance and
+    // install() it into each JavaScript context.
+    //
+    // Publish from any thread but the audio callback: a publisher copies the
+    // value, takes a short lock and returns; it never waits for the UI. Each
+    // open UI receives every event published while it is open, on its UI
+    // thread at its next tick, in the order they were published. A UI holds
+    // at most `capacity` undelivered events and drops newer ones; with no UI
+    // open, events are dropped. A publisher returns whether a UI took it.
+    class Events : public js::EventSource
+    {
+    public:
+        using js::EventSource::EventSource;
+
+        bool bandChanged(events::BandChanged event) const;
+    };
+
+    // Makes `soundor:native` importable in `context`, backed by `api`
+    // (nullptr when the config declares no methods), and delivers `events`
+    // to it. Call before evaluating code that imports it; the context keeps
+    // `api` alive, and stops receiving `events` when it goes.
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native

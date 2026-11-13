@@ -29,12 +29,46 @@ export function renderWebNative(model: NativeApiModel): string {
     methods.length === 0
       ? 'export type WebNativeApi = Record<never, never>;\n'
       : `export interface WebNativeApi {\n${methods.join('\n')}\n}\n`;
-  return `${HEADER}${types.map((type) => `${type}\n\n`).join('')}/**
+  const imports =
+    model.events.length > 0
+      ? "import { nativeEventPublishers } from '@soundor/web-runtime/client';\n\n"
+      : '';
+  return `${HEADER}${imports}${types.map((type) => `${type}\n\n`).join('')}/**
  * The plugin's native API (soundor:native), as runtimes/web/src/native.ts
  * implements it for the Web. A method added to soundor.config is missing
  * here until it is implemented.
  */
-${api}`;
+${api}${model.events.length > 0 ? `\n${renderEvents(model.events)}` : ''}`;
+}
+
+/**
+ * The publishers of the declared events, for runtimes/web/src/native.ts:
+ * the Web counterpart of the C++ \`native::Events\`.
+ */
+function renderEvents(events: NativeApiModel['events']): string {
+  const publishers = events.map((event) => {
+    const fields = event.fields
+      .map((field) => `${field.name}: ${nativeTsType(field.type, 'argument')}`)
+      .join('; ');
+    const parameter =
+      event.fields.length === 0
+        ? 'event?: Record<string, never>'
+        : `event: { ${fields} }`;
+    return `  ${event.name}(${parameter}): boolean;`;
+  });
+  return `/**
+ * The plugin's native events (soundor:native \`events\`): publish one from
+ * runtimes/web/src/native.ts, and the plugin UI's
+ * subscribers receive it after the call returns, in the order published.
+ * Each checks its value and returns whether the page took it (it holds 1024
+ * undelivered events and drops newer ones).
+ */
+export interface WebNativeEvents {
+${publishers.join('\n')}
+}
+
+export const events = nativeEventPublishers() as unknown as WebNativeEvents;
+`;
 }
 
 function renderType(type: NativeTypeModel): string {

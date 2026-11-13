@@ -79,6 +79,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 
+        // The config's native events (`events` of soundor:native): publish
+        // them from any thread but the audio callback (process()), and every
+        // open editor receives them on its UI thread.
+        native::Events nativeEvents;
+
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}

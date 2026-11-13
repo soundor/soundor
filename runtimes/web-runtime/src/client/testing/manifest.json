@@ -794,6 +794,55 @@
           }
         }
       }
+    ],
+    "events": [
+      {
+        "name": "levels",
+        "fields": [
+          {
+            "name": "values",
+            "type": {
+              "kind": "buffer",
+              "element": "float32"
+            }
+          },
+          {
+            "name": "curve",
+            "type": {
+              "kind": "declared",
+              "name": "Curve",
+              "declaration": "enum"
+            }
+          }
+        ]
+      },
+      {
+        "name": "presetLoaded",
+        "fields": [
+          {
+            "name": "path",
+            "type": {
+              "kind": "primitive",
+              "name": "string"
+            }
+          },
+          {
+            "name": "preset",
+            "type": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "declared",
+                "name": "Preset",
+                "declaration": "struct"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "ready",
+        "fields": []
+      }
     ]
   }
 }

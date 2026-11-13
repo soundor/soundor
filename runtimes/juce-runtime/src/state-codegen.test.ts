@@ -28,6 +28,8 @@ const config = resolveConfig({
       },
       Group: { struct: { bands: 'Band[]', index: 'uint64' } },
     },
+    // The processor owns them (JuceStateTests.cpp publishes one).
+    events: { bandChanged: { band: 'Band', index: 'uint32' } },
   },
   state: {
     signedValue: { type: 'int64', default: -9223372036854775808n },

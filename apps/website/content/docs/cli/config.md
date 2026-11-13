@@ -301,6 +301,30 @@ type names are PascalCase.
   and an ID or path the native side looks it up by; there are no opaque
   native objects in JavaScript.
 
+`events` declares what native code tells the UI: each event names the fields
+of its value, of the types above, in order (an event may have none). Its
+value is `events::<Name>` in C++ (`presetLoaded` → `events::PresetLoaded`),
+which no declared type may be called, and an object in TypeScript:
+
+```ts
+native: {
+  events: {
+    presetLoaded: { path: 'string', preset: 'Preset?' },
+    ready: {},
+  },
+}
+```
+
+```ts
+import { events } from 'soundor:native';
+
+events.presetLoaded.subscribe(({ path, preset }) => {});
+```
+
+Event names are camelCase; `events`, `publish`, `statistics` and `hub` are
+taken, and no method can be called `events`. See
+[`soundor:native`](/docs/api/native#events) for how they are delivered.
+
 ### `signing`
 
 How runtimes sign the binaries they build. Optional; nothing here is secret.

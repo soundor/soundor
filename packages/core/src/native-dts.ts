@@ -8,6 +8,7 @@
 import {
   BUFFER_ARRAY_TYPES,
   type NativeApiModel,
+  type NativeEventModel,
   type NativeType,
   type NativeTypeModel,
 } from './native-api';
@@ -24,9 +25,42 @@ export function renderNativeDts(model: NativeApiModel): string {
       const result = nativeTsType(method.returns, 'result');
       return `  export function ${method.name}(${args}): ${method.async ? `Promise<${result}>` : result};`;
     }),
+    ...(model.events.length > 0 ? [renderEvents(model.events)] : []),
   ];
   const body = blocks.length > 0 ? `\n${blocks.join('\n\n')}\n` : '\n';
   return `${HEADER}declare module 'soundor:native' {${body}}\n`;
+}
+
+/** `events` and the interface its members share. */
+function renderEvents(events: readonly NativeEventModel[]): string {
+  const members = events.map(
+    (event) =>
+      `    readonly ${event.name}: NativeEvent<${nativeTsEventType(event)}>;`,
+  );
+  return `  /**
+   * A notification native code publishes. Its subscribers run on the UI
+   * thread, after the native call that published it has returned, in the
+   * order events were published.
+   */
+  export interface NativeEvent<T> {
+    /**
+     * Calls \`listener\` with every event published from now on (none from
+     * before), until the function it returns is called. The subscribers of
+     * one event receive the same value.
+     */
+    subscribe(listener: (event: T) => void): () => void;
+  }
+
+  /** The events declared under \`native.events\`. */
+  export const events: {
+${members.join('\n')}
+  };`;
+}
+
+/** The value an event's subscribers receive: its fields, as an object. */
+export function nativeTsEventType(event: NativeEventModel): string {
+  if (event.fields.length === 0) return 'Record<string, never>';
+  return `{ ${event.fields.map((field) => `${field.name}: ${nativeTsType(field.type, 'result')}`).join('; ')} }`;
 }
 
 /** A declared type as an exported member of the module declaration. */

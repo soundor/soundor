@@ -95,4 +95,25 @@ declare module 'soundor:native' {
   export function solo(): number | null;
 
   export function sumWords(values: BigUint64Array | null): bigint | null;
+
+  /**
+   * A notification native code publishes. Its subscribers run on the UI
+   * thread, after the native call that published it has returned, in the
+   * order events were published.
+   */
+  export interface NativeEvent<T> {
+    /**
+     * Calls `listener` with every event published from now on (none from
+     * before), until the function it returns is called. The subscribers of
+     * one event receive the same value.
+     */
+    subscribe(listener: (event: T) => void): () => void;
+  }
+
+  /** The events declared under `native.events`. */
+  export const events: {
+    readonly levels: NativeEvent<{ values: Float32Array; curve: Curve }>;
+    readonly presetLoaded: NativeEvent<{ path: string; preset: Preset | null }>;
+    readonly ready: NativeEvent<Record<string, never>>;
+  };
 }

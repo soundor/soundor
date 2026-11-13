@@ -13,4 +13,9 @@ declare module 'soundor:host' {
 declare module 'soundor:native' {
   export function loadPreset(): Promise<string>;
   export function probe(): number;
+  export const events: {
+    readonly presetLoaded: {
+      subscribe(listener: (event: { path: string }) => void): () => void;
+    };
+  };
 }

@@ -55,3 +55,57 @@ setSolo(null);
   web runtime ([web runtime](/docs/web-runtime)). `soundor gen` generates the
   interface each must implement, so a method added to the config is a
   compile error until it is.
+
+## Events
+
+Native code tells the UI what happened through events: a preset finished
+loading, a file failed, an analysis is ready. The config declares each with
+the fields of its value, of the same types as arguments:
+
+```ts
+// soundor.config.ts
+native: {
+  events: {
+    presetLoaded: { path: 'string', preset: 'Preset?' },
+    processingError: { message: 'string' },
+    ready: {},
+  },
+},
+```
+
+```ts
+// in the UI
+import { events } from 'soundor:native';
+
+const unsubscribe = events.presetLoaded.subscribe(({ path, preset }) => {
+  console.log('Loaded', path, preset?.name);
+});
+// later
+unsubscribe();
+```
+
+```cpp
+// in the plugin (JUCE): any thread but the audio callback
+nativeEvents.presetLoaded({ .path = path, .preset = preset });
+```
+
+- **Delivered on the UI thread, later:** subscribers never run inside the
+  call that published the event, and never on the thread that published it.
+  The JUCE runtime delivers at its next tick (60 times a second), the web
+  runtime right after the publishing code returns.
+- **In order:** a UI receives its events in the order they were published,
+  so one thread's events keep their order.
+- **From now on:** a subscriber receives the events published after it
+  subscribed, none from before; a UI that opens, or reloads, starts with
+  none. An event is a notification, not state: what a newly shown component
+  needs to read belongs in a method, in [`soundor:state`](/docs/api/state)
+  or in a parameter.
+- **Bounded:** a UI holds at most 1024 undelivered events; one published
+  while it is full is dropped (the publisher returns `false`) and the drop is
+  logged. With no UI open, events are dropped. A UI that is slow, hidden or
+  closed never makes memory grow.
+- **One value for all:** the subscribers of one event receive the same
+  object. A subscriber that throws is reported, and the others still run.
+- **Not for audio-rate data:** publishing allocates and takes a short lock,
+  so it is not for the audio callback, and an event per audio block is too
+  many. Hand such data to another thread first.

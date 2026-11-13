@@ -94,6 +94,10 @@ const config: CoreSoundorConfig = {
       loadPreset: { args: { path: 'string' }, returns: 'Preset?', async: true },
       setSolo: { args: { slot: 'int32?' } },
     },
+    events: {
+      presetLoaded: { path: 'string', preset: 'Preset?' },
+      ready: {},
+    },
   },
 };
 
@@ -102,7 +106,7 @@ import { state } from 'soundor:state';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { plugin, snapshot, subscribe } from 'soundor:host';
-import { loadPreset, measure, setSolo, type Level, type Preset } from 'soundor:native';
+import { events, loadPreset, measure, setSolo, type Level, type NativeEvent, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
@@ -111,6 +115,20 @@ import vector from './logo.svg';
 const asset: string = logo;
 const svgAsset: string = vector;
 createImage(svgAsset, { width: 200, height: 100 });
+
+const stopLoaded: () => void = events.presetLoaded.subscribe(({ path, preset }) => {
+  const loadedPath: string = path;
+  const loaded: Preset | null = preset;
+  void loadedPath;
+  void loaded;
+});
+stopLoaded();
+const ready: NativeEvent<Record<string, never>> = events.ready;
+void ready;
+// @ts-expect-error events are declared ones only
+events.missing.subscribe(() => {});
+// @ts-expect-error event fields are typed
+events.presetLoaded.subscribe(({ path }) => { const wrong: number = path; void wrong; });
 
 const selected: string | null = state.selectedPreset.get();
 void selected;

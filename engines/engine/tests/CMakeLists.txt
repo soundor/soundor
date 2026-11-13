@@ -70,6 +70,7 @@ if(SOUNDOR_JS_SOURCE)
     js/ModuleTests.cpp
     js/RuntimeTests.cpp
     native/NativeModuleTests.cpp
+    native/NativeEventsTests.cpp
     parameters/ParametersTests.cpp
     history/HistoryTests.cpp
     render/CompositorTests.cpp

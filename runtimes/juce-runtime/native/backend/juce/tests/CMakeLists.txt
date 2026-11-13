@@ -109,6 +109,7 @@ target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   generated/state/soundor/SoundorProcessor.cpp
   generated/state/soundor/SoundorState.cpp
   generated/state/soundor/SoundorParameters.cpp
+  generated/state/soundor/native/SoundorNative.cpp
   ../soundor/backend/JuceParameter.cpp
   ../soundor/backend/JuceParameterHost.cpp
   ../soundor/backend/JuceTransport.cpp)

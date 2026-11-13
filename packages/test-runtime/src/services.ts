@@ -160,6 +160,8 @@ export interface RuntimeOptions {
   editor?: EditorInit;
   /** Declared methods in the simulated project; omitted for direct runtime unit tests. */
   nativeMethods?: readonly string[];
+  /** Declared native events in the simulated project; omitted for direct runtime unit tests. */
+  nativeEvents?: readonly string[];
   native?: Record<string, (...args: never[]) => unknown>;
 }
 /** JSON serialization matches storage; returned objects are independent copies. */

@@ -47,7 +47,7 @@ export interface SoundorOptions {
   /** Deterministic initial state for each test. Native functions are configured with mockNative() from @soundor/testing-library. */
   runtime?: Omit<
     RuntimeOptions,
-    'native' | 'nativeMethods' | 'parameters' | 'state'
+    'native' | 'nativeMethods' | 'nativeEvents' | 'parameters' | 'state'
   > & {
     /** Parameter declarations for tests without a project config, as soundor.config declares them. */
     parameters?: ParameterDeclarations;
@@ -104,7 +104,10 @@ export function soundor(options: SoundorOptions = {}): Plugin {
         state: _state,
         ...given
       } = options.runtime ?? {};
-      let runtime: Omit<RuntimeOptions, 'native' | 'nativeMethods'> = {
+      let runtime: Omit<
+        RuntimeOptions,
+        'native' | 'nativeMethods' | 'nativeEvents'
+      > = {
         ...given,
         ...(options.runtime?.parameters !== undefined && { parameters }),
       };
@@ -210,6 +213,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
               runtime: {
                 ...runtime,
                 nativeMethods: Object.keys(native.methods ?? {}),
+                nativeEvents: Object.keys(native.events ?? {}),
               },
             },
           },
@@ -336,6 +340,10 @@ function virtualModule(
       throw new Error(
         'Invalid Soundor native declaration: ' + JSON.stringify(result.issues),
       );
+    const events =
+      result.model.events.length > 0
+        ? `\nexport const events = Object.freeze({ ${result.model.events.map((event) => `${JSON.stringify(event.name)}: Object.freeze({ subscribe: (listener) => getTestRuntime().subscribeNativeEvent(${JSON.stringify(event.name)}, listener) })`).join(', ')} });`
+        : '';
     return (
       header +
       result.model.methods
@@ -343,7 +351,8 @@ function virtualModule(
           (method) =>
             `export ${method.async ? 'async ' : ''}function ${method.name}(...args) { return getTestRuntime().callNative(${JSON.stringify(method.name)}, args); }`,
         )
-        .join('\n')
+        .join('\n') +
+      events
     );
   }
   return [

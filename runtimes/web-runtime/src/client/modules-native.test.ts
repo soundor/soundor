@@ -141,6 +141,7 @@ describe('soundor:native', () => {
       'echoOptionals',
       'echoUint64',
       'echoUint8',
+      'events',
       'fail',
       'failLater',
       'firstPoint',

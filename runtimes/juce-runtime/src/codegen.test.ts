@@ -194,6 +194,29 @@ describe('generateJuceSources', () => {
     expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
   });
 
+  it('owns the native events and installs them into every editor runtime', () => {
+    const withEvents = (native: ResolvedSoundorConfig['native']) =>
+      fileMap({ ...config, native });
+    const both = withEvents({
+      methods: { probe: {} },
+      events: { presetLoaded: { path: 'string' } },
+    });
+    expect(both.get('soundor/SoundorProcessor.h')).toContain(
+      '        native::Events nativeEvents;',
+    );
+    expect(both.get('soundor/SoundorEditor.cpp')).toContain(
+      'native::install(context, std::move(api), owner.nativeEvents);',
+    );
+    // Events alone need no implementation of methods.
+    const eventsOnly = withEvents({ events: { ready: {} } });
+    expect(eventsOnly.get('soundor/SoundorEditor.cpp')).toContain(
+      'native::install(context, owner.createNativeApi(), owner.nativeEvents);',
+    );
+    expect(fileMap(config).get('soundor/SoundorProcessor.h')).not.toContain(
+      'nativeEvents',
+    );
+  });
+
   it("sizes the UI surface and forwards the view's input to it", () => {
     const editor = [
       fileMap(config).get('soundor/SoundorEditor.h')!,
