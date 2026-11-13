@@ -1,5 +1,7 @@
+import { resolveEnvironment } from '@soundor/core';
 import { StateHistory, StateStore } from '@soundor/core/state';
 
+import { version as runtimeVersion } from '../package.json';
 import { TestAnimation } from './animation';
 import { VirtualClock } from './clock';
 import { Listeners } from './listeners';
@@ -10,6 +12,7 @@ import {
   MemoryStorage,
   type RuntimeOptions,
   type HostSnapshot,
+  type HostEnvironment,
   type EditorInit,
   type EditorSize,
   type ViewRect,
@@ -40,7 +43,9 @@ export class TestRuntime {
   readonly state: StateStore;
   readonly parameters: ReturnType<typeof createParameterStore>;
   readonly storage = new MemoryStorage(() => this.assertActive());
-  readonly plugin: Readonly<{ id: string; name: string }>;
+  readonly plugin: Readonly<{ id: string; name: string; version: string }>;
+  readonly environment: Readonly<HostEnvironment>;
+  readonly env: ReturnType<typeof resolveEnvironment>;
   readonly native: Record<string, (...args: never[]) => unknown>;
   private readonly nativeMethods?: ReadonlySet<string>;
   private readonly nativeEvents?: ReadonlySet<string>;
@@ -109,7 +114,17 @@ export class TestRuntime {
       options.state ?? { fields: [], types: [] },
       this.history,
     );
+    this.env = resolveEnvironment(options.env, 'development');
+    this.environment = Object.freeze({
+      runtime: 'test',
+      runtimeVersion,
+      platform: 'unknown',
+      arch: 'unknown',
+      format: 'unknown',
+      ...options.environment,
+    });
     this.plugin = Object.freeze({
+      version: options.plugin?.version ?? '0.1.0',
       ...(options.plugin ?? { id: 'soundor.test', name: 'Soundor Test' }),
     });
     this.nativeMethods =
@@ -118,10 +133,12 @@ export class TestRuntime {
     this.nativeChannelNames =
       options.nativeChannels && new Set(options.nativeChannels);
     this.native = Object.assign(Object.create(null), options.native);
-    this.hostState = Object.freeze({
+    this.hostState = freezeHostState({
       sampleRate: 48000,
       blockSize: 128,
       hostName: 'Soundor Test',
+      samplePrecision: 'float32',
+      processingMode: 'realtime',
       transport: null,
       ...options.host,
     });
@@ -844,7 +861,7 @@ export class TestRuntime {
   }
   setHost(state: Partial<HostSnapshot>) {
     this.assertActive();
-    this.hostState = Object.freeze({ ...this.hostState, ...state });
+    this.hostState = freezeHostState({ ...this.hostState, ...state });
     this.hostListeners.notify(this.hostState);
   }
   viewSize() {
@@ -1155,4 +1172,16 @@ function constrainRequest(
     width: Math.round(ratio.width * zoom),
     height: Math.round(ratio.height * zoom),
   };
+}
+
+/** Detach host-supplied data before freezing nested snapshot values. */
+function freezeHostState(state: HostSnapshot): HostSnapshot {
+  const copy = structuredClone(state);
+  if (copy.track) Object.freeze(copy.track);
+  if (copy.transport) {
+    Object.freeze(copy.transport.timeSignature);
+    if (copy.transport.timecode) Object.freeze(copy.transport.timecode);
+    Object.freeze(copy.transport);
+  }
+  return Object.freeze(copy);
 }

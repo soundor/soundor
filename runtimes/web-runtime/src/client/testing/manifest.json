@@ -1,7 +1,14 @@
 {
   "plugin": {
     "id": "com.example.fixture",
-    "name": "Fixture"
+    "name": "Fixture",
+    "version": "0.1.0"
+  },
+  "runtimeVersion": "0.12.0",
+  "env": {
+    "FEATURE": true,
+    "LABEL": "fixture",
+    "COUNT": 3
   },
   "editor": {
     "width": 800,

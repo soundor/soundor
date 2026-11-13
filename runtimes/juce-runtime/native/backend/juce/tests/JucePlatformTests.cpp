@@ -177,6 +177,76 @@ TEST_CASE("TransportCapture copies the play head's position")
         FAIL("TransportCapture did not publish a position");
 }
 
+TEST_CASE("TransportCapture clears unavailable loop and timecode fields")
+{
+    backend::TransportCapture capture;
+    ScriptedPlayHead playHead;
+    juce::AudioPlayHead::PositionInfo position;
+    position.setLoopPoints(juce::AudioPlayHead::LoopPoints { 8, 16 });
+    position.setFrameRate(juce::AudioPlayHead::FrameRate(juce::AudioPlayHead::fps2997drop));
+    position.setEditOriginTime(3600);
+    playHead.position = position;
+    capture.capture(&playHead);
+    if (const auto first = capture.latest())
+    {
+        CHECK(first->loopStartPpq == 8);
+        CHECK(first->loopEndPpq == 16);
+        if (const auto& timecode = first->timecode)
+        {
+            CHECK(timecode->dropFrame);
+            CHECK(timecode->framesPerSecond == doctest::Approx(30.0 / 1.001));
+            if (const auto offset = timecode->smpteOffsetSubframes)
+                CHECK(*offset == doctest::Approx(3600 * 80 * 30.0 / 1.001));
+            else
+                FAIL("missing SMPTE offset");
+        }
+        else
+            FAIL("missing captured timecode");
+    }
+    else
+        FAIL("missing captured transport");
+    playHead.position = juce::AudioPlayHead::PositionInfo {};
+    capture.capture(&playHead);
+    if (const auto second = capture.latest())
+    {
+        CHECK_FALSE(second->loopStartPpq.has_value());
+        CHECK_FALSE(second->loopEndPpq.has_value());
+        CHECK_FALSE(second->timecode.has_value());
+    }
+    else
+        FAIL("missing captured transport");
+}
+
+TEST_CASE("Track metadata uses RGBA and can be withdrawn")
+{
+    backend::TransportCapture capture;
+    juce::AudioProcessor::TrackProperties properties;
+    []<typename Properties>(Properties& value)
+    {
+        value.name = "Vocals";
+        if constexpr (requires { value.colourARGB; })
+            value.colourARGB = 0xff78a8ff;
+        else
+            value.colour = juce::Colour(0xff78a8ff);
+    }(properties);
+    capture.updateTrackProperties(properties);
+    if (const auto& info = capture.trackInfo())
+    {
+        CHECK(info->name == "Vocals");
+        CHECK(info->color == "#78a8ffff");
+    }
+    else
+        FAIL("missing track metadata");
+    capture.updateTrackProperties({});
+    if (const auto& info = capture.trackInfo())
+    {
+        CHECK_FALSE(info->name.has_value());
+        CHECK_FALSE(info->color.has_value());
+    }
+    else
+        FAIL("missing track metadata");
+}
+
 TEST_CASE("fetch() through JuceHttpClient talks to a real server")
 {
     FetchFixture f;

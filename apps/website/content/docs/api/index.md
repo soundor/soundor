@@ -14,6 +14,7 @@ the same errors, typed from the project's `soundor.config.ts`.
 | [`soundor:parameters`](/docs/api/parameters)       | The plugin's parameters, shared with the audio and the host.      |
 | [`soundor:state`](/docs/api/state)                 | Persistent typed values shared with native code.                  |
 | [`soundor:state-history`](/docs/api/state-history) | Opt-in undo/redo for parameter and state edits.                   |
+| [`soundor:env`](/docs/api/env)                     | Explicit public build-time configuration and mode flags.          |
 | [`soundor:host`](/docs/api/host)                   | The plugin's identity, the host, and its transport.               |
 | [`soundor:ui`](/docs/api/ui)                       | The plugin view's nodes, styles, events, canvases and animations. |
 | [`soundor:storage`](/docs/api/storage)             | Persistent JSON key/value storage, private to the plugin.         |

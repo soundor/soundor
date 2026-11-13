@@ -52,7 +52,13 @@ export type WebParameterInfo =
 export interface WebManifest {
   readonly state?: StateSchema;
   /** The plugin's identity, from soundor.config. */
-  readonly plugin: { readonly id: string; readonly name: string };
+  readonly plugin: {
+    readonly id: string;
+    readonly name: string;
+    readonly version?: string;
+  };
+  readonly runtimeVersion?: string;
+  readonly env?: Readonly<Record<string, string | boolean | number>>;
   /** The plugin view's size, from soundor.config's `editor`, every field decided. */
   readonly editor: WebEditor;
   /** Every declared parameter, in declaration order. */

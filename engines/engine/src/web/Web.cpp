@@ -104,6 +104,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             bind::setProperty(context, exports, "timeOrigin", jsi::Value(state.timeOrigin));
             bind::setProperty(context, exports, "pluginId", bind::write(context, state.services.pluginId));
             bind::setProperty(context, exports, "pluginName", bind::write(context, state.services.pluginName));
+            bind::setProperty(context, exports, "pluginVersion", bind::write(context, state.services.pluginVersion));
+            bind::ObjectBuilder environment(context);
+            environment.set("runtime", bind::write(context, state.services.environment.runtime));
+            environment.set("runtimeVersion", bind::write(context, state.services.environment.runtimeVersion));
+            environment.set("platform", bind::write(context, state.services.environment.platform));
+            environment.set("arch", bind::write(context, state.services.environment.arch));
+            environment.set("format", bind::write(context, state.services.environment.format));
+            bind::setProperty(context, exports, "hostEnvironment", environment.release());
         }
     } // namespace
 

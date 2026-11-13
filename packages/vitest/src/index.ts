@@ -69,6 +69,7 @@ const modules = new Set([
   'state',
   'state-history',
   'host',
+  'env',
   'native',
   'storage',
   'fs',
@@ -173,6 +174,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
           };
           runtime = {
             plugin: project.plugin,
+            env: project.env,
             parameters,
             view,
             editor: editorInit,
@@ -184,6 +186,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       runtime.state = JSON.parse(stateJson(describeState(state, native)));
       const generated = generateSoundorFiles({
         plugin: runtime.plugin ?? { id: 'soundor.test', name: 'Soundor Test' },
+        env: runtime.env,
         parameters: parameters as never,
         native,
         state,
@@ -330,10 +333,15 @@ function virtualModule(
       header +
       `export const parameters = Object.freeze(Object.fromEntries(${JSON.stringify(ids)}.map(id => [id, new Proxy({}, { get(_, key) { const parameter = getTestRuntime().parameters.byId[id]; const value = parameter[key]; return typeof value === 'function' ? (...args) => getTestRuntime().parameters.byId[id][key](...args) : value; } })])));`
     );
+  if (name === 'env')
+    return (
+      header +
+      `export let env;\nsubscribeTestRuntime(runtime => { env = runtime.env; });`
+    );
   if (name === 'host')
     return (
       header +
-      `export const plugin = new Proxy({}, { get: (_, key) => getTestRuntime().plugin[key], ownKeys: () => ['id', 'name'], getOwnPropertyDescriptor: () => ({ configurable: true, enumerable: true }) });\nexport const snapshot = () => getTestRuntime().snapshot();\nexport const subscribe = listener => getTestRuntime().subscribe(listener);`
+      `export let plugin, environment;\nsubscribeTestRuntime(runtime => { plugin = runtime.plugin; environment = runtime.environment; });\nexport const getHostState = () => getTestRuntime().snapshot();\nexport const subscribeHostState = listener => getTestRuntime().subscribe(listener);`
     );
   if (name === 'storage')
     return (

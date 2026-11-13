@@ -60,25 +60,72 @@ export type ParameterInit = ParameterInfo & {
   readonly mapping?: unknown;
 };
 
+/** The runtime and native binary's environment; browser detection is best effort. */
+export interface HostEnvironment {
+  readonly runtime: string;
+  readonly runtimeVersion: string;
+  readonly platform:
+    | 'macos'
+    | 'windows'
+    | 'linux'
+    | 'ios'
+    | 'android'
+    | 'unknown';
+  readonly arch: 'arm64' | 'x64' | 'unknown';
+  readonly format: 'vst3' | 'au' | 'standalone' | 'web' | 'unknown';
+}
+
+export interface Timecode {
+  readonly framesPerSecond: number;
+  readonly dropFrame: boolean;
+  /** Offset in units of 1/80 of a frame, when reported. */
+  readonly smpteOffsetSubframes?: number;
+}
+
+export interface TrackInfo {
+  readonly name?: string;
+  /** CSS hexadecimal RGBA: #rrggbbaa. */
+  readonly color?: string;
+  /** One-based index within the host's channel namespace, when reported. */
+  readonly index?: number;
+  /** Host-provided identifier; stability depends on the host. */
+  readonly id?: string;
+}
+
+export interface Transport {
+  readonly playing: boolean;
+  readonly recording: boolean;
+  readonly looping: boolean;
+  readonly bpm: number;
+  readonly timeSignature: {
+    readonly numerator: number;
+    readonly denominator: number;
+  };
+  /** Musical position in quarter notes, and where its bar starts. */
+  readonly ppqPosition: number;
+  readonly barStartPpq: number;
+  readonly timeInSeconds: number;
+  readonly timeInSamples: number;
+  /** Loop boundaries in quarter notes, when reported. */
+  readonly loopStartPpq?: number;
+  readonly loopEndPpq?: number;
+  readonly timecode?: Timecode;
+}
+
 export interface HostSnapshot {
   readonly sampleRate: number;
+  /** The configured maximum block size; individual processing blocks may be smaller. */
   readonly blockSize: number;
+  /** The host's name, when the runtime can identify it. */
   readonly hostName: string;
-  readonly transport: {
-    readonly playing: boolean;
-    readonly recording: boolean;
-    readonly looping: boolean;
-    readonly bpm: number;
-    readonly timeSignature: {
-      readonly numerator: number;
-      readonly denominator: number;
-    };
-    readonly ppqPosition: number;
-    readonly barStartPpq: number;
-    readonly timeInSeconds: number;
-    readonly timeInSamples: number;
-  } | null;
+  readonly hostVersion?: string;
+  readonly samplePrecision: 'float32' | 'float64' | 'unknown';
+  readonly processingMode: 'realtime' | 'prefetch' | 'offline' | 'unknown';
+  readonly track?: TrackInfo;
+  /** null until the host reports a transport. */
+  readonly transport: Transport | null;
 }
+
 /** A rectangle in the view's logical pixels. */
 export interface ViewRect {
   readonly x: number;
@@ -140,9 +187,12 @@ export interface EditorInit {
   applyRequests?: boolean;
 }
 export interface RuntimeOptions {
+  /** Explicit custom values; built-ins use development mode in tests. */
+  env?: Readonly<Record<string, string | boolean | number>>;
   /** Persistent schema, supplied by the Vitest plugin. */
   state?: StateSchema;
-  plugin?: { id: string; name: string };
+  plugin?: { id: string; name: string; version?: string };
+  environment?: Partial<HostEnvironment>;
   /** Resolved parameters (`resolveConfig(...).parameters`), as the Vitest plugin passes them. */
   parameters?: readonly ParameterInit[];
   host?: Partial<HostSnapshot>;

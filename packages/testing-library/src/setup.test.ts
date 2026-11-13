@@ -1,6 +1,11 @@
 import { createTestRuntime, getTestRuntime } from '@soundor/test-runtime';
 import type {} from '@soundor/vitest';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  plugin,
+  environment,
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { channels, events, loadPreset, probe } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import {
@@ -86,6 +91,8 @@ test('parameter setup uses the existing clamping and subscription behavior', () 
   expect(() => testParameters.set('gain', NaN)).toThrow('expects a number');
 });
 test('host setup preserves the snapshot and transport contract and notifies subscribers', () => {
+  expect(Object.isFrozen(plugin)).toBe(true);
+  expect(Object.isFrozen(environment)).toBe(true);
   const changed = vi.fn(),
     initial = snapshot();
   subscribe(changed);

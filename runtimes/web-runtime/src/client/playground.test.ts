@@ -67,6 +67,7 @@ describe('startPlayground', () => {
 
     expect(load).toHaveBeenCalledWith(script);
     expect(Object.keys(started!.modules).sort()).toEqual([
+      'soundor:env',
       'soundor:fs',
       'soundor:host',
       'soundor:native',

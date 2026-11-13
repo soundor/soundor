@@ -105,6 +105,7 @@ export async function runDev(options: RunDevOptions): Promise<RunDevResult> {
   const watcher = watchUi({
     root,
     mode: 'development',
+    env: config.env,
     outDir: uiDir,
     onBuild(bundle, milliseconds) {
       logger.info(

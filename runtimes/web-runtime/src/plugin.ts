@@ -16,7 +16,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { UiBundleContext } from '@soundor/runtime-sdk';
+import {
+  renderEnvironmentModule,
+  type EnvironmentMode,
+  type UiBundleContext,
+} from '@soundor/runtime-sdk';
 import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 
 import type { WebManifest } from './client/manifest.ts';
@@ -42,6 +46,8 @@ export interface SoundorWebPluginOptions {
   readonly hostDir: string;
   /** The runtime's generated directory, holding the manifest. */
   readonly genDir: string;
+  /** Lifecycle-selected mode; a debug build uses development values. */
+  readonly environmentMode?: EnvironmentMode;
   /** Production output directory (`build` only). */
   readonly outDir: string;
   /** This package's browser code (defaults to the installed one). */
@@ -118,6 +124,8 @@ const MODULES: Readonly<Record<string, string>> = {
 export interface SoundorModulesOptions {
   /** The runtime's generated directory, holding the manifest. */
   readonly genDir: string;
+  /** Lifecycle-selected mode; a debug build uses development values. */
+  readonly environmentMode?: EnvironmentMode;
   /** This package's browser code (defaults to the installed one). */
   readonly clientDir?: string;
   /** The plugin UI bundle; undefined when the project has no UI. */
@@ -138,11 +146,16 @@ const NATIVE_MODULE = 'soundor:native';
 export function soundorModules(options: SoundorModulesOptions): Plugin {
   const client = (name: string) => clientModule(name, options.clientDir);
   let command: 'build' | 'serve' = 'serve';
+  let environmentMode: EnvironmentMode =
+    options.environmentMode ?? 'development';
   return {
     name: 'soundor:web-modules',
     enforce: 'pre',
     configResolved(config) {
       command = config.command;
+      environmentMode =
+        options.environmentMode ??
+        (command === 'build' ? 'production' : 'development');
     },
     resolveId(id) {
       if (id === CLIENT_ID) return client('index');
@@ -153,7 +166,12 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       if (id === 'soundor:internal/parameters') {
         return join(options.genDir, PARAMETERS_FILE);
       }
-      if (id === UI_MODULE || id === DEV_MODULE || id === NATIVE_MODULE)
+      if (
+        id === UI_MODULE ||
+        id === DEV_MODULE ||
+        id === NATIVE_MODULE ||
+        id === 'soundor:env'
+      )
         return `\0${id}`;
       const module = MODULES[id];
       if (module === undefined) {
@@ -164,6 +182,14 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
     async load(id) {
       if (id === `\0${UI_MODULE}`) return uiModule(options.ui);
       if (id === `\0${DEV_MODULE}`) return devModule(options.ui, command);
+      if (id === '\0soundor:env') {
+        const path = join(options.genDir, MANIFEST_FILE);
+        this.addWatchFile(path);
+        const manifest = JSON.parse(
+          await readFile(path, 'utf8'),
+        ) as WebManifest;
+        return renderEnvironmentModule(manifest.env, environmentMode);
+      }
       if (id === `\0${NATIVE_MODULE}`) {
         const manifest = join(options.genDir, MANIFEST_FILE);
         this.addWatchFile(manifest);

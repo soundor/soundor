@@ -48,6 +48,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // The plugin's identity (soundor.config `plugin`).
         static constexpr const char* pluginId = "dev.soundor.state-test";
         static constexpr const char* pluginName = "State Test";
+        static constexpr const char* pluginVersion = "0.1.0";
 
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
@@ -64,6 +65,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             process(buffer, midi);
         }
         using juce::AudioProcessor::processBlock;
+
+        // Overrides must call this base implementation to keep soundor:host informed.
+        void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
+        {
+            transport.updateTrackProperties(properties);
+        }
 
         // The transport captured from the audio thread (read by soundor:host).
         const backend::TransportCapture& transportCapture() const noexcept { return transport; }

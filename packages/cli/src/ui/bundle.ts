@@ -6,7 +6,8 @@
  *
  * Output (in `outDir`):
  * - `bundle.mjs` — one ES module (ES2023); `soundor:*` imports stay imports
- *   (the runtime provides them), everything else is inlined. Minified in
+ *   (the runtime provides them), except build-time `soundor:env`. Everything
+ *   else is inlined. Minified in
  *   production.
  * - `bundle.mjs.map` — its source map, in development.
  * - `assets/<id>` — every image and font the bundle uses, named by content hash.
@@ -23,6 +24,7 @@ import { existsSync, watch as watchFiles } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { extname, join, relative, resolve } from 'node:path';
 
+import { renderEnvironmentModule, type EnvironmentValues } from '@soundor/core';
 import { build, type TsdownPlugin } from 'tsdown';
 
 export type UiBundleMode = 'development' | 'production';
@@ -31,6 +33,8 @@ export interface BundleUiOptions {
   /** Project root (where soundor.config.ts lives). */
   readonly root: string;
   readonly mode: UiBundleMode;
+  /** Explicit public values from soundor.config. */
+  readonly env?: EnvironmentValues;
   readonly outDir: string;
   /** Entry module; defaults to the first of src/main.{tsx,ts,jsx,js}. */
   readonly entry?: string;
@@ -145,7 +149,7 @@ export async function bundleUi(
     // only the runtime's own modules external.
     deps: {
       alwaysBundle: [/.*/],
-      neverBundle: [/^soundor:/],
+      neverBundle: [/^soundor:(?!env$)/],
       onlyBundle: false,
     },
     minify: production,
@@ -169,7 +173,20 @@ export async function bundleUi(
     outputOptions: { codeSplitting: false },
     // Libraries can provide Soundor components for every runtime, including web.
     inputOptions: { resolve: { conditionNames: ['soundor'] } },
-    plugins: [assetPlugin(options.root, assets)],
+    plugins: [
+      {
+        name: 'soundor:env',
+        resolveId(id) {
+          return id === 'soundor:env' ? '\0soundor:env' : null;
+        },
+        load(id) {
+          return id === '\0soundor:env'
+            ? renderEnvironmentModule(options.env, options.mode)
+            : null;
+        },
+      },
+      assetPlugin(options.root, assets),
+    ],
   });
 
   // Only what the bundle still references: an import that tree shaking

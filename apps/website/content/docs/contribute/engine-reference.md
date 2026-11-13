@@ -611,7 +611,11 @@ writes already started complete, and late results are dropped.
 
 ```ts
 import { readText, writeText } from 'soundor:fs';
-import { plugin, snapshot, subscribe } from 'soundor:host';
+import {
+  plugin,
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { storage } from 'soundor:storage';
 
 subscribe(({ transport }) => drawPlayhead(transport?.ppqPosition));

@@ -219,6 +219,8 @@ function viteConfig(
         clientDir: deps.clientDir,
         ui: ctx.ui,
         pluginName: config.plugin.name,
+        environmentMode:
+          ctx.mode === 'production' ? 'production' : 'development',
       }),
     ],
   };

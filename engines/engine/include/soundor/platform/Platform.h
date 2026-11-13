@@ -73,6 +73,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
 
     // ── Host information (backs soundor:host) ────────────────────────────────
 
+    struct HostEnvironment
+    {
+        std::string runtime = "unknown";
+        std::string runtimeVersion;
+        std::string platform = "unknown";
+        std::string arch = "unknown";
+        std::string format = "unknown";
+    };
+
+    struct Timecode
+    {
+        double framesPerSecond = 0;
+        bool dropFrame = false;
+        std::optional<double> smpteOffsetSubframes;
+        friend bool operator==(const Timecode&, const Timecode&) = default;
+    };
+
+    struct TrackInfo
+    {
+        std::optional<std::string> name;
+        std::optional<std::string> color;
+        std::optional<int> index;
+        std::optional<std::string> id;
+        friend bool operator==(const TrackInfo&, const TrackInfo&) = default;
+    };
+
     struct Transport
     {
         bool playing = false;
@@ -86,6 +112,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         double barStartPpq = 0;
         double timeInSeconds = 0;
         std::int64_t timeInSamples = 0;
+        std::optional<double> loopStartPpq;
+        std::optional<double> loopEndPpq;
+        std::optional<Timecode> timecode;
 
         friend bool operator==(const Transport&, const Transport&) = default;
     };
@@ -96,6 +125,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::platform
         int blockSize = 0;
         // e.g. "Reaper", when the backend can tell.
         std::string hostName;
+        std::optional<std::string> hostVersion;
+        std::string samplePrecision = "unknown";
+        std::string processingMode = "unknown";
+        std::optional<TrackInfo> track;
         // Absent when the host reports no transport (or no audio has run yet).
         std::optional<Transport> transport;
 

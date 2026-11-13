@@ -98,5 +98,11 @@ export {
 } from './native-dts';
 
 export * from './state';
+export {
+  environmentIssues,
+  resolveEnvironment,
+  renderEnvironmentModule,
+} from './env';
+export type { EnvironmentValues, EnvironmentMode } from './env';
 
 export { resolveSetter, type ValueOrUpdater } from './setter';

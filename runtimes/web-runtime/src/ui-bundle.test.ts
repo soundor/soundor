@@ -18,7 +18,7 @@ import {
 
 /** A plugin UI bundle that uses the runtime's modules, as the CLI emits it. */
 const BUNDLE = `import { parameters } from 'soundor:parameters';
-import { snapshot } from 'soundor:host';
+import { getHostState as snapshot } from 'soundor:host';
 const logo = ${JSON.stringify(PNG_ID)};
 globalThis.__fixtureUi = { gain: parameters.gain.get(), host: snapshot().hostName, logo, marker: 'FIXTURE_UI_MARKER' };
 `;

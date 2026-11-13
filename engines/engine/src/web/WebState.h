@@ -33,6 +33,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
         std::shared_ptr<platform::HostInfo> hostInfo;
         std::string pluginId;
         std::string pluginName;
+        std::string pluginVersion = "0.1.0";
+        platform::HostEnvironment environment;
     };
 
     struct State;

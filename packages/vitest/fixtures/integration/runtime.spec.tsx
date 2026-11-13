@@ -1,8 +1,12 @@
 import { getTestRuntime } from '@soundor/test-runtime';
 import { platform as externalPlatform } from 'conditional-ui';
 import { platform as inlinePlatform } from 'conditional-ui-inline';
+import { env } from 'soundor:env';
 import { readText } from 'soundor:fs';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { probe, load } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
@@ -31,6 +35,12 @@ afterEach(() => {
   previous = getTestRuntime();
 });
 test('normal imports dispatch to the active runtime', async () => {
+  expect(Object.isFrozen(env)).toBe(true);
+  expect(env.FEATURE).toBe(true);
+  expect(env.MODE).toBe('development');
+  expect(env.URL).toBe('https://fixture.test');
+  expect(Object.keys(env)).toContain('FEATURE');
+  expect(Reflect.set(env, 'FEATURE', false)).toBe(false);
   expect(externalPlatform).toBe('soundor');
   expect(inlinePlatform).toBe('soundor');
   expectFreshRuntime();

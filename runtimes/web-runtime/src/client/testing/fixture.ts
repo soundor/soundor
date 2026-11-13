@@ -4,6 +4,7 @@
  * (`UPDATE_FIXTURES=1 vitest run fixtures`) and checked by fixtures.test.ts.
  */
 export const fixtureConfig = {
+  env: { FEATURE: true, LABEL: 'fixture', COUNT: 3 },
   plugin: { id: 'com.example.fixture', name: 'Fixture' },
   runtimes: [],
   parameters: {

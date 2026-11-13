@@ -19,6 +19,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
             object.set("sampleRate", jsi::Value(snapshot.sampleRate));
             object.set("blockSize", jsi::Value(snapshot.blockSize));
             object.set("hostName", bind::write(context, snapshot.hostName));
+            if (snapshot.hostVersion)
+                object.set("hostVersion", bind::write(context, *snapshot.hostVersion));
+            object.set("samplePrecision", bind::write(context, snapshot.samplePrecision));
+            object.set("processingMode", bind::write(context, snapshot.processingMode));
+            if (snapshot.track)
+            {
+                bind::ObjectBuilder track(context);
+                if (snapshot.track->name)
+                    track.set("name", bind::write(context, *snapshot.track->name));
+                if (snapshot.track->color)
+                    track.set("color", bind::write(context, *snapshot.track->color));
+                if (snapshot.track->index)
+                    track.set("index", jsi::Value(*snapshot.track->index));
+                if (snapshot.track->id)
+                    track.set("id", bind::write(context, *snapshot.track->id));
+                object.set("track", track.release());
+            }
             if (snapshot.transport.has_value())
             {
                 const auto& t = *snapshot.transport;
@@ -35,6 +52,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::web
                 transport.set("barStartPpq", jsi::Value(t.barStartPpq));
                 transport.set("timeInSeconds", jsi::Value(t.timeInSeconds));
                 transport.set("timeInSamples", jsi::Value(double(t.timeInSamples)));
+                if (t.loopStartPpq)
+                    transport.set("loopStartPpq", jsi::Value(*t.loopStartPpq));
+                if (t.loopEndPpq)
+                    transport.set("loopEndPpq", jsi::Value(*t.loopEndPpq));
+                if (t.timecode)
+                {
+                    bind::ObjectBuilder timecode(context);
+                    timecode.set("framesPerSecond", jsi::Value(t.timecode->framesPerSecond));
+                    timecode.set("dropFrame", jsi::Value(t.timecode->dropFrame));
+                    if (t.timecode->smpteOffsetSubframes)
+                        timecode.set("smpteOffsetSubframes", jsi::Value(*t.timecode->smpteOffsetSubframes));
+                    transport.set("timecode", timecode.release());
+                }
                 object.set("transport", transport.release());
             }
             else

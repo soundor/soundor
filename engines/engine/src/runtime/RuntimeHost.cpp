@@ -54,6 +54,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
                                      std::move(options.hostInfo),
                                      std::move(options.pluginId),
                                      std::move(options.pluginName),
+                                     std::move(options.pluginVersion),
+                                     std::move(options.environment),
                                  });
         if (options.parameters != nullptr)
             parameters::install(*jsContext, std::move(options.parameters));

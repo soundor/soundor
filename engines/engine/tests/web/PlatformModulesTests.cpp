@@ -230,12 +230,37 @@ TEST_SUITE("soundor:host")
         auto options = withData({});
         options.hostInfo = host;
         WebFixture f(options);
-        CHECK(f.run("import { plugin, snapshot } from 'soundor:host';"
+        CHECK(f.run("import { plugin, getHostState as snapshot } from 'soundor:host';"
                     "const s = snapshot();"
                     "globalThis.result = [plugin.id, plugin.name, s.sampleRate, s.blockSize, s.hostName, s.transport,"
                     "  Object.isFrozen(s)].join('|');")
                   .asString()
               == "com.example.test|Test|48000|256|Test DAW||true");
+    }
+
+    TEST_CASE("exposes environment and optional metadata as immutable state")
+    {
+        auto host = std::make_shared<FakeHostInfo>();
+        host->current.processingMode = "offline";
+        host->current.samplePrecision = "float64";
+        host->current.track.emplace().name = "Vocals";
+        auto& transport = host->current.transport.emplace();
+        transport.loopStartPpq = 8;
+        transport.loopEndPpq = 16;
+        transport.timecode = platform::Timecode { 25, false, 80 };
+        auto options = withData({});
+        options.hostInfo = host;
+        options.pluginVersion = "1.2.3";
+        options.environment = { "juce", "0.15.1", "linux", "x64", "vst3" };
+        WebFixture f(options);
+        CHECK(f.run("import { plugin, environment, getHostState } from 'soundor:host';"
+                    "const s = getHostState(); globalThis.result = [plugin.version, environment.format,"
+                    "s.processingMode, s.samplePrecision, s.track.name, s.transport.loopStartPpq,"
+                    "s.transport.timecode.framesPerSecond, Object.isFrozen(environment),"
+                    "Object.isFrozen(s.track), Object.isFrozen(s.transport.timecode),"
+                    "s.hostVersion === undefined].join('|');")
+                  .asString()
+              == "1.2.3|vst3|offline|float64|Vocals|8|25|true|true|true|true");
     }
 
     TEST_CASE("delivers changes to subscribers, once per change")
@@ -244,7 +269,7 @@ TEST_SUITE("soundor:host")
         auto options = withData({});
         options.hostInfo = host;
         WebFixture f(options);
-        f.run("import { subscribe } from 'soundor:host';"
+        f.run("import { subscribeHostState as subscribe } from 'soundor:host';"
               "globalThis.seen = [];"
               "globalThis.stop = subscribe((s) => seen.push(s.transport?.playing ? 'playing ' + s.transport.bpm"
               "  + ' ' + s.transport.timeSignature.numerator + '/' + s.transport.timeSignature.denominator : "
@@ -273,7 +298,7 @@ TEST_SUITE("soundor:host")
         options.hostInfo = host;
         WebFixture f(options);
         // useSyncExternalStore(subscribe, snapshot) relies on this.
-        f.run("import { snapshot, subscribe } from 'soundor:host';"
+        f.run("import { getHostState as snapshot, subscribeHostState as subscribe } from 'soundor:host';"
               "globalThis.first = snapshot(); globalThis.snapshot = snapshot; subscribe(() => {});");
         f.host.tick();
         CHECK(f.eval("snapshot() === first || snapshot().sampleRate === first.sampleRate").asBoolean());
@@ -288,10 +313,10 @@ TEST_SUITE("soundor:host")
     TEST_CASE("without host information the snapshot is empty")
     {
         WebFixture f;
-        CHECK(
-            f.run("import { plugin, snapshot } from 'soundor:host';"
-                  "globalThis.result = JSON.stringify([plugin, snapshot()]);")
-                .asString()
-            == "[{\"id\":\"\",\"name\":\"\"},{\"sampleRate\":0,\"blockSize\":0,\"hostName\":\"\",\"transport\":null}]");
+        CHECK(f.run("import { plugin, getHostState as snapshot } from 'soundor:host';"
+                    "globalThis.result = JSON.stringify([plugin, snapshot()]);")
+                  .asString()
+              == "[{\"id\":\"\",\"name\":\"\",\"version\":\"0.1.0\"},{\"sampleRate\":0,\"blockSize\":0,\"hostName\":"
+                 "\"\",\"samplePrecision\":\"unknown\",\"processingMode\":\"unknown\",\"transport\":null}]");
     }
 }

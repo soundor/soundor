@@ -1,5 +1,8 @@
 import type { WebAudioSetup } from '@soundor/web-runtime/client';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 
 // Vite supplies the URL of the separately bundled worklet, not its module exports.

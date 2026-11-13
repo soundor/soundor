@@ -37,6 +37,7 @@ import {
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
+import { version as RUNTIME_VERSION } from '../package.json';
 import { generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
@@ -179,7 +180,7 @@ endif()
 add_subdirectory("\${JUCE_DIR}" JUCE)
 
 juce_add_plugin(\${PROJECT_NAME}
-    VERSION 0.1.0
+    VERSION ${options.pluginVersion}
     COMPANY_NAME ${cmakeString(options.companyName)}
     BUNDLE_ID ${cmakeString(options.bundleId)}
     PLUGIN_MANUFACTURER_CODE ${options.manufacturerCode}
@@ -458,6 +459,7 @@ ${renderChoiceEnums(parameters, enums)}
         // The plugin's identity (soundor.config \`plugin\`).
         static constexpr const char* pluginId = ${cppString(plugin.id)};
         static constexpr const char* pluginName = ${cppString(plugin.name)};
+        static constexpr const char* pluginVersion = ${cppString(plugin.version ?? '0.1.0')};
 
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
@@ -474,6 +476,12 @@ ${renderChoiceEnums(parameters, enums)}
             process(buffer, midi);
         }
         using juce::AudioProcessor::processBlock;
+
+        // Overrides must call this base implementation to keep soundor:host informed.
+        void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
+        {
+            transport.updateTrackProperties(properties);
+        }
 
         // The transport captured from the audio thread (read by soundor:host).
         const backend::TransportCapture& transportCapture() const noexcept { return transport; }
@@ -1027,6 +1035,8 @@ namespace ${NS}
         options.runtime.timeLimit = std::chrono::milliseconds { ${cppInt(options.timeLimit)} };
         options.pluginId = AudioProcessor::pluginId;
         options.pluginName = AudioProcessor::pluginName;
+        options.pluginVersion = AudioProcessor::pluginVersion;
+        options.environment = backend::hostEnvironment(owner, ${cppString(RUNTIME_VERSION)});
         options.http = std::make_shared<backend::JuceHttpClient>();
         options.clipboard = std::make_shared<backend::JuceClipboard>();
         options.hostInfo = std::make_shared<backend::JuceHostInfo>(owner, owner.transportCapture());

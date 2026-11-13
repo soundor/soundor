@@ -6,7 +6,10 @@ import {
   useParameter,
 } from '@soundor/react';
 import { useState, useSyncExternalStore } from 'react';
-import { snapshot, subscribe } from 'soundor:host';
+import {
+  getHostState as snapshot,
+  subscribeHostState as subscribe,
+} from 'soundor:host';
 import { parameters } from 'soundor:parameters';
 import type { HistoryOptions } from 'soundor:state-history';
 

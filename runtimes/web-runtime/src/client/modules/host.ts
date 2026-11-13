@@ -2,15 +2,20 @@
 // state. Read-only: the host controls its transport, the plugin observes it.
 
 import { hostContext } from '../context';
+import { browserEnvironment } from '../environment';
 import type { HostSnapshot } from '../host';
 
 const { host } = hostContext();
 
 /** This plugin's identity, from soundor.config. */
 export const plugin = hostContext().plugin;
+export const environment = browserEnvironment(
+  hostContext().manifest.runtimeVersion ?? 'unknown',
+  navigator,
+);
 
 /** The current host state; the same object until the state changes. */
-export function snapshot(): HostSnapshot {
+export function getHostState(): HostSnapshot {
   return host.snapshot();
 }
 
@@ -18,7 +23,7 @@ export function snapshot(): HostSnapshot {
  * Calls `listener` whenever the host state changes (every frame while
  * playing). Returns an unsubscribe function.
  */
-export function subscribe(
+export function subscribeHostState(
   listener: (snapshot: HostSnapshot) => void,
 ): () => void {
   return host.subscribe(listener);

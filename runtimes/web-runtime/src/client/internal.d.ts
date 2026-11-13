@@ -25,3 +25,11 @@ declare module 'soundor:internal/dev' {
     | ((entry: import('./protocol').UiLogEntry) => void)
     | undefined;
 }
+
+declare module 'soundor:env' {
+  export const env: Readonly<Record<string, string | number | boolean>> & {
+    readonly DEV: boolean;
+    readonly PROD: boolean;
+    readonly MODE: 'development' | 'production';
+  };
+}

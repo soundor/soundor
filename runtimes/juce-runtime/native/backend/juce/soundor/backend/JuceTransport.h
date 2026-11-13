@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <optional>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
@@ -21,10 +22,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         // Audio thread.
         void capture(juce::AudioPlayHead* playHead) noexcept;
 
+        // Message thread only. JUCE delivers track metadata here, never on the audio thread.
+        void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties);
+        [[nodiscard]] const std::optional<platform::TrackInfo>& trackInfo() const noexcept { return track; }
+
         // Any thread: nullopt until the host has reported a position.
         [[nodiscard]] std::optional<platform::Transport> latest() const noexcept;
 
     private:
+        static constexpr double unavailable = std::numeric_limits<double>::quiet_NaN();
+        std::atomic<double> loopStart { unavailable }, loopEnd { unavailable };
+        std::atomic<double> frameRate { unavailable }, originSeconds { unavailable };
+        std::atomic<bool> dropFrame { false };
+        std::optional<platform::TrackInfo> track;
         std::atomic<bool> valid { false };
         std::atomic<bool> playing { false };
         std::atomic<bool> recording { false };
@@ -37,6 +47,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         std::atomic<double> timeInSeconds { 0 };
         std::atomic<std::int64_t> timeInSamples { 0 };
     };
+
+    [[nodiscard]] platform::HostEnvironment hostEnvironment(const juce::AudioProcessor& processor, std::string version);
 
     // soundor:host over a JUCE processor: its audio setup, the host's name,
     // and the transport its processBlock() captured.

@@ -89,18 +89,22 @@ test('loads a project configuration without a native engine', async () => {
   const config = resolve(root, 'soundor.config.ts');
   await writeFile(
     config,
-    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, parameters: {enabled: {label: 'Enabled', type: 'boolean', default: true}}, runtimes: [], native: {methods: {probe: {returns: 'float64'}}}};`,
+    `export default {plugin: {id: 'com.test.plugin', name: 'Example'}, env: {PUBLIC_URL: 'https://example.test'}, parameters: {enabled: {label: 'Enabled', type: 'boolean', default: true}}, runtimes: [], native: {methods: {probe: {returns: 'float64'}}}};`,
   );
   const { result } = await configure({ config });
   expect(result?.test?.environmentOptions?.soundor).toMatchObject({
     runtime: {
       plugin: { id: 'com.test.plugin', name: 'Example' },
       parameters: [{ id: 'enabled', default: true }],
+      env: { PUBLIC_URL: 'https://example.test' },
     },
   });
   expect(
     await readFile(resolve(root, '.soundor/generated/native.d.ts'), 'utf8'),
   ).toContain('function probe');
+  expect(
+    await readFile(resolve(root, '.soundor/generated/env.d.ts'), 'utf8'),
+  ).toContain('readonly "PUBLIC_URL": string');
 });
 test('malformed project configurations are reported', async () => {
   const root = await mkdtemp(resolve(tmpdir(), 'soundor-invalid-'));
