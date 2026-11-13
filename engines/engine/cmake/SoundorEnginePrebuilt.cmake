@@ -348,13 +348,18 @@ else()
   endif()
 endif()
 
+# Model Skia as a target, as a source build does. Its system dependencies
+# must follow its archive even when ANGLE also links it (GNU ld --as-needed).
+add_library(soundor_skia INTERFACE)
+target_link_libraries(soundor_skia INTERFACE ${soundor_prebuilt_skia_paths} ${SOUNDOR_SKIA_SYSTEM_LIBRARIES})
+
 if(SOUNDOR_HAS_GPU)
   add_library(soundor_angle INTERFACE)
   target_include_directories(soundor_angle SYSTEM INTERFACE "${soundor_prebuilt_${soundor_prebuilt_first}_dir}/angle/include")
   target_compile_definitions(soundor_angle INTERFACE ${SOUNDOR_ANGLE_DEFINITIONS})
   # Skia after ANGLE, for linkers that resolve archives in order: it defines
   # the zlib ANGLE uses (SoundorAngle.cmake).
-  target_link_libraries(soundor_angle INTERFACE ${soundor_prebuilt_angle_paths} ${soundor_prebuilt_skia_paths}
+  target_link_libraries(soundor_angle INTERFACE ${soundor_prebuilt_angle_paths} soundor_skia
                                                 ${soundor_prebuilt_system} ${soundor_prebuilt_frameworks})
 endif()
 if(SOUNDOR_HAS_ACCESSKIT)
@@ -368,10 +373,11 @@ endif()
 # Everything the runtime links, in the order a source build links it.
 target_link_libraries(soundor_prebuilt_link INTERFACE
   ${soundor_prebuilt_engine_paths}
-  ${soundor_prebuilt_hermes_paths} ${SOUNDOR_HERMES_SYSTEM_LIBRARIES}
-  ${soundor_prebuilt_skia_paths} ${SOUNDOR_SKIA_SYSTEM_LIBRARIES})
+  ${soundor_prebuilt_hermes_paths} ${SOUNDOR_HERMES_SYSTEM_LIBRARIES})
 if(SOUNDOR_HAS_GPU)
   target_link_libraries(soundor_prebuilt_link INTERFACE soundor_angle)
+else()
+  target_link_libraries(soundor_prebuilt_link INTERFACE soundor_skia)
 endif()
 if(SOUNDOR_HAS_ACCESSKIT)
   target_link_libraries(soundor_prebuilt_link INTERFACE soundor_accesskit)

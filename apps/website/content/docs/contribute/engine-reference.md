@@ -892,6 +892,8 @@ A frame goes through three stages, each with its own owner:
    - `render::GpuCompositor` composites on the GPU and presents into a native
      view (see "The GPU"). CPU layers become textures, uploaded only where
      they changed; an unchanged frame uploads, draws and presents nothing.
+     With GPU support disabled at build time, its factories return null and
+     provide a diagnostic, so a caller can select the raster compositor.
    - `render::RasterCompositor` composites on the CPU with Skia into a
      `render::RasterTarget` (pixels the platform shows). It is the fallback
      that always works.
