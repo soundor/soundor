@@ -1275,7 +1275,7 @@ profiling and benchmarks; take differences for a frame or a phase. Counting is
 always on and costs an increment:
 
 - **`tick`:** the time each step of `tick()` took: Web timers and finished
-  async work, parameter changes, native events, native channels, promise jobs, animation frame callbacks,
+  async work, parameter changes, the backend's modules (state, History), native events, native channels, promise jobs, animation frame callbacks,
   showing what WebGL drew.
 - **`runtime`** (`js::RuntimeStatistics`): calls into `soundor:ui`, Canvas 2D
   and WebGL, counted at their native entry points. With
@@ -2164,3 +2164,42 @@ restoration clears History before the application's `stateRestored()` hook.
 Runtimes providing StateHistory implement this module and editing contract.
 See [StateHistory](/docs/api/state-history)
 for transaction poisoning, automation, memory and notification semantics.
+
+## How notifications reach JavaScript
+
+Four paths carry what native code changes to the UI thread, each shaped by
+what its subscribers are promised. They stay separate on purpose: each is
+the cheapest that keeps its contract, and none is built on another.
+
+| Path                                 | Producer                                   | Contract                                                | Mechanism                                                             |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- |
+| [Parameters](#soundorparameters)     | host automation, the audio thread, the UI  | the latest value of each changed parameter, once a tick | a lock-free flag per parameter (`parameters::ChangeFlags`)            |
+| [State and History](/docs/api/state) | the message thread (control-thread writes) | every write and status change, in order                 | a queue per store, under the History control mutex                    |
+| [Events](#events)                    | any thread but a realtime one              | every event, in order, bounded                          | a bounded queue per context (`js::EventSource`)                       |
+| [Channels](#channels)                | one thread, the audio thread included      | the latest value, never torn                            | a triple buffer per channel (`js::BufferChannel`, `js::ValueChannel`) |
+
+- **Parameters are already as cheap as they can be.** Marking a change is a
+  relaxed store and a release store, from any thread, never a lock or an
+  allocation; the tick drains the flags and reads each value once, so a
+  thousand automation points between two ticks cost one notification. The
+  value lives in the host's own atomic, so the flag carries no data. A
+  channel per parameter would add three slots each and copy what the host
+  already holds; an event per change would allocate on the audio thread.
+  Unchanged.
+- **State and History keep their queues.** Their API promises every write, in
+  write order ([`soundor:state`](/docs/api/state), and History subscriptions
+  report each commit), and writes happen on the control thread, under the
+  mutex History already holds to publish them, so a queue costs nothing a
+  lock-free path would save. Coalescing them like a channel would change what
+  subscribers see. History's bridge queues a status only while a JavaScript
+  subscriber exists. Unchanged, apart from the two points below.
+- **Delivered inside the tick.** A runtime's own modules deliver their
+  queues through `RuntimeHost::Options::dispatchModules`, which `tick()` calls
+  right after the parameter changes: under the tick's one time limit (before,
+  the JUCE editor delivered them before the tick, each callback with a time
+  limit of its own, so a burst of slow subscribers could take several limits),
+  timed as `TickStatistics::modules`, and in every runtime a dev reload makes.
+  A runtime for another framework passes its own the same way.
+- **Converted only when someone listens.** The JUCE state bridge converts a
+  queued value to JavaScript only when the field has a subscriber; reads
+  convert on demand (and cache) as before.

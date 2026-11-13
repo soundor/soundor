@@ -1038,6 +1038,13 @@ namespace ${NS}
             persistent::install(context, owner.state);
 ${renderNativeInstall(native)}
         };
+        // What state and History queued for JavaScript, delivered by every
+        // tick right after the parameter changes, under its time limit.
+        options.dispatchModules = [](js::Context& context)
+        {
+            history::dispatch(context);
+            persistent::dispatch(context);
+        };
 #if SOUNDOR_UI_DEV
         // soundor dev: the UI comes from the bundle the CLI keeps rebuilding,
         // and its log goes to the terminal running soundor dev as well.
@@ -1255,8 +1262,6 @@ ${renderEditorArea(editor)}
 
     void AudioProcessorEditor::timerCallback()
     {
-        history::dispatch(runtimeHost().context());
-        persistent::dispatch(runtimeHost().context());
         // Every frame, so a reloaded UI (soundor dev) gets the size at once.
         sizeSurface();
 #if SOUNDOR_UI_DEV

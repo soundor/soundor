@@ -111,4 +111,21 @@ TEST_SUITE("RuntimeHost statistics")
         CHECK(after.ticks == before.ticks + 1);
         CHECK(after.animationFrames - before.animationFrames >= 5'000'000);
     }
+
+    TEST_CASE("a backend's module notifications run in the tick, before animation frames, timed")
+    {
+        RuntimeHost::Options options;
+        options.dispatchModules = [](js::Context& context)
+        {
+            static_cast<void>(context.evaluateScript("globalThis.order.push('modules'); { const end = "
+                                                     "performance.now() + 2; while (performance.now() < end); }"));
+        };
+        WebFixture f(std::move(options));
+        f.run("globalThis.order = []; requestAnimationFrame(() => order.push('frame'));");
+        const auto before = f.host.statistics().tick;
+        f.host.tick();
+        const auto after = f.host.statistics().tick;
+        CHECK(f.eval("order.join()").asString() == "modules,frame");
+        CHECK(after.modules - before.modules >= 2'000'000);
+    }
 }

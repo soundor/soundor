@@ -194,6 +194,19 @@ describe('generateJuceSources', () => {
     expect(editor).not.toMatch(/WebBrowserComponent|__SOUNDOR__|emitEvent/);
   });
 
+  it('delivers state and History notifications in the tick, not before it', () => {
+    const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
+    expect(editor).toContain(
+      '        options.dispatchModules = [](js::Context& context)\n        {\n            history::dispatch(context);\n            persistent::dispatch(context);\n        };',
+    );
+    const timer = editor.slice(
+      editor.indexOf('void AudioProcessorEditor::timerCallback()'),
+    );
+    expect(timer.slice(0, timer.indexOf('\n    }\n'))).not.toMatch(
+      /dispatch\(/,
+    );
+  });
+
   it('owns the native events and installs them into every editor runtime', () => {
     const withEvents = (native: ResolvedSoundorConfig['native']) =>
       fileMap({ ...config, native });
