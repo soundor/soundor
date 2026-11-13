@@ -1652,6 +1652,9 @@ or its dependencies define may be exported from a plugin binary:
   layout, standard-library ABI and iterator debugging. Source code keeps writing
   `soundor::js::Context`; plugin copies of the same engine remain isolated by
   hidden visibility and final binary export restrictions.
+- Linux VST3s use a linker export map that exposes only `GetPluginFactory`,
+  `ModuleEntry` and `ModuleExit`. It also hides standard-library symbols
+  emitted by GCC LTO outside the linked static archives.
 - The `soundor_exported_symbols` test links the runtime into a plugin-shaped
   shared library and fails if it exports anything but its own entry point.
   Standard-library template instantiations are tolerated, because `std` headers
