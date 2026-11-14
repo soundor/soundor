@@ -1,5 +1,18 @@
 # @soundor/vitest
 
+## 0.18.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+### Patch Changes
+
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f)]:
+  - @soundor/config@0.18.0
+  - @soundor/core@0.18.0
+  - @soundor/test-runtime@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes

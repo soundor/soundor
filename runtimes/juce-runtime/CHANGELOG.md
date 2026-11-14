@@ -1,5 +1,21 @@
 # @soundor/juce-runtime
 
+## 0.17.0
+
+### Minor Changes
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare plugin kind, categories and vendor metadata, audio buses and complete supported layouts, latency/tail reporting, parameter groups and a host bypass role. Generate JUCE host integration and explicit browser channel counts, with validation for unsupported browser buses. Existing projects retain handwritten audio setup unless they opt into the audio contract. MIDI and presets are separate features.
+
+- [#303](https://github.com/soundor/soundor/pull/303) [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Declare validated factory presets in config and load them synchronously through soundor:presets or the generated C++ processor. Share the existing parameter/state stores and StateHistory, including opt-in atomic undo entries, nested transactions, selection and modified tracking, and restoration matching. Expose JUCE host programs from the same catalog; preserve DAW state/preset compatibility without changing the snapshot format. Include matching Web and simulated runtime APIs.
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f)]:
+  - @soundor/engine@0.9.0
+  - soundor@0.18.0
+  - @soundor/runtime-sdk@0.18.0
+
 ## 0.16.1
 
 ### Patch Changes

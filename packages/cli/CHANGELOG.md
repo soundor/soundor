@@ -1,5 +1,17 @@
 # soundor
 
+## 0.18.0
+
+### Patch Changes
+
+- [#301](https://github.com/soundor/soundor/pull/301) [`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Clean up lint warnings and update callback references after React commits, keeping installed listeners stable.
+- Updated dependencies [[`523dacc`](https://github.com/soundor/soundor/commit/523dacc94f532d589600232df16e6b4fc7e0ef65), [`78f82f2`](https://github.com/soundor/soundor/commit/78f82f2a881ce4c5e88208823acf34e83ffa114e), [`a718364`](https://github.com/soundor/soundor/commit/a718364b0d93b117d542629fec11458c6995021f)]:
+  - @soundor/config@0.18.0
+  - @soundor/core@0.18.0
+  - @soundor/devtools-client@0.18.0
+  - @soundor/devtools-server@0.18.0
+  - @soundor/driver@0.18.0
+
 ## 0.17.1
 
 ### Patch Changes
