@@ -21,10 +21,10 @@ namespace
     {
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
+        using AudioProcessor::history;
         using AudioProcessor::nativeChannels;
         using AudioProcessor::nativeEvents;
         using AudioProcessor::state;
-        using AudioProcessor::stateHistory;
         int restored = 0;
         std::vector<std::string> observations;
         void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
@@ -394,35 +394,35 @@ TEST_CASE("processor History buffers native parameter and state transactions wit
             CHECK(p.gainParameter.load() == 0.75f);
             observed = true;
         });
-    p.stateHistory.transaction("Load Preset",
-                               [&]
-                               {
-                                   p.gainParameter.set(0.75f);
-                                   p.state.selectedPreset.set(std::string("Preset"));
-                                   CHECK(p.gainParameter.get() == 0.75f);
-                                   CHECK(p.gainParameter.load() == initial);
-                                   CHECK(! observed);
-                               });
+    p.history.transaction("Load Preset",
+                          [&]
+                          {
+                              p.gainParameter.set(0.75f);
+                              p.state.selectedPreset.set(std::string("Preset"));
+                              CHECK(p.gainParameter.get() == 0.75f);
+                              CHECK(p.gainParameter.load() == initial);
+                              CHECK(! observed);
+                          });
     CHECK(observed);
     off();
-    CHECK(p.stateHistory.status().undoLabel == "Load Preset");
-    p.stateHistory.undo();
+    CHECK(p.history.status().undoLabel == "Load Preset");
+    p.history.undo();
     CHECK(p.gainParameter.load() == initial);
     CHECK(! p.state.selectedPreset.get());
-    p.stateHistory.redo();
+    p.history.redo();
     CHECK(p.gainParameter.load() == 0.75f);
     CHECK(p.state.selectedPreset.get() == "Preset");
-    CHECK_THROWS(p.stateHistory.transaction("Failed",
-                                            [&]
-                                            {
-                                                p.gainParameter.set(0.5f);
-                                                p.state.selectedPreset.set(std::string("Bad"));
-                                                throw std::runtime_error("fail");
-                                            }));
+    CHECK_THROWS(p.history.transaction("Failed",
+                                       [&]
+                                       {
+                                           p.gainParameter.set(0.5f);
+                                           p.state.selectedPreset.set(std::string("Bad"));
+                                           throw std::runtime_error("fail");
+                                       }));
     CHECK(p.gainParameter.load() == 0.75f);
     CHECK(p.state.selectedPreset.get() == "Preset");
     Processor other;
-    CHECK(! other.stateHistory.canUndo());
+    CHECK(! other.history.canUndo());
 }
 TEST_CASE("processor History gestures and poisoned nested transactions preserve ownership")
 {
@@ -431,30 +431,30 @@ TEST_CASE("processor History gestures and poisoned nested transactions preserve 
     p.bypassParameter.beginGesture(history::Options(std::string("Toggle")));
     p.bypassParameter.beginGesture(history::Options(std::string("Ignored")));
     p.bypassParameter.set(true, history::Options(true));
-    CHECK_THROWS(p.stateHistory.transaction("Conflict", [&] { p.bypassParameter.set(false); }));
-    p.stateHistory.transaction("Other field", [&] { p.state.selectedPreset.set(std::string("OK")); });
+    CHECK_THROWS(p.history.transaction("Conflict", [&] { p.bypassParameter.set(false); }));
+    p.history.transaction("Other field", [&] { p.state.selectedPreset.set(std::string("OK")); });
     p.bypassParameter.endGesture();
     p.bypassParameter.endGesture();
-    CHECK(p.stateHistory.status().undoLabel == "Toggle");
-    p.stateHistory.undo();
+    CHECK(p.history.status().undoLabel == "Toggle");
+    p.history.undo();
     CHECK(! p.bypassParameter.load());
-    CHECK_THROWS_AS(p.stateHistory.transaction("Outer",
-                                               [&]
-                                               {
-                                                   try
-                                                   {
-                                                       p.stateHistory.transaction("Inner",
-                                                                                  [&]
-                                                                                  {
-                                                                                      p.bypassParameter.set(true);
-                                                                                      throw std::runtime_error("bad");
-                                                                                  });
-                                                   }
-                                                   catch (...)
-                                                   {
-                                                   }
-                                                   p.state.selectedPreset.set(std::string("discard"));
-                                               }),
+    CHECK_THROWS_AS(p.history.transaction("Outer",
+                                          [&]
+                                          {
+                                              try
+                                              {
+                                                  p.history.transaction("Inner",
+                                                                        [&]
+                                                                        {
+                                                                            p.bypassParameter.set(true);
+                                                                            throw std::runtime_error("bad");
+                                                                        });
+                                              }
+                                              catch (...)
+                                              {
+                                              }
+                                              p.state.selectedPreset.set(std::string("discard"));
+                                          }),
                     history::TransactionAbortedError);
     CHECK(! p.bypassParameter.load());
     CHECK(p.state.selectedPreset.get() == "OK");
@@ -467,16 +467,15 @@ TEST_CASE("JavaScript and native code share processor History across editor recr
     {
         js::Runtime runtime;
         js::Context context(runtime);
-        history::install(context, p.stateHistory);
+        history::install(context, p.history);
         persistent::install(context, p.state);
         parameters::install(context,
                             std::make_shared<backend::JuceParameterHost>(p.getParameters(), p.parameterInfos()));
         REQUIRE(context
-                    .evaluateModule(
-                        "(function(exports, require) { globalThis.h = require('soundor:state-history').stateHistory; "
-                        "globalThis.s = require('soundor:state').state; globalThis.p = "
-                        "require('soundor:parameters').parameters; })",
-                        "/history.js")
+                    .evaluateModule("(function(exports, require) { globalThis.h = require('soundor:history').history; "
+                                    "globalThis.s = require('soundor:state').state; globalThis.p = "
+                                    "require('soundor:parameters').parameters; })",
+                                    "/history.js")
                     .ok());
         const auto run = [&](const char* text)
         {
@@ -489,7 +488,7 @@ TEST_CASE("JavaScript and native code share processor History across editor recr
         run("h.transaction('JS Preset', () => { p.gain.set(v => v + 0.1); p.gain.set(v => v + 0.1); "
             "s.selectedPreset.set('JS'); if(s.selectedPreset.get() !== 'JS') throw Error('staging'); });");
         CHECK(p.state.selectedPreset.get() == "JS");
-        CHECK(p.stateHistory.status().undoLabel == "JS Preset");
+        CHECK(p.history.status().undoLabel == "JS Preset");
         run("let before = p.gain.get(); try { h.transaction('Bad', () => { p.gain.set(0.9); try { "
             "s.selectedPreset.set(3); } catch(e) {} }); throw Error('not poisoned'); } catch(e) { if(e.name !== "
             "'TransactionAbortedError' || !e.cause) throw e; } if(p.gain.get() !== before) throw Error('partial');");
@@ -503,11 +502,11 @@ TEST_CASE("JavaScript and native code share processor History across editor recr
             "historyEvents.join(',')); historyOff();");
     }
     // Closing the context does not clear committed processor History.
-    CHECK(p.stateHistory.canUndo());
-    p.stateHistory.undo();
+    CHECK(p.history.canUndo());
+    p.history.undo();
     CHECK(p.gainParameter.load() == initial);
     CHECK(! p.state.selectedPreset.get());
-    p.stateHistory.redo();
+    p.history.redo();
     CHECK(p.state.selectedPreset.get() == "JS");
 }
 TEST_CASE("host automation alone creates no History; gesture records observed final effective value")
@@ -515,25 +514,25 @@ TEST_CASE("host automation alone creates no History; gesture records observed fi
     juce::ScopedJuceInitialiser_GUI init;
     Processor p;
     p.gainParameter.juceParameter().setValueNotifyingHost(0.2f);
-    CHECK(! p.stateHistory.canUndo());
+    CHECK(! p.history.canUndo());
     p.gainParameter.beginGesture(history::Options(true));
     p.gainParameter.juceParameter().setValueNotifyingHost(0.3f);
     p.gainParameter.endGesture();
-    CHECK(! p.stateHistory.canUndo());
+    CHECK(! p.history.canUndo());
     p.gainParameter.beginGesture(history::Options(true));
     p.gainParameter.set(0.5f);
     p.gainParameter.juceParameter().setValueNotifyingHost(0.75f);
     p.gainParameter.endGesture();
-    CHECK(p.stateHistory.canUndo());
-    p.stateHistory.undo();
+    CHECK(p.history.canUndo());
+    p.history.undo();
     CHECK(p.gainParameter.load() == doctest::Approx(0.3));
-    p.stateHistory.redo();
+    p.history.redo();
     CHECK(p.gainParameter.load() == 0.75f);
     juce::MemoryBlock saved;
     p.getStateInformation(saved);
     restore(p, saved);
-    CHECK(! p.stateHistory.canUndo());
-    CHECK(! p.stateHistory.canRedo());
+    CHECK(! p.history.canUndo());
+    CHECK(! p.history.canRedo());
 }
 
 TEST_CASE("shared History conformance corpus matches Web and simulated runtimes")
@@ -586,11 +585,11 @@ TEST_CASE("shared History conformance corpus matches Web and simulated runtimes"
                     p.bypassParameter.juceParameter().setValueNotifyingHost(static_cast<bool>(step["value"]) ? 1.0f
                                                                                                              : 0.0f);
                 else if (op == "undo")
-                    p.stateHistory.undo();
+                    p.history.undo();
                 else if (op == "redo")
-                    p.stateHistory.redo();
+                    p.history.redo();
                 else if (op == "transaction")
-                    p.stateHistory.transaction(step["label"].toString().toStdString(), [&] { execute(step["steps"]); });
+                    p.history.transaction(step["label"].toString().toStdString(), [&] { execute(step["steps"]); });
                 else
                     FAIL("unknown History operation");
             }
@@ -600,8 +599,8 @@ TEST_CASE("shared History conformance corpus matches Web and simulated runtimes"
         const auto optional = [](const juce::var& v) -> std::optional<std::string>
         { return v.isVoid() ? std::nullopt : std::optional(v.toString().toStdString()); };
         CHECK(p.state.selectedPreset.get() == optional(scenario["selected"]));
-        CHECK(p.stateHistory.status().undoLabel == optional(scenario["undo"]));
-        CHECK(p.stateHistory.status().redoLabel == optional(scenario["redo"]));
+        CHECK(p.history.status().undoLabel == optional(scenario["undo"]));
+        CHECK(p.history.status().redoLabel == optional(scenario["redo"]));
     }
 }
 
@@ -620,7 +619,7 @@ TEST_CASE("History edits and replay preserve JUCE one-shot and explicit host ges
     p.bypassParameter.set(true, history::Options(true));
     CHECK(listener.events == std::vector<std::string> { "begin", "value", "end" });
     listener.events.clear();
-    p.stateHistory.undo();
+    p.history.undo();
     CHECK(listener.events == std::vector<std::string> { "begin", "value", "end" });
     listener.events.clear();
     p.bypassParameter.beginGesture(history::Options(true));
@@ -648,18 +647,18 @@ TEST_CASE("editor cleanup releases only its gesture contribution and never recor
         editor.beginEdit(1, {});
         editor.edit(1, 1, {});
     }
-    CHECK(! p.stateHistory.canUndo());
+    CHECK(! p.history.canUndo());
     p.bypassParameter.endGesture();
-    CHECK(p.stateHistory.status().undoLabel == "Native Drag");
-    p.stateHistory.clear();
+    CHECK(p.history.status().undoLabel == "Native Drag");
+    p.history.clear();
     {
         backend::JuceParameterHost editor(p.getParameters(), p.parameterInfos());
         editor.beginEdit(1, history::Options(true));
         editor.edit(1, 0, {});
     }
-    CHECK(! p.stateHistory.canUndo());
+    CHECK(! p.history.canUndo());
     p.bypassParameter.set(true, history::Options(true));
-    CHECK(p.stateHistory.canUndo());
+    CHECK(p.history.canUndo());
 }
 
 TEST_CASE("background project snapshots wait for complete transactional publication")
@@ -669,22 +668,22 @@ TEST_CASE("background project snapshots wait for complete transactional publicat
     std::atomic<bool> requested { false }, completed { false };
     std::thread reader;
     juce::MemoryBlock saved;
-    p.stateHistory.transaction("Atomic Preset",
-                               [&]
-                               {
-                                   p.gainParameter.set(0.75f);
-                                   p.state.selectedPreset.set(std::string("Atomic"));
-                                   reader = std::thread(
-                                       [&]
-                                       {
-                                           requested.store(true, std::memory_order_release);
-                                           p.getStateInformation(saved);
-                                           completed.store(true, std::memory_order_release);
-                                       });
-                                   while (! requested.load(std::memory_order_acquire))
-                                       std::this_thread::yield();
-                                   CHECK(! completed.load(std::memory_order_acquire));
-                               });
+    p.history.transaction("Atomic Preset",
+                          [&]
+                          {
+                              p.gainParameter.set(0.75f);
+                              p.state.selectedPreset.set(std::string("Atomic"));
+                              reader = std::thread(
+                                  [&]
+                                  {
+                                      requested.store(true, std::memory_order_release);
+                                      p.getStateInformation(saved);
+                                      completed.store(true, std::memory_order_release);
+                                  });
+                              while (! requested.load(std::memory_order_acquire))
+                                  std::this_thread::yield();
+                              CHECK(! completed.load(std::memory_order_acquire));
+                          });
     reader.join();
     CHECK(completed.load(std::memory_order_acquire));
     Processor restored;
@@ -699,10 +698,10 @@ TEST_CASE("native control-thread History events are queued safely for JavaScript
     Processor p;
     js::Runtime runtime;
     js::Context context(runtime);
-    history::install(context, p.stateHistory);
+    history::install(context, p.history);
     REQUIRE(context
                 .evaluateModule("(function(exports, require) { globalThis.historyEvents = 0; "
-                                "require('soundor:state-history').stateHistory.subscribe(() => ++historyEvents); })",
+                                "require('soundor:history').history.subscribe(() => ++historyEvents); })",
                                 "/history-events.js")
                 .ok());
     std::atomic<bool> finished { false };
@@ -786,7 +785,7 @@ TEST_CASE("RuntimeHost::tick delivers state and History notifications through di
     RuntimeHost::Options options;
     options.installModules = [&processor](js::Context& context)
     {
-        history::install(context, processor.stateHistory);
+        history::install(context, processor.history);
         persistent::install(context, processor.state);
     };
     options.dispatchModules = [](js::Context& context)
@@ -797,10 +796,10 @@ TEST_CASE("RuntimeHost::tick delivers state and History notifications through di
     RuntimeHost host(std::move(options));
     REQUIRE(host.context()
                 .evaluateModule("(function(exports, require) { const { state } = require('soundor:state');"
-                                "const { stateHistory } = require('soundor:state-history');"
+                                "const { history } = require('soundor:history');"
                                 "globalThis.state = state; globalThis.seen = [];"
                                 "state.selectedPreset.subscribe((v) => seen.push('preset ' + v));"
-                                "stateHistory.subscribe((s) => seen.push('undo ' + s.canUndo)); })",
+                                "history.subscribe((s) => seen.push('undo ' + s.canUndo)); })",
                                 "/ui.js")
                 .ok());
     processor.state.selectedPreset.set(std::string("Warm"), history::Options(true));
@@ -851,28 +850,28 @@ TEST_CASE("factory preset catalog shares native host programs and opt-in History
     CHECK(processor.gainParameter.get() == 0.75f);
     CHECK(processor.state.selectedPreset.get() == "Warm");
     CHECK(processor.getCurrentProgram() == 1);
-    CHECK(processor.stateHistory.status().undoLabel == "Load Warm");
-    processor.stateHistory.undo();
+    CHECK(processor.history.status().undoLabel == "Load Warm");
+    processor.history.undo();
     CHECK(processor.gainParameter.get() == 0.5f);
     CHECK(processor.presets().snapshot().factoryId == "init");
     CHECK(processor.getCurrentProgram() == 0);
-    processor.stateHistory.redo();
+    processor.history.redo();
     CHECK(processor.presets().snapshot().factoryId == "warm");
     processor.gainParameter.set(0.6f);
     CHECK(processor.presets().snapshot().modified);
-    processor.stateHistory.clear();
+    processor.history.clear();
     processor.setCurrentProgram(0);
     CHECK(processor.gainParameter.get() == 0.5f);
-    CHECK(! processor.stateHistory.canUndo());
+    CHECK(! processor.history.canUndo());
     CHECK_THROWS_AS(processor.presets().loadFactory("missing"), std::invalid_argument);
-    processor.stateHistory.transaction("Preset and adjustment",
-                                       [&]
-                                       {
-                                           processor.presets().loadFactory("warm");
-                                           processor.gainParameter.set(0.8f);
-                                       });
-    CHECK(processor.stateHistory.status().undoLabel == "Preset and adjustment");
-    processor.stateHistory.undo();
+    processor.history.transaction("Preset and adjustment",
+                                  [&]
+                                  {
+                                      processor.presets().loadFactory("warm");
+                                      processor.gainParameter.set(0.8f);
+                                  });
+    CHECK(processor.history.status().undoLabel == "Preset and adjustment");
+    processor.history.undo();
     CHECK(processor.gainParameter.get() == 0.5f);
     CHECK(processor.presets().snapshot().factoryId == "init");
 }
@@ -884,13 +883,13 @@ TEST_CASE("factory preset JavaScript API shares C++ values, History, and immutab
     js::Runtime runtime;
     js::Context context(runtime);
     factory::install(context, processor.presets());
-    history::install(context, processor.stateHistory);
+    history::install(context, processor.history);
     parameters::install(
         context, std::make_shared<backend::JuceParameterHost>(processor.getParameters(), processor.parameterInfos()));
     REQUIRE(
         context
             .evaluateModule("(function(exports, require) { globalThis.presets = require('soundor:presets').presets; "
-                            "globalThis.h = require('soundor:state-history').stateHistory; "
+                            "globalThis.h = require('soundor:history').history; "
                             "globalThis.p = require('soundor:parameters').parameters; })",
                             "/presets.js")
             .ok());
@@ -927,7 +926,7 @@ TEST_CASE("host-saved factory and custom snapshots retain the existing wire form
     restore(processor, saved);
     CHECK(processor.presets().snapshot().factoryId == "warm");
     CHECK(! processor.presets().snapshot().modified);
-    CHECK(! processor.stateHistory.canUndo());
+    CHECK(! processor.history.canUndo());
     processor.state.selectedPreset.set(std::string("User preset"));
     processor.getStateInformation(saved);
     processor.presets().loadFactory("init");

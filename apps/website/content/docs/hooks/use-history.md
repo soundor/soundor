@@ -1,17 +1,17 @@
 ---
-title: 'useStateHistory'
+title: 'useHistory'
 description: 'Reactive undo/redo availability, labels and stable actions.'
 ---
 
-`useStateHistory()` subscribes to the application or processor's
-[StateHistory](/docs/api/state-history). It does not configure parameter or
+`useHistory()` subscribes to the application or processor's
+[History](/docs/api/history). It does not configure parameter or
 state fields and does not change their value-returning hooks.
 
 ```tsx
-import { Pressable, Text, View, useStateHistory } from '@soundor/react';
+import { Pressable, Text, View, useHistory } from '@soundor/react';
 
 export function HistoryButtons() {
-  const history = useStateHistory();
+  const history = useHistory();
   return (
     <View>
       <Pressable disabled={!history.canUndo} onPress={history.undo}>

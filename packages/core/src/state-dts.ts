@@ -15,9 +15,9 @@ ${schema.types.map((t) => '  ' + renderNativeTsType(t, 'export ')).join('\n')}
   export interface StateField<T> {
     get(): T;
     /** Sets a value or runs a synchronous updater against the latest immutable value. No automatic gesture. */
-    set(value: T | ((current: T) => T), options?: import('soundor:state-history').HistoryOptions): void;
+    set(value: T | ((current: T) => T), options?: import('soundor:history').HistoryOptions): void;
     /** Starts an optional editing interaction. Nested calls form one gesture; writes remain immediate. */
-    beginGesture(options?: import('soundor:state-history').HistoryOptions): void;
+    beginGesture(options?: import('soundor:history').HistoryOptions): void;
     /** Ends an interaction. Unmatched calls do nothing; gestures never automate the host. */
     endGesture(): void;
     subscribe(listener: (value: T) => void): () => void;

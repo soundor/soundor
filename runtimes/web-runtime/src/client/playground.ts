@@ -79,7 +79,7 @@ export async function startPlayground(
     parameters,
     presets,
     state,
-    stateHistory,
+    history,
     storage,
     ui,
   ] = await Promise.all([
@@ -90,7 +90,7 @@ export async function startPlayground(
     import('./modules/parameters'),
     import('./modules/presets'),
     import('./modules/state'),
-    import('./modules/state-history'),
+    import('./modules/history'),
     import('./modules/storage'),
     import('./modules/ui'),
   ]);
@@ -102,7 +102,7 @@ export async function startPlayground(
     'soundor:parameters': parameters,
     'soundor:presets': presets,
     'soundor:state': state,
-    'soundor:state-history': stateHistory,
+    'soundor:history': history,
     'soundor:storage': storage,
     'soundor:ui': ui,
   });

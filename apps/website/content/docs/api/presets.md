@@ -36,8 +36,8 @@ embedded or loaded by this API.
 ## JavaScript
 
 ```ts
+import { history } from 'soundor:history';
 import { presets } from 'soundor:presets';
-import { stateHistory } from 'soundor:state-history';
 
 const factory = presets.factory.list(); // frozen [{ id, name }, ...]
 presets.factory.load('warm', { history: { label: 'Load Warm' } });
@@ -49,8 +49,8 @@ const unsubscribe = presets.subscribe(() => {
   console.log(presets.getSnapshot());
 });
 
-stateHistory.undo();
-stateHistory.redo();
+history.undo();
+history.redo();
 unsubscribe();
 ```
 
@@ -69,14 +69,14 @@ and do not call immediately. Unsubscribe when a consumer is destroyed. Native
 UI notifications arrive through the normal runtime dispatch; native C++
 subscriptions are delivered on the message thread and coalesce between ticks.
 
-## StateHistory
+## History
 
 Recording is opt-in. One recorded load groups parameters, persistent state,
 and selection into one entry. An unrecorded load still applies the complete
 snapshot together and invalidates redo if it changes values.
 
 ```ts
-stateHistory.transaction('Load Warm and Adjust Gain', () => {
+history.transaction('Load Warm and Adjust Gain', () => {
   presets.factory.load('warm');
   parameters.gain.set(0.8);
 });
@@ -86,7 +86,7 @@ The outer transaction owns the entry and label. Getters see staged values;
 observers see the complete committed snapshot. Validation/gesture conflicts
 abort the load without partial writes. A failed preset operation poisons an
 outer transaction even if its error is caught. Async callbacks are not allowed.
-As with other StateHistory transactions, several audio-thread parameter atomics
+As with other History transactions, several audio-thread parameter atomics
 are not guaranteed to change at the same sample.
 
 ## React
@@ -136,12 +136,12 @@ const auto selection = presets().snapshot();
 // selection.factoryId: std::optional<std::string>
 // selection.modified: bool
 
-stateHistory.transaction("Load and Adjust", [&] {
+history.transaction("Load and Adjust", [&] {
     presets().loadFactory("warm");
     gainParameter.set(0.8f);
 });
-stateHistory.undo();
-stateHistory.redo();
+history.undo();
+history.redo();
 ```
 
 `loadFactory()` returns `void` and throws for an unknown id. Native

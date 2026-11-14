@@ -241,7 +241,7 @@ Snapshots are limited to 8 MiB, nesting to 64 levels and collection sizes to
 100,000 elements. Keep application state modest; use file APIs for large assets.
 Saving does not invoke restoration callbacks.
 
-All mutations go through the store's setter/replacement path. StateHistory,
+All mutations go through the store's setter/replacement path. History,
 transactions and undo/redo are separate future features;
 no `history` hook option exists in this API.
 
@@ -269,5 +269,5 @@ saving and restoration behavior is the same for direct and functional updates.
 
 Pass `{ history: true }` to a setter for one undo entry, or
 `{ history: { label: 'Edit' } }` to `beginGesture()` to group a continuous edit.
-[StateHistory](/docs/api/state-history) also provides synchronous buffered
+[History](/docs/api/history) also provides synchronous buffered
 transactions across parameters and state. Recording remains opt-in.

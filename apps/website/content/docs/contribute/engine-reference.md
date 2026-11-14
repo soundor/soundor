@@ -2189,7 +2189,7 @@ Browser support is broader, especially for CSS, text shaping, filters, and
 resources. Rendering remains on the existing SkCanvas and compositor; the
 foundation adds no UI node or public React API.
 
-## StateHistory ownership and publication
+## History ownership and publication
 
 The generated JUCE processor owns `history::StateHistory` independently of its
 editor. Typed parameter controls and persistent-state fields register stable
@@ -2203,8 +2203,8 @@ installation replaces prepared values before host or state observers run.
 Each editor bridge contributes its own gesture owner. Teardown cancels only
 that owner's unfinished recordings and host gesture contribution. Project
 restoration clears History before the application's `stateRestored()` hook.
-Runtimes providing StateHistory implement this module and editing contract.
-See [StateHistory](/docs/api/state-history)
+Runtimes providing History implement this module and editing contract.
+See [History](/docs/api/history)
 for transaction poisoning, automation, memory and notification semantics.
 
 ## How notifications reach JavaScript

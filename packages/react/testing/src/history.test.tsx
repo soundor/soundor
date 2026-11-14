@@ -1,12 +1,12 @@
-import { Text, useStateHistory, useStateValue } from '@soundor/react';
+import { Text, useHistory, useStateValue } from '@soundor/react';
 import { getTestRuntime } from '@soundor/test-runtime';
 import { act, render, screen } from '@soundor/testing-library/react';
 import { expect, it } from 'vitest';
 it('reacts to commits and replay through the application manager without polling', async () => {
   const field = getTestRuntime().state.fields.historyCounter!;
-  let actions: ReturnType<typeof useStateHistory>;
+  let actions: ReturnType<typeof useHistory>;
   function Example() {
-    actions = useStateHistory();
+    actions = useHistory();
     const value = useStateValue(field);
     return (
       <Text>{`${value}: ${actions.canUndo ? actions.undoLabel : 'Empty'}`}</Text>

@@ -7,7 +7,7 @@
     "---Modules---",
     "parameters",
     "state",
-    "state-history",
+    "history",
     "presets",
     "host",
     "env",

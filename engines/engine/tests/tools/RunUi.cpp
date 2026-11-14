@@ -538,9 +538,9 @@ try
 
     // This standalone runner owns the application's History, as a processor
     // does in JUCE. React's public hooks import the module even when unused.
-    history::StateHistory stateHistory;
+    history::StateHistory history;
     RuntimeHost::Options options;
-    options.installModules = [&](js::Context& context) { history::install(context, stateHistory); };
+    options.installModules = [&](js::Context& context) { history::install(context, history); };
     if (animationStepMs > 0)
         options.animationClock = [&] { return animationTimeMs; };
     if (bytecode)
