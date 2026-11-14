@@ -792,7 +792,9 @@ Beyond views and text there are the primitives a plugin UI is made of:
   `UiModule`) scrolls its children by wheel, by its scrollbar, or by
   `scrollTo()` and `scrollTop`/`scrollLeft`, on those axes
   (`Node::scrolls()`; no node type of its own). It fires `scroll`, clips, and
-  draws thin scroll indicators. Yoga gets one overflow, `scroll` when either
+  draws thin scroll indicators inside the border, over the padding. Their
+  thumbs show the content-box fraction in view; padding does not inset the
+  tracks or change the scroll range. Yoga gets one overflow, `scroll` when either
   axis scrolls (`Style::layoutOverflow()`). A style that stops scrolling an
   axis puts it back at 0 and queues `scroll` (`Surface::scrollingChanged()`).
   Smooth `scrollTo()` (`ScrollBehavior::Smooth`) moves in

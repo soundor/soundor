@@ -1562,28 +1562,27 @@ export class UiNode extends TreeEventTarget {
     }
     const borderLeft = yoga.YGNodeLayoutGetBorder(node, Edge.Left);
     const borderTop = yoga.YGNodeLayoutGetBorder(node, Edge.Top);
-    const left = borderLeft + yoga.YGNodeLayoutGetPadding(node, Edge.Left);
-    const top = borderTop + yoga.YGNodeLayoutGetPadding(node, Edge.Top);
+    const client = this.#clientSize();
     // An axis it does not scroll has nothing to show, however far its
     // content reaches.
     const overflow = overflowOf(this.#style);
     this.#indicators!.place({
       contentWidth: overflow.x === 'scroll' ? width : 0,
       contentHeight: overflow.y === 'scroll' ? height : 0,
-      x: left,
-      y: top,
+      x: borderLeft,
+      y: borderTop,
+      clientWidth: client.width,
+      clientHeight: client.height,
       width: Math.max(
         0,
         yoga.YGNodeLayoutGetWidth(node) -
-          left -
-          yoga.YGNodeLayoutGetPadding(node, Edge.Right) -
+          borderLeft -
           yoga.YGNodeLayoutGetBorder(node, Edge.Right),
       ),
       height: Math.max(
         0,
         yoga.YGNodeLayoutGetHeight(node) -
-          top -
-          yoga.YGNodeLayoutGetPadding(node, Edge.Bottom) -
+          borderTop -
           yoga.YGNodeLayoutGetBorder(node, Edge.Bottom),
       ),
       borderLeft,

@@ -325,6 +325,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                  YGNodeLayoutGetHeight(yoga) };
     }
 
+    Rect Node::paddingBox() const noexcept
+    {
+        const float left = YGNodeLayoutGetBorder(yoga, YGEdgeLeft);
+        const float top = YGNodeLayoutGetBorder(yoga, YGEdgeTop);
+        const float right = YGNodeLayoutGetBorder(yoga, YGEdgeRight);
+        const float bottom = YGNodeLayoutGetBorder(yoga, YGEdgeBottom);
+        return { left, top, std::max(0.0f, YGNodeLayoutGetWidth(yoga) - left - right),
+                 std::max(0.0f, YGNodeLayoutGetHeight(yoga) - top - bottom) };
+    }
+
     Rect Node::contentBox() const noexcept
     {
         const float left = YGNodeLayoutGetBorder(yoga, YGEdgeLeft) + YGNodeLayoutGetPadding(yoga, YGEdgeLeft);
@@ -1691,13 +1701,16 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     Surface::ScrollbarGeometry Surface::scrollbarGeometry(const Node& node, bool vertical)
     {
         const Size content = contentSize(node.nodeId);
-        const Rect box = node.contentBox();
+        const Rect box = node.paddingBox();
         const float room = vertical ? box.height : box.width;
         const float extent = vertical ? content.height : content.width;
-        if (! (vertical ? node.nodeStyle.scrollsY() : node.nodeStyle.scrollsX()) || extent <= room + 0.5f || room <= 0)
+        const Rect clientBox = node.contentBox();
+        const float client = vertical ? clientBox.height : clientBox.width;
+        if (! (vertical ? node.nodeStyle.scrollsY() : node.nodeStyle.scrollsX()) || extent <= client + 0.5f
+            || room <= 0)
             return {};
-        const float length = std::max(scrollbar::minLength, room * room / extent);
-        return { room, extent - room, length, room - length };
+        const float length = std::min(room, std::max(scrollbar::minLength, room * client / extent));
+        return { room, extent - client, length, room - length };
     }
 
     void Surface::updateScrollbars(NodeId hit, Point point)
@@ -1709,7 +1722,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             if (! node.scrolls() || ! node.drawsScrollIndicators)
                 continue;
             const Point at = localPoint(id, point);
-            const Rect box = node.contentBox();
+            const Rect box = node.paddingBox();
             const float right = box.x + box.width;
             const float bottom = box.y + box.height;
             const bool inside = at.x >= box.x && at.y >= box.y && at.x <= right && at.y <= bottom;
@@ -1769,7 +1782,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         Node& node = get(id);
         const ScrollbarGeometry bar = scrollbarGeometry(node, vertical);
         const Point at = localPoint(id, input.position);
-        const Rect box = node.contentBox();
+        const Rect box = node.paddingBox();
         const float along = vertical ? at.y : at.x;
         const float scrolled = vertical ? node.scroll.y : node.scroll.x;
         float start = scrolled;

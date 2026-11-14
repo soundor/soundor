@@ -588,6 +588,20 @@ describe('UiNode layout', () => {
       '.sd-scroll-indicator',
     );
     view.flushLayout();
+    // Padding keeps the content away from the edge, not the indicators.
+    expect(vertical!.style.left).toBe('91px');
+    expect(vertical!.style.top).toBe('0px');
+    expect(parseFloat(vertical!.style.height)).toBeCloseTo((96 * 86) / 405);
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      value: 319,
+      configurable: true,
+    });
+    el(scroll).dispatchEvent(new Event('scroll'));
+    expect(
+      parseFloat(vertical!.style.top) -
+        319 +
+        parseFloat(vertical!.style.height),
+    ).toBeCloseTo(96);
     expect(scroll.scrollIndicators).toBe(true);
     expect(vertical!.style.display).toBe('block');
     scroll.scrollIndicators = false;

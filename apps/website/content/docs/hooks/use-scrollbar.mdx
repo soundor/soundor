@@ -40,7 +40,8 @@ return (
   leave the corner to the other.
 - **Where they go:** beside the view, not in it, where they would scroll
   away. Position them absolutely to draw over the content, as the built-in
-  indicators do, or give them their own room in a row. To keep that room when
+  indicators do, and set `zIndex: 1` on the overlay tracks to keep them above
+  the scrolling content in WebKit too. Or give them their own room in a row. To keep that room when
   there is nothing to scroll, render the track always and only the thumb by
   `visible`.
 - **The thumb** is the track's first child, at its start. The hook sets its

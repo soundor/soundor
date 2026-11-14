@@ -187,6 +187,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         [[nodiscard]] bool focusable() const noexcept { return canFocus; }
         // The layout box relative to the parent's, once laid out.
         [[nodiscard]] Rect frame() const noexcept;
+        // The box inside the border, including padding, relative to frame().
+        [[nodiscard]] Rect paddingBox() const noexcept;
         // The box inside the border and padding, relative to frame().
         [[nodiscard]] Rect contentBox() const noexcept;
 

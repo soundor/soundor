@@ -115,6 +115,28 @@ TEST_SUITE("render::ViewRenderer")
         CHECK(second.layers.front().id == id);
     }
 
+    TEST_CASE("padded scroll views paint indicators next to the border")
+    {
+        FrameFixture f(100, 100);
+        f.run(R"(
+            import { root, createView } from 'soundor:ui';
+            const list = createView({ width: 100, height: 100, padding: 10,
+                borderWidth: 2, borderColor: 'black', backgroundColor: 'white', overflow: 'scroll' });
+            list.appendChild(createView({ width: 400, height: 400, flexShrink: 0, backgroundColor: 'white' }));
+            root.appendChild(list);
+        )");
+        const auto& frame = f.frame();
+        const auto& pixels = std::get<render::RasterContent>(frame.layers.front().content).surface;
+        const auto color = [&](int x, int y) { return pixels->pixels()[y * 100 + x] & 0xFFFFFF; };
+        // Both bars start inside the border and cross the padding strip.
+        CHECK(color(94, 5) != 0xFFFFFF);
+        CHECK(color(5, 94) != 0xFFFFFF);
+        // The content-box edges no longer carry indicators.
+        CHECK(color(84, 15) == 0xFFFFFF);
+        CHECK(color(15, 84) == 0xFFFFFF);
+        CHECK(color(0, 5) == 0);
+    }
+
     TEST_CASE("SVG images retain geometry across layout and presentation resizing without idle redraws")
     {
         FrameFixture f(100, 100);
