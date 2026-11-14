@@ -18,6 +18,7 @@ import {
   createNodeFileSystem,
   createProjectPaths,
   rootFromConfigPath,
+  type CommandProbe,
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
@@ -55,6 +56,8 @@ export interface RunDoctorOptions {
   configPath?: string;
   /** The environment signing is resolved against; defaults to `process.env`. */
   env?: NodeJS.ProcessEnv;
+  /** Runs the toolchain probes (`cargo --version`, ...); injectable for tests. */
+  probe?: CommandProbe;
 }
 
 /**
@@ -70,7 +73,7 @@ export async function runDoctor(
   const diagnostics: DoctorDiagnostic[] = [];
 
   // 1. Environment (always, even standalone).
-  for (const check of runEnvironmentChecks()) {
+  for (const check of runEnvironmentChecks(options.probe)) {
     diagnostics.push({ category: 'environment', ...check });
   }
 

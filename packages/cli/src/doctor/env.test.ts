@@ -12,7 +12,9 @@ const installed = (...names: string[]) =>
     names.includes(command) ? { ok: true, version: '1.0.0' } : { ok: false },
   );
 const packageManagerCheck = () =>
-  runEnvironmentChecks().find((check) => check.label === 'Package manager')!;
+  runEnvironmentChecks(() => ({ ok: true, version: 'rustc 1.90.0' })).find(
+    (check) => check.label === 'Package manager',
+  )!;
 
 describe('the package manager check', () => {
   const original = process.env['npm_config_user_agent'];
