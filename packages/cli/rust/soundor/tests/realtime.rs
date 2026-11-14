@@ -23,7 +23,11 @@ impl AudioProcessor for Meter {
     }
 
     fn process(&mut self, ctx: &mut ProcessContext) {
-        let gain = if ctx.params.bypass { 1.0 } else { ctx.params.gain };
+        let gain = if ctx.params.bypass {
+            1.0
+        } else {
+            ctx.params.gain
+        };
         let side = ctx.audio.input(1).map_or(0.0, |bus| {
             bus.channels()
                 .flat_map(|channel| channel.iter())
@@ -68,7 +72,9 @@ impl AudioProcessor for Collector {
 }
 
 fn sine(frames: usize) -> Vec<f32> {
-    (0..frames).map(|frame| (frame as f32 * 0.03).sin()).collect()
+    (0..frames)
+        .map(|frame| (frame as f32 * 0.03).sin())
+        .collect()
 }
 
 #[test]

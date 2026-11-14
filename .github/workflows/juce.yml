@@ -204,11 +204,11 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: |
-          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_juce_state_tests soundor_debug_target --config Debug --parallel 3
+          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_juce_state_tests soundor_juce_rust_tests soundor_debug_target --config Debug --parallel 3
           if [ "${{ runner.os }}" = "Linux" ]; then
-            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests)|debug_session)$' --output-on-failure
+            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests|rust_tests)|debug_session)$' --output-on-failure
           else
-            ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests)|debug_session)$' --output-on-failure
+            ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests|rust_tests)|debug_session)$' --output-on-failure
           fi
       - name: Native static analysis
         if: matrix.lint
@@ -236,6 +236,9 @@ jobs:
             fi
             grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/plugin.log"
           fi
+      - name: Test the Rust gain through the VST3 host
+        if: ${{ !matrix.lint && !matrix.sanitize }}
+        run: pnpm --filter @soundor/juce-runtime test:plugin:audio
       - name: Check that both builds disabled GPU support
         if: matrix.nogpu
         run: |

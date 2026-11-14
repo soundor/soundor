@@ -13,9 +13,14 @@ Use Node.js `%node%`, and pnpm or npm. Soundor supports these two package
 managers only: Yarn's Plug'n'Play leaves no `node_modules` for native builds to
 find packages in, and bun is untested.
 
+Install Rust stable with Cargo. Both runtimes compile the plugin's Rust audio
+processor. Web builds additionally need `rustup target add wasm32-unknown-unknown`.
+Soundor checks these tools with `doctor` and never installs them automatically.
+
 Native builds also need CMake, a C++20 compiler, and a JUCE checkout. Plugin
 builds use Ninja on macOS and Linux, and Visual Studio on Windows. Source engine
 builds additionally need the tools described in [Soundor Engine](/docs/engine#prebuilt-and-source-mode).
+Windows also needs the LLVM tools (`llvm-objcopy`) on PATH or in `Program Files/LLVM`.
 
 Soundor discovers JUCE in standard locations, including `/opt/JUCE` on Linux,
 or through `jucePath` or `JUCE_DIR`. You provide the JUCE checkout; Soundor never
@@ -23,7 +28,7 @@ downloads it. Run `soundor doctor` to check discovery and toolchain setup. See
 [JUCE resolution](/docs/juce-runtime#juce-is-required-and-never-downloaded) for the
 complete search order.
 
-The browser runtime needs Node.js and a browser, with no C++ build. Audio starts
+The browser runtime needs Rust, Node.js and a browser, with no C++ build. Audio starts
 after a user gesture in the browser host.
 
 ## Create a project
@@ -55,9 +60,10 @@ policy. The CLI, config and React share a release; the runtimes and VST3 host
 have their own versions. See [Dependency versions](/docs/cli/create-soundor-app#dependency-versions)
 before upgrading.
 
-The template includes a gain control UI and a JUCE processor scaffold. Implement
-your audio behavior in the processor; declaring a parameter does not apply it to
-the audio automatically.
+The template includes a gain control UI and one Rust gain processor shared by
+both runtimes. Implement audio behavior in `native/src/lib.rs`; declaring a
+parameter does not apply it to the audio automatically. See
+[Rust audio processing](/docs/rust-processor).
 
 ## Understand the files
 
@@ -65,15 +71,19 @@ the audio automatically.
 my-plugin/
   soundor.config.ts        plugin identity, parameters, native API, runtimes
   src/main.tsx             shared TypeScript/React UI
+  rust-toolchain.toml      Rust stable, generated once
+  native/Cargo.toml        your Rust crate and dependencies
+  native/Cargo.lock        locked Rust dependency versions
+  native/src/lib.rs        shared Rust audio processor
   tsconfig.json            UI types, including generated declarations
-  runtimes/juce/           your CMake project, processor, and editor
+  runtimes/juce/           your CMake project, host integration, and editor
   .soundor/
     generated/            generated types and runtime framework
     ui/                   bundled UI and assets
     dist/                 runtime build output
 ```
 
-You own `src/`, the config, and the files under `runtimes/`. Soundor owns
+You own `src/`, `native/`, the toolchain file, the config, and files under `runtimes/`. Soundor owns
 `.soundor/`, which is disposable build output. `init` preserves existing host
 files; `gen` rewrites generated files. See [Project lifecycle](/docs/project-lifecycle).
 
@@ -103,7 +113,7 @@ Choose a stable, globally unique `plugin.id` before release. Hosts and saved
 sessions use its derived identities. `plugin.name` is the display name.
 
 Run `pnpm gen` after editing the contract to refresh editor types. Restart
-`pnpm dev` after config or native code changes. Ordinary UI edits rebuild
+`pnpm dev` after config or runtime C++ changes. UI and Rust crate edits rebuild
 automatically during development.
 
 The default engine mode selects matching prebuilt libraries, including in a
@@ -191,6 +201,7 @@ simulated runtime without opening a plugin or a browser.
 
 ```sh
 pnpm typecheck
+pnpm test:rust
 pnpm build
 ```
 
@@ -212,6 +223,6 @@ pnpm --filter basic dev:web
 ```
 
 This path needs no JUCE or native engine build. The example already includes
-both host projects, a gain processor for each, and application tests. See
+both host projects, one shared Rust gain processor, and application tests. See
 [Basic example](/docs/examples/basic) for its file map and
 [Contributing](/docs/contribute) for repository checks.

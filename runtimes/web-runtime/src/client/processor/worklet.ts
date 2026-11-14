@@ -63,9 +63,8 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
     declare reported: boolean;
     declare sinceChannels: number;
     declare channelEvery: number;
-    declare silence: Float32Array;
     declare ins: (Float32Array | undefined)[];
-    declare outs: Float32Array[];
+    declare outs: (Float32Array | undefined)[];
 
     constructor(options: { processorOptions: WorkletOptions }) {
       super();
@@ -74,9 +73,12 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
       this.reported = false;
       this.sinceChannels = 0;
       this.channelEvery = Math.max(128, Math.round(sampleRate / 60));
-      this.silence = new Float32Array(128);
-      this.ins = [];
-      this.outs = [];
+      this.ins = new Array(
+        settings.inputs.reduce((sum, count) => sum + count, 0),
+      );
+      this.outs = new Array(
+        settings.outputs.reduce((sum, count) => sum + count, 0),
+      );
       try {
         const processor = new Processor(
           new WebAssembly.Module(settings.wasm),
@@ -119,17 +121,16 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
         for (const bus of outputs) for (const channel of bus) channel.fill(0);
         return true;
       }
-      if (this.silence.length < frames) this.silence = new Float32Array(frames);
-      this.ins.length = 0;
-      this.outs.length = 0;
+      let inputIndex = 0;
+      let outputIndex = 0;
       for (let bus = 0; bus < processor.inputs.length; bus++)
         for (let channel = 0; channel < processor.inputs[bus]!; channel++)
           // A disconnected input has no channels: silence.
-          this.ins.push(inputs[bus]?.[channel] ?? this.silence);
+          this.ins[inputIndex++] = inputs[bus]?.[channel];
       for (let bus = 0; bus < processor.outputs.length; bus++)
         for (let channel = 0; channel < processor.outputs[bus]!; channel++) {
           const output = outputs[bus]?.[channel];
-          this.outs.push(output ?? new Float32Array(frames));
+          this.outs[outputIndex++] = output;
         }
       const status = processor.process(this.ins, this.outs, frames);
       if (status !== 0 && !this.reported) {

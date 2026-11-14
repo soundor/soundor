@@ -77,6 +77,8 @@ export class WasmProcessor {
   declare readonly transport: Float64Array;
   declare inputViews: Float32Array[];
   declare outputViews: Float32Array[];
+  declare parameterView: Float64Array;
+  declare transportView: Float64Array;
   declare buffer: ArrayBuffer | null;
 
   /**
@@ -123,6 +125,7 @@ export class WasmProcessor {
     this.inputViews = [];
     this.outputViews = [];
     this.buffer = null;
+    this.views();
   }
 
   /** Allocates the channels in the module's memory, and prepares. */
@@ -143,6 +146,7 @@ export class WasmProcessor {
     );
     if (status === 0) this.maxFrames = maxFrames;
     this.buffer = null;
+    this.views();
     return status;
   }
 
@@ -154,35 +158,52 @@ export class WasmProcessor {
    */
   process(
     inputs: readonly (Float32Array | undefined)[],
-    outputs: readonly Float32Array[],
+    outputs: readonly (Float32Array | undefined)[],
     frames: number,
   ): number {
     if (this.failed || this.maxFrames === 0) {
-      for (const output of outputs) output.fill(0, 0, frames);
+      for (const output of outputs) output?.fill(0, 0, frames);
       return this.failed ? 3 : 2;
     }
     for (let start = 0; start < frames || start === 0;) {
       const length = Math.min(this.maxFrames, frames - start);
-      this.views();
+      // Growing memory detaches prepared views. It indicates an unexpected
+      // allocation by the DSP; fail without allocating new views here.
+      if (this.exports.memory.buffer !== this.buffer) {
+        this.failed = true;
+        for (const output of outputs) output?.fill(0, 0, frames);
+        return 3;
+      }
       for (let index = 0; index < this.inputViews.length; index++) {
         const view = this.inputViews[index]!;
         const input = inputs[index];
         if (input === undefined) view.fill(0, 0, length);
-        else view.set(input.subarray(start, start + length));
+        else
+          for (let frame = 0; frame < length; frame++)
+            view[frame] = input[start + frame] ?? 0;
       }
       this.writeValues();
-      const status = this.call(() =>
-        this.exports.soundor_wasm_process(this.handle, length),
-      );
+      let status: number;
+      try {
+        status = this.exports.soundor_wasm_process(this.handle, length);
+      } catch {
+        this.failed = true;
+        status = 4;
+      }
+      if (this.exports.memory.buffer !== this.buffer) {
+        this.failed = true;
+        status = 3;
+      }
       if (status !== 0) {
-        for (const output of outputs) output.fill(0, start, frames);
+        for (const output of outputs) output?.fill(0, start, frames);
         return status;
       }
-      this.views();
       for (let index = 0; index < outputs.length; index++) {
         const view = this.outputViews[index];
-        if (view !== undefined)
-          outputs[index]!.set(view.subarray(0, length), start);
+        const output = outputs[index];
+        if (view !== undefined && output !== undefined)
+          for (let frame = 0; frame < length; frame++)
+            output[start + frame] = view[frame]!;
       }
       start += length;
       if (frames === 0) break;
@@ -259,17 +280,8 @@ export class WasmProcessor {
 
   /** The parameters and transport, into the module's memory. */
   writeValues(): void {
-    const memory = this.exports.memory.buffer;
-    new Float64Array(
-      memory,
-      this.exports.soundor_wasm_parameters(this.handle),
-      this.parameters.length,
-    ).set(this.parameters);
-    new Float64Array(
-      memory,
-      this.exports.soundor_wasm_transport(this.handle),
-      6,
-    ).set(this.transport);
+    this.parameterView.set(this.parameters);
+    this.transportView.set(this.transport);
   }
 
   /** The channels' views, made again when memory grew (or after prepare). */
@@ -277,6 +289,16 @@ export class WasmProcessor {
     const buffer = this.exports.memory.buffer;
     if (buffer === this.buffer) return;
     this.buffer = buffer;
+    this.parameterView = new Float64Array(
+      buffer,
+      this.exports.soundor_wasm_parameters(this.handle),
+      this.parameters.length,
+    );
+    this.transportView = new Float64Array(
+      buffer,
+      this.exports.soundor_wasm_transport(this.handle),
+      6,
+    );
     const view = (pointer: number) =>
       new Float32Array(buffer, pointer, this.maxFrames);
     const total = (counts: readonly number[]) =>

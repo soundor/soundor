@@ -105,7 +105,11 @@ impl AudioProcessor for Processor {
     fn process(&mut self, ctx: &mut ProcessContext) {
         let target = ctx.params.gain;
         let frames = ctx.audio.frames();
-        let step = if frames == 0 { 0.0 } else { (target - self.gain) / frames as f32 };
+        let step = if frames == 0 {
+            0.0
+        } else {
+            (target - self.gain) / frames as f32
+        };
         // The main output holds the main input: process it in place.
         for channel in ctx.audio.channels() {
             let mut gain = self.gain;
@@ -148,11 +152,19 @@ function crateIdent(name: string): string {
   return name.replaceAll('-', '_');
 }
 
+function testImports(name: string, types: string): string {
+  return [
+    `use ${crateIdent(name)}::Processor;`,
+    `use soundor::testing::${types};`,
+  ]
+    .sort()
+    .join('\n');
+}
+
 function gainTests(name: string): string {
   return `//! The processor, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
 
-use ${crateIdent(name)}::Processor;
-use soundor::testing::TestProcessor;
+${testImports(name, 'TestProcessor')}
 
 #[test]
 fn applies_the_gain() {
@@ -170,8 +182,7 @@ fn applies_the_gain() {
 function passThroughTests(name: string): string {
   return `//! The processor, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
 
-use ${crateIdent(name)}::Processor;
-use soundor::testing::TestProcessor;
+${testImports(name, 'TestProcessor')}
 
 #[test]
 fn passes_its_input_through() {
@@ -187,8 +198,7 @@ function realtimeTests(name: string): string {
   return `//! The processor runs on the audio thread, where an allocator call can take
 //! a lock and miss the audio's deadline: it must make none while processing.
 
-use ${crateIdent(name)}::Processor;
-use soundor::testing::{CountingAllocator, TestProcessor};
+${testImports(name, '{CountingAllocator, TestProcessor}')}
 
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
@@ -199,7 +209,9 @@ fn processing_does_not_allocate() {
         let mut processor = TestProcessor::<Processor>::new()
             .block_size(block_size)
             .build();
-        let input: Vec<f32> = (0..24_000).map(|frame| (frame as f32 * 0.01).sin()).collect();
+        let input: Vec<f32> = (0..24_000)
+            .map(|frame| (frame as f32 * 0.01).sin())
+            .collect();
         processor.process(&[input.clone(), input]);
         assert_eq!(processor.allocations(), 0, "block size {block_size}");
     }

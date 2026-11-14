@@ -138,6 +138,7 @@ export default defineSoundorConfig({
   run(soundor, ['init']);
   assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
+  run('cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml']);
   // Its tests: the processor's, and that processing allocates nothing.
   const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
   assert.match(tested, /Running tests\/processor\.rs/);

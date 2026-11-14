@@ -4,6 +4,7 @@
   "root": true,
   "pages": [
     "index",
+    "rust-processor",
     "best-practices",
     "---Setup---",
     "vitest",

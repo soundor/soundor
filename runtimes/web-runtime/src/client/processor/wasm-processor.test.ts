@@ -4,7 +4,7 @@
 // source in an AudioWorkletGlobalScope's likeness.
 import { runInNewContext } from 'node:vm';
 
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   buildFixture,
@@ -49,6 +49,56 @@ const times = (samples: Float32Array, gain: number) =>
   Float32Array.from(samples, (sample) => sample * gain);
 
 describe('the Rust processor in WebAssembly', () => {
+  it('reuses prepared views for empty, partial and oversized blocks', () => {
+    const gain = processor(0.5, [1, 0], [1], 64);
+    const input = ramp(257);
+    const output = new Float32Array(257);
+    const inputs = [input];
+    const outputs = [output];
+    const f32 = vi.spyOn(globalThis, 'Float32Array');
+    const f64 = vi.spyOn(globalThis, 'Float64Array');
+    const subarray = vi.spyOn(Float32Array.prototype, 'subarray');
+    const statuses: number[] = [];
+    try {
+      for (const frames of [0, 1, 37, 64, 257])
+        statuses.push(gain.process(inputs, outputs, frames));
+      expect(f32).not.toHaveBeenCalled();
+      expect(f64).not.toHaveBeenCalled();
+      expect(subarray).not.toHaveBeenCalled();
+    } finally {
+      f32.mockRestore();
+      f64.mockRestore();
+      subarray.mockRestore();
+    }
+    expect(statuses).toEqual([0, 0, 0, 0, 0]);
+    expect(output).toEqual(times(input, 0.5));
+    gain.destroy();
+  });
+
+  it('reprepares views when the sample rate or block size changes', () => {
+    const gain = processor(0.5, [1, 0], [1], 64);
+    const input = ramp(257);
+    const output = new Float32Array(257);
+    for (const rate of [44_100, 96_000]) {
+      expect(gain.prepare(rate, 37)).toBe(WASM_STATUS.ok);
+      expect(gain.process([input], [output], input.length)).toBe(
+        WASM_STATUS.ok,
+      );
+      expect(output).toEqual(times(input, 0.5));
+    }
+    gain.destroy();
+  });
+
+  it('silences unexpected memory growth instead of allocating callback views', () => {
+    const gain = processor(0.5, [1, 0], [1], 64);
+    gain.exports.memory.grow(1);
+    const output = new Float32Array(37).fill(1);
+    expect(gain.process([output], [output], output.length)).toBe(
+      WASM_STATUS.failed,
+    );
+    expect(output).toEqual(new Float32Array(37));
+  });
+
   it('applies the gain to stereo', () => {
     const left = ramp(128);
     const right = ramp(128).reverse();
