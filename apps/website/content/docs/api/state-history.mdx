@@ -146,7 +146,12 @@ not allowed inside a transaction. A failed replay leaves the stacks intact.
 
 ## React
 
-<Snippet name="history" height={200} />
+<Snippet name="history" height={420} />
+
+Drag gain to group its updates with `beginGesture()` and `endGesture()`.
+Voices, bypass and mode record discrete edits. Loading a preset changes all
+four parameters in one transaction; Undo restores them together. The labels
+show the next undo and redo actions, and Clear history discards both stacks.
 
 [`useParameter()`](/docs/hooks/use-parameter) and
 [`useStateValue()`](/docs/hooks/use-state-value) keep returning values. Pass
