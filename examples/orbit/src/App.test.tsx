@@ -5,10 +5,10 @@ import {
   testParameters,
   waitFor,
 } from '@soundor/testing-library/react';
+import { history } from 'soundor:history';
 import { parameters } from 'soundor:parameters';
 import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
-import { stateHistory } from 'soundor:state-history';
 import { expect, test } from 'vitest';
 
 import { Delay, type DelaySettings } from '../runtimes/web/src/delay';
@@ -36,7 +36,7 @@ test('preset loading is one undoable edit including Hold, selection and descript
   const user = userEvent.setup();
   await user.click(screen.getByRole('togglebutton', { name: 'Hold' }));
   await user.click(screen.getByRole('button', { name: 'Next preset' }));
-  expect(stateHistory.undoLabel()).toBe('Load Warm magnetic');
+  expect(history.undoLabel()).toBe('Load Warm magnetic');
   expect(presets.getSnapshot()).toEqual({
     factoryId: 'warm-magnetic',
     modified: false,
@@ -45,7 +45,7 @@ test('preset loading is one undoable edit including Hold, selection and descript
     'Short, dark repeats with a little tape drift.',
   );
 
-  stateHistory.undo();
+  history.undo();
   await waitFor(() =>
     expect(screen.getByText('Dotted satellites')).toBeDefined(),
   );
@@ -54,9 +54,9 @@ test('preset loading is one undoable edit including Hold, selection and descript
   expect(state.presetDescription.get()).toBe(
     'Listen for the repeats between phrases.',
   );
-  expect(stateHistory.undoLabel()).toBe('Change Hold');
+  expect(history.undoLabel()).toBe('Change Hold');
 
-  stateHistory.redo();
+  history.redo();
   await waitFor(() => expect(screen.getByText('Warm magnetic')).toBeDefined());
   expect(parameters.hold.get()).toBe(false);
   expect(parameters.time1.get()).toBe(Math.fround(0.38));

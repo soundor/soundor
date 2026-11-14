@@ -122,8 +122,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         virtual void stateRestored() {}
         // Persistent control-thread data; never call get/set from process().
         // Control-thread History is shared by C++ and every editor context.
-        history::StateHistory stateHistory;
-        PersistentState state { &stateHistory };
+        history::StateHistory history;
+        PersistentState state { &history };
 
         // The parameters, typed as declared, for the processing: load() reads
         // one on any thread (realtime-safe); a read-only one's publish() sets it.

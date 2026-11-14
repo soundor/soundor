@@ -159,7 +159,7 @@ namespace {
   }
 }
 FactoryPresets::FactoryPresets(AudioProcessor& processor)
-  : owner(processor), selectionStore(&processor.stateHistory), selected(selectionStore, "@factoryPreset", std::nullopt) {
+  : owner(processor), selectionStore(&processor.history), selected(selectionStore, "@factoryPreset", std::nullopt) {
   selectionOff = selected.subscribe([this](const auto& id) {
     int index = 0;
     const auto all = factoryPresets();
@@ -182,7 +182,7 @@ FactoryPresets::~FactoryPresets() {
   for (const auto& off : stateOff) off();
 
 }
-history::StateHistory& FactoryPresets::historyManager() { return owner.stateHistory; }
+history::StateHistory& FactoryPresets::historyManager() { return owner.history; }
 std::span<const FactoryPresets::Info> FactoryPresets::factoryPresets() const {
   static const std::vector<Info> all { ${catalog.map((p) => `{ ${quote(p.id)}, ${quote(p.name)} }`).join(', ')} };
   return all;
@@ -192,8 +192,8 @@ bool FactoryPresets::matches(std::size_t index) const {
   switch(index) { ${checks} default: return false; }
 }
 FactoryPresets::Selection FactoryPresets::snapshot() const {
-  const std::lock_guard guard(owner.stateHistory.mutex());
-  const bool staged = owner.stateHistory.inTransaction();
+  const std::lock_guard guard(owner.history.mutex());
+  const bool staged = owner.history.inTransaction();
   if (!dirty.exchange(false, std::memory_order_acq_rel) && !staged) return cached;
   const auto id = selected.get();
   const auto all = factoryPresets();
@@ -206,12 +206,12 @@ FactoryPresets::Selection FactoryPresets::snapshot() const {
   return {};
 }
 void FactoryPresets::loadFactory(std::string_view id, const history::Options& options) {
-  owner.stateHistory.guard([&] {
+  owner.history.guard([&] {
     const auto all = factoryPresets();
     const auto found = std::find_if(all.begin(), all.end(), [&](const auto& info) { return info.id == id; });
     if (found == all.end()) throw std::invalid_argument("Unknown factory preset '" + std::string(id) + "'");
     const auto index = static_cast<std::size_t>(found - all.begin());
-    owner.stateHistory.transaction(options.label.empty() ? "Load " + found->name : options.label, [&] {
+    owner.history.transaction(options.label.empty() ? "Load " + found->name : options.label, [&] {
       switch(index) { ${loads} default: break; }
       selected.set(std::string(id));
     }, options.enabled);
@@ -230,7 +230,7 @@ std::function<void()> FactoryPresets::subscribe(std::function<void()> listener) 
   return [this, id] { listeners.erase(id); };
 }
 void FactoryPresets::dispatch() {
-  if (owner.stateHistory.inTransaction()) return;
+  if (owner.history.inTransaction()) return;
   const auto next = snapshot();
   if (next == delivered) return;
   delivered = next;

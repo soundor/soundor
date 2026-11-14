@@ -51,14 +51,14 @@ declare module 'soundor:parameters' {
      * Changed automatable values notify the host within a gesture; an explicit gesture is reused.
      * Throws a TypeError for a read-only parameter, or a value of the wrong type.
      */
-    set(value: Value | ((current: Value) => Value), options?: import('soundor:state-history').HistoryOptions): void;
+    set(value: Value | ((current: Value) => Value), options?: import('soundor:history').HistoryOptions): void;
     /**
      * Calls `listener` with the new value after every change, from any source:
      * the UI, host automation, or a preset. Returns a function that unsubscribes.
      */
     subscribe(listener: (value: Value) => void): () => void;
     /** Starts a user interaction (e.g. a drag); the host records the changes until endGesture() as one gesture. */
-    beginGesture(options?: import('soundor:state-history').HistoryOptions): void;
+    beginGesture(options?: import('soundor:history').HistoryOptions): void;
     /** Ends the interaction started with beginGesture(). */
     endGesture(): void;
     /** The value (the current one by default) as hosts show it: `'1.25 kHz'`. */

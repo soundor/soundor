@@ -121,7 +121,7 @@ describe('persistent state', () => {
     expect(output).toContain('readonly groups: StateField<Group[]>');
     expect(output).toContain('index: bigint');
     expect(output).toContain(
-      "beginGesture(options?: import('soundor:state-history').HistoryOptions): void",
+      "beginGesture(options?: import('soundor:history').HistoryOptions): void",
     );
     expect(output).toContain('endGesture(): void');
   });

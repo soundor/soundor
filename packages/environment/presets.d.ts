@@ -17,7 +17,7 @@ declare module 'soundor:presets' {
       /** Synchronously apply one complete snapshot; recording is opt-in. Throws for an unknown id. */
       load(
         id: string,
-        options?: import('soundor:state-history').HistoryOptions,
+        options?: import('soundor:history').HistoryOptions,
       ): void;
     };
     /** Stable immutable snapshot, suitable for useSyncExternalStore. */

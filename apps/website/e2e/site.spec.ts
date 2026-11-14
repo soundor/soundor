@@ -206,7 +206,7 @@ test('the history snippet supports undo and redo after editing', async ({
   page,
 }) => {
   const problems = watch(page);
-  await page.goto('/docs/api/state-history');
+  await page.goto('/docs/api/history');
   const snippet = page.locator('figure', {
     has: page.locator('iframe[title*="history snippet"]'),
   });

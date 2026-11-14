@@ -67,7 +67,7 @@ const modules = new Set([
   'ui',
   'parameters',
   'state',
-  'state-history',
+  'history',
   'presets',
   'host',
   'env',
@@ -325,8 +325,8 @@ function virtualModule(
   }
   if (name === 'presets')
     return `${header}export const presets = Object.freeze({ factory: Object.freeze({ list: () => getTestRuntime().presets.factory.list(), load: (...args) => getTestRuntime().presets.factory.load(...args) }), getSnapshot: () => getTestRuntime().presets.getSnapshot(), subscribe: listener => getTestRuntime().presets.subscribe(listener) });`;
-  if (name === 'state-history')
-    return `${header}export const stateHistory = Object.freeze({ ${['undo', 'redo', 'clear', 'canUndo', 'canRedo', 'undoLabel', 'redoLabel', 'snapshot', 'subscribe', 'transaction'].map((name) => `${name}: (...args) => getTestRuntime().history.${name}(...args)`).join(', ')} });`;
+  if (name === 'history')
+    return `${header}export const history = Object.freeze({ ${['undo', 'redo', 'clear', 'canUndo', 'canRedo', 'undoLabel', 'redoLabel', 'snapshot', 'subscribe', 'transaction'].map((name) => `${name}: (...args) => getTestRuntime().history.${name}(...args)`).join(', ')} });`;
   if (name === 'state')
     return (
       header +
