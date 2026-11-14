@@ -357,6 +357,7 @@ jobs:
 
   publish:
     name: Publish
+    environment: npm-production
     needs: [select, pack]
     if: always() && !cancelled() && needs.pack.result == 'success'
     runs-on: ubuntu-24.04

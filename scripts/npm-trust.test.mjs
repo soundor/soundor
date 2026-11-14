@@ -11,6 +11,7 @@ const matching = {
   type: 'github',
   repository: 'soundor/soundor',
   file: 'release.yml',
+  environment: 'npm-production',
   permissions: ['createPackage'],
 };
 
@@ -96,6 +97,8 @@ test(
       { file: 'other.yml' },
       { type: 'gitlab' },
       { environment: 'production' },
+      { environment: undefined },
+      { environment: '' },
       { permissions: ['createStagedPackage'] },
       { permissions: undefined },
     ]) {
@@ -114,6 +117,9 @@ test(
         assert.equal(result.status, 0, result.stderr);
         assert.equal(result.creates.length, 1);
         assert.ok(result.creates[0].includes('--allow-publish'));
+        const environmentFlag = result.creates[0].indexOf('--environment');
+        assert.notEqual(environmentFlag, -1);
+        assert.equal(result.creates[0][environmentFlag + 1], 'npm-production');
       });
     }
     await t.test('inspection failure does not create', (t) => {
@@ -135,6 +141,7 @@ test(
       const result = check(t, { preview: true });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(result.commands.length, 0);
+      assert.match(result.stdout, /--environment npm-production/);
     });
   },
 );
