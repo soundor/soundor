@@ -180,6 +180,9 @@ jobs:
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
       - name: Build workspace
         run: pnpm turbo run build --filter=@soundor/juce-runtime... --filter=@soundor/devtools-client...
+      - name: Windows Rust archive isolation regression
+        if: runner.os == 'Windows'
+        run: node --test runtimes/juce-runtime/tests/rust-archive.test.mjs
       - name: Install native static analysis
         if: matrix.lint
         run: sudo apt-get install -y --no-install-recommends clang-tidy-18 clang-tools-18

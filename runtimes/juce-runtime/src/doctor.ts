@@ -94,7 +94,7 @@ export async function buildDoctorReport(
       checkCMake(probe),
       checkCompiler(probe, deps.platform ?? process.platform),
       ...((deps.platform ?? process.platform) === 'win32'
-        ? [checkLlvmObjcopy(probe, env)]
+        ? [checkLlvmTools(probe, env)]
         : []),
       checkNativeBuildTools(probe),
       await checkJuce(fs, options, env),
@@ -312,28 +312,32 @@ export function findCppCompiler(
   return undefined;
 }
 
-function checkLlvmObjcopy(
+function checkLlvmTools(
   probe: CommandProbe,
   env: NodeJS.ProcessEnv,
 ): DoctorCheck {
-  const candidates = ['llvm-objcopy'];
-  if (env.ProgramFiles)
-    candidates.push(`${env.ProgramFiles}/LLVM/bin/llvm-objcopy.exe`);
-  for (const command of candidates) {
-    if (probe(command, ['--version']).ok)
-      return {
+  const missing: string[] = [];
+  for (const tool of ['llvm-objcopy', 'llvm-ar']) {
+    const candidates = [tool];
+    if (env.ProgramFiles)
+      candidates.push(`${env.ProgramFiles}/LLVM/bin/${tool}.exe`);
+    if (!candidates.some((command) => probe(command, ['--version']).ok))
+      missing.push(tool);
+  }
+  return missing.length === 0
+    ? {
         label: 'Rust symbol isolation',
         status: 'ok',
-        detail: `${command} isolates the Rust processor from other Rust libraries.`,
+        detail:
+          'LLVM object and archive tools isolate the Rust processor from other Rust libraries.',
+      }
+    : {
+        label: 'Rust symbol isolation',
+        status: 'fail',
+        detail: `${missing.join(', ')} was not found.`,
+        suggestion:
+          'Install the Windows LLVM tools, in Program Files/LLVM or on PATH.',
       };
-  }
-  return {
-    label: 'Rust symbol isolation',
-    status: 'fail',
-    detail: 'llvm-objcopy was not found.',
-    suggestion:
-      'Install the Windows LLVM tools, in Program Files/LLVM or on PATH.',
-  };
 }
 
 function checkCompiler(

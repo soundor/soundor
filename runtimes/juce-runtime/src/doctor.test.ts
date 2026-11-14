@@ -386,7 +386,7 @@ describe('buildDoctorReport', () => {
   });
 
   it('finds Windows LLVM outside PATH and reports when it is missing', async () => {
-    for (const available of [true, false]) {
+    for (const available of ['both', 'objcopy', 'neither']) {
       const report = await buildDoctorReport(
         memoryFs('/proj'),
         {},
@@ -394,14 +394,16 @@ describe('buildDoctorReport', () => {
           platform: 'win32',
           env: { ProgramFiles: 'C:/Program Files' },
           probe: (command) =>
-            available &&
-            command === 'C:/Program Files/LLVM/bin/llvm-objcopy.exe'
+            (available !== 'neither' &&
+              command === 'C:/Program Files/LLVM/bin/llvm-objcopy.exe') ||
+            (available === 'both' &&
+              command === 'C:/Program Files/LLVM/bin/llvm-ar.exe')
               ? ok(command)
               : missing(command),
         },
       );
       expect(check(report, 'Rust symbol isolation').status).toBe(
-        available ? 'ok' : 'fail',
+        available === 'both' ? 'ok' : 'fail',
       );
     }
   });

@@ -13,6 +13,7 @@
     "native/CMakeLists.txt",
     "native/SoundorPluginBundle.cmake",
     "native/SoundorRust.cmake",
+    "native/SoundorRustWindows.cmake",
     "native/backend"
   ],
   "type": "module",

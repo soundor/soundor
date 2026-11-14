@@ -46,12 +46,15 @@ function(soundor_link_rust_processor target library)
     # LLVM's COFF-aware objcopy ships with the Windows LLVM tools.
     find_program(SOUNDOR_LLVM_OBJCOPY NAMES llvm-objcopy
       HINTS "$ENV{ProgramFiles}/LLVM/bin" REQUIRED)
+    find_program(SOUNDOR_LLVM_AR NAMES llvm-ar
+      HINTS "$ENV{ProgramFiles}/LLVM/bin" REQUIRED)
     set(isolated "${CMAKE_CURRENT_BINARY_DIR}/${target}_rust_processor.lib")
     add_custom_command(OUTPUT "${isolated}"
-      COMMAND "${SOUNDOR_LLVM_OBJCOPY}"
-        --redefine-sym rust_eh_personality=soundor_processor_rust_eh_personality
-        "${library}" "${isolated}"
-      DEPENDS "${library}"
+      COMMAND "${CMAKE_COMMAND}"
+        "-DINPUT=${library}" "-DOUTPUT=${isolated}"
+        "-DOBJCOPY=${SOUNDOR_LLVM_OBJCOPY}" "-DAR=${SOUNDOR_LLVM_AR}"
+        -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorRustWindows.cmake"
+      DEPENDS "${library}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorRustWindows.cmake"
       COMMENT "Isolating the Rust processor's exception personality"
       VERBATIM)
     add_custom_target(${target}_rust_processor DEPENDS "${isolated}")
