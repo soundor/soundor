@@ -387,8 +387,6 @@ jobs:
       # the next run resumes here.
       - name: Publish the VST3 host's platform packages
         if: needs.select.outputs.host == 'true'
-        env:
-          NPM_CONFIG_PROVENANCE: true
         run: |
           node hosts/vst3-host/scripts/release.ts publish "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
           node hosts/vst3-host/scripts/release.ts verify "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
@@ -397,8 +395,6 @@ jobs:
         uses: changesets/action/publish@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir }}
-        env:
-          NPM_CONFIG_PROVENANCE: true
 
   website:
     name: Website
