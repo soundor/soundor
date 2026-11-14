@@ -1028,6 +1028,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a3d46',
   },
   bothTrackY: {
+    zIndex: 1,
     position: 'absolute',
     top: 2,
     bottom: 12,
@@ -1038,6 +1039,7 @@ const styles = StyleSheet.create({
   },
   bothThumbY: { width: 8, borderRadius: 4, backgroundColor: '#22d3ee' },
   bothTrackX: {
+    zIndex: 1,
     position: 'absolute',
     left: 2,
     right: 12,
@@ -1092,6 +1094,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a3d46',
   },
   customOverlayTrack: {
+    zIndex: 1,
     position: 'absolute',
     left: 8,
     right: 8,

@@ -12,11 +12,14 @@ const FADE_AFTER_MS = 1000;
 export interface ScrollBox {
   readonly contentWidth: number;
   readonly contentHeight: number;
-  /** Its content box. */
+  /** Inside the border, including padding: where the tracks run. */
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** Content box size: the visible part of the scrollable content. */
+  readonly clientWidth: number;
+  readonly clientHeight: number;
   readonly borderLeft: number;
   readonly borderTop: number;
 }
@@ -29,8 +32,8 @@ interface Drag {
   readonly scroll: number;
 }
 
-const lengthOf = (room: number, content: number): number =>
-  Math.max(MIN_LENGTH, (room * room) / content);
+const lengthOf = (room: number, client: number, content: number): number =>
+  Math.min(room, Math.max(MIN_LENGTH, (room * client) / content));
 
 /** How much bigger on screen than in CSS pixels, under transformed ancestors. */
 const scaleOf = (shown: number, laidOut: number): number =>
@@ -152,7 +155,8 @@ export class ScrollIndicators {
     const track = vertical ? this.#verticalTrack : this.#horizontalTrack;
     const room = vertical ? box.height : box.width;
     const content = vertical ? box.contentHeight : box.contentWidth;
-    if (!this.#enabled || !(content > room + 0.5 && room > 0)) {
+    const client = vertical ? box.clientHeight : box.clientWidth;
+    if (!this.#enabled || !(content > client + 0.5 && room > 0)) {
       bar.style.display = 'none';
       track.style.display = 'none';
       return;
@@ -165,9 +169,9 @@ export class ScrollIndicators {
     const edge = vertical
       ? box.x + box.width - box.borderLeft + scrollLeft
       : box.y + box.height - box.borderTop + scrollTop;
-    const length = lengthOf(room, content);
+    const length = lengthOf(room, client, content);
     const scrolled = vertical ? scrollTop : scrollLeft;
-    const at = along + ((room - length) * scrolled) / (content - room);
+    const at = along + ((room - length) * scrolled) / (content - client);
     const grown = bar.classList.contains('sd-scroll-indicator-grown');
     const thickness = grown ? GROWN_THICKNESS : THICKNESS;
     const [start, side, size, breadth] = vertical
@@ -235,7 +239,8 @@ export class ScrollIndicators {
     if (box === null) return scroll;
     const room = vertical ? box.height : box.width;
     const content = vertical ? box.contentHeight : box.contentWidth;
-    const length = lengthOf(room, content);
+    const client = vertical ? box.clientHeight : box.clientWidth;
+    const length = lengthOf(room, client, content);
     const travel = room - length;
     if (travel <= 0) return scroll;
     const rect = element.getBoundingClientRect();
@@ -245,7 +250,7 @@ export class ScrollIndicators {
         box.y
       : (event.clientX - rect.left) / scaleOf(rect.width, element.offsetWidth) -
         box.x;
-    const range = content - room;
+    const range = content - client;
     const at = (travel * scroll) / range;
     if (pointer >= at && pointer <= at + length) return scroll;
     const target = ((pointer - length / 2) * range) / travel;
@@ -271,20 +276,22 @@ export class ScrollIndicators {
     const element = this.#element;
     const rect = element.getBoundingClientRect();
     if (drag.vertical) {
-      const travel = box.height - lengthOf(box.height, box.contentHeight);
+      const travel =
+        box.height - lengthOf(box.height, box.clientHeight, box.contentHeight);
       if (travel <= 0) return;
       const moved =
         (event.clientY - drag.from) /
         scaleOf(rect.height, element.offsetHeight);
       element.scrollTop =
-        drag.scroll + (moved * (box.contentHeight - box.height)) / travel;
+        drag.scroll + (moved * (box.contentHeight - box.clientHeight)) / travel;
     } else {
-      const travel = box.width - lengthOf(box.width, box.contentWidth);
+      const travel =
+        box.width - lengthOf(box.width, box.clientWidth, box.contentWidth);
       if (travel <= 0) return;
       const moved =
         (event.clientX - drag.from) / scaleOf(rect.width, element.offsetWidth);
       element.scrollLeft =
-        drag.scroll + (moved * (box.contentWidth - box.width)) / travel;
+        drag.scroll + (moved * (box.contentWidth - box.clientWidth)) / travel;
     }
     // The bar follows now, and the node tells of it now, as natively.
     this.place();

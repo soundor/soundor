@@ -704,7 +704,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
     void Renderer::Impl::drawScrollIndicators(SkCanvas& canvas, const Node& node) const
     {
         const Size content = surface->contentSize(node.id());
-        const Rect box = node.contentBox();
+        const Rect box = node.paddingBox();
+        const Rect client = node.contentBox();
         const Point scroll = node.scrollOffset();
         const auto colored = [](unsigned alpha)
         {
@@ -721,8 +722,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         // Tracks first, for neither to draw over the other's bar. An axis its
         // style does not scroll has none, however far its content reaches.
         const Style& style = node.style();
-        const bool down = style.scrollsY() && content.height > box.height + 0.5f && box.height > 0;
-        const bool across = style.scrollsX() && content.width > box.width + 0.5f && box.width > 0;
+        const bool down = style.scrollsY() && content.height > client.height + 0.5f && box.height > 0;
+        const bool across = style.scrollsX() && content.width > client.width + 0.5f && box.width > 0;
         if (down && node.scrollbarGrown(true))
             canvas.drawRect(SkRect::MakeXYWH(box.x + box.width - scrollbar::trackThickness, box.y,
                                              scrollbar::trackThickness, box.height),
@@ -734,9 +735,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (down)
         {
             const float thickness = thick(true);
-            const float length = std::max(scrollbar::minLength, box.height * box.height / content.height);
+            const float length =
+                std::min(box.height, std::max(scrollbar::minLength, box.height * client.height / content.height));
             const float travel = box.height - length;
-            const float at = box.y + travel * scroll.y / (content.height - box.height);
+            const float at = box.y + travel * scroll.y / (content.height - client.height);
             canvas.drawRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(box.x + box.width - thickness - scrollbar::edgeGap,
                                                                   at, thickness, length),
                                                  thickness / 2, thickness / 2),
@@ -745,9 +747,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
         if (across)
         {
             const float thickness = thick(false);
-            const float length = std::max(scrollbar::minLength, box.width * box.width / content.width);
+            const float length =
+                std::min(box.width, std::max(scrollbar::minLength, box.width * client.width / content.width));
             const float travel = box.width - length;
-            const float at = box.x + travel * scroll.x / (content.width - box.width);
+            const float at = box.x + travel * scroll.x / (content.width - client.width);
             canvas.drawRRect(
                 SkRRect::MakeRectXY(
                     SkRect::MakeXYWH(at, box.y + box.height - thickness - scrollbar::edgeGap, length, thickness),

@@ -10,6 +10,8 @@ const BOX = {
   y: 0,
   width: 100,
   height: 100,
+  clientWidth: 100,
+  clientHeight: 100,
   borderLeft: 0,
   borderTop: 0,
 };
@@ -101,6 +103,37 @@ describe('scroll indicators', () => {
     element.dispatchEvent(new window.PointerEvent('pointerleave'));
     expect(grown(vertical)).toBe(false);
     expect(track.style.display).toBe('none');
+  });
+
+  it('uses the border edge for padded tracks and the content box for the scroll range', () => {
+    const { element, vertical, horizontal, track, horizontalTrack } = setup(1, {
+      ...BOX,
+      x: 2,
+      y: 2,
+      width: 96,
+      height: 96,
+      clientWidth: 76,
+      clientHeight: 76,
+      contentWidth: 400,
+      borderLeft: 2,
+      borderTop: 2,
+    });
+    const length = (96 * 76) / 400;
+    const travel = 96 - length;
+    expect(parseFloat(vertical.style.height)).toBeCloseTo(length);
+    expect(vertical.style.left).toBe('91px');
+    expect(horizontal.style.top).toBe('91px');
+    // Hover and drag in the padding strip, outside the content box.
+    pointer(element, 'pointermove', 10 + 95, 20 + 10);
+    expect(track.style.height).toBe('96px');
+    pointer(track, 'pointerdown', 10 + 95, 20 + 10, { button: 0 });
+    pointer(track, 'pointermove', 10 + 95, 20 + 10 + travel);
+    expect(element.scrollTop).toBeCloseTo(324);
+    pointer(track, 'pointerup', 10 + 95, 20 + 10 + travel);
+    pointer(element, 'pointermove', 10 + 10, 20 + 95);
+    pointer(horizontalTrack, 'pointerdown', 10 + 10, 20 + 95, { button: 0 });
+    pointer(horizontalTrack, 'pointermove', 10 + 10 + travel, 20 + 95);
+    expect(element.scrollLeft).toBeCloseTo(324);
   });
 
   it('keeps a track out of the way of an axis that does not scroll', () => {

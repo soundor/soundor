@@ -1226,6 +1226,30 @@ TEST_CASE("a mouse near a scroll view's edge grows its bar over a track")
     CHECK_FALSE(f.node().scrollbarGrown(true));
 }
 
+TEST_CASE("scrollbar tracks cover padding and retain the content-box scroll range")
+{
+    ScrollbarFixture f;
+    Style style = scrolling(ScrollbarFixture::sized(100, 100));
+    style.padding = { Length::points(10), Length::points(10), Length::points(10), Length::points(10) };
+    f.surface.setStyle(f.scroller, style);
+    f.surface.setStyle(f.content, ScrollbarFixture::sized(400, 400));
+    // The rightmost and bottommost strips are padding, outside the content box.
+    f.hover(95, 10);
+    CHECK(f.node().scrollbarGrown(true));
+    CHECK(f.press(95, 10));
+    // Extent includes trailing padding: 410, with 80 in view and 330 to scroll.
+    const float travel = 100 - 100.0f * 80 / 410;
+    f.drag(95, 10 + travel);
+    CHECK(f.node().scrollOffset().y == doctest::Approx(330));
+    f.release(95, 10 + travel);
+    f.hover(10, 95);
+    CHECK(f.node().scrollbarGrown(false));
+    CHECK(f.press(10, 95));
+    f.drag(10 + travel, 95);
+    CHECK(f.node().scrollOffset().x == doctest::Approx(330));
+    f.release(10 + travel, 95);
+}
+
 TEST_CASE("a scroll view's bar drags, wherever the pointer goes, and keeps it from the plugin")
 {
     ScrollbarFixture f;
