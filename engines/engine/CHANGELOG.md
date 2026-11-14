@@ -1,5 +1,13 @@
 # @soundor/engine
 
+## 0.8.1
+
+### Patch Changes
+
+- [#298](https://github.com/soundor/soundor/pull/298) [`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish all packages through npm trusted publishing with GitHub Actions OIDC.
+
+- [#297](https://github.com/soundor/soundor/pull/297) [`f4f214e`](https://github.com/soundor/soundor/commit/f4f214ec4ee4fd59754d1f9342ecf6435ada54f3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Place built-in scrollbars inside the border over the view's padding, while preserving the content-box scroll range and thumb proportions.
+
 ## 0.8.0
 
 ### Minor Changes

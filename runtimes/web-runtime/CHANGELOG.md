@@ -1,5 +1,18 @@
 # @soundor/web-runtime
 
+## 0.13.1
+
+### Patch Changes
+
+- [#295](https://github.com/soundor/soundor/pull/295) [`fb09052`](https://github.com/soundor/soundor/commit/fb09052f7ede4932f243c5d191860267bc524a36) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Expose `soundor:state-history` to playground scripts so examples using `useStateHistory` can render and undo or redo edits.
+
+- [#298](https://github.com/soundor/soundor/pull/298) [`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish all packages through npm trusted publishing with GitHub Actions OIDC.
+
+- [#297](https://github.com/soundor/soundor/pull/297) [`f4f214e`](https://github.com/soundor/soundor/commit/f4f214ec4ee4fd59754d1f9342ecf6435ada54f3) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Place built-in scrollbars inside the border over the view's padding, while preserving the content-box scroll range and thumb proportions.
+- Updated dependencies [[`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee)]:
+  - @soundor/yoga-wasm@0.1.1
+  - @soundor/runtime-sdk@0.17.1
+
 ## 0.13.0
 
 ### Minor Changes
