@@ -16,7 +16,6 @@
     "lint:native": "turbo run lint:native",
     "lint:check": "oxlint .",
     "lint:fix": "oxlint --fix .",
-    "npm:trust": "node scripts/npm-trust.mjs",
     "prepare": "husky",
     "release": "pnpm build && pnpm ci:publish",
     "test:native": "turbo run test:native",
