@@ -357,6 +357,7 @@ jobs:
 
   publish:
     name: Publish
+    # npm trusted publishing authenticates both publish steps through OIDC.
     environment: npm-production
     needs: [select, pack]
     if: always() && !cancelled() && needs.pack.result == 'success'
@@ -372,7 +373,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           cache: false
-          registry-url: https://registry.npmjs.org
 
       - name: Download the VST3 host's platform packages
         if: needs.select.outputs.host == 'true'
@@ -388,7 +388,6 @@ jobs:
       - name: Publish the VST3 host's platform packages
         if: needs.select.outputs.host == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
         run: |
           node hosts/vst3-host/scripts/release.ts publish "$RUNNER_TEMP/vst3-host-tarballs" --commit "$GITHUB_SHA"
@@ -399,8 +398,6 @@ jobs:
         with:
           pack-dir-artifact-id: ${{ needs.pack.outputs.pack-dir }}
         env:
-          # The setup step's registry-url makes npm read NODE_AUTH_TOKEN.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
   website:
