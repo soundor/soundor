@@ -65,6 +65,93 @@ env: {
 defaulting to `0.1.0`. Every runtime exposes it through `soundor:host`; JUCE
 also uses it as the plugin bundle version.
 
+### Plugin classification and vendor
+
+`plugin.kind` is one host-facing classification: `'effect'` (the default),
+`'instrument'`, or `'midiEffect'`. It does not enumerate everything the DSP can
+do. MIDI effects are reserved for the separate MIDI feature; current runtimes
+reject that kind. No MIDI routing or controller mappings are implemented here.
+
+`plugin.categories` is a list of `'eq'`, `'dynamics'`, `'delay'`, `'reverb'`,
+`'modulation'`, `'distortion'`, `'filter'`, `'utility'`, `'analyzer'`, `'synth'`,
+`'sampler'`, or `'generator'`. JUCE maps these to VST3 categories and maps kind
+to the Audio Unit type. A DAW decides how to display the metadata.
+
+`plugin.vendor` declares `name`, optional `website` (a URL), and optional
+`supportEmail`. `plugin.copyright` supplies a copyright notice. These are
+shared metadata; `juceRuntime({ companyName })` remains an explicit override
+of the vendor display name for existing projects.
+
+### `audio`
+
+Optional audio buses, supported combinations, initial layout, latency, and tail:
+
+```ts
+audio: {
+  buses: {
+    input: { direction: 'input', name: 'Input' },
+    output: { direction: 'output', name: 'Output' },
+    sidechain: { direction: 'input', name: 'Sidechain', optional: true },
+  },
+  layouts: {
+    mono: { input: 'mono', output: 'mono', sidechain: ['disabled', 'mono'] },
+    stereo: {
+      input: 'stereo', output: 'stereo',
+      sidechain: ['disabled', 'mono', 'stereo'],
+    },
+  },
+  defaultLayout: 'stereo',
+  defaultBuses: { sidechain: 'disabled' },
+  latency: { mode: 'fixed', samples: 0 },
+  tail: { mode: 'dynamic' },
+},
+```
+
+Every layout specifies every bus. Channel arrangements are `'mono'`, `'stereo'`,
+`'5.1'`, `'7.1'`, or `'disabled'` (optional buses only). An optional bus may
+provide a nonempty array of alternatives; main required buses have one
+arrangement per layout. Declaration order determines the bus order within each
+direction: its first bus is the main bus.
+
+`defaultLayout` names the arrangement used initially, before the host negotiates
+another supported combination. It never adds support for another arrangement.
+A stereo-only plugin declares only its stereo layout and rejects mono requests.
+`defaultBuses` selects the initial arrangement for every bus whose default layout
+offers several alternatives; it is required for those buses.
+
+Latency defaults to `{ mode: 'fixed', samples: 0 }`. Use `{ mode: 'dynamic' }`
+when native DSP reports latency with JUCE's `setLatencySamples()` on the control
+thread. Tail defaults to `{ mode: 'fixed', seconds: 0 }`; dynamic tail reporting
+uses the generated `setTailLengthSeconds(seconds)`, which accepts finite,
+nonnegative seconds. These declarations report processing behavior to hosts;
+they do not implement DSP, buffering, or tail rendering.
+
+JUCE generates bus construction and final layout/tail overrides in the processor
+base. For an existing project adopting `audio`, use the base's default constructor
+and remove handwritten `isBusesLayoutSupported()` and `getTailLengthSeconds()`
+overrides. `init` never overwrites existing user-owned files. With `audio` omitted,
+existing handwritten buses and overrides retain ownership.
+
+The Web runtime supports one main output, at most one main input, and mono/stereo
+arrangements. It uses `defaultLayout` with explicit Web Audio channel counts and
+rejects optional/auxiliary buses and surround layouts at generation time.
+Latency and tail declarations are native host metadata; the browser has no
+corresponding plugin-host reporting mechanism. A browser may mix plugin output
+into the device's speaker arrangement.
+
+### Parameter groups and bypass
+
+`parameterGroups` declares groups by stable key, each with a `label`.
+A parameter's optional `group` references that key. JUCE creates host parameter
+groups; the Web host groups its parameter controls. Grouping may change the
+host's flattened parameter order; saved parameter identities remain their keys.
+`parameter.info.group` exposes the group key in every runtime.
+
+A single writable boolean parameter may declare `role: 'bypass'`. JUCE exposes
+it as the host bypass parameter, and `parameter.info.role` reports the role.
+The declaration identifies the parameter; implement bypass audio processing,
+transitions, latency handling, and tails in DSP.
+
 ### `editor`
 
 The plugin editor's size in logical pixels, and whether it can be resized.

@@ -6,6 +6,7 @@ import { describeState, stateJson } from '@soundor/runtime-sdk';
  */
 import {
   describeNativeApi,
+  initialBusLayout,
   resolveEditor,
   SoundorError,
   type CodegenFile,
@@ -81,12 +82,53 @@ function webEditor(config: ResolvedSoundorConfig): WebEditor {
  */
 export function webManifest(config: ResolvedSoundorConfig): WebManifest {
   const native = nativeModel(config);
+  if (config.plugin.kind === 'midiEffect')
+    throw new Error(
+      'MIDI effects require MIDI runtime support, which is not implemented yet.',
+    );
+  let audio: WebManifest['audio'];
+  if (config.audio) {
+    const buses = Object.entries(config.audio.buses);
+    if (
+      buses.filter(([, bus]) => bus.direction === 'input').length > 1 ||
+      buses.filter(([, bus]) => bus.direction === 'output').length !== 1 ||
+      buses.some(([, bus]) => bus.optional)
+    )
+      throw new Error(
+        'Web audio currently supports one main output and at most one main input, without optional or auxiliary buses.',
+      );
+    if (
+      Object.values(config.audio.layouts).some((layout) =>
+        Object.values(layout).some(
+          (value) =>
+            typeof value !== 'string' || !['mono', 'stereo'].includes(value),
+        ),
+      )
+    )
+      throw new Error(
+        'Web audio currently supports mono and stereo layouts only.',
+      );
+    const count = (direction: 'input' | 'output') => {
+      const bus = buses.find(([, bus]) => bus.direction === direction);
+      return bus
+        ? initialBusLayout(config.audio!, bus[0]) === 'mono'
+          ? 1
+          : 2
+        : 0;
+    };
+    audio = { inputChannels: count('input'), outputChannels: count('output') };
+  }
   return {
     plugin: {
+      ...config.plugin,
       id: config.plugin.id,
       name: config.plugin.name,
       version: config.plugin.version ?? '0.1.0',
     },
+    ...(audio === undefined ? {} : { audio }),
+    ...(config.parameterGroups === undefined
+      ? {}
+      : { parameterGroups: config.parameterGroups }),
     runtimeVersion,
     ...(config.env === undefined ? {} : { env: config.env }),
     editor: webEditor(config),
@@ -96,6 +138,8 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
         id: parameter.id,
         label: parameter.label,
         access: parameter.access,
+        ...(parameter.group === undefined ? {} : { group: parameter.group }),
+        ...(parameter.role === undefined ? {} : { role: parameter.role }),
       };
       switch (parameter.type) {
         case 'boolean':

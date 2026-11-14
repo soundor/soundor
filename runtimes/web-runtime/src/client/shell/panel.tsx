@@ -16,6 +16,9 @@ export interface PanelProps {
   readonly pluginName: string;
   readonly host: WebHost;
   readonly audio: WebAudioHost;
+  readonly parameterGroups?: Readonly<
+    Record<string, { readonly label: string }>
+  >;
   readonly parameters: ParameterStore;
   /** Shows the host state (the `dev` presentation). */
   readonly inspect: boolean;
@@ -54,8 +57,32 @@ export function Panel(props: PanelProps) {
           {parameters.list.length === 0 ? (
             <div class="soundor-empty">None declared</div>
           ) : (
-            parameters.list.map((parameter) => (
-              <ParameterControl key={parameter.id} parameter={parameter} />
+            [
+              ...new Set(
+                parameters.list.map((parameter) => parameter.info.group ?? ''),
+              ),
+            ].map((group) => (
+              <div
+                key={group}
+                role={group ? 'group' : undefined}
+                aria-label={
+                  group
+                    ? (props.parameterGroups?.[group]?.label ?? group)
+                    : undefined
+                }
+              >
+                {group ? (
+                  <h3>{props.parameterGroups?.[group]?.label ?? group}</h3>
+                ) : null}
+                {parameters.list
+                  .filter((parameter) => (parameter.info.group ?? '') === group)
+                  .map((parameter) => (
+                    <ParameterControl
+                      key={parameter.id}
+                      parameter={parameter}
+                    />
+                  ))}
+              </div>
             ))
           )}
         </Section>

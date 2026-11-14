@@ -33,6 +33,8 @@ function describe(raw) {
     access: ACCESS[raw.access],
     type,
   };
+  if (raw.group) info.group = raw.group;
+  if (raw.role) info.role = raw.role;
   switch (type) {
     case 'boolean':
       info.default = raw.default >= 0.5;

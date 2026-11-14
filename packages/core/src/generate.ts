@@ -22,6 +22,8 @@ export interface CoreRuntimeDescriptor {
 export type CoreParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
 export interface CoreBaseParameter {
+  readonly group?: string;
+  readonly role?: 'bypass';
   readonly id: string;
   readonly label: string;
   readonly access: CoreParameterAccess;

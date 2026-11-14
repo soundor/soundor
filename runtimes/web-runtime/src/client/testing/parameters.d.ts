@@ -5,7 +5,10 @@ declare module 'soundor:parameters' {
   export type ParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
   /** Metadata of a parameter, as declared in soundor.config. */
-  export type ParameterInfo =
+  export type ParameterInfo = {
+    readonly group?: string;
+    readonly role?: 'bypass';
+  } & (
     | {
         readonly id: string;
         readonly label: string;
@@ -31,7 +34,7 @@ declare module 'soundor:parameters' {
         readonly type: 'choice';
         readonly options: readonly { readonly value: string; readonly label: string }[];
         readonly default: string;
-      };
+      });
 
   /**
    * A plugin parameter, shared with the DSP and the host. Values are in plain

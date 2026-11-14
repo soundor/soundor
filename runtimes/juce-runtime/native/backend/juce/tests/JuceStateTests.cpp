@@ -35,7 +35,6 @@ namespace
         bool hasEditor() const override { return false; }
         bool acceptsMidi() const override { return false; }
         bool producesMidi() const override { return false; }
-        double getTailLengthSeconds() const override { return 0; }
         int getNumPrograms() override { return 1; }
         int getCurrentProgram() override { return 0; }
         void setCurrentProgram(int) override {}
@@ -817,4 +816,30 @@ TEST_CASE("RuntimeHost::tick delivers state and History notifications through di
     CHECK(host.context().evaluateScript("seen.join()").value().asString() == "undo true,preset Warm");
     CHECK(host.context().evaluateScript("String(state.enabled.get())").value().asString() == "false");
     CHECK(host.statistics().tick.modules > 0);
+}
+
+TEST_CASE("declarative audio negotiates complete bus layouts and reports metadata")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    CHECK(processor.getMainBusNumInputChannels() == 2);
+    CHECK(processor.getMainBusNumOutputChannels() == 2);
+    CHECK(processor.getBusCount(true) == 2);
+    CHECK(! processor.getBus(true, 1)->isEnabled());
+    auto layout = processor.getBusesLayout();
+    CHECK(processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(0, juce::AudioChannelSet::mono());
+    CHECK(! processor.isBusesLayoutSupported(layout));
+    layout.outputBuses.set(0, juce::AudioChannelSet::mono());
+    CHECK(processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(1, juce::AudioChannelSet::stereo());
+    CHECK(! processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(1, juce::AudioChannelSet::mono());
+    CHECK(processor.isBusesLayoutSupported(layout));
+    CHECK(processor.getLatencySamples() == 128);
+    processor.setTailLengthSeconds(2.5);
+    CHECK(processor.getTailLengthSeconds() == 2.5);
+    CHECK_THROWS(processor.setTailLengthSeconds(-1));
+    CHECK(processor.getBypassParameter() == processor.getParameters().getParameter("bypass"));
+    CHECK(processor.getParameterTree().getSubgroups(false)[0]->getName() == "Output");
 }

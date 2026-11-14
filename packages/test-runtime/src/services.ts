@@ -3,7 +3,10 @@ import type { StateSchema } from '@soundor/core/state';
 export type ParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
 /** A parameter's metadata, as `soundor:parameters` reports it in `info`. */
-export type ParameterInfo =
+export type ParameterInfo = {
+  readonly group?: string;
+  readonly role?: 'bypass';
+} & (
   | {
       readonly id: string;
       readonly label: string;
@@ -39,7 +42,8 @@ export type ParameterInfo =
         readonly label: string;
       }[];
       readonly default: string;
-    };
+    }
+);
 
 /**
  * A parameter's behavior as `@soundor/config` resolves it: expression trees

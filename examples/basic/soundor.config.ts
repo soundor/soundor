@@ -6,6 +6,19 @@ export default defineSoundorConfig({
   plugin: {
     id: 'dev.soundor.basic',
     name: 'Soundor Basic',
+    kind: 'effect',
+    categories: ['utility'],
+  },
+  audio: {
+    buses: {
+      input: { direction: 'input', name: 'Input' },
+      output: { direction: 'output', name: 'Output' },
+    },
+    layouts: {
+      mono: { input: 'mono', output: 'mono' },
+      stereo: { input: 'stereo', output: 'stereo' },
+    },
+    defaultLayout: 'stereo',
   },
   // Opens at 800×600; the user can resize it (between 480×400, where its
   // controls still fit, and 1600×1200), and the UI is laid out again at the

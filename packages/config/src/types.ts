@@ -11,6 +11,7 @@ import type { EnvironmentValues } from '@soundor/core';
 import type { StateDeclarations } from '@soundor/core';
 import type { NativeApiDeclaration } from '@soundor/core';
 
+import type { AudioConfig } from './audio';
 import type { EditorConfig, ResolvedEditorConfig } from './editor';
 import type {
   CheckedParameters,
@@ -43,7 +44,46 @@ export interface RuntimeConfig {
  * other Soundor plugin in the same host process — so never change it after
  * release.
  */
+export type PluginKind = 'effect' | 'instrument' | 'midiEffect';
+export type PluginCategory =
+  | 'eq'
+  | 'dynamics'
+  | 'delay'
+  | 'reverb'
+  | 'modulation'
+  | 'distortion'
+  | 'filter'
+  | 'utility'
+  | 'analyzer'
+  | 'synth'
+  | 'sampler'
+  | 'generator';
+
+/** Display metadata shared by the runtimes. */
+export interface PluginVendor {
+  /** Manufacturer display name. */
+  name: string;
+  /** Public website URL. */
+  website?: string;
+  /** Public support email address. */
+  supportEmail?: string;
+}
+
+/** A host-visible group of parameters. */
+export interface ParameterGroup {
+  /** Display name. The key is the stable group identity. */
+  label: string;
+}
+
 export interface PluginIdentity {
+  /** Host classification; capabilities are declared separately. Default effect. */
+  kind?: PluginKind;
+  /** Host browser categories; each runtime maps these to its format. */
+  categories?: readonly PluginCategory[];
+  /** Shared manufacturer metadata. */
+  vendor?: PluginVendor;
+  /** Copyright notice embedded in native builds. */
+  copyright?: string;
   /** Release version, shared by all formats. Defaults to 0.1.0. */
   version?: string;
   id: string;
@@ -100,6 +140,10 @@ export interface SoundorConfig<
   P extends ParameterDeclarations = ParameterDeclarations,
 > {
   plugin: PluginIdentity;
+  /** Audio buses, supported combinations and host processing metadata. */
+  audio?: AudioConfig;
+  /** Host-visible parameter groups, referenced by parameter.group. */
+  parameterGroups?: Record<string, ParameterGroup>;
   /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */
   env?: EnvironmentValues;
   /**
@@ -128,6 +172,10 @@ export interface SoundorConfig<
  */
 export interface ResolvedSoundorConfig {
   plugin: PluginIdentity;
+  /** Audio buses, supported combinations and host processing metadata. */
+  audio?: AudioConfig;
+  /** Host-visible parameter groups, referenced by parameter.group. */
+  parameterGroups?: Record<string, ParameterGroup>;
   /** Public build-time values for soundor:env. Never include secrets; omitted values are not inherited from process.env. */
   env?: EnvironmentValues;
   /**

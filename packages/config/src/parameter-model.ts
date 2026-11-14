@@ -90,13 +90,31 @@ export function resolveParameters(
       issues,
       unknownProperty,
     );
-    if (parameter !== undefined && issues.length === before)
+    if (parameter !== undefined && issues.length === before) {
+      const declarationRecord = declaration as Record<string, unknown>;
+      if (declarationRecord['group'] !== undefined) {
+        if (
+          typeof declarationRecord['group'] !== 'string' ||
+          !ID.test(declarationRecord['group'])
+        )
+          issues.push({
+            path: `${at}.group`,
+            message: 'expected a parameter group identifier',
+          });
+        else Object.assign(parameter, { group: declarationRecord['group'] });
+      }
+      if (declarationRecord['role'] !== undefined) {
+        if (declarationRecord['role'] !== 'bypass')
+          issues.push({ path: `${at}.role`, message: "expected 'bypass'" });
+        else Object.assign(parameter, { role: 'bypass' });
+      }
       resolved.push(parameter);
+    }
   }
   return resolved;
 }
 
-const COMMON = ['type', 'label', 'access'];
+const COMMON = ['type', 'label', 'access', 'group', 'role'];
 const NUMERIC = [
   ...COMMON,
   'min',

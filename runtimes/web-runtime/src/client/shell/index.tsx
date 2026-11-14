@@ -92,6 +92,9 @@ export interface ShellOptions {
    */
   readonly onGeometry?: (geometry: ViewGeometry) => void;
   readonly host: WebHost;
+  readonly parameterGroups?: Readonly<
+    Record<string, { readonly label: string }>
+  >;
   readonly parameters: ParameterStore;
   readonly audio: WebAudioHost;
 }
@@ -226,6 +229,7 @@ function Shell(options: ShellOptions & { readonly requests: EditorRequests }) {
         host={options.host}
         audio={options.audio}
         parameters={options.parameters}
+        parameterGroups={options.parameterGroups}
         inspect={options.presentation === 'dev'}
       />
     </>

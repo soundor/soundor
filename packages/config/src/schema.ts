@@ -5,6 +5,7 @@ import {
 } from '@soundor/core';
 import { z } from 'zod';
 
+import { audioSchema, checkAudio } from './audio';
 import { checkEditor, editorSchema, resolveEditor } from './editor';
 import { type ConfigIssue, ConfigError } from './errors';
 import { resolveParameters } from './parameter-model';
@@ -42,7 +43,35 @@ const runtimeSchema = z.object({
   }),
 });
 
+const text = z.string().trim().min(1);
 const pluginSchema = z.strictObject({
+  kind: z.enum(['effect', 'instrument', 'midiEffect']).optional(),
+  categories: z
+    .array(
+      z.enum([
+        'eq',
+        'dynamics',
+        'delay',
+        'reverb',
+        'modulation',
+        'distortion',
+        'filter',
+        'utility',
+        'analyzer',
+        'synth',
+        'sampler',
+        'generator',
+      ]),
+    )
+    .optional(),
+  vendor: z
+    .strictObject({
+      name: text,
+      website: z.url().optional(),
+      supportEmail: z.email().optional(),
+    })
+    .optional(),
+  copyright: text.optional(),
   version: z
     .string()
     .regex(/^\d+\.\d+\.\d+$(?![\s\S])/, 'expected a version such as 1.2.0')
@@ -78,6 +107,13 @@ const signingSchema = z.strictObject({
 
 const soundorConfigSchema = z.strictObject({
   plugin: pluginSchema,
+  audio: audioSchema.optional(),
+  parameterGroups: z
+    .record(
+      z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/),
+      z.strictObject({ label: text }),
+    )
+    .optional(),
   env: z
     .record(z.string(), z.union([z.string(), z.boolean(), z.number()]))
     .optional(),
@@ -149,6 +185,31 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
     unknownPropertyMessage,
   );
   if (data.editor !== undefined) checkEditor(data.editor, 'editor', issues);
+  if (data.audio) checkAudio(data.audio, issues);
+  let bypass: string | undefined;
+  for (const parameter of parameters) {
+    if (
+      parameter.group !== undefined &&
+      !Object.hasOwn(data.parameterGroups ?? {}, parameter.group)
+    )
+      issues.push({
+        path: `parameters.${parameter.id}.group`,
+        message: 'must name a declared parameter group',
+      });
+    if (parameter.role === 'bypass') {
+      if (bypass !== undefined)
+        issues.push({
+          path: `parameters.${parameter.id}.role`,
+          message: `bypass is already assigned to '${bypass}'`,
+        });
+      bypass = parameter.id;
+      if (parameter.type !== 'boolean' || parameter.access === 'readOnly')
+        issues.push({
+          path: `parameters.${parameter.id}.role`,
+          message: 'bypass must be a writable boolean parameter',
+        });
+    }
+  }
   const native = describeNativeApi(data.native as SoundorConfig['native']);
   if (!native.ok) issues.push(...native.issues);
   try {
@@ -194,10 +255,15 @@ function normalize(
 ): ResolvedSoundorConfig {
   return {
     plugin: {
+      ...structuredClone(data.plugin),
       id: data.plugin.id,
       name: data.plugin.name.trim(),
       version: data.plugin.version,
     },
+    ...(data.audio === undefined ? {} : { audio: structuredClone(data.audio) }),
+    ...(data.parameterGroups === undefined
+      ? {}
+      : { parameterGroups: structuredClone(data.parameterGroups) }),
     ...(data.env === undefined ? {} : { env: structuredClone(data.env) }),
     editor: { ...resolveEditor(data.editor) },
     runtimes: data.runtimes.map((runtime) => ({

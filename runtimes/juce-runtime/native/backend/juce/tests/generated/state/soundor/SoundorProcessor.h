@@ -41,9 +41,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
-        AudioProcessor() : AudioProcessor(BusesProperties()) {}
+        AudioProcessor() : AudioProcessor(configuredBuses()) {}
         explicit AudioProcessor(const BusesProperties& ioLayouts);
         ~AudioProcessor() override;
+
+
+        static BusesProperties configuredBuses();
+        bool isBusesLayoutSupported(const BusesLayout&) const override final;
+        double getTailLengthSeconds() const override final { return tailSeconds.load(std::memory_order_relaxed); }
+        // Control thread. Validate before publishing to host-facing readers.
+        void setTailLengthSeconds(double seconds);
+        juce::AudioProcessorParameter* getBypassParameter() const override { return parameters->getParameter("bypass"); }
+
 
         // The plugin's identity (soundor.config `plugin`).
         static constexpr const char* pluginId = "dev.soundor.state-test";
@@ -111,6 +120,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         backend::ParameterValue<choices::Mode> modeParameter; // "mode"
 
     private:
+        std::atomic<double> tailSeconds { 0 };
         struct Restoration { juce::ValueTree parameters; backend::StateStore::Values state; };
         std::mutex restorationMutex;
         std::deque<Restoration> restorations;

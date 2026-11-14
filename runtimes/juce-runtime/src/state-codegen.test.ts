@@ -9,9 +9,35 @@ import { resolveJuceOptions } from './options';
 const config = resolveConfig({
   plugin: { id: 'dev.soundor.state-test', name: 'State Test' },
   runtimes: [],
+  audio: {
+    buses: {
+      input: { direction: 'input', name: 'Input' },
+      output: { direction: 'output', name: 'Output' },
+      sidechain: { direction: 'input', name: 'Sidechain', optional: true },
+    },
+    layouts: {
+      mono: { input: 'mono', output: 'mono', sidechain: ['disabled', 'mono'] },
+      stereo: {
+        input: 'stereo',
+        output: 'stereo',
+        sidechain: ['disabled', 'mono', 'stereo'],
+      },
+    },
+    defaultLayout: 'stereo',
+    defaultBuses: { sidechain: 'disabled' },
+    latency: { mode: 'fixed', samples: 128 },
+    tail: { mode: 'dynamic' },
+  },
+  parameterGroups: { output: { label: 'Output' } },
   parameters: {
     gain: { type: 'float32', min: 0, max: 1, default: 0.5 },
-    bypass: { type: 'boolean', label: 'Bypass', default: false },
+    bypass: {
+      type: 'boolean',
+      label: 'Bypass',
+      default: false,
+      role: 'bypass',
+      group: 'output',
+    },
     mode: {
       type: 'choice',
       options: [

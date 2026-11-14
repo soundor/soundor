@@ -1,8 +1,8 @@
 {
   "plugin": {
+    "version": "0.1.0",
     "id": "com.example.fixture",
-    "name": "Fixture",
-    "version": "0.1.0"
+    "name": "Fixture"
   },
   "runtimeVersion": "0.0.0",
   "env": {
