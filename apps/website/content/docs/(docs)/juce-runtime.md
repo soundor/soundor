@@ -325,8 +325,11 @@ after.
   prepared leaves the outputs silent; preparing again starts a new one.
 - **Symbols.** On Linux the Rust library is linked into one object whose
   only global symbols are its ABI, so that its standard library meets no
-  other Rust code's (AccessKit's, or another plugin's). On Windows it links
-  the C runtime the plugin does (`windows.crt`).
+  other Rust code's (AccessKit's, or another plugin's). On Windows,
+  `llvm-objcopy` renames the processor's exception personality to avoid a
+  collision with AccessKit's Rust standard library. Install the Windows LLVM
+  tools in `Program Files/LLVM` or on `PATH`; `soundor doctor` checks for them.
+  Rust links the C runtime the plugin does (`windows.crt`).
 
 ### `soundor:native`
 

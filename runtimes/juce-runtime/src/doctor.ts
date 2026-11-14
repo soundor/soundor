@@ -93,6 +93,9 @@ export async function buildDoctorReport(
     checks: [
       checkCMake(probe),
       checkCompiler(probe, deps.platform ?? process.platform),
+      ...((deps.platform ?? process.platform) === 'win32'
+        ? [checkLlvmObjcopy(probe, env)]
+        : []),
       checkNativeBuildTools(probe),
       await checkJuce(fs, options, env),
       checkEngine(
@@ -307,6 +310,30 @@ export function findCppCompiler(
     if (probe(compiler, ['--version']).ok) return compiler;
   }
   return undefined;
+}
+
+function checkLlvmObjcopy(
+  probe: CommandProbe,
+  env: NodeJS.ProcessEnv,
+): DoctorCheck {
+  const candidates = ['llvm-objcopy'];
+  if (env.ProgramFiles)
+    candidates.push(`${env.ProgramFiles}/LLVM/bin/llvm-objcopy.exe`);
+  for (const command of candidates) {
+    if (probe(command, ['--version']).ok)
+      return {
+        label: 'Rust symbol isolation',
+        status: 'ok',
+        detail: `${command} isolates the Rust processor from other Rust libraries.`,
+      };
+  }
+  return {
+    label: 'Rust symbol isolation',
+    status: 'fail',
+    detail: 'llvm-objcopy was not found.',
+    suggestion:
+      'Install the Windows LLVM tools, in Program Files/LLVM or on PATH.',
+  };
 }
 
 function checkCompiler(
