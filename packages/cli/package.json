@@ -12,7 +12,10 @@
   },
   "files": [
     "README.md",
-    "dist"
+    "dist",
+    "rust/soundor/Cargo.toml",
+    "rust/soundor/src",
+    "!rust/soundor/src/plugin.rs"
   ],
   "type": "module",
   "scripts": {
@@ -21,7 +24,8 @@
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:devtools-consumer": "node scripts/devtools-consumer-smoke.mjs",
-    "test:runtime-consumer": "node scripts/runtime-consumer-smoke.mjs"
+    "test:runtime-consumer": "node scripts/runtime-consumer-smoke.mjs",
+    "test:rust": "cargo test --manifest-path rust/soundor/Cargo.toml"
   },
   "dependencies": {
     "@clack/prompts": "catalog:",

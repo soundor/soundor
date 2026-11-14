@@ -174,6 +174,13 @@ jobs:
       - name: Run test
         run: pnpm turbo run test --filter=!./examples/* --filter=!@soundor/react-tests
 
+      # The Rust SDK the CLI ships: its lifecycle and C ABI tests, its lints.
+      - name: Rust SDK tests
+        run: |
+          cargo fmt --check --manifest-path packages/cli/rust/soundor/Cargo.toml &&
+          cargo clippy --all-targets --manifest-path packages/cli/rust/soundor/Cargo.toml -- -D warnings &&
+          pnpm --filter soundor test:rust
+
       # The engine's Yoga is released on its own: the web runtime's must follow.
       # Release checks this too, as it does not wait for this workflow.
       - name: The web runtime's Yoga is the engine's
@@ -182,7 +189,7 @@ jobs:
       - name: Example application tests, types and web builds
         run: |
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer test &&
-          pnpm --filter orbit test:native &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer test:rust &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer typecheck &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer build:web
 

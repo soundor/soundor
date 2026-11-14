@@ -378,18 +378,41 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('captures the transport in processBlock and hands DSP to process()', () => {
-    const header = fileMap(config).get('soundor/SoundorProcessor.h')!;
+  it('runs the Rust processor in processBlock, which nothing overrides', () => {
+    const files = fileMap(config);
+    const header = files.get('soundor/SoundorProcessor.h')!;
+    const source = files.get('soundor/SoundorProcessor.cpp')!;
+    expect(header).not.toContain('virtual void process(');
     expect(header).toContain(
-      'virtual void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) = 0;',
+      'void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final;',
     );
     expect(header).toContain(
-      'void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final',
+      'void prepareToPlay(double sampleRate, int samplesPerBlock) override final;',
     );
-    expect(header).toContain('transport.capture(getPlayHead());');
+    expect(header).toContain('void reset() override final;');
+    // The contract the Rust build must match: parameters, read-only ones, channels.
+    expect(header).toContain(
+      `backend::RustProcessor rust { backend::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0 } };`,
+    );
+    expect(source).toContain('transport.capture(playHead);');
+    expect(source).toContain(
+      'rust.process(buffer, parameterValues, publishedValues, backend::RustProcessor::transportOf(playHead), nullptr);',
+    );
+    expect(source).toContain(
+      'rust.prepare(sampleRate, samplesPerBlock, backend::RustBusLayout::of(*this), parameterValues);',
+    );
     expect(header).toContain(
       'static constexpr const char* pluginId = "com.acme.synth";',
     );
+  });
+
+  it('links the Rust library soundor dev and soundor build compile', () => {
+    const cmake = fileMap(config).get('setup.cmake')!;
+    expect(cmake).toContain('/SoundorRust.cmake")');
+    expect(cmake).toContain(
+      'soundor_link_rust_processor(${PROJECT_NAME} "${SOUNDOR_RUST_LIBRARY}")',
+    );
+    expect(cmake).toMatch(/backend\/RustProcessor\.cpp"/);
   });
 
   it('keeps native paint callbacks from advancing the runtime frame', () => {

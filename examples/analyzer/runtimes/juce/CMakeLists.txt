@@ -11,6 +11,3 @@ target_sources(${PROJECT_NAME}
     PRIVATE
         PluginEditor.cpp
         PluginProcessor.cpp)
-
-# The analyzer's FFT and window.
-target_link_libraries(${PROJECT_NAME} PRIVATE juce::juce_dsp)

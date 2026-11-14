@@ -284,25 +284,49 @@ a `readOnly` one is a meter (JUCE's output-meter category), not automatable
 either. A value the UI sets is stored exactly; one from the host's
 automation arrives as a normalized 32-bit float and is mapped and snapped.
 
-The generated base processor has a typed handle for each parameter, named
-after its id (`gainParameter`). `load()` reads it on any thread, realtime-safe,
-as the parameter's C++ type: `float`, `std::int32_t` and the other integer
-types, `bool`, or a choice's enum, in `namespace choices`, its enumerators in
-the options' order:
+The audio processing is the project's Rust crate, `native/`: the generated
+base processor implements `prepareToPlay()`, `reset()` and `processBlock()`
+(all `final`) and calls it through its C ABI, giving each block every
+parameter's value, typed as the config declares it (`ctx.params.gain`), and
+the host's transport. A read-only parameter the processing publishes
+(`ctx.publish.reduction(value)`) reaches the host and the UI from the message
+thread, about 30 times a second. See [the processing](#the-audio-processing).
 
-```cpp
-void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
-{
-    buffer.applyGain(juce::Decibels::decibelsToGain(gainParameter.load()));
-    if (modeParameter.load() == choices::Mode::warm)
-        saturate(buffer);
-    // A read-only parameter: lock-free, no allocation.
-    reductionParameter.publish(currentReduction);
-}
-```
+The base processor also has a typed handle for each parameter, named after
+its id (`gainParameter`), for C++ outside the processing (a native API):
+`load()` reads it on any thread, realtime-safe, as the parameter's C++ type:
+`float`, `std::int32_t` and the other integer types, `bool`, or a choice's
+enum, in `namespace choices`, its enumerators in the options' order.
 
-`publish()` stores the value; the message thread hands what was published to
-the host and the UI about 30 times a second.
+### The audio processing
+
+`soundor dev` and `soundor build` compile `native/` with Cargo (`cargo rustc
+--crate-type staticlib`, in `.soundor/cache/native`, a debug or release
+build as the plugin's) before CMake, and pass the library to `setup.cmake`,
+which links it. A change to `native/` during `soundor dev` builds it again,
+and the plugin, with the VST3 host's plugin closed meanwhile and reopened
+after.
+
+- **The ABI.** `soundor::export!(Processor)` defines
+  `soundor_processor_{info,create,prepare,process,reset,destroy}`;
+  `RustProcessor.h` calls them. Every structure carries its size and the ABI
+  version, the processor is an opaque handle, the C++ side owns every buffer
+  for the length of a call, and a Rust panic is caught at the boundary and
+  becomes a status. The generated processor checks that the Rust build
+  matches its config (the counts of parameters, read-only parameters and
+  channels): a stale one is refused and stays silent.
+- **In place, without copies.** JUCE's buffer is passed as it is: the main
+  output's channels hold the main input's on entry. Only an input that
+  shares its buffer channel with another output (a sidechain beside an aux
+  output) is copied out first, into storage made in `prepareToPlay()`.
+- **Block sizes.** A host may pass more frames than it prepared for; the
+  processor gets them in blocks no longer than it was prepared with.
+- **Failure.** A panic, an invalid block or a processor that was never
+  prepared leaves the outputs silent; preparing again starts a new one.
+- **Symbols.** On Linux the Rust library is linked into one object whose
+  only global symbols are its ABI, so that its standard library meets no
+  other Rust code's (AccessKit's, or another plugin's). On Windows it links
+  the C runtime the plugin does (`windows.crt`).
 
 ### `soundor:native`
 
@@ -345,16 +369,14 @@ publish (it allocates): hand what it has to another thread first.
 Channels declared under `native.channels` are the processor's
 `nativeChannels` (a `soundor::native::Channels`, one member per channel: a
 `js::ValueChannel<T>` for a number, a `js::BufferChannel<T>` for a buffer),
-which the audio callback can publish to:
+which the Rust processing publishes to from the audio thread:
 
-```cpp
-void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override
-{
+```rust
+fn process(&mut self, ctx: &mut ProcessContext) {
     // ...
-    nativeChannels.peak.publish(peakDecibels);
-    const std::span<float> bins = nativeChannels.spectrum.buffer();
-    computeSpectrum(bins);
-    nativeChannels.spectrum.commit(bins.size());
+    ctx.channels.peak.publish(peak_decibels);
+    compute_spectrum(ctx.channels.spectrum.buffer_mut());
+    ctx.channels.spectrum.commit(BANDS);
 }
 ```
 
@@ -382,8 +404,8 @@ Each runtime has Soundor's Web-compatible globals (`console`, timers, `URL`,
   `JUCE_USE_CURL=0`, which supports plain `http` only; `https` there needs
   libcurl enabled in JUCE.
 - **The transport** for `soundor:host`. The generated base processor captures
-  the play head in `processBlock()`, so your processor implements `process()`
-  instead, with the same signature.
+  the play head in `processBlock()`, and gives the Rust processing the same
+  transport (`ctx.transport`).
 - **The data directory** `<user application data>/Soundor/<plugin.id>` for
   storage and files.
 - **Pointer lock** (`requestPointerLock()`): the pointer is hidden and kept

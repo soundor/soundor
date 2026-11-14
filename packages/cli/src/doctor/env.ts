@@ -1,12 +1,12 @@
 /**
  * Environment probes for `soundor doctor`. These run standalone (no project
  * required) and answer "does this machine have the baseline toolchain the CLI
- * needs?" — currently Node and a package manager. Runtime-specific toolchains
+ * needs?" — Node, a package manager and Rust. Runtime-specific toolchains
  * (e.g. CMake/JUCE) are diagnosed by each runtime's own `doctor` hook, not here.
  */
 
 import type { DoctorCheck } from '@soundor/config';
-import { probeCommand } from '@soundor/core';
+import { probeCommand, type CommandProbe } from '@soundor/core';
 
 /** Lowest Node major the CLI supports (mirrors `package.json` engines `>=22`). */
 export const REQUIRED_NODE_MAJOR = 22;
@@ -19,9 +19,58 @@ export const REQUIRED_NODE_MAJOR = 22;
 const PACKAGE_MANAGERS = ['pnpm', 'npm'] as const;
 type PackageManager = (typeof PACKAGE_MANAGERS)[number];
 
+/**
+ * The oldest Rust the SDK compiles with (its Cargo.toml's `rust-version`).
+ * A project's rust-toolchain.toml asks for stable, newer than this.
+ */
+export const REQUIRED_RUST = [1, 87] as const;
+
 /** Runs the CLI-owned environment checks. Pure/synchronous, no side effects. */
-export function runEnvironmentChecks(): DoctorCheck[] {
-  return [checkNodeVersion(), checkPackageManager()];
+export function runEnvironmentChecks(
+  probe: CommandProbe = probeCommand,
+): DoctorCheck[] {
+  return [checkNodeVersion(), checkPackageManager(), checkRust(probe)];
+}
+
+/**
+ * Rust, which compiles every plugin's audio processing (`native/`): Cargo
+ * and a rustc at least {@link REQUIRED_RUST}. Never installs anything.
+ */
+export function checkRust(probe: CommandProbe = probeCommand): DoctorCheck {
+  const required = REQUIRED_RUST.join('.');
+  const cargo = probe('cargo', ['--version']);
+  const rustc = probe('rustc', ['--version']);
+  if (!cargo.ok || !rustc.ok)
+    return {
+      label: 'Rust',
+      status: 'fail',
+      detail: `${cargo.ok ? 'rustc' : 'Cargo'} was not found; it compiles the plugin's audio processing (native/).`,
+      suggestion: `Install Rust ${required} or newer with rustup (https://rustup.rs).`,
+    };
+  const match = /rustc (\d+)\.(\d+)\.(\d+)/.exec(rustc.version ?? '');
+  if (match === null)
+    return {
+      label: 'Rust',
+      status: 'warn',
+      detail: `Could not read the version of rustc ('${rustc.version ?? ''}').`,
+      suggestion: `Make sure rustc ${required} or newer is on PATH.`,
+    };
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  if (
+    major < REQUIRED_RUST[0] ||
+    (major === REQUIRED_RUST[0] && minor < REQUIRED_RUST[1])
+  )
+    return {
+      label: 'Rust',
+      status: 'fail',
+      detail: `rustc ${match[0].slice(6)} is older than ${required}.`,
+      suggestion: 'Update it: rustup update stable.',
+    };
+  return {
+    label: 'Rust',
+    status: 'ok',
+    detail: `${rustc.version}; ${cargo.version}.`,
+  };
 }
 
 function checkNodeVersion(): DoctorCheck {

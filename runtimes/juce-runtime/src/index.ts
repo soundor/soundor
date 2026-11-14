@@ -210,8 +210,15 @@ export async function juceDev(
         );
   if (live === undefined && ui !== undefined)
     await writeNativeUi(ui, uiDir, 'development');
+  let stopWatchingNative: (() => void) | undefined;
   try {
     await watcher?.ready;
+    const rustLibrary = await buildRust(
+      ctx,
+      platform,
+      options.windowsCrt,
+      'debug',
+    );
     await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
     const configureArgs = [
@@ -231,6 +238,7 @@ export async function juceDev(
       `-DSOUNDOR_UI_DIR=${live === undefined && ui !== undefined ? uiDir : ''}`,
       `-DSOUNDOR_UI_DEV_DIR=${live === undefined ? '' : uiDir}`,
       `-DSOUNDOR_UI_DEV_LOG=${live?.logFile ?? ''}`,
+      `-DSOUNDOR_RUST_LIBRARY=${cmakePath(rustLibrary)}`,
       // Debug builds are signed ad-hoc: no timestamp server, and a debugger can
       // attach without the hardened runtime in the way.
       ...signingArgs(platform, { identity: '-', source: 'default' }),
@@ -246,13 +254,15 @@ export async function juceDev(
       logger: ctx.logger,
       signal: ctx.signal,
     });
-    await run({
-      cmd: 'cmake',
-      args: ['--build', buildDir, '--config', 'Debug', '--parallel'],
-      cwd: projectDir,
-      logger: ctx.logger,
-      signal: ctx.signal,
-    });
+    const compile = () =>
+      run({
+        cmd: 'cmake',
+        args: ['--build', buildDir, '--config', 'Debug', '--parallel'],
+        cwd: projectDir,
+        logger: ctx.logger,
+        signal: ctx.signal,
+      });
+    await compile();
 
     const rows: DevSummaryRow[] = [
       {
@@ -319,6 +329,32 @@ export async function juceDev(
     }
     if (devLaunch === 'vst3') await devHost?.launch();
 
+    // The audio processing changed: Cargo, then the plugin's link, with the
+    // VST3 host's plugin closed meanwhile and opened again after.
+    let rebuilding = Promise.resolve();
+    stopWatchingNative = ctx.native?.onChange?.(() => {
+      rebuilding = rebuilding.then(async () => {
+        ctx.logger.info('The native crate changed; rebuilding the plugin');
+        const rebuild = async () => {
+          await buildRust(ctx, platform, options.windowsCrt, 'debug');
+          await compile();
+        };
+        try {
+          if (devHost === undefined) await rebuild();
+          else await devHost.rebuild(rebuild);
+          ctx.logger.info(
+            'Rebuilt the plugin with the changed audio processing.',
+          );
+          ctx.session?.ready(rows);
+        } catch (error) {
+          if (!ctx.signal.aborted)
+            ctx.logger.error(
+              `The plugin could not be rebuilt; fix the error and save again.\n${error instanceof Error ? error.message : String(error)}`,
+            );
+        }
+      });
+    });
+
     ctx.logger.info(
       live === undefined
         ? 'Debug build ready.'
@@ -327,9 +363,39 @@ export async function juceDev(
     ctx.session?.ready(rows);
     await waitForAbort(ctx.signal);
   } finally {
+    stopWatchingNative?.();
     await devHost?.close();
     watcher?.close();
   }
+}
+
+/**
+ * Compiles the project's Rust crate (native/), the plugin's audio
+ * processing, into the static library the plugin links.
+ */
+async function buildRust(
+  ctx: Ctx,
+  platform: NodeJS.Platform,
+  crt: WindowsCrt,
+  profile: 'debug' | 'release',
+): Promise<string> {
+  if (ctx.native === undefined)
+    throw new EnvError(
+      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor init` to create it.",
+    );
+  ctx.logger.info('Compiling the audio processing (native/) with Cargo');
+  const library = await ctx.native.build({
+    crateType: 'staticlib',
+    profile,
+    // As the plugin's C runtime: /MT is static.
+    staticCrt: platform === 'win32' && crt === 'MT',
+  });
+  return library.path;
+}
+
+/** A path as CMake reads it on the command line, with forward slashes. */
+function cmakePath(path: string): string {
+  return path.replaceAll('\\', '/');
 }
 
 /**
@@ -360,6 +426,12 @@ export async function juceBuild(
     if (debug) await rm(uiDir, { recursive: true, force: true });
     await writeNativeUi(ctx.ui, uiDir, debug ? 'development' : 'production');
   }
+  const rustLibrary = await buildRust(
+    ctx,
+    platform,
+    options.windowsCrt,
+    debug ? 'debug' : 'release',
+  );
   await prepareBuildDir(buildDir, platform, jucePath, ctx.logger);
 
   const signing = debug
@@ -379,6 +451,7 @@ export async function juceBuild(
     `-DJUCE_DIR=${jucePath}`,
     `-DSOUNDOR_NODE_EXE=${process.execPath}`,
     `-DSOUNDOR_UI_DIR=${ctx.ui === undefined ? '' : uiDir}`,
+    `-DSOUNDOR_RUST_LIBRARY=${cmakePath(rustLibrary)}`,
     ...signingArgs(platform, signing),
     ...deploymentTargetArgs(platform, options.macosDeploymentTarget),
     ...crtArgs(platform, options.windowsCrt, debug),

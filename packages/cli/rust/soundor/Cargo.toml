@@ -1,0 +1,21 @@
+# Soundor's Rust SDK: the audio processor API, its runtime-independent
+# lifecycle, and the internal ABI the runtimes call. It ships inside the
+# `soundor` npm package; `soundor gen` copies it into a project's
+# .soundor/generated/rust/soundor, with src/plugin.rs generated from the
+# project's soundor.config.ts. It is never published to crates.io.
+[package]
+name = "soundor"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.87"
+license = "MIT"
+description = "Audio processing for Soundor plugins"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+
+# Its own root: a project's crate depends on it by path, never as a member.
+[workspace]

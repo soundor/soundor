@@ -122,6 +122,20 @@ export default defineSoundorConfig({
   );
   run(soundor, ['gen', '--check']);
 
+  // The Rust SDK comes in the packed CLI, its sources and not its fixture
+  // contract, and Cargo builds and tests a scaffolded crate against it.
+  const sdk = resolve(temporary, 'node_modules/soundor/rust/soundor');
+  assert.ok(existsSync(resolve(sdk, 'Cargo.toml')));
+  assert.ok(existsSync(resolve(sdk, 'src/lib.rs')));
+  assert.ok(!existsSync(resolve(sdk, 'src/plugin.rs')));
+  run(soundor, ['init']);
+  assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
+  assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
+  assert.match(
+    run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']),
+    /test result: ok\. 1 passed/,
+  );
+
   // The SDK is a regular dependency; the CLI is the runtime's host peer.
   for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
     const manifest = JSON.parse(
@@ -182,7 +196,7 @@ export default defineSoundorConfig({
   assert.match(refused, /99\.0\.0/);
 
   console.log(
-    'Packed runtimes: strict pnpm install, gen with both runtimes, and an incompatible host peer refused by pnpm.',
+    'Packed runtimes: strict pnpm install, gen with both runtimes, the Rust SDK from the packed CLI tested with Cargo, and an incompatible host peer refused by pnpm.',
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

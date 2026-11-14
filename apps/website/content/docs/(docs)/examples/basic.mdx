@@ -23,15 +23,34 @@ src/App.tsx         the plugin UI (@soundor/react): a fader, the host's
                     stacked when the editor is narrow
 src/ResizeGrip.tsx  a resize grip of its own, in the view's corner
 
-runtimes/juce/      JUCE (C++): applies `gain` in PluginProcessor.cpp
+native/             the audio processing, in Rust: applies `gain`
+                    (src/lib.rs), with its tests (tests/)
+runtimes/juce/      JUCE: the plugin, which runs native/
 runtimes/web/       Web (TypeScript): applies `gain` with a GainNode in
                     src/audio.ts
 ```
 
-The UI is the same in both. Only the audio code is written per runtime, in
-each runtime's own language: about ten lines of C++ in
-`runtimes/juce/PluginProcessor.cpp`, and about ten of TypeScript in
-`runtimes/web/src/audio.ts`:
+The UI is the same in both. The JUCE plugin runs the Rust processing in
+`native/src/lib.rs`, a gain ramped from block to block:
+
+```rust
+fn process(&mut self, ctx: &mut ProcessContext) {
+    let target = ctx.params.gain;
+    let frames = ctx.audio.frames();
+    let step = if frames == 0 { 0.0 } else { (target - self.gain) / frames as f32 };
+    for channel in ctx.audio.channels() {
+        let mut gain = self.gain;
+        for sample in channel {
+            *sample *= gain;
+            gain += step;
+        }
+    }
+    self.gain = target;
+}
+```
+
+`cargo test --manifest-path native/Cargo.toml` (or `pnpm test:rust`) tests it
+in plain Rust. The Web host applies the gain in `runtimes/web/src/audio.ts`:
 
 ```ts
 export const setupAudio: WebAudioSetup = ({ context, input, output }) => {

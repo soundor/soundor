@@ -265,28 +265,28 @@ DAW to record the interaction as automation.
 
 ## Connect parameters to audio
 
-In a JUCE plugin the generated base processor holds one typed handle per
-parameter, named after its id:
+The plugin's audio processing is Rust, in the project's `native/` crate. It
+gets every parameter's value for each block, typed as the config declares it,
+in `ctx.params`, a struct `soundor gen` writes from the config:
 
-```cpp
-// float32 → float, uint8 → std::uint8_t, boolean → bool,
-// choice → an enum in namespace choices, in the options' order.
-const float gain = gainParameter.load();
-if (modeParameter.load() == choices::Mode::warm)
-    saturate(buffer);
+```rust
+// float32 → f32, uint8 → u8, boolean → bool,
+// choice → an enum in soundor::choices, in the options' order.
+let gain = ctx.params.gain;
+if ctx.params.mode == choices::Mode::Warm {
+    saturate(ctx.audio.channels());
+}
 
-// A read-only parameter: publish it from the processing.
-reductionParameter.publish(-3.5f);
+// A read-only parameter: the processing publishes it.
+ctx.publish.reduction(-3.5);
 ```
 
-`load()` is realtime-safe on any thread. `publish()` stores the value without
-locks or allocation; the message thread hands what was published to the host
-and the UI about 30 times a second. Host automation, preset restoration and
-UI changes all share the processor's state, and the host's text for a value
-comes from the parameter's compiled `format`, with or without the editor.
-JavaScript does not process audio or run on the audio thread. The
-[basic example](/docs/examples/basic) shows the C++ gain implementation
-alongside its browser implementation.
+A published value reaches the host and the UI after the block, about 30 times
+a second, without locks or allocation on the audio thread. Host automation,
+preset restoration and UI changes all share the processor's state, and the
+host's text for a value comes from the parameter's compiled `format`, with or
+without the editor. JavaScript does not process audio or run on the audio
+thread. The [basic example](/docs/examples/basic) shows the Rust gain.
 
 In the browser the UI, audio setup, and host controls share one parameter
 store. Subscribe from `runtimes/web/src/audio.ts` to update a Web Audio node,

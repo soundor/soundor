@@ -5,6 +5,7 @@
 #include <soundor/Abi.h>
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
+#include <soundor/backend/RustProcessor.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -37,8 +38,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         };
     } // namespace choices
 
-    // Base processor: owns the parameter tree generated from soundor.config.
-    // Derive your plugin's processor from this and implement the DSP.
+    // Base processor: owns the parameter tree generated from soundor.config,
+    // and runs the plugin's audio processing, its Rust crate (native/).
+    // Derive your plugin's processor from this for what is not processing:
+    // its editor, its native API.
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
@@ -75,17 +78,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         void getStateInformation(juce::MemoryBlock& destData) override final;
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
-        // Implement your DSP here. Called on the audio thread for every block,
-        // like juce::AudioProcessor::processBlock (which Soundor implements to
-        // capture the host's transport for soundor:host first).
-        virtual void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) = 0;
-
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final
-        {
-            transport.capture(getPlayHead());
-            process(buffer, midi);
-        }
+        // The audio processing is the plugin's Rust crate (native/), which
+        // these call through its C ABI (RustProcessor.h): prepare it when the
+        // host does, give each block the parameters' values and the host's
+        // transport, and publish what it publishes.
+        void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
+        void releaseResources() override {}
+        void reset() override final;
+        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final;
         using juce::AudioProcessor::processBlock;
+
+        // The Rust processor: whether it runs (valid()), and why not (error()).
+        const backend::RustProcessor& rustProcessor() const noexcept { return rust; }
 
         // Overrides must call this base implementation to keep soundor:host informed.
         void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
@@ -108,25 +112,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 
         // The config's native events (`events` of soundor:native): publish
-        // them from any thread but the audio callback (process()), and every
-        // open editor receives them on its UI thread.
+        // them from any thread but the audio callback, and every open editor
+        // receives them on its UI thread.
         native::Events nativeEvents;
 
-        // The config's native channels (`channels` of soundor:native):
-        // publish their latest values from any one thread, the audio callback
-        // (process()) included, and every open editor reads the newest.
+        // The config's native channels (`channels` of soundor:native): the
+        // Rust processing publishes their latest values (`ctx.channels`),
+        // and every open editor reads the newest.
         native::Channels nativeChannels;
 
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}
-        // Persistent control-thread data; never call get/set from process().
+        // Persistent control-thread data; never call get/set on the audio thread.
         // Control-thread History is shared by C++ and every editor context.
         history::StateHistory history;
         PersistentState state { &history };
 
-        // The parameters, typed as declared, for the processing: load() reads
-        // one on any thread (realtime-safe); a read-only one's publish() sets it.
+        // The parameters, typed as declared: load() reads one on any thread
+        // (realtime-safe). The Rust processing gets every value each block,
+        // and sets the read-only ones.
         backend::ParameterValue<float> gainParameter; // "gain"
         backend::ParameterValue<bool> bypassParameter; // "bypass"
         backend::ParameterValue<choices::Mode> modeParameter; // "mode"
@@ -145,6 +150,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
+        // What the Rust processing gets and gives each block, allocated once.
+        backend::RustProcessor rust { backend::RustContract { 3, 0, 1 } };
+        std::vector<backend::JuceParameter*> processingParameters;
+        std::vector<backend::JuceParameter*> publishedParameters;
+        std::vector<double> parameterValues;
+        std::vector<double> publishedValues;
+        SoundorChannelSink channelSink {};
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };

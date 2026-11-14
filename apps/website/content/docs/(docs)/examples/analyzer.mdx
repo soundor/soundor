@@ -21,8 +21,9 @@ src/App.tsx         the plugin UI: draws each spectrum into a Canvas,
                     shows the peak with useSyncExternalStore
 src/spectrum.ts     decibels to bar heights, bars that fall slowly
 
-runtimes/juce/      JUCE (C++): an FFT on the audio thread, written
-                    straight into the channel in PluginProcessor.cpp
+native/             the analysis, in Rust: an FFT on the audio thread,
+                    written straight into the channel (src/lib.rs)
+runtimes/juce/      JUCE: the plugin, which runs native/
 runtimes/web/       Web (TypeScript): an AnalyserNode read every animation
                     frame in src/audio.ts
 ```
@@ -40,17 +41,16 @@ native: {
 
 ## The audio thread publishes
 
-`PluginProcessor.cpp` keeps the last 2048 samples, and every 1024 it windows
-them, runs an FFT (`juce::dsp::FFT`) and sums the bins into 128 bands, written
-into the channel's own storage and then published whole:
+`native/src/lib.rs` keeps the last 2048 samples, and every 1024 it windows
+them, runs an FFT (`native/src/fft.rs`, its tables made in `prepare`) and
+takes the loudest bin of each of 128 bands, written into the channel's own
+storage and then published whole:
 
-```cpp
-const std::span<float> spectrum = nativeChannels.spectrum.buffer();
-for (int band = 0; band < bands; ++band)
-    spectrum[band] = /* the band's level, in dB */;
-nativeChannels.spectrum.commit(bands);
+```rust
+self.analyze(ctx.channels.spectrum.buffer_mut()); // the bands' levels, in dB
+ctx.channels.spectrum.commit(BANDS);
 // ...
-nativeChannels.peak.publish(decibels(peak));
+ctx.channels.peak.publish(decibels(peak));
 ```
 
 Both calls run on the audio thread: they take no lock, never allocate and

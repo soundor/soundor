@@ -11,9 +11,10 @@
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
     "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
+    "test:watch": "vitest watch",
+    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",
