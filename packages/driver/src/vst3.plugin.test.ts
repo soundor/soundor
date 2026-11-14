@@ -43,6 +43,9 @@ describe.runIf(path)('the test plugin in the VST3 host', () => {
     const { id } = (await plugin.host.getParameters())[0]!;
     await plugin.host.setParameter(id, 0.25);
     await plugin.driver.getByText('Gain: 0.25').waitFor();
+    expect(await plugin.driver.getByText('Gain: 0.25').getNode()).toMatchObject(
+      { text: 'Gain: 0.25' },
+    );
   }, 30_000);
 
   it('captures the view at the editor size', async () => {

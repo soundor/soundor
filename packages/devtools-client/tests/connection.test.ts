@@ -68,11 +68,14 @@ it('cleans subscriptions and its highlight when switching targets', async () => 
     .dispatchEvent(new browser.win.Event('change', { bubbles: true }));
   await until(() => browser.text('details').includes('Select a node'));
   await until(() => native.highlights.length === 0);
-  await until(() =>
-    native.commands.some(
-      (command) => command.type === 'subscribe' && command.events.length === 0,
-    ),
-  );
+  await expect
+    .poll(() =>
+      native.commands.some(
+        (command) =>
+          command.type === 'subscribe' && command.events.length === 0,
+      ),
+    )
+    .toBe(true);
 });
 it('clears misleading data when a target disconnects', async () => {
   const { page: browser, native } = await setup();

@@ -83,22 +83,19 @@ function NodeStyleStage({ scenario, register }: StageProps) {
     });
   }, [register, layout]);
 
-  const cells = [];
-  for (let i = 0; i < NODES; i++) {
-    cells.push(
-      <View
-        key={i}
-        ref={(node) => {
-          if (node) nodes.current[i] = node;
-        }}
-        style={{
-          width: CELL,
-          height: CELL,
-          backgroundColor: PALETTE[i % PALETTE.length],
-        }}
-      />,
-    );
-  }
+  const cells = Array.from({ length: NODES }, (_, i) => (
+    <View
+      key={i}
+      ref={(node) => {
+        if (node) nodes.current[i] = node;
+      }}
+      style={{
+        width: CELL,
+        height: CELL,
+        backgroundColor: PALETTE[i % PALETTE.length],
+      }}
+    />
+  ));
   return <View style={grid}>{cells}</View>;
 }
 

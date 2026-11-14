@@ -67,12 +67,13 @@ let prior: ReturnType<typeof createTextInput>;
 test('retains a node only to verify stale-node rejection', () => {
   prior = createTextInput();
   root.appendChild(prior);
+  expect(root.children).toContain(prior);
 });
 test('rejects a previous test node even with negation', () => {
   expect(() => expect(prior).not.toHaveFocus()).toThrow('another runtime');
 });
 test('parameter setup uses the existing clamping and subscription behavior', () => {
-  const changed = vi.fn();
+  const changed = vi.fn<(...args: unknown[]) => void>();
   parameters.gain.subscribe(changed);
   testParameters.set('gain', 2);
   expect(parameters.gain.get()).toBe(1);
@@ -93,7 +94,7 @@ test('parameter setup uses the existing clamping and subscription behavior', () 
 test('host setup preserves the snapshot and transport contract and notifies subscribers', () => {
   expect(Object.isFrozen(plugin)).toBe(true);
   expect(Object.isFrozen(environment)).toBe(true);
-  const changed = vi.fn(),
+  const changed = vi.fn<(...args: unknown[]) => void>(),
     initial = snapshot();
   subscribe(changed);
   const transport = {
@@ -112,8 +113,8 @@ test('host setup preserves the snapshot and transport contract and notifies subs
   expect(changed).toHaveBeenCalledExactlyOnceWith(snapshot());
 });
 test('native mocks accept sync and async vi.fn functions and propagate exceptions', async () => {
-  const load = vi.fn(async () => 'Warm'),
-    sync = vi.fn(() => 42);
+  const load = vi.fn<() => Promise<string>>(async () => 'Warm'),
+    sync = vi.fn<() => number>(() => 42);
   mockNative('loadPreset', load);
   mockNative('probe', sync);
   expect(await loadPreset()).toBe('Warm');
@@ -161,7 +162,7 @@ test('parameter setup preserves boolean, enum, and integer constraints', () => {
   expect(() => testParameters.set('voices', '4')).toThrow('expects a number');
 });
 test('emitNative publishes a declared native event to its subscribers', () => {
-  const loaded = vi.fn();
+  const loaded = vi.fn<(...args: unknown[]) => void>();
   const stop = events.presetLoaded.subscribe(loaded);
   emitNative('presetLoaded', { path: 'a.json' });
   expect(loaded).toHaveBeenCalledExactlyOnceWith({ path: 'a.json' });
@@ -174,7 +175,7 @@ test('emitNative publishes a declared native event to its subscribers', () => {
 });
 test('publishChannel sets a declared native channel and notifies its subscribers', () => {
   expect(channels.level.get()).toBeUndefined();
-  const seen = vi.fn();
+  const seen = vi.fn<(...args: unknown[]) => void>();
   const stop = channels.level.subscribe(seen);
   publishChannel('level', 0.5);
   publishChannel('level', 0.75);

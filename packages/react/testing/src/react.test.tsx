@@ -121,7 +121,7 @@ describe('rendering', () => {
 
   it('refuses strings outside <Text> and views inside it', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const reported = vi.fn();
+    const reported = vi.fn<(error: unknown) => void>();
     vi.stubGlobal('reportError', reported);
     const raw = createRoot(root);
     const show = (element: ReactNode) => flushSync(() => raw.render(element));
@@ -196,7 +196,7 @@ describe('updates do only what changed', () => {
   }
 
   it('re-rendering equal props sets no style or accessibility, and keeps listeners', async () => {
-    const onClick = vi.fn();
+    const onClick = vi.fn<(...args: unknown[]) => void>();
     // New style objects (and shadow arrays) and a new handler every render,
     // with the same content.
     const Cell = ({ opacity }: { opacity: number }) => (
@@ -288,7 +288,7 @@ describe('events', () => {
   });
 
   it('removes listeners whose props go away', async () => {
-    const onClick = vi.fn();
+    const onClick = vi.fn<(...args: unknown[]) => void>();
     await show(<View onClick={onClick} />);
     await show(<View />);
     fire(child(0), 'click');
@@ -328,7 +328,7 @@ describe('events', () => {
 
 describe('TextInput', () => {
   it('reports edits and Enter, and follows a controlled value', async () => {
-    const submitted = vi.fn();
+    const submitted = vi.fn<(...args: unknown[]) => void>();
     function Field() {
       const [text, setText] = useState('ab');
       return (
@@ -364,7 +364,7 @@ describe('TextInput', () => {
 
 describe('Pressable', () => {
   it('presses, and styles and renders by its state', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     await show(
       <Pressable
         onPress={onPress}

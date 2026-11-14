@@ -33,5 +33,5 @@ test('has the matchers, which want a locator', async () => {
 test('a launch fails with the host, and closing what never started is fine', async () => {
   await expect(
     launchHost({ executable: resolve('no-such-host') }),
-  ).rejects.toThrow();
+  ).rejects.toThrow(/no-such-host/);
 });

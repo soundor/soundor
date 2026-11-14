@@ -195,6 +195,8 @@ it('protects descriptors and removes them on shutdown', async () => {
   expect(descriptor.token).toBe(server.connection.token);
   expect(descriptor.sessionId).toBe(server.connection.sessionId);
   if (process.platform !== 'win32')
+    // Windows has no POSIX mode bits; only supported platforms can check these.
+    // oxlint-disable-next-line vitest/no-conditional-expect
     expect((await stat(server.descriptorPath)).mode & 0o777).toBe(0o600);
   const response = await fetch(server.connection.endpoint);
   const html = await response.text();

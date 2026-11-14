@@ -304,13 +304,17 @@ function Stage({
   // size state, limits and room. Filling, the page owns the size.
   const resizable = !fill && canResize(editor);
   const roomRef = useRef(room);
-  roomRef.current = room;
   // The size, or the one a request asked for since the last render: the
   // answer is known at once, so requestEditorSize() returns it.
   const sizeRef = useRef(size);
-  sizeRef.current = size;
+  useLayoutEffect(() => {
+    roomRef.current = room;
+    sizeRef.current = size;
+  });
   useLayoutEffect(() => {
     if (!resizable) return;
+    // The parent supplies this mutable request slot for the host bridge.
+    // oxlint-disable-next-line react/immutability
     requests.current = (wanted) => {
       const next = constrainSize(
         editor,

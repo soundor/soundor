@@ -292,7 +292,9 @@ describe('synchronous setters and automatic gestures', () => {
     const { gain, steps, bypass, mode, trim } = store();
     const events: unknown[] = [];
     gain.subscribe((value: unknown) => events.push([value, gain.inGesture]));
-    const update = vi.fn((current: number) => current + 0.125);
+    const update = vi.fn<(current: number) => number>(
+      (current: number) => current + 0.125,
+    );
     gain.set(update);
     gain.set(update);
     expect(update.mock.calls).toEqual([[0.5], [0.625]]);
@@ -342,15 +344,15 @@ describe('synchronous setters and automatic gestures', () => {
     'rejects failed updater results without notifications or gestures',
     (updater) => {
       const { gain, reduction } = store();
-      const listener = vi.fn(),
-        call = vi.fn(updater);
+      const listener = vi.fn<(...args: unknown[]) => void>(),
+        call = vi.fn<typeof updater>(updater);
       gain.subscribe(listener);
-      expect(() => gain.set(call)).toThrow();
+      expect(() => gain.set(call)).toThrow(Error);
       expect(call).toHaveBeenCalledOnce();
       expect(gain.get()).toBe(0.5);
       expect(gain.inGesture).toBe(false);
       expect(listener).not.toHaveBeenCalled();
-      const forbidden = vi.fn(() => -1);
+      const forbidden = vi.fn<() => number>(() => -1);
       expect(() => reduction.set(forbidden)).toThrow(/read-only/);
       expect(forbidden).not.toHaveBeenCalled();
     },

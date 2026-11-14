@@ -33,13 +33,15 @@ describe('persistent state', () => {
     expect(a.fields.groups!.get()).toEqual(declaration.groups.default);
     expect(a.fields.groups!.get()).not.toBe(b.fields.groups!.get());
     expect(a.fields.groups!.get()).toBe(a.fields.groups!.get());
-    expect(() => (a.fields.groups!.get() as unknown[]).push(null)).toThrow();
+    expect(() => (a.fields.groups!.get() as unknown[]).push(null)).toThrow(
+      TypeError,
+    );
     a.fields.selected!.set('Warm');
     expect(b.fields.selected!.get()).toBeNull();
   });
   it('copies writes, notifies changes only, and unsubscribes', () => {
     const store = new StateStore(schema),
-      listener = vi.fn();
+      listener = vi.fn<(...args: unknown[]) => void>();
     const off = store.fields.groups!.subscribe(listener);
     const next = structuredClone(declaration.groups.default);
     store.fields.groups!.set(next);
@@ -97,7 +99,7 @@ describe('persistent state', () => {
     { x: { type: 'Missing', default: {} } },
     { x: { type: 'Band[]', default: [{ frequency: 'oops' }] } },
   ])('rejects invalid declarations: %j', (value) => {
-    expect(() => describeState(value as never, native)).toThrow();
+    expect(() => describeState(value as never, native)).toThrow(Error);
   });
   it('rejects invalid writes and unsupported snapshots', () => {
     const store = new StateStore(schema);
@@ -111,7 +113,7 @@ describe('persistent state', () => {
       '{"version":2,"parameters":{},"state":{}}',
       '{"version":1,"parameters":{},"state":null}',
     ])
-      expect(() => readSnapshot(text)).toThrow();
+      expect(() => readSnapshot(text)).toThrow(Error);
   });
   it('generates field types from the native registry', () => {
     const output = renderStateDts(declaration, native);
@@ -133,20 +135,22 @@ it('uses the JUCE logical snapshot corpus', () => {
       groups: declaration.groups,
       signedValue: { type: 'int64', default: -9223372036854775808n },
       unsignedValue: { type: 'uint64', default: 18446744073709551615n },
-      precise: { type: 'float64', default: 0.000012345678901234567 },
+      precise: { type: 'float64', default: Number('0.000012345678901234567') },
     },
     native,
   );
-  for (const item of corpus) {
+  for (const item of corpus.filter((item) => item.valid)) {
     const store = new StateStore(schema);
-    const restore = () => {
+    const snapshot = readSnapshot(stateJson(item.snapshot));
+    store.restore(store.prepare(snapshot.state));
+    expect(store.fields.unsignedValue!.get()).toBe(18446744073709551615n);
+  }
+  for (const item of corpus.filter((item) => !item.valid)) {
+    const store = new StateStore(schema);
+    expect(() => {
       const snapshot = readSnapshot(stateJson(item.snapshot));
       store.restore(store.prepare(snapshot.state));
-    };
-    if (item.valid) {
-      restore();
-      expect(store.fields.unsignedValue!.get()).toBe(18446744073709551615n);
-    } else expect(restore).toThrow();
+    }).toThrow(Error);
   }
 });
 
@@ -182,7 +186,7 @@ it('tracks nested independent gestures without changing writes, notifications or
     ),
   );
   for (const [name, field] of Object.entries(store.fields)) {
-    const changed = vi.fn();
+    const changed = vi.fn<(...args: unknown[]) => void>();
     field.subscribe(changed);
     field.endGesture();
     field.beginGesture();
@@ -194,7 +198,7 @@ it('tracks nested independent gestures without changing writes, notifications or
     expect(store.gestureDepth(name)).toBe(1);
   }
   const selected = store.fields.selected!;
-  const changed = vi.fn();
+  const changed = vi.fn<(...args: unknown[]) => void>();
   selected.subscribe(changed);
   selected.set('Warm');
   selected.set('Warm');
@@ -229,9 +233,11 @@ it('resolves synchronous state updaters once against immutable current values wi
     ),
   );
   const count = store.fields.count!;
-  const heard = vi.fn();
+  const heard = vi.fn<(...args: unknown[]) => void>();
   count.subscribe(heard);
-  const increment = vi.fn((current: unknown) => Number(current) + 1);
+  const increment = vi.fn<(current: unknown) => number>(
+    (current: unknown) => Number(current) + 1,
+  );
   count.set(increment);
   count.set(increment);
   expect(increment.mock.calls).toEqual([[0], [1]]);
@@ -262,7 +268,7 @@ it('resolves synchronous state updaters once against immutable current values wi
       (current as typeof before)[0]!.bands.push(before[0]!.bands[0]!);
       return current;
     }),
-  ).toThrow();
+  ).toThrow(TypeError);
   const saved = readSnapshot(
     stateJson({ version: 1, parameters: {}, state: store.snapshot() }),
   );
@@ -282,10 +288,10 @@ it.each([
   const store = new StateStore(
     describeState({ count: { type: 'int32', default: 0 } }),
   );
-  const listener = vi.fn(),
-    call = vi.fn(updater);
+  const listener = vi.fn<(...args: unknown[]) => void>(),
+    call = vi.fn<typeof updater>(updater);
   store.fields.count!.subscribe(listener);
-  expect(() => store.fields.count!.set(call)).toThrow();
+  expect(() => store.fields.count!.set(call)).toThrow(Error);
   expect(call).toHaveBeenCalledOnce();
   expect(store.fields.count!.get()).toBe(0);
   expect(listener).not.toHaveBeenCalled();

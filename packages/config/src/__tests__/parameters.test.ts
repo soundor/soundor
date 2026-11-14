@@ -721,12 +721,16 @@ describe('declarations', () => {
     expect(() =>
       resolve({ '1st': { type: 'boolean', default: true } }),
     ).toThrow(ConfigError);
-    try {
-      validateConfig({ plugin, runtimes: [], parameters: [] });
-    } catch (error) {
-      expect((error as ConfigError).issues[0]?.message).toContain(
-        'no longer an array',
-      );
-    }
+    expect(() =>
+      validateConfig({ plugin, runtimes: [], parameters: [] }),
+    ).toThrow(
+      expect.objectContaining({
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining('no longer an array'),
+          }),
+        ]),
+      }),
+    );
   });
 });

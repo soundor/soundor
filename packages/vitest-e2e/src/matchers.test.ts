@@ -286,6 +286,6 @@ test('a lost plugin fails at once, not at the timeout', async () => {
   const started = Date.now();
   await expect(
     expect(driver.getByText('Gain')).toBeVisible({ timeout: 4000 }),
-  ).rejects.toThrow();
+  ).rejects.toThrow(Error);
   expect(Date.now() - started).toBeLessThan(3000);
 });

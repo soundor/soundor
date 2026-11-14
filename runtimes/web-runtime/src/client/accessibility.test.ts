@@ -353,7 +353,7 @@ describe('activation', () => {
     );
 
   it('assistive technology presses a Pressable once', () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(event: { readonly type: string }) => void>();
     render(h(Pressable, { onPress }, h(Text, null, 'Go')));
     // On the text inside, as a screen reader may click.
     atClick(first().children[0]!);
@@ -362,7 +362,7 @@ describe('activation', () => {
   });
 
   it('a pointer click is not delivered twice', () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(event: { readonly type: string }) => void>();
     render(h(Pressable, { onPress, style: { width: 50, height: 50 } }));
     vi.spyOn(document, 'elementFromPoint').mockReturnValue(element(first()));
     const pointer = (type: string, buttons: number) =>
@@ -388,14 +388,14 @@ describe('activation', () => {
   });
 
   it('a disabled Pressable is not pressed', () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(event: { readonly type: string }) => void>();
     render(h(Pressable, { onPress, disabled: true }));
     atClick(first());
     expect(onPress).not.toHaveBeenCalled();
   });
 
   it('onAccessibilityAction can take activate over', () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(event: { readonly type: string }) => void>();
     const actions: string[] = [];
     render(
       h(Pressable, {
@@ -443,7 +443,7 @@ describe('keyboard focus and the accessibility context', () => {
   });
 
   it('activating an element does not move keyboard focus', () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(event: { readonly type: string }) => void>();
     render(
       h(
         View,

@@ -38,7 +38,7 @@ export function historyConformance(
   },
 ): void {
   for (const test of cases)
-    it(test.name, () => {
+    it(`${test.name}`, () => {
       const runtime = factory();
       const execute = (steps: Step[]) => {
         for (const step of steps) {

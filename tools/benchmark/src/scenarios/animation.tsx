@@ -126,15 +126,15 @@ function ReactCell({
 }
 
 function ReactStage({ scenario, register }: StageProps) {
-  const updates = useRef(new Map<number, (time: number) => void>());
+  const [updates] = useState(() => new Map<number, (time: number) => void>());
   useEffect(() => {
     let started = false;
     register((time) => {
       if (scenario.nativeAnimations && started) return;
       started = true;
-      flushSync(() => updates.current.forEach((update) => update(time)));
+      flushSync(() => updates.forEach((update) => update(time)));
     });
-  }, [register, scenario.nativeAnimations]);
+  }, [register, scenario.nativeAnimations, updates]);
   return (
     <View
       style={{
@@ -149,7 +149,7 @@ function ReactStage({ scenario, register }: StageProps) {
         <ReactCell
           key={i}
           index={i}
-          updates={updates.current}
+          updates={updates}
           native={scenario.nativeAnimations}
         />
       ))}

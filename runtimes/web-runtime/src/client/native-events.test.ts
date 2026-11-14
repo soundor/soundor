@@ -137,7 +137,7 @@ describe('soundor:native events', () => {
   });
 
   it('a throwing subscriber is reported and the others still run', async () => {
-    const reported = vi.fn();
+    const reported = vi.fn<(error: unknown) => void>();
     vi.stubGlobal('reportError', reported);
     const seen: string[] = [];
     subscribe(events.ready, () => {

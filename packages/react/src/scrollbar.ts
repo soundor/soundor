@@ -164,7 +164,9 @@ function useBar(
   // which a ResizeObserver tells, and scrolling. The nodes come and go with
   // renders, so each render checks that it watches the ones there are.
   const latest = useRef(sync);
-  latest.current = sync;
+  useLayoutEffect(() => {
+    latest.current = sync;
+  });
   const [onChange] = useState(() => () => latest.current());
   const watching = useRef<Watching>({
     observer: null,
@@ -191,6 +193,8 @@ function useBar(
       watched.scrolled = node;
     }
     // A style set by a render replaces what this hook put in it.
+    // Visibility comes from committed native layout; measure before painting.
+    // oxlint-disable-next-line react/set-state-in-effect
     sync();
   });
   useEffect(

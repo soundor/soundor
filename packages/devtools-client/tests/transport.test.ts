@@ -43,6 +43,8 @@ it('correlates responses and ignores stale replies after selection cancellation'
   await expect(response).resolves.toBeNull();
   expect(timers.size).toBe(0);
   const stale = transport.request('UI.getTree', {});
+  // Install the rejection assertion before triggering it; await the saved promise below.
+  // oxlint-disable-next-line vitest/valid-expect
   const rejected = expect(stale).rejects.toThrow('Inspection changed');
   transport.cancelRequests('target');
   await rejected;
@@ -53,6 +55,8 @@ it('correlates responses and ignores stale replies after selection cancellation'
 it('rejects protocol errors, disconnected requests and timed out operations', async () => {
   const { transport, socket, messages, timers } = setup();
   const response = transport.request('UI.getTree', {});
+  // Install the rejection assertion before triggering it; await the saved promise below.
+  // oxlint-disable-next-line vitest/valid-expect
   const rejected = expect(response).rejects.toThrow('STALE_NODE: Reloaded');
   transport.settle({
     type: 'response',
@@ -61,6 +65,8 @@ it('rejects protocol errors, disconnected requests and timed out operations', as
   });
   await rejected;
   const timeout = transport.request('UI.getTree', {});
+  // Install the rejection assertion before triggering it; await the saved promise below.
+  // oxlint-disable-next-line vitest/valid-expect
   const timedOut = expect(timeout).rejects.toThrow('timed out');
   for (const run of timers.values()) run();
   await timedOut;

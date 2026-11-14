@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react';
 import { stateHistory, type HistoryStatus } from 'soundor:state-history';
 import { subscribeViewSize, viewSize, type ViewSize } from 'soundor:ui';
 
@@ -32,7 +38,9 @@ export function useStateValue<T>(field: ParameterLike<T>): T {
 /** Calls `callback` on every frame while the component is mounted. */
 export function useAnimationFrame(callback: (time: number) => void): void {
   const latest = useRef(callback);
-  latest.current = callback;
+  useLayoutEffect(() => {
+    latest.current = callback;
+  });
   useEffect(() => {
     let frame = requestAnimationFrame(function tick(time) {
       latest.current(time);

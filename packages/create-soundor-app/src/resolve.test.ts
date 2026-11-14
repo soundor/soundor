@@ -51,8 +51,10 @@ it('validates template minimums and fixed-group golden versions', () => {
 
 describe('selectVersions', () => {
   it('tries golden versions before querying the registry for older releases', async () => {
-    const published = vi.fn();
-    const resolve = vi.fn().mockResolvedValue(undefined);
+    const published = vi.fn<(name: string) => Promise<readonly string[]>>();
+    const resolve = vi
+      .fn<(versions: Readonly<Record<string, string>>) => Promise<void>>()
+      .mockResolvedValue(undefined);
     expect(
       await selectVersions({ golden, groups, published, resolve }),
     ).toEqual(golden);
@@ -138,7 +140,9 @@ describe('selectVersions', () => {
   });
 
   it('does not query unused runtime or host groups', async () => {
-    const published = vi.fn().mockResolvedValue(['0.14.0']);
+    const published = vi
+      .fn<(name: string) => Promise<readonly string[]>>()
+      .mockResolvedValue(['0.14.0']);
     await selectVersions({
       golden: { soundor: '0.15.0' },
       groups,
@@ -162,7 +166,7 @@ describe('selectVersions', () => {
     'preserves %s instead of suggesting waiting or changing policy',
     async (code) => {
       const error = new PackageManagerError(`${code}: actual failure`);
-      const published = vi.fn();
+      const published = vi.fn<(name: string) => Promise<readonly string[]>>();
       await expect(
         selectVersions({
           golden,
@@ -182,7 +186,7 @@ describe('selectVersions', () => {
       selectVersions({
         golden: { soundor: '0.15.0' },
         groups: [{ packages: ['soundor'], minimum: '0.15.0' }],
-        published: vi.fn(),
+        published: vi.fn<(name: string) => Promise<readonly string[]>>(),
         resolve: async () => {
           throw new PackageManagerError(
             'ERR_PNPM_NO_MATCHING_VERSION minimumReleaseAge: 2880',
@@ -193,7 +197,9 @@ describe('selectVersions', () => {
   });
 
   it('does not fall below the template minimum or above the golden version', async () => {
-    const resolve = vi.fn().mockRejectedValue(unavailable());
+    const resolve = vi
+      .fn<(versions: Readonly<Record<string, string>>) => Promise<void>>()
+      .mockRejectedValue(unavailable());
     await expect(
       selectVersions({
         golden: { soundor: '0.15.0' },

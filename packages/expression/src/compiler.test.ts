@@ -58,15 +58,12 @@ describe('the JavaScript compiler', () => {
   corpus.forEach((test, index) => {
     const pinned = test.samples.filter((sample) => sample.length > 1);
     if (pinned.length === 0) return;
-    it(test.name, () => {
+    it(`${test.name}`, () => {
       for (const [values, expected] of pinned) {
         const result = evaluate(index, values);
-        if (typeof expected === 'number' && Number.isNaN(expected))
-          expect(result, `${JSON.stringify(values, replacer)}`).toBeNaN();
-        else
-          expect(result, `${JSON.stringify(values, replacer)}`).toStrictEqual(
-            expected,
-          );
+        expect(result, `${JSON.stringify(values, replacer)}`).toStrictEqual(
+          expected,
+        );
       }
     });
   });

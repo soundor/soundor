@@ -106,6 +106,8 @@ describe('defineSoundorConfig', () => {
     expect(Object.keys(authored.parameters ?? {})).toHaveLength(4);
   });
 
+  // This test's assertions are the compiler-checked @ts-expect-error directives.
+  // oxlint-disable-next-line vitest/expect-expect
   it('rejects what does not fit the parameter type (type-level)', () => {
     const base = {
       plugin: { id: 'com.example.test', name: 'Test' },

@@ -87,7 +87,10 @@ const describeEntry = (entry: {
 describe('ResizeObserver over nodes', () => {
   it("tells the node's boxes, from Yoga, when the browser wakes it", () => {
     const { ResizeObserver, box, element } = setup();
-    const told = vi.fn();
+    const told =
+      vi.fn<
+        ConstructorParameters<ReturnType<typeof createResizeObserver>>[0]
+      >();
     const observer = new ResizeObserver(told);
     observer.observe(box);
     const [native] = FakeNative.all;
@@ -99,8 +102,8 @@ describe('ResizeObserver over nodes', () => {
     const [entries, which] = told.mock.calls[0]!;
     expect(which).toBe(observer);
     expect(entries).toHaveLength(1);
-    expect(entries[0].target).toBe(box);
-    expect(describeEntry(entries[0])).toBe('12,12 76x16 76x16 100x40 76x16');
+    expect(entries[0]!.target).toBe(box);
+    expect(describeEntry(entries[0]!)).toBe('12,12 76x16 76x16 100x40 76x16');
 
     // Woken with nothing changed: nothing to tell.
     native!.wake(element);
@@ -109,14 +112,17 @@ describe('ResizeObserver over nodes', () => {
     view.flushLayout();
     native!.wake(element);
     expect(told).toHaveBeenCalledTimes(2);
-    expect(describeEntry(told.mock.calls[1]![0][0])).toBe(
+    expect(describeEntry(told.mock.calls[1]![0][0]!)).toBe(
       '12,12 96x16 96x16 120x40 96x16',
     );
   });
 
   it('observes the element again when only the content box changed', () => {
     const { ResizeObserver, box, element } = setup();
-    const told = vi.fn();
+    const told =
+      vi.fn<
+        ConstructorParameters<ReturnType<typeof createResizeObserver>>[0]
+      >();
     new ResizeObserver(told).observe(box);
     const [native] = FakeNative.all;
     native!.wake(element);
@@ -127,7 +133,7 @@ describe('ResizeObserver over nodes', () => {
     view.flushLayout();
     expect(native!.log).toEqual(['unobserve', 'observe']);
     native!.wake(element);
-    expect(describeEntry(told.mock.calls[1]![0][0])).toBe(
+    expect(describeEntry(told.mock.calls[1]![0][0]!)).toBe(
       '7,7 86x26 86x26 100x40 86x26',
     );
 
@@ -140,7 +146,10 @@ describe('ResizeObserver over nodes', () => {
 
   it('a border-box observer is not told of padding; a node out of the view is 0×0', () => {
     const { ResizeObserver, box, element } = setup();
-    const told = vi.fn();
+    const told =
+      vi.fn<
+        ConstructorParameters<ReturnType<typeof createResizeObserver>>[0]
+      >();
     new ResizeObserver(told).observe(box, { box: 'border-box' });
     const [native] = FakeNative.all;
     native!.wake(element);
@@ -152,14 +161,17 @@ describe('ResizeObserver over nodes', () => {
     box.remove();
     native!.wake(element);
     expect(told).toHaveBeenCalledTimes(2);
-    expect(describeEntry(told.mock.calls[1]![0][0])).toBe(
+    expect(describeEntry(told.mock.calls[1]![0][0]!)).toBe(
       '0,0 0x0 0x0 0x0 0x0',
     );
   });
 
   it('unobserve and disconnect let the element go; DOM elements go to the browser', () => {
     const { ResizeObserver, box, element } = setup();
-    const told = vi.fn();
+    const told =
+      vi.fn<
+        ConstructorParameters<ReturnType<typeof createResizeObserver>>[0]
+      >();
     const observer = new ResizeObserver(told);
     observer.observe(box);
     observer.observe(box); // again, the same box: one observation

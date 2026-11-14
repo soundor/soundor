@@ -12,17 +12,21 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { isDriverError, type DriverErrorCode } from './errors';
 import { launch, type Vst3Plugin } from './vst3';
 
-vi.mock('@soundor/vst3-host', () => ({ launchHost: vi.fn() }));
+vi.mock('@soundor/vst3-host', () => ({
+  launchHost: vi.fn<typeof import('@soundor/vst3-host').launchHost>(),
+}));
 
 type Runtime = Awaited<ReturnType<typeof startSimulatedRuntime>>;
 
 /** A host whose editor is a simulated runtime in the session it was given. */
 class FakeHost {
   readonly info = { name: 'Fake Plugin' };
-  readonly openEditor = vi.fn(() => this.#open());
-  readonly closes = vi.fn();
+  readonly openEditor = vi.fn<() => Promise<{ open: boolean }>>(() =>
+    this.#open(),
+  );
+  readonly closes = vi.fn<(...args: unknown[]) => void>();
   // What the host's requests fail with, once it has ended.
-  readonly getEditor = vi.fn(async () => {
+  readonly getEditor = vi.fn<() => Promise<never>>(async () => {
     throw new Error('the VST3 host exited (signal SIGSEGV)');
   });
   readonly exited: Promise<void>;
@@ -219,7 +223,9 @@ it('fails to reopen a plugin whose UI does not connect again', async () => {
   plugin = await launch({ plugin: 'Plugin.vst3', targetTimeout: 50 });
   await fake!.closeEditor();
   fake!.openEditor.mockResolvedValueOnce({ open: true });
-  await failure(plugin.openEditor(), 'NO_TARGETS');
+  await expect(plugin.openEditor()).rejects.toMatchObject({
+    code: 'NO_TARGETS',
+  });
 });
 
 it('keeps the session out of the package root', async () => {
@@ -260,9 +266,12 @@ it('gives the current editor input and the host parameters by title', async () =
   expect(plugin.pointer).toBe(plugin.driver.pointer);
   expect(plugin.keyboard).toBe(plugin.driver.keyboard);
 
-  const parameter = { get: vi.fn(), set: vi.fn() };
-  (fake as unknown as { parameter: unknown }).parameter = vi.fn(
-    () => parameter,
-  );
+  const parameter = {
+    get: vi.fn<(...args: unknown[]) => void>(),
+    set: vi.fn<(...args: unknown[]) => void>(),
+  };
+  (fake as unknown as { parameter: unknown }).parameter = vi.fn<
+    () => typeof parameter
+  >(() => parameter);
   expect(plugin.parameter('Gain')).toBe(parameter);
 });

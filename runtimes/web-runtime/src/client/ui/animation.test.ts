@@ -45,13 +45,13 @@ afterEach(() => {
 });
 function setup() {
   const animations: BrowserAnimation[] = [];
-  const submit = vi.fn(
-    (_frames: Keyframe[], _options?: KeyframeAnimationOptions) => {
-      const animation = new BrowserAnimation();
-      animations.push(animation);
-      return animation as unknown as Animation;
-    },
-  );
+  const submit = vi.fn<
+    (_frames: Keyframe[], _options?: KeyframeAnimationOptions) => Animation
+  >((_frames: Keyframe[], _options?: KeyframeAnimationOptions) => {
+    const animation = new BrowserAnimation();
+    animations.push(animation);
+    return animation as unknown as Animation;
+  });
   const element = document.createElement('div');
   Object.defineProperty(element, 'animate', { value: submit });
   document.body.append(element);

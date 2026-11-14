@@ -50,7 +50,7 @@ function Button({
 
 describe('usePressable', () => {
   it('presses, and gives its state to render with', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     await show(<Button label="Reset" onPress={onPress} />);
 
     const user = userEvent.setup(),
@@ -67,7 +67,7 @@ describe('usePressable', () => {
   });
 
   it('shows focus from the keyboard, and presses with it', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     await show(<Button label="Reset" onPress={onPress} />);
 
     const user = userEvent.setup();
@@ -78,8 +78,8 @@ describe('usePressable', () => {
   });
 
   it('calls the latest callbacks, and long presses', async () => {
-    const first = vi.fn(),
-      latest = vi.fn();
+    const first = vi.fn<(...args: unknown[]) => void>(),
+      latest = vi.fn<(...args: unknown[]) => void>();
     await show(<Button label="Hold" onLongPress={first} />);
     await show(<Button label="Hold" onLongPress={latest} />);
 
@@ -103,8 +103,30 @@ describe('usePressable', () => {
     expect(ref.current).toBe(screen.getByRole('button'));
   });
 
+  it('gives a replacement node to the newly committed ref', async () => {
+    const first = vi.fn<(node: UiNode | null) => void>();
+    const next = vi.fn<(node: UiNode | null) => void>();
+    function Swapped({
+      version,
+      nodeRef,
+    }: {
+      version: number;
+      nodeRef: (node: UiNode | null) => void;
+    }) {
+      const { pressableProps } = usePressable({ ref: nodeRef });
+      return <View key={version} {...pressableProps} />;
+    }
+    await show(<Swapped version={0} nodeRef={first} />);
+    const before = screen.getByRole('button');
+    await show(<Swapped version={1} nodeRef={next} />);
+    const after = screen.getByRole('button');
+    expect(after).not.toBe(before);
+    expect(first.mock.calls).toEqual([[before], [null]]);
+    expect(next).toHaveBeenCalledExactlyOnceWith(after);
+  });
+
   it('disabled: not pressable nor focusable, and told so', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     function Toggle() {
       const [disabled, setDisabled] = useState(false);
       return (

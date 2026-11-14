@@ -730,7 +730,9 @@ describe('UiNode events', () => {
     let top = 0;
     Object.defineProperty(el(scroll), 'scrollTop', {
       get: () => top,
-      set: (value: number) => (top = value),
+      set: (value: number) => {
+        top = value;
+      },
       configurable: true,
     });
     scroll.scrollTop = 30;

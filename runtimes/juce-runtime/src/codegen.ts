@@ -1555,10 +1555,6 @@ function cppDouble(value: number): string {
   return Number.isInteger(value) ? `${value}.0` : `${value}`;
 }
 
-function cppFloat(value: number): string {
-  return Number.isInteger(value) ? `${value}.0f` : `${value}f`;
-}
-
 function cppInt(value: number): string {
   return `${Math.trunc(value)}`;
 }
