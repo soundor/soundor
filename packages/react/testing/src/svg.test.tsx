@@ -266,14 +266,14 @@ describe('@soundor/react/svg', () => {
 
   it('rejects malformed public geometry and recovers without installing a partial scene', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const reported = vi.fn();
+    const reported = vi.fn<(error: unknown) => void>();
     vi.stubGlobal('reportError', reported);
     const app = createRoot(root);
     try {
       for (const invalid of [
-        <Polyline points={'1'.repeat(50000) + 'x'} />,
-        <Polygon points="0 0 1px 2" />,
-        <Circle r={Infinity} />,
+        <Polyline key="polyline" points={'1'.repeat(50000) + 'x'} />,
+        <Polygon key="polygon" points="0 0 1px 2" />,
+        <Circle key="circle" r={Infinity} />,
       ]) {
         flushSync(() => app.render(<Svg>{invalid}</Svg>));
         expect(reported.mock.calls.at(-1)?.[0]).toBeInstanceOf(TypeError);

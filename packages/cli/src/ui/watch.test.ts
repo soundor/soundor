@@ -13,23 +13,31 @@ const { notifications } = vi.hoisted(() => ({
 
 vi.mock('node:fs', async (original) => ({
   ...(await original<typeof import('node:fs')>()),
-  watch: vi.fn((_root, _options, listener) => {
+  watch: vi.fn<
+    (
+      _root: string,
+      _options: unknown,
+      listener: typeof notifications.emit,
+    ) => { close: () => void }
+  >((_root, _options, listener) => {
     notifications.emit = listener;
-    return { close: vi.fn() };
+    return { close: vi.fn<(...args: unknown[]) => void>() };
   }),
 }));
 
 vi.mock('tsdown', () => ({
-  build: vi.fn(async (options: { cwd: string; outDir: string }) => {
-    await mkdir(options.outDir, { recursive: true });
-    await writeFile(
-      join(options.outDir, 'bundle.mjs'),
-      await readFile(join(options.cwd, 'src/main.ts'), 'utf8'),
-    );
-    // Every build produces the Windows notifications that sustained the loop.
-    notifications.emit('rename', null);
-    notifications.emit('change', '.soundor/dev/ui.log');
-  }),
+  build: vi.fn<(options: { cwd: string; outDir: string }) => Promise<void>>(
+    async (options: { cwd: string; outDir: string }) => {
+      await mkdir(options.outDir, { recursive: true });
+      await writeFile(
+        join(options.outDir, 'bundle.mjs'),
+        await readFile(join(options.cwd, 'src/main.ts'), 'utf8'),
+      );
+      // Every build produces the Windows notifications that sustained the loop.
+      notifications.emit('rename', null);
+      notifications.emit('change', '.soundor/dev/ui.log');
+    },
+  ),
 }));
 
 afterEach(() => vi.useRealTimers());
@@ -39,8 +47,8 @@ it('stays idle after its own writes and rebuilds after a named source change', a
   const root = await mkdtemp(join(tmpdir(), 'soundor-watch-'));
   await mkdir(join(root, 'src'));
   await writeFile(join(root, 'src/main.ts'), 'export const version = 1;');
-  const onBuild = vi.fn();
-  const onError = vi.fn();
+  const onBuild = vi.fn<Parameters<typeof watchUi>[0]['onBuild']>();
+  const onError = vi.fn<Parameters<typeof watchUi>[0]['onError']>();
   const watcher = watchUi({
     root,
     mode: 'development',

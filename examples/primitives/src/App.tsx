@@ -20,13 +20,7 @@ import {
   type CanvasSize,
   type StyleProp,
 } from '@soundor/react';
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutRect, PointerEvent, UiNode } from 'soundor:ui';
 
 import landscape from './assets/landscape.svg';

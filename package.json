@@ -14,8 +14,8 @@
     "format:fix": "oxfmt . && turbo run format:native:fix",
     "lint": "pnpm run lint:check",
     "lint:native": "turbo run lint:native",
-    "lint:check": "oxlint .",
-    "lint:fix": "oxlint --fix .",
+    "lint:check": "oxlint --deny-warnings .",
+    "lint:fix": "oxlint --fix --deny-warnings .",
     "prepare": "husky",
     "release": "pnpm build && pnpm ci:publish",
     "test:native": "turbo run test:native",
@@ -36,7 +36,7 @@
   },
   "lint-staged": {
     "*": [
-      "oxlint --fix --no-error-on-unmatched-pattern",
+      "oxlint --fix --deny-warnings --no-error-on-unmatched-pattern",
       "oxfmt --no-error-on-unmatched-pattern"
     ],
     "*.{c,cc,cpp,cxx,h,hh,hpp,hxx,mm}": [

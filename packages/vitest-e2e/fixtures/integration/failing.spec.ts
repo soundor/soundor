@@ -5,8 +5,12 @@ import { launchHost, launchPlugin } from '@soundor/vitest-e2e';
 import { launchHost as startHost } from '@soundor/vst3-host';
 import { expect, test, vi } from 'vitest';
 
-vi.mock('@soundor/driver/vst3', () => ({ launch: vi.fn() }));
-vi.mock('@soundor/vst3-host', () => ({ launchHost: vi.fn() }));
+vi.mock('@soundor/driver/vst3', () => ({
+  launch: vi.fn<typeof import('@soundor/driver/vst3').launch>(),
+}));
+vi.mock('@soundor/vst3-host', () => ({
+  launchHost: vi.fn<typeof import('@soundor/vst3-host').launchHost>(),
+}));
 
 const close = async () => {
   mkdirSync('.soundor', { recursive: true });
@@ -51,6 +55,7 @@ test('saves the log of a host', async () => {
 test('a test that passes saves nothing', async () => {
   vi.mocked(launch).mockResolvedValue({ close } as never);
   await launchPlugin();
+  expect(launch).toHaveBeenCalledOnce();
 });
 
 test('audio that differs is kept to listen to', () => {

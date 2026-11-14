@@ -32,7 +32,7 @@ it.each([0, -1, 65536, 1.5, '4545', null])(
 it.each([{ enabled: 'true' }, { open: 1 }, { typo: true }])(
   'rejects invalid settings %j',
   (devtools) => {
-    expect(() => parseUserSettings({ devtools })).toThrow();
+    expect(() => parseUserSettings({ devtools })).toThrow(Error);
   },
 );
 

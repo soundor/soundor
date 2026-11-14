@@ -400,6 +400,12 @@ generated framework or the runtime package, not in `init` templates.
 - TypeScript is formatted/linted by oxfmt/oxlint (not Prettier/ESLint); C++ by
   clang-format 18 / clang-tidy using the root `.clang-format`/`.clang-tidy`.
   The pre-commit hook runs lint-staged.
+- Keep lint warning-free. Run `pnpm lint` and `pnpm exec oxfmt --check`
+  before finishing changes; run the affected package's native lint for C++
+  changes (the VST3 host uses `tidy:native`). Warnings fail the JS lint gate,
+  and clang-tidy already treats warnings as errors. Fix the cause rather than
+  weakening rules. For an intentional construct or a demonstrated false
+  positive, use the narrowest exception and explain why it is necessary.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the seventeen packages under `packages/` are a fixed version group;

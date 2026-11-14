@@ -1,4 +1,10 @@
-import { useEffect, useState, type Ref } from 'react';
+import {
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+  type Ref,
+} from 'react';
 import {
   pressable,
   type KeyboardEvent,
@@ -119,8 +125,11 @@ export function usePressable(
   const [state, setState] = useState<PressableState>(RESTING);
   // The latest options, read by listeners installed once per node, and by
   // the ref, which stays the same so that React does not detach it.
-  const [latest] = useState(() => ({ current: options }));
-  latest.current = options;
+  const latest = useRef(options);
+  // Commit the options before ref attachment, without exposing an uncommitted render.
+  useInsertionEffect(() => {
+    latest.current = options;
+  });
   const [attach] = useState(() => (value: UiNode | null) => {
     setNode(value);
     const ref = latest.current.ref;

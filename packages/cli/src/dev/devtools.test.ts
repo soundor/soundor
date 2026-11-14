@@ -8,7 +8,7 @@ import { expect, it, vi } from 'vitest';
 import { resolveDevToolsSettings } from './devtools';
 
 it('discovers optional support without invoking runtime methods', async () => {
-  const method = vi.fn(async () => {});
+  const method = vi.fn<() => Promise<void>>(async () => {});
   const runtime: Runtime = {
     id: 'third-party',
     init: method,

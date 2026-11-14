@@ -26,7 +26,7 @@ describe('ResizeObserver', () => {
       },
     }) as never;
     expect(isTestNode(elsewhere)).toBe(true);
-    expect(() => observer.observe(elsewhere)).not.toThrow();
+    expect(() => observer.observe(elsewhere)).not.toThrow(Error);
     expect(() => observer.observe({})).toThrow('not a UiNode');
     expect(() => observer.observe(node, { box: 'padding' as never })).toThrow(
       'not a valid box',
@@ -76,7 +76,7 @@ describe('isolated lifecycle and trees', () => {
     expect(print(r.root)).toBe('view[view[text"Hello"] view]');
     expect(b.nextSibling).toBe(a);
     expect(a.previousSibling).toBe(b);
-    expect(() => c.appendChild(a)).toThrow();
+    expect(() => c.appendChild(a)).toThrow(Error);
     expect(() => b.appendChild(r.root)).toThrow('cycle');
     expect(() => a.removeChild(c)).toThrow('not a child');
     b.remove();
@@ -171,8 +171,8 @@ describe('events and input', () => {
     node.value = 'abcd';
     node.focus();
     node.setSelectionRange(1, 3);
-    const input = vi.fn(),
-      change = vi.fn();
+    const input = vi.fn<(...args: unknown[]) => void>(),
+      change = vi.fn<(...args: unknown[]) => void>();
     node.addEventListener('input', input);
     node.addEventListener('change', change);
     r.fire(node, 'beforeinput', { data: 'X' });
@@ -192,9 +192,9 @@ describe('events and input', () => {
     const r = createTestRuntime(),
       node = r.create('view');
     r.root.appendChild(node);
-    const press = vi.fn(),
-      long = vi.fn(),
-      out = vi.fn();
+    const press = vi.fn<(...args: unknown[]) => void>(),
+      long = vi.fn<(...args: unknown[]) => void>(),
+      out = vi.fn<(...args: unknown[]) => void>();
     const cleanup = r.pressable(node, {
       onPress: press,
       onLongPress: long,
@@ -248,7 +248,7 @@ describe('services and semantics', () => {
       }).parameters,
     });
     const gain = r.parameters.byId['gain']!,
-      listener = vi.fn(),
+      listener = vi.fn<(...args: unknown[]) => void>(),
       stop = gain.subscribe(listener);
     gain.set(11);
     gain.set(20);
@@ -260,8 +260,8 @@ describe('services and semantics', () => {
     expect(gain.inGesture).toBe(true);
     gain.endGesture();
     expect(gain.inGesture).toBe(false);
-    expect(() => gain.set('x')).toThrow();
-    expect(() => r.parameters.byId['mode']!.set('c')).toThrow();
+    expect(() => gain.set('x')).toThrow(Error);
+    expect(() => r.parameters.byId['mode']!.set('c')).toThrow(Error);
     // The behavior is the config's, compiled as the Web runtime compiles it.
     expect(r.parameters.byId['mode']!.format('b')).toBe('B');
     expect(r.parameters.byId['mode']!.parse('a')).toBe('a');
@@ -285,7 +285,7 @@ describe('services and semantics', () => {
     expect(await r.storage.get('preset')).toEqual({ a: 1 });
     expect(await r.storage.keys()).toEqual(['preset']);
     await expect(r.storage.set('bad', undefined)).rejects.toThrow('JSON');
-    const listener = vi.fn();
+    const listener = vi.fn<(...args: unknown[]) => void>();
     r.subscribe(listener);
     r.setHost({ hostName: 'Reaper' });
     expect(r.snapshot().hostName).toBe('Reaper');
@@ -454,7 +454,7 @@ describe('deterministic animations', () => {
   it('rejects invalid time, cross-runtime targets and infinite finish; disposal rejects pending work', async () => {
     const r = createTestRuntime(),
       other = createTestRuntime();
-    expect(() => r.advanceTime(-1)).toThrow();
+    expect(() => r.advanceTime(-1)).toThrow(Error);
     expect(() =>
       r.root.animate({ target: other.root, keyframes: [{ opacity: 0 }] }),
     ).toThrow('another runtime');
@@ -762,7 +762,7 @@ it('locks a press to the node asking from its pointerdown, until the release', a
   runtime.pointerDown(face);
   await expect(locking).resolves.toBeUndefined();
   expect(ui.pointerLockNode()).toBe(knob);
-  await expect(other.requestPointerLock()).rejects.toThrow();
+  await expect(other.requestPointerLock()).rejects.toThrow(Error);
   runtime.pointerMove(other, { movementY: -14 });
   expect(moves).toEqual([[knob, -14]]);
   runtime.pointerUp(other);
@@ -774,7 +774,7 @@ it('locks a press to the node asking from its pointerdown, until the release', a
   expect(ui.pointerLockNode()).toBeNull();
   runtime.pointerUp(knob);
   runtime.pointerDown(knob, { pointerType: 'touch' });
-  await expect(knob.requestPointerLock()).rejects.toThrow();
+  await expect(knob.requestPointerLock()).rejects.toThrow(Error);
   runtime.pointerUp(knob);
   runtime.dispose();
 });
@@ -805,7 +805,7 @@ it('uses native cancellation flags for focus, input, change and hover notificati
   const runtime = createTestRuntime(),
     node = runtime.create('input');
   runtime.root.appendChild(node);
-  const focus = vi.fn((event: TestEvent) => {
+  const focus = vi.fn<(event: TestEvent) => void>((event: TestEvent) => {
     event.preventDefault();
     expect(event.cancelable).toBe(false);
   });

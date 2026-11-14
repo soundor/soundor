@@ -168,12 +168,10 @@ test.each(['auto', 'cpu'] as const)(
     });
     const badge = plugin.getByDebugId('soundor.renderer');
     await expect(badge).toBeVisible();
-    if (renderer === 'cpu') {
-      await expect(badge).toHaveText('CPU composition');
-    } else {
-      // Hardware availability varies by runner; Windows logs go to its debugger.
-      expect((await badge.getNode()).text).toMatch(/^(GPU|CPU) composition$/);
-    }
+    // Hardware availability varies by runner; an explicit CPU request must win.
+    await expect(badge).toHaveText(
+      renderer === 'cpu' ? 'CPU composition' : /^(GPU|CPU) composition$/,
+    );
     expect(await badge.getStyles()).toMatchObject({
       base: { pointerEvents: 'none' },
     });

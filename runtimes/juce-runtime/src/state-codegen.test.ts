@@ -35,7 +35,7 @@ const config = resolveConfig({
   state: {
     signedValue: { type: 'int64', default: -9223372036854775808n },
     unsignedValue: { type: 'uint64', default: 18446744073709551615n },
-    precise: { type: 'float64', default: 0.000012345678901234567 },
+    precise: { type: 'float64', default: Number('0.000012345678901234567') },
     selectedPreset: { type: 'string?', default: null },
     enabled: { type: 'boolean', default: true },
     groups: {

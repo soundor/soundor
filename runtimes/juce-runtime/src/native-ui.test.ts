@@ -124,7 +124,9 @@ describe('writeNativeUi', () => {
     expect(native).not.toContain('a comment');
     expect(native).not.toContain('sourceMappingURL');
     expect(native.trim().split('\n')).toHaveLength(1);
-    await expect(readFile(join(out, 'bundle.js.map'))).rejects.toThrow();
+    await expect(readFile(join(out, 'bundle.js.map'))).rejects.toThrow(
+      /ENOENT/,
+    );
   });
 });
 
@@ -132,7 +134,7 @@ describe('watchNativeUi', () => {
   it("follows the CLI's builds, keeping the last good one through an error", async () => {
     await writeBundle(`export const version = 1;\n`, { map: true });
     let onBuild = (): void => {};
-    const sourceMap = vi.fn(() => Promise.resolve());
+    const sourceMap = vi.fn<() => Promise<void>>(() => Promise.resolve());
     const errors: unknown[] = [];
     const watcher = watchNativeUi(
       {

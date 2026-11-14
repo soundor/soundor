@@ -1,11 +1,4 @@
-import {
-  mkdir,
-  mkdtemp,
-  readdir,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -125,7 +118,7 @@ describe('runBuild', () => {
       ).toBe('alpha:debug\n');
       await expect(
         readFile(join(root, '.soundor', 'dist', 'alpha', 'artifact.txt')),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/ENOENT/);
     });
 
     it('bundles the UI apart from soundor dev', async () => {

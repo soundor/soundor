@@ -177,7 +177,7 @@ describe('juceDev', () => {
         live: {
           logFile: join(root, 'ui.log'),
           onBuild: () => () => {},
-          sourceMap: vi.fn(() => Promise.resolve()),
+          sourceMap: vi.fn<() => Promise<void>>(() => Promise.resolve()),
         },
       },
     };

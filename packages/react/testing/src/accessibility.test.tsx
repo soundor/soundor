@@ -92,7 +92,7 @@ describe('accessibility props', () => {
   });
 
   it('leave nodes without them alone, and set only what changed', async () => {
-    const assigned = vi.fn();
+    const assigned = vi.fn<(value: Record<string, unknown>) => void>();
     function Gain({ now }: { now: number }) {
       return (
         <View
@@ -139,9 +139,9 @@ describe('accessibility props', () => {
   });
 
   it('call onAccessibilityAction for actions asked of the element itself', async () => {
-    const outer = vi.fn();
-    const inner = vi.fn((event: AccessibilityActionEvent) =>
-      event.preventDefault(),
+    const outer = vi.fn<(...args: unknown[]) => void>();
+    const inner = vi.fn<(event: AccessibilityActionEvent) => void>(
+      (event: AccessibilityActionEvent) => event.preventDefault(),
     );
     await show(
       <View onAccessibilityAction={outer}>
@@ -177,8 +177,8 @@ describe('Pressable', () => {
   });
 
   it('presses on activate, and long-presses on longpress', async () => {
-    const onPress = vi.fn();
-    const onLongPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
+    const onLongPress = vi.fn<(...args: unknown[]) => void>();
     await show(<Pressable onPress={onPress} onLongPress={onLongPress} />);
 
     expect(child(0).accessibility['actions']).toEqual([
@@ -192,7 +192,7 @@ describe('Pressable', () => {
   });
 
   it('takes another role and more actions without losing its own', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     const actions: string[] = [];
     await show(
       <Pressable
@@ -228,7 +228,7 @@ describe('Pressable', () => {
   });
 
   it('lets onAccessibilityAction take activate over', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     await show(
       <Pressable
         onPress={onPress}
@@ -241,7 +241,7 @@ describe('Pressable', () => {
   });
 
   it('is disabled to assistive technology while disabled', async () => {
-    const onPress = vi.fn();
+    const onPress = vi.fn<(...args: unknown[]) => void>();
     const { rerender } = (() => {
       const rerender = async (disabled: boolean) =>
         await show(<Pressable onPress={onPress} disabled={disabled} />);

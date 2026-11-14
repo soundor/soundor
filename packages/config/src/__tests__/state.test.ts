@@ -18,7 +18,7 @@ it('infers defaults from native types and validates them at build time', () => {
   expect(resolveConfig(config).state).toEqual(config.state);
   expect(() =>
     resolveConfig({ ...base, state: { x: { type: 'uint8', default: 999 } } }),
-  ).toThrow();
+  ).toThrow(Error);
   defineSoundorConfig({
     ...base,
     state: {

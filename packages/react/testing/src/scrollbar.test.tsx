@@ -6,7 +6,7 @@ import {
   type Scrollbars,
 } from '@soundor/react';
 import { act, advanceTime, render } from '@soundor/testing-library/react';
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { PointerEvent, type UiNode } from 'soundor:ui';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,7 +15,10 @@ let scroll: UiNode;
 
 function Bar({ axis }: { axis?: 'vertical' | 'horizontal' }) {
   const node = useRef<UiNode>(null);
-  bar = useScrollbar(node)[axis ?? 'vertical'];
+  const current = useScrollbar(node)[axis ?? 'vertical'];
+  useLayoutEffect(() => {
+    bar = current;
+  });
   return (
     <View>
       <View
@@ -28,8 +31,8 @@ function Bar({ axis }: { axis?: 'vertical' | 'horizontal' }) {
       >
         <View />
       </View>
-      <View {...bar.trackProps}>
-        <View {...bar.thumbProps} style={{ backgroundColor: 'red' }} />
+      <View {...current.trackProps}>
+        <View {...current.thumbProps} style={{ backgroundColor: 'red' }} />
       </View>
     </View>
   );
@@ -244,7 +247,10 @@ describe('useScrollbar', () => {
     let bars: Scrollbars | undefined;
     function List() {
       const node = useRef<UiNode>(null);
-      bars = useScrollbar(node);
+      const current = useScrollbar(node);
+      useLayoutEffect(() => {
+        bars = current;
+      });
       return (
         <Animated.View
           ref={(value) => {
@@ -255,8 +261,8 @@ describe('useScrollbar', () => {
           style={{ overflowY: 'scroll' }}
         >
           <View />
-          <View {...bars.vertical.trackProps}>
-            <View {...bars.vertical.thumbProps} />
+          <View {...current.vertical.trackProps}>
+            <View {...current.vertical.thumbProps} />
           </View>
         </Animated.View>
       );

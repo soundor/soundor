@@ -4,8 +4,12 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { launchHost, launchPlugin } from './launch';
 
-vi.mock('@soundor/driver/vst3', () => ({ launch: vi.fn() }));
-vi.mock('@soundor/vst3-host', () => ({ launchHost: vi.fn() }));
+vi.mock('@soundor/driver/vst3', () => ({
+  launch: vi.fn<typeof import('@soundor/driver/vst3').launch>(),
+}));
+vi.mock('@soundor/vst3-host', () => ({
+  launchHost: vi.fn<typeof import('@soundor/vst3-host').launchHost>(),
+}));
 
 /** How often each was closed, across tests: cleanup happens after each has
     ended, and Vitest clears a mock's calls between tests. */
@@ -75,6 +79,8 @@ describe('launchPlugin', () => {
     await launchPlugin();
     starts('second', launch);
     await launchPlugin();
+    expect(closes['first']).toBe(0);
+    expect(closes['second']).toBe(0);
   });
 
   test('so both closed', () => {
@@ -91,6 +97,7 @@ describe('launchPlugin', () => {
     );
     void launchPlugin();
     setTimeout(() => finish({ close } as never), 10);
+    expect(closes['late']).toBe(0);
   });
 
   test('so the late one closed', () => {

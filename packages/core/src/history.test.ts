@@ -66,7 +66,7 @@ it('groups History gestures at outer boundaries and keeps ordinary gestures inde
 });
 it('buffers transactions with read-your-writes and publishes all fields before observers', () => {
   const { history, store, a, b } = setup();
-  const callback = vi.fn(() =>
+  const callback = vi.fn<() => void>(() =>
     expect([a.get(), b.get()]).toEqual([2, 'Preset']),
   );
   a.subscribe(callback);
@@ -89,7 +89,7 @@ it('buffers transactions with read-your-writes and publishes all fields before o
 });
 it('discards throws, caught setter errors, nested failures, async and thenable results', () => {
   const { history, a } = setup();
-  const observe = vi.fn();
+  const observe = vi.fn<(...args: unknown[]) => void>();
   a.subscribe(observe);
   const reason = new Error('bad');
   expect(() =>
@@ -201,7 +201,7 @@ it('detaches arrays and clears History on restoration', () => {
 });
 it('bounds memory and entry count and avoids redundant status notifications', () => {
   const { history, a } = setup(new StateHistory(2));
-  const listener = vi.fn();
+  const listener = vi.fn<(...args: unknown[]) => void>();
   history.subscribe(listener);
   a.set(1, { history: true });
   a.set(2, { history: true });

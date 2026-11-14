@@ -286,6 +286,7 @@ function golden(name: string, contents: string): void {
 
 describe('the parameters C++', () => {
   it('is the golden the JUCE adapter tests compile', () => {
+    expect.hasAssertions();
     golden(
       'TestParameters.cpp',
       renderParametersSource(
@@ -296,6 +297,7 @@ describe('the parameters C++', () => {
   });
 
   it('is held to what JavaScript computes', () => {
+    expect.hasAssertions();
     golden('ParameterParity.h', renderParity(resolved()));
   });
 

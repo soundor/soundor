@@ -37,9 +37,11 @@ async function saved(data: Uint8Array) {
 /** Captures that show each image in turn, then stay on the last. */
 function showing(...images: Uint8Array[]) {
   let next = 0;
-  return vi.fn(async () => ({
-    data: images[Math.min(next++, images.length - 1)]!,
-  }));
+  return vi.fn<() => Promise<{ data: Uint8Array<ArrayBufferLike> }>>(
+    async () => ({
+      data: images[Math.min(next++, images.length - 1)]!,
+    }),
+  );
 }
 
 function compare(

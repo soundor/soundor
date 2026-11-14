@@ -141,7 +141,9 @@ describe('findVst3Host', () => {
 
 describe('prepareHostExecutable', () => {
   it('prepares only what resolving could not find', async () => {
-    const prepareHost = vi.fn(async () => ({ executable: '/built' }));
+    const prepareHost = vi.fn<() => Promise<{ executable: string }>>(
+      async () => ({ executable: '/built' }),
+    );
     const found = {
       resolveHost: () => ({ executable: '/selected' }),
       prepareHost,
@@ -159,7 +161,7 @@ describe('prepareHostExecutable', () => {
   });
 
   it('does not build over any other failure', async () => {
-    const prepareHost = vi.fn();
+    const prepareHost = vi.fn<HostModule['prepareHost']>();
     const module = {
       resolveHost: () => {
         throw coded('incompatible-host');
@@ -210,7 +212,7 @@ describe('DevVst3Host', () => {
     const log = (message: string) => logs.push(message);
     const module = {
       resolveHost: () => ({ executable: '/host' }),
-      prepareHost: vi.fn(),
+      prepareHost: vi.fn<HostModule['prepareHost']>(),
       launchHost: async (options: Record<string, unknown>) => {
         launches.push(options);
         const host = new FakeHost();
@@ -311,7 +313,7 @@ describe('DevVst3Host', () => {
     expect(hosts).toHaveLength(2);
     expect(hosts[0]!.closed).toBe(1);
     expect(hosts[1]!.closed).toBe(0);
-    await expect(readFile(stateFile)).rejects.toThrow();
+    await expect(readFile(stateFile)).rejects.toThrow(/ENOENT/);
     expect(logs.join()).toContain('did not accept its saved state');
   });
 
@@ -333,7 +335,7 @@ describe('DevVst3Host', () => {
     await dev.launch();
     await dev.close();
     expect(hosts[0]!.closed).toBe(1);
-    await expect(readFile(stateFile)).rejects.toThrow();
+    await expect(readFile(stateFile)).rejects.toThrow(/ENOENT/);
     expect(logs.join()).toContain('Could not save');
   });
 

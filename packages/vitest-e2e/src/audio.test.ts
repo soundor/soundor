@@ -112,29 +112,30 @@ describe('render', () => {
   /** A host that echoes its input, and reports what it was given. */
   function echoing() {
     const calls: ProcessRequest[] = [];
-    const host = {
-      process: vi.fn(async (request: ProcessRequest) => {
-        calls.push(request);
-        const frames = request.frames!;
-        return {
-          frames,
-          outputs: [
-            request.inputs?.[0]?.map((channel) => channel.slice()) ?? [
-              new Float32Array(frames),
-            ],
+    const process = async (request: ProcessRequest) => {
+      calls.push(request);
+      const frames = request.frames!;
+      return {
+        frames,
+        outputs: [
+          request.inputs?.[0]?.map((channel) => channel.slice()) ?? [
+            new Float32Array(frames),
           ],
-          events: (request.events ?? []).map((event) => ({
-            ...event,
-            time: event.time ?? 0,
-          })),
-          parameterChanges: (request.parameterChanges ?? []).map((change) => ({
-            ...change,
-            time: change.time ?? 0,
-          })),
-          transport: { samplePosition: frames },
-          warnings: frames === 3 ? ['three'] : [],
-        };
-      }),
+        ],
+        events: (request.events ?? []).map((event) => ({
+          ...event,
+          time: event.time ?? 0,
+        })),
+        parameterChanges: (request.parameterChanges ?? []).map((change) => ({
+          ...change,
+          time: change.time ?? 0,
+        })),
+        transport: { samplePosition: frames },
+        warnings: frames === 3 ? ['three'] : [],
+      };
+    };
+    const host = {
+      process: vi.fn<typeof process>(process),
     } as unknown as Vst3Host;
     return { host, calls };
   }

@@ -2,7 +2,6 @@ import type {
   AudioBus,
   NoteOffEvent,
   NoteOnEvent,
-  ParameterChange,
   ProcessRequest,
   ProcessResult,
   Vst3Host,

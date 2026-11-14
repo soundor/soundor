@@ -35,6 +35,8 @@ function headerName(name) {
 
 function headerValue(value) {
   const text = String(value).replace(/^[\t\n\r ]+|[\t\n\r ]+$/g, '');
+  // HTTP header values must reject NUL as well as line breaks.
+  // oxlint-disable-next-line no-control-regex
   if (/[\u0000\r\n]/.test(text))
     throw new TypeError('Header values cannot contain NUL, CR or LF');
   return text;

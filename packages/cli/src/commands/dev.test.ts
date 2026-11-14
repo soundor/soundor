@@ -7,7 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { devCommand, runDev } from './dev';
 
-vi.mock('../devtools/open', () => ({ openDevTools: vi.fn(async () => {}) }));
+vi.mock('../devtools/open', () => ({
+  openDevTools: vi.fn<() => Promise<void>>(async () => {}),
+}));
 
 vi.mock('@clack/prompts', () => ({
   outro: vi.fn<() => void>(),

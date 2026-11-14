@@ -296,7 +296,11 @@ describe('publishing', () => {
     const tarballs = checkTarballs(packed(), { version: '0.3.0' });
     vi.useFakeTimers();
     try {
-      const fetcher = vi.fn(async () => new Response(null, { status: 404 }));
+      const fetcher = vi.fn<() => Promise<Response>>(
+        async () => new Response(null, { status: 404 }),
+      );
+      // Install the rejection assertion before triggering it; await the saved promise below.
+      // oxlint-disable-next-line vitest/valid-expect
       const result = expect(
         verify(tarballs, {
           timeoutMs: 100,
@@ -317,7 +321,9 @@ describe('publishing', () => {
   test('verification does not retry registry errors or conflicting published builds', async () => {
     const tarballs = checkTarballs(packed(), { version: '0.3.0' });
     for (const status of [401, 500]) {
-      const fetcher = vi.fn(async () => new Response(null, { status }));
+      const fetcher = vi.fn<() => Promise<Response>>(
+        async () => new Response(null, { status }),
+      );
       await expect(verify(tarballs, { fetcher })).rejects.toThrow(
         `HTTP ${status}`,
       );

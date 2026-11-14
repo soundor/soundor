@@ -207,7 +207,7 @@ describe('bundleUi', () => {
     expect(production.code.trim().split('\n').length).toBeLessThanOrEqual(2);
     await expect(
       readFile(join(production.result.dir, 'bundle.mjs.map')),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/ENOENT/);
 
     const development = await bundle('development');
     expect(development.code).toContain('//# sourceMappingURL=bundle.mjs.map');

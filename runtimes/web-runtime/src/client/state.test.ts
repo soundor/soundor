@@ -44,7 +44,7 @@ describe('standalone persistence', () => {
     a.parameters.byId.gain!.set(0.75);
     await a.flush();
     const b = application(a.manifest.plugin.id);
-    const restored = vi.fn();
+    const restored = vi.fn<(...args: unknown[]) => void>();
     b.store.onRestored(restored);
     await b.ready;
     expect(b.store.fields.selected!.get()).toBe('Warm');
@@ -105,7 +105,7 @@ describe('standalone persistence', () => {
           }),
         ),
       ),
-    ).toThrow();
+    ).toThrow(Error);
     expect(a.store.fields.selected!.get()).toBeNull();
     const seen: string[] = [];
     a.store.fields.selected!.subscribe(() => {
@@ -131,7 +131,7 @@ it('keeps gestures transient while updates and saves remain immediate', async ()
   const app = application();
   await app.ready;
   const { selected, bands } = app.store.fields;
-  const changed = vi.fn();
+  const changed = vi.fn<(...args: unknown[]) => void>();
   selected!.subscribe(changed);
   selected!.beginGesture();
   selected!.beginGesture();
