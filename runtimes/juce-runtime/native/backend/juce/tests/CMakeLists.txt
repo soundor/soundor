@@ -127,7 +127,7 @@ add_custom_command(OUTPUT "${soundor_test_rust_library}"
 add_custom_target(soundor_juce_test_rust_library DEPENDS "${soundor_test_rust_library}")
 
 juce_add_console_app(soundor_juce_rust_tests)
-target_sources(soundor_juce_rust_tests PRIVATE JuceRustProcessorTests.cpp ../soundor/backend/RustProcessor.cpp)
+target_sources(soundor_juce_rust_tests PRIVATE JuceRustProcessorTests.cpp AllocationCounter.cpp ../soundor/backend/RustProcessor.cpp)
 target_include_directories(soundor_juce_rust_tests PRIVATE ..)
 target_compile_definitions(soundor_juce_rust_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_rust_tests PRIVATE Soundor::Engine soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)

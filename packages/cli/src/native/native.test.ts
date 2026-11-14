@@ -118,6 +118,7 @@ describe('the native scaffold', () => {
       'native/.gitignore',
       'native/src/lib.rs',
       'native/tests/processor.rs',
+      'native/tests/realtime.rs',
     ]);
     const manifest = files[1]!.contents;
     expect(manifest).toContain('name = "sdk-fixture"');
@@ -128,6 +129,10 @@ describe('the native scaffold', () => {
     expect(files[3]!.contents).toContain('soundor::export!(Processor);');
     expect(files[3]!.contents).toContain('ctx.params.gain');
     expect(files[4]!.contents).toContain('use sdk_fixture::Processor;');
+    expect(files[5]!.contents).toContain(
+      'static ALLOCATOR: CountingAllocator = CountingAllocator;',
+    );
+    expect(files[5]!.contents).toContain('use sdk_fixture::Processor;');
   });
 
   it('derives a crate name from any plugin name', () => {

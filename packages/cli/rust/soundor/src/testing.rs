@@ -19,9 +19,30 @@
 //! [`TestProcessor`] runs the processor itself; [`NativeProcessor`] runs it
 //! through the C ABI that `soundor::export!` defines, as a native runtime
 //! does.
+//!
+//! # Real-time safety
+//!
+//! A processor runs on the audio thread, where taking the allocator's lock
+//! can make it miss its deadline. With [`CountingAllocator`] as the test
+//! binary's global allocator, both count the allocator calls the processor
+//! makes while it processes:
+//!
+//! ```ignore
+//! #[global_allocator]
+//! static ALLOCATOR: soundor::testing::CountingAllocator = soundor::testing::CountingAllocator;
+//!
+//! #[test]
+//! fn processing_does_not_allocate() {
+//!     let mut processor = TestProcessor::<Processor>::new().build();
+//!     processor.process(&[vec![0.5; 4096]]);
+//!     assert_eq!(processor.allocations(), 0);
+//! }
+//! ```
 
-use std::cell::RefCell;
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::channels::ChannelSink;
 use crate::ffi::{
@@ -34,6 +55,80 @@ use crate::plugin::{CHANNELS, DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parame
 use crate::processor::AudioProcessor;
 use crate::transport::Transport;
 use crate::{ABI_VERSION, config};
+
+/// The system allocator, counting the calls made on a thread while it runs
+/// [`count_allocations`]: allocations, reallocations and frees alike, each
+/// of which may take a lock. Install it as the test binary's
+/// `#[global_allocator]`.
+pub struct CountingAllocator;
+
+static INSTALLED: AtomicBool = AtomicBool::new(false);
+
+thread_local! {
+    // Const-initialized: reading them never allocates.
+    static COUNTING: Cell<bool> = const { Cell::new(false) };
+    static CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
+impl CountingAllocator {
+    fn record() {
+        INSTALLED.store(true, Ordering::Relaxed);
+        // During the thread's teardown there is nothing to count.
+        let _ = COUNTING.try_with(|counting| {
+            if counting.get() {
+                let _ = CALLS.try_with(|calls| calls.set(calls.get() + 1));
+            }
+        });
+    }
+}
+
+// SAFETY: every call is System's, with the arguments it was given.
+unsafe impl GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        Self::record();
+        // SAFETY: as the caller promises.
+        unsafe { System.alloc(layout) }
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        Self::record();
+        // SAFETY: as the caller promises.
+        unsafe { System.alloc_zeroed(layout) }
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        Self::record();
+        // SAFETY: as the caller promises.
+        unsafe { System.dealloc(pointer, layout) }
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
+        Self::record();
+        // SAFETY: as the caller promises.
+        unsafe { System.realloc(pointer, layout, size) }
+    }
+}
+
+/// Runs `run`, and returns what it returned with the allocator calls it
+/// made on this thread.
+///
+/// # Panics
+///
+/// When [`CountingAllocator`] is not the global allocator.
+pub fn count_allocations<R>(run: impl FnOnce() -> R) -> (R, usize) {
+    // Anything allocated before a test runs, if the allocator counts.
+    drop(Box::new(0u8));
+    assert!(
+        INSTALLED.load(Ordering::Relaxed),
+        "counting allocations needs soundor::testing::CountingAllocator as the #[global_allocator]: \
+         `#[global_allocator] static ALLOCATOR: soundor::testing::CountingAllocator = soundor::testing::CountingAllocator;`"
+    );
+    let before = CALLS.with(Cell::get);
+    COUNTING.with(|counting| counting.set(true));
+    let result = run();
+    COUNTING.with(|counting| counting.set(false));
+    (result, CALLS.with(Cell::get) - before)
+}
 
 /// The plain value of `value` for parameter `id`, or why it has none.
 fn plain(id: &str, value: f64) -> Result<usize, String> {
@@ -81,21 +176,26 @@ struct RecordedChannels {
     // Each buffer channel's storage: `u64`s, so that it is aligned for, and
     // holds, `maxLength` elements of any type a channel carries.
     storage: RefCell<Vec<Vec<u64>>>,
-    buffers: RefCell<Vec<Option<Vec<u64>>>>,
+    // What was committed, copied into storage of the same size: committing
+    // allocates nothing, as a runtime's channel does not.
+    buffers: RefCell<Vec<Vec<u64>>>,
+    committed: RefCell<Vec<bool>>,
     lengths: RefCell<Vec<usize>>,
 }
 
 impl RecordedChannels {
     fn new() -> Self {
+        let storage = || {
+            CHANNELS
+                .iter()
+                .map(|(_, length)| vec![0; length.unwrap_or(0)])
+                .collect()
+        };
         Self {
             values: RefCell::new(vec![None; CHANNELS.len()]),
-            storage: RefCell::new(
-                CHANNELS
-                    .iter()
-                    .map(|(_, length)| vec![0; length.unwrap_or(0)])
-                    .collect(),
-            ),
-            buffers: RefCell::new(vec![None; CHANNELS.len()]),
+            storage: RefCell::new(storage()),
+            buffers: RefCell::new(storage()),
+            committed: RefCell::new(vec![false; CHANNELS.len()]),
             lengths: RefCell::new(vec![0; CHANNELS.len()]),
         }
     }
@@ -121,7 +221,8 @@ impl ChannelSink for RecordedChannels {
         let storage = self.storage.borrow();
         if let Some(buffer) = storage.get(index as usize) {
             let length = length.min(buffer.len());
-            self.buffers.borrow_mut()[index as usize] = Some(buffer.clone());
+            self.buffers.borrow_mut()[index as usize].copy_from_slice(buffer);
+            self.committed.borrow_mut()[index as usize] = true;
             self.lengths.borrow_mut()[index as usize] = length;
         }
     }
@@ -233,6 +334,7 @@ impl<P: AudioProcessor> TestProcessorBuilder<P> {
             parameters: self.parameters,
             transport: Transport::default(),
             channels: RecordedChannels::new(),
+            allocations: 0,
         };
         let status = processor.prepare_with(
             self.sample_rate,
@@ -254,6 +356,7 @@ pub struct TestProcessor<P: AudioProcessor> {
     parameters: Parameters,
     transport: Transport,
     channels: RecordedChannels,
+    allocations: usize,
 }
 
 impl<P: AudioProcessor> TestProcessor<P> {
@@ -458,14 +561,16 @@ impl<P: AudioProcessor> TestProcessor<P> {
             .collect();
         let mut values = [0.0; Parameters::COUNT];
         self.parameters.write(&mut values);
-        let status = self.instance.process(Block {
+        let block = Block {
             frames: length,
             inputs: &input_pointers,
             outputs: &output_pointers,
             parameters: Some(&values),
             transport: self.transport,
             channels: &self.channels,
-        });
+        };
+        let (status, allocations) = counted(|| self.instance.process(block));
+        self.allocations += allocations;
         // What it published, as a host would see it next.
         for (slot, &index) in PUBLISHED.iter().enumerate() {
             let value = self.instance.published()[slot];
@@ -491,6 +596,17 @@ impl<P: AudioProcessor> TestProcessor<P> {
         self.run_block(&mut input_buffers, &mut output_buffers, 0, frames)
     }
 
+    /// The allocator calls the processor made while it processed, every block
+    /// so far.
+    ///
+    /// # Panics
+    ///
+    /// When [`CountingAllocator`] is not the test binary's global allocator.
+    pub fn allocations(&self) -> usize {
+        count_allocations(|| ());
+        self.allocations
+    }
+
     /// The latest value published to channel `name`, a number channel.
     pub fn channel(&self, name: &str) -> Option<f64> {
         let index = CHANNELS.iter().position(|(id, _)| *id == name)?;
@@ -501,8 +617,11 @@ impl<P: AudioProcessor> TestProcessor<P> {
     /// declared element type).
     pub fn channel_buffer<T: crate::ChannelElement>(&self, name: &str) -> Option<Vec<T>> {
         let index = CHANNELS.iter().position(|(id, _)| *id == name)?;
+        if !self.channels.committed.borrow()[index] {
+            return None;
+        }
         let buffers = self.channels.buffers.borrow();
-        let buffer = buffers[index].as_ref()?;
+        let buffer = &buffers[index];
         let length = self.channels.lengths.borrow()[index];
         // SAFETY: the storage holds at least `length` elements of the
         // channel's type (8 bytes per element reserved), and is aligned.
@@ -529,6 +648,7 @@ pub struct NativeProcessor {
     pub published: Vec<f64>,
     /// The transport passed with each block.
     pub transport: SoundorTransport,
+    allocations: usize,
 }
 
 impl NativeProcessor {
@@ -564,7 +684,19 @@ impl NativeProcessor {
                 time_signature_numerator: 0,
                 time_signature_denominator: 0,
             },
+            allocations: 0,
         }
+    }
+
+    /// The allocator calls made in `soundor_processor_process`, every block
+    /// so far.
+    ///
+    /// # Panics
+    ///
+    /// When [`CountingAllocator`] is not the test binary's global allocator.
+    pub fn allocations(&self) -> usize {
+        count_allocations(|| ());
+        self.allocations
     }
 
     /// The raw handle, for tests of invalid calls.
@@ -640,9 +772,12 @@ impl NativeProcessor {
             transport: &self.transport,
             channels: channels.map_or(std::ptr::null(), |sink| sink as *const SoundorChannelSink),
         };
+        let (process, handle) = (self.exports.process, self.handle);
         // SAFETY: a handle from `create`, and a block whose arrays live for
         // the call.
-        unsafe { (self.exports.process)(self.handle, &block) }
+        let (status, allocations) = counted(|| unsafe { process(handle, &block) });
+        self.allocations += allocations;
+        status
     }
 
     /// `soundor_processor_process` with a block as given, for tests of
@@ -668,5 +803,15 @@ impl Drop for NativeProcessor {
     fn drop(&mut self) {
         // SAFETY: a handle from `create`, never used again.
         unsafe { (self.exports.destroy)(self.handle) };
+    }
+}
+
+/// [`count_allocations`] where [`CountingAllocator`] is installed; `run`
+/// alone, and nothing counted, where it is not.
+fn counted<R>(run: impl FnOnce() -> R) -> (R, usize) {
+    if INSTALLED.load(Ordering::Relaxed) {
+        count_allocations(run)
+    } else {
+        (run(), 0)
     }
 }

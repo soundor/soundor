@@ -21,7 +21,11 @@ impl AudioProcessor for Processor {
     fn process(&mut self, ctx: &mut ProcessContext) {
         let target = ctx.params.gain;
         let frames = ctx.audio.frames();
-        let step = if frames == 0 { 0.0 } else { (target - self.gain) / frames as f32 };
+        let step = if frames == 0 {
+            0.0
+        } else {
+            (target - self.gain) / frames as f32
+        };
         // The main output holds the main input: process it in place.
         for channel in ctx.audio.channels() {
             let mut gain = self.gain;

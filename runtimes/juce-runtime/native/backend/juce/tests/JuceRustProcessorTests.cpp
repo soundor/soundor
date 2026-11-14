@@ -10,10 +10,26 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <vector>
 
 namespace backend = soundor::backend;
+
+// Allocations on this thread, counted by AllocationCounter.cpp's operator new
+// (0 under AddressSanitizer, which owns it). The Rust side's allocations are
+// counted by the SDK's own tests (CountingAllocator).
+bool soundorCountsAllocations();
+std::uint64_t soundorAllocationsOf(void (*run)(void*), void* context);
+
+namespace
+{
+    template <typename Run>
+    std::uint64_t allocationsOf(Run&& run)
+    {
+        return soundorAllocationsOf([](void* context) { (*static_cast<Run*>(context))(); }, &run);
+    }
+} // namespace
 
 namespace
 {
@@ -200,6 +216,53 @@ TEST_CASE("channels and the transport reach the processing")
     CHECK(channels.committed == 2);
     CHECK(channels.history[0] == doctest::Approx(0.75f));
     CHECK(channels.history[1] == doctest::Approx(96.0f));
+}
+
+TEST_CASE("processing allocates nothing")
+{
+    if (! soundorCountsAllocations())
+        return; // Under AddressSanitizer, which owns operator new.
+
+    // That counting works, first.
+    CHECK(allocationsOf([] { delete new int(1); }) == 1);
+
+    // In place, blocks longer than prepared, channels and the transport.
+    backend::RustProcessor processor(contract);
+    const auto values = parameters(0.5);
+    REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
+    juce::AudioBuffer<float> buffer(2, 1000);
+    RecordedChannels channels;
+    const auto sink = channels.sink();
+    auto transport = noTransport;
+    transport.tempo = 120.0;
+    std::array<double, 1> published {};
+    const auto inPlace = allocationsOf(
+        [&]
+        {
+            for (int block = 0; block < 20; ++block)
+            {
+                fill(buffer, 0, 0.5f);
+                fill(buffer, 1, -0.5f);
+                processor.process(buffer, values, published, transport, &sink);
+            }
+        });
+    CHECK(inPlace == 0);
+    CHECK(processor.lastStatus() == SOUNDOR_STATUS_OK);
+    CHECK(channels.committed == 2);
+
+    // An input copied out because it shares a channel with another output.
+    backend::RustProcessor aliased(contract);
+    const backend::RustBusLayout layout { { { 0 }, { 1 } }, { { 0 }, { 1 } } };
+    REQUIRE(aliased.prepare(48000, 32, layout, values) == SOUNDOR_STATUS_OK);
+    juce::AudioBuffer<float> sidechain(2, 100);
+    const auto copied = allocationsOf(
+        [&]
+        {
+            for (int block = 0; block < 20; ++block)
+                aliased.process(sidechain, values, published, noTransport, nullptr);
+        });
+    CHECK(copied == 0);
+    CHECK(aliased.lastStatus() == SOUNDOR_STATUS_OK);
 }
 
 TEST_CASE("a panic silences the processor until it is prepared again")

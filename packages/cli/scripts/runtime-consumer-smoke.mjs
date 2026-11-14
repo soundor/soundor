@@ -138,10 +138,11 @@ export default defineSoundorConfig({
   run(soundor, ['init']);
   assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
-  assert.match(
-    run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']),
-    /test result: ok\. 1 passed/,
-  );
+  // Its tests: the processor's, and that processing allocates nothing.
+  const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
+  assert.match(tested, /Running tests\/processor\.rs/);
+  assert.match(tested, /Running tests\/realtime\.rs/);
+  assert.equal(tested.match(/test result: ok\. 1 passed/g)?.length, 2);
   // The same crate for the Web runtime: a module with the SDK's WebAssembly
   // exports and no imports, as the worklet instantiates it.
   run('cargo', [

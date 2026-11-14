@@ -44,6 +44,7 @@ export function nativeScaffoldFiles(
       path: 'native/tests/processor.rs',
       contents: gain ? gainTests(name) : passThroughTests(name),
     },
+    { path: 'native/tests/realtime.rs', contents: realtimeTests(name) },
   ];
 }
 
@@ -177,6 +178,31 @@ fn passes_its_input_through() {
     let mut processor = TestProcessor::<Processor>::new().build();
     let output = processor.process(&[vec![1.0, 0.5, -1.0]]);
     assert_eq!(output[0], [1.0, 0.5, -1.0]);
+}
+`;
+}
+
+// Its own test binary: the allocator that counts is the binary's.
+function realtimeTests(name: string): string {
+  return `//! The processor runs on the audio thread, where an allocator call can take
+//! a lock and miss the audio's deadline: it must make none while processing.
+
+use ${crateIdent(name)}::Processor;
+use soundor::testing::{CountingAllocator, TestProcessor};
+
+#[global_allocator]
+static ALLOCATOR: CountingAllocator = CountingAllocator;
+
+#[test]
+fn processing_does_not_allocate() {
+    for block_size in [1, 64, 512, 4096] {
+        let mut processor = TestProcessor::<Processor>::new()
+            .block_size(block_size)
+            .build();
+        let input: Vec<f32> = (0..24_000).map(|frame| (frame as f32 * 0.01).sin()).collect();
+        processor.process(&[input.clone(), input]);
+        assert_eq!(processor.allocations(), 0, "block size {block_size}");
+    }
 }
 `;
 }

@@ -1,7 +1,7 @@
 //! The processor, tested in plain Rust: `cargo test --manifest-path native/Cargo.toml`.
 
-use soundor_primitives::Processor;
 use soundor::testing::TestProcessor;
+use soundor_primitives::Processor;
 
 #[test]
 fn applies_the_gain() {
