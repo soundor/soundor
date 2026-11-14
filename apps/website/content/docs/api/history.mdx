@@ -1,9 +1,9 @@
 ---
-title: 'soundor:state-history'
+title: 'soundor:history'
 description: 'Opt-in undo/redo for parameter and persistent-state edits, with gestures and synchronous buffered transactions.'
 ---
 
-StateHistory records edits to Soundor-managed parameters and persistent state.
+History records edits to Soundor-managed parameters and persistent state.
 Each JUCE processor owns one manager, shared by JavaScript and C++. It works
 with the editor closed and survives editor recreation. Each standalone Web
 application owns one equivalent manager. Plugin instances have independent
@@ -12,7 +12,7 @@ History.
 ```ts
 import { parameters } from 'soundor:parameters';
 import { state } from 'soundor:state';
-import { stateHistory } from 'soundor:state-history';
+import { history } from 'soundor:history';
 ```
 
 ## Discrete edits
@@ -81,7 +81,7 @@ owned by another History-enabled gesture.
 Transactions buffer synchronous writes to several fields and create one entry:
 
 ```ts
-stateHistory.transaction('Load Preset', () => {
+history.transaction('Load Preset', () => {
   parameters.frequency.set(1200);
   parameters.gain.set(-3);
   state.selectedPreset.set('Warm Vocal');
@@ -121,10 +121,10 @@ transaction join the outer transaction.
 ## Undo, redo and subscriptions
 
 ```ts
-stateHistory.undo();
-stateHistory.redo();
+history.undo();
+history.redo();
 
-const unsubscribe = stateHistory.subscribe((status) => {
+const unsubscribe = history.subscribe((status) => {
   console.log(status.canUndo, status.undoLabel);
   console.log(status.canRedo, status.redoLabel);
 });
@@ -173,19 +173,19 @@ const frequency = useParameter(parameters.frequency);
 />;
 ```
 
-Use [`useStateHistory()`](/docs/hooks/use-state-history) for reactive buttons.
+Use [`useHistory()`](/docs/hooks/use-history) for reactive buttons.
 It exposes `canUndo`, `canRedo`, `undoLabel`, `redoLabel` and stable `undo` and
 `redo` callbacks, without polling or field-wide hook configuration.
 
 ## Native C++
 
-The generated processor exposes `stateHistory`, `state` and its existing
+The generated processor exposes `history`, `state` and its existing
 `<id>Parameter` handles to derived processors. `load()` remains the
 real-time-safe DSP read. `get()`, `set()` and gestures are control-thread
 operations:
 
 ```cpp
-stateHistory.transaction("Load Preset", [&] {
+history.transaction("Load Preset", [&] {
     frequencyParameter.set(1200.0f);
     gainParameter.set(-3.0f);
     state.selectedPreset.set(std::string("Warm Vocal"));
@@ -196,12 +196,12 @@ frequencyParameter.beginGesture(
     soundor::history::Options(std::string("Adjust Frequency")));
 frequencyParameter.set(1500.0f);
 frequencyParameter.endGesture();
-stateHistory.undo();
-stateHistory.redo();
+history.undo();
+history.redo();
 ```
 
 C++ transaction callbacks return `void`. Native subscriptions use
-`stateHistory.subscribe(callback)` and return an unsubscribe closure, which
+`history.subscribe(callback)` and return an unsubscribe closure, which
 must be called before the processor is destroyed. Use `status()` for labels
 and availability. All History APIs, including persistent-state edits, belong
 on the message thread, never in `process()`. A shared recursive control mutex
@@ -222,7 +222,7 @@ records 200 Hz to 600 Hz. Automation alone creates none.
 
 Later automation does not invalidate committed entries. Undo/redo applies the
 stored values through the normal host-aware setter; the DAW may overwrite
-them again. StateHistory does not replace the DAW's automation or undo
+them again. History does not replace the DAW's automation or undo
 systems, change automation timelines, or model Read/Touch/Latch/Write modes.
 
 Accepted project restoration restores parameter and state values, invalidates

@@ -324,7 +324,7 @@ export function persistentProcessorSource(
 
     void AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     {
-        const std::lock_guard historyGuard(stateHistory.mutex());
+        const std::lock_guard historyGuard(history.mutex());
         const std::lock_guard guard(state.storage().mutex());
         // APVTS flushes pending parameter changes before we copy them.
         const auto parameterTree = parameters->copyState();
@@ -411,11 +411,11 @@ export function persistentProcessorSource(
           next = std::move(restorations.front());
           restorations.pop_front();
         }
-        const std::lock_guard historyGuard(stateHistory.mutex());
+        const std::lock_guard historyGuard(history.mutex());
         const std::lock_guard guard(state.storage().mutex());
         parameters->replaceState(next->parameters);
         state.apply(next->state);
-        stateHistory.clear();
+        history.clear();
         factoryPresets->restored();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }

@@ -561,8 +561,8 @@ ${
         virtual void stateRestored() {}
         // Persistent control-thread data; never call get/set from process().
         // Control-thread History is shared by C++ and every editor context.
-        history::StateHistory stateHistory;
-        PersistentState state { &stateHistory };
+        history::StateHistory history;
+        PersistentState state { &history };
 
         // The parameters, typed as declared, for the processing: load() reads
         // one on any thread (realtime-safe); a read-only one's publish() sets it.
@@ -648,7 +648,7 @@ namespace ${NS}
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
         parameterEditors.reserve(created.size());
         for (auto* parameter : created)
-            parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, stateHistory));
+            parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, history));
 
 ${bindings || '        // no parameters'}
         factoryPresets = std::make_unique<FactoryPresets>(*this);
@@ -1120,7 +1120,7 @@ namespace ${NS}
             std::make_shared<backend::JuceParameterHost>(owner.getParameters(), AudioProcessor::parameterInfos());
         options.installModules = [&owner](js::Context& context)
         {
-            history::install(context, owner.stateHistory);
+            history::install(context, owner.history);
             persistent::install(context, owner.state);
             factory::install(context, owner.presets());
 ${renderNativeInstall(native)}

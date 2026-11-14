@@ -86,16 +86,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
         contextBinding->connect(contextBinding);
         bind::setContextData(context, &bindingKey, std::move(contextBinding));
         js::registerNativeModule(
-            context, "soundor:state-history",
+            context, "soundor:history",
             { [](bind::ContextState& ctx, jsi::Object& exports)
               {
                   bind::ObjectBuilder api(ctx);
                   const auto method = [&](const char* name, auto function)
                   {
                       api.set(name, bind::closure(ctx, name, 0,
-                                                  [function](auto& c, const auto&, const auto*, auto)
-                                                  {
-                                                      return bind::invoke(c, "stateHistory",
+                                                  [function](auto& c, const auto&, const auto*, auto) {
+                                                      return bind::invoke(c, "history",
                                                                           [&] {
                                                                               return invoke(c, binding(c).manager, [&]
                                                                                             { return function(c); });
@@ -141,7 +140,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                               [](auto& c, const auto&, const auto* args, auto count)
                               {
                                   return bind::invoke(
-                                      c, "stateHistory.transaction",
+                                      c, "history.transaction",
                                       [&]
                                       {
                                           return invoke(
@@ -174,7 +173,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                               [](auto& c, const auto&, const auto* args, auto count)
                               {
                                   return bind::invoke(
-                                      c, "stateHistory.subscribe",
+                                      c, "history.subscribe",
                                       [&]() -> jsi::Value
                                       {
                                           if (count != 1 || ! bind::isFunction(c, args[0]))
@@ -199,7 +198,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                       .getPropertyAsObject(ctx.rt, "Object")
                       .getPropertyAsFunction(ctx.rt, "freeze")
                       .call(ctx.rt, value);
-                  bind::setProperty(ctx, exports, "stateHistory", std::move(value));
+                  bind::setProperty(ctx, exports, "history", std::move(value));
               },
               {},
               {} });

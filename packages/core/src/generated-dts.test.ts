@@ -108,6 +108,7 @@ const config: CoreSoundorConfig = {
 
 const consumer = `/// <reference path="./soundor.d.ts" />
 import { state } from 'soundor:state';
+import { history, type History } from 'soundor:history';
 import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { env } from 'soundor:env';
@@ -211,6 +212,16 @@ const unsubscribe: () => void = parameters.voices.subscribe((voices: number) => 
   void voices;
 });
 unsubscribe();
+const manager: History = history;
+const transactionResult: number = manager.transaction('Adjust Gain', () => {
+  parameters.gain.set(current => current + 1);
+  return parameters.gain.get();
+});
+void transactionResult;
+manager.undo();
+manager.redo();
+// @ts-expect-error History transactions must be synchronous.
+manager.transaction('Async edit', async () => parameters.gain.set(1));
 parameters.gain.set(current => current + 1, { history: true });
 parameters.bypass.set(current => !current, { history: { label: 'Toggle' } });
 parameters.gain.beginGesture({ history: { label: 'Adjust Gain' } });

@@ -1,5 +1,5 @@
 /** Undo/redo of Soundor parameter and persistent-state edits, owned by the processor/application. */
-declare module 'soundor:state-history' {
+declare module 'soundor:history' {
   /** Recording is opt-in. Outermost gesture/transaction labels take precedence. */
   export type HistoryOption = boolean | { readonly label: string };
   /** Options shared by field setters and gesture starts. */
@@ -13,7 +13,7 @@ declare module 'soundor:state-history' {
     readonly undoLabel: string | null;
     readonly redoLabel: string | null;
   }
-  export interface StateHistory {
+  export interface History {
     /** Apply the next entry's original values. Rejects conflicts with active History gestures. */
     undo(): void;
     /** Reapply the next entry's final values. */
@@ -35,5 +35,5 @@ declare module 'soundor:state-history' {
     ): T;
   }
   /** The same manager used by native code; survives editor recreation. */
-  export const stateHistory: StateHistory;
+  export const history: History;
 }

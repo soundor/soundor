@@ -3,11 +3,11 @@ import {
   Text,
   View,
   useParameter,
-  useStateHistory,
+  useHistory,
 } from '@soundor/react';
 import { useEffect, useRef, useState } from 'react';
+import { history } from 'soundor:history';
 import { parameters } from 'soundor:parameters';
-import { stateHistory } from 'soundor:state-history';
 
 function Button({
   label,
@@ -43,7 +43,7 @@ export default function History() {
   const voices = useParameter(parameters.voices);
   const bypass = useParameter(parameters.bypass);
   const mode = useParameter(parameters.mode);
-  const history = useStateHistory();
+  const historyStatus = useHistory();
   const dragging = useRef(false);
   const [isDragging, setDragging] = useState(false);
 
@@ -68,15 +68,12 @@ export default function History() {
 
   const loadPreset = (warm: boolean) => {
     // Four edits publish together and undo as one entry.
-    stateHistory.transaction(
-      warm ? 'Load Warm Preset' : 'Load Clean Preset',
-      () => {
-        parameters.gain.set(warm ? 0.75 : 0.5);
-        parameters.voices.set(warm ? 6 : 4);
-        parameters.mode.set(warm ? 'warm' : 'clean');
-        parameters.bypass.set(false);
-      },
-    );
+    history.transaction(warm ? 'Load Warm Preset' : 'Load Clean Preset', () => {
+      parameters.gain.set(warm ? 0.75 : 0.5);
+      parameters.voices.set(warm ? 6 : 4);
+      parameters.mode.set(warm ? 'warm' : 'clean');
+      parameters.bypass.set(false);
+    });
   };
 
   return (
@@ -200,27 +197,29 @@ export default function History() {
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button
           label="Undo"
-          disabled={isDragging || !history.canUndo}
-          onPress={history.undo}
+          disabled={isDragging || !historyStatus.canUndo}
+          onPress={historyStatus.undo}
         />
         <Button
           label="Redo"
-          disabled={isDragging || !history.canRedo}
-          onPress={history.redo}
+          disabled={isDragging || !historyStatus.canRedo}
+          onPress={historyStatus.redo}
         />
         <Button
           label="Clear history"
-          disabled={isDragging || (!history.canUndo && !history.canRedo)}
-          onPress={stateHistory.clear}
+          disabled={
+            isDragging || (!historyStatus.canUndo && !historyStatus.canRedo)
+          }
+          onPress={history.clear}
         />
       </View>
       <Text style={{ color: '#8b8f98' }}>
         {isDragging
           ? 'Recording gain gesture…'
-          : `Undo: ${history.undoLabel ?? 'none'}`}
+          : `Undo: ${historyStatus.undoLabel ?? 'none'}`}
       </Text>
       <Text style={{ color: '#8b8f98' }}>
-        Redo: {history.redoLabel ?? 'none'}
+        Redo: {historyStatus.redoLabel ?? 'none'}
       </Text>
     </View>
   );

@@ -5,7 +5,7 @@ import {
   useRef,
   useSyncExternalStore,
 } from 'react';
-import { stateHistory, type HistoryStatus } from 'soundor:state-history';
+import { history, type HistoryStatus } from 'soundor:history';
 import { subscribeViewSize, viewSize, type ViewSize } from 'soundor:ui';
 
 /** What useParameter needs of a parameter (soundor:parameters' shape). */
@@ -66,16 +66,13 @@ export function useViewSize(): ViewSize {
 }
 
 /** Reactive History availability and stable undo/redo actions. Field hooks remain value subscriptions. */
-export function useStateHistory(): HistoryStatus & {
+export function useHistory(): HistoryStatus & {
   undo(): void;
   redo(): void;
 } {
-  const status = useSyncExternalStore(
-    stateHistory.subscribe,
-    stateHistory.snapshot,
-  );
+  const status = useSyncExternalStore(history.subscribe, history.snapshot);
   return useMemo(
-    () => ({ ...status, undo: stateHistory.undo, redo: stateHistory.redo }),
+    () => ({ ...status, undo: history.undo, redo: history.redo }),
     [status],
   );
 }

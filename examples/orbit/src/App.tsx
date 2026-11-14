@@ -7,6 +7,7 @@ import {
   useStateValue,
 } from '@soundor/react';
 import { useState, useSyncExternalStore } from 'react';
+import type { HistoryOptions } from 'soundor:history';
 import {
   getHostState as snapshot,
   subscribeHostState as subscribe,
@@ -14,7 +15,6 @@ import {
 import { parameters } from 'soundor:parameters';
 import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
-import type { HistoryOptions } from 'soundor:state-history';
 
 import { EchoField } from './EchoField';
 import { Knob } from './Knob';

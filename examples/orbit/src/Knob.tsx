@@ -7,7 +7,7 @@ import {
   type ParameterLike,
 } from '@soundor/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { HistoryOptions } from 'soundor:state-history';
+import type { HistoryOptions } from 'soundor:history';
 import type { UiNode } from 'soundor:ui';
 
 import { bufferDensity, clamp } from './model';

@@ -2,8 +2,8 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import * as history from './modules/history';
 import * as state from './modules/state';
-import * as stateHistory from './modules/state-history';
 import * as ui from './modules/ui';
 import {
   type PlaygroundHost,
@@ -61,9 +61,7 @@ describe('startPlayground', () => {
       // A bundle of @soundor/react reads soundor:ui here as it loads.
       expect(globalThis.__soundorModules?.['soundor:ui']).toBe(ui);
       expect(globalThis.__soundorModules?.['soundor:state']).toBe(state);
-      expect(globalThis.__soundorModules?.['soundor:state-history']).toBe(
-        stateHistory,
-      );
+      expect(globalThis.__soundorModules?.['soundor:history']).toBe(history);
       globalThis.soundorPlayground = { start: (host) => (started = host) };
     });
     const host = shell();
@@ -73,17 +71,17 @@ describe('startPlayground', () => {
     expect(Object.keys(started!.modules).sort()).toEqual([
       'soundor:env',
       'soundor:fs',
+      'soundor:history',
       'soundor:host',
       'soundor:native',
       'soundor:parameters',
       'soundor:presets',
       'soundor:state',
-      'soundor:state-history',
       'soundor:storage',
       'soundor:ui',
     ]);
     expect(started!.modules['soundor:state']).toBe(state);
-    expect(started!.modules['soundor:state-history']).toBe(stateHistory);
+    expect(started!.modules['soundor:history']).toBe(history);
     started!.showMessage('Failed', 'detail');
     started!.clearMessages();
     expect(host.showMessage).toHaveBeenCalledWith('Failed', 'detail');
