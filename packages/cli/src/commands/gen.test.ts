@@ -63,6 +63,7 @@ describe('runGen', () => {
             { path: 'native.d.ts', status: 'created' },
             { path: 'parameters.d.ts', status: 'created' },
             { path: 'platform.d.ts', status: 'created' },
+            { path: 'presets.d.ts', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
             { path: 'state-history.d.ts', status: 'created' },
             { path: 'state.d.ts', status: 'created' },

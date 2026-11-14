@@ -46,6 +46,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         gainParameter = backend::ParameterValue<float>(*created[0]);
         bypassParameter = backend::ParameterValue<bool>(*created[1]);
         modeParameter = backend::ParameterValue<choices::Mode>(*created[2]);
+        factoryPresets = std::make_unique<FactoryPresets>(*this);
     }
 
 
@@ -190,6 +191,7 @@ if (saved.hasProperty("mode")) {
         parameters->replaceState(next->parameters);
         state.apply(next->state);
         stateHistory.clear();
+        factoryPresets->restored();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }
         catch (...) { juce::Logger::writeToLog("Soundor stateRestored hook failed"); }

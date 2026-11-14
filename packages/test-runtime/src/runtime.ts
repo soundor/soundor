@@ -1,4 +1,5 @@
 import { resolveEnvironment } from '@soundor/core';
+import { FactoryPresets } from '@soundor/core/presets';
 import { StateHistory, StateStore } from '@soundor/core/state';
 
 import { version as runtimeVersion } from '../package.json';
@@ -41,6 +42,7 @@ export class TestRuntime {
   readonly overlayRoot: TestNode;
   readonly history = new StateHistory();
   readonly state: StateStore;
+  readonly presets: FactoryPresets;
   readonly parameters: ReturnType<typeof createParameterStore>;
   readonly storage = new MemoryStorage(() => this.assertActive());
   readonly plugin: Readonly<{ id: string; name: string; version: string }>;
@@ -113,6 +115,11 @@ export class TestRuntime {
     this.state = new StateStore(
       options.state ?? { fields: [], types: [] },
       this.history,
+    );
+    this.presets = new FactoryPresets(
+      options.presets ?? [],
+      this.parameters.list,
+      this.state,
     );
     this.env = resolveEnvironment(options.env, 'development');
     this.environment = Object.freeze({
@@ -1087,6 +1094,7 @@ export class TestRuntime {
     this.animationsByNode.clear();
     this.clock.clear();
     this.parameters.list.forEach((parameter) => parameter.dispose());
+    this.presets.dispose();
     this.state.resetGestures();
     this.hostListeners.clear();
     this.sizeListeners.clear();

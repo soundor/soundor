@@ -59,7 +59,7 @@ const emptyStatus: HistoryStatus = Object.freeze({
   redoLabel: null,
 });
 
-function label(
+export function historyLabel(
   options: HistoryOptions | undefined,
   fallback: string,
 ): string | null {
@@ -127,7 +127,7 @@ export class StateHistory {
   edit(id: string, compute: () => unknown, options?: HistoryOptions): void {
     this.operation(() => {
       const field = this.field(id);
-      const recording = label(options, `Change ${field.label}`);
+      const recording = historyLabel(options, `Change ${field.label}`);
       const gesture = this.#gestures.get(id);
       if (this.#transaction && gesture?.label !== null && gesture !== undefined)
         throw new Error(`Field '${id}' belongs to a History gesture`);
@@ -159,7 +159,7 @@ export class StateHistory {
       if (this.#transaction)
         throw new Error('Cannot begin a gesture inside a transaction');
       const field = this.field(id);
-      const recording = label(options, `Change ${field.label}`);
+      const recording = historyLabel(options, `Change ${field.label}`);
       const gesture = this.#gestures.get(id);
       if (gesture) {
         gesture.depth++;
@@ -226,6 +226,7 @@ export class StateHistory {
   transaction<T>(
     name: string,
     callback: () => T & (T extends PromiseLike<unknown> ? never : unknown),
+    record = true,
   ): T {
     const outer = this.#transaction;
     try {
@@ -252,7 +253,7 @@ export class StateHistory {
           .map(([id, after]) => ({ id, before: this.field(id).read(), after }))
           .filter((c) => !this.field(c.id).equal(c.before, c.after));
         this.#transaction = undefined;
-        this.commit(changes, txn.label);
+        this.commit(changes, record ? txn.label : null);
       }
       return value;
     } catch (error) {

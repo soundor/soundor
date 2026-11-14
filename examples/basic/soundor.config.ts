@@ -40,6 +40,15 @@ export default defineSoundorConfig({
     }),
     webRuntime(),
   ],
+  presets: [
+    { id: 'init', name: 'Init' },
+    {
+      id: 'quiet',
+      name: 'Quiet',
+      parameters: { gain: 0.25 },
+      state: { presetName: 'Quiet' },
+    },
+  ],
   state: { presetName: { type: 'string', default: 'Init' } },
   parameters: {
     gain: {

@@ -152,6 +152,25 @@ it as the host bypass parameter, and `parameter.info.role` reports the role.
 The declaration identifies the parameter; implement bypass audio processing,
 transitions, latency handling, and tails in DSP.
 
+### `presets`
+
+An optional list of factory snapshots, each with a stable `id`, display `name`,
+and optional `parameters` and `state` values. Omitted writable parameters and
+state fields resolve to config defaults; read-only parameters cannot be preset.
+Values and references are validated before generation.
+
+```ts
+presets: [
+  { id: 'init', name: 'Init' },
+  { id: 'quiet', name: 'Quiet', parameters: { gain: 0.25 } },
+],
+```
+
+The same catalog powers [`soundor:presets`](/docs/api/presets), the generated C++
+processor's `presets()` API, and JUCE host program lists. Loading is synchronous
+with opt-in History; it does not change the project's state snapshot format.
+Host preset-file storage and user preset saving are separate features.
+
 ### `editor`
 
 The plugin editor's size in logical pixels, and whether it can be resized.

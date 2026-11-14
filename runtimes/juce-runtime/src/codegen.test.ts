@@ -91,6 +91,8 @@ describe('generateJuceSources', () => {
       'soundor/native/SoundorNative.cpp',
       'soundor/SoundorState.h',
       'soundor/SoundorState.cpp',
+      'soundor/SoundorPresets.h',
+      'soundor/SoundorPresets.cpp',
     ]);
   });
 
@@ -216,7 +218,7 @@ describe('generateJuceSources', () => {
   it('delivers state and History notifications in the tick, not before it', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
     expect(editor).toContain(
-      '        options.dispatchModules = [](js::Context& context)\n        {\n            history::dispatch(context);\n            persistent::dispatch(context);\n        };',
+      '        options.dispatchModules = [](js::Context& context)\n        {\n            history::dispatch(context);\n            persistent::dispatch(context);\n            factory::dispatch(context);\n        };',
     );
     const timer = editor.slice(
       editor.indexOf('void AudioProcessorEditor::timerCallback()'),
@@ -338,7 +340,7 @@ describe('generateJuceSources', () => {
       '"/opt/soundor/native/backend/juce/soundor/backend/JuceParameterHost.cpp"',
     );
     expect(setup).toContain(
-      'target_link_libraries(${PROJECT_NAME} PRIVATE soundor_generated)',
+      'target_link_libraries(${PROJECT_NAME} PRIVATE soundor_generated soundor::runtime_internal)',
     );
     for (const file of [
       'soundor/SoundorProcessor.h',

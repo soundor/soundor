@@ -106,3 +106,10 @@ export {
 export type { EnvironmentValues, EnvironmentMode } from './env';
 
 export { resolveSetter, type ValueOrUpdater } from './setter';
+
+export { FactoryPresets } from './presets';
+export type {
+  FactoryPreset,
+  PresetSelection,
+  PresetParameter,
+} from './presets';

@@ -68,6 +68,7 @@ const modules = new Set([
   'parameters',
   'state',
   'state-history',
+  'presets',
   'host',
   'env',
   'native',
@@ -174,6 +175,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
           };
           runtime = {
             plugin: project.plugin,
+            presets: JSON.parse(stateJson(project.presets ?? [])),
             env: project.env,
             parameters,
             view,
@@ -321,6 +323,8 @@ function virtualModule(
         )} };\n${functions.join('\n')}\nexport const clipboard = { readText: () => getTestRuntime().clipboard.readText(), writeText: text => getTestRuntime().clipboard.writeText(text) };`
     );
   }
+  if (name === 'presets')
+    return `${header}export const presets = Object.freeze({ factory: Object.freeze({ list: () => getTestRuntime().presets.factory.list(), load: (...args) => getTestRuntime().presets.factory.load(...args) }), getSnapshot: () => getTestRuntime().presets.getSnapshot(), subscribe: listener => getTestRuntime().presets.subscribe(listener) });`;
   if (name === 'state-history')
     return `${header}export const stateHistory = Object.freeze({ ${['undo', 'redo', 'clear', 'canUndo', 'canRedo', 'undoLabel', 'redoLabel', 'snapshot', 'subscribe', 'transaction'].map((name) => `${name}: (...args) => getTestRuntime().history.${name}(...args)`).join(', ')} });`;
   if (name === 'state')

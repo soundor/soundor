@@ -154,3 +154,36 @@ it('keeps gestures transient while updates and saves remain immediate', async ()
   expect(app.store.gestureDepth('selected')).toBe(1);
   app.store.resetGestures();
 });
+
+it('restores DAW-style snapshots independently of the factory catalog and clears local history', async () => {
+  const a = application();
+  await a.ready;
+  const manifest: WebManifest = {
+    ...a.manifest,
+    presets: [
+      {
+        id: 'warm',
+        name: 'Warm',
+        parameters: { gain: 0.75 },
+        state: { selected: 'Warm', bands: [] },
+      },
+    ],
+  };
+  const b = new ApplicationState(
+    manifest,
+    createParameterStore(manifest.parameters, behaviors),
+  );
+  await b.ready;
+  b.presets.factory.load('warm', { history: true });
+  const saved = b.snapshot();
+  expect(b.parameters.history.canUndo()).toBe(true);
+  b.parameters.byId.gain!.set(0.2);
+  b.restore(saved);
+  expect(b.presets.getSnapshot()).toEqual({
+    factoryId: 'warm',
+    modified: false,
+  });
+  expect(b.parameters.history.canUndo()).toBe(false);
+  b.restore({ ...saved, state: { selected: 'User preset', bands: [] } });
+  expect(b.presets.getSnapshot()).toEqual({ factoryId: null, modified: false });
+});

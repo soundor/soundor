@@ -1,5 +1,6 @@
 import {
   StateStore,
+  FactoryPresets,
   readSnapshot,
   stateJson,
   type SoundorSnapshot,
@@ -14,6 +15,7 @@ import { report } from './report';
 export class ApplicationState {
   readonly store: StateStore;
   readonly ready: Promise<void>;
+  readonly presets: FactoryPresets;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #saving = Promise.resolve();
   #hydrated = false;
@@ -24,6 +26,11 @@ export class ApplicationState {
     this.store = new StateStore(
       manifest.state ?? { fields: [], types: [] },
       parameters.history,
+    );
+    this.presets = new FactoryPresets(
+      manifest.presets ?? [],
+      parameters.list,
+      this.store,
     );
     this.ready = this.load();
     const changed = () => {

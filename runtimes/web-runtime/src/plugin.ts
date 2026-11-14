@@ -114,6 +114,7 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
 const MODULES: Readonly<Record<string, string>> = {
   'soundor:state': 'modules/state',
   'soundor:state-history': 'modules/state-history',
+  'soundor:presets': 'modules/presets',
   'soundor:parameters': 'modules/parameters',
   'soundor:host': 'modules/host',
   'soundor:ui': 'modules/ui',

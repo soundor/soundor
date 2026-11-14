@@ -18,7 +18,9 @@ import {
   subscribeHostState as subscribe,
 } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
+import { presets } from 'soundor:presets';
 import { state } from 'soundor:state';
+import { stateHistory } from 'soundor:state-history';
 import type { PointerEvent, KeyboardEvent, WheelEvent } from 'soundor:ui';
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
@@ -73,6 +75,56 @@ function GainFader({ short }: { readonly short: boolean }) {
       </View>
       <Text style={styles.value}>{gain.toFixed(2)}</Text>
       <Text style={styles.caption}>{parameters.gain.info.label}</Text>
+    </View>
+  );
+}
+
+function FactoryPresetButtons() {
+  const selection = useSyncExternalStore(
+    presets.subscribe,
+    presets.getSnapshot,
+  );
+  const history = useSyncExternalStore(
+    stateHistory.subscribe,
+    stateHistory.snapshot,
+  );
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.caption}>
+        Factory: {selection.factoryId ?? 'Custom'}
+        {selection.modified ? ' *' : ''}
+      </Text>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {presets.factory.list().map((preset) => (
+          <Pressable
+            key={preset.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Load ${preset.name}`}
+            style={styles.button}
+            onPress={() => presets.factory.load(preset.id, { history: true })}
+          >
+            <Text style={styles.buttonLabel}>{preset.name}</Text>
+          </Pressable>
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Undo"
+          disabled={!history.canUndo}
+          style={styles.button}
+          onPress={() => stateHistory.undo()}
+        >
+          <Text style={styles.buttonLabel}>Undo</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Redo"
+          disabled={!history.canRedo}
+          style={styles.button}
+          onPress={() => stateHistory.redo()}
+        >
+          <Text style={styles.buttonLabel}>Redo</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -137,6 +189,7 @@ export function App() {
           >
             <Text style={styles.buttonLabel}>Reset gain</Text>
           </Pressable>
+          <FactoryPresetButtons />
         </View>
       </View>
     </View>

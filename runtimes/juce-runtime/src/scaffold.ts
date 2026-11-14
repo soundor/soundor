@@ -32,7 +32,7 @@ export function juceScaffoldFiles(
 ): ScaffoldFile[] {
   const dir = `runtimes/${runtimeId}`;
   const cls = cppClassBase(options.pluginName);
-  return [
+  const files = [
     {
       path: `${dir}/CMakeLists.txt`,
       contents: cmakeLists(options, includePath),
@@ -52,6 +52,16 @@ export function juceScaffoldFiles(
     { path: `${dir}/PluginEditor.h`, contents: editorHeader(cls) },
     { path: `${dir}/PluginEditor.cpp`, contents: editorSource(cls) },
   ];
+  if (config?.presets?.length) {
+    const processor = files.find((file) =>
+      file.path.endsWith('PluginProcessor.h'),
+    )!;
+    processor.contents = processor.contents.replace(
+      /    int getNumPrograms\(\)[\s\S]*?    void changeProgramName[^\n]*\n/,
+      '',
+    );
+  }
+  return files;
 }
 
 function cmakeLists(options: ResolvedJuceOptions, includePath: string): string {

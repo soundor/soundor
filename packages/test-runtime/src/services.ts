@@ -191,6 +191,8 @@ export interface EditorInit {
   applyRequests?: boolean;
 }
 export interface RuntimeOptions {
+  /** Config-resolved factory snapshots, with state in wire form. */
+  presets?: readonly import('@soundor/core/presets').FactoryPreset[];
   /** Explicit custom values; built-ins use development mode in tests. */
   env?: Readonly<Record<string, string | boolean | number>>;
   /** Persistent schema, supplied by the Vitest plugin. */

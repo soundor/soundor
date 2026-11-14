@@ -26,6 +26,7 @@
     "./ui.d.ts": "./ui.d.ts",
     "./webgl.d.ts": "./webgl.d.ts",
     "./state-history.d.ts": "./state-history.d.ts",
+    "./presets.d.ts": "./presets.d.ts",
     "./env.d.ts": "./env.d.ts"
   }
 }

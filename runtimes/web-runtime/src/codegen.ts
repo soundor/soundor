@@ -125,6 +125,9 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
       name: config.plugin.name,
       version: config.plugin.version ?? '0.1.0',
     },
+    ...(config.presets === undefined
+      ? {}
+      : { presets: JSON.parse(stateJson(config.presets)) }),
     ...(audio === undefined ? {} : { audio }),
     ...(config.parameterGroups === undefined
       ? {}

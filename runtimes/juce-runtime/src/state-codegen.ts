@@ -416,6 +416,7 @@ export function persistentProcessorSource(
         parameters->replaceState(next->parameters);
         state.apply(next->state);
         stateHistory.clear();
+        factoryPresets->restored();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }
         catch (...) { juce::Logger::writeToLog("Soundor stateRestored hook failed"); }

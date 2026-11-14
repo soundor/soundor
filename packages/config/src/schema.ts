@@ -10,6 +10,7 @@ import { checkEditor, editorSchema, resolveEditor } from './editor';
 import { type ConfigIssue, ConfigError } from './errors';
 import { resolveParameters } from './parameter-model';
 import type { ResolvedParameter } from './parameters';
+import { resolvePresets } from './presets';
 import type { Runtime } from './runtime';
 import { checkSigningIdentity } from './signing';
 import type { ResolvedSoundorConfig, SoundorConfig } from './types';
@@ -123,6 +124,7 @@ const soundorConfigSchema = z.strictObject({
   parameters: z.unknown().optional(),
   native: nativeSchema.optional(),
   state: z.unknown().optional(),
+  presets: z.unknown().optional(),
   signing: signingSchema.optional(),
 });
 
@@ -221,11 +223,23 @@ export function validateConfig(raw: unknown): ResolvedSoundorConfig {
     issues.push({ path: 'state', message: String(error) });
   }
 
+  let presets: ReturnType<typeof resolvePresets> = [];
+  if (issues.length === 0)
+    presets = resolvePresets(
+      data.presets,
+      parameters,
+      data.state as SoundorConfig['state'],
+      data.native as SoundorConfig['native'],
+      issues,
+    );
   if (issues.length > 0) {
     throw new ConfigError('validation', 'Invalid Soundor config.', issues);
   }
 
-  return normalize(data, parameters);
+  return {
+    ...normalize(data, parameters),
+    ...(data.presets === undefined ? {} : { presets }),
+  };
 }
 
 function checkUniqueIds<T>(

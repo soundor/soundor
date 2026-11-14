@@ -54,6 +54,7 @@ export type WebParameterInfo = {
 
 /** The generated manifest. */
 export interface WebManifest {
+  readonly presets?: readonly import('@soundor/runtime-sdk/client').FactoryPreset[];
   /** Host-visible group names. */
   readonly parameterGroups?: Readonly<
     Record<string, { readonly label: string }>

@@ -14,6 +14,7 @@ export default defineConfig([
       'client/index': 'src/client/index.ts',
       'client/modules/host': 'src/client/modules/host.ts',
       'client/modules/state': 'src/client/modules/state.ts',
+      'client/modules/presets': 'src/client/modules/presets.ts',
       'client/modules/state-history': 'src/client/modules/state-history.ts',
       'client/modules/parameters': 'src/client/modules/parameters.ts',
       'client/modules/ui': 'src/client/modules/ui.ts',

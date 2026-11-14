@@ -1,3 +1,4 @@
+import type { EnvironmentValues } from '@soundor/core';
 /**
  * Soundor configuration model.
  *
@@ -6,8 +7,6 @@
  * {@link RuntimeDescriptor} implementation (the object returned by a runtime
  * factory), which the CLI dispatches; core itself stays declarative.
  */
-
-import type { EnvironmentValues } from '@soundor/core';
 import type { StateDeclarations } from '@soundor/core';
 import type { NativeApiDeclaration } from '@soundor/core';
 
@@ -18,6 +17,10 @@ import type {
   ParameterDeclarations,
   ResolvedParameter,
 } from './parameters';
+import type {
+  FactoryPresetDeclaration,
+  ResolvedFactoryPreset,
+} from './presets';
 import type { RuntimeDescriptor } from './runtime';
 
 /**
@@ -140,6 +143,8 @@ export interface SoundorConfig<
   P extends ParameterDeclarations = ParameterDeclarations,
 > {
   plugin: PluginIdentity;
+  /** Config-defined factory snapshots, in host program order. */
+  presets?: readonly FactoryPresetDeclaration[];
   /** Audio buses, supported combinations and host processing metadata. */
   audio?: AudioConfig;
   /** Host-visible parameter groups, referenced by parameter.group. */
@@ -172,6 +177,8 @@ export interface SoundorConfig<
  */
 export interface ResolvedSoundorConfig {
   plugin: PluginIdentity;
+  /** Complete factory snapshots in host program order. */
+  presets?: readonly ResolvedFactoryPreset[];
   /** Audio buses, supported combinations and host processing metadata. */
   audio?: AudioConfig;
   /** Host-visible parameter groups, referenced by parameter.group. */

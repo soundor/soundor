@@ -42,6 +42,7 @@ import { audioDeclaration, audioImplementation } from './audio-codegen';
 import { generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
+import { generatePresetSources } from './preset-codegen';
 import {
   generateStateSources,
   persistentProcessorSource,
@@ -126,6 +127,7 @@ export function generateJuceSources(
     },
     ...generateNativeModuleSources(nativeApi.model),
     ...generateStateSources(config),
+    ...generatePresetSources(config),
   ].map((file) => ({
     ...file,
     contents: file.contents.replace(/[ \t]+$/gm, ''),
@@ -280,6 +282,7 @@ target_include_directories(\${PROJECT_NAME}
 target_sources(\${PROJECT_NAME}
     PRIVATE
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
+        \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorPresets.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorParameters.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
         ${[
@@ -303,7 +306,7 @@ target_sources(\${PROJECT_NAME}
             ),
           )
           .join('\n        ')})
-target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
+target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated soundor::runtime_internal)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
 # into the plugin so it needs no files at runtime: its JavaScript as Hermes
@@ -449,6 +452,7 @@ function renderProcessorHeader(
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
+#include "SoundorPresets.h"
 #include <deque>
 #include <mutex>
 
@@ -481,6 +485,21 @@ ${audioDeclaration(config)}
         static constexpr const char* pluginId = ${cppString(plugin.id)};
         static constexpr const char* pluginName = ${cppString(plugin.name)};
         static constexpr const char* pluginVersion = ${cppString(plugin.version ?? '0.1.0')};
+
+        // Config-defined factory presets, shared with soundor:presets.
+        FactoryPresets& presets() noexcept { return *factoryPresets; }
+        ${
+          config.presets?.length
+            ? `int getNumPrograms() override final { return ${config.presets.length}; }
+        int getCurrentProgram() override final { return factoryPresets->currentProgram(); }
+        void setCurrentProgram(int index) override final { factoryPresets->requestProgram(index); }
+        const juce::String getProgramName(int index) override final {
+            const auto all = factoryPresets->factoryPresets();
+            return index >= 0 && static_cast<std::size_t>(index) < all.size() ? juce::String(all[static_cast<std::size_t>(index)].name) : juce::String();
+        }
+        void changeProgramName(int, const juce::String&) override final {}`
+            : ''
+        }
 
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
@@ -556,10 +575,12 @@ ${handles || '        // no parameters'}
         bool deliveringRestorations = false;
         void handleAsyncUpdate() override;
         friend class AudioProcessorEditor;
+        friend class FactoryPresets;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
+        std::unique_ptr<FactoryPresets> factoryPresets;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
@@ -629,6 +650,7 @@ namespace ${NS}
             parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, stateHistory));
 
 ${bindings || '        // no parameters'}
+        factoryPresets = std::make_unique<FactoryPresets>(*this);
     }
 
 ${audioImplementation(config)}
@@ -1099,6 +1121,7 @@ namespace ${NS}
         {
             history::install(context, owner.stateHistory);
             persistent::install(context, owner.state);
+            factory::install(context, owner.presets());
 ${renderNativeInstall(native)}
         };
         // What state and History queued for JavaScript, delivered by every
@@ -1107,6 +1130,7 @@ ${renderNativeInstall(native)}
         {
             history::dispatch(context);
             persistent::dispatch(context);
+            factory::dispatch(context);
         };
 #if SOUNDOR_UI_DEV
         // soundor dev: the UI comes from the bundle the CLI keeps rebuilding,

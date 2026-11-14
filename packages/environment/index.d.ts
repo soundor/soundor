@@ -7,3 +7,5 @@
 /// <reference path="./ui.d.ts" />
 
 /// <reference path="./state-history.d.ts" />
+
+/// <reference path="./presets.d.ts" />

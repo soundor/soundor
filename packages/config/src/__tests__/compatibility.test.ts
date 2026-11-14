@@ -98,14 +98,14 @@ describe('unknown config properties', () => {
           },
         },
         editor: { width: 400, height: 300, scale: 2 },
-        presets: [],
+        presetz: [],
       }),
     ) as { issues: { path: string; message: string }[] };
     expect(error.issues.map((issue) => issue.path).sort()).toEqual([
       'editor.scale',
       'parameters.gain.smoothing',
       'plugin.vendor',
-      'presets',
+      'presetz',
     ]);
     expect(
       error.issues.find((issue) => issue.path === 'parameters.gain.smoothing')

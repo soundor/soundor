@@ -28,6 +28,15 @@ const config = resolveConfig({
     latency: { mode: 'fixed', samples: 128 },
     tail: { mode: 'dynamic' },
   },
+  presets: [
+    { id: 'init', name: 'Init' },
+    {
+      id: 'warm',
+      name: 'Warm',
+      parameters: { gain: 0.75, mode: 'b' },
+      state: { selectedPreset: 'Warm' },
+    },
+  ],
   parameterGroups: { output: { label: 'Output' } },
   parameters: {
     gain: { type: 'float32', min: 0, max: 1, default: 0.5 },
@@ -81,7 +90,7 @@ it('generates the persistent processor compiled by the JUCE integration tests', 
     options: resolveJuceOptions({}, config.plugin),
   });
   for (const f of files.filter((f) =>
-    /Soundor(State|Processor|Parameters|Native)\.(h|cpp)$/.test(f.path),
+    /Soundor(State|Processor|Parameters|Native|Presets)\.(h|cpp)$/.test(f.path),
   )) {
     const path = resolve(
       import.meta.dirname,

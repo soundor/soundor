@@ -8,18 +8,19 @@ parameters, the host, the view, storage, files and the plugin's own native
 API. Every runtime implements the same modules, with the same behavior and
 the same errors, typed from the project's `soundor.config.ts`.
 
-| Module                                             | What it is                                                        |
-| -------------------------------------------------- | ----------------------------------------------------------------- |
-| [`@soundor/react`](/docs/components#rendering)     | Rendering, hooks and styles; the [components](/docs/components).  |
-| [`soundor:parameters`](/docs/api/parameters)       | The plugin's parameters, shared with the audio and the host.      |
-| [`soundor:state`](/docs/api/state)                 | Persistent typed values shared with native code.                  |
-| [`soundor:state-history`](/docs/api/state-history) | Opt-in undo/redo for parameter and state edits.                   |
-| [`soundor:env`](/docs/api/env)                     | Explicit public build-time configuration and mode flags.          |
-| [`soundor:host`](/docs/api/host)                   | The plugin's identity, the host, and its transport.               |
-| [`soundor:ui`](/docs/api/ui)                       | The plugin view's nodes, styles, events, canvases and animations. |
-| [`soundor:storage`](/docs/api/storage)             | Persistent JSON key/value storage, private to the plugin.         |
-| [`soundor:fs`](/docs/api/fs)                       | Files in the plugin's private data directory.                     |
-| [`soundor:native`](/docs/api/native)               | The plugin's own typed native API, declared in its config.        |
+| Module                                             | What it is                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------- |
+| [`@soundor/react`](/docs/components#rendering)     | Rendering, hooks and styles; the [components](/docs/components).     |
+| [`soundor:parameters`](/docs/api/parameters)       | The plugin's parameters, shared with the audio and the host.         |
+| [`soundor:state`](/docs/api/state)                 | Persistent typed values shared with native code.                     |
+| [`soundor:presets`](/docs/api/presets)             | Factory preset catalog, synchronous loading, and selection tracking. |
+| [`soundor:state-history`](/docs/api/state-history) | Opt-in undo/redo for parameter and state edits.                      |
+| [`soundor:env`](/docs/api/env)                     | Explicit public build-time configuration and mode flags.             |
+| [`soundor:host`](/docs/api/host)                   | The plugin's identity, the host, and its transport.                  |
+| [`soundor:ui`](/docs/api/ui)                       | The plugin view's nodes, styles, events, canvases and animations.    |
+| [`soundor:storage`](/docs/api/storage)             | Persistent JSON key/value storage, private to the plugin.            |
+| [`soundor:fs`](/docs/api/fs)                       | Files in the plugin's private data directory.                        |
+| [`soundor:native`](/docs/api/native)               | The plugin's own typed native API, declared in its config.           |
 
 The `soundor:*` modules are declared for TypeScript in
 `.soundor/generated/` (`soundor gen` writes it), so their types follow the

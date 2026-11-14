@@ -25,6 +25,10 @@
       "types": "./dist/state.d.mts",
       "import": "./dist/state.mjs"
     },
+    "./presets": {
+      "types": "./dist/presets.d.mts",
+      "import": "./dist/presets.mjs"
+    },
     "./spring": {
       "types": "./dist/spring.d.mts",
       "import": "./dist/spring.mjs"

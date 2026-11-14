@@ -1,4 +1,8 @@
 export type {
+  FactoryPresetDeclaration,
+  ResolvedFactoryPreset,
+} from './presets';
+export type {
   AudioBus,
   AudioChannelLayout,
   AudioConfig,
