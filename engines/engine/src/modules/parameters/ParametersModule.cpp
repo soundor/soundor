@@ -255,6 +255,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
                 bind::ObjectBuilder object(context);
                 object.set("id", bind::write(context, info.id));
                 object.set("label", bind::write(context, info.label));
+                object.set("group", bind::write(context, info.group));
+                object.set("role", bind::write(context, info.role));
                 object.set("type", jsi::Value(static_cast<int>(info.type)));
                 object.set("access", jsi::Value(static_cast<int>(info.access)));
                 object.set("min", jsi::Value(info.min));

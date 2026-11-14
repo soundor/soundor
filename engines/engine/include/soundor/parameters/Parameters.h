@@ -60,6 +60,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::parameters
         double step = 0;
         std::string unit;
         std::vector<Choice> choices;
+        // Empty when the declaration has no group or special role.
+        std::string group;
+        std::string role;
     };
 
     // Which parameters changed since the UI last looked.

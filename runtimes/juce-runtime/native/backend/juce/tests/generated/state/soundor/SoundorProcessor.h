@@ -8,6 +8,7 @@
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
+#include "SoundorPresets.h"
 #include <deque>
 #include <mutex>
 
@@ -41,14 +42,34 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
-        AudioProcessor() : AudioProcessor(BusesProperties()) {}
+        AudioProcessor() : AudioProcessor(configuredBuses()) {}
         explicit AudioProcessor(const BusesProperties& ioLayouts);
         ~AudioProcessor() override;
+
+
+        static BusesProperties configuredBuses();
+        bool isBusesLayoutSupported(const BusesLayout&) const override final;
+        double getTailLengthSeconds() const override final { return tailSeconds.load(std::memory_order_relaxed); }
+        // Control thread. Validate before publishing to host-facing readers.
+        void setTailLengthSeconds(double seconds);
+        juce::AudioProcessorParameter* getBypassParameter() const override { return parameters->getParameter("bypass"); }
+
 
         // The plugin's identity (soundor.config `plugin`).
         static constexpr const char* pluginId = "dev.soundor.state-test";
         static constexpr const char* pluginName = "State Test";
         static constexpr const char* pluginVersion = "0.1.0";
+
+        // Config-defined factory presets, shared with soundor:presets.
+        FactoryPresets& presets() noexcept { return *factoryPresets; }
+        int getNumPrograms() override final { return 2; }
+        int getCurrentProgram() override final { return factoryPresets->currentProgram(); }
+        void setCurrentProgram(int index) override final { factoryPresets->requestProgram(index); }
+        const juce::String getProgramName(int index) override final {
+            const auto all = factoryPresets->factoryPresets();
+            return index >= 0 && static_cast<std::size_t>(index) < all.size() ? juce::String(all[static_cast<std::size_t>(index)].name) : juce::String();
+        }
+        void changeProgramName(int, const juce::String&) override final {}
 
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
@@ -111,16 +132,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         backend::ParameterValue<choices::Mode> modeParameter; // "mode"
 
     private:
+        std::atomic<double> tailSeconds { 0 };
         struct Restoration { juce::ValueTree parameters; backend::StateStore::Values state; };
         std::mutex restorationMutex;
         std::deque<Restoration> restorations;
         bool deliveringRestorations = false;
         void handleAsyncUpdate() override;
         friend class AudioProcessorEditor;
+        friend class FactoryPresets;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
+        std::unique_ptr<FactoryPresets> factoryPresets;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };

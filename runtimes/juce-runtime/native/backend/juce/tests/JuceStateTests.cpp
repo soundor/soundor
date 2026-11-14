@@ -35,12 +35,6 @@ namespace
         bool hasEditor() const override { return false; }
         bool acceptsMidi() const override { return false; }
         bool producesMidi() const override { return false; }
-        double getTailLengthSeconds() const override { return 0; }
-        int getNumPrograms() override { return 1; }
-        int getCurrentProgram() override { return 0; }
-        void setCurrentProgram(int) override {}
-        const juce::String getProgramName(int) override { return {}; }
-        void changeProgramName(int, const juce::String&) override {}
         void stateRestored() override
         {
             CHECK(juce::MessageManager::getInstance()->isThisTheMessageThread());
@@ -817,4 +811,127 @@ TEST_CASE("RuntimeHost::tick delivers state and History notifications through di
     CHECK(host.context().evaluateScript("seen.join()").value().asString() == "undo true,preset Warm");
     CHECK(host.context().evaluateScript("String(state.enabled.get())").value().asString() == "false");
     CHECK(host.statistics().tick.modules > 0);
+}
+
+TEST_CASE("declarative audio negotiates complete bus layouts and reports metadata")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    CHECK(processor.getMainBusNumInputChannels() == 2);
+    CHECK(processor.getMainBusNumOutputChannels() == 2);
+    CHECK(processor.getBusCount(true) == 2);
+    CHECK(! processor.getBus(true, 1)->isEnabled());
+    auto layout = processor.getBusesLayout();
+    CHECK(processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(0, juce::AudioChannelSet::mono());
+    CHECK(! processor.isBusesLayoutSupported(layout));
+    layout.outputBuses.set(0, juce::AudioChannelSet::mono());
+    CHECK(processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(1, juce::AudioChannelSet::stereo());
+    CHECK(! processor.isBusesLayoutSupported(layout));
+    layout.inputBuses.set(1, juce::AudioChannelSet::mono());
+    CHECK(processor.isBusesLayoutSupported(layout));
+    CHECK(processor.getLatencySamples() == 128);
+    processor.setTailLengthSeconds(2.5);
+    CHECK(processor.getTailLengthSeconds() == 2.5);
+    CHECK_THROWS(processor.setTailLengthSeconds(-1));
+    CHECK(processor.getBypassParameter() == processor.getParameters().getParameter("bypass"));
+    CHECK(processor.getParameterTree().getSubgroups(false)[0]->getName() == "Output");
+}
+
+TEST_CASE("factory preset catalog shares native host programs and opt-in History")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    REQUIRE(processor.presets().factoryPresets().size() == 2);
+    CHECK(processor.getNumPrograms() == 2);
+    CHECK(processor.getProgramName(1) == "Warm");
+    CHECK(processor.presets().snapshot().factoryId == "init");
+    processor.presets().loadFactory("warm", history::Options(true));
+    CHECK(processor.gainParameter.get() == 0.75f);
+    CHECK(processor.state.selectedPreset.get() == "Warm");
+    CHECK(processor.getCurrentProgram() == 1);
+    CHECK(processor.stateHistory.status().undoLabel == "Load Warm");
+    processor.stateHistory.undo();
+    CHECK(processor.gainParameter.get() == 0.5f);
+    CHECK(processor.presets().snapshot().factoryId == "init");
+    CHECK(processor.getCurrentProgram() == 0);
+    processor.stateHistory.redo();
+    CHECK(processor.presets().snapshot().factoryId == "warm");
+    processor.gainParameter.set(0.6f);
+    CHECK(processor.presets().snapshot().modified);
+    processor.stateHistory.clear();
+    processor.setCurrentProgram(0);
+    CHECK(processor.gainParameter.get() == 0.5f);
+    CHECK(! processor.stateHistory.canUndo());
+    CHECK_THROWS_AS(processor.presets().loadFactory("missing"), std::invalid_argument);
+    processor.stateHistory.transaction("Preset and adjustment",
+                                       [&]
+                                       {
+                                           processor.presets().loadFactory("warm");
+                                           processor.gainParameter.set(0.8f);
+                                       });
+    CHECK(processor.stateHistory.status().undoLabel == "Preset and adjustment");
+    processor.stateHistory.undo();
+    CHECK(processor.gainParameter.get() == 0.5f);
+    CHECK(processor.presets().snapshot().factoryId == "init");
+}
+
+TEST_CASE("factory preset JavaScript API shares C++ values, History, and immutable snapshots")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    js::Runtime runtime;
+    js::Context context(runtime);
+    factory::install(context, processor.presets());
+    history::install(context, processor.stateHistory);
+    parameters::install(
+        context, std::make_shared<backend::JuceParameterHost>(processor.getParameters(), processor.parameterInfos()));
+    REQUIRE(
+        context
+            .evaluateModule("(function(exports, require) { globalThis.presets = require('soundor:presets').presets; "
+                            "globalThis.h = require('soundor:state-history').stateHistory; "
+                            "globalThis.p = require('soundor:parameters').parameters; })",
+                            "/presets.js")
+            .ok());
+    const auto run = [&](const char* script)
+    {
+        const auto result = context.evaluateScript(script);
+        REQUIRE_MESSAGE(result.ok(), (result.ok() ? "" : result.error().toString()));
+    };
+    run("if (presets.factory.list().length !== 2 || !Object.isFrozen(presets.factory.list()[0])) throw "
+        "Error('catalog');"
+        "if (presets.getSnapshot() !== presets.getSnapshot() || !Object.isFrozen(presets.getSnapshot())) throw "
+        "Error('snapshot');"
+        "globalThis.events = 0; globalThis.off = presets.subscribe(() => events++);"
+        "presets.factory.load('warm', { history: true });"
+        "if (p.gain.get() !== 0.75 || presets.getSnapshot().modified) throw Error('load');");
+    factory::dispatch(context);
+    run("if (events !== 1) throw Error('notification'); h.undo();"
+        "if (p.gain.get() !== 0.5 || presets.getSnapshot().factoryId !== 'init') throw Error('undo');"
+        "h.redo(); p.gain.set(0.2); if (!presets.getSnapshot().modified) throw Error('modified'); off();");
+    CHECK(processor.state.selectedPreset.get() == "Warm");
+}
+
+TEST_CASE("host-saved factory and custom snapshots retain the existing wire format")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor processor;
+    processor.presets().loadFactory("warm", history::Options(true));
+    juce::MemoryBlock saved;
+    processor.getStateInformation(saved);
+    const auto document =
+        backend::parseStateJson(std::string(static_cast<const char*>(saved.getData()), saved.getSize()));
+    CHECK(document.getDynamicObject()->getProperties().size() == 3);
+    processor.presets().loadFactory("init", history::Options(true));
+    restore(processor, saved);
+    CHECK(processor.presets().snapshot().factoryId == "warm");
+    CHECK(! processor.presets().snapshot().modified);
+    CHECK(! processor.stateHistory.canUndo());
+    processor.state.selectedPreset.set(std::string("User preset"));
+    processor.getStateInformation(saved);
+    processor.presets().loadFactory("init");
+    restore(processor, saved);
+    CHECK(! processor.presets().snapshot().factoryId.has_value());
+    CHECK(processor.state.selectedPreset.get() == "User preset");
 }

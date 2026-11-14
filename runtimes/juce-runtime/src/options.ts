@@ -165,7 +165,7 @@ export function resolveJuceOptions(
     bundleId: plugin.id,
     pluginName: plugin.name,
     pluginVersion: plugin.version ?? '0.1.0',
-    companyName: options.companyName ?? vendor.name,
+    companyName: options.companyName ?? plugin.vendor?.name ?? vendor.name,
     pluginCode: fourCharCode(options.pluginCode, plugin.id),
     manufacturerCode: fourCharCode(options.manufacturerCode, vendor.id),
     timeLimit: timeLimitOf(options.timeLimit),

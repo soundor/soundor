@@ -9,18 +9,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         : juce::AudioProcessor(ioLayouts)
     {
         // Soundor's parameters, with the behavior soundor.config gives them.
+        setLatencySamples(128);
         const auto infos = generated::parameterInfos();
         const auto behaviors = generated::parameterBehaviors();
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
         std::vector<backend::JuceParameter*> created;
         std::vector<backend::JuceParameter*> readOnly;
+        std::map<std::string, juce::AudioProcessorParameterGroup*> groups;
+        const std::vector<std::string> parameterGroups { "", "output", "" };
+        const std::map<std::string, std::string> groupLabels { { "output", "Output" } };
         for (std::size_t index = 0; index < infos.size(); ++index)
         {
             auto parameter = std::make_unique<backend::JuceParameter>(infos[index], behaviors[index]);
             created.push_back(parameter.get());
             if (infos[index].access == parameters::Access::ReadOnly)
                 readOnly.push_back(parameter.get());
-            layout.add(std::move(parameter));
+            const auto& groupId = parameterGroups[index];
+            if (groupId.empty()) layout.add(std::move(parameter));
+            else {
+                auto& group = groups[groupId];
+                if (group == nullptr) {
+                    auto owned = std::make_unique<juce::AudioProcessorParameterGroup>(groupId, groupLabels.at(groupId), " / ");
+                    group = owned.get();
+                    layout.add(std::move(owned));
+                }
+                group->addChild(std::move(parameter));
+            }
         }
         parameters = std::make_unique<juce::AudioProcessorValueTreeState>(
             *this, nullptr, "SOUNDOR", std::move(layout));
@@ -32,6 +46,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         gainParameter = backend::ParameterValue<float>(*created[0]);
         bypassParameter = backend::ParameterValue<bool>(*created[1]);
         modeParameter = backend::ParameterValue<choices::Mode>(*created[2]);
+        factoryPresets = std::make_unique<FactoryPresets>(*this);
+    }
+
+
+    juce::AudioProcessor::BusesProperties AudioProcessor::configuredBuses()
+    {
+        return BusesProperties().withInput("Input", juce::AudioChannelSet::stereo(), true)
+            .withOutput("Output", juce::AudioChannelSet::stereo(), true)
+            .withInput("Sidechain", juce::AudioChannelSet::mono(), false);
+    }
+    bool AudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
+    {
+        if (layouts.inputBuses.size() != 2 || layouts.outputBuses.size() != 1) return false;
+        return ((layouts.getChannelSet(true, 0) == juce::AudioChannelSet::mono()) && (layouts.getChannelSet(false, 0) == juce::AudioChannelSet::mono()) && (layouts.getChannelSet(true, 1) == juce::AudioChannelSet::disabled() || layouts.getChannelSet(true, 1) == juce::AudioChannelSet::mono()))
+            || ((layouts.getChannelSet(true, 0) == juce::AudioChannelSet::stereo()) && (layouts.getChannelSet(false, 0) == juce::AudioChannelSet::stereo()) && (layouts.getChannelSet(true, 1) == juce::AudioChannelSet::disabled() || layouts.getChannelSet(true, 1) == juce::AudioChannelSet::mono() || layouts.getChannelSet(true, 1) == juce::AudioChannelSet::stereo()));
+    }
+    void AudioProcessor::setTailLengthSeconds(double seconds)
+    {
+        if (!std::isfinite(seconds) || seconds < 0) throw std::invalid_argument("tail seconds must be finite and nonnegative");
+        tailSeconds.store(seconds, std::memory_order_relaxed);
     }
 
 
@@ -157,6 +191,7 @@ if (saved.hasProperty("mode")) {
         parameters->replaceState(next->parameters);
         state.apply(next->state);
         stateHistory.clear();
+        factoryPresets->restored();
         try { stateRestored(); }
         catch (const std::exception& error) { juce::Logger::writeToLog(juce::String("Soundor stateRestored hook failed: ") + error.what()); }
         catch (...) { juce::Logger::writeToLog("Soundor stateRestored hook failed"); }

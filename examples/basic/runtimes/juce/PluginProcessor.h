@@ -1,7 +1,8 @@
 #pragma once
 
-#include <juce_audio_processors/juce_audio_processors.h>
 #include <soundor/soundor.h>
+
+#include <juce_audio_processors/juce_audio_processors.h>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
 // parameter tree generated from soundor.config. Add your DSP here.
@@ -13,7 +14,6 @@ public:
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
-    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -22,7 +22,6 @@ public:
     const juce::String getName() const override { return "Soundor Basic"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }

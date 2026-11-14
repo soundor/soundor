@@ -25,7 +25,7 @@ namespace
     std::vector<parameters::Info> fixtureInfos()
     {
         return {
-            { "bypass", "Bypass", Type::Boolean, Access::Automatable, 0, 1, 0, 0, "", {} },
+            { "bypass", "Bypass", Type::Boolean, Access::Automatable, 0, 1, 0, 0, "", {}, "output", "bypass" },
             { "gain", "Gain", Type::Float32, Access::Automatable, -60, 6, 0, 0.5, "dB", {} },
             { "lowCut", "Low cut", Type::Float32, Access::Manual, 20, 400, 20, 0, "Hz", {} },
             { "mode",
@@ -162,8 +162,9 @@ TEST_SUITE("soundor:parameters")
         CHECK(
             f.value("globalThis.result = JSON.stringify(p.voices.info);").asString()
             == R"({"id":"voices","label":"Voices","access":"automatable","type":"int32","min":1,"max":16,"default":4})");
-        CHECK(f.value("globalThis.result = JSON.stringify(p.bypass.info);").asString()
-              == R"({"id":"bypass","label":"Bypass","access":"automatable","type":"boolean","default":false})");
+        CHECK(
+            f.value("globalThis.result = JSON.stringify(p.bypass.info);").asString()
+            == R"({"id":"bypass","label":"Bypass","access":"automatable","type":"boolean","group":"output","role":"bypass","default":false})");
         CHECK(
             f.value("globalThis.result = JSON.stringify(p.mode.info);").asString()
             == R"({"id":"mode","label":"Mode","access":"automatable","type":"choice","options":[{"value":"mono","label":"Mono"},{"value":"stereo","label":"Stereo"},{"value":"midSide","label":"Mid/Side"}],"default":"stereo"})");

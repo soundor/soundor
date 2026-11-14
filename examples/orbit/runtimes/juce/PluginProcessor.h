@@ -25,11 +25,6 @@ public:
         // taps at maximum feedback to decay below -70 dB when not held.
         return holdParameter.load() ? std::numeric_limits<double>::infinity() : 900.0;
     }
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return {}; }
-    void changeProgramName(int, const juce::String&) override {}
 
 private:
     orbit::Delay delay;

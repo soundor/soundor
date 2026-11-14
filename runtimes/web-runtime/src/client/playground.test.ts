@@ -76,6 +76,7 @@ describe('startPlayground', () => {
       'soundor:host',
       'soundor:native',
       'soundor:parameters',
+      'soundor:presets',
       'soundor:state',
       'soundor:state-history',
       'soundor:storage',

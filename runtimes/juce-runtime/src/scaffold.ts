@@ -10,6 +10,8 @@
  * gain DSP — lives in these files, not in `gen`.
  */
 
+import type { ResolvedSoundorConfig } from '@soundor/runtime-sdk';
+
 import type { ResolvedJuceOptions } from './options';
 
 /** A file to scaffold, path relative to the project root. */
@@ -26,22 +28,40 @@ export function juceScaffoldFiles(
   options: ResolvedJuceOptions,
   runtimeId: string,
   includePath: string,
+  config?: ResolvedSoundorConfig,
 ): ScaffoldFile[] {
   const dir = `runtimes/${runtimeId}`;
   const cls = cppClassBase(options.pluginName);
-  return [
+  const files = [
     {
       path: `${dir}/CMakeLists.txt`,
       contents: cmakeLists(options, includePath),
     },
     {
       path: `${dir}/PluginProcessor.h`,
-      contents: processorHeader(cls, options.pluginName),
+      contents: processorHeader(
+        cls,
+        options.pluginName,
+        config?.audio !== undefined,
+      ),
     },
-    { path: `${dir}/PluginProcessor.cpp`, contents: processorSource(cls) },
+    {
+      path: `${dir}/PluginProcessor.cpp`,
+      contents: processorSource(cls, config?.audio !== undefined),
+    },
     { path: `${dir}/PluginEditor.h`, contents: editorHeader(cls) },
     { path: `${dir}/PluginEditor.cpp`, contents: editorSource(cls) },
   ];
+  if (config?.presets?.length) {
+    const processor = files.find((file) =>
+      file.path.endsWith('PluginProcessor.h'),
+    )!;
+    processor.contents = processor.contents.replace(
+      /    int getNumPrograms\(\)[\s\S]*?    void changeProgramName[^\n]*\n/,
+      '',
+    );
+  }
+  return files;
 }
 
 function cmakeLists(options: ResolvedJuceOptions, includePath: string): string {
@@ -61,7 +81,11 @@ target_sources(\${PROJECT_NAME}
 `;
 }
 
-function processorHeader(cls: string, pluginName: string): string {
+function processorHeader(
+  cls: string,
+  pluginName: string,
+  configuredAudio: boolean,
+): string {
   return `#pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -77,7 +101,7 @@ public:
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
-    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
+${configuredAudio ? '' : '    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;'}
     void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -86,7 +110,7 @@ public:
     const juce::String getName() const override { return ${JSON.stringify(pluginName)}; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+${configuredAudio ? '' : '    double getTailLengthSeconds() const override { return 0.0; }'}
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -104,8 +128,8 @@ private:
 `;
 }
 
-function processorSource(cls: string): string {
-  return `#include "PluginProcessor.h"
+function processorSource(cls: string, configuredAudio: boolean): string {
+  let source = `#include "PluginProcessor.h"
 #include "PluginEditor.h"
 
 ${cls}Processor::${cls}Processor()
@@ -164,6 +188,17 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new ${cls}Processor();
 }
 `;
+  if (configuredAudio) {
+    source = source.replace(
+      /    : soundor::AudioProcessor\(BusesProperties\(\)[\s\S]*?\n\{/,
+      '    : soundor::AudioProcessor()\n{',
+    );
+    source = source.replace(
+      /bool [A-Za-z0-9_]+Processor::isBusesLayoutSupported[\s\S]*?\nvoid /,
+      'void ',
+    );
+  }
+  return source;
 }
 
 function editorHeader(cls: string): string {

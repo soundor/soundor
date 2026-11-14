@@ -605,15 +605,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::generated
     std::span<const parameters::Info> parameterInfos()
     {
         static const std::vector<parameters::Info> infos {
-            { "frequency", "Frequency", parameters::Type::Float32, parameters::Access::Automatable, 20.0, 20000.0, 1000.0, 0.0, "Hz", {  } },
-            { "q", "Q", parameters::Type::Float32, parameters::Access::Automatable, 0.1, 30.0, 1.0, 0.0, "", {  } },
-            { "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, -24.0, 24.0, 0.0, 0.01, "dB", {  } },
-            { "drive", "Drive", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "", {  } },
-            { "voices", "Voices", parameters::Type::Int32, parameters::Access::Manual, 1.0, 16.0, 4.0, 0.0, "", {  } },
-            { "octave", "Octave", parameters::Type::Int8, parameters::Access::Automatable, -4.0, 4.0, 0.0, 2.0, "", {  } },
-            { "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  } },
-            { "filterType", "Filter Type", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 2.0, 0.0, 0.0, "", { { "bell", "Bell" }, { "lowpass", "Low Pass" }, { "highpass", "High Pass" } } },
-            { "reduction", "Reduction", parameters::Type::Float32, parameters::Access::ReadOnly, -60.0, 0.0, 0.0, 0.0, "dB", {  } },
+            { "frequency", "Frequency", parameters::Type::Float32, parameters::Access::Automatable, 20.0, 20000.0, 1000.0, 0.0, "Hz", {  }, "", "" },
+            { "q", "Q", parameters::Type::Float32, parameters::Access::Automatable, 0.1, 30.0, 1.0, 0.0, "", {  }, "", "" },
+            { "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, -24.0, 24.0, 0.0, 0.01, "dB", {  }, "", "" },
+            { "drive", "Drive", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "", {  }, "", "" },
+            { "voices", "Voices", parameters::Type::Int32, parameters::Access::Manual, 1.0, 16.0, 4.0, 0.0, "", {  }, "", "" },
+            { "octave", "Octave", parameters::Type::Int8, parameters::Access::Automatable, -4.0, 4.0, 0.0, 2.0, "", {  }, "", "" },
+            { "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  }, "", "" },
+            { "filterType", "Filter Type", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 2.0, 0.0, 0.0, "", { { "bell", "Bell" }, { "lowpass", "Low Pass" }, { "highpass", "High Pass" } }, "", "" },
+            { "reduction", "Reduction", parameters::Type::Float32, parameters::Access::ReadOnly, -60.0, 0.0, 0.0, 0.0, "dB", {  }, "", "" },
         };
         return infos;
     }

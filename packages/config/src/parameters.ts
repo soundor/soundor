@@ -59,6 +59,10 @@ export const MAX_INTEGER_PARAMETER_STEPS = 2 ** 23;
 
 /** What every parameter declares. */
 export interface ParameterBase {
+  /** Host-visible group, referring to a key in parameterGroups. */
+  group?: string;
+  /** Identifies the host bypass parameter; does not implement bypass DSP. */
+  role?: 'bypass';
   /** What hosts and generic editors show; the parameter's key by default. Not an identity. */
   label?: string;
   /** Who may change it; `'automatable'` by default. */
@@ -327,6 +331,8 @@ export function semanticsInputs(valueType: ParameterValueType) {
 }
 
 interface ResolvedParameterBase {
+  readonly group?: string;
+  readonly role?: 'bypass';
   /** Its key in the config: a stable identity. */
   readonly id: string;
   readonly label: string;

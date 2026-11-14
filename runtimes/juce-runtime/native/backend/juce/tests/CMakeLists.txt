@@ -108,6 +108,8 @@ juce_add_console_app(soundor_juce_state_tests)
 target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   generated/state/soundor/SoundorProcessor.cpp
   generated/state/soundor/SoundorState.cpp
+  generated/state/soundor/SoundorPresets.cpp
+  generated/state/soundor/SoundorPresetBindings.cpp
   generated/state/soundor/SoundorParameters.cpp
   generated/state/soundor/native/SoundorNative.cpp
   ../soundor/backend/JuceParameter.cpp

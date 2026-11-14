@@ -91,6 +91,9 @@ describe('generateJuceSources', () => {
       'soundor/native/SoundorNative.cpp',
       'soundor/SoundorState.h',
       'soundor/SoundorState.cpp',
+      'soundor/SoundorPresets.h',
+      'soundor/SoundorPresets.cpp',
+      'soundor/SoundorPresetBindings.cpp',
     ]);
   });
 
@@ -216,7 +219,7 @@ describe('generateJuceSources', () => {
   it('delivers state and History notifications in the tick, not before it', () => {
     const editor = fileMap(config).get('soundor/SoundorEditor.cpp')!;
     expect(editor).toContain(
-      '        options.dispatchModules = [](js::Context& context)\n        {\n            history::dispatch(context);\n            persistent::dispatch(context);\n        };',
+      '        options.dispatchModules = [](js::Context& context)\n        {\n            history::dispatch(context);\n            persistent::dispatch(context);\n            factory::dispatch(context);\n        };',
     );
     const timer = editor.slice(
       editor.indexOf('void AudioProcessorEditor::timerCallback()'),
@@ -354,16 +357,16 @@ describe('generateJuceSources', () => {
     const source = fileMap(config).get('soundor/SoundorParameters.cpp')!;
     const table = source.slice(source.indexOf('parameterInfos()'));
     expect(table).toContain(
-      '{ "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "dB", {  } },',
+      '{ "gain", "Gain", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "dB", {  }, "", "" },',
     );
     expect(table).toContain(
-      '{ "voices", "Voices", parameters::Type::Int32, parameters::Access::Manual, 1.0, 8.0, 4.0, 0.0, "", {  } },',
+      '{ "voices", "Voices", parameters::Type::Int32, parameters::Access::Manual, 1.0, 8.0, 4.0, 0.0, "", {  }, "", "" },',
     );
     expect(table).toContain(
-      '{ "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  } },',
+      '{ "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  }, "", "" },',
     );
     expect(table).toContain(
-      '{ "mode", "Mode", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 2.0, 1.0, 0.0, "", { { "a", "A" }, { "b", "B" }, { "default", "Default" } } },',
+      '{ "mode", "Mode", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 2.0, 1.0, 0.0, "", { { "a", "A" }, { "b", "B" }, { "default", "Default" } }, "", "" },',
     );
     expect(source).toContain(
       'namespace soundor::inline SOUNDOR_ABI_NAMESPACE::generated',

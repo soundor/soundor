@@ -10,7 +10,10 @@ import type { StateSchema } from '@soundor/runtime-sdk/client';
 export type WebParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
 /** A declared parameter, in the shape `soundor:parameters` reports as `info`. */
-export type WebParameterInfo =
+export type WebParameterInfo = {
+  readonly group?: string;
+  readonly role?: 'bypass';
+} & (
   | {
       readonly id: string;
       readonly label: string;
@@ -46,10 +49,21 @@ export type WebParameterInfo =
         readonly label: string;
       }[];
       readonly default: string;
-    };
+    }
+);
 
 /** The generated manifest. */
 export interface WebManifest {
+  readonly presets?: readonly import('@soundor/runtime-sdk/client').FactoryPreset[];
+  /** Host-visible group names. */
+  readonly parameterGroups?: Readonly<
+    Record<string, { readonly label: string }>
+  >;
+  /** Selected channel counts of the browser's single main input/output buses. */
+  readonly audio?: {
+    readonly inputChannels: number;
+    readonly outputChannels: number;
+  };
   readonly state?: StateSchema;
   /** The plugin's identity, from soundor.config. */
   readonly plugin: {

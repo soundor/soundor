@@ -1,4 +1,16 @@
 export type {
+  FactoryPresetDeclaration,
+  ResolvedFactoryPreset,
+} from './presets';
+export type {
+  AudioBus,
+  AudioChannelLayout,
+  AudioConfig,
+  AudioLatency,
+  AudioTail,
+} from './audio';
+export { initialBusLayout } from './audio';
+export type {
   EditorConfig,
   EditorFit,
   EditorResize,
@@ -13,6 +25,10 @@ export type {
   NativeTypeDeclaration,
   NativeTypeRef,
   PluginIdentity,
+  PluginKind,
+  PluginCategory,
+  PluginVendor,
+  ParameterGroup,
   ResolvedEditorConfig,
   RuntimeConfig,
   SigningConfig,

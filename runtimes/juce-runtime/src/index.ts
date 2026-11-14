@@ -115,7 +115,7 @@ export async function juceInit(
   const includePath = relative(scaffoldDir, join(ctx.paths.gen, 'setup.cmake'))
     .split(sep)
     .join('/');
-  const files = juceScaffoldFiles(options, RUNTIME_ID, includePath);
+  const files = juceScaffoldFiles(options, RUNTIME_ID, includePath, config);
 
   for (const file of files) {
     const target = ctx.fs.resolve(file.path);

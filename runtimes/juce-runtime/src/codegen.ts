@@ -38,9 +38,11 @@ import {
 } from '@soundor/runtime-sdk';
 
 import { version as RUNTIME_VERSION } from '../package.json';
+import { audioDeclaration, audioImplementation } from './audio-codegen';
 import { generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
+import { generatePresetSources } from './preset-codegen';
 import {
   generateStateSources,
   persistentProcessorSource,
@@ -79,6 +81,10 @@ export function generateJuceSources(
 ): CodegenFile[] {
   // In the config's order, which hosts list them in, as the web host does.
   // Sessions keep their values: VST3 ids are hashes of the parameters' ids.
+  if (config.plugin.kind === 'midiEffect')
+    throw new Error(
+      'MIDI effects require MIDI runtime support, which is not implemented yet.',
+    );
   const parameters = config.parameters;
   const nativeApi = describeNativeApi(config.native);
   if (!nativeApi.ok) {
@@ -88,7 +94,7 @@ export function generateJuceSources(
     );
   }
   return [
-    { path: 'setup.cmake', contents: renderSetupCmake(params) },
+    { path: 'setup.cmake', contents: renderSetupCmake(params, config) },
     { path: 'soundor/soundor.h', contents: renderUmbrella() },
     {
       path: 'soundor/SoundorProcessor.h',
@@ -96,11 +102,12 @@ export function generateJuceSources(
         parameters,
         config.plugin,
         nativeApi.model,
+        config,
       ),
     },
     {
       path: 'soundor/SoundorProcessor.cpp',
-      contents: renderProcessorSource(parameters),
+      contents: renderProcessorSource(parameters, config),
     },
     {
       path: 'soundor/SoundorParameters.cpp',
@@ -120,7 +127,11 @@ export function generateJuceSources(
     },
     ...generateNativeModuleSources(nativeApi.model),
     ...generateStateSources(config),
-  ];
+    ...generatePresetSources(config),
+  ].map((file) => ({
+    ...file,
+    contents: file.contents.replace(/[ \t]+$/gm, ''),
+  }));
 }
 
 /** The editor's install() of soundor:native into each new context. */
@@ -141,7 +152,10 @@ function renderNativeInstall(native: NativeApiModel): string {
 
 // ── CMake ──────────────────────────────────────────────────────────────────
 
-function renderSetupCmake(params: GenerateJuceParams): string {
+function renderSetupCmake(
+  params: GenerateJuceParams,
+  config: SoundorConfig,
+): string {
   const { options } = params;
   const formats = options.formats.map((f) => FORMAT_TOKENS[f]).join(' ');
   // Bake the resolved path when known; otherwise leave empty and fall back to
@@ -187,6 +201,12 @@ juce_add_plugin(\${PROJECT_NAME}
     PLUGIN_CODE ${options.pluginCode}
     FORMATS ${formats}
     PRODUCT_NAME ${cmakeString(options.pluginName)}
+    IS_SYNTH ${config.plugin.kind === 'instrument' ? 'TRUE' : 'FALSE'}
+    IS_MIDI_EFFECT ${config.plugin.kind === 'midiEffect' ? 'TRUE' : 'FALSE'}
+    ${config.plugin.vendor?.website ? `COMPANY_WEBSITE ${cmakeString(config.plugin.vendor.website)}` : ''}
+    ${config.plugin.vendor?.supportEmail ? `COMPANY_EMAIL ${cmakeString(config.plugin.vendor.supportEmail)}` : ''}
+    ${config.plugin.copyright ? `COMPANY_COPYRIGHT ${cmakeString(config.plugin.copyright)}` : ''}
+    VST3_CATEGORIES ${[config.plugin.kind === 'instrument' ? 'Instrument' : 'Fx', ...(config.plugin.categories ?? []).map((category) => ({ eq: 'EQ', dynamics: 'Dynamics', delay: 'Delay', reverb: 'Reverb', modulation: 'Modulation', distortion: 'Distortion', filter: 'Filter', utility: 'Tools', analyzer: 'Analyzer', synth: 'Synth', sampler: 'Sampler', generator: 'Generator' })[category])].join(' ')}
     VST3_AUTO_MANIFEST FALSE)
 
 # Last build steps of every format: the VST3 manifest, then (on macOS) the
@@ -246,7 +266,8 @@ add_subdirectory(${cmakeString(cmakePath(ENGINE_DIR))} soundor-engine)
 # Bindings generated from the config's native API.
 add_library(soundor_generated STATIC
     \${CMAKE_CURRENT_LIST_DIR}/soundor/native/SoundorNative.cpp
-    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorState.cpp)
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorState.cpp
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorPresetBindings.cpp)
 target_include_directories(soundor_generated PUBLIC \${CMAKE_CURRENT_LIST_DIR}
     PRIVATE ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce`))})
 target_compile_definitions(soundor_generated PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
@@ -262,6 +283,7 @@ target_include_directories(\${PROJECT_NAME}
 target_sources(\${PROJECT_NAME}
     PRIVATE
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorProcessor.cpp
+        \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorPresets.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorParameters.cpp
         \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorEditor.cpp
         ${[
@@ -411,6 +433,7 @@ function renderProcessorHeader(
   parameters: readonly Parameter[],
   plugin: SoundorConfig['plugin'],
   native: NativeApiModel,
+  config: SoundorConfig,
 ): string {
   const hasEvents = native.events.length > 0;
   const hasChannels = native.channels.length > 0;
@@ -430,6 +453,7 @@ function renderProcessorHeader(
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
+#include "SoundorPresets.h"
 #include <deque>
 #include <mutex>
 
@@ -452,14 +476,31 @@ ${renderChoiceEnums(parameters, enums)}
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
-        AudioProcessor() : AudioProcessor(BusesProperties()) {}
+        AudioProcessor() : AudioProcessor(${config.audio ? 'configuredBuses()' : 'BusesProperties()'}) {}
         explicit AudioProcessor(const BusesProperties& ioLayouts);
         ~AudioProcessor() override;
 
+${audioDeclaration(config)}
+        ${!config.audio && parameters.some((p) => p.role === 'bypass') ? `juce::AudioProcessorParameter* getBypassParameter() const override { return parameters->getParameter(${cppString(parameters.find((p) => p.role === 'bypass')!.id)}); }` : ''}
         // The plugin's identity (soundor.config \`plugin\`).
         static constexpr const char* pluginId = ${cppString(plugin.id)};
         static constexpr const char* pluginName = ${cppString(plugin.name)};
         static constexpr const char* pluginVersion = ${cppString(plugin.version ?? '0.1.0')};
+
+        // Config-defined factory presets, shared with soundor:presets.
+        FactoryPresets& presets() noexcept { return *factoryPresets; }
+        ${
+          config.presets?.length
+            ? `int getNumPrograms() override final { return ${config.presets.length}; }
+        int getCurrentProgram() override final { return factoryPresets->currentProgram(); }
+        void setCurrentProgram(int index) override final { factoryPresets->requestProgram(index); }
+        const juce::String getProgramName(int index) override final {
+            const auto all = factoryPresets->factoryPresets();
+            return index >= 0 && static_cast<std::size_t>(index) < all.size() ? juce::String(all[static_cast<std::size_t>(index)].name) : juce::String();
+        }
+        void changeProgramName(int, const juce::String&) override final {}`
+            : ''
+        }
 
         // DO NOT OVERRIDE: parameter state is persisted automatically.
         void getStateInformation(juce::MemoryBlock& destData) override final;
@@ -528,16 +569,19 @@ ${
 ${handles || '        // no parameters'}
 
     private:
+        ${config.audio ? `std::atomic<double> tailSeconds { ${config.audio.tail?.mode === 'fixed' ? config.audio.tail.seconds : 0} };` : ''}
         struct Restoration { juce::ValueTree parameters; backend::StateStore::Values state; };
         std::mutex restorationMutex;
         std::deque<Restoration> restorations;
         bool deliveringRestorations = false;
         void handleAsyncUpdate() override;
         friend class AudioProcessorEditor;
+        friend class FactoryPresets;
         std::unique_ptr<juce::AudioProcessorValueTreeState> parameters;
         std::unique_ptr<backend::PublishedParameters> published;
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
+        std::unique_ptr<FactoryPresets> factoryPresets;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
@@ -545,7 +589,10 @@ ${handles || '        // no parameters'}
 `;
 }
 
-function renderProcessorSource(parameters: readonly Parameter[]): string {
+function renderProcessorSource(
+  parameters: readonly Parameter[],
+  config: SoundorConfig,
+): string {
   const enums = choiceEnums(parameters);
   const bindings = parameters
     .map(
@@ -563,18 +610,38 @@ namespace ${NS}
         : juce::AudioProcessor(ioLayouts)
     {
         // Soundor's parameters, with the behavior soundor.config gives them.
+        ${config.audio?.latency?.mode === 'fixed' ? `setLatencySamples(${config.audio.latency.samples});` : ''}
         const auto infos = generated::parameterInfos();
         const auto behaviors = generated::parameterBehaviors();
         juce::AudioProcessorValueTreeState::ParameterLayout layout;
         std::vector<backend::JuceParameter*> created;
         std::vector<backend::JuceParameter*> readOnly;
+        std::map<std::string, juce::AudioProcessorParameterGroup*> groups;
+        const std::vector<std::string> parameterGroups { ${parameters.map((p) => cppString(p.group ?? '')).join(', ')} };
+        const std::map<std::string, std::string> groupLabels { ${Object.entries(
+          config.parameterGroups ?? {},
+        )
+          .map(
+            ([id, group]) => `{ ${cppString(id)}, ${cppString(group.label)} }`,
+          )
+          .join(', ')} };
         for (std::size_t index = 0; index < infos.size(); ++index)
         {
             auto parameter = std::make_unique<backend::JuceParameter>(infos[index], behaviors[index]);
             created.push_back(parameter.get());
             if (infos[index].access == parameters::Access::ReadOnly)
                 readOnly.push_back(parameter.get());
-            layout.add(std::move(parameter));
+            const auto& groupId = parameterGroups[index];
+            if (groupId.empty()) layout.add(std::move(parameter));
+            else {
+                auto& group = groups[groupId];
+                if (group == nullptr) {
+                    auto owned = std::make_unique<juce::AudioProcessorParameterGroup>(groupId, groupLabels.at(groupId), " / ");
+                    group = owned.get();
+                    layout.add(std::move(owned));
+                }
+                group->addChild(std::move(parameter));
+            }
         }
         parameters = std::make_unique<juce::AudioProcessorValueTreeState>(
             *this, nullptr, "SOUNDOR", std::move(layout));
@@ -584,8 +651,10 @@ namespace ${NS}
             parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, stateHistory));
 
 ${bindings || '        // no parameters'}
+        factoryPresets = std::make_unique<FactoryPresets>(*this);
     }
 
+${audioImplementation(config)}
 ${persistentProcessorSource(parameters)}
 } // namespace ${NS}
 `;
@@ -1053,6 +1122,7 @@ namespace ${NS}
         {
             history::install(context, owner.stateHistory);
             persistent::install(context, owner.state);
+            factory::install(context, owner.presets());
 ${renderNativeInstall(native)}
         };
         // What state and History queued for JavaScript, delivered by every
@@ -1061,6 +1131,7 @@ ${renderNativeInstall(native)}
         {
             history::dispatch(context);
             persistent::dispatch(context);
+            factory::dispatch(context);
         };
 #if SOUNDOR_UI_DEV
         // soundor dev: the UI comes from the bundle the CLI keeps rebuilding,

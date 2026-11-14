@@ -88,6 +88,7 @@ export async function startSoundorWebHost(
   const context = hostContext();
   await context.state.ready;
   const audio = new WebAudioHost(context.host, {
+    audio: context.manifest.audio,
     inputs: options.audioInputs,
     defaultInput: options.defaultAudioInput,
     loadSetup:
@@ -103,6 +104,7 @@ export async function startSoundorWebHost(
     onGeometry: (geometry) => view.setGeometry(geometry),
     host: context.host,
     parameters: context.parameters,
+    parameterGroups: context.manifest.parameterGroups,
     audio,
   });
 

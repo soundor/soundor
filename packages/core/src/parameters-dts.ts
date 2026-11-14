@@ -13,7 +13,10 @@ const PRELUDE = `  /** Who may change a parameter: the UI and automation, the UI
   export type ParameterAccess = 'automatable' | 'manual' | 'readOnly';
 
   /** Metadata of a parameter, as declared in soundor.config. */
-  export type ParameterInfo =
+  export type ParameterInfo = {
+    readonly group?: string;
+    readonly role?: 'bypass';
+  } & (
     | {
         readonly id: string;
         readonly label: string;
@@ -39,7 +42,7 @@ const PRELUDE = `  /** Who may change a parameter: the UI and automation, the UI
         readonly type: 'choice';
         readonly options: readonly { readonly value: string; readonly label: string }[];
         readonly default: string;
-      };
+      });
 
   /**
    * A plugin parameter, shared with the DSP and the host. Values are in plain
@@ -118,6 +121,10 @@ function infoType(parameter: CoreParameter): string {
     ['access', JSON.stringify(parameter.access)],
     ['type', JSON.stringify(parameter.type)],
   ];
+  if (parameter.group !== undefined)
+    fields.push(['group', JSON.stringify(parameter.group)]);
+  if (parameter.role !== undefined)
+    fields.push(['role', JSON.stringify(parameter.role)]);
   switch (parameter.type) {
     case 'boolean':
       fields.push(['default', String(parameter.default)]);

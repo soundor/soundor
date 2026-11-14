@@ -271,7 +271,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                 });
         }
         template <class Callback>
-        void transaction(std::string name, Callback&& callback)
+        void transaction(std::string name, Callback&& callback, bool record = true)
         {
             const std::lock_guard lock(controlMutex);
             static_assert(std::is_void_v<std::invoke_result_t<Callback>>,
@@ -301,7 +301,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::history
                         changes.push_back({ id, std::move(before), after });
                 }
                 active = nullptr;
-                commit(changes, transaction.label);
+                commit(changes, record ? std::optional(transaction.label) : std::nullopt);
             }
             catch (...)
             {

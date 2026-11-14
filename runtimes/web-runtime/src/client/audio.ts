@@ -92,6 +92,11 @@ export const BUILTIN_AUDIO_INPUTS: readonly WebAudioInputInfo[] = Object.freeze(
 );
 
 export interface WebAudioHostOptions {
+  /** Declared main bus counts; omitted for legacy browser mixing behavior. */
+  readonly audio?: {
+    readonly inputChannels: number;
+    readonly outputChannels: number;
+  };
   readonly loadSetup?: () => Promise<WebAudioSetup | undefined>;
   readonly inputs?: readonly WebAudioInput[];
   readonly defaultInput?: string;
@@ -286,6 +291,12 @@ export class WebAudioHost {
       const input = context.createGain(),
         output = context.createGain(),
         master = context.createGain();
+      if (this.#options.audio) {
+        input.channelCount = Math.max(1, this.#options.audio.inputChannels);
+        input.channelCountMode = 'explicit';
+        output.channelCount = this.#options.audio.outputChannels;
+        output.channelCountMode = 'explicit';
+      }
       output.connect(master);
       master.connect(context.destination);
       this.#input = input;
@@ -366,6 +377,7 @@ export class WebAudioHost {
       this.#loadingFile
     )
       return;
+    if (this.#options.audio?.inputChannels === 0) return;
     if (source === 'none' || (source === 'file' && !this.#file)) return;
     const bus = context.createGain();
     bus.connect(input);

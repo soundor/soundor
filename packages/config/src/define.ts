@@ -2,9 +2,11 @@ import type {
   StateDeclarations,
   NativeApiDeclaration,
   CheckedState,
+  StateValue,
 } from '@soundor/core';
 
 import type { ParameterDeclarations } from './parameters';
+import type { FactoryPresetDeclaration } from './presets';
 import type { SoundorConfig } from './types';
 
 /**
@@ -26,9 +28,34 @@ export function defineSoundorConfig<
   const S extends StateDeclarations = Record<never, never>,
   const N extends NativeApiDeclaration = NativeApiDeclaration,
 >(
-  config: Omit<SoundorConfig<P>, 'state' | 'native'> & {
+  config: Omit<SoundorConfig<P>, 'state' | 'native' | 'presets'> & {
     native?: N;
     state?: S & CheckedState<S, N>;
+    presets?: readonly (Omit<
+      FactoryPresetDeclaration,
+      'parameters' | 'state'
+    > & {
+      parameters?: {
+        readonly [K in keyof NoInfer<P>]?: NoInfer<P>[K] extends {
+          access: 'readOnly';
+        }
+          ? never
+          : NoInfer<P>[K] extends { type: 'boolean' }
+            ? boolean
+            : NoInfer<P>[K] extends {
+                  type: 'choice';
+                  options: readonly { value: infer V }[];
+                }
+              ? V
+              : number;
+      };
+      state?: {
+        readonly [K in keyof NoInfer<S>]?: StateValue<
+          NoInfer<S>[K]['type'],
+          NonNullable<N['types']>
+        >;
+      };
+    })[];
   },
 ): SoundorConfig {
   return config as unknown as SoundorConfig;
