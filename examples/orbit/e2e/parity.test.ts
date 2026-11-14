@@ -20,10 +20,12 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 /** The parameters' mappings, compiled by `gen` from the same expressions as
     the plugin's C++: from a normalized value to the plain one the processor
     reads. */
-const { behaviors } =
-  (await import('../.soundor/generated/runtimes/web/parameters.js')) as {
-    behaviors: { toValue(normalized: number): number }[];
-  };
+const { behaviors } = (await import(
+  new URL('../.soundor/generated/runtimes/web/parameters.js', import.meta.url)
+    .href
+)) as {
+  behaviors: { toValue(normalized: number): number }[];
+};
 const sampleRate = 48_000;
 const blockSize = 512;
 const parameters = manifest.parameters.map((parameter) => parameter.id);
