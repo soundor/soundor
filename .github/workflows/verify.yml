@@ -285,6 +285,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Rust WebAssembly target
+        run: rustup target add wasm32-unknown-unknown
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps
