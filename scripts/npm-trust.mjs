@@ -7,6 +7,7 @@ import { setTimeout } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const environment = 'npm-production';
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
   console.log('Usage: pnpm npm:trust [--apply] [package ...]');
@@ -71,7 +72,7 @@ if (apply) {
 }
 
 console.log(
-  `${apply ? 'Configuring' : 'Previewing'} ${selected.length} packages for soundor/soundor, release.yml`,
+  `${apply ? 'Configuring' : 'Previewing'} ${selected.length} packages for soundor/soundor, release.yml, ${environment}`,
 );
 const failed = [];
 for (const [index, name] of selected.entries()) {
@@ -83,6 +84,8 @@ for (const [index, name] of selected.entries()) {
     'soundor/soundor',
     '--file',
     'release.yml',
+    '--environment',
+    environment,
     '--allow-publish',
     '--yes',
     '--registry',
@@ -137,7 +140,7 @@ for (const [index, name] of selected.entries()) {
       publisher.type === 'github' &&
       publisher.repository === 'soundor/soundor' &&
       publisher.file === 'release.yml' &&
-      !publisher.environment &&
+      publisher.environment === environment &&
       publisher.permissions?.includes('createPackage'),
   );
   if (matching) {
