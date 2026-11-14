@@ -55,7 +55,7 @@ readable from shipped bundles: do not include secrets.
 
 The CLI embeds this module in the shared UI bundle before any runtime consumes
 it, so JUCE and web see the same values. The web runtime also resolves it for
-host code such as `audio.ts` and the playground. Native module lowering and
+host code such as `native.ts` and the playground. Native module lowering and
 bytecode compilation need no extra platform service.
 
 Values are fixed when the config is evaluated and the bundle is built. Restart

@@ -1,0 +1,22 @@
+# The plugin's audio processing, in Rust: yours, like any crate. Soundor's
+# runtimes run it, natively in the JUCE plugin and compiled to WebAssembly on
+# the Web; `soundor dev` and `soundor build` compile it with Cargo.
+[package]
+name = "soundor-snippets"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+# Soundor's SDK, with the parameters and layouts of soundor.config.ts. Written
+# by `soundor gen` (which `soundor dev` and `soundor build` run), from the
+# installed soundor package: run it once before `cargo test` or `cargo check`.
+soundor = { path = "../.soundor/generated/rust/soundor" }
+
+# soundor dev's builds, and tests: optimized enough to process audio in real
+# time, still with debug assertions and symbols.
+[profile.dev]
+opt-level = 1
+
+# A workspace of its own, wherever the project is.
+[workspace]

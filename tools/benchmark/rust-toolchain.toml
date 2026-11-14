@@ -1,0 +1,3 @@
+# The Rust that builds native/: stable, which rustup keeps up to date.
+[toolchain]
+channel = "stable"

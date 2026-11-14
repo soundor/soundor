@@ -14,6 +14,7 @@ import { join, relative, sep } from 'node:path';
 import {
   ConfigError,
   defineRuntime,
+  EnvError,
   RuntimeError,
   type DoctorReport,
   type LifecycleContext,
@@ -30,7 +31,7 @@ import {
 import { generateWebSources, nativeModel } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
-import { soundorWebPlugin } from './plugin';
+import { PROCESSOR_MODULE, soundorWebPlugin } from './plugin';
 import { webScaffoldFiles } from './scaffold';
 
 export type { WebOptions, ResolvedWebOptions } from './options';
@@ -79,9 +80,6 @@ export async function webInit(
     generatedPath,
     nativeContractPath,
     nativeMethods: nativeModel(config).methods,
-    gain: config.parameters.some(
-      (parameter) => parameter.id === 'gain' && parameter.type === 'float32',
-    ),
   });
 
   for (const file of files) {
@@ -112,17 +110,41 @@ export async function webDev(
 ): Promise<void> {
   const options = resolveWebOptions(ctx.options);
   await requireScaffold(ctx);
+  const processor = await buildProcessor(ctx);
   const createServer = deps.createServer ?? viteCreateServer;
   let server: Awaited<ReturnType<typeof viteCreateServer>>;
   try {
     server = await createServer({
-      ...viteConfig(config, ctx, deps),
+      ...viteConfig(config, ctx, deps, processor),
       mode: 'development',
       server: { port: options.port },
     });
   } catch (error) {
     throw viteFailure('start the Web host dev server', 'dev', error);
   }
+  // The audio processing changed: Cargo again, then the page reloads with it.
+  let rebuilding = Promise.resolve();
+  const stopWatching = ctx.native?.onChange?.(() => {
+    rebuilding = rebuilding.then(async () => {
+      ctx.logger.info(
+        'The native crate changed; rebuilding the audio processor',
+      );
+      try {
+        await buildProcessor(ctx);
+        const module = server.moduleGraph.getModuleById(
+          `\0${PROCESSOR_MODULE}`,
+        );
+        if (module !== undefined) server.moduleGraph.invalidateModule(module);
+        server.ws.send({ type: 'full-reload' });
+        ctx.logger.info('Rebuilt the audio processor; the page reloads.');
+      } catch (error) {
+        if (!ctx.signal.aborted)
+          ctx.logger.error(
+            `The audio processor could not be rebuilt; fix the error and save again.\n${error instanceof Error ? error.message : String(error)}`,
+          );
+      }
+    });
+  });
   try {
     if (ctx.signal.aborted) return;
     try {
@@ -148,6 +170,7 @@ export async function webDev(
     }
     await waitForAbort(ctx.signal);
   } finally {
+    stopWatching?.();
     // Closes Vite's watchers and connections too, so the process can exit.
     await server.close();
   }
@@ -166,9 +189,13 @@ export async function webBuild(
       'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
     );
   }
+  const processor = await buildProcessor(ctx);
   const build = deps.build ?? viteBuild;
   try {
-    await build({ ...viteConfig(config, ctx, deps), mode: 'production' });
+    await build({
+      ...viteConfig(config, ctx, deps, processor),
+      mode: 'production',
+    });
   } catch (error) {
     throw viteFailure('build the Web host', 'build', error);
   }
@@ -205,6 +232,7 @@ function viteConfig(
   config: ResolvedSoundorConfig,
   ctx: Ctx,
   deps: WebPhaseDeps,
+  processor: string,
 ): InlineConfig {
   const hostDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
   return {
@@ -218,6 +246,7 @@ function viteConfig(
         outDir: ctx.paths.dist,
         clientDir: deps.clientDir,
         ui: ctx.ui,
+        processor,
         pluginName: config.plugin.name,
         environmentMode:
           ctx.mode === 'production' ? 'production' : 'development',
@@ -236,6 +265,27 @@ function viteFailure(
     `Vite failed to ${what}: ${error instanceof Error ? error.message : String(error)}`,
     { runtimeId: RUNTIME_ID, phase, cause: error },
   );
+}
+
+/** The WebAssembly target the audio processor is compiled for. */
+export const WASM_TARGET = 'wasm32-unknown-unknown';
+
+/**
+ * Compiles the project's Rust crate (native/), the plugin's audio
+ * processing, to WebAssembly: always optimized, as it runs in real time.
+ */
+async function buildProcessor(ctx: Ctx): Promise<string> {
+  if (ctx.native === undefined)
+    throw new EnvError(
+      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor init` to create it.",
+    );
+  ctx.logger.info('Compiling the audio processing (native/) to WebAssembly');
+  const library = await ctx.native.build({
+    crateType: 'cdylib',
+    target: WASM_TARGET,
+    profile: 'release',
+  });
+  return library.path;
 }
 
 async function requireScaffold(ctx: Ctx): Promise<void> {

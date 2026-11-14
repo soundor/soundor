@@ -6,7 +6,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -134,6 +141,34 @@ export default defineSoundorConfig({
   assert.match(
     run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']),
     /test result: ok\. 1 passed/,
+  );
+  // The same crate for the Web runtime: a module with the SDK's WebAssembly
+  // exports and no imports, as the worklet instantiates it.
+  run('cargo', [
+    'rustc',
+    '--manifest-path',
+    'native/Cargo.toml',
+    '--lib',
+    '--crate-type',
+    'cdylib',
+    '--release',
+    '--target',
+    'wasm32-unknown-unknown',
+  ]);
+  const release = resolve(
+    temporary,
+    'native/target/wasm32-unknown-unknown/release',
+  );
+  const [module] = (await readdir(release)).filter((file) =>
+    file.endsWith('.wasm'),
+  );
+  assert.ok(module, 'the crate built no WebAssembly module');
+  const wasm = new WebAssembly.Module(await readFile(resolve(release, module)));
+  assert.deepEqual(WebAssembly.Module.imports(wasm), []);
+  assert.ok(
+    WebAssembly.Module.exports(wasm).some(
+      (entry) => entry.name === 'soundor_wasm_contract',
+    ),
   );
 
   // The SDK is a regular dependency; the CLI is the runtime's host peer.

@@ -34,6 +34,7 @@
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:watch": "vitest watch"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "vite": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",

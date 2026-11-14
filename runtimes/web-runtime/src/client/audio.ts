@@ -1,43 +1,65 @@
 /**
- * One AudioContext: selected input → project DSP → master volume → speakers.
+ * One AudioContext: selected input → the plugin's processor (its Rust crate,
+ * native/, as WebAssembly in an AudioWorklet) → master volume → speakers.
  * Input instances belong to the transport, and release their resources on
  * pause, replacement or disposal, including work that finishes after a switch.
  */
-import type { WebHost } from './host';
+import type { HostSnapshot, WebHost } from './host';
 import { Listeners } from './listeners';
-import type { WebParameterInfo } from './manifest';
-import {
-  publishParameter,
-  type ParameterValue,
-  type WebParameter,
-} from './parameters';
+import type { WebNativeChannel } from './manifest';
+import { publishParameter, type WebParameter } from './parameters';
+import { createProcessorNode } from './processor/node';
 import { report } from './report';
 
-/** What a project's audio processor receives. */
-export interface WebAudioSetupContext {
-  /** The host's AudioContext. */
-  readonly context: AudioContext;
-  /** Where the selected host input arrives. */
-  readonly input: AudioNode;
-  /** Where the plugin's output goes, before master volume. */
-  readonly output: AudioNode;
-  /**
-   * Sets a parameter as the plugin's processing does, read-only ones (meters)
-   * included, as a JUCE processor's \`publish()\`: \`publish(parameters.reduction, -3)\`.
-   */
-  readonly publish: <Info extends WebParameterInfo>(
-    parameter: WebParameter<Info>,
-    value: ParameterValue<Info>,
-  ) => void;
-}
-
-/** Releases the nodes, subscriptions or other resources a setup owns. */
+/** Releases the nodes, subscriptions or other resources an input owns. */
 export type WebAudioCleanup = () => void;
 
-/** Connects the plugin's DSP between the host's input and output buses. */
-export type WebAudioSetup = (
-  setup: WebAudioSetupContext,
-) => void | WebAudioCleanup | Promise<void | WebAudioCleanup>;
+/** The plugin's processor, as the host runs it. */
+export interface WebProcessorSource {
+  /** The WebAssembly module of native/. */
+  readonly wasm: Uint8Array;
+  /** Every parameter, in the config's order: the processor's values. */
+  readonly parameters: readonly WebParameter[];
+  /** The native channels, in name order, as the processor numbers them. */
+  readonly channels: readonly WebNativeChannel[];
+  /** Publishes channel `index`'s value, as the processing published it. */
+  readonly publishChannel: (index: number, value: unknown) => void;
+}
+
+/** A parameter's value as the processor has it: a boolean's 0 or 1, a choice's index. */
+export function plainValue(parameter: WebParameter): number {
+  const value = parameter.get();
+  const info = parameter.info;
+  if (info.type === 'boolean') return value === true ? 1 : 0;
+  if (info.type === 'choice')
+    return Math.max(
+      0,
+      info.options.findIndex((option) => option.value === value),
+    );
+  return value as number;
+}
+
+function fromPlain(parameter: WebParameter, plain: number): unknown {
+  const info = parameter.info;
+  if (info.type === 'boolean') return plain >= 0.5;
+  if (info.type === 'choice')
+    return info.options[Math.round(plain)]?.value ?? info.default;
+  return plain;
+}
+
+/** The transport's slots, as the processor reads them. */
+export function transportValues(snapshot: HostSnapshot): number[] {
+  const transport = snapshot.transport;
+  if (transport == null) return [NaN, NaN, NaN, 0, 0, 0];
+  return [
+    transport.bpm,
+    transport.timeInSeconds,
+    transport.ppqPosition,
+    transport.playing ? 1 : 0,
+    transport.timeSignature.numerator,
+    transport.timeSignature.denominator,
+  ];
+}
 
 /** What a custom input receives for one playback instance. */
 export interface WebAudioInputContext {
@@ -97,7 +119,10 @@ export interface WebAudioHostOptions {
     readonly inputChannels: number;
     readonly outputChannels: number;
   };
-  readonly loadSetup?: () => Promise<WebAudioSetup | undefined>;
+  /** The plugin's processor; without one, the input passes through. */
+  readonly loadProcessor?: () => Promise<WebProcessorSource | undefined>;
+  /** Injectable for tests. */
+  readonly createProcessorNode?: typeof createProcessorNode;
   readonly inputs?: readonly WebAudioInput[];
   readonly defaultInput?: string;
   /** Injectable Web APIs for tests. */
@@ -116,7 +141,7 @@ export interface AudioStatus {
   readonly fileName: string | null;
   readonly volume: number;
   readonly muted: boolean;
-  /** Why audio failed, or why the project's DSP was skipped. */
+  /** Why audio failed, or why the plugin's processor was skipped. */
   readonly error: string | null;
 }
 
@@ -337,26 +362,96 @@ export class WebAudioHost {
     output: AudioNode,
   ): Promise<void> {
     try {
-      const setup = await this.#options.loadSetup?.();
+      const source = await this.#options.loadProcessor?.();
       if (this.#disposed) return;
-      if (setup) {
-        const cleanup =
-          (await setup({
-            context,
-            input,
-            output,
-            publish: publishParameter,
-          })) ?? null;
+      if (source) {
+        const layout = this.#options.audio ?? {
+          inputChannels: 2,
+          outputChannels: 2,
+        };
+        const parameters = source.parameters;
+        const readOnly = parameters.filter(
+          (parameter) => parameter.info.access === 'readOnly',
+        );
+        const plain = () => parameters.map(plainValue);
+        const create = this.#options.createProcessorNode ?? createProcessorNode;
+        const processor = await create(context, {
+          wasm: source.wasm,
+          contract: {
+            parameters: parameters.length,
+            published: readOnly.length,
+            channels: source.channels.length,
+          },
+          inputs: layout.inputChannels > 0 ? [layout.inputChannels] : [],
+          outputs: [layout.outputChannels],
+          channels: source.channels.map(({ kind, element }) => ({
+            kind,
+            element,
+          })),
+          parameters: plain(),
+          onPublished: (values) =>
+            readOnly.forEach((parameter, slot) => {
+              const value = values[slot];
+              if (value !== undefined && !Number.isNaN(value))
+                publishParameter(
+                  parameter,
+                  fromPlain(parameter, value) as never,
+                );
+            }),
+          onChannels: (changes) => {
+            for (const [index, value] of changes)
+              source.publishChannel(index, value);
+          },
+          onError: (message) =>
+            this.#update({
+              error: `The audio processor (native/) failed: ${message}`,
+            }),
+        });
+        try {
+          await processor.ready;
+        } catch (error) {
+          processor.dispose();
+          throw error;
+        }
         if (this.#disposed) {
-          if (cleanup) safely(cleanup);
-        } else this.#cleanup = cleanup;
+          processor.dispose();
+          return;
+        }
+        // The processing sets the read-only ones: they need not go back.
+        const unsubscribe = parameters
+          .filter((parameter) => parameter.info.access !== 'readOnly')
+          .map((parameter) =>
+            parameter.subscribe(() => processor.setParameters(plain())),
+          );
+        // Any that moved while it loaded.
+        processor.setParameters(plain());
+        let transport = transportValues(this.#host.snapshot());
+        processor.setTransport(transport);
+        unsubscribe.push(
+          this.#host.subscribe((snapshot) => {
+            const next = transportValues(snapshot);
+            if (
+              next.some((value, index) => !Object.is(value, transport[index]))
+            ) {
+              transport = next;
+              processor.setTransport(next);
+            }
+          }),
+        );
+        if (layout.inputChannels > 0) input.connect(processor.node);
+        processor.node.connect(output);
+        this.#cleanup = () => {
+          for (const stop of unsubscribe) stop();
+          input.disconnect();
+          processor.dispose();
+        };
         return;
       }
     } catch (error) {
       if (this.#disposed) return;
       report(error);
       this.#update({
-        error: `The audio setup (runtimes/web/src/audio.ts) failed, so the input passes through: ${describe(error)}`,
+        error: `The audio processor (native/) could not start, so the input passes through: ${describe(error)}`,
       });
       input.disconnect();
     }

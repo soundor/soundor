@@ -1,6 +1,6 @@
 ---
 title: 'Basic'
-description: 'One gain plugin with the same UI and separate JUCE/Web Audio implementations.'
+description: 'One gain plugin with the same UI and the same Rust processing in JUCE and the browser.'
 ---
 
 Source: [`examples/basic/`](https://github.com/soundor/soundor/tree/main/examples/basic).
@@ -26,12 +26,12 @@ src/ResizeGrip.tsx  a resize grip of its own, in the view's corner
 native/             the audio processing, in Rust: applies `gain`
                     (src/lib.rs), with its tests (tests/)
 runtimes/juce/      JUCE: the plugin, which runs native/
-runtimes/web/       Web (TypeScript): applies `gain` with a GainNode in
-                    src/audio.ts
+runtimes/web/       Web: the browser host, which runs native/ compiled to
+                    WebAssembly
 ```
 
-The UI is the same in both. The JUCE plugin runs the Rust processing in
-`native/src/lib.rs`, a gain ramped from block to block:
+The UI is the same in both, and so is the audio: both runtimes run the Rust
+processing in `native/src/lib.rs`, a gain ramped from block to block:
 
 ```rust
 fn process(&mut self, ctx: &mut ProcessContext) {
@@ -50,20 +50,8 @@ fn process(&mut self, ctx: &mut ProcessContext) {
 ```
 
 `cargo test --manifest-path native/Cargo.toml` (or `pnpm test:rust`) tests it
-in plain Rust. The Web host applies the gain in `runtimes/web/src/audio.ts`:
-
-```ts
-export const setupAudio: WebAudioSetup = ({ context, input, output }) => {
-  const gain = context.createGain();
-  gain.gain.value = parameters.gain.get();
-  const unsubscribe = parameters.gain.subscribe((value) =>
-    gain.gain.setTargetAtTime(value, context.currentTime, 0.01),
-  );
-  input.connect(gain);
-  gain.connect(output);
-  // …
-};
-```
+in plain Rust. The Web host compiles the same crate to WebAssembly and runs it
+in an AudioWorklet.
 
 ## In the browser
 
@@ -73,7 +61,7 @@ pnpm build:web   # soundor build web: a static site in .soundor/dist/web
 ```
 
 Press ▶ to play the host's input (an oscillator, or an audio file of yours)
-and move the fader: the plugin UI sets `gain`, and the GainNode follows it.
+and move the fader: the plugin UI sets `gain`, and the processor follows it.
 Its editor is resizable (`editor: { resizable: true }`): drag the handle at
 the view's corner and the UI is laid out again at the new size, as in the
 JUCE editor. `App.tsx` reads the size with

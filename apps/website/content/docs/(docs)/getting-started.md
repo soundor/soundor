@@ -174,31 +174,10 @@ Web host's code has its own tsconfig, so `typecheck` checks it separately):
 Then run it with `pnpm dev:web`.
 
 Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
-browser host. `runtimes/web/src/audio.ts` is where you connect a Web Audio graph;
-`src/native.ts` in that same host directory implements your configured native
-API. These are separate implementations from the JUCE processor and C++ API.
-
-For the declared `gain` parameter, an audio implementation can be:
-
-```ts
-import type { WebAudioSetup } from '@soundor/web-runtime/client';
-import { parameters } from 'soundor:parameters';
-
-export const setupAudio: WebAudioSetup = ({ context, input, output }) => {
-  const gain = context.createGain();
-  gain.gain.value = parameters.gain.get();
-  const unsubscribe = parameters.gain.subscribe((value) =>
-    gain.gain.setTargetAtTime(value, context.currentTime, 0.01),
-  );
-  input.connect(gain);
-  gain.connect(output);
-  return () => {
-    unsubscribe();
-    input.disconnect();
-    gain.disconnect();
-  };
-};
-```
+browser host, and so does your audio processing: the Rust crate in `native/`,
+compiled to WebAssembly (it needs `rustup target add wasm32-unknown-unknown`).
+`runtimes/web/src/native.ts` implements your configured native API for the
+browser, separately from the JUCE plugin's C++.
 
 Press Play in the host to enable audio. The
 [web runtime guide](/docs/web-runtime) explains the host, storage, transport,

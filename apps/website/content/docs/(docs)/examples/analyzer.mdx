@@ -24,8 +24,8 @@ src/spectrum.ts     decibels to bar heights, bars that fall slowly
 native/             the analysis, in Rust: an FFT on the audio thread,
                     written straight into the channel (src/lib.rs)
 runtimes/juce/      JUCE: the plugin, which runs native/
-runtimes/web/       Web (TypeScript): an AnalyserNode read every animation
-                    frame in src/audio.ts
+runtimes/web/       Web: the browser host, which runs native/ compiled to
+                    WebAssembly
 ```
 
 The config declares what the audio code publishes:
@@ -87,16 +87,9 @@ pnpm dev:web     # soundor dev web: the host, with an inspector
 pnpm build:web   # soundor build web: a static site in .soundor/dist/web
 ```
 
-Press ▶ to play the host's input. `runtimes/web/src/audio.ts` passes it
-through an `AnalyserNode`, reads it every animation frame and publishes the
-same channels through the generated contract:
-
-```ts
-import { channels } from '../../../.soundor/generated/runtimes/web/native';
-
-channels.spectrum.publish(spectrum); // copied: `spectrum` is reused
-channels.peak.publish(peakDecibels);
-```
+Press ▶ to play the host's input. The same Rust analysis runs in the
+browser, compiled to WebAssembly in an AudioWorklet, and its channels reach
+the UI through the same `soundor:native` channels, about 60 times a second.
 
 ## As a JUCE plugin
 

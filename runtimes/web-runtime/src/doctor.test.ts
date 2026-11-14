@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWebDoctorReport } from './doctor';
+import { buildWebDoctorReport, checkWasmTarget } from './doctor';
 import { makeCtx, tempProject } from './testing';
 
 describe('buildWebDoctorReport', () => {
@@ -27,4 +27,20 @@ describe('buildWebDoctorReport', () => {
       });
     },
   );
+});
+
+describe('checkWasmTarget', () => {
+  it('passes an installed target, and says how to install a missing one', () => {
+    expect(
+      checkWasmTarget(['libstd-0123abcd.rlib', 'libcore-1.rlib']).status,
+    ).toBe('ok');
+    expect(checkWasmTarget([])).toMatchObject({
+      status: 'fail',
+      suggestion: 'rustup target add wasm32-unknown-unknown',
+    });
+    expect(checkWasmTarget(undefined)).toMatchObject({
+      status: 'fail',
+      suggestion: expect.stringContaining('rustup.rs'),
+    });
+  });
 });

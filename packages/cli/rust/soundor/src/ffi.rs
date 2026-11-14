@@ -382,8 +382,8 @@ pub struct Exports {
     pub destroy: unsafe extern "C" fn(*mut c_void),
 }
 
-/// Defines the processor's C ABI (and, compiled to WebAssembly, its module's
-/// exports): what a runtime calls. Invoke it once, in the crate's root, with
+/// Defines the processor's C ABI and, compiled to WebAssembly, its module's
+/// exports (see [`crate::wasm`]): what a runtime calls. Invoke it once, in the crate's root, with
 /// the type that implements [`AudioProcessor`](crate::AudioProcessor):
 ///
 /// ```ignore
@@ -479,5 +479,7 @@ macro_rules! export {
                 }
             }
         }
+
+        $crate::__export_wasm!($processor);
     };
 }

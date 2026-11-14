@@ -54,6 +54,7 @@ mod plugin;
 mod processor;
 pub mod testing;
 mod transport;
+pub mod wasm;
 
 pub use audio::{Audio, Bus, BusMut, Channels as ChannelIter, ChannelsMut};
 pub use channels::{BufferChannel, ChannelElement, ValueChannel};

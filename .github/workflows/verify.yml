@@ -151,6 +151,11 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
+      # The Web runtime compiles a plugin's native/ to WebAssembly: its tests,
+      # and the examples' web builds, need Rust's target for it.
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Native input detection regression tests
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
@@ -189,7 +194,7 @@ jobs:
       - name: Example application tests, types and web builds
         run: |
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer test &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer test:rust &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter snippets --filter soundor-benchmark test:rust &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer typecheck &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer build:web
 
@@ -209,6 +214,11 @@ jobs:
 
       - name: DevTools browser E2E
         run: pnpm --filter @soundor/devtools-client test:e2e
+
+      # The Rust processor in Chromium's AudioWorklet (the browser installed
+      # above, same Playwright), rendered offline and compared sample for sample.
+      - name: Web runtime AudioWorklet tests
+        run: pnpm --filter @soundor/web-runtime test:browser
 
       # The built site in Chromium (installed above, same Playwright): pages,
       # search, an embedded example, and editing its code.

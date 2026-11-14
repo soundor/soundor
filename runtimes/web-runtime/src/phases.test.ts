@@ -22,6 +22,7 @@ import {
   webRuntime,
 } from './index';
 import {
+  fakeNative,
   makeCtx,
   SOURCE_CLIENT_DIR,
   tempProject,
@@ -97,7 +98,6 @@ describe('webInit', () => {
 
     expect(await listFiles(join(root, 'runtimes/web'))).toEqual([
       'index.html',
-      'src/audio.ts',
       'src/main.ts',
       'src/native.ts',
       'tsconfig.json',
@@ -111,7 +111,9 @@ describe('webInit', () => {
       "import { startSoundorWebHost } from '@soundor/web-runtime/client';",
     );
     expect(main).toContain("native: () => import('./native')");
-    expect(main).toContain("audio: () => import('./audio')");
+    // No audio code of its own: the processor is native/, as WebAssembly.
+    expect(main).not.toContain('audio:');
+    expect(main).not.toContain("import('./audio')");
     const native = await readFile(
       join(root, 'runtimes/web/src/native.ts'),
       'utf8',
@@ -120,13 +122,6 @@ describe('webInit', () => {
       "import type { WebNativeApi } from '../../../.soundor/generated/runtimes/web/native';",
     );
     expect(native).toContain('export const native: WebNativeApi = {');
-    // The plugin declares a float gain: the scaffold applies it.
-    const audio = await readFile(
-      join(root, 'runtimes/web/src/audio.ts'),
-      'utf8',
-    );
-    expect(audio).toContain('export const setupAudio: WebAudioSetup');
-    expect(audio).toContain('parameters.gain.subscribe');
     const vite = await readFile(
       join(root, 'runtimes/web/vite.config.ts'),
       'utf8',
@@ -364,7 +359,6 @@ describe('webBuild', () => {
     // Nothing else is written into the project.
     expect((await listFiles(join(root, 'runtimes/web'))).sort()).toEqual([
       'index.html',
-      'src/audio.ts',
       'src/main.ts',
       'src/native.ts',
       'tsconfig.json',
@@ -529,7 +523,7 @@ describe('webDev', () => {
 });
 
 describe('webDoctor', () => {
-  it('reports Node.js, Vite and the Web host project', async () => {
+  it('reports Node.js, Vite, the WebAssembly target and the Web host project', async () => {
     const root = await tempProject();
     const ctx = makeCtx(root);
 
@@ -537,20 +531,53 @@ describe('webDoctor', () => {
     expect(before.checks.map((check) => check.label)).toEqual([
       'Node.js',
       'Vite',
+      'Rust WebAssembly target',
       'Web host project',
     ]);
     expect(before.checks[0]!.status).toBe('ok');
     expect(before.checks[1]!.status).toBe('ok');
-    expect(before.checks[2]).toMatchObject({
+    expect(before.checks[3]).toMatchObject({
       status: 'warn',
       suggestion: expect.stringContaining('soundor init web'),
     });
 
     await webInit(testConfig, ctx);
     const after = await webDoctor(testConfig, ctx);
-    expect(after.checks[2]!.status).toBe('ok');
+    expect(after.checks[3]!.status).toBe('ok');
     expect(
       after.checks.every((check) => !/cmake|juce|c\+\+/i.test(check.label)),
     ).toBe(true);
+  });
+});
+
+describe('the audio processor', () => {
+  it('is compiled to WebAssembly, optimized, for dev and build', async () => {
+    const root = await tempProject();
+    const native = fakeNative(root);
+    const ctx = makeCtx(root, { native });
+    await webInit(testConfig, ctx);
+    await webGen(testConfig, ctx);
+    const build = vi.fn<() => Promise<undefined>>(
+      async () => undefined,
+    ) as never;
+    await webBuild(testConfig, ctx, { build });
+    expect(native.requests).toEqual([
+      {
+        crateType: 'cdylib',
+        target: 'wasm32-unknown-unknown',
+        profile: 'release',
+      },
+    ]);
+  });
+
+  it('is required: a project without native/ is told to create it', async () => {
+    const root = await tempProject();
+    const ctx = makeCtx(root, { native: null });
+    await webInit(testConfig, ctx);
+    await expect(
+      webBuild(testConfig, ctx, { build: vi.fn<() => void>() as never }),
+    ).rejects.toThrow(
+      /no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor init/,
+    );
   });
 });

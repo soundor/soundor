@@ -288,11 +288,10 @@ host's text for a value comes from the parameter's compiled `format`, with or
 without the editor. JavaScript does not process audio or run on the audio
 thread. The [basic example](/docs/examples/basic) shows the Rust gain.
 
-In the browser the UI, audio setup, and host controls share one parameter
-store. Subscribe from `runtimes/web/src/audio.ts` to update a Web Audio node,
-publish read-only parameters with the setup's `publish(parameter, value)`,
-and return a cleanup function that unsubscribes and disconnects the graph.
-See [Web Audio setup](/docs/web-runtime#audio-raw-web-audio).
+In the browser the UI and the host controls share one parameter store, and
+the same Rust processor runs, compiled to WebAssembly: the parameters' values
+are posted to it as they change, and the read-only ones it publishes come
+back. See [the Web runtime's audio](/docs/web-runtime#audio-the-plugins-processor-in-webassembly).
 
 ## Test parameter behavior
 

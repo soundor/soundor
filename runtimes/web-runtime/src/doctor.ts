@@ -1,9 +1,12 @@
 /**
- * The Web runtime's `doctor` checks. A browser host needs no native
- * toolchain: only a Node.js that Vite supports, Vite itself (installed with
- * this package) and the scaffolded Web host project. Dependencies are
- * injected so the report is unit-testable.
+ * The Web runtime's `doctor` checks: a Node.js that Vite supports, Vite
+ * itself (installed with this package), Rust's WebAssembly target (the
+ * audio processor, native/, is compiled to it) and the scaffolded Web host
+ * project. Dependencies are injected so the report is unit-testable.
  */
+
+import { spawnSync } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 
 import type {
   DoctorCheck,
@@ -21,6 +24,49 @@ const NODE_RANGES = [
 export interface WebDoctorDeps {
   readonly nodeVersion?: string;
   readonly viteVersion?: string;
+  /** Where Rust keeps the WebAssembly target's standard library, if it has one. */
+  readonly wasmTargetLibraries?: () => string[] | undefined;
+}
+
+/**
+ * The files of the wasm32-unknown-unknown standard library, from rustc;
+ * undefined when rustc cannot say (Rust missing).
+ */
+function wasmTargetLibraries(): string[] | undefined {
+  const result = spawnSync(
+    'rustc',
+    ['--print', 'target-libdir', '--target', 'wasm32-unknown-unknown'],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) return undefined;
+  const dir = result.stdout.trim();
+  return existsSync(dir) ? readdirSync(dir) : [];
+}
+
+/** Rust's WebAssembly target: checked, never installed. */
+export function checkWasmTarget(libraries: string[] | undefined): DoctorCheck {
+  if (libraries === undefined)
+    return {
+      label: 'Rust WebAssembly target',
+      status: 'fail',
+      detail:
+        "rustc was not found; it compiles the plugin's audio processing (native/) to WebAssembly.",
+      suggestion:
+        'Install Rust with rustup (https://rustup.rs), then: rustup target add wasm32-unknown-unknown',
+    };
+  if (!libraries.some((file) => /^libstd-.*\.rlib$/.test(file)))
+    return {
+      label: 'Rust WebAssembly target',
+      status: 'fail',
+      detail:
+        'wasm32-unknown-unknown is not installed: the audio processing (native/) cannot be compiled for the browser.',
+      suggestion: 'rustup target add wasm32-unknown-unknown',
+    };
+  return {
+    label: 'Rust WebAssembly target',
+    status: 'ok',
+    detail: 'wasm32-unknown-unknown',
+  };
 }
 
 /** Builds the Web runtime's diagnostic report. */
@@ -37,6 +83,7 @@ export async function buildWebDoctorReport(
         status: 'ok',
         detail: `vite ${deps.viteVersion ?? viteVersion} (installed with @soundor/web-runtime)`,
       },
+      checkWasmTarget((deps.wasmTargetLibraries ?? wasmTargetLibraries)()),
       await checkScaffold(fs, runtimeId),
     ],
   };
