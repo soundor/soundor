@@ -1,5 +1,14 @@
 # @soundor/driver
 
+## 0.17.1
+
+### Patch Changes
+
+- [#298](https://github.com/soundor/soundor/pull/298) [`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish all packages through npm trusted publishing with GitHub Actions OIDC.
+- Updated dependencies [[`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee)]:
+  - @soundor/devtools-protocol@0.17.1
+  - @soundor/devtools-server@0.17.1
+
 ## 0.17.0
 
 ### Minor Changes

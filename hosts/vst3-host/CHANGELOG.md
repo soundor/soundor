@@ -1,5 +1,11 @@
 # @soundor/vst3-host
 
+## 0.1.1
+
+### Patch Changes
+
+- [#298](https://github.com/soundor/soundor/pull/298) [`582aeec`](https://github.com/soundor/soundor/commit/582aeec3a8191fc664d4a426dd295557918be8ee) Thanks [@dm-balakin](https://github.com/dm-balakin)! - Publish all packages through npm trusted publishing with GitHub Actions OIDC.
+
 ## 0.1.0
 
 ### Minor Changes
