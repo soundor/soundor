@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as state from './modules/state';
+import * as stateHistory from './modules/state-history';
 import * as ui from './modules/ui';
 import {
   type PlaygroundHost,
@@ -60,6 +61,9 @@ describe('startPlayground', () => {
       // A bundle of @soundor/react reads soundor:ui here as it loads.
       expect(globalThis.__soundorModules?.['soundor:ui']).toBe(ui);
       expect(globalThis.__soundorModules?.['soundor:state']).toBe(state);
+      expect(globalThis.__soundorModules?.['soundor:state-history']).toBe(
+        stateHistory,
+      );
       globalThis.soundorPlayground = { start: (host) => (started = host) };
     });
     const host = shell();
@@ -73,10 +77,12 @@ describe('startPlayground', () => {
       'soundor:native',
       'soundor:parameters',
       'soundor:state',
+      'soundor:state-history',
       'soundor:storage',
       'soundor:ui',
     ]);
     expect(started!.modules['soundor:state']).toBe(state);
+    expect(started!.modules['soundor:state-history']).toBe(stateHistory);
     started!.showMessage('Failed', 'detail');
     started!.clearMessages();
     expect(host.showMessage).toHaveBeenCalledWith('Failed', 'detail');

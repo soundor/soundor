@@ -202,6 +202,69 @@ test('a snippet runs in its page, with its code under it', async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+test('the history snippet supports undo and redo after editing', async ({
+  page,
+}) => {
+  const problems = watch(page);
+  await page.goto('/docs/api/state-history');
+  const snippet = page.locator('figure', {
+    has: page.locator('iframe[title*="history snippet"]'),
+  });
+  await snippet.getByRole('button', { name: 'Edit code' }).click();
+  await expect(snippet.getByRole('status')).toHaveText(/^Running your code/);
+  const plugin = snippet.frameLocator('iframe');
+  await expect(plugin.getByText('Undo: none', { exact: true })).toBeVisible();
+  await expect(
+    plugin.getByRole('button', { name: 'Undo', exact: true }),
+  ).toBeDisabled();
+  const undo = plugin.getByRole('button', { name: 'Undo', exact: true });
+  const redo = plugin.getByRole('button', { name: 'Redo', exact: true });
+  await plugin.getByRole('button', { name: 'More', exact: true }).click();
+  await plugin.getByRole('button', { name: 'Bypass Off' }).click();
+  await plugin.getByRole('button', { name: 'Bright', exact: true }).click();
+
+  // Undo a transaction restores every parameter to its previous value.
+  await plugin.getByRole('button', { name: 'Load Warm Preset' }).click();
+  await expect(plugin.getByText('Gain 0.75 · Voices 6')).toBeVisible();
+  await expect(plugin.getByText('Undo: Load Warm Preset')).toBeVisible();
+  await undo.click();
+  await expect(plugin.getByText('Gain 0.50 · Voices 5')).toBeVisible();
+  await expect(plugin.getByRole('button', { name: 'Bypass On' })).toBeVisible();
+  await expect(
+    plugin.getByRole('button', { name: 'Bright', exact: true }),
+  ).toHaveAttribute('aria-selected', 'true');
+  await redo.click();
+  await expect(plugin.getByText('Gain 0.75 · Voices 6')).toBeVisible();
+  await expect(
+    plugin.getByRole('button', { name: 'Bypass Off' }),
+  ).toBeVisible();
+  await expect(
+    plugin.getByRole('button', { name: 'Warm', exact: true }),
+  ).toHaveAttribute('aria-selected', 'true');
+
+  // Several pointer moves make exactly one history entry.
+  const slider = plugin.getByRole('slider', { name: 'Gain', exact: true });
+  const box = (await slider.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 68, box.y + box.height / 2, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await expect(plugin.getByText('Gain 0.55 · Voices 6')).toBeVisible();
+  await expect(plugin.getByText('Undo: Adjust Gain')).toBeVisible();
+  await undo.click();
+  await expect(plugin.getByText('Gain 0.75 · Voices 6')).toBeVisible();
+  await expect(plugin.getByText('Undo: Load Warm Preset')).toBeVisible();
+  await redo.click();
+  await expect(plugin.getByText('Gain 0.55 · Voices 6')).toBeVisible();
+  await undo.click();
+  await plugin.getByRole('button', { name: 'Clear history' }).click();
+  await expect(undo).toBeDisabled();
+  await expect(redo).toBeDisabled();
+  expect(problems).toEqual([]);
+});
+
 test("a page's Markdown has its snippets' code", async ({ request }) => {
   const markdown = await (await request.get('/docs/react.md')).text();
   expect(markdown).toContain('export default function Gain()');
