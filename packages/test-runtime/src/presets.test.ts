@@ -135,14 +135,15 @@ it('rejects loading over an active History gesture without partial application',
   r.dispose();
 });
 
-it('still notifies preset subscribers if another subscriber reads the snapshot first', () => {
+it('notifies subscribers when a staged snapshot was read before commit', () => {
   const r = fixture();
-  const parameter = r.parameters.byId.gain!;
-  const off = parameter.subscribe(() => r.presets.getSnapshot());
   const listener = vi.fn<() => void>();
   r.presets.subscribe(listener);
-  r.presets.factory.load('warm');
+  r.history.transaction('Load and inspect', () => {
+    r.presets.factory.load('warm');
+    expect(r.presets.getSnapshot().factoryId).toBe('warm');
+    expect(listener).not.toHaveBeenCalled();
+  });
   expect(listener).toHaveBeenCalledOnce();
-  off();
   r.dispose();
 });
