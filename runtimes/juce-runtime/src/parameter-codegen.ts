@@ -91,7 +91,7 @@ function renderInfo(parameter: ResolvedParameter): string {
           )
           .join(', ')
       : '';
-  return `            { ${cppString(parameter.id)}, ${cppString(parameter.label)}, parameters::Type::${TYPE[parameter.type]}, parameters::Access::${ACCESS[parameter.access]}, ${cppDouble(p.min)}, ${cppDouble(p.max)}, ${cppDouble(p.default)}, ${cppDouble(p.step)}, ${cppString(p.unit)}, { ${choices} }${parameter.group !== undefined || parameter.role !== undefined ? `, ${cppString(parameter.group ?? '')}, ${cppString(parameter.role ?? '')}` : ''} },`;
+  return `            { ${cppString(parameter.id)}, ${cppString(parameter.label)}, parameters::Type::${TYPE[parameter.type]}, parameters::Access::${ACCESS[parameter.access]}, ${cppDouble(p.min)}, ${cppDouble(p.max)}, ${cppDouble(p.default)}, ${cppDouble(p.step)}, ${cppString(p.unit)}, { ${choices} }, ${cppString(parameter.group ?? '')}, ${cppString(parameter.role ?? '')} },`;
 }
 
 /** The name of a parameter's generated function. */

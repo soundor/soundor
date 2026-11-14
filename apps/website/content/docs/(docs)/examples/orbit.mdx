@@ -52,6 +52,19 @@ Soundor shares the interface and parameter contract; the example owns its DSP.
 The browser's demo loop is a registered custom host input outside the
 portable plugin interface; there is no extra toolbar around the plugin.
 
+## Factory presets
+
+The four sounds are declared in `soundor.config.ts`. The UI loads them through
+[`soundor:presets`](/docs/api/presets), and the generated JUCE processor exposes
+the same catalog to host program selectors. Previous/Next loads one complete
+snapshot, including releasing Hold and resetting bypass, as one undoable edit.
+Preset descriptions are declared state and are restored with the sound.
+
+The displayed name follows the shared preset selection, including selections
+made by native code or a host. An asterisk indicates modified settings; unmatched
+host-restored content shows Custom. Selection survives editor recreation, and
+undo/redo restores the sound, name and description together.
+
 ## Controls
 
 Tab to a knob or echo to edit it with the arrow keys. Left/right change an

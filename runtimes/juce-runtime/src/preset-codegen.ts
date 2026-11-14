@@ -8,18 +8,21 @@ export function generatePresetSources(config: ResolvedSoundorConfig) {
   return [
     { path: 'soundor/SoundorPresets.h', contents: presetHeader() },
     { path: 'soundor/SoundorPresets.cpp', contents: presetSource(config) },
+    {
+      path: 'soundor/SoundorPresetBindings.cpp',
+      contents: presetBindingsSource(),
+    },
   ];
 }
 function presetHeader(): string {
   return `${header}#pragma once
 #include <soundor/backend/JuceState.h>
 #include <soundor/js/Context.h>
-#include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
 #include <span>
 namespace ${ns} {
 class AudioProcessor;
-class FactoryPresets : private juce::Timer, private juce::AudioProcessorParameter::Listener {
+class FactoryPresets {
 public:
   struct Info { std::string id; std::string name; };
   struct Selection {
@@ -28,7 +31,7 @@ public:
     bool operator==(const Selection&) const = default;
   };
   explicit FactoryPresets(AudioProcessor&);
-  ~FactoryPresets() override;
+  ~FactoryPresets();
   std::span<const Info> factoryPresets() const;
   // Message thread only. Throws for an unknown id. Recording is opt-in.
   void loadFactory(std::string_view id, const history::Options& options = {});
@@ -53,9 +56,9 @@ private:
   std::map<std::size_t, std::function<void()>> listeners;
   std::size_t nextListener = 0;
   bool matches(std::size_t) const;
-  void timerCallback() override;
-  void parameterValueChanged(int, float) override { dirty.store(true, std::memory_order_release); }
-  void parameterGestureChanged(int, bool) override {}
+  struct Updates;
+  std::unique_ptr<Updates> updates;
+  void timerTick();
 };
 namespace factory {
   void install(js::Context&, FactoryPresets&);
@@ -80,7 +83,7 @@ function presetSource(config: ResolvedSoundorConfig): string {
                   ? 1
                   : 0
                 : value;
-          return `owner.parameterEditors[${params.indexOf(p)}]->get() == static_cast<double>(static_cast<float>(${plain}))`;
+          return `std::equal_to<double>{}(owner.parameterEditors[${params.indexOf(p)}]->get(), static_cast<double>(static_cast<float>(${plain})))`;
         },
       );
       comparisons.push(
@@ -121,10 +124,34 @@ function presetSource(config: ResolvedSoundorConfig): string {
     .join('\n');
   return `${header}#include "SoundorPresets.h"
 #include "SoundorProcessor.h"
-#include "js/Bindings.h"
-#include "modules/history/HistoryBindings.h"
-#include <list>
+#include <functional>
 namespace ${ns} {
+struct FactoryPresets::Updates : private juce::Timer, private juce::AudioProcessorParameter::Listener {
+  FactoryPresets& parent;
+  explicit Updates(FactoryPresets& service) : parent(service) {
+    ${params
+      .filter((p) => p.access !== 'readOnly')
+      .map(
+        (p) =>
+          `parent.owner.getParameters().getParameter(${quote(p.id)})->addListener(this);`,
+      )
+      .join('\n')}
+    if (!parent.factoryPresets().empty()) startTimerHz(60);
+  }
+  ~Updates() override {
+    stopTimer();
+    ${params
+      .filter((p) => p.access !== 'readOnly')
+      .map(
+        (p) =>
+          `parent.owner.getParameters().getParameter(${quote(p.id)})->removeListener(this);`,
+      )
+      .join('\n')}
+  }
+  void parameterValueChanged(int, float) override { parent.dirty.store(true, std::memory_order_release); }
+  void parameterGestureChanged(int, bool) override {}
+  void timerCallback() override { parent.timerTick(); }
+};
 namespace {
   [[maybe_unused]] const std::vector<backend::StateStore::Values>& factoryStateValues() {
     static const std::vector<backend::StateStore::Values> values { ${catalog.map((preset) => `PersistentState::prepare(backend::parseStateJson(${quote(stateJson(preset.state))}))`).join(', ')} };
@@ -141,37 +168,26 @@ FactoryPresets::FactoryPresets(AudioProcessor& processor)
     program.store(index, std::memory_order_relaxed);
     owner.updateHostDisplay(juce::AudioProcessorListener::ChangeDetails().withProgramChanged(true));
   });
-  ${params
-    .filter((p) => p.access !== 'readOnly')
-    .map(
-      (p) =>
-        `owner.getParameters().getParameter(${quote(p.id)})->addListener(this);`,
-    )
-    .join('\n')}
+
   for (const auto& [field, value] : owner.state.storage().snapshot()) {
     static_cast<void>(value);
     stateOff.push_back(owner.state.storage().subscribe(field, [this](const auto&) { dirty.store(true, std::memory_order_release); }));
   }
   restored();
   delivered = snapshot();
-  if (!factoryPresets().empty()) startTimerHz(60);
+  updates = std::make_unique<Updates>(*this);
 }
 FactoryPresets::~FactoryPresets() {
-  stopTimer(); selectionOff();
+  updates.reset(); selectionOff();
   for (const auto& off : stateOff) off();
-  ${params
-    .filter((p) => p.access !== 'readOnly')
-    .map(
-      (p) =>
-        `owner.getParameters().getParameter(${quote(p.id)})->removeListener(this);`,
-    )
-    .join('\n')}
+
 }
 history::StateHistory& FactoryPresets::historyManager() { return owner.stateHistory; }
 std::span<const FactoryPresets::Info> FactoryPresets::factoryPresets() const {
   static const std::vector<Info> all { ${catalog.map((p) => `{ ${quote(p.id)}, ${quote(p.name)} }`).join(', ')} };
   return all;
 }
+// Canonical plain values are compared exactly: every changed stored value is modified.
 bool FactoryPresets::matches(std::size_t index) const {
   switch(index) { ${checks} default: return false; }
 }
@@ -232,7 +248,7 @@ void FactoryPresets::requestProgram(int index) {
     catch (const std::exception& error) { juce::Logger::writeToLog(error.what()); }
   } else requested.store(index, std::memory_order_release);
 }
-void FactoryPresets::timerCallback() {
+void FactoryPresets::timerTick() {
   const auto next = requested.exchange(-1, std::memory_order_acq_rel);
   if (next >= 0) {
     try { loadFactory(factoryPresets()[static_cast<std::size_t>(next)].id); }
@@ -240,6 +256,16 @@ void FactoryPresets::timerCallback() {
   }
   if (!listeners.empty()) dispatch();
 }
+}
+`;
+}
+
+function presetBindingsSource(): string {
+  return `${header}#include "SoundorPresets.h"
+#include "js/Bindings.h"
+#include "modules/history/HistoryBindings.h"
+#include <list>
+namespace ${ns} {
 namespace factory {
 namespace {
   namespace bind = js::bind;

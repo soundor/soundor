@@ -23,6 +23,12 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
 
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+
 private:
     // Last block's applied gain, so process() can ramp to the new target
     // value instead of stepping (which would click on fast automation).

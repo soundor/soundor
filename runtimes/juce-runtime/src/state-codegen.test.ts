@@ -90,7 +90,9 @@ it('generates the persistent processor compiled by the JUCE integration tests', 
     options: resolveJuceOptions({}, config.plugin),
   });
   for (const f of files.filter((f) =>
-    /Soundor(State|Processor|Parameters|Native|Presets)\.(h|cpp)$/.test(f.path),
+    /Soundor(State|Processor|Parameters|Native|Presets|PresetBindings)\.(h|cpp)$/.test(
+      f.path,
+    ),
   )) {
     const path = resolve(
       import.meta.dirname,

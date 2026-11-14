@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace orbit
@@ -44,8 +45,7 @@ namespace orbit
         void configure(const Settings& settings)
         {
             cutoff =
-                1
-                - std::exp(-2 * 3.141592653589793 * std::min(rate * 0.45, 400 * std::pow(30.0, settings.tone)) / rate);
+                1 - std::exp(-2 * std::numbers::pi * std::min(rate * 0.45, 400 * std::pow(30.0, settings.tone)) / rate);
         }
 
         std::array<float, 2> tick(float left, float right, const Settings& settings)
@@ -108,7 +108,7 @@ namespace orbit
         }
 
     private:
-        double read(size_t voice, double position) const
+        [[nodiscard]] double read(size_t voice, double position) const
         {
             // Twice, as the browser's does: a position just below zero wraps to
             // `capacity` itself, one past the end, once added to it.

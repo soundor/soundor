@@ -2,12 +2,11 @@
 #pragma once
 #include <soundor/backend/JuceState.h>
 #include <soundor/js/Context.h>
-#include <juce_audio_processors/juce_audio_processors.h>
 #include <atomic>
 #include <span>
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE {
 class AudioProcessor;
-class FactoryPresets : private juce::Timer, private juce::AudioProcessorParameter::Listener {
+class FactoryPresets {
 public:
   struct Info { std::string id; std::string name; };
   struct Selection {
@@ -16,7 +15,7 @@ public:
     bool operator==(const Selection&) const = default;
   };
   explicit FactoryPresets(AudioProcessor&);
-  ~FactoryPresets() override;
+  ~FactoryPresets();
   std::span<const Info> factoryPresets() const;
   // Message thread only. Throws for an unknown id. Recording is opt-in.
   void loadFactory(std::string_view id, const history::Options& options = {});
@@ -41,9 +40,9 @@ private:
   std::map<std::size_t, std::function<void()>> listeners;
   std::size_t nextListener = 0;
   bool matches(std::size_t) const;
-  void timerCallback() override;
-  void parameterValueChanged(int, float) override { dirty.store(true, std::memory_order_release); }
-  void parameterGestureChanged(int, bool) override {}
+  struct Updates;
+  std::unique_ptr<Updates> updates;
+  void timerTick();
 };
 namespace factory {
   void install(js::Context&, FactoryPresets&);

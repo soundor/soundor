@@ -437,9 +437,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::generated
     std::span<const parameters::Info> parameterInfos()
     {
         static const std::vector<parameters::Info> infos {
-            { "gain", "gain", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "", {  } },
+            { "gain", "gain", parameters::Type::Float32, parameters::Access::Automatable, 0.0, 1.0, 0.5, 0.0, "", {  }, "", "" },
             { "bypass", "Bypass", parameters::Type::Boolean, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", {  }, "output", "bypass" },
-            { "mode", "mode", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", { { "a", "A" }, { "b", "B" } } },
+            { "mode", "mode", parameters::Type::Choice, parameters::Access::Automatable, 0.0, 1.0, 0.0, 0.0, "", { { "a", "A" }, { "b", "B" } }, "", "" },
         };
         return infos;
     }

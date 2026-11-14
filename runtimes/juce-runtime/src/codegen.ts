@@ -266,7 +266,8 @@ add_subdirectory(${cmakeString(cmakePath(ENGINE_DIR))} soundor-engine)
 # Bindings generated from the config's native API.
 add_library(soundor_generated STATIC
     \${CMAKE_CURRENT_LIST_DIR}/soundor/native/SoundorNative.cpp
-    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorState.cpp)
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorState.cpp
+    \${CMAKE_CURRENT_LIST_DIR}/soundor/SoundorPresetBindings.cpp)
 target_include_directories(soundor_generated PUBLIC \${CMAKE_CURRENT_LIST_DIR}
     PRIVATE ${cmakeString(cmakePath(`${params.nativeDir}/backend/juce`))})
 target_compile_definitions(soundor_generated PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
@@ -306,7 +307,7 @@ target_sources(\${PROJECT_NAME}
             ),
           )
           .join('\n        ')})
-target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated soundor::runtime_internal)
+target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
 # into the plugin so it needs no files at runtime: its JavaScript as Hermes

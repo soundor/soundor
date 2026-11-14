@@ -128,6 +128,7 @@ describe('juceGen', () => {
       'soundor/SoundorState.cpp',
       'soundor/SoundorPresets.h',
       'soundor/SoundorPresets.cpp',
+      'soundor/SoundorPresetBindings.cpp',
     ]);
   });
 });

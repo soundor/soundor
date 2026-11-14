@@ -4,6 +4,7 @@ import {
   Text,
   View,
   useParameter,
+  useStateValue,
 } from '@soundor/react';
 import { useState, useSyncExternalStore } from 'react';
 import {
@@ -11,14 +12,22 @@ import {
   subscribeHostState as subscribe,
 } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
+import { presets } from 'soundor:presets';
+import { state } from 'soundor:state';
 import type { HistoryOptions } from 'soundor:state-history';
 
 import { EchoField } from './EchoField';
 import { Knob } from './Knob';
-import { applyPreset, presets } from './model';
 
 export function App() {
-  const [preset, setPreset] = useState(0);
+  const catalog = presets.factory.list();
+  const selection = useSyncExternalStore(
+    presets.subscribe,
+    presets.getSnapshot,
+  );
+  const preset = catalog.findIndex((entry) => entry.id === selection.factoryId);
+  const selected = catalog[preset];
+  const description = useStateValue(state.presetDescription);
   const [help, setHelp] = useState(false);
   const host = useSyncExternalStore(subscribe, snapshot);
   const sync = useParameter(parameters.sync),
@@ -26,8 +35,7 @@ export function App() {
     bypass = useParameter(parameters.bypass);
   const bpm = host.transport?.bpm ?? 120;
   const choose = (index: number) => {
-    setPreset(index);
-    applyPreset(index);
+    presets.factory.load(catalog[index]!.id, { history: true });
   };
   const toggle = (parameter: {
     set(
@@ -90,7 +98,11 @@ export function App() {
           <Pressable
             accessibilityLabel="Previous preset"
             onPress={() =>
-              choose((preset + presets.length - 1) % presets.length)
+              choose(
+                preset < 0
+                  ? catalog.length - 1
+                  : (preset + catalog.length - 1) % catalog.length,
+              )
             }
             style={({ focusVisible }) => [
               styles.arrow,
@@ -101,17 +113,19 @@ export function App() {
           </Pressable>
           <View style={{ width: 164, gap: 2 }}>
             <Text style={{ color: '#92958b', fontSize: 8, letterSpacing: 1.4 }}>
-              PRESET / {String(preset + 1).padStart(2, '0')}
+              PRESET /{' '}
+              {preset < 0 ? 'CUSTOM' : String(preset + 1).padStart(2, '0')}
+              {selection.modified ? ' *' : ''}
             </Text>
             <Text
               style={{ color: '#343938', fontSize: 12, fontWeight: 'bold' }}
             >
-              {presets[preset]!.name}
+              {selected?.name ?? 'Custom'}
             </Text>
           </View>
           <Pressable
             accessibilityLabel="Next preset"
-            onPress={() => choose((preset + 1) % presets.length)}
+            onPress={() => choose((preset + 1) % catalog.length)}
             style={({ focusVisible }) => [
               styles.arrow,
               focusVisible && styles.ring,
@@ -286,7 +300,9 @@ export function App() {
             ? 'Bypassed · original audio'
             : help
               ? 'Drag echoes: time ↔ / level ↕. Knobs: drag ↑↓. Arrow keys work too.'
-              : presets[preset]!.detail}
+              : selected
+                ? description
+                : 'Custom settings. Choose a preset to start again.'}
         </Text>
         <Pressable
           accessibilityLabel="Show controls help"
