@@ -31,7 +31,7 @@ plugin (JUCE)                     your processor, editor, DSP
             ├─ Yoga, ada           layout, URLs
             ├─ Skia                2D drawing (Ganesh GPU on macOS, Windows and Linux, CPU fallback)
             ├─ ANGLE               WebGL 2 and the GPU compositor (Metal, Direct3D 11)
-            ├─ AccessKit           Windows accessibility
+            ├─ Windows UIA        native Windows accessibility
             └─ System GIO          native Linux AT-SPI (dynamically linked)
 ```
 

@@ -122,17 +122,17 @@ TEST_SUITE("a11y Windows UIA")
             { Role::None, UIA_GroupControlTypeId },          { Role::Text, UIA_TextControlTypeId },
             { Role::Image, UIA_ImageControlTypeId },         { Role::Button, UIA_ButtonControlTypeId },
             { Role::Link, UIA_HyperlinkControlTypeId },      { Role::Adjustable, UIA_SliderControlTypeId },
-            { Role::CheckBox, UIA_CheckBoxControlTypeId },   { Role::Switch, UIA_CheckBoxControlTypeId },
+            { Role::CheckBox, UIA_CheckBoxControlTypeId },   { Role::Switch, UIA_ButtonControlTypeId },
             { Role::ToggleButton, UIA_ButtonControlTypeId }, { Role::Radio, UIA_RadioButtonControlTypeId },
             { Role::RadioGroup, UIA_GroupControlTypeId },    { Role::ProgressBar, UIA_ProgressBarControlTypeId },
             { Role::Search, UIA_GroupControlTypeId },        { Role::ComboBox, UIA_ComboBoxControlTypeId },
             { Role::Menu, UIA_MenuControlTypeId },           { Role::MenuBar, UIA_MenuBarControlTypeId },
             { Role::MenuItem, UIA_MenuItemControlTypeId },   { Role::ScrollBar, UIA_ScrollBarControlTypeId },
             { Role::SpinButton, UIA_SpinnerControlTypeId },  { Role::Tab, UIA_TabItemControlTypeId },
-            { Role::TabList, UIA_TabControlTypeId },         { Role::Header, UIA_HeaderControlTypeId },
+            { Role::TabList, UIA_TabControlTypeId },         { Role::Header, UIA_TextControlTypeId },
             { Role::Summary, UIA_GroupControlTypeId },       { Role::KeyboardKey, UIA_ButtonControlTypeId },
-            { Role::Timer, UIA_GroupControlTypeId },         { Role::Toolbar, UIA_ToolBarControlTypeId },
-            { Role::Alert, UIA_GroupControlTypeId },         { Role::Dialog, UIA_GroupControlTypeId },
+            { Role::Timer, UIA_PaneControlTypeId },          { Role::Toolbar, UIA_ToolBarControlTypeId },
+            { Role::Alert, UIA_TextControlTypeId },          { Role::Dialog, UIA_WindowControlTypeId },
             { Role::Group, UIA_GroupControlTypeId },         { Role::TextInput, UIA_EditControlTypeId },
             { Role::ScrollView, UIA_PaneControlTypeId },     { Role::View, UIA_PaneControlTypeId }
         };
@@ -186,12 +186,14 @@ TEST_SUITE("a11y Windows UIA")
         auto update = tree();
         Node& input = update.nodes[1];
         input.role = Role::TextInput;
+        input.placeholder = "Preset name";
         input.value = { {}, {}, {}, "é🎛" };
         input.state.expanded = false;
         input.actions = { { Action::SetValue }, { Action::Expand }, { Action::Collapse } };
         session.update(update, {}, true);
         auto provider = root(session);
         auto child = navigate(provider.Get(), NavigateDirection_FirstChild);
+        CHECK(property(child.Get(), UIA_HelpTextPropertyId) == L"Preset name");
         auto value = pattern<IValueProvider>(child.Get(), UIA_ValuePatternId);
         BSTR text = nullptr;
         REQUIRE(value->get_Value(&text) == S_OK);
@@ -225,7 +227,7 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(gain->get_HostRawElementProvider(&noHost) == S_OK);
         CHECK(noHost == nullptr);
         CHECK(property(gain.Get(), UIA_NamePropertyId) == L"Gain");
-        CHECK(property(gain.Get(), UIA_HelpTextPropertyId) == L"Output level");
+        CHECK(property(gain.Get(), UIA_FullDescriptionPropertyId) == L"Output level");
         auto again = navigate(provider.Get(), NavigateDirection_FirstChild);
         CHECK(again.Get() == gain.Get());
         auto parent = navigate(gain.Get(), NavigateDirection_Parent);
@@ -403,10 +405,39 @@ TEST_SUITE("a11y Windows UIA")
         REQUIRE(second.takeRequests().size() == 1);
     }
 
+    TEST_CASE("dialog patterns preserve modal state without controlling the host window")
+    {
+        Window window;
+        uia::Session session(window.handle, "Plugin");
+        auto update = tree();
+        update.nodes[1].role = Role::Dialog;
+        update.nodes[1].modal = true;
+        update.nodes[1].actions = { { Action::Escape } };
+        session.update(update, {}, true);
+        auto provider = root(session);
+        auto dialog = navigate(provider.Get(), NavigateDirection_FirstChild);
+        auto patternProvider = pattern<IWindowProvider>(dialog.Get(), UIA_WindowPatternId);
+        BOOL modal = FALSE;
+        CHECK(patternProvider->get_IsModal(&modal) == S_OK);
+        CHECK(modal);
+        CHECK(patternProvider->SetVisualState(WindowVisualState_Maximized) == UIA_E_INVALIDOPERATION);
+        CHECK(patternProvider->Close() == S_OK);
+        auto requests = session.takeRequests();
+        REQUIRE(requests.size() == 1);
+        CHECK(requests[0].action == Action::Escape);
+        CHECK(IsWindow(window.handle));
+    }
+
     TEST_CASE("HWND subclass is local and removed on either destruction order")
     {
         CHECK(createPlatformAccessibility({}) == nullptr);
         Window host;
+        // A native host provider belongs to Windows, outside Soundor's trees.
+        ComPtr<IRawElementProviderSimple> nativeHost;
+        REQUIRE(UiaHostProviderFromHwnd(host.handle, &nativeHost) == S_OK);
+        REQUIRE(nativeHost != nullptr);
+        ProviderOptions hostOptions {};
+        REQUIRE(nativeHost->get_ProviderOptions(&hostOptions) == S_OK);
         const LRESULT hostResult = SendMessageW(host.handle, WM_GETOBJECT, 0, UiaRootObjectId);
         for (int i = 0; i < 4; ++i)
         {
@@ -415,6 +446,9 @@ TEST_SUITE("a11y Windows UIA")
             auto platform = createPlatformAccessibility({ native, "Editor" });
             REQUIRE(platform != nullptr);
             CHECK(SendMessageW(host.handle, WM_GETOBJECT, 0, UiaRootObjectId) == hostResult);
+            ProviderOptions options {};
+            CHECK(nativeHost->get_ProviderOptions(&options) == S_OK);
+            CHECK(options == hostOptions);
             // Other object IDs go through the original window procedure.
             CHECK(SendMessageW(editor.handle, WM_GETOBJECT, 0, OBJID_CURSOR) == 0);
             SendMessageW(editor.handle, WM_GETOBJECT, 0, UiaRootObjectId);
@@ -432,5 +466,8 @@ TEST_SUITE("a11y Windows UIA")
             }
         }
         CHECK(SendMessageW(host.handle, WM_GETOBJECT, 0, UiaRootObjectId) == hostResult);
+        ProviderOptions options {};
+        CHECK(nativeHost->get_ProviderOptions(&options) == S_OK);
+        CHECK(options == hostOptions);
     }
 }

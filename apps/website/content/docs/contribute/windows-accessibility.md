@@ -27,11 +27,11 @@ The HWND has one persistent root supporting `IRawElementProviderSimple`,
 `IRawElementProviderFragment` and `IRawElementProviderFragmentRoot`. Each exposed
 semantic node has one stable COM identity while it exists. Navigation follows
 the shared semantic tree, including its existing modal and portal filtering.
-Names, descriptions, enabled and busy states, keyboard focus and physical
+Names, descriptions, input placeholders, enabled and busy states, keyboard focus and physical
 screen bounds come from that same tree and the editor's geometry.
 
 Patterns reflect semantic capabilities: Invoke, Value, RangeValue, Toggle,
-Selection, SelectionItem and ExpandCollapse. Text fields replace their whole
+Selection, SelectionItem, ExpandCollapse and Window for dialogs. Text fields replace their whole
 value; numeric writes are finite and bounded by the semantic range. Selection
 containers are single-selection radio groups and tab lists. The semantic model
 has no numeric step; UIA reports an unknown step (`NaN`). Soundor does not

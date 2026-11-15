@@ -31,6 +31,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     return UIA_ImageControlTypeId;
                 case Role::Button:
                 case Role::ToggleButton:
+                case Role::Switch:
                 case Role::KeyboardKey:
                     return UIA_ButtonControlTypeId;
                 case Role::Link:
@@ -38,7 +39,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 case Role::Adjustable:
                     return UIA_SliderControlTypeId;
                 case Role::CheckBox:
-                case Role::Switch:
                     return UIA_CheckBoxControlTypeId;
                 case Role::Radio:
                     return UIA_RadioButtonControlTypeId;
@@ -61,30 +61,81 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 case Role::TabList:
                     return UIA_TabControlTypeId;
                 case Role::Header:
-                    return UIA_HeaderControlTypeId;
+                case Role::Alert:
+                    return UIA_TextControlTypeId;
+                case Role::Dialog:
+                    return UIA_WindowControlTypeId;
                 case Role::Toolbar:
                     return UIA_ToolBarControlTypeId;
                 case Role::TextInput:
                     return UIA_EditControlTypeId;
                 case Role::ScrollView:
+                case Role::Timer:
                 case Role::View:
                     return UIA_PaneControlTypeId;
                 case Role::None:
                 case Role::RadioGroup:
                 case Role::Search:
                 case Role::Summary:
-                case Role::Timer:
-                case Role::Alert:
-                case Role::Dialog:
                 case Role::Group:
                     return UIA_GroupControlTypeId;
             }
             return UIA_GroupControlTypeId;
         }
 
+        std::string ariaRole(Role role)
+        {
+            switch (role)
+            {
+                case Role::Header:
+                    return "heading";
+                case Role::Text:
+                    return "";
+                case Role::Image:
+                    return "img";
+                case Role::Link:
+                    return "link";
+                case Role::Adjustable:
+                    return "slider";
+                case Role::SpinButton:
+                    return "spinbutton";
+                case Role::ToggleButton:
+                case Role::KeyboardKey:
+                    return "button";
+                case Role::Summary:
+                case Role::Group:
+                    return "group";
+                case Role::TextInput:
+                    return "textbox";
+                case Role::ScrollView:
+                case Role::View:
+                    return "region";
+                case Role::None:
+                    return "generic";
+                default:
+                    return std::string(roleName(role));
+            }
+        }
+
+        std::string ariaProperties(const Node& node)
+        {
+            std::string result = node.state.busy ? "busy=true" : "busy=false";
+            if (node.state.checked != Checked::Unset)
+                result += node.state.checked == Checked::Mixed  ? ";checked=mixed"
+                          : node.state.checked == Checked::True ? ";checked=true"
+                                                                : ";checked=false";
+            if (node.state.expanded)
+                result += *node.state.expanded ? ";expanded=true" : ";expanded=false";
+            if (node.state.selected)
+                result += *node.state.selected ? ";selected=true" : ";selected=false";
+            if (node.modal)
+                result += ";modal=true";
+            return result;
+        }
+
         bool range(const Node& node)
         {
-            return node.value.now && node.value.min && node.value.max;
+            return node.value.now.has_value();
         }
         bool selectable(const Node& node)
         {
@@ -179,12 +230,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         };
         changed(before.role != after.role, UIA_ControlTypePropertyId);
         changed(before.label != after.label, UIA_NamePropertyId);
-        changed(before.hint != after.hint, UIA_HelpTextPropertyId);
+        changed(before.placeholder != after.placeholder, UIA_HelpTextPropertyId);
         changed(before.hint != after.hint, UIA_FullDescriptionPropertyId);
         changed(before.state.disabled != after.state.disabled, UIA_IsEnabledPropertyId);
         changed(before.focusable != after.focusable || before.state.disabled != after.state.disabled,
                 UIA_IsKeyboardFocusablePropertyId);
         changed(before.state.busy != after.state.busy, UIA_ItemStatusPropertyId);
+        changed(before.state != after.state || before.modal != after.modal, UIA_AriaPropertiesPropertyId);
+        changed(before.modal != after.modal, UIA_WindowIsModalPropertyId);
+        changed(before.role != after.role, UIA_AriaRolePropertyId);
         changed(before.state.checked != after.state.checked, UIA_ToggleToggleStatePropertyId);
         changed(selected(before) != selected(after), UIA_SelectionItemIsSelectedPropertyId);
         changed(before.state.expanded != after.state.expanded, UIA_ExpandCollapseExpandCollapseStatePropertyId);
@@ -236,7 +290,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                                     public IToggleProvider,
                                     public ISelectionProvider,
                                     public ISelectionItemProvider,
-                                    public IExpandCollapseProvider
+                                    public IExpandCollapseProvider,
+                                    public IWindowProvider
     {
     public:
         Provider(std::shared_ptr<State> owner, NodeId key) : state(std::move(owner)), id(key) {}
@@ -266,6 +321,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 *out = static_cast<ISelectionItemProvider*>(this);
             else if (iid == __uuidof(IExpandCollapseProvider))
                 *out = static_cast<IExpandCollapseProvider*>(this);
+            else if (iid == __uuidof(IWindowProvider))
+                *out = static_cast<IWindowProvider*>(this);
             else
                 return E_NOINTERFACE;
             AddRef();
@@ -313,6 +370,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                         *out = static_cast<ISelectionItemProvider*>(this);
                     else if (pattern == UIA_ExpandCollapsePatternId && node.state.expanded)
                         *out = static_cast<IExpandCollapseProvider*>(this);
+                    if (pattern == UIA_WindowPatternId && (node.role == Role::Dialog || node.modal))
+                        *out = static_cast<IWindowProvider*>(this);
                     if (*out != nullptr)
                         AddRef();
                     return S_OK;
@@ -520,7 +579,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             return read(
                 [&](const Node& node)
                 {
-                    if (! std::isfinite(value) || ! range(node) || value < *node.value.min || value > *node.value.max)
+                    if (! std::isfinite(value) || ! range(node) || (node.value.min && value < *node.value.min)
+                        || (node.value.max && value > *node.value.max))
                         return E_INVALIDARG;
                     return enqueue(node, Action::SetValue, value);
                 });
@@ -647,6 +707,48 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 });
         }
 
+        HRESULT STDMETHODCALLTYPE SetVisualState(WindowVisualState) override
+        {
+            return read([](const Node&) { return UIA_E_INVALIDOPERATION; });
+        }
+        HRESULT STDMETHODCALLTYPE Close() override { return ask(Action::Escape); }
+        HRESULT STDMETHODCALLTYPE WaitForInputIdle(int, BOOL* out) override
+        {
+            if (out == nullptr)
+                return E_POINTER;
+            *out = FALSE;
+            return read([](const Node&) { return UIA_E_NOTSUPPORTED; });
+        }
+        HRESULT STDMETHODCALLTYPE get_CanMaximize(BOOL* out) override { return selectionFlag(out, false); }
+        HRESULT STDMETHODCALLTYPE get_CanMinimize(BOOL* out) override { return selectionFlag(out, false); }
+        HRESULT STDMETHODCALLTYPE get_IsModal(BOOL* out) override
+        {
+            if (out == nullptr)
+                return E_POINTER;
+            *out = FALSE;
+            return read(
+                [&](const Node& node)
+                {
+                    *out = node.modal;
+                    return S_OK;
+                });
+        }
+        HRESULT STDMETHODCALLTYPE get_WindowVisualState(WindowVisualState* out) override
+        {
+            if (out == nullptr)
+                return E_POINTER;
+            *out = WindowVisualState_Normal;
+            return read([](const Node&) { return S_OK; });
+        }
+        HRESULT STDMETHODCALLTYPE get_WindowInteractionState(WindowInteractionState* out) override
+        {
+            if (out == nullptr)
+                return E_POINTER;
+            *out = WindowInteractionState_ReadyForUserInteraction;
+            return read([](const Node&) { return S_OK; });
+        }
+        HRESULT STDMETHODCALLTYPE get_IsTopmost(BOOL* out) override { return selectionFlag(out, false); }
+
         // Called only with state->mutex held, including by event collection.
         HRESULT propertyValue(const Node& node, PROPERTYID property, VARIANT* out) const
         {
@@ -676,7 +778,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 case UIA_NamePropertyId:
                     return text(node.label.empty() && id == noNode ? state->name : node.label);
                 case UIA_HelpTextPropertyId:
-                    return text(node.hint);
+                    return text(node.placeholder);
+                case UIA_AriaRolePropertyId:
+                    return text(ariaRole(node.role));
+                case UIA_AriaPropertiesPropertyId:
+                    return text(ariaProperties(node));
+                case UIA_WindowIsModalPropertyId:
+                    return boolean(node.modal);
                 case UIA_FullDescriptionPropertyId:
                     return text(node.hint);
                 case UIA_ItemStatusPropertyId:
@@ -879,6 +987,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             state->window = nullptr;
             host.Swap(state->hostProvider);
             state->requests.clear();
+            state->tree = {};
+            state->name.clear();
             retired.swap(state->providers);
         }
         // Never hold our lock across UIA: it can re-enter providers. Only this
