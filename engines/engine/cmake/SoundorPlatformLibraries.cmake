@@ -14,6 +14,13 @@ elseif(WIN32)
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES bcrypt Threads::Threads) # crypto.getRandomValues
 else()
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES Threads::Threads)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    if(NOT TARGET PkgConfig::SOUNDOR_GIO)
+      pkg_check_modules(SOUNDOR_GIO REQUIRED IMPORTED_TARGET GLOBAL gio-2.0)
+    endif()
+    list(APPEND SOUNDOR_RUNTIME_SYSTEM_LIBRARIES PkgConfig::SOUNDOR_GIO)
+  endif()
 endif()
 
 set(SOUNDOR_HERMES_SYSTEM_LIBRARIES Threads::Threads ${CMAKE_DL_LIBS})
