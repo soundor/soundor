@@ -13,7 +13,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y --no-install-recommends lld-18 ninja-build libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers libvulkan1
+        sudo apt-get install -y --no-install-recommends lld-18 ninja-build libfontconfig1-dev libfreetype-dev libglib2.0-dev dbus-daemon mesa-vulkan-drivers libvulkan1
     - name: macOS build tools
       if: runner.os == 'macOS'
       shell: bash
