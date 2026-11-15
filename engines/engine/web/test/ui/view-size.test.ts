@@ -4,8 +4,8 @@
 // density media query are stubbed.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { ViewSize } from './types';
-import { UiView } from './view';
+import type { ViewSize } from '../../src/ui/types.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView;
 let resized: (() => void) | undefined;
@@ -54,7 +54,7 @@ beforeEach(() => {
     value: 1,
     configurable: true,
   });
-  view = new UiView(document);
+  view = new UiView({ document });
   view.mount(document.body);
 });
 
@@ -316,7 +316,7 @@ describe('the safe area and the editor size', () => {
   });
 
   it("keeps each view's to itself, and lets go when disposed", () => {
-    const other = new UiView(document);
+    const other = new UiView({ document });
     const told: unknown[] = [];
     other.subscribeEditorSize((size) => told.push(size));
     view.setGeometry({ editor: { width: 640, height: 480 }, safeArea: null });

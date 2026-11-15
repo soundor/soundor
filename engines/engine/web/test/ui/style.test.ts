@@ -1,6 +1,24 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment happy-dom
+import { afterAll, describe, expect, it } from 'vitest';
 
-import { cssFor, cssText, pointerClass, readStyle, STYLESHEET } from './style';
+import {
+  cssFor,
+  cssText,
+  pointerClass,
+  STYLESHEET,
+} from '../../src/ui/style.ts';
+import { Engine } from '../../src/ui/view.ts';
+
+// Styles are read by the engine's C++ core (ui/StyleReader), as natively.
+const engine = new Engine({ document });
+afterAll(() => engine.dispose());
+
+/** `style` set on a node: what the node keeps of it, or the engine's error. */
+function readStyle(style: unknown): object {
+  const node = engine.createView();
+  node.style = style as never;
+  return { ...node.style };
+}
 
 describe('cssFor', () => {
   it('writes nothing for an empty style', () => {
@@ -166,7 +184,7 @@ describe('cssFor', () => {
     expect(cssFor({ outlineWidth: 0, outlineColor: 'red' }, 'view')).toEqual(
       {},
     );
-    expect(() => readStyle({ outlineWidth: '2px' })).toThrow(/outlineWidth/);
+    expect(() => readStyle({ outlineWidth: '2em' })).toThrow(/outlineWidth/);
     expect(() => readStyle({ outlineColor: 3 })).toThrow(/outlineColor/);
   });
 
@@ -205,7 +223,7 @@ describe('pointerClass', () => {
   });
 });
 
-describe('readStyle', () => {
+describe('the engine reads styles', () => {
   it('drops null and undefined, ignores unknown keys', () => {
     expect(readStyle({ width: null, height: 2, nonsense: 'x' })).toEqual({
       height: 2,
@@ -220,8 +238,8 @@ describe('readStyle', () => {
       "style.display: expected one of 'flex', 'none', got 'grid'",
     ],
     [
-      { width: '10px' },
-      "style.width: expected a number, a percentage or 'auto', got '10px'",
+      { width: '10em' },
+      "style.width: expected a number, a percentage or 'auto', got '10em'",
     ],
     [
       { padding: 'auto' },

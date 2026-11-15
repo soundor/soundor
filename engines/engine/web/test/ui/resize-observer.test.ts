@@ -4,9 +4,9 @@
 // and a test wakes it as the browser would.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UiNode } from './node';
-import { createResizeObserver } from './resize-observer';
-import { UiView } from './view';
+import { UiNode } from '../../src/ui/node.ts';
+import { createResizeObserver } from '../../src/ui/resize-observer.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView;
 afterEach(() => view?.dispose());
@@ -51,7 +51,7 @@ class FakeNative {
 
 function setup() {
   FakeNative.all = [];
-  view = new UiView(document);
+  view = new UiView({ document });
   view.mount(document.body);
   const ResizeObserver = createResizeObserver(
     FakeNative as unknown as typeof globalThis.ResizeObserver,

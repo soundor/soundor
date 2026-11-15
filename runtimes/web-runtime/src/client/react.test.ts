@@ -2,6 +2,7 @@
 // The real @soundor/react renderer on the browser's soundor:ui: the same
 // components a plugin renders in the JUCE runtime, with no ReactDOM.
 
+import { UiNode } from '@soundor/engine/web';
 import {
   createPortalHost,
   createRoot,
@@ -25,7 +26,6 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { uiView } from './context';
-import { UiNode } from './ui/node';
 
 /** The element drawing a node (plugin code sees the contract's UiNode). */
 const element = (node: object) => UiNode.elementOf(node as UiNode);

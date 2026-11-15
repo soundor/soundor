@@ -6,13 +6,13 @@ import {
   transformValues,
   type AnimationController,
   type ManagedAnimation,
-} from './animation';
-import type { UiElement } from './node';
+} from './animation.ts';
+import type { UiElement } from './node.ts';
 import type {
   AnimationDescription,
   AnimationOptions,
   UiAnimation,
-} from './types';
+} from './types.ts';
 
 interface Phase {
   kind: 'effect' | 'sequence' | 'parallel' | 'stagger' | 'delay';
@@ -274,7 +274,7 @@ export function compileProgram(
         initial.set(element, snapshot);
         virtual.set(element, { ...snapshot });
       }
-      const normalized = keyframes(input.keyframes);
+      const normalized = keyframes(input.keyframes, controller.checkStyle);
       const frames = controller.prepare(
         element,
         normalized.frames,

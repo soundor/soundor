@@ -13,6 +13,11 @@ export const Command = {
   Size: 7,
   Scale: 8,
   Layout: 9,
+  Placeholder: 10,
+  Natural: 11,
+  Fonts: 12,
+  Extent: 13,
+  Check: 14,
 } as const;
 export type Command = (typeof Command)[keyof typeof Command];
 
@@ -21,15 +26,34 @@ export const Answer = {
   Error: 1,
   Frame: 2,
   Text: 3,
+  Extent: 4,
+} as const;
+
+/** The node types, as the engine numbers them (wasm/Engine.h's NodeKind). */
+export const NodeKind = {
+  view: 0,
+  text: 1,
+  image: 2,
+  input: 3,
+  canvas: 4,
+  svg: 5,
 } as const;
 
 const ValueKind = {
   Number: 1,
   String: 2,
   Other: 3,
+  Boolean: 4,
+  Array: 5,
+  Object: 6,
 } as const;
 
+/** How deep a style's arrays and objects are sent (`transform`, `boxShadow`). */
+const MAX_DEPTH = 4;
+
 const encoder = new TextEncoder();
+/** Strings this long or shorter are tried as ASCII first. */
+const SHORT = 64;
 const decoder = new TextDecoder();
 
 /** Commands, written into a buffer that grows. */
@@ -68,12 +92,30 @@ export class CommandWriter {
   text(value: string): void {
     // At most three bytes per UTF-16 unit, a padded word after the count.
     this.#reserve(8 + value.length * 3);
-    const { written } = encoder.encodeInto(
-      value,
-      this.#bytes.subarray(this.length + 4),
-    );
+    let written = value.length <= SHORT ? this.#ascii(value) : -1;
+    if (written < 0)
+      written = encoder.encodeInto(
+        value,
+        this.#bytes.subarray(this.length + 4),
+      ).written;
     this.#view.setUint32(this.length, written, true);
     this.length += 4 + ((written + 3) & ~3);
+  }
+
+  /**
+   * Writes a short string's bytes after the count, if it is ASCII (style
+   * keys and most values): encodeInto() costs more than the copy for those.
+   * -1 if it is not.
+   */
+  #ascii(value: string): number {
+    const bytes = this.#bytes;
+    const at = this.length + 4;
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code >= 0x80) return -1;
+      bytes[at + i] = code;
+    }
+    return value.length;
   }
 
   /** A style object's own properties, as the engine reads them. */
@@ -86,19 +128,64 @@ export class CommandWriter {
       const value: unknown = (style as Record<string, unknown>)[key];
       if (value === undefined || value === null) continue;
       this.text(key);
-      if (typeof value === 'number') {
-        this.word(ValueKind.Number);
-        this.real64(value);
-      } else if (typeof value === 'string') {
-        this.word(ValueKind.String);
-        this.text(value);
-      } else {
-        this.word(ValueKind.Other);
-        this.text(describe(value));
-      }
+      this.value(value, 0);
       count++;
     }
     this.#view.setUint32(at, count, true);
+  }
+
+  /**
+   * A value as the engine reads it: numbers, strings and booleans as they
+   * are, arrays and plain objects with what is in them (a few levels deep),
+   * anything else as String() shows it and its type, for error messages.
+   */
+  value(value: unknown, depth: number): void {
+    switch (typeof value) {
+      case 'number':
+        this.word(ValueKind.Number);
+        this.real64(value);
+        return;
+      case 'string':
+        this.word(ValueKind.String);
+        this.text(value);
+        return;
+      case 'boolean':
+        this.word(ValueKind.Boolean);
+        this.word(value ? 1 : 0);
+        return;
+    }
+    if (depth < MAX_DEPTH && Array.isArray(value)) {
+      this.word(ValueKind.Array);
+      this.text(describe(value));
+      this.word(value.length);
+      for (const item of value as unknown[]) this.value(item, depth + 1);
+      return;
+    }
+    if (
+      depth < MAX_DEPTH &&
+      typeof value === 'object' &&
+      value !== null &&
+      !ArrayBuffer.isView(value) &&
+      !(value instanceof ArrayBuffer)
+    ) {
+      this.word(ValueKind.Object);
+      this.text(describe(value));
+      const at = this.length;
+      this.word(0);
+      let count = 0;
+      for (const key in value) {
+        // Every key, as natively: one whose value is undefined or null is
+        // there, but counts as absent where a value is looked for.
+        this.text(key);
+        this.value((value as Record<string, unknown>)[key], depth + 1);
+        count++;
+      }
+      this.#view.setUint32(at, count, true);
+      return;
+    }
+    this.word(ValueKind.Other);
+    this.text(describe(value));
+    this.text(typeName(value));
   }
 
   /** What was written. */
@@ -131,18 +218,46 @@ function describe(value: unknown): string {
   }
 }
 
+/** A value's type, as soundor:ui's errors name it. */
+function typeName(value: unknown): string {
+  if (value === undefined) return 'undefined';
+  if (value === null) return 'null';
+  if (typeof value === 'function') return 'function';
+  if (typeof value !== 'object') return typeof value;
+  if (Array.isArray(value)) return 'array';
+  if (value instanceof ArrayBuffer) return 'ArrayBuffer';
+  if (ArrayBuffer.isView(value)) return 'typed array';
+  return 'object';
+}
+
 /** Reads the engine's answer, in its memory. */
 export class RecordReader {
-  #view: DataView;
-  #bytes: Uint8Array;
-  #position: number;
-  #end: number;
+  #buffer: ArrayBuffer | null = null;
+  #view = new DataView(new ArrayBuffer(0));
+  #bytes = new Uint8Array(0);
+  #position = 0;
+  #end = 0;
 
-  constructor(memory: ArrayBuffer, pointer: number) {
-    this.#view = new DataView(memory);
-    this.#bytes = new Uint8Array(memory);
+  /**
+   * Starts reading an answer at `pointer` in `memory`. The views over the
+   * memory are kept from one answer to the next while it stays the same
+   * buffer (it is a new one once the memory grows).
+   */
+  read(memory: ArrayBuffer, pointer: number): this {
+    this.view(memory);
     this.#position = pointer + 4;
     this.#end = this.#position + this.#view.getUint32(pointer, true);
+    return this;
+  }
+
+  /** The bytes of `memory`, viewed as answers are. */
+  view(memory: ArrayBuffer): Uint8Array {
+    if (memory !== this.#buffer) {
+      this.#buffer = memory;
+      this.#view = new DataView(memory);
+      this.#bytes = new Uint8Array(memory);
+    }
+    return this.#bytes;
   }
 
   get done(): boolean {

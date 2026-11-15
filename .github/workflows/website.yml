@@ -57,10 +57,11 @@ jobs:
 
       # The packages, the examples' web builds (never their native builds),
       # then the site; it fails on a broken link or an incomplete page.
+      # The examples' web builds lay out with the engine's WebAssembly core.
+      - name: Setup Emscripten
+        uses: ./.github/actions/emsdk
+
       - name: Build the site
-        env:
-          # Called by a release: the site's Yoga comes from no cache either.
-          SOUNDOR_YOGA_WASM: ${{ !inputs.cache && 'release' || '' }}
         run: pnpm turbo run build --filter=website
 
       - name: Upload the site

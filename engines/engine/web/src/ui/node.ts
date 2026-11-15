@@ -1,26 +1,21 @@
 /**
  * `UiNode`: a node of the plugin view, drawn by one DOM element. Plugin code
  * only ever sees UiNodes; the element is this module's business. The tree,
- * its rules and errors follow the JUCE runtime (`soundor:ui` there).
+ * its rules and errors follow the JUCE runtime (`soundor:ui` there). The
+ * engine's C++ core holds the same tree: it reads the styles and lays the
+ * tree out (Yoga, and its text engine), and the view hands each node what
+ * changed (`UiNode.placed()` and the like); the element is placed there.
  */
 
-import { ASSET_PATH, isAssetId } from '../protocol';
-import { ScrollIndicators } from './scroll-indicators';
-import { SvgDom, SVG_NS } from './svg-dom';
-import { normalizeSvgScene, svgNaturalSize } from './svg-scene';
-import type { SvgScene } from './types';
-
-export type UiElement = HTMLElement | SVGSVGElement;
-import { Edge, NodeType as YogaNodeType, type Yoga } from '@soundor/yoga-wasm';
-
+import type { EngineCore, Extent, Frame, TextLines } from '../core.ts';
+import type { Baselines } from '../text.ts';
 import {
   freezeAccessibility,
   normalizeAccessibility,
   type NormalizedAccessibility,
-} from './accessibility';
-/** What a node needs of the view it belongs to. */
-import type { AnimationController } from './animation';
-import { standardEase } from './animation';
+} from './accessibility.ts';
+import type { AnimationController } from './animation.ts';
+import { standardEase } from './animation.ts';
 import {
   computedTransform,
   IDENTITY,
@@ -28,55 +23,45 @@ import {
   multiply,
   translation,
   type Matrix,
-} from './coordinates';
-import { eventParent, TreeEventTarget } from './events';
-import {
-  applyYogaStyle,
-  constrain,
-  measureNatural,
-  registerMeasure,
-  type Measure,
-} from './layout';
+} from './coordinates.ts';
+import { eventParent, TreeEventTarget } from './events.ts';
+import { ScrollIndicators } from './scroll-indicators.ts';
 import {
   cssFor,
   cssText,
   NODE_CLASS,
   overflowOf,
   pointerClass,
-  readStyle,
-} from './style';
-import {
-  layoutText,
-  lineHeightOf,
-  sameTextStyle,
-  type TextMeasurer,
-} from './text-layout';
+  presentStyle,
+} from './style.ts';
+import { SvgDom, SVG_NS } from './svg-dom.ts';
+import { normalizeSvgScene, svgNaturalSize } from './svg-scene.ts';
 import type {
   Accessibility,
+  AnimationDescription,
+  AnimationKeyframe,
+  AnimationOptions,
   LayoutRect,
   NodeType,
   ScrollIntoViewOptions,
   ScrollLogicalPosition,
   ScrollToOptions,
   Style,
-} from './types';
-import type {
-  AnimationKeyframe,
-  AnimationOptions,
-  AnimationDescription,
+  SvgScene,
   UiAnimation,
-} from './types';
+} from './types.ts';
 
+export type UiElement = HTMLElement | SVGSVGElement;
+
+/** What a node needs of the view it belongs to. */
 export interface ViewLink {
   readonly animations: AnimationController;
   readonly rootElement: HTMLElement;
-  readonly yoga: Yoga;
-  /** The Yoga config every node of the view is made with. */
-  readonly yogaConfig: number;
-  readonly textMeasurer: TextMeasurer;
+  /** The engine: the tree, its styles and its layout. */
+  readonly core: EngineCore;
   /** Device pixels per logical pixel, as the view is laid out. */
   pixelScale(): number;
-  /** Something Yoga decides has changed: lay out before the next paint. */
+  /** Something the layout depends on has changed: lay out before the next paint. */
   layoutChanged(): void;
   /** Lays the view out now, if anything changed. */
   flushLayout(): void;
@@ -94,6 +79,15 @@ export interface ViewLink {
    * tree), may have changed.
    */
   semanticsChanged(): void;
+  /**
+   * Where the browser and the engine put a line's baseline in `font`
+   * (cssFont()), or null where nothing can tell (no canvas).
+   */
+  baselines(font: string, size: number, lineHeight: number): Baselines | null;
+  /** Routes the engine's records for `handle` to `node`, while it lives. */
+  register(node: UiNode, handle: number): void;
+  /** The URL of a bundled asset (an image's source), or null for none. */
+  assetUrl(id: string): string | null;
 }
 
 /** What ResizeObserver measures of a node, in logical pixels. */
@@ -134,6 +128,17 @@ export function nodeOf(element: Element | null, root: Element): UiNode | null {
 }
 
 const ZERO: LayoutRect = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
+
+const EMPTY_FRAME: Frame = {
+  x: 0,
+  y: 0,
+  left: 0,
+  top: 0,
+  width: 0,
+  height: 0,
+  border: [0, 0, 0, 0],
+  padding: [0, 0, 0, 0],
+};
 
 /** How long a smooth scroll takes: the engine's `smoothScrollMilliseconds`. */
 export const SMOOTH_SCROLL_MS = 300;
@@ -188,20 +193,8 @@ function align(
   }
 }
 
-/** Yoga's MeasureMode.Undefined, and its Direction.LTR. */
-const MeasureModeUndefined = 0;
-const YOGA_LTR = 1;
-
 /** Yoga leaves NaN in some boxes, which `left` and the like would ignore. */
 const finite = (value: number): number => (Number.isFinite(value) ? value : 0);
-
-/** The CSS of an element's padding, for what draws in it (text, an image). */
-const PADDINGS = [
-  ['padding-left', Edge.Left],
-  ['padding-top', Edge.Top],
-  ['padding-right', Edge.Right],
-  ['padding-bottom', Edge.Bottom],
-] as const;
 
 function describe(value: unknown): string {
   if (value === null) return 'null';
@@ -221,17 +214,6 @@ function expectNode(value: unknown, what: string): UiNode {
     throw new TypeError(`${what} must be a UiNode, got ${describe(value)}`);
   }
   return value;
-}
-
-/** CSS pixel lengths ('120px') as the numbers Soundor's lengths are. */
-function cssPixels(style: Readonly<Style>): Style {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(style ?? {}))
-    result[key] =
-      typeof value === 'string' && /^-?(\d+\.?\d*|\.\d+)px$/.test(value)
-        ? Number.parseFloat(value)
-        : value;
-  return result as Style;
 }
 
 /** `style` with `key` set to `value`, or without it for '', null or undefined. */
@@ -283,16 +265,20 @@ export class UiNode extends TreeEventTarget {
   #semantics: NormalizedAccessibility = normalizeAccessibility({});
   #accessibilityParent: UiNode | null = null;
   #debugId = '';
-  /** Its Yoga node, while it is in the view's trees (see #connect). */
-  #yoga = 0;
-  /** Forgets its measure function. */
-  #forgetMeasure: (() => void) | null = null;
+  /** Its node in the engine. */
+  readonly #handle: number;
+  /** Its box, as the engine last laid it out; null until it is. */
+  #frame: Frame | null = null;
+  /** A text or input node's text as last laid out. */
+  #lines: TextLines | null = null;
+  /** A scroll view's content and client size, as last laid out. */
+  #extent: Extent | null = null;
+  /** How far an input's text is moved for its baseline (#inputShift()). */
+  #shift = 0;
   /** Where it was last placed, in CSS; kept when its style replaces its CSS. */
   #placement = '';
   /** What shows a text's lines, in the element. */
   readonly #textLines: HTMLElement | null = null;
-  /** The width its text's lines were set for; NaN: to be set again. */
-  #textWidth = NaN;
   /**
    * While its style scrolls (a view's): the element showing how far it
    * scrolls, its indicators, and what ends its listening when it stops.
@@ -316,8 +302,7 @@ export class UiNode extends TreeEventTarget {
     token: symbol,
     view: ViewLink,
     type: NodeType,
-    element?: HTMLElement,
-    overlay = false,
+    root?: { element: HTMLElement; handle: number; overlay: boolean },
   ) {
     if (token !== CONSTRUCTING) {
       throw new TypeError(
@@ -327,15 +312,17 @@ export class UiNode extends TreeEventTarget {
     super();
     this.#view = view;
     this.#type = type;
-    this.#root = element !== undefined;
-    this.#rootClass = !this.#root
+    this.#root = root !== undefined;
+    this.#rootClass = !root
       ? ''
-      : overlay
+      : root.overlay
         ? 'sd-root sd-overlay'
         : 'sd-root';
+    this.#handle = root?.handle ?? view.core.create(type);
+    view.register(this, this.#handle);
     const { tag, className } = ELEMENTS[type];
     this.#element =
-      element ??
+      root?.element ??
       (type === 'svg'
         ? view.rootElement.ownerDocument.createElementNS(SVG_NS, 'svg')
         : view.rootElement.ownerDocument.createElement(tag));
@@ -351,7 +338,9 @@ export class UiNode extends TreeEventTarget {
       image.alt = '';
       image.draggable = false;
       // Its natural size is known now, and it may be sized by it.
-      image.addEventListener('load', () => this.#contentChanged());
+      image.addEventListener('load', () =>
+        this.#naturalSize(image.naturalWidth || 0, image.naturalHeight || 0),
+      );
     }
     if (type === 'input') {
       const input = this.#element as HTMLInputElement;
@@ -361,7 +350,10 @@ export class UiNode extends TreeEventTarget {
       input.tabIndex = -1;
       this.#focusable = true;
       // What is typed sizes it too, as natively.
-      input.addEventListener('input', () => this.#contentChanged());
+      input.addEventListener('input', () => {
+        this.#view.core.text(this.#handle, input.value);
+        this.#view.layoutChanged();
+      });
     }
     if (type === 'text') {
       this.#textLines = view.rootElement.ownerDocument.createElement('div');
@@ -369,7 +361,6 @@ export class UiNode extends TreeEventTarget {
       this.#element.append(this.#textLines);
     }
     nodes.set(this.#element, this);
-    if (this.#root) this.#connect();
   }
 
   /** 'view', 'text', 'image', 'input', 'canvas' or 'svg'. */
@@ -452,7 +443,10 @@ export class UiNode extends TreeEventTarget {
   }
 
   set style(value: Readonly<Style>) {
-    const style = readStyle(cssPixels(value));
+    const style = presentStyle(value);
+    // Read by the engine, as natively: an invalid style throws, and the node
+    // keeps the one it had.
+    this.#view.core.style(this.#handle, style);
     // Where it was scrolled, while the browser still has it as it was.
     const scrolled = {
       x: this.#element.scrollLeft,
@@ -469,18 +463,9 @@ export class UiNode extends TreeEventTarget {
         .join(' '),
     );
     this.#svgStyle(style);
-    const before = this.#style;
     this.#style = Object.freeze({ ...style });
     this.#scrollingChanged(scrolled);
-    if (this.#yoga !== 0) {
-      applyYogaStyle(this.#view.yoga, this.#yoga, style);
-      if (
-        (this.#type === 'text' || this.#type === 'input') &&
-        !sameTextStyle(before, style)
-      )
-        this.#contentChanged();
-      this.#view.layoutChanged();
-    }
+    this.#view.layoutChanged();
     this.#view.semanticsChanged();
   }
 
@@ -504,7 +489,8 @@ export class UiNode extends TreeEventTarget {
     this.#svg!.update(normalized);
     this.#svgScene = normalized;
     const [newWidth, newHeight] = svgNaturalSize(normalized);
-    if (width !== newWidth || height !== newHeight) this.#contentChanged();
+    if (width !== newWidth || height !== newHeight)
+      this.#naturalSize(newWidth, newHeight);
     this.#view.semanticsChanged();
   }
 
@@ -518,11 +504,15 @@ export class UiNode extends TreeEventTarget {
       throw new TypeError('only text and input nodes have text');
     }
     const text = String(value);
+    // Shown at once, on one line, until the engine wraps it.
     if (this.#type === 'input') this.#input().value = text;
     else this.#textLines!.textContent = text;
     const changed = text !== this.#text;
     this.#text = text;
-    if (changed) this.#contentChanged();
+    if (changed) {
+      this.#view.core.text(this.#handle, text);
+      this.#view.layoutChanged();
+    }
     this.#view.semanticsChanged();
   }
 
@@ -548,7 +538,8 @@ export class UiNode extends TreeEventTarget {
   set placeholder(value: string) {
     this.#expect('input', 'placeholder');
     this.#input().placeholder = String(value);
-    this.#contentChanged();
+    this.#view.core.placeholder(this.#handle, this.#input().placeholder);
+    this.#view.layoutChanged();
   }
 
   /** The selection in UTF-16 indices, as the DOM reports it. */
@@ -602,12 +593,18 @@ export class UiNode extends TreeEventTarget {
     this.#source = value === null || value === undefined ? '' : String(value);
     const image = this.#element as HTMLImageElement;
     // An id that names no asset shows nothing, as natively.
-    if (isAssetId(this.#source)) {
-      image.src = new URL(
-        `${ASSET_PATH}/${this.#source}`,
-        image.ownerDocument.baseURI,
-      ).href;
-    } else image.removeAttribute('src');
+    const url = this.#view.assetUrl(this.#source);
+    if (url !== null) {
+      const href = new URL(url, image.ownerDocument.baseURI).href;
+      if (image.src !== href) {
+        image.src = href;
+        // Sized by the new image once it loads; nothing until then.
+        this.#naturalSize(0, 0);
+      }
+    } else {
+      image.removeAttribute('src');
+      this.#naturalSize(0, 0);
+    }
   }
 
   // ── Canvases ───────────────────────────────────────────────────────────────
@@ -625,7 +622,7 @@ export class UiNode extends TreeEventTarget {
   set width(value: number) {
     this.#expect('canvas', 'width');
     this.#canvas().width = canvasSize(value, 300);
-    this.#contentChanged();
+    this.#naturalSize(this.#canvas().width, this.#canvas().height);
   }
 
   get height(): number {
@@ -636,7 +633,7 @@ export class UiNode extends TreeEventTarget {
   set height(value: number) {
     this.#expect('canvas', 'height');
     this.#canvas().height = canvasSize(value, 150);
-    this.#contentChanged();
+    this.#naturalSize(this.#canvas().width, this.#canvas().height);
   }
 
   /**
@@ -709,26 +706,20 @@ export class UiNode extends TreeEventTarget {
   }
 
   #clientSize(): { width: number; height: number } {
-    if (this.#yoga === 0) return { width: 0, height: 0 };
     this.#view.flushLayout();
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    const inset = (
-      start: typeof Edge.Left | typeof Edge.Top,
-      end: typeof Edge.Right | typeof Edge.Bottom,
-    ): number =>
-      yoga.YGNodeLayoutGetBorder(node, start) +
-      yoga.YGNodeLayoutGetPadding(node, start) +
-      yoga.YGNodeLayoutGetBorder(node, end) +
-      yoga.YGNodeLayoutGetPadding(node, end);
+    const frame = this.#frame;
+    if (frame === null || !this.isConnected) return { width: 0, height: 0 };
+    const [top, right, bottom, left] = frame.border;
+    const [paddingTop, paddingRight, paddingBottom, paddingLeft] =
+      frame.padding;
     return {
       width: Math.max(
         0,
-        yoga.YGNodeLayoutGetWidth(node) - inset(Edge.Left, Edge.Right),
+        frame.width - left - paddingLeft - right - paddingRight,
       ),
       height: Math.max(
         0,
-        yoga.YGNodeLayoutGetHeight(node) - inset(Edge.Top, Edge.Bottom),
+        frame.height - top - paddingTop - bottom - paddingBottom,
       ),
     };
   }
@@ -745,60 +736,17 @@ export class UiNode extends TreeEventTarget {
 
   /**
    * The children's extent, plus the padding at the far ends: the engine's
-   * `Surface::contentSize()`.
+   * `Surface::contentSize()`, reported with every layout for a scroll view
+   * and asked for otherwise.
    */
   #contentSize(): { width: number; height: number } {
-    if (this.#yoga === 0) return { width: 0, height: 0 };
+    if (!this.isConnected) return { width: 0, height: 0 };
     this.#view.flushLayout();
-    return this.#computedContentSize();
-  }
-
-  #computedContentSize(): { width: number; height: number } {
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    const left =
-      yoga.YGNodeLayoutGetBorder(node, Edge.Left) +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Left);
-    const top =
-      yoga.YGNodeLayoutGetBorder(node, Edge.Top) +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Top);
-    const paddingRight = yoga.YGNodeLayoutGetPadding(node, Edge.Right);
-    const paddingBottom = yoga.YGNodeLayoutGetPadding(node, Edge.Bottom);
-    let width = Math.max(
-      0,
-      yoga.YGNodeLayoutGetWidth(node) -
-        left -
-        paddingRight -
-        yoga.YGNodeLayoutGetBorder(node, Edge.Right),
-    );
-    let height = Math.max(
-      0,
-      yoga.YGNodeLayoutGetHeight(node) -
-        top -
-        paddingBottom -
-        yoga.YGNodeLayoutGetBorder(node, Edge.Bottom),
-    );
-    for (const child of this.#children) {
-      if (child.#style.display === 'none') continue;
-      const box = child.#yoga;
-      width = Math.max(
-        width,
-        yoga.YGNodeLayoutGetLeft(box) +
-          yoga.YGNodeLayoutGetWidth(box) +
-          yoga.YGNodeLayoutGetMargin(box, Edge.Right) +
-          paddingRight -
-          left,
-      );
-      height = Math.max(
-        height,
-        yoga.YGNodeLayoutGetTop(box) +
-          yoga.YGNodeLayoutGetHeight(box) +
-          yoga.YGNodeLayoutGetMargin(box, Edge.Bottom) +
-          paddingBottom -
-          top,
-      );
-    }
-    return { width, height };
+    const extent =
+      this.#scrollExtent !== null && this.#extent !== null
+        ? this.#extent
+        : this.#view.core.extent(this.#handle);
+    return { width: extent.contentWidth, height: extent.contentHeight };
   }
 
   /** Where the node last told of being scrolled to. */
@@ -852,7 +800,7 @@ export class UiNode extends TreeEventTarget {
     if (!scrollsX && !scrollsY) {
       this.#cancelSmooth();
       if (this.#scrollExtent !== null) this.#stopScrolling();
-    } else if (this.#yoga !== 0) this.#placeScrollExtent();
+    } else this.#placeScrollExtent();
   }
 
   #startScrolling(): void {
@@ -1024,21 +972,16 @@ export class UiNode extends TreeEventTarget {
     const inline = scrollAlignment(options.inline ?? 'nearest');
     const behavior = options.behavior;
     scrollBehavior(behavior);
-    if (!this.isConnected || this.#yoga === 0) return;
+    if (!this.isConnected) return;
     this.#view.flushLayout();
-    const yoga = this.#view.yoga;
     const planned = new Map<UiNode, { x: number; y: number }>();
     const own = this.layout;
     const box = { x: own.x, y: own.y, width: own.width, height: own.height };
     for (let view = this.#parent; view !== null; view = view.#parent) {
-      const node = view.#yoga;
+      const frame = view.#frame ?? EMPTY_FRAME;
       if (view.#scrollExtent !== null && view.#style.display !== 'none') {
-        const left =
-          yoga.YGNodeLayoutGetBorder(node, Edge.Left) +
-          yoga.YGNodeLayoutGetPadding(node, Edge.Left);
-        const top =
-          yoga.YGNodeLayoutGetBorder(node, Edge.Top) +
-          yoga.YGNodeLayoutGetPadding(node, Edge.Top);
+        const left = frame.border[3] + frame.padding[3];
+        const top = frame.border[0] + frame.padding[0];
         const client = view.#clientSize();
         const range = view.#scrollRange();
         const element = view.#element;
@@ -1069,8 +1012,8 @@ export class UiNode extends TreeEventTarget {
         box.x -= view.#element.scrollLeft;
         box.y -= view.#element.scrollTop;
       }
-      box.x += yoga.YGNodeLayoutGetLeft(node);
-      box.y += yoga.YGNodeLayoutGetTop(node);
+      box.x += frame.x;
+      box.y += frame.y;
     }
     for (const [view, to] of planned)
       view.scrollTo({ left: to.x, top: to.y, behavior });
@@ -1185,28 +1128,24 @@ export class UiNode extends TreeEventTarget {
       throw new Error('the reference node is not a child of this node');
     }
     if (child === before) return child;
+    const leaves = child.isConnected && !this.isConnected;
     if (child.#parent !== null) {
       const siblings = child.#parent.#children;
       siblings.splice(siblings.indexOf(child), 1);
     }
-    const yoga = this.#view.yoga;
-    if (child.#yoga !== 0) {
-      yoga.YGNodeRemoveChild(child.#parent!.#yoga, child.#yoga);
-      if (this.#yoga === 0) child.#disconnect();
-    } else if (this.#yoga !== 0) child.#connect();
     const index = before ? this.#children.indexOf(before) : -1;
     if (index < 0) this.#children.push(child);
     else this.#children.splice(index, 0, child);
     child.#parent = this;
     this.#element.insertBefore(child.#element, before ? before.#element : null);
-    if (this.#yoga !== 0) {
-      yoga.YGNodeInsertChild(
-        this.#yoga,
-        child.#yoga,
-        this.#children.indexOf(child),
-      );
-      this.#view.layoutChanged();
-    }
+    // The engine moves it from wherever it was, as here.
+    this.#view.core.insert(
+      this.#handle,
+      child.#handle,
+      before ? before.#handle : 0,
+    );
+    if (leaves) child.#left();
+    this.#view.layoutChanged();
     this.#view.semanticsChanged();
     return child;
   }
@@ -1216,12 +1155,13 @@ export class UiNode extends TreeEventTarget {
     if (child.#parent !== this) {
       throw new Error('the node is not a child of this node');
     }
+    const connected = this.isConnected;
     this.#children.splice(this.#children.indexOf(child), 1);
     child.#parent = null;
     child.#element.remove();
-    if (child.#yoga !== 0) {
-      this.#view.yoga.YGNodeRemoveChild(this.#yoga, child.#yoga);
-      child.#disconnect();
+    this.#view.core.remove(this.#handle, child.#handle);
+    if (connected) {
+      child.#left();
       this.#view.layoutChanged();
     }
     this.#view.semanticsChanged();
@@ -1244,242 +1184,109 @@ export class UiNode extends TreeEventTarget {
 
   /** The laid-out box relative to the parent's (unscrolled) box. */
   get layout(): LayoutRect {
-    if (this.#yoga === 0) return ZERO;
+    if (!this.isConnected) return ZERO;
     this.#view.flushLayout();
-    const yoga = this.#view.yoga;
-    return {
-      x: yoga.YGNodeLayoutGetLeft(this.#yoga),
-      y: yoga.YGNodeLayoutGetTop(this.#yoga),
-      width: yoga.YGNodeLayoutGetWidth(this.#yoga),
-      height: yoga.YGNodeLayoutGetHeight(this.#yoga),
-    };
+    const frame = this.#frame;
+    if (frame === null) return ZERO;
+    return { x: frame.x, y: frame.y, width: frame.width, height: frame.height };
   }
 
-  // ── Yoga ───────────────────────────────────────────────────────────────────
+  // ── The engine's layout ────────────────────────────────────────────────────
 
   /**
-   * Gives the node and what is in it their Yoga nodes, as they enter the view.
-   * Yoga's memory is not garbage collected, and a node has no end of its own
-   * (plugin code just drops it), so a node only holds one while it is in the
-   * view, where #disconnect frees it.
+   * It (and what is in it) left the view's trees: what it showed of an
+   * interaction ends. What it was laid out as stays: the engine tells what
+   * differs once it is back.
    */
-  #connect(): void {
-    const yoga = this.#view.yoga;
-    const node = yoga.YGNodeNewWithConfig(this.#view.yogaConfig);
-    this.#yoga = node;
-    const measure = this.#measure();
-    if (measure !== null) {
-      if (this.#type === 'text')
-        yoga.YGNodeSetNodeType(node, YogaNodeType.Text);
-      this.#forgetMeasure = registerMeasure(yoga, node, measure);
-    }
-    applyYogaStyle(yoga, node, this.#style);
-    this.#children.forEach((child, index) => {
-      child.#connect();
-      yoga.YGNodeInsertChild(node, child.#yoga, index);
-    });
-  }
-
-  #disconnect(): void {
+  #left(): void {
     this.#indicators?.release();
-    const yoga = this.#view.yoga;
-    yoga.YGNodeRemoveAllChildren(this.#yoga);
-    for (const child of this.#children) child.#disconnect();
-    this.#forgetMeasure?.();
-    this.#forgetMeasure = null;
-    yoga.YGNodeFree(this.#yoga);
-    this.#yoga = 0;
-    this.#textWidth = NaN;
+    for (const child of this.#children) child.#left();
   }
 
-  /** What sizes a node without children, as `NodeAccess` does in the engine. */
-  #measure(): Measure | null {
-    const { textMeasurer } = this.#view;
-    switch (this.#type) {
-      case 'text':
-        return (width, widthMode, height, heightMode, size) => {
-          const lines = layoutText(
-            textMeasurer,
-            this.#text,
-            this.#style,
-            widthMode === MeasureModeUndefined ? Infinity : width,
-          );
-          size(
-            constrain(lines.width, width, widthMode),
-            constrain(lines.height, height, heightMode),
-          );
-        };
-      case 'input':
-        return (width, widthMode, height, heightMode, size) => {
-          const input = this.#input();
-          // One line, with room for the caret.
-          const natural =
-            textMeasurer.advance(
-              input.value === '' ? input.placeholder : input.value,
-              this.#style,
-            ) + 1;
-          size(
-            constrain(natural, width, widthMode),
-            constrain(lineHeightOf(this.#style), height, heightMode),
-          );
-        };
-      case 'image':
-        return (width, widthMode, height, heightMode, size) => {
-          const image = this.#element as HTMLImageElement;
-          measureNatural(
-            image.naturalWidth || 0,
-            image.naturalHeight || 0,
-            width,
-            widthMode,
-            height,
-            heightMode,
-            size,
-          );
-        };
-      case 'canvas':
-        return (width, widthMode, height, heightMode, size) => {
-          const canvas = this.#canvas();
-          measureNatural(
-            canvas.width,
-            canvas.height,
-            width,
-            widthMode,
-            height,
-            heightMode,
-            size,
-          );
-        };
-      case 'svg':
-        return (width, widthMode, height, heightMode, size) => {
-          const [natural, naturalHeight] = svgNaturalSize(this.#svgScene);
-          measureNatural(
-            natural,
-            naturalHeight,
-            width,
-            widthMode,
-            height,
-            heightMode,
-            size,
-          );
-        };
-      default:
-        return null;
-    }
-  }
-
-  /** What it measures itself by has changed. */
-  #contentChanged(): void {
-    this.#textWidth = NaN;
-    if (this.#yoga === 0) return;
-    this.#view.yoga.YGNodeMarkDirty(this.#yoga);
+  /** What an image, canvas or SVG measures itself by has changed. */
+  #naturalSize(width: number, height: number): void {
+    this.#view.core.natural(this.#handle, width, height);
     this.#view.layoutChanged();
   }
 
-  /** @internal The view is going: frees its Yoga nodes. */
-  static free(root: UiNode): void {
-    if (root.#yoga !== 0) root.#disconnect();
+  /** @internal The engine laid it out at `frame`: places its element there. */
+  static placed(node: UiNode, frame: Frame): void {
+    node.#frame = frame;
+    node.#place();
+    if (node.#scrollExtent !== null) node.#placeScrollExtent();
   }
 
-  /** @internal Fonts have changed: every text measures itself again. */
-  static fontsChanged(node: UiNode): void {
-    if (node.#type === 'text' || node.#type === 'input') node.#contentChanged();
-    for (const child of node.#children) UiNode.fontsChanged(child);
+  /** @internal The engine laid its text out anew. */
+  static textLaidOut(node: UiNode, lines: TextLines): void {
+    node.#lines = lines;
+    if (node.#type === 'text') node.#placeText();
+    else if (node.#type === 'input') {
+      const shift = node.#inputShift();
+      if (shift !== node.#shift) {
+        node.#shift = shift;
+        node.#place();
+      }
+    }
   }
 
-  /** @internal Lays out a root's tree, and places what it found in the DOM. */
-  static layOut(
-    root: UiNode,
-    width: number,
-    height: number,
-    force: boolean,
-  ): void {
-    const yoga = root.#view.yoga;
-    const node = root.#yoga;
-    // Forgets what Yoga has cached, whose edges were on another pixel grid.
-    if (force) yoga.YGNodeStyleSetWidth(node, NaN);
-    yoga.YGNodeStyleSetWidth(node, width);
-    yoga.YGNodeStyleSetHeight(node, height);
-    if (yoga.YGNodeIsDirty(node) === 0) return;
-    yoga.YGNodeCalculateLayout(node, width, height, YOGA_LTR);
-    root.#place(0, 0, 0);
+  /** @internal How far a scroll view's content reaches changed. */
+  static extended(node: UiNode, extent: Extent): void {
+    node.#extent = extent;
+    if (node.#scrollExtent !== null) node.#placeScrollExtent();
   }
 
   /**
-   * Places the element where Yoga says. An absolute box is placed from its
-   * parent's padding box, Yoga's from its border box. Writes only what moved,
-   * since a write costs the browser a layout of its own.
+   * Places the element where the engine laid it out: from its parent's
+   * padding box, as an absolute box is (the engine reports that offset).
+   * Writes only what moved, since a write costs the browser a layout of its own.
    */
-  #place(parentLeft: number, parentTop: number, parentY: number): void {
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    if (this.#style.display === 'none') return;
-    const y = finite(yoga.YGNodeLayoutGetTop(node));
-    const viewY = parentY + y;
-    if (!this.#root) {
-      const x = finite(yoga.YGNodeLayoutGetLeft(node));
-      const width = finite(yoga.YGNodeLayoutGetWidth(node));
-      const height = finite(yoga.YGNodeLayoutGetHeight(node));
-      let placement = `left:${x - parentLeft}px;top:${y - parentTop}px;width:${width}px;height:${height}px;`;
-      // Children are placed by Yoga; only what draws in its box needs padding.
-      if (this.#type !== 'view') {
-        const shift = this.#type === 'input' ? this.#inputShift(viewY) : 0;
-        for (const [property, side] of PADDINGS) {
-          let padding = finite(yoga.YGNodeLayoutGetPadding(node, side));
-          // Its text is centred in what padding leaves: twice, to move it once.
-          if (side === Edge.Top) padding += Math.max(shift, 0) * 2;
-          if (side === Edge.Bottom) padding += Math.max(-shift, 0) * 2;
-          placement += `${property}:${padding}px;`;
-        }
-      }
-      if (placement !== this.#placement) {
-        this.#placement = placement;
-        const { style } = this.#element;
-        for (const declaration of placement.split(';')) {
-          const at = declaration.indexOf(':');
-          if (at > 0)
-            style.setProperty(
-              declaration.slice(0, at),
-              declaration.slice(at + 1),
-            );
-        }
-      }
+  #place(): void {
+    const frame = this.#frame;
+    if (frame === null || this.#root) return;
+    let placement = `left:${finite(frame.left)}px;top:${finite(frame.top)}px;width:${finite(frame.width)}px;height:${finite(frame.height)}px;`;
+    // Children are placed by the engine; only what draws in its box needs padding.
+    if (this.#type !== 'view') {
+      const [top, right, bottom, left] = frame.padding;
+      const shift = this.#type === 'input' ? this.#shift : 0;
+      // Its text is centred in what padding leaves: twice, to move it once.
+      placement +=
+        `padding-left:${finite(left)}px;` +
+        `padding-top:${finite(top) + Math.max(shift, 0) * 2}px;` +
+        `padding-right:${finite(right)}px;` +
+        `padding-bottom:${finite(bottom) + Math.max(-shift, 0) * 2}px;`;
     }
-    if (this.#type === 'text') this.#placeText(viewY);
-    const left = finite(yoga.YGNodeLayoutGetBorder(node, Edge.Left));
-    const top = finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top));
-    for (const child of this.#children) child.#place(left, top, viewY);
-    if (this.#scrollExtent !== null) this.#placeScrollExtent();
+    if (placement === this.#placement) return;
+    this.#placement = placement;
+    const { style } = this.#element;
+    for (const declaration of placement.split(';')) {
+      const at = declaration.indexOf(':');
+      if (at > 0)
+        style.setProperty(declaration.slice(0, at), declaration.slice(at + 1));
+    }
   }
 
-  /** Shows the lines its text was wrapped into at the width it has. */
-  #placeText(viewY: number): void {
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    this.#placeBaseline(
-      viewY +
-        finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top)) +
-        finite(yoga.YGNodeLayoutGetPadding(node, Edge.Top)),
-    );
-    const width = Math.max(
-      0,
-      finite(yoga.YGNodeLayoutGetWidth(node)) -
-        finite(yoga.YGNodeLayoutGetBorder(node, Edge.Left)) -
-        finite(yoga.YGNodeLayoutGetBorder(node, Edge.Right)) -
-        finite(yoga.YGNodeLayoutGetPadding(node, Edge.Left)) -
-        finite(yoga.YGNodeLayoutGetPadding(node, Edge.Right)),
-    );
-    if (width === this.#textWidth) return;
-    this.#textWidth = width;
-    // A hair over, as natively: a line measured to fit its box still does.
-    const { lines } = layoutText(
-      this.#view.textMeasurer,
-      this.#text,
-      this.#style,
-      width + 0.01,
-    );
-    const shown = lines.join('\n');
+  /** Shows the lines the engine wrapped its text into, its baseline on the engine's. */
+  #placeText(): void {
+    const lines = this.#lines;
+    if (lines === null) return;
+    this.#placeBaseline(lines);
+    let shown = '';
+    for (let i = 0; i < lines.lines.length; i++) {
+      const line = lines.lines[i]!;
+      if (i > 0) shown += '\n';
+      shown += this.#text.slice(line.start, line.end);
+    }
     const lineElement = this.#textLines!;
     if (lineElement.textContent !== shown) lineElement.textContent = shown;
+  }
+
+  /** Where the browser and the engine put a line's baseline in its font. */
+  #baselines(lines: TextLines): Baselines | null {
+    const size =
+      this.#style.fontSize !== undefined && this.#style.fontSize > 0
+        ? this.#style.fontSize
+        : 14;
+    return this.#view.baselines(lines.font, size, lines.lineHeight);
   }
 
   /**
@@ -1494,9 +1301,10 @@ export class UiNode extends TreeEventTarget {
   }
 
   /** Puts a text's first baseline on the engine's pixel. */
-  #placeBaseline(contentTop: number): void {
-    const baselines = this.#view.textMeasurer.baselines(this.#style);
+  #placeBaseline(lines: TextLines): void {
+    const baselines = this.#baselines(lines);
     if (baselines === null) return;
+    const contentTop = lines.contentTop;
     const top =
       this.#snappedBaseline(contentTop, baselines.engine) -
       contentTop -
@@ -1511,21 +1319,19 @@ export class UiNode extends TreeEventTarget {
    * pixel (`Renderer::drawInput`: the line centred in the content box). An input
    * shows its text in a box of its own, which nothing can reach but its padding.
    */
-  #inputShift(viewY: number): number {
-    const baselines = this.#view.textMeasurer.baselines(this.#style);
+  #inputShift(): number {
+    const lines = this.#lines;
+    const frame = this.#frame;
+    if (lines === null || frame === null) return 0;
+    const baselines = this.#baselines(lines);
     if (baselines === null) return 0;
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    const contentTop =
-      finite(yoga.YGNodeLayoutGetBorder(node, Edge.Top)) +
-      finite(yoga.YGNodeLayoutGetPadding(node, Edge.Top));
     const contentHeight =
-      finite(yoga.YGNodeLayoutGetHeight(node)) -
-      contentTop -
-      finite(yoga.YGNodeLayoutGetBorder(node, Edge.Bottom)) -
-      finite(yoga.YGNodeLayoutGetPadding(node, Edge.Bottom));
-    const lineTop =
-      viewY + contentTop + (contentHeight - lineHeightOf(this.#style)) / 2;
+      finite(frame.height) -
+      finite(frame.border[0]) -
+      finite(frame.padding[0]) -
+      finite(frame.border[2]) -
+      finite(frame.padding[2]);
+    const lineTop = lines.contentTop + (contentHeight - lines.lineHeight) / 2;
     return (
       this.#snappedBaseline(lineTop, baselines.engine) -
       lineTop -
@@ -1540,18 +1346,18 @@ export class UiNode extends TreeEventTarget {
    * counts of its own.
    */
   #placeScrollExtent(): void {
-    const yoga = this.#view.yoga;
-    const node = this.#yoga;
-    const { width, height } = this.#computedContentSize();
-    const extentWidth =
-      width +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Left) +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Right);
-    const extentHeight =
-      height +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Top) +
-      yoga.YGNodeLayoutGetPadding(node, Edge.Bottom);
-    const { style } = this.#scrollExtent!;
+    const frame = this.#frame;
+    const extent = this.#extent;
+    if (frame === null || extent === null || this.#scrollExtent === null)
+      return;
+    const [paddingTop, paddingRight, paddingBottom, paddingLeft] =
+      frame.padding;
+    const [borderTop, borderRight, borderBottom, borderLeft] = frame.border;
+    const width = extent.contentWidth;
+    const height = extent.contentHeight;
+    const extentWidth = width + paddingLeft + paddingRight;
+    const extentHeight = height + paddingTop + paddingBottom;
+    const { style } = this.#scrollExtent;
     if (extentWidth !== this.#extentWidth) {
       this.#extentWidth = extentWidth;
       style.width = `${extentWidth}px`;
@@ -1560,9 +1366,6 @@ export class UiNode extends TreeEventTarget {
       this.#extentHeight = extentHeight;
       style.height = `${extentHeight}px`;
     }
-    const borderLeft = yoga.YGNodeLayoutGetBorder(node, Edge.Left);
-    const borderTop = yoga.YGNodeLayoutGetBorder(node, Edge.Top);
-    const client = this.#clientSize();
     // An axis it does not scroll has nothing to show, however far its
     // content reaches.
     const overflow = overflowOf(this.#style);
@@ -1571,20 +1374,10 @@ export class UiNode extends TreeEventTarget {
       contentHeight: overflow.y === 'scroll' ? height : 0,
       x: borderLeft,
       y: borderTop,
-      clientWidth: client.width,
-      clientHeight: client.height,
-      width: Math.max(
-        0,
-        yoga.YGNodeLayoutGetWidth(node) -
-          borderLeft -
-          yoga.YGNodeLayoutGetBorder(node, Edge.Right),
-      ),
-      height: Math.max(
-        0,
-        yoga.YGNodeLayoutGetHeight(node) -
-          borderTop -
-          yoga.YGNodeLayoutGetBorder(node, Edge.Bottom),
-      ),
+      clientWidth: extent.clientWidth,
+      clientHeight: extent.clientHeight,
+      width: Math.max(0, frame.width - borderLeft - borderRight),
+      height: Math.max(0, frame.height - borderTop - borderBottom),
       borderLeft,
       borderTop,
     });
@@ -1710,31 +1503,24 @@ export class UiNode extends TreeEventTarget {
    * the engine measures them; null when it is not in the view.
    */
   static resizeBoxes(node: UiNode): ResizeBoxes | null {
-    if (node.#yoga === 0 || !node.isConnected) return null;
+    if (!node.isConnected) return null;
     node.#view.flushLayout();
-    const yoga = node.#view.yoga;
-    const box = node.#yoga;
-    const left =
-      yoga.YGNodeLayoutGetBorder(box, Edge.Left) +
-      yoga.YGNodeLayoutGetPadding(box, Edge.Left);
-    const top =
-      yoga.YGNodeLayoutGetBorder(box, Edge.Top) +
-      yoga.YGNodeLayoutGetPadding(box, Edge.Top);
-    const right =
-      yoga.YGNodeLayoutGetBorder(box, Edge.Right) +
-      yoga.YGNodeLayoutGetPadding(box, Edge.Right);
-    const bottom =
-      yoga.YGNodeLayoutGetBorder(box, Edge.Bottom) +
-      yoga.YGNodeLayoutGetPadding(box, Edge.Bottom);
-    const width = yoga.YGNodeLayoutGetWidth(box);
-    const height = yoga.YGNodeLayoutGetHeight(box);
+    const frame = node.#frame;
+    if (frame === null) return null;
+    const [borderTop, borderRight, borderBottom, borderLeft] = frame.border;
+    const [paddingTop, paddingRight, paddingBottom, paddingLeft] =
+      frame.padding;
+    const left = borderLeft + paddingLeft;
+    const top = borderTop + paddingTop;
+    const right = borderRight + paddingRight;
+    const bottom = borderBottom + paddingBottom;
     return {
-      borderWidth: width,
-      borderHeight: height,
+      borderWidth: frame.width,
+      borderHeight: frame.height,
       contentX: left,
       contentY: top,
-      contentWidth: Math.max(0, width - left - right),
-      contentHeight: Math.max(0, height - top - bottom),
+      contentWidth: Math.max(0, frame.width - left - right),
+      contentHeight: Math.max(0, frame.height - top - bottom),
       scale: node.#view.pixelScale(),
     };
   }
@@ -1765,8 +1551,7 @@ export class UiNode extends TreeEventTarget {
 export function createNode(
   view: ViewLink,
   type: NodeType,
-  element?: HTMLElement,
-  overlay = false,
+  root?: { element: HTMLElement; handle: number; overlay: boolean },
 ): UiNode {
-  return new UiNode(CONSTRUCTING, view, type, element, overlay);
+  return new UiNode(CONSTRUCTING, view, type, root);
 }

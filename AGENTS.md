@@ -21,8 +21,10 @@ same lifecycle phases. Two runtimes exist:
   context (Skia) and a WebGL 2 context (ANGLE), which the GPU compositor
   shows without copies; Three.js runs on it unmodified.
 - `@soundor/web-runtime`: the same plugin in a browser, with the DOM and Web
-  Audio, without Hermes or Skia. It lays out with the engine's Yoga, compiled to
-  WebAssembly (`@soundor/yoga-wasm`), and CSS only draws.
+  Audio, without Hermes or Skia. Its `soundor:ui` is the engine itself
+  (`@soundor/engine/web`): the engine's C++ core (node tree, styles, Yoga,
+  text layout) compiled to WebAssembly, and a DOM adapter that shows the tree
+  as HTML elements placed where the engine lays them out; CSS only draws.
 
 The guides in `apps/website/content/docs/` are the authoritative spec of
 behavior, published at https://soundor.dev: `(docs)/` for plugin authors
@@ -43,7 +45,8 @@ and tools.
 ```sh
 pnpm install
 pnpm build            # tsc -b && tsdown in every package
-pnpm test             # package unit tests (no native engine compilation)
+pnpm test             # package unit tests (no native engine compilation; the web runtime's
+                      # need the engine's WebAssembly core: Emscripten, see below)
 pnpm test:native      # engine source build and native tests (dev preset), and the VST3 host's
 pnpm lint             # oxlint
 pnpm lint:native      # clang-tidy (cmake --workflow --preset tidy)
@@ -74,6 +77,8 @@ cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
+cmake --workflow --preset wasm       # the WebAssembly core (Emscripten 7.0.0 from EMSDK) → build/wasm/web/soundor-core.wasm
+pnpm build:wasm && pnpm test:wasm && pnpm test:browser  # the same, then its Node and Chromium suites
 cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
                                             # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
@@ -248,15 +253,20 @@ read the docs bundled with the installed package
   `/react` renders through Soundor's reconciler. See the docs' `testing.md`.
 - `packages/create-soundor-app` — scaffolder from `templates/base`.
 - `engines/engine` — independently versioned C++ engine, public headers, resources, dependency recipes, native tests, and the Hermes module-lowering tool.
-- `engines/yoga-wasm` (`@soundor/yoga-wasm`) — the engine's Yoga (its revision
-  and patches, read from its recipes) compiled to WebAssembly by a pinned
-  wasi-sdk, called through its C API. Independently versioned. Its `build` takes
-  the published module when its inputs are unchanged, and compiles otherwise.
-  See `contribute/yoga-wasm.md`.
+  Also the engine in the browser: `wasm/` compiles the shared core
+  (`cmake/SoundorCoreSources.cmake`, the same sources the native runtime
+  compiles) to `soundor-core.wasm` with a pinned Emscripten
+  (`pnpm --filter @soundor/engine build:wasm`, turbo's
+  `@soundor/engine#build:wasm`), and `web/src/` is `@soundor/engine/web`:
+  the module's loader and command protocol (`core.ts`, `protocol.ts`) and the
+  DOM adapter that is the web runtime's `soundor:ui` (`ui/`). The module is
+  never committed or published. See `contribute/web-engine.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
-- `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen)
-  and the browser side (`src/client/`: parameter store, `WebHost`, DOM-backed
-  `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under `src/client/shell/`).
+- `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
+  `engine-wasm.ts`, the one place that finds the engine's module) and the
+  browser side (`src/client/`: parameter store, `WebHost`, the page's engine
+  as `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under
+  `src/client/shell/`).
 - `hosts/vst3-host` (`@soundor/vst3-host`) — a standalone VST3 host: a C++
   executable (VST3 SDK 3.8.1, native windows; no JUCE, no engine) and the
   Node API that launches it (`launchHost()`), over a framed stdin/stdout
@@ -289,10 +299,10 @@ and the same subset of Web globals. The web runtime deliberately reproduces
 the JUCE runtime's semantics (parameter behavior, compiled from the same
 expressions, and gestures, event routing, error
 messages), so a behavior change in one runtime usually needs the matching change
-in the other. Layout is the same Yoga in both: a style's mapping to it is
-`src/client/ui/layout.ts` here and `UiModule.cpp` with `Surface.cpp` there, and
-`engines/engine/tests/layout/corpus.json` holds the engine's frames, which the
-web runtime's tests must match exactly.
+in the other. Layout is the same C++ in both: styles are read by
+`ui/StyleReader.cpp` and laid out by `ui/Surface.cpp`, natively and in the
+WebAssembly core, and `engines/engine/tests/layout/corpus.json` holds the
+engine's frames, which the web adapter's tests must match exactly.
 
 ### Dependencies and compatibility
 
@@ -318,7 +328,7 @@ has no runtime-version check or config-feature version gates. See
 
 Soundor owns its accessibility semantics: React props → `node.accessibility`
 (`soundor:ui`) → the semantic tree (`a11y::SurfaceSemantics` natively; the
-same rules in `web-runtime/src/client/ui/semantics.ts`) → a platform backend.
+same rules in `engines/engine/web/src/ui/semantics.ts`) → a platform backend.
 The backends are ARIA (web), native AT-SPI over system GDBus (Linux), native UI Automation
 (Windows) and Soundor's own Apple bridges (macOS, iOS). JUCE only supplies the native view; UI Automation
 types never leave `src/a11y/windows/`. Keep the native and web rules in
@@ -409,9 +419,7 @@ generated framework or the runtime package, not in `init` templates.
 - Dependency versions live in the `catalog:` in `pnpm-workspace.yaml`
   (`catalogMode: strict`); `minimumReleaseAge` blocks very new releases.
 - Releases are Changesets; the seventeen packages under `packages/` are a fixed version group;
-  `@soundor/engine`, `@soundor/yoga-wasm`, `@soundor/juce-runtime`,
+  `@soundor/engine`, `@soundor/juce-runtime`,
   `@soundor/web-runtime` and `@soundor/vst3-host` are versioned on their own.
-  A change to the engine's Yoga also needs a `@soundor/yoga-wasm` changeset,
-  which Verify checks.
   Add a changeset for any published-package change.
 - PRs follow `.github/pull_request_template.md`.

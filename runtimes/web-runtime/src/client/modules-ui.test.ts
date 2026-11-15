@@ -1,6 +1,13 @@
 // @vitest-environment happy-dom
 // Plugin code's view of soundor:ui, imported as a plugin bundle imports it.
 
+import type {
+  Accessibility,
+  EditorSize,
+  LayoutRect,
+  Style,
+  ViewSize,
+} from '@soundor/engine/web';
 import type * as Contract from 'soundor:ui';
 import {
   AccessibilityActionEvent,
@@ -29,13 +36,6 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import { uiView } from './context';
 import type { PressableState } from './modules/ui';
-import type {
-  Accessibility,
-  EditorSize,
-  LayoutRect,
-  Style,
-  ViewSize,
-} from './ui/types';
 
 describe('soundor:ui', () => {
   it('declares the same shapes as the contract', () => {

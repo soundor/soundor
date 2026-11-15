@@ -2,6 +2,7 @@
 // Soundor's accessibility semantics as ARIA on the plugin view's elements:
 // low-level nodes, then @soundor/react's components.
 
+import { UiNode } from '@soundor/engine/web';
 import {
   createPortalHost,
   createRoot,
@@ -18,7 +19,6 @@ import { createElement as h, useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { uiView } from './context';
-import { UiNode } from './ui/node';
 
 const view = uiView();
 document.body.append(view.rootElement);

@@ -297,13 +297,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      # The version local validation used, and emsdk's tag of it by commit.
-      # Not EMSDK_*: emsdk_env.sh clears those.
-      SOUNDOR_EMSDK_VERSION: 7.0.0
-      SOUNDOR_EMSDK_COMMIT: 1693ce7359fc9694f198694f902a2cc061239b86
-      EMSDK: ${{ github.workspace }}/../emsdk
-      EMSDK_QUIET: '1'
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -311,30 +304,12 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
-      # The SDK emsdk installs for this exact version: what the cache holds is
-      # what a fresh install would be.
-      - name: Cache Emscripten
-        id: emsdk-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.EMSDK }}
-          key: emsdk-${{ runner.os }}-${{ env.SOUNDOR_EMSDK_VERSION }}-${{ env.SOUNDOR_EMSDK_COMMIT }}
-
-      - name: Install Emscripten
-        if: steps.emsdk-cache.outputs.cache-hit != 'true'
-        run: |
-          git init -q "$EMSDK"
-          git -C "$EMSDK" fetch -q --depth 1 https://github.com/emscripten-core/emsdk.git "$SOUNDOR_EMSDK_COMMIT"
-          git -C "$EMSDK" checkout -q FETCH_HEAD
-          "$EMSDK/emsdk" install "$SOUNDOR_EMSDK_VERSION"
-          "$EMSDK/emsdk" activate "$SOUNDOR_EMSDK_VERSION"
+      - name: Setup Emscripten
+        uses: ./.github/actions/emsdk
 
       - name: Build the WebAssembly core
         working-directory: engines/engine
-        run: |
-          source "$EMSDK/emsdk_env.sh"
-          test "$(emcc -dumpversion)" = "$SOUNDOR_EMSDK_VERSION"
-          pnpm build:wasm
+        run: pnpm build:wasm
 
       - name: WebAssembly tests
         working-directory: engines/engine

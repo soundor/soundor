@@ -9,9 +9,9 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UiNode } from './node';
-import type { NodeType, Style } from './types';
-import { UiView } from './view';
+import { UiNode } from '../../src/ui/node.ts';
+import type { NodeType, Style } from '../../src/ui/types.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 interface Tree {
   readonly type: NodeType;
@@ -67,7 +67,7 @@ describe('the layout corpus', () => {
 
   it.each(corpus.scales)('matches the engine at scale %s', (scale) => {
     vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(scale);
-    view = new UiView(document);
+    view = new UiView({ document });
     view.mount(document.body);
     const [width, height] = corpus.view;
     Object.defineProperties(view.rootElement, {

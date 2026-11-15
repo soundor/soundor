@@ -12,10 +12,16 @@
  * browser's (it honors `pointerEvents`), and text inputs edit natively.
  */
 
-import type { Yoga } from '@soundor/yoga-wasm';
-
-import { Listeners } from '../listeners';
-import { AnimationController } from './animation';
+import {
+  compileModule,
+  EngineCore,
+  OVERLAY,
+  ROOT,
+  type CoreOptions,
+  type ModuleSource,
+} from '../core.ts';
+import type { Baselines } from '../text.ts';
+import { AnimationController } from './animation.ts';
 import {
   AccessibilityActionEvent,
   FocusEvent,
@@ -23,25 +29,44 @@ import {
   KeyboardEvent,
   PointerEvent,
   WheelEvent,
-} from './events';
-import { pageYoga } from './layout';
+} from './events.ts';
+import { Listeners } from './listeners.ts';
 import {
   createNode,
   nodeOf,
   UiNode,
   type ViewLink,
   type UiElement,
-} from './node';
-import { updateSemantics } from './semantics';
-import { STYLESHEET } from './style';
-import { canvasMeasurer, type TextMeasurer } from './text-layout';
+} from './node.ts';
+import { updateSemantics } from './semantics.ts';
+import { STYLESHEET } from './style.ts';
 import type {
   Cursor,
   EditorSize,
   LayoutRect,
   NodeType,
+  Style,
   ViewSize,
-} from './types';
+} from './types.ts';
+
+export interface EngineOptions extends CoreOptions {
+  /** The document the view is made in; the page's by default. */
+  document?: Document;
+  /**
+   * The engine's module, compiled; by default the one Engine.load() last
+   * loaded.
+   */
+  module?: WebAssembly.Module;
+  /**
+   * The URL of a bundled asset (an image node's source, an asset id), or
+   * null where it names none: the runtime's to say. Images show nothing
+   * without it.
+   */
+  assetUrl?: (id: string) => string | null;
+}
+
+/** The module Engine.load() loaded, which engines start from by default. */
+let loaded: WebAssembly.Module | undefined;
 
 /** Pixels a wheel line scrolls, as in the JUCE runtime and browsers. */
 const PIXELS_PER_LINE = 40;
@@ -86,7 +111,14 @@ interface PendingClick {
 
 const elementOf = (node: UiNode): UiElement => UiNode.elementOf(node);
 
-export class UiView implements ViewLink {
+/**
+ * The plugin view: Soundor's engine in a browser. Its C++ core (the node tree,
+ * styles, Yoga layout and text layout, compiled to WebAssembly) lays out what
+ * plugin code builds with UiNodes, and this shows it as HTML elements,
+ * placed where the engine says and drawn with CSS, routing the browser's
+ * input to Soundor events. Each engine has its own module instance.
+ */
+export class Engine implements ViewLink {
   readonly animations: AnimationController;
   /** The view's element: the surface both roots fill, and take input on. */
   readonly rootElement: HTMLElement;
@@ -167,24 +199,73 @@ export class UiView implements ViewLink {
       } | null)
     | null = null;
 
-  readonly yoga: Yoga;
-  readonly yogaConfig: number;
-  readonly textMeasurer: TextMeasurer;
+  readonly core: EngineCore;
+  readonly #assetUrl: (id: string) => string | null;
+  /** The node of each handle the engine reports, while plugin code keeps it. */
+  readonly #handles = new Map<number, WeakRef<UiNode>>();
+  /** Releases a node in the engine once plugin code no longer has it. */
+  readonly #finalizer = new FinalizationRegistry<number>((handle) => {
+    this.#handles.delete(handle);
+    this.core.release(handle);
+  });
   /** A layout is to run before the next paint. */
   #layoutQueued = false;
-  /** Something Yoga decides has changed since the last layout. */
-  #layoutChanged = true;
-  /** Lay out everything, whatever Yoga has cached. */
-  #layoutAll = false;
   /** The size and scale the view is laid out at, as last measured. */
   #layoutSize: ViewSize = this.#size;
   #disposed = false;
 
-  constructor(document: Document = globalThis.document) {
-    this.animations = new AnimationController(document.defaultView);
-    this.yoga = pageYoga();
-    this.yogaConfig = this.yoga.YGConfigNew();
-    this.textMeasurer = canvasMeasurer(document);
+  /**
+   * Compiles the engine's module (once per URL) and keeps it as the one
+   * engines start from by default: then `new Engine()` is synchronous.
+   */
+  static async load(source: ModuleSource): Promise<WebAssembly.Module> {
+    loaded = await compileModule(source);
+    return loaded;
+  }
+
+  /** Loads the module (once per URL) and starts an engine. */
+  static async create(
+    options: ModuleSource & EngineOptions = {},
+  ): Promise<Engine> {
+    const module =
+      options.module ??
+      (options.wasm !== undefined || options.wasmUrl !== undefined
+        ? await compileModule(options)
+        : loaded);
+    return new Engine({ ...options, module });
+  }
+
+  /** Whether a module was loaded for engines to start from. */
+  static get loaded(): boolean {
+    return loaded !== undefined;
+  }
+
+  constructor(options: EngineOptions = {}) {
+    const document = options.document ?? globalThis.document;
+    const module = options.module ?? loaded;
+    if (module === undefined)
+      throw new Error(
+        "The Soundor engine's WebAssembly is not loaded: await Engine.load({ wasmUrl }) before starting an engine",
+      );
+    this.core = new EngineCore(module, options);
+    this.#assetUrl = options.assetUrl ?? (() => null);
+    this.core.sink = {
+      frame: (handle, frame) => {
+        const node = this.#handles.get(handle)?.deref();
+        if (node !== undefined) UiNode.placed(node, frame);
+      },
+      text: (handle, lines) => {
+        const node = this.#handles.get(handle)?.deref();
+        if (node !== undefined) UiNode.textLaidOut(node, lines);
+      },
+      extent: (handle, extent) => {
+        const node = this.#handles.get(handle)?.deref();
+        if (node !== undefined) UiNode.extended(node, extent);
+      },
+    };
+    this.animations = new AnimationController(document.defaultView, (style) =>
+      this.core.checkStyle(style),
+    );
     if (document.getElementById(STYLE_ID) === null) {
       const style = document.createElement('style');
       style.id = STYLE_ID;
@@ -195,13 +276,16 @@ export class UiView implements ViewLink {
     this.rootElement.className = 'sd-surface';
     this.rootElement.tabIndex = -1;
     this.rootElement.style.touchAction = 'none';
-    this.root = createNode(this, 'view', document.createElement('div'));
-    this.overlay = createNode(
-      this,
-      'view',
-      document.createElement('div'),
-      true,
-    );
+    this.root = createNode(this, 'view', {
+      element: document.createElement('div'),
+      handle: ROOT,
+      overlay: false,
+    });
+    this.overlay = createNode(this, 'view', {
+      element: document.createElement('div'),
+      handle: OVERLAY,
+      overlay: true,
+    });
     this.rootElement.append(elementOf(this.root), elementOf(this.overlay));
     this.#listen();
     this.#visibility = this.isVisible();
@@ -210,11 +294,36 @@ export class UiView implements ViewLink {
     document.defaultView?.addEventListener('focus', this.#focusChanged);
     document.defaultView?.addEventListener('blur', this.#focusChanged);
     // A font arriving changes what text measures.
-    document.fonts?.addEventListener('loadingdone', () => {
-      this.textMeasurer.reset();
-      UiNode.fontsChanged(this.root);
-      UiNode.fontsChanged(this.overlay);
+    document.fonts?.addEventListener('loadingdone', this.#fontsChanged, {
+      signal: this.#controller.signal,
     });
+  }
+
+  readonly #fontsChanged = (): void => {
+    if (this.#disposed) return;
+    this.core.fontsChanged();
+    this.layoutChanged();
+  };
+
+  baselines(font: string, size: number, lineHeight: number): Baselines | null {
+    return (
+      this.core.measurer?.baselines(
+        this.rootElement.ownerDocument,
+        font,
+        size,
+        lineHeight,
+      ) ?? null
+    );
+  }
+
+  register(node: UiNode, handle: number): void {
+    this.#handles.set(handle, new WeakRef(node));
+    if (handle !== ROOT && handle !== OVERLAY)
+      this.#finalizer.register(node, handle);
+  }
+
+  assetUrl(id: string): string | null {
+    return id === '' ? null : this.#assetUrl(id);
   }
 
   pixelScale(): number {
@@ -222,7 +331,6 @@ export class UiView implements ViewLink {
   }
 
   layoutChanged(): void {
-    this.#layoutChanged = true;
     if (this.#layoutQueued || this.#disposed) return;
     this.#layoutQueued = true;
     // After what the plugin is doing now, and always before a paint.
@@ -233,18 +341,13 @@ export class UiView implements ViewLink {
   }
 
   /**
-   * Lays the view out with Yoga, if anything changed, and places its elements:
-   * what `layout` and the like read. Each root fills the view, on its own: the
-   * overlay is not in the content's flow.
+   * Has the engine lay the view out, if anything changed, and places its
+   * elements: what `layout` and the like read. Each root fills the view, on
+   * its own: the overlay is not in the content's flow.
    */
   flushLayout(): void {
-    if (!this.#layoutChanged || this.#disposed) return;
-    this.#layoutChanged = false;
-    const { width, height } = this.#layoutSize;
-    const force = this.#layoutAll;
-    this.#layoutAll = false;
-    UiNode.layOut(this.root, width, height, force);
-    UiNode.layOut(this.overlay, width, height, force);
+    if (this.#disposed || !this.core.dirty) return;
+    this.core.layout();
     for (const listener of [...this.#layoutListeners]) listener();
   }
 
@@ -289,13 +392,69 @@ export class UiView implements ViewLink {
     this.#pendingClick = null;
     this.rootElement.remove();
     this.#disposed = true;
-    UiNode.free(this.root);
-    UiNode.free(this.overlay);
-    this.yoga.YGConfigFree(this.yogaConfig);
+    this.#handles.clear();
+    this.core.dispose();
+  }
+
+  [Symbol.dispose](): void {
+    this.dispose();
   }
 
   createNode(type: NodeType): UiNode {
     return createNode(this, type);
+  }
+
+  /** A new, detached view: a box laid out with flexbox. */
+  createView(style?: Style): UiNode {
+    const node = this.createNode('view');
+    if (style !== undefined) node.style = style;
+    return node;
+  }
+
+  /** A new, detached text node. */
+  createText(text = '', style?: Style): UiNode {
+    const node = this.createNode('text');
+    if (text !== '') node.text = text;
+    if (style !== undefined) node.style = style;
+    return node;
+  }
+
+  /** A new, detached image showing a bundled asset. */
+  createImage(source = '', style?: Style): UiNode {
+    const node = this.createNode('image');
+    if (source !== '') node.source = source;
+    if (style !== undefined) node.style = style;
+    return node;
+  }
+
+  /** A root vector viewport; the shapes in it have no nodes of their own. */
+  createSvg(style?: Style): UiNode {
+    const node = this.createNode('svg');
+    if (style !== undefined) node.style = style;
+    return node;
+  }
+
+  /**
+   * A new, detached canvas: pixels code draws with getContext('2d'), 300 by
+   * 150 until its width and height say otherwise. Its box is that size in
+   * logical pixels unless its style sizes it.
+   */
+  createCanvas(style?: Style): UiNode {
+    const node = this.createNode('canvas');
+    if (style !== undefined) node.style = style;
+    return node;
+  }
+
+  /** A new, detached single-line text input. It is focusable. */
+  createTextInput(
+    options: { value?: string; placeholder?: string; style?: Style } = {},
+  ): UiNode {
+    const node = this.createNode('input');
+    if (options.value !== undefined) node.value = options.value;
+    if (options.placeholder !== undefined)
+      node.placeholder = options.placeholder;
+    if (options.style !== undefined) node.style = options.style;
+    return node;
   }
 
   /** CSS pixels per logical pixel: the host may scale the viewport. */
@@ -442,15 +601,10 @@ export class UiView implements ViewLink {
    */
   measure(): void {
     const size = this.size();
-    if (size !== this.#layoutSize) {
-      if (size.scale !== this.#layoutSize.scale) {
-        // Edges are on device pixels: all of them move.
-        this.yoga.YGConfigSetPointScaleFactor(
-          this.yogaConfig,
-          size.scale > 0 ? size.scale : 1,
-        );
-        this.#layoutAll = true;
-      }
+    if (size !== this.#layoutSize && !this.#disposed) {
+      // Edges are on device pixels: at another scale, all of them move.
+      this.core.setScale(size.scale > 0 ? size.scale : 1);
+      this.core.setSize(size.width, size.height);
       this.#layoutSize = size;
       this.layoutChanged();
     }

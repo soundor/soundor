@@ -156,6 +156,12 @@ jobs:
       - name: Rust for WebAssembly
         run: rustup target add wasm32-unknown-unknown
 
+      # The engine's WebAssembly core, which the web runtime lays out with:
+      # its tests, the examples' web builds and the website need it (turbo's
+      # @soundor/engine#build:wasm, cached with the rest).
+      - name: Setup Emscripten
+        uses: ./.github/actions/emsdk
+
       - name: Native input detection regression tests
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
@@ -185,11 +191,6 @@ jobs:
           cargo fmt --check --manifest-path packages/cli/rust/soundor/Cargo.toml &&
           cargo clippy --all-targets --manifest-path packages/cli/rust/soundor/Cargo.toml -- -D warnings &&
           pnpm --filter soundor test:rust
-
-      # The engine's Yoga is released on its own: the web runtime's must follow.
-      # Release checks this too, as it does not wait for this workflow.
-      - name: The web runtime's Yoga is the engine's
-        run: node engines/yoga-wasm/scripts/check-release.mjs
 
       - name: Example application tests, types and web builds
         run: |

@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { KeyboardEvent, PointerEvent } from './events';
-import { UiNode } from './node';
-import { STYLESHEET } from './style';
-import { UiView } from './view';
+import { KeyboardEvent, PointerEvent } from '../../src/ui/events.ts';
+import { UiNode } from '../../src/ui/node.ts';
+import { STYLESHEET } from '../../src/ui/style.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView;
 afterEach(() => {
@@ -13,7 +13,14 @@ afterEach(() => {
 });
 
 function setup() {
-  view = new UiView(document);
+  view = new UiView({
+    document,
+    // Bundled assets, next to the page, as the web runtime serves them.
+    assetUrl: (id) =>
+      /^[0-9a-f]{16}\.(png|jpe?g|webp|svg|ttf|otf)$/.test(id)
+        ? `soundor-assets/${id}`
+        : null,
+  });
   view.mount(document.body);
   return view;
 }
@@ -439,7 +446,7 @@ describe('UiNode layout', () => {
     function atTwice() {
       vi.spyOn(window, 'devicePixelRatio', 'get').mockReturnValue(2);
       const set = sized();
-      vi.spyOn(view.textMeasurer, 'baselines').mockReturnValue({
+      vi.spyOn(view, 'baselines').mockReturnValue({
         engine: 13.245,
         browser: 12,
       });

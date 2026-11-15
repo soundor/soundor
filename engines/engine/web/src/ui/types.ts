@@ -1,4 +1,4 @@
-import type { UiNode } from './node';
+import type { UiNode } from './node.ts';
 
 /**
  * The shapes `soundor:ui` declares (packages/environment/ui.d.ts), for the

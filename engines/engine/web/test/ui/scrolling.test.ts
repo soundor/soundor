@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SMOOTH_SCROLL_MS, UiNode } from './node';
-import { UiView } from './view';
+import { SMOOTH_SCROLL_MS, UiNode } from '../../src/ui/node.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView;
 afterEach(() => {
@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 function setup() {
-  view = new UiView(document);
+  view = new UiView({ document });
   view.mount(document.body);
   return view;
 }

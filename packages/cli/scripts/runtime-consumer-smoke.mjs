@@ -36,7 +36,6 @@ try {
   const tarballs = {};
   for (const folder of [
     'engines/engine',
-    'engines/yoga-wasm',
     'packages/core',
     'packages/environment',
     'packages/config',

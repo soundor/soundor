@@ -90,8 +90,9 @@ need it.
 | End-to-end tests   | [`@soundor/vitest-e2e`](/docs/testing/e2e)                                                                                                                                      | Vitest tests of a built VST3 plugin, UI and audio, in the VST3 host                                               |
 | Plugin host        | [`@soundor/vst3-host`](/docs/testing/vst3-host) ([internals](/docs/contribute/vst3-host))                                                                                       | A standalone VST3 host executable driven from Node.js: offline processing, editors, platform packages             |
 
-`@soundor/yoga-wasm`, [the engine's Yoga as WebAssembly](/docs/contribute/yoga-wasm),
-lives beside it in `engines/`, and the web runtime depends on an exact version.
+The engine also runs in the browser: `@soundor/engine/web` is its C++ core
+compiled to WebAssembly and the DOM adapter that is the web runtime's
+`soundor:ui` ([The engine in the browser](/docs/contribute/web-engine)).
 
 The engine and the VST3 host are versioned independently of the shared
 package release group.

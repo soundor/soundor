@@ -19,7 +19,7 @@
     "---Engine---",
     "engine-reference",
     "webgl-codegen",
-    "yoga-wasm",
+    "web-engine",
     "benchmark",
     "---Accessibility---",
     "linux-accessibility",

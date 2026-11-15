@@ -12,7 +12,7 @@
 // DOM elements are passed to the browser's, so the host's own code is served
 // as before.
 
-import { UiNode, type ResizeBoxes } from './node';
+import { UiNode, type ResizeBoxes } from './node.ts';
 
 type Box = 'content-box' | 'border-box' | 'device-pixel-content-box';
 const BOXES: readonly Box[] = [

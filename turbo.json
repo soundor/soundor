@@ -19,17 +19,33 @@
       "dependsOn": ["^build"],
       "outputs": ["dist"]
     },
-    "@soundor/yoga-wasm#build": {
-      "dependsOn": ["^build"],
-      "env": ["SOUNDOR_YOGA_WASM"],
-      "passThroughEnv": ["SOUNDOR_CACHE", "XDG_CACHE_HOME", "LOCALAPPDATA"],
-      "outputs": ["dist", "generated"]
+    "@soundor/engine#build:wasm": {
+      "inputs": [
+        "wasm/**",
+        "src/**",
+        "include/**",
+        "cmake/**",
+        "CMakeLists.txt",
+        "CMakePresets.json",
+        "web/scripts/build-wasm.ts"
+      ],
+      "env": ["SOUNDOR_EMSDK_VERSION"],
+      "passThroughEnv": [
+        "EMSDK",
+        "EMSDK_NODE",
+        "EM_CONFIG",
+        "EM_CACHE",
+        "SOUNDOR_CACHE"
+      ],
+      "outputs": ["build/wasm/web/soundor-core.wasm"]
     },
-    "@soundor/yoga-wasm#test": {
-      "dependsOn": ["build", "^test", "^build"]
+    "@soundor/web-runtime#test": {
+      "dependsOn": ["^test", "^build", "@soundor/engine#build:wasm"],
+      "env": ["SOUNDOR_ENGINE_WASM"]
     },
     "build:web": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@soundor/engine#build:wasm"],
+      "env": ["SOUNDOR_ENGINE_WASM"],
       "outputs": [".soundor/dist/web/**", ".soundor/generated/**"]
     },
     "website#build": {

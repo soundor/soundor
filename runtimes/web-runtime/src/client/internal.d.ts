@@ -39,3 +39,9 @@ declare module 'soundor:internal/processor' {
   const wasm: string | undefined;
   export default wasm;
 }
+
+declare module 'soundor:internal/engine' {
+  /** Where the engine's WebAssembly (soundor-core.wasm) is: a URL, or its bytes in tests. */
+  const source: import('@soundor/engine/web').ModuleSource;
+  export default source;
+}

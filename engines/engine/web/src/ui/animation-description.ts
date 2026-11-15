@@ -1,4 +1,4 @@
-import type { UiNode } from './node';
+import type { UiNode } from './node.ts';
 import type {
   AnimationComposition,
   AnimationDescription,
@@ -6,7 +6,7 @@ import type {
   AnimationKeyframe,
   AnimationOptions,
   AnimationPlaybackOptions,
-} from './types';
+} from './types.ts';
 
 export function effect(
   target: UiNode,

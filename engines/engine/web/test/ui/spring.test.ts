@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 
-import { sampleSpring, springDuration, springParameters } from './spring';
+import {
+  sampleSpring,
+  springDuration,
+  springParameters,
+} from '../../src/ui/spring.ts';
 
 it('matches analytic stepping in underdamped, critically damped and overdamped motion', () => {
   for (const damping of [10, 20, 40]) {

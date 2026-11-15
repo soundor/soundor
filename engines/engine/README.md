@@ -6,4 +6,4 @@ The independently versioned C++ UI engine: Hermes, Yoga, Skia, WebGL, accessibil
 - [Documentation](https://soundor.dev/docs)
 - [Architecture](https://soundor.dev/docs/architecture)
 
-Its platform-independent core (the node tree, Yoga layout, styles and text layout) also compiles to WebAssembly: an experimental browser API, `@soundor/engine/web`, runs it with a DOM adapter. The module is built separately and is not part of this package; see `wasm/README.md` in the repository.
+Its platform-independent core (the node tree, Yoga layout, styles and text layout) also compiles to WebAssembly: `@soundor/engine/web` runs it with a DOM adapter, and is the web runtime's `soundor:ui`. The module is built separately and is not part of this package; see [The engine in the browser](https://soundor.dev/docs/contribute/web-engine).

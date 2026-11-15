@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ScrollIndicators } from './scroll-indicators';
+import { ScrollIndicators } from '../../src/ui/scroll-indicators.ts';
 
 const BOX = {
   contentWidth: 100,

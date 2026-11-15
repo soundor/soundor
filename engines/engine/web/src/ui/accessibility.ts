@@ -3,7 +3,7 @@
  * as the JUCE runtime checks it, with the same errors.
  */
 
-import type { Accessibility, AccessibilityRole } from './types';
+import type { Accessibility, AccessibilityRole } from './types.ts';
 
 const ROLES: ReadonlySet<string> = new Set<AccessibilityRole>([
   'none',

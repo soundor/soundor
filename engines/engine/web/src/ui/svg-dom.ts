@@ -1,5 +1,5 @@
-import { svgNaturalSize } from './svg-scene';
-import type { SvgPresentation, SvgScene, SvgShape } from './types';
+import { svgNaturalSize } from './svg-scene.ts';
+import type { SvgPresentation, SvgScene, SvgShape } from './types.ts';
 
 export const SVG_NS = 'http://www.w3.org/2000/svg';
 const PRESENTATION = {

@@ -1,19 +1,18 @@
-import { compileProgram, ProgramAnimation } from './animation-program';
-import type { UiElement } from './node';
+import { compileProgram, ProgramAnimation } from './animation-program.ts';
+import type { UiElement } from './node.ts';
 import {
   sampleSpring,
   springDuration,
   springParameters,
   type SpringParameters,
-} from './spring';
-import { readStyle } from './style';
-import type { AnimationDescription } from './types';
+} from './spring.ts';
+import type { AnimationDescription } from './types.ts';
 import type {
   AnimationKeyframe,
   AnimationOptions,
   TransformOperation,
   UiAnimation as AnimationContract,
-} from './types';
+} from './types.ts';
 
 interface SpringTrack {
   origin: number;
@@ -127,7 +126,13 @@ export function timing(value: AnimationOptions): Required<AnimationOptions> {
   return result;
 }
 
-export function keyframes(value: readonly AnimationKeyframe[]): {
+/** Checks a style as the engine reads it: throws a TypeError if it is invalid. */
+export type StyleCheck = (style: object) => void;
+
+export function keyframes(
+  value: readonly AnimationKeyframe[],
+  checkStyle: StyleCheck,
+): {
   frames: Keyframe[];
   properties: Set<string>;
 } {
@@ -146,7 +151,7 @@ export function keyframes(value: readonly AnimationKeyframe[]): {
       } else if (key === 'transform')
         result.transform = transformCss(entry as readonly TransformOperation[]);
       else if (key === 'backgroundColor' || key === 'borderColor') {
-        readStyle({ [key]: entry });
+        checkStyle({ [key]: entry });
         result[key] = entry as string;
       } else if (key === 'offset') {
         if (
@@ -325,7 +330,14 @@ export class AnimationController {
   };
   #override: boolean | undefined;
 
-  constructor(window: Window | null = globalThis.window) {
+  /** Checks a keyframe's colors as the engine reads a style's. */
+  readonly checkStyle: StyleCheck;
+
+  constructor(
+    window: Window | null = globalThis.window,
+    checkStyle: StyleCheck = () => {},
+  ) {
+    this.checkStyle = checkStyle;
     this.#media = window?.matchMedia?.('(prefers-reduced-motion: reduce)');
     this.#media?.addEventListener('change', this.#mediaChanged);
   }
@@ -359,7 +371,7 @@ export class AnimationController {
     frames: readonly AnimationKeyframe[],
     options: AnimationOptions = {},
   ): UiAnimation {
-    const normalized = keyframes(frames);
+    const normalized = keyframes(frames, this.checkStyle);
     const settings = timing(options);
     const handle = new UiAnimation(
       this,

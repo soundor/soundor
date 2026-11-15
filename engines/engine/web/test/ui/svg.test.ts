@@ -4,11 +4,11 @@ import { resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UiNode } from './node';
-import { updateSemantics } from './semantics';
-import { normalizeSvgScene, svgNaturalSize } from './svg-scene';
-import type { SvgScene } from './types';
-import { UiView } from './view';
+import { UiNode } from '../../src/ui/node.ts';
+import { updateSemantics } from '../../src/ui/semantics.ts';
+import { normalizeSvgScene, svgNaturalSize } from '../../src/ui/svg-scene.ts';
+import type { SvgScene } from '../../src/ui/types.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView | undefined;
 afterEach(() => {
@@ -31,7 +31,7 @@ const scene = (fill = 'red'): SvgScene => ({
   ],
 });
 function setup() {
-  view = new UiView(document);
+  view = new UiView({ document });
   view.mount(document.body);
   const svg = view.createNode('svg');
   view.root.appendChild(svg);
@@ -207,7 +207,11 @@ describe('retained SVG browser representation', () => {
 
 describe('SVG scene validation contract', () => {
   it('uses the exact same validator in Web and the test runtime', () => {
-    const a = readFileSync(resolve('src/client/ui/svg-scene.ts'), 'utf8');
+    // The engine's imports name their extensions.
+    const a = readFileSync(resolve('web/src/ui/svg-scene.ts'), 'utf8').replace(
+      "from './types.ts'",
+      "from './types'",
+    );
     const b = readFileSync(
       resolve('../../packages/test-runtime/src/svg-scene.ts'),
       'utf8',

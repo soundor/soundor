@@ -1,6 +1,6 @@
 // Portable, bounded scene validation. Kept identical in the test runtime.
 // This validates path grammar only; browser SVG and Skia own all geometry.
-import type { SvgPresentation, SvgScene, SvgShape } from './types';
+import type { SvgPresentation, SvgScene, SvgShape } from './types.ts';
 
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/;
 const NUMBER_FULL = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;

@@ -1,17 +1,17 @@
 /**
- * Soundor styles as CSS: how a node looks. Where it is, and how large, is
- * Yoga's (`layout.ts`), as in the JUCE runtime: every node's element is placed
- * absolutely where Yoga says (`UiNode`), and nothing here decides a size.
+ * Soundor styles as CSS: how a node looks. Where it is, and how large, is the
+ * engine's: its C++ core reads every style (and refuses an invalid one) and
+ * lays the tree out with Yoga, as in the JUCE runtime; every node's element is
+ * placed absolutely where the engine says (`UiNode`), and nothing here
+ * decides a size.
  */
 
-import { transformCss } from './animation';
-import type { NodeType, Style } from './types';
+import { fontFamilyCss, UI_FONT } from '../text.ts';
+import { transformCss } from './animation.ts';
+import type { NodeType, Style } from './types.ts';
 
 /** The class every node's element has, and one per node type. */
 export const NODE_CLASS = 'sd-node';
-
-/** The platform's UI font, as text is set in by default. */
-export const UI_FONT = "system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 /**
  * Defaults that make text like the JUCE runtime's text engine (14px, black,
@@ -120,129 +120,6 @@ export function fontWeight(value: number | string): number {
   return Number(value);
 }
 
-// ── Validation ───────────────────────────────────────────────────────────────
-
-const CHOICES: Readonly<Record<string, readonly string[]>> = {
-  display: ['flex', 'none'],
-  position: ['relative', 'absolute', 'static'],
-  flexDirection: ['column', 'column-reverse', 'row', 'row-reverse'],
-  flexWrap: ['nowrap', 'wrap', 'wrap-reverse'],
-  justifyContent: [
-    'flex-start',
-    'center',
-    'flex-end',
-    'space-between',
-    'space-around',
-    'space-evenly',
-  ],
-  alignItems: ALIGNS(),
-  alignSelf: ALIGNS(),
-  alignContent: ALIGNS(),
-  overflow: ['visible', 'hidden', 'scroll'],
-  overflowX: ['visible', 'hidden', 'scroll'],
-  overflowY: ['visible', 'hidden', 'scroll'],
-  boxSizing: ['border-box', 'content-box'],
-  pointerEvents: ['auto', 'none', 'box-none', 'box-only'],
-  cursor: [
-    'auto',
-    'default',
-    'none',
-    'pointer',
-    'text',
-    'crosshair',
-    'move',
-    'ew-resize',
-    'ns-resize',
-    'nesw-resize',
-    'nwse-resize',
-  ],
-  resizeMode: ['cover', 'contain', 'stretch', 'center'],
-  fontStyle: ['normal', 'italic'],
-  textAlign: ['auto', 'left', 'center', 'right'],
-};
-
-function ALIGNS(): readonly string[] {
-  return [
-    'auto',
-    'flex-start',
-    'center',
-    'flex-end',
-    'stretch',
-    'baseline',
-    'space-between',
-    'space-around',
-    'space-evenly',
-  ];
-}
-
-const NUMBERS = [
-  'flex',
-  'flexGrow',
-  'flexShrink',
-  'aspectRatio',
-  'borderWidth',
-  'borderHorizontalWidth',
-  'borderVerticalWidth',
-  'borderTopWidth',
-  'borderRightWidth',
-  'borderBottomWidth',
-  'borderLeftWidth',
-  'gap',
-  'rowGap',
-  'columnGap',
-  'borderRadius',
-  'borderTopLeftRadius',
-  'borderTopRightRadius',
-  'borderBottomRightRadius',
-  'borderBottomLeftRadius',
-  'outlineWidth',
-  'outlineOffset',
-  'opacity',
-  'fontSize',
-  'lineHeight',
-  'letterSpacing',
-  'numberOfLines',
-];
-
-const AUTO_LENGTHS = [
-  'flexBasis',
-  'width',
-  'height',
-  'margin',
-  'marginHorizontal',
-  'marginVertical',
-  'marginTop',
-  'marginRight',
-  'marginBottom',
-  'marginLeft',
-  'inset',
-  'top',
-  'right',
-  'bottom',
-  'left',
-];
-
-const LENGTHS = [
-  'minWidth',
-  'minHeight',
-  'maxWidth',
-  'maxHeight',
-  'padding',
-  'paddingHorizontal',
-  'paddingVertical',
-  'paddingTop',
-  'paddingRight',
-  'paddingBottom',
-  'paddingLeft',
-];
-
-const COLORS = ['color', 'backgroundColor', 'borderColor', 'outlineColor'];
-
-/**
- * Checks a style as the JUCE runtime does and returns it without null or
- * undefined entries. Unknown keys are ignored; a known key with an invalid
- * value is a TypeError naming it.
- */
 type Overflow = NonNullable<Style['overflow']>;
 
 /**
@@ -267,124 +144,27 @@ export function overflowOf(style: Readonly<Style>): {
   };
 }
 
-export function readStyle(value: unknown): Style {
+const CSS_PIXELS = /^-?(\d+\.?\d*|\.\d+)px$/;
+
+/**
+ * A style as plugin code gives it, for the engine to read and CSS to draw:
+ * without its null or undefined entries, with CSS pixel lengths ('120px') as
+ * the numbers Soundor's lengths are, as natively.
+ */
+export function presentStyle(value: unknown): Style {
   if (value === null || value === undefined) return {};
   if (typeof value !== 'object') {
     throw new TypeError(`style must be an object, got ${typeof value}`);
   }
   const style: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (entry !== null && entry !== undefined) style[key] = entry;
-  }
-  const fail = (key: string, expected: string): never => {
-    const got = style[key];
-    throw new TypeError(
-      `style.${key}: expected ${expected}, got ${typeof got === 'string' ? `'${got}'` : String(got)}`,
-    );
-  };
-  if (style.transform !== undefined)
-    transformCss(style.transform as NonNullable<Style['transform']>);
-  if ('boxShadow' in style) {
-    if (!Array.isArray(style['boxShadow'])) fail('boxShadow', 'an array');
-    checkBoxShadow(style['boxShadow'] as readonly unknown[]);
-  }
-  for (const [key, names] of Object.entries(CHOICES)) {
-    if (key in style && !names.includes(style[key] as string)) {
-      fail(key, `one of ${names.map((name) => `'${name}'`).join(', ')}`);
-    }
-  }
-  for (const key of NUMBERS) {
-    if (key in style && !Number.isFinite(style[key]))
-      fail(key, 'a finite number');
-  }
-  for (const key of AUTO_LENGTHS) {
-    if (key in style && !isLength(style[key], true))
-      fail(key, "a number, a percentage or 'auto'");
-  }
-  for (const key of LENGTHS) {
-    if (key in style && !isLength(style[key], false))
-      fail(key, 'a number or a percentage');
-  }
-  for (const key of COLORS) {
-    if (key in style && !isColor(style[key])) fail(key, 'a CSS color');
-  }
-  // Integers CSS and the JUCE runtime both keep as they are.
-  const zIndex = style['zIndex'];
-  if (
-    'zIndex' in style &&
-    !(Number.isInteger(zIndex) && Math.abs(zIndex as number) <= 2147483647)
-  ) {
-    fail('zIndex', 'an integer');
-  }
-  if ('fontFamily' in style && typeof style['fontFamily'] !== 'string') {
-    fail('fontFamily', 'a string');
-  }
-  if ('fontWeight' in style) {
-    const raw = style['fontWeight'];
-    const value =
-      typeof raw === 'number' || typeof raw === 'string'
-        ? fontWeight(raw)
-        : Number.NaN;
-    if (!(value >= 1 && value <= 1000)) {
-      fail('fontWeight', "a weight from 1 to 1000, 'normal' or 'bold'");
-    }
+    if (entry === null || entry === undefined) continue;
+    style[key] =
+      typeof entry === 'string' && CSS_PIXELS.test(entry)
+        ? Number.parseFloat(entry)
+        : entry;
   }
   return style as Style;
-}
-
-const BOX_SHADOW_KEYS = [
-  'offsetX',
-  'offsetY',
-  'blur',
-  'spread',
-  'color',
-  'inset',
-];
-
-/** `got` as the JUCE runtime's errors name it: strings quoted. */
-function gotText(value: unknown): string {
-  return typeof value === 'string' ? `'${value}'` : String(value);
-}
-
-/** Checks `boxShadow`'s entries with the JUCE runtime's errors. */
-function checkBoxShadow(shadows: readonly unknown[]): void {
-  shadows.forEach((entry, index) => {
-    const path = `style.boxShadow[${index}]`;
-    const fail = (at: string, value: unknown, expected: string): never => {
-      throw new TypeError(`${at}: expected ${expected}, got ${gotText(value)}`);
-    };
-    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
-      fail(path, entry, 'an object');
-    }
-    const shadow = entry as Record<string, unknown>;
-    for (const key of Object.keys(shadow)) {
-      if (!BOX_SHADOW_KEYS.includes(key))
-        throw new TypeError(`${path}: unsupported property ${key}`);
-    }
-    const present = (key: string): boolean =>
-      shadow[key] !== undefined && shadow[key] !== null;
-    for (const key of ['offsetX', 'offsetY', 'spread', 'blur']) {
-      if (!present(key)) continue;
-      const value = shadow[key];
-      const nonnegative = key === 'blur';
-      if (
-        typeof value !== 'number' ||
-        !Number.isFinite(value) ||
-        !Number.isFinite(Math.fround(value)) ||
-        (nonnegative && value < 0)
-      ) {
-        fail(
-          `${path}.${key}`,
-          value,
-          nonnegative ? 'a finite nonnegative number' : 'a finite number',
-        );
-      }
-    }
-    if (present('color') && !isColor(shadow['color']))
-      fail(`${path}.color`, shadow['color'], 'a CSS color');
-    if (present('inset') && typeof shadow['inset'] !== 'boolean')
-      fail(`${path}.inset`, shadow['inset'], 'a boolean');
-  });
 }
 
 /** `boxShadow` as CSS's `box-shadow`; undefined for none. */
@@ -407,21 +187,9 @@ export function boxShadowCss(
     .join(', ');
 }
 
-function isLength(value: unknown, allowAuto: boolean): boolean {
-  if (typeof value === 'number') return Number.isFinite(value);
-  if (typeof value !== 'string') return false;
-  if (allowAuto && value === 'auto') return true;
-  return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?%$/i.test(value);
-}
-
-function isColor(value: unknown): boolean {
-  if (typeof value !== 'string') return false;
-  return typeof CSS === 'undefined' || CSS.supports('color', value);
-}
-
 // ── CSS ──────────────────────────────────────────────────────────────────────
 
-/** The inline CSS of a node of `type` with `style` (read by readStyle). */
+/** The inline CSS of a node of `type` with `style` (one the engine accepted). */
 export function cssFor(style: Style, type: NodeType): Css {
   const css: Css = {};
   const set = (property: string, value: string | undefined): void => {
@@ -500,27 +268,6 @@ export function cssFor(style: Style, type: NodeType): Css {
     css['object-fit'] = RESIZE[style.resizeMode] ?? 'cover';
   }
   return css;
-}
-
-/** CSS's generic families, which the platform resolves (natively too). */
-const GENERIC_FAMILIES = new Set([
-  'serif',
-  'sans-serif',
-  'monospace',
-  'cursive',
-  'fantasy',
-  'system-ui',
-]);
-
-/**
- * A family name as CSS: one name, as natively, quoted unless it is generic
- * (so a name with digits or punctuation, 'Inter 18pt', still works).
- */
-export function fontFamilyCss(name: string): string {
-  const quoted = GENERIC_FAMILIES.has(name.toLowerCase())
-    ? name
-    : `"${name.replace(/["\\]/g, '\\$&')}"`;
-  return `${quoted}, system-ui, sans-serif`;
 }
 
 /** Text properties; only text and input nodes are set in text. */

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UiNode } from './node';
-import { UiView } from './view';
+import { UiNode } from '../../src/ui/node.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
 
 let view: UiView;
 afterEach(() => {
@@ -17,7 +17,7 @@ it('reads initial editor state and removes focus and visibility listeners on dis
   const visibility = vi
     .spyOn(document, 'visibilityState', 'get')
     .mockReturnValue('hidden');
-  view = new UiView(document);
+  view = new UiView({ document });
   expect(view.isFocused()).toBe(true);
   expect(view.isVisible()).toBe(false);
   const focused = vi.fn<(value: boolean) => void>();
@@ -55,7 +55,7 @@ function scrollView(view: UiView): UiNode {
  * Returns the nodes and a recorder of the events they see.
  */
 function setup() {
-  view = new UiView(document);
+  view = new UiView({ document });
   view.mount(document.body);
   const { root } = view;
   const panel = view.createNode('view');
@@ -1077,7 +1077,7 @@ describe('requestEditorSize', () => {
   });
 
   it("goes to its own view's host only", () => {
-    const other = new UiView(document);
+    const other = new UiView({ document });
     const mine: unknown[] = [];
     const theirs: unknown[] = [];
     view.setEditorRequester((size) => (mine.push(size), size));

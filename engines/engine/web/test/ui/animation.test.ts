@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it, vi } from 'vitest';
 
-import { AnimationController, transformCss } from './animation';
+import { AnimationController, transformCss } from '../../src/ui/animation.ts';
 
 class BrowserAnimation {
   playState: AnimationPlayState = 'running';
@@ -307,7 +307,7 @@ it('owns all parallel targets atomically, validates overlaps before cancellation
       expect(owner).toBe(controller);
       return other;
     },
-  } as unknown as import('./node').UiNode;
+  } as unknown as import('../../src/ui/node.ts').UiNode;
   const program = controller.createProgram(element, {
     kind: 'parallel',
     children: [

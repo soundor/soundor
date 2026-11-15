@@ -6,9 +6,9 @@
  * elements (an input, an image) keep their own semantics.
  */
 
-import type { NormalizedAccessibility } from './accessibility';
-import { UiNode } from './node';
-import type { AccessibilityRole } from './types';
+import type { NormalizedAccessibility } from './accessibility.ts';
+import { UiNode } from './node.ts';
+import type { AccessibilityRole } from './types.ts';
 
 /** The attributes this module owns on an element. */
 const OWNED = [

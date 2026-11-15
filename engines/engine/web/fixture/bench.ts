@@ -1,7 +1,7 @@
 // What the WebAssembly engine costs in a browser (`pnpm bench:wasm` runs it
 // in Chromium; open bench.html and call runBench() by hand elsewhere). Each
 // figure is the median of several runs, in milliseconds.
-import { Engine, type EngineNode } from '../src/index.ts';
+import { Engine, type UiNode } from '../src/index.ts';
 
 declare global {
   interface Window {
@@ -53,9 +53,9 @@ const words =
  * A plugin-sized UI: `rows` rows, each a label, a value and `cells` boxes:
  * rows × (cells + 4) nodes.
  */
-function build(engine: Engine, rows: number, cells: number): EngineNode[] {
+function build(engine: Engine, rows: number, cells: number): UiNode[] {
   engine.root.style = { padding: 8, gap: 4 };
-  const boxes: EngineNode[] = [];
+  const boxes: UiNode[] = [];
   for (let row = 0; row < rows; row++) {
     const line = engine.root.appendChild(
       engine.createView({
@@ -142,9 +142,9 @@ window.runBench = async (): Promise<Results> => {
       let start = performance.now();
       build(engine, rows, cells);
       build_.push(performance.now() - start);
-      engine.setSize(1024, 768);
+      engine.core.setSize(1024, 768);
       start = performance.now();
-      engine.flush();
+      engine.flushLayout();
       layout.push(performance.now() - start);
       counts.push(measured() - before);
       start = performance.now();
@@ -170,14 +170,14 @@ window.runBench = async (): Promise<Results> => {
     const engine = await Engine.create({ wasm: module });
     const boxes = build(engine, rows, cells);
     engine.mount(stage);
-    engine.flush();
+    engine.flushLayout();
     const texts = engine.root.children.map((row) => row.children[1]!);
     let width = 1024;
     const before = measured();
     results['update: resize, relayout + DOM'] = await time(40, () => {
       width = width === 1024 ? 700 : 1024;
-      engine.setSize(width, 768);
-      engine.flush();
+      engine.core.setSize(width, 768);
+      engine.flushLayout();
     });
     results['update: resize, measureText() calls per relayout'] =
       (measured() - before) / 40;
@@ -191,7 +191,7 @@ window.runBench = async (): Promise<Results> => {
           borderRadius: 2,
           backgroundColor: '#4f46e5',
         };
-      engine.flush();
+      engine.flushLayout();
     });
     let flip = false;
     results['update: one text, relayout + DOM'] = await time(40, () => {
@@ -199,10 +199,10 @@ window.runBench = async (): Promise<Results> => {
       texts[3]!.text = flip
         ? 'a longer value that will wrap onto a second line'
         : 'short';
-      engine.flush();
+      engine.flushLayout();
     });
     results['update: no change (flush)'] = await time(200, () =>
-      engine.flush(),
+      engine.flushLayout(),
     );
     // A batch that changes nothing (a box given the style it has): one call
     // into the module and back, with the scan of every node for changes.
@@ -210,7 +210,7 @@ window.runBench = async (): Promise<Results> => {
     results['boundary: one call, nothing changed (1201 nodes scanned)'] =
       await time(200, () => {
         boxes[0]!.style = same;
-        engine.flush();
+        engine.flushLayout();
       });
     engine.dispose();
   }
@@ -240,8 +240,8 @@ window.runBench = async (): Promise<Results> => {
     const calls = measured();
     results['text: rewrap a 60-word paragraph'] = await time(60, () => {
       paragraphWidth = paragraphWidth === 300 ? 301 : 300;
-      engine.setSize(paragraphWidth, 600);
-      engine.flush();
+      engine.core.setSize(paragraphWidth, 600);
+      engine.flushLayout();
     });
     results['text: measureText() calls per rewrap'] = (measured() - calls) / 60;
     void paragraph;
