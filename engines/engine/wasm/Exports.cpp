@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <memory>
 #include <new>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -68,6 +69,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::wasm
                     font.measured = true;
                 }
                 return font.metrics;
+            }
+
+            // The page's fonts changed (a web font loaded): every width is
+            // measured again. The browser registers fonts itself.
+            std::optional<std::string> addFont(std::string_view, std::string_view, int, ui::FontStyle) override
+            {
+                fonts.clear();
+                return std::nullopt;
             }
 
         private:
