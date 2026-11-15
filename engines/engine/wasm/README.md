@@ -108,7 +108,7 @@ and removes the elements and the observer.
 From `engines/engine`:
 
 ```sh
-source <emsdk>/emsdk_env.sh        # Emscripten (tested with 7.0.0); not needed otherwise
+source <emsdk>/emsdk_env.sh        # Emscripten 7.0.0, as CI pins it; not needed otherwise
 pnpm build:wasm                    # cmake --workflow --preset wasm → build/wasm/web/soundor-core.wasm
 pnpm test:wasm                     # the module in Node: API, lifecycle, errors, layout corpus parity
 pnpm test:browser                  # the DOM adapter in Chromium (Playwright)
@@ -128,7 +128,7 @@ Linux x86-64, in this cell (`pnpm bench:wasm`; medians in ms, localhost):
 
 | What                                             |                                    |
 | ------------------------------------------------ | ---------------------------------- |
-| `soundor-core.wasm`                              | 341 KB, 140 KB gzip, 114 KB brotli |
+| `soundor-core.wasm`                              | 339 KB, 139 KB gzip, 113 KB brotli |
 | … built `-Os` (MinSizeRel)                       | 293 KB, 129 KB gzip, 106 KB brotli |
 | `@soundor/engine/web`, minified                  | 17.8 KB, 5.7 KB gzip               |
 | Module fetch + compile                           | 2.3                                |
@@ -164,5 +164,7 @@ reuse the cache.
   kerning was explicit. Other browsers were not tried.
 - Every engine is its own module instance and memory (about 1 MB to start),
   which keeps engines independent at a memory cost.
-- Not in CI, and not released. Building the module needs an Emscripten
-  install; no job runs `build:wasm` or these suites yet.
+- Not released. CI's `Engine (WebAssembly)` job (`.github/workflows/verify.yml`)
+  builds the module with the pinned Emscripten and runs `test:wasm` and
+  `test:browser` whenever `@soundor/engine` is affected; the benchmarks are
+  not a check.

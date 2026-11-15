@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -30,13 +31,21 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
             }
 
         private:
+            // StyleSource::fail() throws; a virtual call's [[noreturn]] is
+            // not one every compiler relies on, so this one is sure to.
+            [[noreturn]] void fail(std::string_view key, std::string_view expected)
+            {
+                source.fail(key, expected);
+                throw std::logic_error("StyleSource::fail() returned");
+            }
+
             std::optional<float> number(const char* key)
             {
                 const StyleValue value = source.get(key);
                 if (! value.present())
                     return std::nullopt;
                 if (value.kind != StyleValue::Kind::Number || ! std::isfinite(value.number))
-                    source.fail(key, "a finite number");
+                    fail(key, "a finite number");
                 return static_cast<float>(value.number);
             }
 
@@ -50,7 +59,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 if (value.kind == StyleValue::Kind::Number)
                 {
                     if (! std::isfinite(value.number))
-                        source.fail(key, expected);
+                        fail(key, expected);
                     return Length::points(static_cast<float>(value.number));
                 }
                 if (value.kind == StyleValue::Kind::String)
@@ -72,7 +81,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                         }
                     }
                 }
-                source.fail(key, expected);
+                fail(key, expected);
             }
 
             template <typename Enum, std::size_t Count>
@@ -88,7 +97,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 std::string expected = "one of ";
                 for (std::size_t i = 0; i < Count; ++i)
                     expected += (i == 0 ? "'" : ", '") + std::string(names[i]) + "'";
-                source.fail(key, expected);
+                fail(key, expected);
             }
 
             std::optional<Color> color(const char* key)
@@ -99,7 +108,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 if (value.kind == StyleValue::Kind::String)
                     if (const std::optional<Color> parsed = parseColor(value.text))
                         return parsed;
-                source.fail(key, "a CSS color");
+                fail(key, "a CSS color");
             }
 
             template <typename T>
@@ -153,7 +162,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                     const bool isNumber = zIndex.kind == StyleValue::Kind::Number;
                     const double value = isNumber ? zIndex.number : 0.5;
                     if (! isNumber || std::trunc(value) != value || std::abs(value) > 2147483647.0)
-                        source.fail("zIndex", "an integer");
+                        fail("zIndex", "an integer");
                     out.zIndex = static_cast<int>(value);
                 }
 
@@ -250,7 +259,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 if (const StyleValue family = source.get("fontFamily"); family.present())
                 {
                     if (family.kind != StyleValue::Kind::String)
-                        source.fail("fontFamily", "a string");
+                        fail("fontFamily", "a string");
                     out.fontFamily = family.text;
                 }
                 if (const auto size = number("fontSize"); size && *size > 0)
@@ -265,7 +274,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                                 : weight.text == "bold" ? 700
                                                         : std::atof(weight.text.c_str());
                     if (value < 1 || value > 1000)
-                        source.fail("fontWeight", "a weight from 1 to 1000, 'normal' or 'bold'");
+                        fail("fontWeight", "a weight from 1 to 1000, 'normal' or 'bold'");
                     out.fontWeight = static_cast<int>(value);
                 }
                 assign(out.fontStyle, choice<FontStyle>("fontStyle", fontStyles));
