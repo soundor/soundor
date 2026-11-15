@@ -1737,7 +1737,7 @@ The sanitizer preset builds the engine from source and instruments the JUCE
 adapters, JUCE modules, generated persistent-state fixtures and test
 executables with ASan and UBSan. Leak detection is enabled at process exit.
 It runs the parameter, platform, persistent-state and DevTools suites; the
-plugin build and resize checks run in the other jobs. Hermes, ANGLE and AccessKit remain
+plugin build and resize checks run in the other jobs. Hermes and ANGLE remain
 cached, uninstrumented dependencies; Skia uses its ASan variant.
 Linux needs Clang's sanitizer runtime (`libclang-rt-18-dev` for Clang 18).
 
@@ -1809,7 +1809,7 @@ soundor-engine.json      what the archive is: version, ABI namespace, source com
 lib/                     the engine, ada, Yoga
 hermes/                  the variant's Hermes libraries, its headers (JSI), bin/hermesc
 skia/  angle/            their static libraries; ANGLE's headers
-accesskit/              Windows only: static library and headers
+accesskit/              legacy Android only; absent from desktop archives
 include/soundor/Abi.h    the generated ABI header, for reference
 licenses/                the notices of everything linked (licenses/README.md here)
 ```
@@ -1954,11 +1954,11 @@ need no engine artifact build.
 ### Licenses
 
 Every archive carries `licenses/`: the notices that ship with each linked
-dependency (Skia, Hermes, ANGLE per third-party library, AccessKit), plus those
+dependency (Skia, Hermes and ANGLE per third-party library), plus those
 in this package's `licenses/` for what they leave out: Skia's image libraries,
 Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada, Yoga, the
-Windows Rust crates and standard library in AccessKit
-(`node .github/scripts/accesskit-notices.mjs` regenerates those). Staging fails
+legacy AccessKit Rust crates and standard library (retained temporarily for
+the separate removal change, excluded from desktop archives). Staging fails
 when a linked component has no notice. JUCE is never part of an archive.
 Distributing a plugin means distributing these notices with it. Linux uses
 the dynamically linked system GIO/GLib libraries (LGPL-2.1-or-later); they

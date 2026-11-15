@@ -1,6 +1,7 @@
 # AccessKit (accesskit-c) as the private imported target `soundor_accesskit`:
-# what presents Soundor's semantic tree to Windows (UI Automation).
-# Linux and Apple platforms have Soundor-owned native adapters.
+# Legacy infrastructure retained until the separate AccessKit removal change.
+# Desktop platforms use Soundor-owned native adapters; Windows never acquires
+# or links this library.
 #
 # The library is the official prebuilt one, from the accesskit-c release
 # archive (pinned, SHA-256 verified): building it needs Rust, which Soundor
