@@ -118,7 +118,8 @@ Soundor derives a semantic tree from node accessibility properties, including
 roles, labels, values, modal visibility, and logical ownership through portals.
 That tree drives native platform bridges and the web runtime's ARIA attributes.
 
-Windows and Linux use AccessKit; macOS uses Soundor's Apple bridge. The engine
+Windows uses native UI Automation, Linux uses native AT-SPI over GDBus, and
+macOS uses Soundor's Apple bridge. The engine
 also contains an iOS bridge, but Soundor has no iOS plugin build yet. JUCE
 supplies the native view and attachment point. It does not define Soundor's
 control semantics.

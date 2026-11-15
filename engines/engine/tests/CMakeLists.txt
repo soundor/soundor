@@ -176,6 +176,10 @@ if(SOUNDOR_JS_SOURCE)
     target_link_libraries(soundor_runtime_tests PRIVATE soundor_angle)
   endif()
 
+  if(WIN32)
+    target_sources(soundor_runtime_tests PRIVATE a11y/WindowsTests.cpp)
+  endif()
+
   if(SOUNDOR_HAS_ACCESSKIT)
     target_sources(soundor_runtime_tests PRIVATE a11y/AccessKitTests.cpp)
     target_link_libraries(soundor_runtime_tests PRIVATE soundor_accesskit)
@@ -387,6 +391,7 @@ foreach(plugin a:red b:blue)
   const { root, createView } = require('soundor:ui');
   let count = 0;
   const box = createView({ width: 64, height: 64, backgroundColor: '${color}' });
+  box.accessibility = { role: 'button', label: '${color}' };
   box.addEventListener('click', () => { count += 1; console.log('count=' + count); });
   root.appendChild(box);
 });
@@ -418,6 +423,9 @@ endforeach()
 add_executable(soundor_coexistence_host coexistence/Host.cpp)
 target_compile_features(soundor_coexistence_host PRIVATE cxx_std_20)
 target_link_libraries(soundor_coexistence_host PRIVATE ${CMAKE_DL_LIBS})
+if(WIN32)
+  target_link_libraries(soundor_coexistence_host PRIVATE oleaut32)
+endif()
 if(SOUNDOR_ENABLE_SANITIZERS)
   target_compile_definitions(soundor_coexistence_host PRIVATE SOUNDOR_COEXIST_KEEP_LOADED=1)
 endif()

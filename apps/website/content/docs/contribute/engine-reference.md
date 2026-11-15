@@ -1141,7 +1141,7 @@ its headers.
 
 Soundor owns its accessibility semantics: what a screen reader perceives of
 the view is decided here, from the node tree, not by JUCE or any other plugin
-framework. A platform adapter (Linux AT-SPI, Windows AccessKit, or an Apple bridge) only translates
+framework. A platform adapter (Linux AT-SPI, Windows UIA, or an Apple bridge) only translates
 the result.
 
 ```ts
@@ -1217,7 +1217,7 @@ would pass its own view the same way. Call `tick(host)` after every
 | Platform | Backend                             | State                                                                         |
 | -------- | ----------------------------------- | ----------------------------------------------------------------------------- |
 | Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                                      |
-| Windows  | AccessKit (UI Automation)           | built in                                                                      |
+| Windows  | Native UI Automation                | built in                                                                      |
 | Linux    | Native AT-SPI over GDBus            | system shared GIO; x64 and source builds on arm64                             |
 | Android  | AccessKit                           | not attached: Soundor has no Android view to attach to yet                    |
 | macOS    | Native NSAccessibility              | implemented; attached by the JUCE editor                                      |
@@ -1228,32 +1228,14 @@ AT-SPI adapter with an editor-owned GMainContext and private GDBus connections.
 It answers from a mirror of this same semantic tree and queues actions for
 `tick()`; it never reaches UI objects from bus callbacks.
 
-The Windows AccessKit adapter (`src/a11y/accesskit/`, the only code that includes
-`accesskit.h`) works like this:
-
-- **Lazily:** nothing is computed until assistive technology asks. The
-  activation callback only raises a flag, and the next tick sends the whole
-  tree. After that, each tick sends just the changed elements, or nothing.
-- **Mapping:** roles, states, ranges and actions are mapped in
-  `Mapping.cpp`. Standard actions become AccessKit's (click, increment,
-  decrement, focus, blur, set value, expand, collapse). `longpress` and
-  custom actions are AccessKit custom actions, identified by their place
-  among the element's actions. Bounds stay logical pixels; the root's
-  transform places and scales them in the native view.
-- **Threads:** the platform's requests may come on any thread. They are
-  copied into a queue and performed by `tick()` on the UI thread, through
-  `RuntimeHost::performAccessibilityAction()`, against the tree the platform
-  was shown. Requests from before a reload are dropped.
-- **Lifetimes:** callbacks carry a token, not a pointer. They find their
-  adapter in a registry of weak references, so a late callback does
-  nothing. Once AccessKit has started code the platform may call later (UI
-  Automation providers a screen reader holds), the plugin
-  binary is pinned in memory: unloading it then would crash the host.
-- **Windows:** `accesskit_windows_adapter` answers `WM_GETOBJECT` through a
-  subclass of the one HWND (`SetWindowSubclass`), removed with the adapter.
-  No window class is changed. AccessKit's subclassing adapter is not used: it
-  must exist before the window is first shown, which a plugin cannot
-  guarantee, and it panics (aborting the host) otherwise.
+Windows uses [`src/a11y/windows/`](/docs/contribute/windows-accessibility), a
+native C++ UI Automation provider. Each HWND has its own semantic snapshot,
+stable COM identities, runtime IDs and action queue. Queries from any thread
+read plain semantic data; actions are delivered by `tick()` on the UI thread.
+Only the editor HWND is subclassed for `WM_GETOBJECT`. Shutdown invalidates and
+disconnects only that editor's providers, without owning the host's COM apartment
+or accessibility resources. Retained providers are unavailable after closing;
+the module stays mapped once COM objects are exposed, as a vtable safeguard.
 
 The macOS bridge (`src/a11y/apple/`) is Soundor's own: virtual
 `NSAccessibilityElement`s, one runtime-created element class per binary
@@ -1357,7 +1339,7 @@ lowers its modules for the native GPU tests without downloading another copy.
 | Yoga        | v3.2.1 (`042f501`)      | MIT              | flexbox layout (shipped)                                        |
 | Skia        | m144 (`ed427fd`)        | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
 | ANGLE       | M151 (`7e08726`)        | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
-| accesskit-c | 0.23.1                  | MIT / Apache-2.0 | Windows accessibility (shipped; official prebuilt)              |
+| accesskit-c | 0.23.1                  | MIT / Apache-2.0 | Legacy Android acquisition; pending removal                     |
 | doctest     | v2.5.3 (`2d0a935`)      | MIT              | test framework (tests only)                                     |
 | three       | workspace catalog (npm) | MIT              | WebGL compatibility tests (tests only)                          |
 
@@ -1620,33 +1602,14 @@ compositor and WebGL (see "The GPU").
   BSD for the rest). The install's `licenses/` directory has their notices;
   ship them with the plugin.
 
-### AccessKit
+### Accessibility dependencies
 
-[AccessKit](https://github.com/AccessKit/accesskit-c) presents the semantic
-tree to UI Automation on Windows. Linux has a native C++ AT-SPI adapter.
-AccessKit is written in Rust,
-so Soundor uses the official prebuilt static libraries from the pinned
-`accesskit-c` release archive rather than asking every plugin developer for
-a Rust toolchain:
-
-- **The download:** `cmake/SoundorAccessKit.cmake` downloads the archive once
-  per machine into the cache directory (`SOUNDOR_CACHE`), checks its SHA-256,
-  and keeps the header and this platform's static library. Set
-  `SOUNDOR_ACCESSKIT_DIR` to an extracted release to use your own build.
-- **Platforms:** Soundor acquires the Windows x64 and arm64 (MSVC) libraries.
-  Android acquisition remains available for a future runtime. Linux never
-  acquires or links AccessKit; `SOUNDOR_ACCESSKIT=OFF` only disables the
-  Windows backend. macOS and iOS retain their own native bridges.
-- **One build for all configurations:** the library is a release build
-  (LTO, `panic = "abort"`) against the dynamic C runtime. It only exchanges
-  C data with Soundor, and Rust allocates through the system allocator, so
-  Debug (`/MDd`) builds link it too.
-- **Hiding symbols:** the archive's symbols have default visibility. The
-  imported target passes `--exclude-libs` for it on ELF platforms, so none
-  of them is exported. The symbol test links it into the probe plugin.
-- **Licenses:** a plugin binary contains AccessKit, under MIT or Apache-2.0,
-  and code derived from Chromium (BSD-3-Clause, `LICENSE.chromium` in the
-  archive). Ship their notices with the plugin.
+Windows uses native UI Automation system libraries (`uiautomationcore`, `ole32`,
+`oleaut32`, `user32` and `comctl32`), propagated for source builds and prebuilt
+imports through `SoundorPlatformLibraries.cmake`. Linux uses system GIO and
+Apple platforms use their native bridges. Windows no longer acquires or links
+AccessKit. Its unused source, Android acquisition and packaging infrastructure
+remain pending a separate removal change.
 
 ## Symbol isolation
 
@@ -1774,7 +1737,7 @@ The sanitizer preset builds the engine from source and instruments the JUCE
 adapters, JUCE modules, generated persistent-state fixtures and test
 executables with ASan and UBSan. Leak detection is enabled at process exit.
 It runs the parameter, platform, persistent-state and DevTools suites; the
-plugin build and resize checks run in the other jobs. Hermes, ANGLE and AccessKit remain
+plugin build and resize checks run in the other jobs. Hermes and ANGLE remain
 cached, uninstrumented dependencies; Skia uses its ASan variant.
 Linux needs Clang's sanitizer runtime (`libclang-rt-18-dev` for Clang 18).
 
@@ -1846,7 +1809,7 @@ soundor-engine.json      what the archive is: version, ABI namespace, source com
 lib/                     the engine, ada, Yoga
 hermes/                  the variant's Hermes libraries, its headers (JSI), bin/hermesc
 skia/  angle/            their static libraries; ANGLE's headers
-accesskit/              Windows only: static library and headers
+accesskit/              legacy Android only; absent from desktop archives
 include/soundor/Abi.h    the generated ABI header, for reference
 licenses/                the notices of everything linked (licenses/README.md here)
 ```
@@ -1991,11 +1954,11 @@ need no engine artifact build.
 ### Licenses
 
 Every archive carries `licenses/`: the notices that ship with each linked
-dependency (Skia, Hermes, ANGLE per third-party library, AccessKit), plus those
+dependency (Skia, Hermes and ANGLE per third-party library), plus those
 in this package's `licenses/` for what they leave out: Skia's image libraries,
 Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada, Yoga, the
-Windows Rust crates and standard library in AccessKit
-(`node .github/scripts/accesskit-notices.mjs` regenerates those). Staging fails
+legacy AccessKit Rust crates and standard library (retained temporarily for
+the separate removal change, excluded from desktop archives). Staging fails
 when a linked component has no notice. JUCE is never part of an archive.
 Distributing a plugin means distributing these notices with it. Linux uses
 the dynamically linked system GIO/GLib libraries (LGPL-2.1-or-later); they

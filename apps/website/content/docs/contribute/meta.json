@@ -23,6 +23,7 @@
     "benchmark",
     "---Accessibility---",
     "linux-accessibility",
+    "windows-accessibility",
     "apple-accessibility",
     "ios-accessibility",
     "---Toolchain---",

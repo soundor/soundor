@@ -12,7 +12,15 @@
 #include <string>
 
 #if defined(_WIN32)
+    #define NOMINMAX
+    #define WIN32_LEAN_AND_MEAN
+    // UIA's SDK headers require Windows and COM declarations before inclusion.
+    // clang-format off
     #include <windows.h>
+    #include <ole2.h>
+    #include <UIAutomation.h>
+    // clang-format on
+    #include <wrl/client.h>
 #else
     #include <dlfcn.h>
 #endif
@@ -41,9 +49,15 @@ namespace
             pixel = reinterpret_cast<std::uint32_t (*)(void*)>(symbol("soundor_coexist_pixel"));
             gpuPixel = reinterpret_cast<std::uint32_t (*)(void*)>(symbol("soundor_coexist_gpu_pixel"));
             destroy = reinterpret_cast<void (*)(void*)>(symbol("soundor_coexist_destroy"));
+#if defined(_WIN32)
+            accessibility =
+                reinterpret_cast<IRawElementProviderSimple* (*)(void*)>(symbol("soundor_coexist_accessibility"));
+#endif
         }
 
-        ~Plugin()
+        ~Plugin() { unload(); }
+
+        void unload()
         {
             if (library == nullptr)
                 return;
@@ -52,6 +66,7 @@ namespace
 #else
             dlclose(library);
 #endif
+            library = nullptr;
         }
 
         Plugin(const Plugin&) = delete;
@@ -74,6 +89,9 @@ namespace
         std::uint32_t (*pixel)(void*) = nullptr;
         std::uint32_t (*gpuPixel)(void*) = nullptr;
         void (*destroy)(void*) = nullptr;
+#if defined(_WIN32)
+        IRawElementProviderSimple* (*accessibility)(void*) = nullptr;
+#endif
     };
 
     int failures = 0;
@@ -154,7 +172,102 @@ namespace
         expect(b.click(b1) == 2, "B1 counted its own clicks" + at);
         expect(a.click(a2) == 2, "A2 counted its own clicks" + at);
 
+#if defined(_WIN32)
+        using Microsoft::WRL::ComPtr;
+        expect(a.accessibility != nullptr && b.accessibility != nullptr, "both plugins expose UIA providers" + at);
+        ComPtr<IRawElementProviderSimple> providerA;
+        ComPtr<IRawElementProviderSimple> providerA2;
+        ComPtr<IRawElementProviderSimple> providerB;
+        if (a.accessibility != nullptr && b.accessibility != nullptr)
+        {
+            providerA.Attach(a.accessibility(a1));
+            providerA2.Attach(a.accessibility(a2));
+            providerB.Attach(b.accessibility(b1));
+            expect(providerA && providerA2 && providerB && providerA.Get() != providerA2.Get()
+                       && providerA.Get() != providerB.Get(),
+                   "independent COM identities within and across plugins" + at);
+            ComPtr<IRawElementProviderSimple> again;
+            again.Attach(a.accessibility(a1));
+            expect(again.Get() == providerA.Get(), "stable editor provider identity" + at);
+        }
+#endif
+#if defined(_WIN32)
+        const auto childOf = [](IRawElementProviderSimple* provider)
+        {
+            ComPtr<IRawElementProviderFragment> rootFragment;
+            ComPtr<IRawElementProviderFragment> child;
+            ComPtr<IRawElementProviderSimple> result;
+            if (provider != nullptr && SUCCEEDED(provider->QueryInterface(IID_PPV_ARGS(&rootFragment)))
+                && SUCCEEDED(rootFragment->Navigate(NavigateDirection_FirstChild, &child)) && child != nullptr)
+                child.As(&result);
+            return result;
+        };
+        auto childA = childOf(providerA.Get());
+        auto childA2 = childOf(providerA2.Get());
+        auto childB = childOf(providerB.Get());
+        expect(childA && childA2 && childB, "all plugin editors have semantic children" + at);
+        const auto named = [](IRawElementProviderSimple* provider, const wchar_t* name)
+        {
+            VARIANT value {};
+            VariantInit(&value);
+            const bool matches =
+                provider != nullptr && SUCCEEDED(provider->GetPropertyValue(UIA_NamePropertyId, &value))
+                && value.vt == VT_BSTR && std::wstring(value.bstrVal, SysStringLen(value.bstrVal)) == name;
+            VariantClear(&value);
+            return matches;
+        };
+        expect(named(childA.Get(), L"red") && named(childA2.Get(), L"red") && named(childB.Get(), L"blue"),
+               "each module exposes its own semantic tree" + at);
+        const auto idsDiffer = [](IRawElementProviderSimple* left, IRawElementProviderSimple* right)
+        {
+            if (left == nullptr || right == nullptr)
+                return false;
+            ComPtr<IRawElementProviderFragment> lf;
+            ComPtr<IRawElementProviderFragment> rf;
+            if (FAILED(left->QueryInterface(IID_PPV_ARGS(&lf))) || FAILED(right->QueryInterface(IID_PPV_ARGS(&rf))))
+                return false;
+            SAFEARRAY* lid = nullptr;
+            SAFEARRAY* rid = nullptr;
+            lf->GetRuntimeId(&lid);
+            rf->GetRuntimeId(&rid);
+            bool different = false;
+            if (lid != nullptr && rid != nullptr)
+                for (LONG i = 1; i <= 4; ++i)
+                {
+                    int l = 0;
+                    int r = 0;
+                    SafeArrayGetElement(lid, &i, &l);
+                    SafeArrayGetElement(rid, &i, &r);
+                    different = different || l != r;
+                }
+            if (lid != nullptr)
+                SafeArrayDestroy(lid);
+            if (rid != nullptr)
+                SafeArrayDestroy(rid);
+            return different;
+        };
+        expect(idsDiffer(childA.Get(), childA2.Get()) && idsDiffer(childA.Get(), childB.Get()),
+               "runtime IDs are disjoint within and across plugin modules" + at);
+#endif
         a.destroy(a1);
+#if defined(_WIN32)
+        if (providerA && providerA2 && providerB)
+        {
+            VARIANT value {};
+            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
+                   "retained provider is disconnected after destroying its editor" + at);
+            VariantClear(&value);
+            expect(named(childA2.Get(), L"red") && named(childB.Get(), L"blue"),
+                   "other editors keep their semantic trees after A1 closes" + at);
+            expect(providerA2->GetPropertyValue(UIA_NamePropertyId, &value) == S_OK,
+                   "second instance survives first editor destruction" + at);
+            VariantClear(&value);
+            expect(providerB->GetPropertyValue(UIA_NamePropertyId, &value) == S_OK,
+                   "other plugin's provider survives editor destruction" + at);
+            VariantClear(&value);
+        }
+#endif
         void* b2 = b.create();
         expect(b2 != nullptr && b.click(b2) == 1, "a new B instance starts fresh" + at);
         expect(a.click(a2) == 3 && a.pixel(a2) == red, "A2 outlives A1" + at);
@@ -164,6 +277,26 @@ namespace
                    "GPU devices outlive another instance's" + at);
         b.destroy(b1);
         a.destroy(a2);
+#if defined(_WIN32)
+        a.unload();
+        if (providerA && providerB)
+        {
+            VARIANT value {};
+            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
+                   "stale COM reference is safe after host releases plugin library" + at);
+            VariantClear(&value);
+            expect(providerB->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
+                   "destroyed B editor is unavailable" + at);
+            VariantClear(&value);
+            ComPtr<IRawElementProviderSimple> surviving;
+            surviving.Attach(b.accessibility(b2));
+            expect(surviving->GetPropertyValue(UIA_NamePropertyId, &value) == S_OK,
+                   "B provider survives host releasing A's library" + at);
+            VariantClear(&value);
+        }
+#endif
         b.destroy(b2);
     }
 } // namespace

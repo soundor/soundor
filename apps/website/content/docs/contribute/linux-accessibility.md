@@ -10,7 +10,7 @@ that information through the operating system's accessibility APIs:
 | -------- | ---------------------------- |
 | macOS    | Native NSAccessibility       |
 | Linux    | Native C++ AT-SPI over GDBus |
-| Windows  | AccessKit / UI Automation    |
+| Windows  | Native UI Automation         |
 
 Linux's implementation is in `engines/engine/src/a11y/linux/`. It implements
 the [official AT-SPI D-Bus interfaces](https://gnome.pages.gitlab.gnome.org/at-spi2-core/devel-docs/xml-interfaces.html)
@@ -90,9 +90,8 @@ Previously Linux linked AccessKit's Rust static archive. A Rust audio processor
 could introduce another independently compiled Rust static library and duplicate
 Rust runtime symbols, including rust_eh_personality. Native C++ AT-SPI over the
 dynamically linked system GIO keeps accessibility in the prebuilt C++ engine
-and removes that AccessKit Rust archive from Linux plugin linkage. **Windows
-continues using AccessKit** until a separate native migration; its sources,
-artifacts and license notices remain.
+and removes that AccessKit Rust archive from Linux plugin linkage. Windows also uses [native UI Automation](/docs/contribute/windows-accessibility).
+Unused AccessKit infrastructure remains pending its separate removal.
 
 ## Verification
 
@@ -100,8 +99,7 @@ Native adapter/protocol tests run against private local D-Bus daemons with an
 in-process registry fixture. They cover semantic mappings, serialization,
 actions, focus-only and incremental updates, modal relationships, Unicode text,
 independent editors, cancellation during authentication, unavailable services,
-registry restarts and bus reconnection. Existing semantic and Windows AccessKit
-tests remain in place.
+registry restarts and bus reconnection. Existing semantic tests remain in place; Windows has focused native UIA tests.
 
 The JUCE runtime's `test:rust-link` builds a real Linux VST3 with an independent
 Rust processor static library and a prebuilt C++ engine. It checks the actual

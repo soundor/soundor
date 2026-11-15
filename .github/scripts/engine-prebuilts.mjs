@@ -153,10 +153,12 @@ export function checkStage(stage, expected) {
       `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`,
     );
   const link = metadata.link ?? {};
-  if (metadata.target?.os === 'linux') {
+  if (['linux', 'windows'].includes(metadata.target?.os)) {
     expect('features.accessKit', metadata.features?.accessKit, false);
     if (link.accessKit?.length)
-      problems.push('Linux prebuilts must not link an AccessKit archive');
+      problems.push(
+        'Native accessibility prebuilts must not link an AccessKit archive',
+      );
   }
 
   for (const group of ['engine', 'hermes', 'skia', 'angle', 'accessKit'])

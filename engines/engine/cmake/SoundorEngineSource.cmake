@@ -82,6 +82,9 @@ if(APPLE)
     list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/apple/MacPlatform.mm)
   endif()
 endif()
+if(WIN32)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp)
+endif()
 if(SOUNDOR_HAS_ACCESSKIT)
   list(APPEND SOUNDOR_RUNTIME_SOURCES
     src/a11y/accesskit/AccessKitPlatform.cpp

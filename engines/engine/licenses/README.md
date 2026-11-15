@@ -28,4 +28,6 @@ staging step fails when a linked component has none.
 
 Linux accessibility links the system's shared GIO/GLib libraries (LGPL-2.1-or-later),
 not AccessKit. They are not copied into prebuilt archives. See `NOTICE.md` for
-system-library distribution requirements; Windows AccessKit and Rust notices remain.
+system-library distribution requirements. Windows uses native UI Automation system
+libraries. The legacy AccessKit and Rust notice files remain pending a separate
+removal change; desktop engine archives no longer include them.

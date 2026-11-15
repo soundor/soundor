@@ -1,6 +1,7 @@
 # AccessKit (accesskit-c) as the private imported target `soundor_accesskit`:
-# what presents Soundor's semantic tree to Windows (UI Automation).
-# Linux and Apple platforms have Soundor-owned native adapters.
+# Legacy infrastructure retained until the separate AccessKit removal change.
+# Desktop platforms use Soundor-owned native adapters; Windows never acquires
+# or links this library.
 #
 # The library is the official prebuilt one, from the accesskit-c release
 # archive (pinned, SHA-256 verified): building it needs Rust, which Soundor
@@ -29,7 +30,7 @@ set(SOUNDOR_ACCESSKIT_DIR "" CACHE PATH "An extracted accesskit-c release; empty
 set(SOUNDOR_HAS_ACCESSKIT OFF)
 set(soundor_accesskit_platform "")
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" soundor_accesskit_cpu)
-if(SOUNDOR_ACCESSKIT AND NOT APPLE)
+if(SOUNDOR_ACCESSKIT AND NOT APPLE AND NOT WIN32)
   if(WIN32 AND MSVC)
     if(CMAKE_VS_PLATFORM_NAME)
       string(TOLOWER "${CMAKE_VS_PLATFORM_NAME}" soundor_accesskit_cpu)
@@ -102,6 +103,6 @@ if(soundor_accesskit_platform)
   target_include_directories(soundor_accesskit SYSTEM INTERFACE "${SOUNDOR_ACCESSKIT_DIR}/include")
   target_link_libraries(soundor_accesskit INTERFACE ${SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES})
   set(SOUNDOR_HAS_ACCESSKIT ON)
-elseif(SOUNDOR_ACCESSKIT AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+elseif(SOUNDOR_ACCESSKIT AND NOT APPLE AND NOT WIN32 AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   message(STATUS "No prebuilt AccessKit for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}: building without platform accessibility")
 endif()
