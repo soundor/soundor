@@ -4,7 +4,8 @@ name: Engine
 # artifacts on every target. Only the isolated main signing job can attest
 # dependency snapshots; no job creates or publishes releases. With `suites`
 # (Verify, when the engine is affected), also the engine's own suites: static
-# analysis and tests on Clang, and the GCC, sanitizer and no-GPU builds.
+# analysis and tests on Clang, the GCC, sanitizer and no-GPU builds, and the
+# WebAssembly core with its browser tests.
 #
 # The engine's own checks only. A package that uses the engine tests itself
 # against these artifacts in its own workflow (juce.yml), which waits for all
@@ -285,6 +286,74 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+  # The WebAssembly core (wasm/README.md): the module built with a pinned
+  # Emscripten, its Node suites, and its DOM adapter in Chromium. The core's
+  # own sources only: no native engine, no other package built.
+  wasm:
+    name: wasm
+    if: inputs.suites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # The version local validation used, and emsdk's tag of it by commit.
+      # Not EMSDK_*: emsdk_env.sh clears those.
+      SOUNDOR_EMSDK_VERSION: 7.0.0
+      SOUNDOR_EMSDK_COMMIT: 1693ce7359fc9694f198694f902a2cc061239b86
+      EMSDK: ${{ github.workspace }}/../emsdk
+      EMSDK_QUIET: '1'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      # The SDK emsdk installs for this exact version: what the cache holds is
+      # what a fresh install would be.
+      - name: Cache Emscripten
+        id: emsdk-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.EMSDK }}
+          key: emsdk-${{ runner.os }}-${{ env.SOUNDOR_EMSDK_VERSION }}-${{ env.SOUNDOR_EMSDK_COMMIT }}
+
+      - name: Install Emscripten
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git init -q "$EMSDK"
+          git -C "$EMSDK" fetch -q --depth 1 https://github.com/emscripten-core/emsdk.git "$SOUNDOR_EMSDK_COMMIT"
+          git -C "$EMSDK" checkout -q FETCH_HEAD
+          "$EMSDK/emsdk" install "$SOUNDOR_EMSDK_VERSION"
+          "$EMSDK/emsdk" activate "$SOUNDOR_EMSDK_VERSION"
+
+      - name: Build the WebAssembly core
+        working-directory: engines/engine
+        run: |
+          source "$EMSDK/emsdk_env.sh"
+          test "$(emcc -dumpversion)" = "$SOUNDOR_EMSDK_VERSION"
+          pnpm build:wasm
+
+      - name: WebAssembly tests
+        working-directory: engines/engine
+        run: pnpm test:wasm
+
+      # Playwright's Chromium for the locked version; its system libraries
+      # always from apt.
+      - name: Cache Playwright's Chromium
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright's Chromium
+        run: pnpm --filter @soundor/engine exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        working-directory: engines/engine
+        run: pnpm test:browser
 
   clang:
     name: linux-clang

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Soundor engine (WebAssembly) fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px system-ui,
+          sans-serif;
+        background: #f3f4f6;
+      }
+      #controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 12px;
+      }
+      #stage {
+        /* The engine fills it; drag its corner to resize it. */
+        width: 640px;
+        height: 400px;
+        margin: 0 12px;
+        resize: both;
+        overflow: hidden;
+        background: white;
+        border: 1px solid #9ca3af;
+      }
+      #status {
+        padding: 12px;
+        font-family: ui-monospace, monospace;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls"></div>
+    <div id="stage"></div>
+    <div id="status"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

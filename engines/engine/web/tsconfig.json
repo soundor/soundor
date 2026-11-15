@@ -1,0 +1,10 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    // Runs in the browser: DOM, no Node built-ins.
+    "lib": ["es2023", "DOM", "DOM.Iterable", "esnext.disposable"],
+    "types": []
+  },
+  "include": ["src"]
+}

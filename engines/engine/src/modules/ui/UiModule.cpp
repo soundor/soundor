@@ -6,6 +6,7 @@
 #include "modules/ui/CanvasModule.h"
 #include "modules/ui/SvgScene.h"
 #include "ui/Color.h"
+#include "ui/StyleReader.h"
 
 #include <algorithm>
 #include <array>
@@ -177,9 +178,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
 
         // ── Style ────────────────────────────────────────────────────────────
 
-        // Reads a style object into a Style. Unknown keys are ignored; known
+        // A style object's properties, read by readStyle() (ui/StyleReader.h),
+        // which the WebAssembly engine shares. Unknown keys are ignored; known
         // keys with invalid values throw a TypeError naming them.
-        class StyleReader
+        class StyleReader final : public StyleSource
         {
         public:
             StyleReader(ContextState& owner, const jsi::Object& object) : context(owner)
@@ -200,257 +202,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 }
             }
 
-            Style read()
+            Style read() { return readStyle(*this); }
+
+            [[nodiscard]] StyleValue get(std::string_view key) const override
             {
-                Style out;
-                readLayout(out);
-                readSpacing(out);
-                readVisual(out);
-                readText(out.text);
-                return out;
+                const jsi::Value* value = find(key);
+                if (value == nullptr || value->isUndefined() || value->isNull())
+                    return {};
+                if (value->isNumber())
+                    return { .kind = StyleValue::Kind::Number, .number = value->getNumber() };
+                if (value->isString())
+                    return { .kind = StyleValue::Kind::String, .text = value->getString(context.rt).utf8(context.rt) };
+                return { .kind = StyleValue::Kind::Other };
             }
 
-        private:
-            struct Property
+            [[noreturn]] void fail(std::string_view key, std::string_view expected) override
             {
-                Property(const StyleReader& reader, const char* key) : name(key), value(reader.find(key)) {}
-
-                [[nodiscard]] bool present() const
-                {
-                    return value != nullptr && ! value->isUndefined() && ! value->isNull();
-                }
-
-                const char* name;
-                const jsi::Value* value;
-            };
-
-            // The style's value of `key`, or nullptr.
-            [[nodiscard]] const jsi::Value* find(std::string_view key) const
-            {
-                for (const auto& [name, value] : present)
-                    if (name == key)
-                        return &value;
-                return nullptr;
-            }
-
-            [[nodiscard]] std::string text(const Property& property) const
-            {
-                return property.value->getString(context.rt).utf8(context.rt);
-            }
-
-            [[noreturn]] void fail(const Property& property, std::string_view expected)
-            {
-                fail(std::string("style.") + property.name, *property.value, expected);
-            }
-
-            // `path`: expected `expected`, got the value.
-            [[noreturn]] void fail(const std::string& path, const jsi::Value& value, std::string_view expected)
-            {
-                const std::string got = js::detail::toStdString(context.rt, value);
-                bind::throwTypeError(context, path + ": expected " + std::string(expected) + ", got "
-                                                  + (value.isString() ? "'" + got + "'" : got));
-            }
-
-            std::optional<float> number(const char* key)
-            {
-                const Property property(*this, key);
-                if (! property.present())
-                    return std::nullopt;
-                if (! property.value->isNumber() || ! std::isfinite(property.value->getNumber()))
-                    fail(property, "a finite number");
-                return static_cast<float>(property.value->getNumber());
-            }
-
-            std::optional<Length> length(const char* key, bool allowAuto)
-            {
-                const Property property(*this, key);
-                if (! property.present())
-                    return std::nullopt;
-                const std::string_view expected =
-                    allowAuto ? "a number, a percentage or 'auto'" : "a number or a percentage";
-                if (property.value->isNumber())
-                {
-                    const double value = property.value->getNumber();
-                    if (! std::isfinite(value))
-                        fail(property, expected);
-                    return Length::points(static_cast<float>(value));
-                }
-                if (property.value->isString())
-                {
-                    const std::string value = text(property);
-                    if (allowAuto && value == "auto")
-                        return Length::automatic();
-                    if (value.size() > 1 && value.back() == '%')
-                    {
-                        std::size_t used = 0;
-                        try
-                        {
-                            const float percent = std::stof(value.substr(0, value.size() - 1), &used);
-                            if (used == value.size() - 1 && std::isfinite(percent))
-                                return Length::percent(percent);
-                        }
-                        catch (const std::exception&) // NOLINT(bugprone-empty-catch): reported below
-                        {
-                        }
-                    }
-                }
-                fail(property, expected);
-            }
-
-            template <typename Enum, std::size_t Count>
-            std::optional<Enum> choice(const char* key, const std::array<std::string_view, Count>& names)
-            {
-                const Property property(*this, key);
-                if (! property.present())
-                    return std::nullopt;
-                if (property.value->isString())
-                {
-                    const std::string value = text(property);
-                    for (std::size_t i = 0; i < Count; ++i)
-                        if (names[i] == value)
-                            return static_cast<Enum>(i);
-                }
-                std::string expected = "one of ";
-                for (std::size_t i = 0; i < Count; ++i)
-                    expected += (i == 0 ? "'" : ", '") + std::string(names[i]) + "'";
-                fail(property, expected);
-            }
-
-            template <typename T>
-            static void assign(T& field, const std::optional<T>& value)
-            {
-                if (value)
-                    field = *value;
-            }
-            void readLayout(Style& out)
-            {
-                static constexpr std::array<std::string_view, 2> displays { "flex", "none" };
-                static constexpr std::array<std::string_view, 3> positions { "relative", "absolute", "static" };
-                static constexpr std::array<std::string_view, 4> directions { "column", "column-reverse", "row",
-                                                                              "row-reverse" };
-                static constexpr std::array<std::string_view, 3> wraps { "nowrap", "wrap", "wrap-reverse" };
-                static constexpr std::array<std::string_view, 6> justifies { "flex-start",   "center",
-                                                                             "flex-end",     "space-between",
-                                                                             "space-around", "space-evenly" };
-                static constexpr std::array<std::string_view, 9> aligns {
-                    "auto",     "flex-start",    "center",       "flex-end",    "stretch",
-                    "baseline", "space-between", "space-around", "space-evenly"
-                };
-                static constexpr std::array<std::string_view, 3> overflows { "visible", "hidden", "scroll" };
-                static constexpr std::array<std::string_view, 2> boxSizings { "border-box", "content-box" };
-                static constexpr std::array<std::string_view, 4> pointerEvents { "auto", "none", "box-none",
-                                                                                 "box-only" };
-                static constexpr std::array<std::string_view, 11> cursors { "auto",        "default",    "none",
-                                                                            "pointer",     "text",       "crosshair",
-                                                                            "move",        "ew-resize",  "ns-resize",
-                                                                            "nesw-resize", "nwse-resize" };
-
-                assign(out.display, choice<Display>("display", displays));
-                assign(out.position, choice<Position>("position", positions));
-                assign(out.flexDirection, choice<FlexDirection>("flexDirection", directions));
-                assign(out.flexWrap, choice<Wrap>("flexWrap", wraps));
-                assign(out.justifyContent, choice<Justify>("justifyContent", justifies));
-                assign(out.alignItems, choice<Align>("alignItems", aligns));
-                assign(out.alignSelf, choice<Align>("alignSelf", aligns));
-                assign(out.alignContent, choice<Align>("alignContent", aligns));
-                // `overflow` sets both axes; `overflowX`/`overflowY` win over it.
-                if (const auto both = choice<Overflow>("overflow", overflows))
-                    out.overflowX = out.overflowY = *both;
-                assign(out.overflowX, choice<Overflow>("overflowX", overflows));
-                assign(out.overflowY, choice<Overflow>("overflowY", overflows));
-                assign(out.boxSizing, choice<BoxSizing>("boxSizing", boxSizings));
-                assign(out.pointerEvents, choice<PointerEvents>("pointerEvents", pointerEvents));
-                assign(out.cursor, choice<Cursor>("cursor", cursors));
-                if (const Property zIndex(*this, "zIndex"); zIndex.present())
-                {
-                    const double value = zIndex.value->isNumber() ? zIndex.value->getNumber() : 0.5;
-                    if (! zIndex.value->isNumber() || std::trunc(value) != value || std::abs(value) > 2147483647.0)
-                        fail(zIndex, "an integer");
-                    out.zIndex = static_cast<int>(value);
-                }
-
-                // `flex` as in React Native; the longhands win over it.
-                if (const auto flex = number("flex"))
-                {
-                    if (*flex > 0)
-                    {
-                        out.flexGrow = *flex;
-                        out.flexShrink = 1;
-                        out.flexBasis = Length::points(0);
-                    }
-                    else if (*flex < 0)
-                        out.flexShrink = 1;
-                }
-                assign(out.flexGrow, number("flexGrow"));
-                assign(out.flexShrink, number("flexShrink"));
-                assign(out.flexBasis, length("flexBasis", true));
-
-                assign(out.width, length("width", true));
-                assign(out.height, length("height", true));
-                assign(out.minWidth, length("minWidth", false));
-                assign(out.minHeight, length("minHeight", false));
-                assign(out.maxWidth, length("maxWidth", false));
-                assign(out.maxHeight, length("maxHeight", false));
-                out.aspectRatio = number("aspectRatio");
-            }
-
-            // Shorthand, then axis, then side: `margin`, `marginHorizontal`, `marginLeft`.
-            template <typename T, typename Read>
-            void edges(Edges<T>& out, const std::string& prefix, const std::string& suffix, Read read)
-            {
-                const auto key = [&](const char* side) { return prefix + side + suffix; };
-                if (const auto all = read((prefix + suffix).c_str()))
-                    out = { *all, *all, *all, *all };
-                if (const auto vertical = read(key("Vertical").c_str()))
-                    out.top = out.bottom = *vertical;
-                if (const auto horizontal = read(key("Horizontal").c_str()))
-                    out.left = out.right = *horizontal;
-                assign(out.top, read(key("Top").c_str()));
-                assign(out.right, read(key("Right").c_str()));
-                assign(out.bottom, read(key("Bottom").c_str()));
-                assign(out.left, read(key("Left").c_str()));
-            }
-
-            void readSpacing(Style& out)
-            {
-                edges(out.margin, "margin", "", [&](const char* key) { return length(key, true); });
-                edges(out.padding, "padding", "", [&](const char* key) { return length(key, false); });
-                edges(out.borderWidth, "border", "Width", [&](const char* key) { return number(key); });
-
-                if (const auto inset = length("inset", true))
-                    out.inset = { *inset, *inset, *inset, *inset };
-                assign(out.inset.top, length("top", true));
-                assign(out.inset.right, length("right", true));
-                assign(out.inset.bottom, length("bottom", true));
-                assign(out.inset.left, length("left", true));
-
-                if (const auto gap = number("gap"))
-                    out.rowGap = out.columnGap = *gap;
-                assign(out.rowGap, number("rowGap"));
-                assign(out.columnGap, number("columnGap"));
-            }
-
-            std::optional<Color> color(const char* key)
-            {
-                const Property property(*this, key);
-                if (! property.present())
-                    return std::nullopt;
-                if (property.value->isString())
-                    if (const std::optional<Color> parsed = parseColor(text(property)))
-                        return parsed;
-                fail(property, "a CSS color");
+                fail("style." + std::string(key), *find(key), expected);
             }
 
             // `boxShadow`: an array of { offsetX, offsetY, blur, spread,
             // color, inset }, each optional.
-            std::vector<BoxShadow> boxShadow()
+            std::vector<BoxShadow> boxShadow() override
             {
-                const Property property(*this, "boxShadow");
-                if (! property.present())
+                const jsi::Value* property = find("boxShadow");
+                if (property == nullptr || property->isUndefined() || property->isNull())
                     return {};
-                if (! property.value->isObject() || ! property.value->getObject(context.rt).isArray(context.rt))
-                    fail(property, "an array");
-                const jsi::Array array = property.value->getObject(context.rt).getArray(context.rt);
+                if (! property->isObject() || ! property->getObject(context.rt).isArray(context.rt))
+                    fail("boxShadow", "an array");
+                const jsi::Array array = property->getObject(context.rt).getArray(context.rt);
                 const std::size_t count = array.size(context.rt);
                 std::vector<BoxShadow> result;
                 result.reserve(count);
@@ -517,66 +297,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 return result;
             }
 
-            void readVisual(Style& out)
+            std::optional<Presentation> transform() override
             {
-                static constexpr std::array<std::string_view, 4> resizeModes { "cover", "contain", "stretch",
-                                                                               "center" };
-                assign(out.backgroundColor, color("backgroundColor"));
-                assign(out.borderColor, color("borderColor"));
-                if (const auto radius = number("borderRadius"))
-                    out.borderRadius = { *radius, *radius, *radius, *radius };
-                assign(out.borderRadius.topLeft, number("borderTopLeftRadius"));
-                assign(out.borderRadius.topRight, number("borderTopRightRadius"));
-                assign(out.borderRadius.bottomRight, number("borderBottomRightRadius"));
-                assign(out.borderRadius.bottomLeft, number("borderBottomLeftRadius"));
-                assign(out.outlineWidth, number("outlineWidth"));
-                assign(out.outlineOffset, number("outlineOffset"));
-                assign(out.outlineColor, color("outlineColor"));
-                out.boxShadow = boxShadow();
-                if (const auto opacity = number("opacity"))
-                    out.opacity = std::clamp(*opacity, 0.0f, 1.0f);
-                const Property transform(*this, "transform");
-                if (transform.present())
-                    out.transform = readTransform(context, *transform.value);
-                assign(out.resizeMode, choice<ResizeMode>("resizeMode", resizeModes));
+                const jsi::Value* value = find("transform");
+                if (value == nullptr || value->isUndefined() || value->isNull())
+                    return std::nullopt;
+                return readTransform(context, *value);
             }
 
-            void readText(TextStyle& out)
+        private:
+            template <typename T>
+            static void assign(T& field, const std::optional<T>& value)
             {
-                assign(out.color, color("color"));
-                static constexpr std::array<std::string_view, 2> fontStyles { "normal", "italic" };
-                static constexpr std::array<std::string_view, 4> textAligns { "auto", "left", "center", "right" };
+                if (value)
+                    field = *value;
+            }
 
-                if (const Property family(*this, "fontFamily"); family.present())
-                {
-                    if (! family.value->isString())
-                        fail(family, "a string");
-                    out.fontFamily = text(family);
-                }
-                if (const auto size = number("fontSize"); size && *size > 0)
-                    out.fontSize = *size;
-                if (const Property weight(*this, "fontWeight"); weight.present())
-                {
-                    double value = 0;
-                    if (weight.value->isNumber())
-                    {
-                        value = weight.value->getNumber();
-                    }
-                    else if (weight.value->isString())
-                    {
-                        const std::string name = text(weight);
-                        value = name == "normal" ? 400 : name == "bold" ? 700 : std::atof(name.c_str());
-                    }
-                    if (value < 1 || value > 1000)
-                        fail(weight, "a weight from 1 to 1000, 'normal' or 'bold'");
-                    out.fontWeight = static_cast<int>(value);
-                }
-                assign(out.fontStyle, choice<FontStyle>("fontStyle", fontStyles));
-                assign(out.lineHeight, number("lineHeight"));
-                assign(out.letterSpacing, number("letterSpacing"));
-                assign(out.textAlign, choice<TextAlign>("textAlign", textAligns));
-                if (const auto lines = number("numberOfLines"))
-                    out.numberOfLines = std::max(0, static_cast<int>(*lines));
+            // The style's value of `key`, or nullptr.
+            [[nodiscard]] const jsi::Value* find(std::string_view key) const
+            {
+                for (const auto& [name, value] : present)
+                    if (name == key)
+                        return &value;
+                return nullptr;
+            }
+
+            // `path`: expected `expected`, got the value.
+            [[noreturn]] void fail(const std::string& path, const jsi::Value& value, std::string_view expected)
+            {
+                const std::string got = js::detail::toStdString(context.rt, value);
+                bind::throwTypeError(context, path + ": expected " + std::string(expected) + ", got "
+                                                  + (value.isString() ? "'" + got + "'" : got));
             }
 
             ContextState& context;

@@ -26,15 +26,24 @@
     "./native-module": {
       "types": "./dist/native-module.d.mts",
       "import": "./dist/native-module.mjs"
+    },
+    "./web": {
+      "types": "./dist/web.d.ts",
+      "import": "./dist/web.js"
     }
   },
   "scripts": {
-    "format:native": "node ../../scripts/clang-format.mjs --check include src tests",
-    "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests",
+    "format:native": "node ../../scripts/clang-format.mjs --check include src tests wasm",
+    "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests wasm",
     "lint:native": "cmake --workflow --preset tidy",
     "test": "node --test tests/tooling/*.test.mjs",
     "test:native": "cmake --workflow --preset dev",
-    "build": "tsc -p tsconfig.node.json && tsdown --clean"
+    "build": "tsc -p tsconfig.node.json && tsc -p web/tsconfig.json && tsc -p web/tsconfig.test.json && tsdown --clean",
+    "build:wasm": "node web/scripts/build-wasm.ts",
+    "test:wasm": "vitest run --config web/vitest.config.ts",
+    "test:browser": "vitest run --config web/vitest.browser.config.ts",
+    "fixture": "vite --config web/fixture/vite.config.ts",
+    "bench:wasm": "node web/scripts/bench.ts"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
@@ -48,11 +57,14 @@
     "@babel/plugin-transform-modules-commonjs": "catalog:",
     "@babel/plugin-transform-private-methods": "catalog:",
     "@babel/plugin-transform-private-property-in-object": "catalog:",
+    "@playwright/test": "catalog:",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
     "three": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
   }
 }
