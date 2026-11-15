@@ -604,9 +604,6 @@ importers:
       '@playwright/test':
         specifier: 'catalog:'
         version: 1.65.0
-      '@soundor/core':
-        specifier: workspace:^
-        version: link:../../packages/core
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config

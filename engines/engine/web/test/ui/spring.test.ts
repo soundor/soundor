@@ -1,4 +1,7 @@
-import { expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
 
 import {
   sampleSpring,
@@ -51,4 +54,17 @@ it('retargets with unchanged position and velocity and rejects invalid physics',
     { initialVelocity: NaN },
   ])
     expect(() => springParameters(bad)).toThrow('spring parameters');
+});
+
+describe('the spring contract', () => {
+  it("is the same file as @soundor/core's, which the test runtime uses", () => {
+    // The engine depends on no workspace package: a change to core must not
+    // make the engine's native jobs run. The copy is kept identical instead.
+    const engine = readFileSync(resolve('web/src/ui/spring.ts'), 'utf8');
+    const core = readFileSync(
+      resolve('../../packages/core/src/spring.ts'),
+      'utf8',
+    );
+    expect(engine).toBe(core);
+  });
 });

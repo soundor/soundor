@@ -298,6 +298,11 @@ jobs:
         uses: ./.github/actions/setup
       - name: Rust WebAssembly target
         run: rustup target add wasm32-unknown-unknown
+      # The benchmark's web host lays out with the engine's WebAssembly core.
+      - name: Setup Emscripten
+        uses: ./.github/actions/emsdk
+      - name: The engine's WebAssembly core
+        run: pnpm --filter @soundor/engine build:wasm
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps

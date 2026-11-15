@@ -58,7 +58,6 @@
     "@babel/plugin-transform-private-methods": "catalog:",
     "@babel/plugin-transform-private-property-in-object": "catalog:",
     "@playwright/test": "catalog:",
-    "@soundor/core": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
