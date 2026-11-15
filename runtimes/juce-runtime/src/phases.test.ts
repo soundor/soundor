@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostModule } from './dev-host';
 import { juceBuild, juceDev, juceGen, juceInit } from './index';
 import type { JuceOptions } from './options';
-import { makeCtx } from './testing';
+import { fakeNative, makeCtx } from './testing';
 
 const config: ResolvedSoundorConfig = resolveConfig({
   plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
@@ -93,14 +93,16 @@ describe('juceInit', () => {
     );
     expect(proc).toContain('public soundor::AudioProcessor');
 
-    // The scaffold ships a working gain out of the box: applied (ramped) from
-    // the generated gainParameter pointer, and buses constrained so it works in
-    // a DAW that negotiates layouts (e.g. Reaper), not just standalone.
+    // No audio processing in C++: that is the Rust crate's (native/), which
+    // the generated base runs. Without an \`audio\` declaration the buses are
+    // constrained here, so it works in a DAW that negotiates layouts.
     const procSource = await ctx.fs.read(
       ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp'),
     );
-    expect(procSource).toContain('gainParameter.load()');
-    expect(procSource).toContain('applyGainRamp');
+    expect(proc).not.toContain('process(');
+    expect(proc).not.toContain('prepareToPlay');
+    expect(procSource).not.toContain('gainParameter');
+    expect(procSource).not.toContain('applyGainRamp');
     expect(procSource).toContain('isBusesLayoutSupported');
 
     // Re-init must not overwrite user edits.
@@ -933,5 +935,80 @@ describe('build tree', () => {
 
   it("keeps Visual Studio, CMake's default, on Windows", async () => {
     expect((await configureArgs('build', 'win32')).includes('-G')).toBe(false);
+  });
+});
+
+describe('the Rust processor', () => {
+  const build = async (overrides: Parameters<typeof makeCtx>[0] = {}) => {
+    const root = await tempProjectWithJuce();
+    const native = fakeNative(root);
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      mode: 'production',
+      native,
+      ...overrides,
+    });
+    const calls: string[][] = [];
+    const run = (o: RunCommandOptions) => {
+      calls.push([o.cmd, ...o.args]);
+      return Promise.resolve();
+    };
+    return { root, ctx, native, calls, run };
+  };
+
+  it('is compiled before the plugin, for its configuration, and linked', async () => {
+    const { root, ctx, native, calls, run } = await build();
+    await juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' });
+    expect(native.requests).toEqual([
+      { crateType: 'staticlib', profile: 'release', staticCrt: false },
+    ]);
+    expect(calls[0]).toContain(
+      `-DSOUNDOR_RUST_LIBRARY=${root}/.soundor/cache/native/target/release/libplugin.a`,
+    );
+  });
+
+  it('is a debug build in soundor dev', async () => {
+    const { ctx, native, run } = await build({ mode: 'debug' });
+    const controller = new AbortController();
+    controller.abort();
+    await juceDev(
+      config,
+      { ...ctx, signal: controller.signal },
+      { run, probe: okProbe, platform: 'linux' },
+    );
+    expect(native.requests[0]).toMatchObject({ profile: 'debug' });
+  });
+
+  it('links the C runtime statically for a /MT plugin on Windows', async () => {
+    const { ctx, native, run } = await build();
+    await juceBuild(config, ctx, { run, probe: okProbe, platform: 'win32' });
+    expect(native.requests[0]).toMatchObject({ staticCrt: true });
+    const dynamic = await build({
+      options: { windows: { crt: 'MD' } },
+    });
+    await juceBuild(
+      config,
+      {
+        ...dynamic.ctx,
+        options: {
+          ...dynamic.ctx.options,
+          jucePath: join(dynamic.root, 'JUCE'),
+        },
+      },
+      { run: dynamic.run, probe: okProbe, platform: 'win32' },
+    );
+    expect(dynamic.native.requests[0]).toMatchObject({ staticCrt: false });
+  });
+
+  it('is required: a project without native/ is told to create it', async () => {
+    const { ctx, calls, run } = await build({ native: null });
+    await expect(
+      juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' }),
+    ).rejects.toThrow(
+      /no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor init/,
+    );
+    expect(calls).toEqual([]);
   });
 });

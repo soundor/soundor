@@ -111,6 +111,9 @@ export type {
   RuntimeMode,
   RuntimePhase,
   LiveUiContext,
+  NativeBuildRequest,
+  NativeCrateContext,
+  NativeLibrary,
   UiBundleContext,
 } from './context';
 

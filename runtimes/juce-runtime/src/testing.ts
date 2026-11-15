@@ -12,6 +12,8 @@ import {
   type FileSystemHost,
   type LifecycleContext,
   type Logger,
+  type NativeBuildRequest,
+  type NativeCrateContext,
 } from '@soundor/runtime-sdk';
 
 import type { JuceOptions } from './options';
@@ -117,6 +119,28 @@ export interface MakeCtxOptions {
   readonly mode?: 'debug' | 'production';
   readonly signal?: AbortSignal;
   readonly signing?: LifecycleContext['signing'];
+  /** The project's Rust crate; a fake that records builds by default, none with null. */
+  readonly native?: NativeCrateContext | null;
+}
+
+/** A fake Rust crate: records each build and returns a library path. */
+export interface FakeNative extends NativeCrateContext {
+  readonly requests: NativeBuildRequest[];
+}
+
+export function fakeNative(root = '/proj'): FakeNative {
+  const requests: NativeBuildRequest[] = [];
+  return {
+    manifest: `${root}/native/Cargo.toml`,
+    requests,
+    build: (request) => {
+      requests.push(request);
+      return Promise.resolve({
+        path: `${root}/.soundor/cache/native/target/${request.profile}/libplugin.a`,
+        target: request.target ?? 'x86_64-unknown-linux-gnu',
+      });
+    },
+  };
 }
 
 export interface TestCtx extends LifecycleContext<JuceOptions> {
@@ -147,5 +171,8 @@ export function makeCtx(overrides: MakeCtxOptions = {}): TestCtx {
       macos: { identity: '-', source: 'default' },
     },
     signal: overrides.signal ?? new AbortController().signal,
+    ...(overrides.native === null
+      ? {}
+      : { native: overrides.native ?? fakeNative(root) }),
   };
 }

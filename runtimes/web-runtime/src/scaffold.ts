@@ -25,8 +25,6 @@ export interface WebScaffoldInput {
     readonly name: string;
     readonly async: boolean;
   }[];
-  /** Whether the plugin declares a float32 `gain` parameter to apply. */
-  readonly gain: boolean;
 }
 
 /** The files scaffolded on `init`, under `runtimes/<runtimeId>/`. */
@@ -44,7 +42,6 @@ export function webScaffoldFiles(
       path: `${dir}/src/native.ts`,
       contents: nativeTs(input.nativeContractPath, input.nativeMethods),
     },
-    { path: `${dir}/src/audio.ts`, contents: audioTs(input.gain) },
   ];
 }
 
@@ -104,13 +101,13 @@ function tsconfig(generatedPath: string): string {
 
 function mainTs(): string {
   return `// The Web host's entry: starts Soundor's Web host for this plugin. The
-// plugin's native API and audio load after the host, so their soundor:*
-// imports find it ready.
+// plugin's native API loads after the host, so its soundor:* imports find
+// it ready.
 import { startSoundorWebHost } from '@soundor/web-runtime/client';
 
+// Its audio is the plugin's processor, native/, compiled to WebAssembly.
 await startSoundorWebHost({
   native: () => import('./native'),
-  audio: () => import('./audio'),
 });
 `;
 }
@@ -130,43 +127,6 @@ function nativeTs(
 import type { WebNativeApi } from '${contractPath}';
 
 export const native: WebNativeApi = ${stubs.length === 0 ? '{}' : `{\n${stubs.join('')}}`};
-`;
-}
-
-function audioTs(gain: boolean): string {
-  if (!gain) {
-    return `// The plugin's audio on the Web: plain Web Audio nodes between the host's
-// input and output. soundor:parameters and soundor:host work here too.
-import type { WebAudioSetup } from '@soundor/web-runtime/client';
-
-export const setupAudio: WebAudioSetup = ({ input, output }) => {
-  input.connect(output);
-  return () => input.disconnect();
-};
-`;
-  }
-  return `// The plugin's audio on the Web: plain Web Audio nodes between the host's
-// input and output, here a gain that follows the 'gain' parameter.
-// soundor:parameters is the same parameter the plugin UI moves.
-import type { WebAudioSetup } from '@soundor/web-runtime/client';
-import { parameters } from 'soundor:parameters';
-
-export const setupAudio: WebAudioSetup = ({ context, input, output }) => {
-  const gain = context.createGain();
-  const follow = (value: number) =>
-    gain.gain.setTargetAtTime(value, context.currentTime, 0.01);
-
-  gain.gain.value = parameters.gain.get();
-  const unsubscribe = parameters.gain.subscribe(follow);
-  input.connect(gain);
-  gain.connect(output);
-
-  return () => {
-    unsubscribe();
-    input.disconnect();
-    gain.disconnect();
-  };
-};
 `;
 }
 

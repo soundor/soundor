@@ -82,6 +82,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Rust SDK and WebAssembly target
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo fmt --check --manifest-path packages/cli/rust/soundor/Cargo.toml
+          cargo clippy --all-targets --manifest-path packages/cli/rust/soundor/Cargo.toml -- -D warnings
+          cargo test --manifest-path packages/cli/rust/soundor/Cargo.toml
       - name: Setup consumer dependencies
         uses: ./.github/actions/engine-consumer
       - name: Download this checkout's engine

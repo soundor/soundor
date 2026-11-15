@@ -25,6 +25,10 @@
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js"
     },
+    "./processor": {
+      "types": "./dist/client/processor.d.ts",
+      "import": "./dist/client/processor.js"
+    },
     "./vite": {
       "types": "./dist/vite.d.mts",
       "import": "./dist/vite.mjs"
@@ -34,6 +38,7 @@
     "build": "tsc -b && tsdown --clean",
     "dev": "tsdown --watch",
     "test": "vitest run",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:watch": "vitest watch"
   },
   "dependencies": {
@@ -43,6 +48,7 @@
     "vite": "catalog:"
   },
   "devDependencies": {
+    "@playwright/test": "catalog:",
     "@soundor/environment": "workspace:^",
     "@soundor/react": "workspace:^",
     "@soundor/tsdown-config": "workspace:^",

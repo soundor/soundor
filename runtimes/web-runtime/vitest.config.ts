@@ -15,5 +15,7 @@ export default defineConfig({
   ],
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
+    // In Chromium: `test:browser`, vitest.browser.config.ts.
+    exclude: ['src/**/*.browser.test.ts'],
   },
 });

@@ -22,6 +22,12 @@ vi.mock('@clack/prompts', () => ({
   ),
 }));
 
+/** Rust found, without spawning it: a real probe of rustup's proxies can take seconds. */
+const rustProbe = (cmd: string) => ({
+  ok: true,
+  version: cmd === 'rustc' ? 'rustc 1.90.0 (test)' : `${cmd} 1.90.0`,
+});
+
 describe('doctor command', () => {
   it('is defined', () => {
     expect(doctorCommand).toBeDefined();
@@ -67,7 +73,10 @@ describe('runDoctor', () => {
       },
     ]);
 
-    const result = await runDoctor({ cwd: root });
+    const result = await runDoctor({
+      probe: rustProbe,
+      cwd: root,
+    });
 
     expect(result.status).toBe('warn');
     expect(result.exitCode).toBe(0);
@@ -86,7 +95,11 @@ describe('runDoctor', () => {
 
   it('reports ad-hoc macOS signing by default', async () => {
     await writeConfig(root, []);
-    const result = await runDoctor({ cwd: root, env: {} });
+    const result = await runDoctor({
+      probe: rustProbe,
+      cwd: root,
+      env: {},
+    });
     expect(
       result.diagnostics.find((d) => d.label === 'macOS signing'),
     ).toMatchObject({
@@ -100,6 +113,7 @@ describe('runDoctor', () => {
     await writeConfig(root, []);
     const identity = 'Developer ID Application: Acme (ABCDE12345)';
     const result = await runDoctor({
+      probe: rustProbe,
       cwd: root,
       env: {
         SOUNDOR_MACOS_SIGNING_IDENTITY: identity,
@@ -117,6 +131,7 @@ describe('runDoctor', () => {
   it('fails when the identity variable holds key material', async () => {
     await writeConfig(root, []);
     const result = await runDoctor({
+      probe: rustProbe,
       cwd: root,
       env: { SOUNDOR_MACOS_SIGNING_IDENTITY: '-----BEGIN CERTIFICATE-----' },
     });
@@ -145,7 +160,10 @@ describe('runDoctor', () => {
       { id: 'gamma', checks: [{ label: 'g', status: 'ok' }] },
     ]);
 
-    const result = await runDoctor({ cwd: root });
+    const result = await runDoctor({
+      probe: rustProbe,
+      cwd: root,
+    });
 
     expect(globalThis.__soundorDoctorEvents).toEqual([
       'doctor:alpha',
@@ -169,7 +187,10 @@ describe('runDoctor', () => {
       { id: 'dupe', checks: [] },
     ]);
 
-    const result = await runDoctor({ cwd: root });
+    const result = await runDoctor({
+      probe: rustProbe,
+      cwd: root,
+    });
 
     expect(result.status).toBe('fail');
     expect(result.exitCode).toBe(1);
@@ -189,7 +210,10 @@ describe('runDoctor', () => {
   });
 
   it('runs standalone (env only) when no config is present', async () => {
-    const result = await runDoctor({ cwd: root });
+    const result = await runDoctor({
+      probe: rustProbe,
+      cwd: root,
+    });
 
     expect(result.exitCode).toBe(0);
     expect(result.diagnostics.some((d) => d.category === 'environment')).toBe(
@@ -206,14 +230,24 @@ describe('runDoctor', () => {
     await writeConfig(root, [
       { id: 'ok', checks: [{ label: 'fine', status: 'ok' }] },
     ]);
-    await expect(runDoctor({ cwd: root })).resolves.toMatchObject({
+    await expect(
+      runDoctor({
+        probe: rustProbe,
+        cwd: root,
+      }),
+    ).resolves.toMatchObject({
       exitCode: 0,
     });
 
     await writeConfig(root, [
       { id: 'bad', checks: [{ label: 'broken', status: 'fail' }] },
     ]);
-    await expect(runDoctor({ cwd: root })).resolves.toMatchObject({
+    await expect(
+      runDoctor({
+        probe: rustProbe,
+        cwd: root,
+      }),
+    ).resolves.toMatchObject({
       exitCode: 1,
     });
   });
@@ -223,7 +257,12 @@ describe('runDoctor', () => {
       { id: 'alpha', checks: [{ label: 'a', status: 'ok' }] },
     ]);
 
-    const report = toJsonReport(await runDoctor({ cwd: root }));
+    const report = toJsonReport(
+      await runDoctor({
+        probe: rustProbe,
+        cwd: root,
+      }),
+    );
 
     expect(report).toEqual(
       expect.objectContaining({
@@ -251,7 +290,12 @@ describe('runDoctor', () => {
       },
     ]);
 
-    const text = formatDoctorResult(await runDoctor({ cwd: root }));
+    const text = formatDoctorResult(
+      await runDoctor({
+        probe: rustProbe,
+        cwd: root,
+      }),
+    );
 
     expect(text).toContain('missing tool');
     expect(text).toContain('→ Install the tool');

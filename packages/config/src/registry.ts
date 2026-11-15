@@ -56,6 +56,7 @@ export interface DispatchContextInput {
   fs: FileSystemHost;
   codegen: CodegenSink;
   ui?: LifecycleContext['ui'];
+  native?: LifecycleContext['native'];
   devtools?: LifecycleContext['devtools'];
   session?: LifecycleContext['session'];
   /** Defaults to `'debug'`; the build command passes `'production'`. */
@@ -88,6 +89,7 @@ export async function runPhase(
     fs: input.fs,
     codegen: input.codegen,
     ui: input.ui,
+    native: input.native,
     devtools:
       phase === 'dev' &&
       (input.mode ?? 'debug') === 'debug' &&

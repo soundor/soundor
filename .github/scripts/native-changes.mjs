@@ -2,11 +2,10 @@
 // reports, from a change to the package, a workspace package it depends on,
 // its external dependencies or turbo's global dependencies. CI's own
 // definition is not in the package graph, so a change to it runs everything,
-// as does an unknown base. A change to the VST3 host alone runs its job and
-// Orbit's end-to-end tests, the one job that runs plugins in it: the others'
-// packages reach it just through @soundor/driver's optional `vst3` entry and
-// @soundor/juce-runtime's `soundor dev`, and nothing they build or test uses
-// those. Changeset release notes do not affect this host-only decision.
+// as does an unknown base. Host-only changes run the VST3 and Orbit checks.
+// JUCE's Rust gain test consumes the selected host when the JUCE runtime itself
+// is affected; it need not rebuild unchanged adapters for a host-only change.
+// Changeset release notes do not affect this host-only decision.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 

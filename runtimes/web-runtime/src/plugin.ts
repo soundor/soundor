@@ -54,6 +54,8 @@ export interface SoundorWebPluginOptions {
   readonly clientDir?: string;
   /** The plugin UI bundle; undefined when the project has no UI. */
   readonly ui?: UiBundleContext;
+  /** The audio processor's WebAssembly module (native/, built by Cargo). */
+  readonly processor?: string;
   /** Names the plugin in the UI log of `soundor dev`. */
   readonly pluginName?: string;
 }
@@ -131,10 +133,14 @@ export interface SoundorModulesOptions {
   readonly clientDir?: string;
   /** The plugin UI bundle; undefined when the project has no UI. */
   readonly ui?: UiBundleContext;
+  /** The audio processor's WebAssembly module; none, and the input passes through. */
+  readonly processor?: string;
 }
 
 /** Internal modules whose code depends on the run (`\0`: virtual). */
 const UI_MODULE = 'soundor:internal/ui';
+/** The audio processor's module, inlined: no file to serve or find. */
+export const PROCESSOR_MODULE = 'soundor:internal/processor';
 const DEV_MODULE = 'soundor:internal/dev';
 /** Its exports are the project's native methods, read from the manifest. */
 const NATIVE_MODULE = 'soundor:native';
@@ -170,6 +176,7 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       if (
         id === UI_MODULE ||
         id === DEV_MODULE ||
+        id === PROCESSOR_MODULE ||
         id === NATIVE_MODULE ||
         id === 'soundor:env'
       )
@@ -183,6 +190,13 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
     async load(id) {
       if (id === `\0${UI_MODULE}`) return uiModule(options.ui);
       if (id === `\0${DEV_MODULE}`) return devModule(options.ui, command);
+      if (id === `\0${PROCESSOR_MODULE}`) {
+        if (options.processor === undefined)
+          return 'export default undefined;\n';
+        this.addWatchFile(options.processor);
+        const bytes = await readFile(options.processor);
+        return `export default ${JSON.stringify(bytes.toString('base64'))};\n`;
+      }
       if (id === '\0soundor:env') {
         const path = join(options.genDir, MANIFEST_FILE);
         this.addWatchFile(path);

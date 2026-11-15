@@ -22,6 +22,8 @@
     "src/**/*.test.tsx",
     "src/client/testing/*.d.ts",
     "src/client/testing/native.ts",
-    "src/client/internal.d.ts"
+    "src/client/internal.d.ts",
+    "src/client/processor/fixture/*.ts",
+    "vitest.browser.config.ts"
   ]
 }

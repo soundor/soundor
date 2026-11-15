@@ -2,6 +2,7 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "agentGuidance": false,
+  "globalPassThroughEnv": ["RUSTUP_HOME", "CARGO_HOME"],
   "globalDependencies": [
     "package.json",
     "pnpm-lock.yaml",

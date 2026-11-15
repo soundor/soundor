@@ -5,9 +5,10 @@
  * `include(...)` line pointing at the generated `setup.cmake`.
  *
  * The scaffolded classes inherit the generated `soundor::AudioProcessor` /
- * `soundor::AudioProcessorEditor` bases (which own the parameters and the plugin
- * view). App-specific behavior that is *not* derived from config — here, the
- * gain DSP — lives in these files, not in `gen`.
+ * `soundor::AudioProcessorEditor` bases (which own the parameters, run the
+ * Rust audio processing in `native/`, and host the plugin view). What is
+ * neither config nor processing — the editor, a native API, buses when the
+ * config declares no `audio` — lives in these files, not in `gen`.
  */
 
 import type { ResolvedSoundorConfig } from '@soundor/runtime-sdk';
@@ -92,26 +93,23 @@ function processorHeader(
 #include <soundor/soundor.h>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
-// parameter tree generated from soundor.config. Add your DSP here.
+// parameters generated from soundor.config and runs the audio processing:
+// the Rust crate in native/. What is here is the rest of the plugin: its
+// editor${configuredAudio ? '' : ', its buses'} and, when the config declares one, its native API
+// (createNativeApi()).
 class ${cls}Processor final : public soundor::AudioProcessor
 {
 public:
     ${cls}Processor();
     ~${cls}Processor() override = default;
-
-    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
-${configuredAudio ? '' : '    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;'}
-    void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
+${configuredAudio ? '' : '\n    bool isBusesLayoutSupported(const BusesLayout& layouts) const override;\n'}
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override { return ${JSON.stringify(pluginName)}; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
-${configuredAudio ? '' : '    double getTailLengthSeconds() const override { return 0.0; }'}
-
+${configuredAudio ? '' : '    double getTailLengthSeconds() const override { return 0.0; }\n'}
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
@@ -119,41 +117,29 @@ ${configuredAudio ? '' : '    double getTailLengthSeconds() const override { ret
     void changeProgramName(int, const juce::String&) override {}
 
 private:
-    // Last block's applied gain, so process() can ramp to the new target
-    // value instead of stepping (which would click on fast automation).
-    float previousGain { 0.5f };
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(${cls}Processor)
 };
 `;
 }
 
 function processorSource(cls: string, configuredAudio: boolean): string {
-  let source = `#include "PluginProcessor.h"
-#include "PluginEditor.h"
-
-${cls}Processor::${cls}Processor()
+  const buses = configuredAudio
+    ? `${cls}Processor::${cls}Processor() : soundor::AudioProcessor() {}
+`
+    : `${cls}Processor::${cls}Processor()
     : soundor::AudioProcessor(BusesProperties()
         .withInput("Input", juce::AudioChannelSet::stereo(), true)
         .withOutput("Output", juce::AudioChannelSet::stereo(), true))
 {
 }
 
-void ${cls}Processor::prepareToPlay(double sampleRate, int samplesPerBlock)
-{
-    juce::ignoreUnused(sampleRate, samplesPerBlock);
-
-    // Start the ramp from the current parameter value so the first block after
-    // (re)prepare doesn't glide up from silence.
-    previousGain = gainParameter.load();
-}
-
 bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
     // Standalone always runs stereo, but a DAW (e.g. Reaper) negotiates the bus
     // layout and, without this guard, JUCE would accept any arrangement — then
-    // process() could be handed a layout we don't handle (mono, discrete,
+    // the processing could be handed a layout it doesn't handle (discrete,
     // in != out). Restrict to mono or stereo with the input matching the output.
+    // Declare \`audio\` in soundor.config to have Soundor generate this.
     const auto& mainOutput = layouts.getMainOutputChannelSet();
     const auto& mainInput = layouts.getMainInputChannelSet();
 
@@ -163,20 +149,11 @@ bool ${cls}Processor::isBusesLayoutSupported(const BusesLayout& layouts) const
 
     return mainInput == mainOutput;
 }
+`;
+  return `#include "PluginProcessor.h"
+#include "PluginEditor.h"
 
-void ${cls}Processor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
-{
-    juce::ScopedNoDenormals noDenormals;
-
-    // Apply the "gain" parameter as a linear output gain. gainParameter is
-    // provided by the soundor::AudioProcessor base (generated from the config's
-    // \`gain\` parameter). Ramp from the previous block's value to the current
-    // one so automation moves don't produce zipper noise.
-    const float targetGain = gainParameter.load();
-    buffer.applyGainRamp(0, buffer.getNumSamples(), previousGain, targetGain);
-    previousGain = targetGain;
-}
-
+${buses}
 juce::AudioProcessorEditor* ${cls}Processor::createEditor()
 {
     return new ${cls}Editor(*this);
@@ -188,17 +165,6 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
     return new ${cls}Processor();
 }
 `;
-  if (configuredAudio) {
-    source = source.replace(
-      /    : soundor::AudioProcessor\(BusesProperties\(\)[\s\S]*?\n\{/,
-      '    : soundor::AudioProcessor()\n{',
-    );
-    source = source.replace(
-      /bool [A-Za-z0-9_]+Processor::isBusesLayoutSupported[\s\S]*?\nvoid /,
-      'void ',
-    );
-  }
-  return source;
 }
 
 function editorHeader(cls: string): string {

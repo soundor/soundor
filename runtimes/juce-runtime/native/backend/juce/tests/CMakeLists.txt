@@ -103,6 +103,38 @@ foreach(consumer soundor_juce_tests soundor_juce_platform_tests soundor_debug_ta
   endif()
 endforeach()
 
+# A real Rust processor (rust/, against the SDK's fixture contract), built with
+# Cargo for the adapter tests to link, and linked by the generated processor
+# below too (its contract differs, so it stays silent there, as it should).
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../SoundorRust.cmake)
+find_program(SOUNDOR_CARGO cargo REQUIRED)
+set(soundor_test_rust_target "${CMAKE_CURRENT_BINARY_DIR}/rust-target")
+set(soundor_test_rust_library
+  "${soundor_test_rust_target}/debug/${CMAKE_STATIC_LIBRARY_PREFIX}soundor_juce_test_processor${CMAKE_STATIC_LIBRARY_SUFFIX}")
+set(soundor_test_rust_flags)
+if(MSVC AND CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY MATCHES "DLL")
+  set(soundor_test_rust_flags --config "target.x86_64-pc-windows-msvc.rustflags=[\"-C\", \"target-feature=+crt-static\"]")
+endif()
+file(GLOB_RECURSE soundor_test_rust_sources CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/rust/src/*.rs
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../packages/cli/rust/soundor/src/*.rs)
+add_custom_command(OUTPUT "${soundor_test_rust_library}"
+  COMMAND "${SOUNDOR_CARGO}" rustc --manifest-path "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
+    --lib --crate-type staticlib --target-dir "${soundor_test_rust_target}" ${soundor_test_rust_flags}
+  DEPENDS ${soundor_test_rust_sources} "${CMAKE_CURRENT_SOURCE_DIR}/rust/Cargo.toml"
+  COMMENT "Building the test Rust processor with Cargo"
+  VERBATIM)
+add_custom_target(soundor_juce_test_rust_library DEPENDS "${soundor_test_rust_library}")
+
+juce_add_console_app(soundor_juce_rust_tests)
+target_sources(soundor_juce_rust_tests PRIVATE JuceRustProcessorTests.cpp AllocationCounter.cpp ../soundor/backend/RustProcessor.cpp)
+target_include_directories(soundor_juce_rust_tests PRIVATE ..)
+target_compile_definitions(soundor_juce_rust_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(soundor_juce_rust_tests PRIVATE Soundor::Engine soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
+add_dependencies(soundor_juce_rust_tests soundor_juce_test_rust_library)
+soundor_link_rust_processor(soundor_juce_rust_tests "${soundor_test_rust_library}")
+add_test(NAME soundor_juce_rust_tests COMMAND soundor_juce_rust_tests)
+
 # Compile the actual generated persistent processor and its Hermes bindings.
 juce_add_console_app(soundor_juce_state_tests)
 target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
@@ -114,8 +146,11 @@ target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   generated/state/soundor/native/SoundorNative.cpp
   ../soundor/backend/JuceParameter.cpp
   ../soundor/backend/JuceParameterHost.cpp
-  ../soundor/backend/JuceTransport.cpp)
+  ../soundor/backend/JuceTransport.cpp
+  ../soundor/backend/RustProcessor.cpp)
 target_include_directories(soundor_juce_state_tests PRIVATE generated/state ..)
 target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${engine_dir}/../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
 target_link_libraries(soundor_juce_state_tests PRIVATE Soundor::Engine soundor::runtime_internal soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
+add_dependencies(soundor_juce_state_tests soundor_juce_test_rust_library)
+soundor_link_rust_processor(soundor_juce_state_tests "${soundor_test_rust_library}")
 add_test(NAME soundor_juce_state_tests COMMAND soundor_juce_state_tests)

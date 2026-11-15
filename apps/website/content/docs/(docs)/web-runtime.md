@@ -55,7 +55,7 @@ export default defineSoundorConfig({
 soundor init web    # scaffold runtimes/web/ (yours; existing files are kept)
 soundor dev web     # serve the Web host; edits reload the page
 soundor build web   # a static site in .soundor/dist/web
-soundor doctor      # Node.js, Vite, the scaffold
+soundor doctor      # Node.js, Vite, the scaffold, Rust for WebAssembly
 ```
 
 `@soundor/web-runtime` is an ordinary dependency of your project, added with
@@ -67,13 +67,13 @@ the package manager you already use. It brings Vite; the Web host has no
 The Web runtime follows the same five phases as the JUCE runtime, with the
 same split between what you own and what Soundor regenerates.
 
-| Phase    | What it does                                                                                              |
-| -------- | --------------------------------------------------------------------------------------------------------- |
-| `init`   | Writes the Web host project under `runtimes/web/`. A file that exists is never overwritten.               |
-| `gen`    | Writes `.soundor/generated/runtimes/web/`, deterministically (`soundor gen --check` verifies it).         |
-| `dev`    | Runs Vite's dev server on `runtimes/web/` until Ctrl+C.                                                   |
-| `build`  | Runs a Vite production build into `.soundor/dist/web/`, with relative URLs.                               |
-| `doctor` | Checks Node.js against what Vite needs, Vite, and the scaffold. A browser host needs no native toolchain. |
+| Phase    | What it does                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------- |
+| `init`   | Writes the Web host project under `runtimes/web/`. A file that exists is never overwritten.             |
+| `gen`    | Writes `.soundor/generated/runtimes/web/`, deterministically (`soundor gen --check` verifies it).       |
+| `dev`    | Runs Vite's dev server on `runtimes/web/` until Ctrl+C.                                                 |
+| `build`  | Runs a Vite production build into `.soundor/dist/web/`, with relative URLs.                             |
+| `doctor` | Checks Node.js against what Vite needs, Vite, the scaffold, and Rust's `wasm32-unknown-unknown` target. |
 
 **Yours** (`runtimes/web/`, written once by `init`):
 
@@ -84,8 +84,7 @@ runtimes/web/
 ├── tsconfig.json     DOM and Web Audio types, plus the soundor:* declarations
 └── src/
     ├── main.ts       starts the host
-    ├── native.ts     your soundor:native implementation
-    └── audio.ts      your Web Audio code
+    └── native.ts     your soundor:native implementation
 ```
 
 **Generated** (`.soundor/generated/runtimes/web/`, rewritten by `gen`):
@@ -139,8 +138,8 @@ runtime. Running `vite` directly fails with a pointer to `soundor dev web`.
 ## `soundor:*` in the browser
 
 One page (or iframe) runs one plugin, with one host context. All of these
-share that context directly: the plugin UI, your `native.ts` and `audio.ts`,
-and the host UI. Nothing is serialized and there is no RPC.
+share that context directly: the plugin UI, your `native.ts` and the host
+UI. Nothing is serialized and there is no RPC.
 
 | Module               | In the browser                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -307,51 +306,55 @@ export const native: WebNativeApi = {
   objects. Exceptions stay exceptions, and an async method always returns a
   promise.
 
-## Audio: raw Web Audio
+## Audio: the plugin's processor, in WebAssembly
 
-The Web runtime has no Soundor DSP. Your `runtimes/web/src/audio.ts` connects
-plain Web Audio nodes between the host's input and output buses:
-
-```ts
-import type { WebAudioSetup } from '@soundor/web-runtime/client';
-import { parameters } from 'soundor:parameters';
-
-export const setupAudio: WebAudioSetup = ({ context, input, output }) => {
-  const gain = context.createGain();
-  gain.gain.value = parameters.gain.get();
-  const unsubscribe = parameters.gain.subscribe((value) =>
-    gain.gain.setTargetAtTime(value, context.currentTime, 0.01),
-  );
-  input.connect(gain);
-  gain.connect(output);
-  return () => {
-    unsubscribe();
-    input.disconnect();
-    gain.disconnect();
-  };
-};
-```
+The Web host runs the same audio processing as the JUCE plugin: the
+project's Rust crate, `native/`, compiled to WebAssembly
+(`wasm32-unknown-unknown`) and run in an AudioWorklet. There is no Web Audio
+code of your own to write, and nothing to keep in step with the plugin's
+DSP. See [The audio processing](/docs/juce-runtime#the-audio-processing) for
+the processor itself.
 
 ```text
-source → input bus → setupAudio's nodes → output bus → master gain → speakers
+source → input bus → the processor (AudioWorklet) → output bus → master gain → speakers
 ```
 
+- **Building.** `soundor dev web` and `soundor build web` compile `native/`
+  with Cargo (`cargo rustc --crate-type cdylib --target
+  wasm32-unknown-unknown --release`, in `.soundor/cache/native`) before
+  Vite runs. The module is part of the bundle, so a static build needs no
+  other file and works below any path and in iframes. A change to `native/`
+  during `soundor dev web` builds it again and reloads the page.
+- **Requirements.** Rust and its `wasm32-unknown-unknown` target
+  (`rustup target add wasm32-unknown-unknown`), which `soundor doctor`
+  checks. Neither wasm-bindgen nor `SharedArrayBuffer` is used: the page
+  needs no cross-origin isolation headers.
+- **The worklet.** The module is compiled on the audio rendering thread and
+  owns its buffers in its own memory. Each render quantum's input is copied
+  in, processed in place, and copied out. Render quanta of any length work; a
+  longer one is processed in blocks of at most 1024 frames.
+- **Parameters and transport.** The parameters' plain values and the host's
+  transport (tempo, position, playing, time signature) are posted to the
+  worklet when they change, and the processor reads them at the start of
+  each block. Read-only parameters (meters) are the processing's to set:
+  what it publishes comes back and updates the UI and the host's controls.
+  Channels the processor publishes reach `soundor:native`'s channels about
+  60 times a second.
+- **Buses.** The host feeds the main input bus and plays the main output.
+  A sidechain or an auxiliary bus is present but silent.
+- **Failure.** If the module cannot run (it was built from another
+  `soundor.config`) the input passes straight through, and the panel's Audio
+  section says why. A panic in the processor traps the module: the output is
+  silent until the audio restarts, and the panel reports it.
 - The host owns one AudioContext. Browsers allow audio only after a user
   gesture, so the host creates the context on the page's first one, wherever
   it is: a click or key on the plugin, Play, any host control.
-- Without an `audio.ts`, or when it throws, the input passes straight through,
-  and the panel's Audio section says why.
-- `soundor:parameters` and `soundor:host` work in `audio.ts` too. The `gain`
-  above is the same parameter the plugin UI moves.
-- Read-only parameters (meters) are the processing's to set: `setupAudio`
-  receives `publish(parameter, value)`, the counterpart of a JUCE processor's
-  `publish()`, which sets one and notifies the UI and the host's controls.
 
 ### Microphone input
 
 Open **Host settings → Audio → Input**, choose **Microphone**, then press
 **Play**. The browser requests permission; capture feeds the same input bus
-as an oscillator or audio file and passes through your `setupAudio` DSP.
+as an oscillator or audio file and passes through the processor.
 The panel shows when it is waiting for permission, capturing, or unable to
 start, and offers **Retry input** after a failure.
 
@@ -413,7 +416,6 @@ const demo: WebAudioInput = {
 
 await startSoundorWebHost({
   native: () => import('./native'),
-  audio: () => import('./audio'),
   audioInputs: [demo],
   defaultAudioInput: demo.id,
 });
@@ -588,8 +590,8 @@ which is how this site shows its snippets:
 ```
 
 Audio still starts with the first gesture on the view. With no transport
-controls, the host's input source stays silent; the project's own audio
-(`runtimes/web/src/audio.ts`) runs as usual.
+controls, the host's input source stays silent; the processor runs as
+usual.
 
 ## Playground mode
 

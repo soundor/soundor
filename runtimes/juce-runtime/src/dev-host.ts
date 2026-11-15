@@ -151,6 +151,19 @@ export class DevVst3Host {
     });
   }
 
+  /**
+   * Runs `rebuild` with the plugin closed (a loaded plugin's binary cannot be
+   * replaced everywhere), then opens it again if it was open.
+   */
+  rebuild(rebuild: () => Promise<void>): Promise<void> {
+    return this.#enqueue(async () => {
+      const open = this.#host !== undefined;
+      await this.#stop();
+      await rebuild();
+      if (open && !this.#closed) await this.#start();
+    });
+  }
+
   /** Saves the plugin's state and ends the host, for good. */
   close(): Promise<void> {
     this.#closed = true;

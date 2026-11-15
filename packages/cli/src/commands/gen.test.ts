@@ -65,6 +65,20 @@ describe('runGen', () => {
             { path: 'parameters.d.ts', status: 'created' },
             { path: 'platform.d.ts', status: 'created' },
             { path: 'presets.d.ts', status: 'created' },
+            // The Rust SDK, with the contract the processing gets.
+            { path: 'rust/soundor/Cargo.toml', status: 'created' },
+            { path: 'rust/soundor/src/audio.rs', status: 'created' },
+            { path: 'rust/soundor/src/channels.rs', status: 'created' },
+            { path: 'rust/soundor/src/context.rs', status: 'created' },
+            { path: 'rust/soundor/src/ffi.rs', status: 'created' },
+            { path: 'rust/soundor/src/instance.rs', status: 'created' },
+            { path: 'rust/soundor/src/layout.rs', status: 'created' },
+            { path: 'rust/soundor/src/lib.rs', status: 'created' },
+            { path: 'rust/soundor/src/plugin.rs', status: 'created' },
+            { path: 'rust/soundor/src/processor.rs', status: 'created' },
+            { path: 'rust/soundor/src/testing.rs', status: 'created' },
+            { path: 'rust/soundor/src/transport.rs', status: 'created' },
+            { path: 'rust/soundor/src/wasm.rs', status: 'created' },
             { path: 'soundor.d.ts', status: 'created' },
             { path: 'state.d.ts', status: 'created' },
             { path: 'ui.d.ts', status: 'created' },
@@ -80,6 +94,20 @@ describe('runGen', () => {
     await expect(
       readFile(join(root, '.soundor', 'generated', 'parameters.d.ts'), 'utf8'),
     ).resolves.toContain('readonly gain: Parameter<number,');
+    await expect(
+      readFile(
+        join(
+          root,
+          '.soundor',
+          'generated',
+          'rust',
+          'soundor',
+          'src',
+          'plugin.rs',
+        ),
+        'utf8',
+      ),
+    ).resolves.toContain('pub gain: f32,');
     await expect(
       readFile(
         join(root, '.soundor', 'generated', 'runtimes', 'test', 'runtime.txt'),
@@ -123,7 +151,10 @@ describe('runGen', () => {
     await writeConfig(root, 'drive');
 
     await expect(runGen({ cwd: root, check: true })).rejects.toMatchObject({
-      changes: [{ path: 'parameters.d.ts', kind: 'stale' }],
+      changes: [
+        { path: 'parameters.d.ts', kind: 'stale' },
+        { path: 'rust/soundor/src/plugin.rs', kind: 'stale' },
+      ],
     });
   });
 

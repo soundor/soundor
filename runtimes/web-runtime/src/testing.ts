@@ -18,6 +18,8 @@ import {
   type CollectingCodegenSink,
   type LifecycleContext,
   type Logger,
+  type NativeBuildRequest,
+  type NativeCrateContext,
   type ResolvedSoundorConfig,
 } from '@soundor/runtime-sdk';
 
@@ -65,6 +67,30 @@ export interface MakeCtxOptions {
   readonly mode?: 'debug' | 'production';
   readonly signal?: AbortSignal;
   readonly ui?: LifecycleContext['ui'];
+  /** The project's Rust crate; a fake that records builds by default, none with null. */
+  readonly native?: NativeCrateContext | null;
+}
+
+/** A fake Rust crate: records builds, and writes an empty, valid module. */
+export interface FakeNative extends NativeCrateContext {
+  readonly requests: NativeBuildRequest[];
+}
+
+export function fakeNative(root: string): FakeNative {
+  const requests: NativeBuildRequest[] = [];
+  return {
+    manifest: join(root, 'native', 'Cargo.toml'),
+    requests,
+    build: async (request) => {
+      requests.push(request);
+      const path = join(root, '.soundor', 'cache', 'native', 'processor.wasm');
+      await mkdir(join(root, '.soundor', 'cache', 'native'), {
+        recursive: true,
+      });
+      await writeFile(path, Uint8Array.from([0, 97, 115, 109, 1, 0, 0, 0]));
+      return { path, target: request.target ?? 'wasm32-unknown-unknown' };
+    },
+  };
 }
 
 export interface TestCtx extends LifecycleContext<WebOptions> {
@@ -90,6 +116,9 @@ export function makeCtx(root: string, overrides: MakeCtxOptions = {}): TestCtx {
     ui: overrides.ui,
     signing: { macos: { identity: '-', source: 'default' } },
     signal: overrides.signal ?? new AbortController().signal,
+    ...(overrides.native === null
+      ? {}
+      : { native: overrides.native ?? fakeNative(root) }),
   };
 }
 

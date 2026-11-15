@@ -30,7 +30,9 @@ useful for refreshing types in an editor.
 | --------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
 | `soundor.config.ts`   | You                 | Declare identity, parameters, native API, and runtime options                              |
 | `src/`                | You                 | Shared UI and application logic                                                            |
-| `runtimes/<id>/`      | You                 | Host project, DSP, runtime-specific API implementations, build customization               |
+| `runtimes/<id>/`      | You                 | Host project, runtime-specific API implementations, build customization                    |
+| `native/`             | You                 | Shared Rust processor, dependencies, lockfile and processor tests                          |
+| `rust-toolchain.toml` | You                 | Rust toolchain choice, generated once                                                      |
 | `.soundor/generated/` | Soundor             | Regenerated declarations, manifests, and framework; change the config or generator instead |
 | `.soundor/ui/`        | Soundor             | Development and production UI bundles, assets, and build metadata                          |
 | `.soundor/dist/<id>/` | Build tools         | Runtime build trees and output                                                             |
@@ -50,6 +52,8 @@ with paths into the configuration.
 
 Shared generation writes `.soundor/generated/` declarations for parameters,
 the configured native API, runtime modules, Web globals, and imported images.
+It also writes the Rust SDK with config-specific types under
+`.soundor/generated/rust/soundor/`, the crate `native/` depends on.
 Runtime generation adds its own implementation contract:
 
 - JUCE generates CMake integration, processor/editor bases, and C++ native API
@@ -93,7 +97,8 @@ For the web runtime, Vite serves the host. A changed UI build ID reloads the
 page. Host-source edits follow Vite's own update behavior. In either runtime a
 failed UI rebuild reports an error and keeps the last working UI build.
 
-Restart development after changes to `soundor.config.ts` or native C++ code.
+Rust crate edits rebuild through Cargo; UI-only edits do not recompile Rust.
+Restart development after changes to `soundor.config.ts` or runtime C++ code.
 Console output and uncaught errors reach the terminal, with native source maps
 used to map UI stack frames back to TypeScript.
 

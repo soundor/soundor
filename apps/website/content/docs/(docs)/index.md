@@ -70,10 +70,10 @@ documents the native implementation and its limits.
 
 ## What you implement per runtime
 
-You own the audio processing and runtime-specific native methods. A gain plugin
-can multiply a JUCE audio buffer in C++ and connect a browser `GainNode` in
-TypeScript. Soundor supplies the contract and integration; it does not translate
-one DSP implementation into the other.
+You write audio processing once in the Rust crate `native/`. JUCE calls it
+through native FFI; Web runs its WebAssembly build in an AudioWorklet.
+Soundor compiles both with Cargo and generates the parameter and layout types
+from the config. See [Rust audio processing](/docs/rust-processor).
 
 The `native` name describes the API boundary from the UI's perspective. In a
 JUCE plugin its methods call C++; in the web runtime they call your TypeScript

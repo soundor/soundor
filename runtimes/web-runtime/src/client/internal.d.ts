@@ -33,3 +33,9 @@ declare module 'soundor:env' {
     readonly MODE: 'development' | 'production';
   };
 }
+
+declare module 'soundor:internal/processor' {
+  /** The audio processor's WebAssembly module (native/), base64; undefined without one. */
+  const wasm: string | undefined;
+  export default wasm;
+}

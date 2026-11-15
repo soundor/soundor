@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  plainValue,
   WebAudioHost,
-  type WebAudioSetup,
   type WebAudioHostOptions,
   type WebAudioInputContext,
+  type WebProcessorSource,
 } from './audio';
 import { WebHost } from './host';
+import type { ProcessorNode, ProcessorNodeOptions } from './processor/node';
 
 /** A Web Audio node that records what it is connected to. */
 class FakeNode {
@@ -89,9 +91,33 @@ class FakeContext {
   }
 }
 
+/** A processor node that records what the host gives it. */
+function fakeProcessor(ready: Promise<void> = Promise.resolve()) {
+  const created: { options?: ProcessorNodeOptions } = {};
+  const node = new FakeNode('processor');
+  const processor = {
+    node: node as unknown as AudioWorkletNode,
+    ready,
+    setParameters: vi.fn<(values: readonly number[]) => void>(),
+    setTransport: vi.fn<(values: readonly number[]) => void>(),
+    reset: vi.fn<() => void>(),
+    dispose: vi.fn<() => void>(),
+  } satisfies ProcessorNode;
+  const create = vi.fn<
+    (
+      _: BaseAudioContext,
+      options: ProcessorNodeOptions,
+    ) => Promise<ProcessorNode>
+  >(async (_: BaseAudioContext, options: ProcessorNodeOptions) => {
+    created.options = options;
+    return processor;
+  });
+  return { node, processor, created, create };
+}
+
 function setup(
-  loadSetup?: () => Promise<WebAudioSetup | undefined>,
-  options: Omit<WebAudioHostOptions, 'loadSetup' | 'createContext'> = {},
+  loadProcessor?: () => Promise<WebProcessorSource | undefined>,
+  options: Omit<WebAudioHostOptions, 'loadProcessor' | 'createContext'> = {},
 ) {
   let now = 0;
   const frames = { request: () => 1, cancel: () => {} };
@@ -102,7 +128,7 @@ function setup(
   );
   const audio = new WebAudioHost(host, {
     ...options,
-    loadSetup,
+    loadProcessor,
     createContext,
   });
   return {
@@ -151,63 +177,126 @@ describe('WebAudioHost', () => {
     expect(reaches(oscillator, context.destination)).toBe(true);
   });
 
-  it("puts the project's nodes between input and output, and cleans up", async () => {
-    const cleanup = vi.fn<() => void>();
-    let effect: FakeGain | undefined;
-    const projectSetup: WebAudioSetup = ({ context, input, output }) => {
-      effect = (context as unknown as FakeContext).createGain();
-      (input as unknown as FakeNode).connect(effect);
-      effect.connect(output as unknown as FakeNode);
-      return cleanup;
+  it("puts the plugin's processor between input and output, and cleans up", async () => {
+    const fake = fakeProcessor();
+    const source = {
+      wasm: new Uint8Array([0, 97, 115, 109]),
+      parameters: [],
+      channels: [],
+      publishChannel: () => {},
     };
-    const { audio, host, context } = setup(async () => projectSetup);
+    const { audio, host, context } = setup(async () => source, {
+      audio: { inputChannels: 1, outputChannels: 2 },
+      createProcessorNode: fake.create,
+    });
     await audio.start();
     host.play();
     const oscillator = context.sources[0]!;
-    expect(reaches(oscillator, effect!)).toBe(true);
-    expect(reaches(effect!, context.destination)).toBe(true);
+    expect(reaches(oscillator, fake.node)).toBe(true);
+    expect(reaches(fake.node, context.destination)).toBe(true);
+    expect(fake.created.options).toMatchObject({
+      wasm: source.wasm,
+      inputs: [1],
+      outputs: [2],
+      contract: { parameters: 0, published: 0, channels: 0 },
+    });
+    expect(fake.processor.setTransport).toHaveBeenCalled();
 
     audio.dispose();
-    expect(cleanup).toHaveBeenCalledOnce();
+    expect(fake.processor.dispose).toHaveBeenCalledOnce();
     expect(oscillator.stopped).toBe(true);
     expect(context.closed).toBe(true);
   });
 
-  it('follows a parameter in the project setup: one store, no copy', async () => {
+  it('gives the processor plain values, and publishes what it publishes', async () => {
     const { storeOf } = await import('./testing/store');
-    const { byId } = storeOf({
+    const { list, byId } = storeOf({
       gain: { type: 'float32', label: 'Gain', min: 0, max: 1, default: 0.5 },
+      bypass: { type: 'boolean', label: 'Bypass', default: true },
+      mode: {
+        type: 'choice',
+        label: 'Mode',
+        options: [
+          { value: 'a', label: 'A' },
+          { value: 'b', label: 'B' },
+        ],
+        default: 'b',
+      },
+      meter: {
+        type: 'float32',
+        label: 'Meter',
+        min: -60,
+        max: 0,
+        default: -60,
+        access: 'readOnly',
+      },
     });
-    let node: FakeGain | undefined;
-    const projectSetup: WebAudioSetup = ({ context, input, output }) => {
-      node = (context as unknown as FakeContext).createGain();
-      node.gain.value = byId['gain']!.get() as number;
-      const unsubscribe = byId['gain']!.subscribe((value) => {
-        node!.gain.setTargetAtTime(value as number);
-      });
-      (input as unknown as FakeNode).connect(node);
-      node.connect(output as unknown as FakeNode);
-      return unsubscribe;
-    };
-    const { audio } = setup(async () => projectSetup);
+    const published: [number, unknown][] = [];
+    const fake = fakeProcessor();
+    const { audio } = setup(
+      async () => ({
+        wasm: new Uint8Array(),
+        parameters: list,
+        channels: [{ name: 'level', kind: 'number', element: 'float32' }],
+        publishChannel: (index, value) => published.push([index, value]),
+      }),
+      { createProcessorNode: fake.create },
+    );
     await audio.start();
-    expect(node!.gain.value).toBe(0.5);
+    expect(fake.created.options?.parameters).toEqual([0.5, 1, 1, -60]);
+    expect(fake.created.options?.contract).toEqual({
+      parameters: 4,
+      published: 1,
+      channels: 1,
+    });
+    expect(list.map(plainValue)).toEqual([0.5, 1, 1, -60]);
+    // Once ready, the values again: one may have moved while it loaded.
+    expect(fake.processor.setParameters).toHaveBeenCalledWith([0.5, 1, 1, -60]);
     byId['gain']!.set(0.25);
-    expect(node!.gain.value).toBe(0.25);
+    expect(fake.processor.setParameters).toHaveBeenLastCalledWith([
+      0.25, 1, 1, -60,
+    ]);
+    fake.created.options!.onPublished!(Float64Array.of(-12));
+    expect(byId['meter']!.get()).toBe(-12);
+    fake.created.options!.onChannels!([[0, 0.5]]);
+    expect(published).toEqual([[0, 0.5]]);
     audio.dispose();
     byId['gain']!.set(0.75);
-    expect(node!.gain.value).toBe(0.25);
+    expect(fake.processor.setParameters).toHaveBeenCalledTimes(2);
   });
 
-  it('passes through, and says why, when the project setup fails', async () => {
+  it('passes the input through when the processor cannot start', async () => {
+    const fake = fakeProcessor(
+      Promise.reject(new Error('built from another soundor.config')),
+    );
+    fake.processor.ready.catch(() => {});
+    const { audio, host, context } = setup(
+      async () => ({
+        wasm: new Uint8Array(),
+        parameters: [],
+        channels: [],
+        publishChannel: () => {},
+      }),
+      { createProcessorNode: fake.create },
+    );
+    await audio.start();
+    host.play();
+    expect(audio.status.error).toMatch(
+      /could not start, so the input passes through: built from another/,
+    );
+    expect(fake.processor.dispose).toHaveBeenCalled();
+    expect(reaches(context.sources[0]!, context.destination)).toBe(true);
+  });
+
+  it('passes through, and says why, when the processor cannot load', async () => {
     const reported = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { audio, host, context } = setup(async () => () => {
+    const { audio, host, context } = setup(async () => {
       throw new Error('no worklet');
     });
     await audio.start();
     host.play();
     expect(audio.status.state).toBe('running');
-    expect(audio.status.error).toMatch(/audio\.ts\) failed.*no worklet/);
+    expect(audio.status.error).toMatch(/could not start.*no worklet/);
     expect(reaches(context.sources[0]!, context.destination)).toBe(true);
     reported.mockRestore();
   });
@@ -340,14 +429,17 @@ describe('custom audio inputs', () => {
     const cleanup = vi.fn<() => void>(() => {});
     const starts: WebAudioInputContext[] = [];
     let source: FakeSource | undefined, effect: FakeGain | undefined;
+    const fake = fakeProcessor();
+    effect = fake.node as unknown as FakeGain;
     const { audio, host, context } = setup(
-      async () =>
-        ({ input, output }) => {
-          effect = new FakeGain();
-          (input as unknown as FakeNode).connect(effect);
-          effect.connect(output as unknown as FakeNode);
-        },
+      async () => ({
+        wasm: new Uint8Array(),
+        parameters: [],
+        channels: [],
+        publishChannel: () => {},
+      }),
       {
+        createProcessorNode: fake.create,
         inputs: [
           {
             id: 'loop',
@@ -559,18 +651,25 @@ it('does not restore an old file selection after its decode completes late', asy
   audio.dispose();
 });
 
-it('cleans up DSP that finishes setting up after disposal, without creating a source', async () => {
-  const pending = deferred<() => void>(),
-    cleanup = vi.fn<() => void>(() => {});
-  const projectSetup = vi.fn<WebAudioSetup>(() => pending.promise);
-  const { audio, host, context } = setup(async () => projectSetup);
+it('cleans up a processor that finishes starting after disposal, without creating a source', async () => {
+  const pending = deferred<void>();
+  const fake = fakeProcessor(pending.promise);
+  const { audio, host, context } = setup(
+    async () => ({
+      wasm: new Uint8Array(),
+      parameters: [],
+      channels: [],
+      publishChannel: () => {},
+    }),
+    { createProcessorNode: fake.create },
+  );
   host.play();
   const starting = audio.start();
-  await vi.waitFor(() => expect(projectSetup).toHaveBeenCalledOnce());
+  await vi.waitFor(() => expect(fake.create).toHaveBeenCalledOnce());
   audio.dispose();
-  pending.resolve(cleanup);
+  pending.resolve();
   await starting;
-  expect(cleanup).toHaveBeenCalledOnce();
+  expect(fake.processor.dispose).toHaveBeenCalledOnce();
   expect(context.sources).toHaveLength(0);
   expect(context.closed).toBe(true);
 });

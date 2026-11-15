@@ -5,22 +5,22 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
-// parameter tree generated from soundor.config. Add your DSP here.
+// parameters generated from soundor.config and runs the audio processing:
+// the Rust crate in native/. What is here is the rest of the plugin: its
+// editor, its buses and, when the config declares one, its native API
+// (createNativeApi()).
 class SoundorPrimitivesProcessor final : public soundor::AudioProcessor
 {
 public:
     SoundorPrimitivesProcessor();
     ~SoundorPrimitivesProcessor() override = default;
 
-    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
-    void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override { return "Soundor Basic"; }
+    const juce::String getName() const override { return "Soundor Primitives"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -32,9 +32,5 @@ public:
     void changeProgramName(int, const juce::String&) override {}
 
 private:
-    // Last block's applied gain, so process() can ramp to the new target
-    // value instead of stepping (which would click on fast automation).
-    float previousGain { 0.5f };
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundorPrimitivesProcessor)
 };

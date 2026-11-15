@@ -91,7 +91,7 @@ jobs:
   host-plan:
     name: Select VST3 host
     needs: changes
-    if: needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true'
+    if: needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true' || needs.changes.outputs.juce == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -151,6 +151,11 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-
 
+      # The Web runtime compiles a plugin's native/ to WebAssembly: its tests,
+      # and the examples' web builds, need Rust's target for it.
+      - name: Rust for WebAssembly
+        run: rustup target add wasm32-unknown-unknown
+
       - name: Native input detection regression tests
         run: node --test .github/scripts/windows-plugin-check.test.mjs .github/scripts/native-changes.test.mjs .github/scripts/verify-results.test.mjs
 
@@ -174,6 +179,13 @@ jobs:
       - name: Run test
         run: pnpm turbo run test --filter=!./examples/* --filter=!@soundor/react-tests
 
+      # The Rust SDK the CLI ships: its lifecycle and C ABI tests, its lints.
+      - name: Rust SDK tests
+        run: |
+          cargo fmt --check --manifest-path packages/cli/rust/soundor/Cargo.toml &&
+          cargo clippy --all-targets --manifest-path packages/cli/rust/soundor/Cargo.toml -- -D warnings &&
+          pnpm --filter soundor test:rust
+
       # The engine's Yoga is released on its own: the web runtime's must follow.
       # Release checks this too, as it does not wait for this workflow.
       - name: The web runtime's Yoga is the engine's
@@ -182,7 +194,7 @@ jobs:
       - name: Example application tests, types and web builds
         run: |
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer test &&
-          pnpm --filter orbit test:native &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter snippets --filter soundor-benchmark test:rust &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer typecheck &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer build:web
 
@@ -203,6 +215,11 @@ jobs:
       - name: DevTools browser E2E
         run: pnpm --filter @soundor/devtools-client test:e2e
 
+      # The Rust processor in Chromium's AudioWorklet (the browser installed
+      # above, same Playwright), rendered offline and compared sample for sample.
+      - name: Web runtime AudioWorklet tests
+        run: pnpm --filter @soundor/web-runtime test:browser
+
       # The built site in Chromium (installed above, same Playwright): pages,
       # search, an embedded example, and editing its code.
       - name: Website browser tests
@@ -216,11 +233,13 @@ jobs:
 
   juce8:
     name: JUCE 8 (juce-runtime)
-    needs: [changes, engine-plan, engine]
+    needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
+      needs.host-plan.result == 'success' &&
+      (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -232,16 +251,21 @@ jobs:
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
       engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
+      build-host: ${{ needs.host-plan.outputs.build == 'true' || needs.host-plan.outputs.artifact-run != '' }}
+      host-run-id: ${{ needs.host-plan.outputs.artifact-run }}
+      host-commit: ${{ needs.host-plan.outputs.artifact-commit }}
 
   # JUCE 9 compiles its image libraries with plain C names, as Skia's (renamed)
   # copies.
   juce9:
     name: JUCE 9 (juce-runtime)
-    needs: [changes, engine-plan, engine]
+    needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
+      needs.host-plan.result == 'success' &&
+      (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -251,6 +275,9 @@ jobs:
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
       engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
+      build-host: ${{ needs.host-plan.outputs.build == 'true' || needs.host-plan.outputs.artifact-run != '' }}
+      host-run-id: ${{ needs.host-plan.outputs.artifact-run }}
+      host-commit: ${{ needs.host-plan.outputs.artifact-commit }}
 
   benchmark:
     name: Benchmark smoke
@@ -268,6 +295,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup
         uses: ./.github/actions/setup
+      - name: Rust WebAssembly target
+        run: rustup target add wasm32-unknown-unknown
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps

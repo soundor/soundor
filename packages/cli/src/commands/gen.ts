@@ -24,6 +24,8 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { rustSdkFiles } from '../native/sdk';
+
 const CONFIG_FILENAME = 'soundor.config.ts';
 
 export interface RunGenOptions {
@@ -66,7 +68,11 @@ export async function runGen(
   const fs = createNodeFileSystem(root);
   const logger = createConsoleLogger('soundor');
   const portableDir = fs.resolve('.soundor', 'generated');
-  const portableFiles = generateSoundorFiles(config);
+  // The declarations, and the Rust SDK with the plugin's contract.
+  const portableFiles = [
+    ...generateSoundorFiles(config),
+    ...rustSdkFiles(config),
+  ];
   const runtimeEntries = selectRuntimeEntries(
     config.runtimes,
     options.runtimeIds,

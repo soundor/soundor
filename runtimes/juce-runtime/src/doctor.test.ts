@@ -383,6 +383,7 @@ describe('buildDoctorReport', () => {
     expect(commands).not.toContain('c++');
     expect(commands).not.toContain('clang++');
     expect(commands).not.toContain('g++');
+    expect(commands.some((command) => command.startsWith('llvm-'))).toBe(false);
   });
 
   it('reports a missing compiler when every front-end fails', async () => {

@@ -39,7 +39,7 @@ import {
 
 import { version as RUNTIME_VERSION } from '../package.json';
 import { audioDeclaration, audioImplementation } from './audio-codegen';
-import { generateNativeModuleSources } from './native-codegen';
+import { channelType, generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
 import { generatePresetSources } from './preset-codegen';
@@ -107,7 +107,7 @@ export function generateJuceSources(
     },
     {
       path: 'soundor/SoundorProcessor.cpp',
-      contents: renderProcessorSource(parameters, config),
+      contents: renderProcessorSource(parameters, config, nativeApi.model),
     },
     {
       path: 'soundor/SoundorParameters.cpp',
@@ -132,6 +132,62 @@ export function generateJuceSources(
     ...file,
     contents: file.contents.replace(/[ \t]+$/gm, ''),
   }));
+}
+
+/**
+ * The native channels as the Rust processing reaches them: callbacks by
+ * index, in the order the Rust SDK numbers them (by name, as the model).
+ */
+function renderChannelSink(channels: NativeApiModel['channels']): string {
+  if (channels.length === 0) return '';
+  const cases = (
+    kind: 'number' | 'buffer',
+    body: (name: string, type: string) => string,
+  ) =>
+    channels
+      .map((channel, index) => ({ channel, index }))
+      .filter(({ channel }) => channel.kind === kind)
+      .map(
+        ({ channel, index }) =>
+          `                case ${index}: ${body(channel.name, channelType(channel))}`,
+      )
+      .join('\n');
+  return `    namespace
+    {
+        // Realtime-safe, as the channels are: the Rust processing calls these
+        // on the audio thread.
+        void publishChannel(void* user, std::uint32_t index, double value)
+        {
+            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            switch (index)
+            {
+${cases('number', (name, type) => `channels.${name}.publish(static_cast<${type.slice(type.indexOf('<') + 1, -1)}>(value)); break;`)}
+                default: break;
+            }
+        }
+
+        void* channelBuffer(void* user, std::uint32_t index, std::uint32_t* capacity)
+        {
+            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            *capacity = 0;
+            switch (index)
+            {
+${cases('buffer', (name) => `{ const auto storage = channels.${name}.buffer(); *capacity = static_cast<std::uint32_t>(storage.size()); return storage.data(); }`)}
+                default: return nullptr;
+            }
+        }
+
+        void commitChannel(void* user, std::uint32_t index, std::uint32_t length)
+        {
+            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            switch (index)
+            {
+${cases('buffer', (name) => `channels.${name}.commit(length); break;`)}
+                default: break;
+            }
+        }
+    } // namespace
+`;
 }
 
 /** The editor's install() of soundor:native into each new context. */
@@ -298,6 +354,7 @@ target_sources(\${PROJECT_NAME}
           'JucePointerLock',
           'JucePresentation',
           'JuceTransport',
+          'RustProcessor',
         ]
           .map((name) =>
             cmakeString(
@@ -308,6 +365,14 @@ target_sources(\${PROJECT_NAME}
           )
           .join('\n        ')})
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
+
+# The plugin's audio processing: its Rust crate (native/), which soundor dev
+# and soundor build compile with Cargo and name here (SoundorRust.cmake).
+if(NOT SOUNDOR_RUST_LIBRARY OR NOT EXISTS "\${SOUNDOR_RUST_LIBRARY}")
+  message(FATAL_ERROR "The plugin's Rust processor (native/) was not built: build the plugin with soundor dev or soundor build, which compile it with Cargo first.")
+endif()
+include(${cmakeString(cmakePath(`${params.nativeDir}/SoundorRust.cmake`))})
+soundor_link_rust_processor(\${PROJECT_NAME} "\${SOUNDOR_RUST_LIBRARY}")
 
 # The plugin UI bundle the CLI built (soundor dev / soundor build), compiled
 # into the plugin so it needs no files at runtime: its JavaScript as Hermes
@@ -450,6 +515,7 @@ function renderProcessorHeader(
 #include <soundor/Abi.h>
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
+#include <soundor/backend/RustProcessor.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -471,8 +537,10 @@ namespace ${NS}
         std::span<const backend::ParameterBehavior> parameterBehaviors();
     } // namespace generated
 ${renderChoiceEnums(parameters, enums)}
-    // Base processor: owns the parameter tree generated from soundor.config.
-    // Derive your plugin's processor from this and implement the DSP.
+    // Base processor: owns the parameter tree generated from soundor.config,
+    // and runs the plugin's audio processing, its Rust crate (native/).
+    // Derive your plugin's processor from this for what is not processing:
+    // its editor, its native API.
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
     {
     public:
@@ -506,17 +574,18 @@ ${audioDeclaration(config)}
         void getStateInformation(juce::MemoryBlock& destData) override final;
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
-        // Implement your DSP here. Called on the audio thread for every block,
-        // like juce::AudioProcessor::processBlock (which Soundor implements to
-        // capture the host's transport for soundor:host first).
-        virtual void process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) = 0;
-
-        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final
-        {
-            transport.capture(getPlayHead());
-            process(buffer, midi);
-        }
+        // The audio processing is the plugin's Rust crate (native/), which
+        // these call through its C ABI (RustProcessor.h): prepare it when the
+        // host does, give each block the parameters' values and the host's
+        // transport, and publish what it publishes.
+        void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
+        void releaseResources() override {}
+        void reset() override final;
+        void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override final;
         using juce::AudioProcessor::processBlock;
+
+        // The Rust processor: whether it runs (valid()), and why not (error()).
+        const backend::RustProcessor& rustProcessor() const noexcept { return rust; }
 
         // Overrides must call this base implementation to keep soundor:host informed.
         void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
@@ -541,17 +610,17 @@ ${
   hasEvents
     ? `
         // The config's native events (\`events\` of soundor:native): publish
-        // them from any thread but the audio callback (process()), and every
-        // open editor receives them on its UI thread.
+        // them from any thread but the audio callback, and every open editor
+        // receives them on its UI thread.
         native::Events nativeEvents;
 `
     : ''
 }${
     hasChannels
       ? `
-        // The config's native channels (\`channels\` of soundor:native):
-        // publish their latest values from any one thread, the audio callback
-        // (process()) included, and every open editor reads the newest.
+        // The config's native channels (\`channels\` of soundor:native): the
+        // Rust processing publishes their latest values (\`ctx.channels\`),
+        // and every open editor reads the newest.
         native::Channels nativeChannels;
 `
       : ''
@@ -559,13 +628,14 @@ ${
     protected:
         // Called on the message thread after a complete accepted host restoration.
         virtual void stateRestored() {}
-        // Persistent control-thread data; never call get/set from process().
+        // Persistent control-thread data; never call get/set on the audio thread.
         // Control-thread History is shared by C++ and every editor context.
         history::StateHistory history;
         PersistentState state { &history };
 
-        // The parameters, typed as declared, for the processing: load() reads
-        // one on any thread (realtime-safe); a read-only one's publish() sets it.
+        // The parameters, typed as declared: load() reads one on any thread
+        // (realtime-safe). The Rust processing gets every value each block,
+        // and sets the read-only ones.
 ${handles || '        // no parameters'}
 
     private:
@@ -582,6 +652,13 @@ ${handles || '        // no parameters'}
         std::vector<std::unique_ptr<backend::ParameterEditor>> parameterEditors;
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
+        // What the Rust processing gets and gives each block, allocated once.
+        backend::RustProcessor rust { backend::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.channels.length} } };
+        std::vector<backend::JuceParameter*> processingParameters;
+        std::vector<backend::JuceParameter*> publishedParameters;
+        std::vector<double> parameterValues;
+        std::vector<double> publishedValues;
+        ${hasChannels ? 'SoundorChannelSink channelSink {};' : ''}
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
@@ -592,8 +669,10 @@ ${handles || '        // no parameters'}
 function renderProcessorSource(
   parameters: readonly Parameter[],
   config: SoundorConfig,
+  native: NativeApiModel,
 ): string {
   const enums = choiceEnums(parameters);
+  const channels = native.channels;
   const bindings = parameters
     .map(
       (p, i) =>
@@ -602,10 +681,13 @@ function renderProcessorSource(
     .join('\n');
   return `${HEADER}#include "SoundorProcessor.h"
 
+#include <cmath>
+#include <limits>
 #include <vector>
 
 namespace ${NS}
 {
+${renderChannelSink(channels)}
     AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
         : juce::AudioProcessor(ioLayouts)
     {
@@ -645,6 +727,13 @@ namespace ${NS}
         }
         parameters = std::make_unique<juce::AudioProcessorValueTreeState>(
             *this, nullptr, "SOUNDOR", std::move(layout));
+        processingParameters = created;
+        publishedParameters = readOnly;
+        parameterValues.assign(created.size(), 0.0);
+        publishedValues.assign(readOnly.size(), std::numeric_limits<double>::quiet_NaN());
+        ${channels.length > 0 ? 'channelSink = { &nativeChannels, publishChannel, channelBuffer, commitChannel };' : ''}
+        if (! rust.valid())
+            juce::Logger::writeToLog(juce::String("Soundor: ") + rust.error());
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
         parameterEditors.reserve(created.size());
         for (auto* parameter : created)
@@ -655,6 +744,33 @@ ${bindings || '        // no parameters'}
     }
 
 ${audioImplementation(config)}
+    void AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
+    {
+        for (std::size_t index = 0; index < processingParameters.size(); ++index)
+            parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::RustBusLayout::of(*this), parameterValues);
+        if (rust.valid() && status != SOUNDOR_STATUS_OK)
+            juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
+    }
+
+    void AudioProcessor::reset()
+    {
+        rust.reset();
+    }
+
+    void AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+    {
+        juce::ScopedNoDenormals noDenormals;
+        auto* playHead = getPlayHead();
+        transport.capture(playHead);
+        for (std::size_t index = 0; index < processingParameters.size(); ++index)
+            parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
+        rust.process(buffer, parameterValues, publishedValues, backend::RustProcessor::transportOf(playHead), ${channels.length > 0 ? '&channelSink' : 'nullptr'});
+        for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
+            if (! std::isnan(publishedValues[slot]))
+                publishedParameters[slot]->publish(publishedValues[slot]);
+    }
+
 ${persistentProcessorSource(parameters)}
 } // namespace ${NS}
 `;

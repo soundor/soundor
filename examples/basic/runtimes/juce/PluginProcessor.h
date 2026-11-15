@@ -5,16 +5,14 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
-// parameter tree generated from soundor.config. Add your DSP here.
+// parameters generated from soundor.config and runs the audio processing:
+// the Rust crate in native/. What is here is the rest of the plugin: its
+// editor.
 class SoundorBasicProcessor final : public soundor::AudioProcessor
 {
 public:
     SoundorBasicProcessor();
     ~SoundorBasicProcessor() override = default;
-
-    void prepareToPlay(double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
-    void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -30,9 +28,5 @@ public:
     void changeProgramName(int, const juce::String&) override {}
 
 private:
-    // Last block's applied gain, so process() can ramp to the new target
-    // value instead of stepping (which would click on fast automation).
-    float previousGain { 0.5f };
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SoundorBasicProcessor)
 };

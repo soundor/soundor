@@ -2,7 +2,8 @@
   // End-to-end tests run in Node, beside the plugin, not in its runtime.
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    // Node implements WebAssembly; TypeScript declares its value in DOM.
+    "lib": ["ES2023", "DOM"],
     "types": ["node"],
     "module": "ESNext",
     "moduleResolution": "bundler",

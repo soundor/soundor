@@ -13,6 +13,7 @@
     "---Guides---",
     "react",
     "ui-library",
+    "rust-processor",
     "---Runtimes---",
     "juce-runtime",
     "web-runtime",

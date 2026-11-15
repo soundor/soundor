@@ -27,10 +27,7 @@ namespace
         using AudioProcessor::state;
         int restored = 0;
         std::vector<std::string> observations;
-        void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
         const juce::String getName() const override { return "State Test"; }
-        void prepareToPlay(double, int) override {}
-        void releaseResources() override {}
         juce::AudioProcessorEditor* createEditor() override { return nullptr; }
         bool hasEditor() const override { return false; }
         bool acceptsMidi() const override { return false; }
@@ -761,7 +758,7 @@ TEST_CASE("the processor's native channels carry the audio thread's latest value
                                 "channels.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
                                 "/ui.js")
                 .ok());
-    // As process() would, on another thread: in place, without allocating.
+    // As the audio processing would, on another thread: in place, without allocating.
     std::thread audio(
         [&processor]
         {

@@ -3,14 +3,13 @@
  * project's entry (`runtimes/web/src/main.ts`) starts it:
  *
  *   import { startSoundorWebHost } from '@soundor/web-runtime/client';
- *   await startSoundorWebHost({
- *     native: () => import('./native'),
- *     audio: () => import('./audio'),
- *   });
+ *   await startSoundorWebHost({ native: () => import('./native') });
  *
  * It renders the host page, installs the project's native API, then
  * evaluates the plugin UI bundle the CLI built, whose `soundor:*` imports
- * reach this page's host. Audio starts with the page's first gesture.
+ * reach this page's host. Audio starts with the page's first gesture,
+ * through the plugin's processor: its Rust crate (native/), compiled to
+ * WebAssembly by the CLI and run in an AudioWorklet.
  *
  * A static build opened with `?embed` shows the plugin alone, filling the
  * page (a docs page's snippet), and with `?playground=<script>` runs the code
@@ -21,12 +20,14 @@ import {
   presentation as defaultPresentation,
   sendLog,
 } from 'soundor:internal/dev';
+import processorWasm from 'soundor:internal/processor';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
-import { WebAudioHost, type WebAudioInput, type WebAudioSetup } from './audio';
+import { WebAudioHost, type WebAudioInput } from './audio';
 import { hostContext, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
+import { nativeChannelPublishers } from './native-channels';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
 import { createShell, EMBED_PARAM, type Presentation } from './shell';
@@ -39,8 +40,6 @@ export interface WebHostOptions {
    * `native`). Loaded after the host exists, before the plugin UI.
    */
   readonly native?: () => Promise<unknown>;
-  /** Loads the project's audio (a module exporting `setupAudio`). */
-  readonly audio?: () => Promise<unknown>;
   /** Custom sources listed in the host panel's Audio → Input selector. */
   readonly audioInputs?: readonly WebAudioInput[];
   /**
@@ -91,8 +90,22 @@ export async function startSoundorWebHost(
     audio: context.manifest.audio,
     inputs: options.audioInputs,
     defaultInput: options.defaultAudioInput,
-    loadSetup:
-      options.audio === undefined ? undefined : () => loadSetup(options.audio!),
+    loadProcessor: async () => {
+      if (processorWasm === undefined) return undefined;
+      const channels = context.manifest.native.channels;
+      const publishers = nativeChannelPublishers();
+      return {
+        wasm: Uint8Array.from(atob(processorWasm), (char) =>
+          char.charCodeAt(0),
+        ),
+        parameters: context.parameters.list,
+        channels,
+        publishChannel: (index, value) => {
+          const channel = channels[index];
+          if (channel !== undefined) publishers[channel.name]?.publish(value);
+        },
+      };
+    },
   });
   // The plugin view, measured again when the shell scales it.
   const view = uiView();
@@ -182,28 +195,14 @@ function pagePresentation(): Presentation {
     : defaultPresentation;
 }
 
-async function loadSetup(load: () => Promise<unknown>): Promise<WebAudioSetup> {
-  const module = (await load()) as {
-    setupAudio?: unknown;
-    default?: unknown;
-  } | null;
-  const setup = module?.setupAudio ?? module?.default;
-  if (typeof setup !== 'function') {
-    throw new TypeError(
-      "runtimes/web/src/audio.ts must export its Web Audio setup as 'setupAudio'",
-    );
-  }
-  return setup as WebAudioSetup;
-}
-
 export type {
   WebAudioCleanup,
   WebAudioInput,
   WebAudioInputContext,
   WebAudioInputInfo,
-  WebAudioSetup,
-  WebAudioSetupContext,
 } from './audio';
+export { createProcessorNode } from './processor/node';
+export type { ProcessorNode, ProcessorNodeOptions } from './processor/node';
 // The generated `events` and `channels` of runtimes/web's native contract.
 export { nativeChannelPublishers } from './native-channels';
 export { nativeEventPublishers } from './native-events';

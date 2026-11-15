@@ -76,6 +76,55 @@ export interface LiveUiContext {
 }
 
 /**
+ * The project's Rust crate, `native/`, which holds the plugin's audio
+ * processing: the CLI compiles it with Cargo, for each runtime's target,
+ * before or while the runtime links or loads it. Runtimes never run Cargo
+ * themselves.
+ */
+export interface NativeCrateContext {
+  /** Absolute path to the crate's manifest, `native/Cargo.toml`. */
+  readonly manifest: string;
+  /**
+   * Compiles the crate's library (incrementally: unchanged sources build in
+   * a moment) and resolves to it. Rejects with the compiler's diagnostics,
+   * which it has already logged.
+   */
+  build(request: NativeBuildRequest): Promise<NativeLibrary>;
+  /**
+   * Set by `soundor dev`: calls `listener` after the crate's sources change
+   * (debounced), so that the runtime can build it again. Returns a function
+   * that stops calling it.
+   */
+  readonly onChange?: (listener: () => void) => () => void;
+}
+
+/** What {@link NativeCrateContext.build} compiles. */
+export interface NativeBuildRequest {
+  /**
+   * `staticlib`, linked into a native plugin, or `cdylib`, a WebAssembly
+   * module.
+   */
+  readonly crateType: 'staticlib' | 'cdylib';
+  /** The Rust target triple; the host's by default. */
+  readonly target?: string;
+  /** Cargo's `dev` profile, or `release`. */
+  readonly profile: 'debug' | 'release';
+  /**
+   * Windows: link the C runtime statically (`+crt-static`), as a plugin built
+   * for MSVC's `/MT` must.
+   */
+  readonly staticCrt?: boolean;
+}
+
+/** A compiled library of the crate. */
+export interface NativeLibrary {
+  /** Absolute path to the library (`.a`, `.lib` or `.wasm`). */
+  readonly path: string;
+  /** The Rust target triple it was compiled for. */
+  readonly target: string;
+}
+
+/**
  * Set by `soundor dev`: how a long-lived `dev` phase talks to the terminal
  * the developer is watching.
  */
@@ -122,6 +171,11 @@ export interface LifecycleContext<Options extends object = object> {
   readonly codegen: CodegenSink;
   /** The plugin UI bundle, for `dev` and `build` of projects with a UI. */
   readonly ui?: UiBundleContext;
+  /**
+   * The project's Rust crate (`native/`), for `dev` and `build`; undefined
+   * when the project has none.
+   */
+  readonly native?: NativeCrateContext;
   /** Only provided for supported runtimes in the debug development phase. */
   readonly devtools?: DevToolsConnection;
   /** Only provided in `dev`, by a host that shows the session in a terminal. */

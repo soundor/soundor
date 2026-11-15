@@ -19,8 +19,9 @@ for both runtimes. The audio is `basic`'s gain; the UI is the point.
 soundor.config.ts   identity, the `gain` parameter, both runtimes
 src/main.tsx        mounts src/App.tsx
 src/App.tsx         the tour (@soundor/react)
-runtimes/juce/      JUCE (C++): applies `gain`
-runtimes/web/       Web (TypeScript): applies `gain` with a GainNode
+native/             shared Rust audio processor: applies `gain`
+runtimes/juce/      JUCE host integration
+runtimes/web/       Web host integration, running native/ as WebAssembly
 ```
 
 | Card                | Shows                                                                                                    |

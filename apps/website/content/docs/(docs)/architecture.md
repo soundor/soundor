@@ -16,8 +16,8 @@ flowchart TD
     Source["src/main.tsx and npm dependencies"] --> Bundle["CLI: bundle UI"]
     Bundle --> ESM["bundle.mjs: ES module"]
     ESM --> Native["JUCE runtime: lowered for its engine"]
-    Contract --> JUCE["JUCE plugin: your C++ host and DSP"]
-    Contract --> Web["Browser host: your TypeScript and Web Audio"]
+    Contract --> JUCE["JUCE plugin: your C++ host, the Rust DSP"]
+    Contract --> Web["Browser host: your TypeScript, the Rust DSP in WebAssembly"]
     Native --> JUCE
     ESM --> Web
     JUCE --> Engine["Soundor Engine: Hermes, Yoga, Skia, ANGLE"]
@@ -103,8 +103,8 @@ runtime lays out with the engine's Yoga, compiled to WebAssembly, and provides
 Soundor event routing and focus
 behavior, and root/overlay stacking inside the plugin viewport.
 
-One page or iframe owns one host context. The UI, `native.ts`, `audio.ts`, and
-host controls share it directly. Native API calls are ordinary TypeScript calls;
+One page or iframe owns one host context. The UI, `native.ts` and the host
+controls share it directly. Native API calls are ordinary TypeScript calls;
 there is no serialization boundary. Storage and the private file tree use
 IndexedDB, isolated by plugin ID.
 

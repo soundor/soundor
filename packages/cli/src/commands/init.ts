@@ -12,6 +12,8 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { nativeScaffoldFiles } from '../native/scaffold';
+
 const CONFIG_FILENAME = 'soundor.config.ts';
 
 export interface RunInitOptions {
@@ -45,6 +47,17 @@ export async function runInit(
   const resolvedRuntimes = runtimes.map((runtimeEntry) =>
     resolveRuntime(config, runtimeEntry.id),
   );
+
+  // The plugin's audio processing, shared by every runtime: the Rust crate.
+  for (const file of nativeScaffoldFiles(config)) {
+    const target = fs.resolve(file.path);
+    if (await fs.exists(target)) {
+      logger.info(`skip ${file.path} (exists)`);
+      continue;
+    }
+    await fs.write(target, file.contents);
+    logger.info(`create ${file.path}`);
+  }
 
   for (const resolved of resolvedRuntimes) {
     const runtimeEntry = resolved.config;

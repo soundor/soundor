@@ -36,6 +36,19 @@ on:
         type: string
         default: ''
 
+      build-host:
+        description: Use CI VST3 host artifacts rather than the released host
+        type: boolean
+        default: false
+      host-run-id:
+        description: Successful main run to reuse (empty for this run)
+        type: string
+        default: ''
+      host-commit:
+        description: Original source commit of the reused host
+        type: string
+        default: ''
+
 permissions: {}
 
 jobs:
@@ -204,11 +217,11 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
         run: |
-          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_juce_state_tests soundor_debug_target --config Debug --parallel 3
+          cmake --build .soundor/juce-tests --target soundor_juce_tests soundor_juce_platform_tests soundor_juce_state_tests soundor_juce_rust_tests soundor_debug_target --config Debug --parallel 3
           if [ "${{ runner.os }}" = "Linux" ]; then
-            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests)|debug_session)$' --output-on-failure
+            xvfb-run -a ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests|rust_tests)|debug_session)$' --output-on-failure
           else
-            ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests)|debug_session)$' --output-on-failure
+            ctest --test-dir .soundor/juce-tests -C Debug -R '^soundor_(juce_(tests|platform_tests|state_tests|rust_tests)|debug_session)$' --output-on-failure
           fi
       - name: Native static analysis
         if: matrix.lint
@@ -236,6 +249,27 @@ jobs:
             fi
             grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/plugin.log"
           fi
+      - name: Download the selected VST3 host
+        if: inputs.build-host && !matrix.lint && !matrix.sanitize
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.host-run-id || github.run_id }}
+          name: vst3-host-${{ inputs.host-commit || github.sha }}-${{ runner.os == 'Windows' && 'win32-x64' || runner.os == 'macOS' && 'darwin-universal' || 'linux-x64-gnu' }}
+          path: ${{ runner.temp }}/vst3-host
+      - name: Select the host artifact
+        if: inputs.build-host && !matrix.lint && !matrix.sanitize
+        run: |
+          artifact=$(cygpath -m "$RUNNER_TEMP/vst3-host" 2>/dev/null || echo "$RUNNER_TEMP/vst3-host")
+          echo "SOUNDOR_VST3_HOST_ARTIFACT=$artifact" >> "$GITHUB_ENV"
+      - name: Prepare the VST3 host for the audio test
+        if: ${{ !matrix.lint && !matrix.sanitize }}
+        env:
+          HOST_COMMIT: ${{ inputs.host-commit || github.sha }}
+        run: node hosts/vst3-host/src/cli.ts prepare --mode published --commit "$HOST_COMMIT"
+      - name: Test the Rust gain through the VST3 host
+        if: ${{ !matrix.lint && !matrix.sanitize }}
+        run: pnpm --filter @soundor/juce-runtime test:plugin:audio
       - name: Check that both builds disabled GPU support
         if: matrix.nogpu
         run: |
@@ -247,18 +281,6 @@ jobs:
           plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-linux/*.so' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
           .github/scripts/linux-plugin-check.sh "$plugin"
-      - name: Rust link test host dependencies
-        if: matrix.name == 'linux-clang'
-        # The fixture builds the VST3 host too; supplement the JUCE dependencies
-        # with its X11 extension headers and SDL platform dependencies.
-        run: sudo apt-get install -y --no-install-recommends libxtst-dev libxcomposite-dev libxdamage-dev libxfixes-dev libgl-dev libegl-dev libdbus-1-dev
-      - name: Rust processor links with the prebuilt Linux engine
-        if: matrix.name == 'linux-clang'
-        env:
-          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
-        run: |
-          pnpm --filter @soundor/vst3-host build:native
-          pnpm --filter @soundor/juce-runtime test:rust-link
       - name: The test plugin needs no C or C++ runtime DLL
         if: runner.os == 'Windows'
         run: |

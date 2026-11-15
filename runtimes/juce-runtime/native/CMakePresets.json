@@ -50,6 +50,7 @@
         "soundor_juce_tests",
         "soundor_juce_platform_tests",
         "soundor_juce_state_tests",
+        "soundor_juce_rust_tests",
         "soundor_debug_target",
         "soundor_juce_editor_resize",
         "soundor_juce_coexistence"
@@ -74,6 +75,7 @@
         "soundor_juce_tests",
         "soundor_juce_platform_tests",
         "soundor_juce_state_tests",
+        "soundor_juce_rust_tests",
         "soundor_debug_target"
       ],
       "jobs": 2
