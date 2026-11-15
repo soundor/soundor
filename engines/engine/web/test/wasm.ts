@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
-/** The module `pnpm build:wasm` writes. */
-export const wasmPath = fileURLToPath(
-  new URL('../../build/wasm/web/soundor-core.wasm', import.meta.url),
-);
+/**
+ * The module `pnpm build:wasm` writes (vitest.config.ts says where: a test's
+ * import.meta.url is not a file in happy-dom).
+ */
+export const wasmPath = process.env['SOUNDOR_ENGINE_WASM']!;
 
 /** The module's bytes, or why there are none. */
 export function wasmBytes(): Uint8Array<ArrayBuffer> {

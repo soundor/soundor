@@ -26,10 +26,12 @@ same: the same `src/main.tsx`, the same `@soundor/react` components, the same
 
 This is not the JUCE plugin compiled for the Web. The browser's own engine runs
 the plugin UI's JavaScript and draws it, without Hermes or Skia, and your own
-TypeScript provides the native API and the audio. Only the layout is the
-engine's: the Yoga it links, compiled to WebAssembly, so a UI gets the same
-boxes in both runtimes. A page with a strict Content Security Policy has to
-allow it, with `wasm-unsafe-eval`.
+TypeScript provides the native API and the audio. The UI's engine is Soundor's
+own, though: its C++ core (the node tree, styles, Yoga layout and text layout,
+the same code the JUCE runtime compiles) runs as WebAssembly, so a UI gets the
+same boxes and the same style errors in both runtimes, and the browser draws
+them with HTML elements and CSS. A page with a strict Content Security Policy
+has to allow it, with `wasm-unsafe-eval`.
 
 ## Usage
 
@@ -166,8 +168,8 @@ editor's size, scaled down when the page is smaller; see
 `@soundor/react`'s own; there is no ReactDOM. Plugin code only ever sees
 UiNodes.
 
-- **Layout.** Yoga decides every box, as in the JUCE runtime, and each element
-  is placed absolutely where it says: CSS only draws. `flex` is read as React
+- **Layout.** The engine decides every box, with its Yoga, as in the JUCE
+  runtime, and each element is placed absolutely where it says: CSS only draws. `flex` is read as React
   Native reads it, and invalid styles fail with the JUCE runtime's messages. What
   still differs is listed in [Where layout differs](#where-layout-differs).
 - **Events.** Events capture and bubble along the Soundor tree, and input
@@ -238,8 +240,8 @@ UiNodes.
 
 ### Where layout differs
 
-Both runtimes lay out with the same Yoga, told the same things, so a box is the
-same in both to the last bit, given the same text sizes. What remains is what
+Both runtimes lay out with the same engine code, so a box is the same in both
+to the last bit, given the same text sizes. What remains is what
 the browser itself decides:
 
 - **Text** is measured by Skia natively and by the browser here, with the
@@ -625,6 +627,12 @@ previous UI and runs the files again. Its messages with the page are in
 
 ## Limitations
 
+- The engine's WebAssembly module (`soundor-core.wasm`) is built from the
+  engine's sources (`pnpm --filter @soundor/engine build:wasm`, with
+  Emscripten), and is not yet published: in this repository the runtime
+  finds that build by itself; elsewhere, set `SOUNDOR_ENGINE_WASM` to one.
+  `soundor dev` and `soundor build` say so when it is missing. See
+  [The engine in the browser](/docs/contribute/web-engine).
 - No DSP abstraction. Audio is your own Web Audio code; there is no portable
   Soundor DSP, no AudioWorklet layer, and no compiling of the JUCE DSP to
   WebAssembly.

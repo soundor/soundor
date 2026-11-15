@@ -10,9 +10,12 @@
  *   host. (Vite's dependency pre-bundling would otherwise load a second
  *   copy.)
  * - the plugin UI: the bundle the CLI built (`ctx.ui`), loaded as it is and
- *   never rebundled from the project's sources (see `ui-bundle.ts`).
+ *   never rebundled from the project's sources (see `ui-bundle.ts`);
+ * - the engine's WebAssembly (`soundor-core.wasm`, which soundor:ui lays out
+ *   with), served by the dev server and emitted as an asset of a build.
  */
 
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -25,6 +28,7 @@ import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 
 import type { WebManifest } from './client/manifest.ts';
 import { MANIFEST_FILE, PARAMETERS_FILE } from './codegen.ts';
+import { engineWasmPath } from './engine-wasm.ts';
 import { CLIENT_DIR, clientModule } from './paths.ts';
 import { soundorUiBundle } from './ui-bundle.ts';
 
@@ -33,9 +37,9 @@ export const PLUGIN_NAME = 'soundor:web';
 
 const PACKAGE = '@soundor/web-runtime';
 const CLIENT_ID = `${PACKAGE}/client`;
-/** What the client imports from npm: its Yoga, and the host UI's Preact. */
+/** What the client imports from npm: the engine, and the host UI's Preact. */
 const CLIENT_DEPENDENCIES = [
-  '@soundor/yoga-wasm',
+  '@soundor/engine/web',
   'preact',
   'preact/hooks',
   'preact/jsx-runtime',
@@ -135,7 +139,18 @@ export interface SoundorModulesOptions {
   readonly ui?: UiBundleContext;
   /** The audio processor's WebAssembly module; none, and the input passes through. */
   readonly processor?: string;
+  /**
+   * The engine's WebAssembly; by default the one `engineWasmPath()` finds.
+   * `inline` reads it from the file where the page runs in Node (tests)
+   * instead of serving it.
+   */
+  readonly engine?: { readonly wasm?: string; readonly inline?: boolean };
 }
+
+/** The engine's module: where the page loads its WebAssembly from. */
+export const ENGINE_MODULE = 'soundor:internal/engine';
+/** Where the dev server serves the engine's WebAssembly. */
+const ENGINE_URL = '@soundor/engine/soundor-core.wasm';
 
 /** Internal modules whose code depends on the run (`\0`: virtual). */
 const UI_MODULE = 'soundor:internal/ui';
@@ -153,13 +168,35 @@ const NATIVE_MODULE = 'soundor:native';
 export function soundorModules(options: SoundorModulesOptions): Plugin {
   const client = (name: string) => clientModule(name, options.clientDir);
   let command: 'build' | 'serve' = 'serve';
+  let base = '/';
   let environmentMode: EnvironmentMode =
     options.environmentMode ?? 'development';
+  const enginePath = (): string => options.engine?.wasm ?? engineWasmPath();
   return {
     name: 'soundor:web-modules',
     enforce: 'pre',
+    configureServer(server) {
+      // The engine's module, as WebAssembly (compiled while it downloads),
+      // cached as long as its content hash, in the URL, is the same.
+      server.middlewares.use((request, response, next) => {
+        const url = request.url?.split('?')[0];
+        if (url !== `${base}${ENGINE_URL}`) return next();
+        readFile(enginePath()).then(
+          (bytes) => {
+            response.setHeader('content-type', 'application/wasm');
+            response.setHeader(
+              'cache-control',
+              'public, max-age=31536000, immutable',
+            );
+            response.end(bytes);
+          },
+          (error: unknown) => next(error),
+        );
+      });
+    },
     configResolved(config) {
       command = config.command;
+      base = config.base.endsWith('/') ? config.base : `${config.base}/`;
       environmentMode =
         options.environmentMode ??
         (command === 'build' ? 'production' : 'development');
@@ -176,6 +213,7 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       if (
         id === UI_MODULE ||
         id === DEV_MODULE ||
+        id === ENGINE_MODULE ||
         id === PROCESSOR_MODULE ||
         id === NATIVE_MODULE ||
         id === 'soundor:env'
@@ -190,6 +228,31 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
     async load(id) {
       if (id === `\0${UI_MODULE}`) return uiModule(options.ui);
       if (id === `\0${DEV_MODULE}`) return devModule(options.ui, command);
+      if (id === `\0${ENGINE_MODULE}`) {
+        let path: string;
+        try {
+          path = enginePath();
+        } catch (error) {
+          this.error((error as Error).message);
+        }
+        this.addWatchFile(path);
+        if (options.engine?.inline === true)
+          return `import { readFileSync } from 'node:fs';\nexport default { wasm: readFileSync(${JSON.stringify(path)}) };\n`;
+        const bytes = await readFile(path);
+        if (command === 'build') {
+          const reference = this.emitFile({
+            type: 'asset',
+            name: 'soundor-core.wasm',
+            source: bytes,
+          });
+          return `export default { wasmUrl: import.meta.ROLLUP_FILE_URL_${reference} };\n`;
+        }
+        const hash = createHash('sha256')
+          .update(bytes)
+          .digest('hex')
+          .slice(0, 16);
+        return `export default { wasmUrl: new URL(${JSON.stringify(`${base}${ENGINE_URL}?v=${hash}`)}, location.href).href };\n`;
+      }
       if (id === `\0${PROCESSOR_MODULE}`) {
         if (options.processor === undefined)
           return 'export default undefined;\n';

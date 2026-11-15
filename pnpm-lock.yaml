@@ -613,6 +613,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      happy-dom:
+        specifier: 'catalog:'
+        version: 21.0.4
       three:
         specifier: 'catalog:'
         version: 0.187.0
@@ -629,29 +632,6 @@ importers:
         specifier: 'catalog:'
         version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
-  engines/yoga-wasm:
-    devDependencies:
-      '@soundor/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@soundor/tsdown-config':
-        specifier: workspace:^
-        version: link:../../configs/tsdown-config
-      '@soundor/typescript-config':
-        specifier: workspace:^
-        version: link:../../configs/typescript-config
-      '@types/node':
-        specifier: 'catalog:'
-        version: 24.19.2
-      tsdown:
-        specifier: 'catalog:'
-        version: 0.23.7(typescript@7.0.2)
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
-      vitest:
-        specifier: 'catalog:'
-        version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   examples/analyzer:
     dependencies:
@@ -1584,12 +1564,12 @@ importers:
 
   runtimes/web-runtime:
     dependencies:
+      '@soundor/engine':
+        specifier: workspace:^
+        version: link:../../engines/engine
       '@soundor/runtime-sdk':
         specifier: workspace:^
         version: link:../../packages/runtime-sdk
-      '@soundor/yoga-wasm':
-        specifier: workspace:*
-        version: link:../../engines/yoga-wasm
       preact:
         specifier: 'catalog:'
         version: 11.2.0

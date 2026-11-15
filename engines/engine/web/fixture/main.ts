@@ -1,29 +1,33 @@
-// The fixture's page: a small UI made of the engine's views and text, laid
-// out by the C++ core in WebAssembly and shown by the DOM adapter, with
-// controls that change it. With ?bare it only exposes the API, for tests.
-import { Engine, type EngineNode } from '../src/index.ts';
+// The fixture's page: a small UI made of soundor:ui nodes, laid out by the
+// C++ core in WebAssembly and shown as HTML elements, with controls that
+// change it. With ?bare it only exposes the API, for tests.
+import { Engine, UiNode } from '../src/index.ts';
 
 declare global {
   interface Window {
     /** For the browser tests: the API, and where the module is. */
-    soundor: { Engine: typeof Engine; wasmUrl: string };
+    soundor: {
+      Engine: typeof Engine;
+      wasmUrl: string;
+      element: (node: UiNode) => HTMLElement | SVGSVGElement;
+    };
     /** The demo's engine, while it runs. */
     demo?: Demo;
   }
 }
 
 const wasmUrl = '/soundor-core.wasm';
-window.soundor = { Engine, wasmUrl };
+window.soundor = { Engine, wasmUrl, element: (node) => UiNode.elementOf(node) };
 
 interface Demo {
   engine: Engine;
-  card: EngineNode;
-  body: EngineNode;
-  items: EngineNode;
+  card: UiNode;
+  body: UiNode;
+  items: UiNode;
 }
 
 const words =
-  'Soundor lays this text out with the same C++ and Yoga as a plugin, measured with the browser’s fonts and drawn by the browser, one span per line.';
+  'Soundor lays this text out with the same C++ and Yoga as a plugin, measured with the browser’s fonts and drawn by the browser, on the lines the engine made.';
 
 async function start(stage: HTMLElement): Promise<Demo> {
   const engine = await Engine.create({ wasmUrl });
@@ -94,7 +98,7 @@ async function start(stage: HTMLElement): Promise<Demo> {
   return { engine, card, body, items };
 }
 
-function item(engine: Engine, index: number): EngineNode {
+function item(engine: Engine, index: number): UiNode {
   const view = engine.createView({
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -121,7 +125,7 @@ function controls(
   };
   button('Toggle direction', ({ card }) => {
     const row = card.style.flexDirection !== 'column';
-    card.style = { ...card.style, flexDirection: row ? 'column' : 'row' };
+    card.style.flexDirection = row ? 'column' : 'row';
   });
   button('Bigger text', ({ body }) => {
     body.style = {
@@ -137,10 +141,7 @@ function controls(
     items.appendChild(item(engine, items.children.length + 1));
   });
   button('Remove item', ({ items }) => {
-    const last = items.children.at(-1);
-    if (!last) return;
-    for (const child of last.children) child.release();
-    last.release();
+    items.lastChild?.remove();
   });
   button('Narrow', () => {
     stage.style.width = `${Math.max(200, stage.clientWidth - 120)}px`;
@@ -160,8 +161,8 @@ function controls(
   function report(): void {
     const demo = window.demo;
     if (!demo) return;
-    const { width, height } = demo.engine.size;
-    status.textContent = `engine nodes: ${demo.engine.nodeCount}\nsize: ${width} × ${height}\ntext lines: ${demo.body.lines.length}`;
+    const { width, height } = demo.engine.size();
+    status.textContent = `engine nodes: ${demo.engine.core.nodeCount}\nsize: ${width} × ${height}`;
   }
   new ResizeObserver(() => queueMicrotask(report)).observe(stage);
 }

@@ -42,8 +42,8 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
+    "@soundor/engine": "workspace:^",
     "@soundor/runtime-sdk": "workspace:^",
-    "@soundor/yoga-wasm": "workspace:*",
     "preact": "catalog:",
     "vite": "catalog:"
   },

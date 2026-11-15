@@ -1,0 +1,1124 @@
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { UiNode } from '../../src/ui/node.ts';
+import { Engine as UiView } from '../../src/ui/view.ts';
+
+let view: UiView;
+afterEach(() => {
+  view?.dispose();
+  vi.restoreAllMocks();
+});
+
+const el = (node: UiNode) => UiNode.elementOf(node);
+
+it('reads initial editor state and removes focus and visibility listeners on disposal', () => {
+  const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  const visibility = vi
+    .spyOn(document, 'visibilityState', 'get')
+    .mockReturnValue('hidden');
+  view = new UiView({ document });
+  expect(view.isFocused()).toBe(true);
+  expect(view.isVisible()).toBe(false);
+  const focused = vi.fn<(value: boolean) => void>();
+  const visible = vi.fn<(value: boolean) => void>();
+  view.subscribeFocus(focused);
+  view.subscribeVisibility(visible);
+  expect(focused).not.toHaveBeenCalled();
+  expect(visible).not.toHaveBeenCalled();
+  const removeWindow = vi.spyOn(window, 'removeEventListener');
+  const removeDocument = vi.spyOn(document, 'removeEventListener');
+  view.dispose();
+  expect(removeWindow).toHaveBeenCalledWith('focus', expect.any(Function));
+  expect(removeWindow).toHaveBeenCalledWith('blur', expect.any(Function));
+  expect(removeDocument).toHaveBeenCalledWith(
+    'visibilitychange',
+    expect.any(Function),
+  );
+  hasFocus.mockReturnValue(false);
+  visibility.mockReturnValue('visible');
+  window.dispatchEvent(new Event('blur'));
+  document.dispatchEvent(new Event('visibilitychange'));
+  expect(focused).not.toHaveBeenCalled();
+  expect(visible).not.toHaveBeenCalled();
+});
+
+/** A view whose style scrolls both ways: a scroll view. */
+function scrollView(view: UiView): UiNode {
+  const node = view.createNode('view');
+  node.style = { overflow: 'scroll' };
+  return node;
+}
+
+/**
+ * A view whose hit test is a table from x to node: happy-dom has no layout.
+ * Returns the nodes and a recorder of the events they see.
+ */
+function setup() {
+  view = new UiView({ document });
+  view.mount(document.body);
+  const { root } = view;
+  const panel = view.createNode('view');
+  const button = view.createNode('view');
+  const label = view.createNode('text');
+  const other = view.createNode('view');
+  root.appendChild(panel);
+  panel.appendChild(button);
+  button.appendChild(view.createNode('view'));
+  panel.appendChild(other);
+  root.appendChild(label);
+  const hits = new Map<number, UiNode | null>([
+    [10, button],
+    [20, other],
+    [30, label],
+    [40, root],
+    [50, null],
+  ]);
+  vi.spyOn(document, 'elementFromPoint').mockImplementation((x) => {
+    const node = hits.get(x);
+    return node === undefined || node === null ? document.body : el(node);
+  });
+  const events: string[] = [];
+  const names = new Map<UiNode, string>([
+    [root, 'root'],
+    [panel, 'panel'],
+    [button, 'button'],
+    [other, 'other'],
+    [label, 'label'],
+  ]);
+  for (const [node, name] of names) {
+    for (const type of [
+      'pointerdown',
+      'pointermove',
+      'pointerup',
+      'pointercancel',
+      'pointerenter',
+      'pointerleave',
+      'click',
+      'dblclick',
+      'contextmenu',
+      'focus',
+      'blur',
+      'keydown',
+      'wheel',
+      'scroll',
+    ]) {
+      node.addEventListener(type, (event) => {
+        if (event.currentTarget === event.target)
+          events.push(`${type}@${name}`);
+      });
+    }
+  }
+  return { root, panel, button, other, label, events };
+}
+
+function pointer(type: string, x: number, init: PointerEventInit = {}) {
+  view.rootElement.dispatchEvent(
+    new window.PointerEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: 0,
+      pointerId: 1,
+      pointerType: 'mouse',
+      ...init,
+    }),
+  );
+}
+
+/** Input as the browser makes it (trusted), which its own click follows. */
+function trusted(
+  type: string,
+  x: number,
+  init: PointerEventInit = {},
+  target: Element = view.rootElement,
+) {
+  const event = new window.PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    clientX: x,
+    clientY: 0,
+    pointerId: 1,
+    pointerType: 'mouse',
+    ...init,
+  });
+  Object.defineProperty(event, 'isTrusted', { value: true });
+  target.dispatchEvent(event);
+}
+
+describe('cursor', () => {
+  const shown = (): string => view.rootElement.style.cursor || 'default';
+
+  it("is the hovered or pressed node's, else its nearest ancestor's", async () => {
+    const { panel, button, other } = setup();
+    pointer('pointermove', 10);
+    expect(view.cursor()).toBe('default');
+
+    // A style shows once its microtask runs, without the pointer moving.
+    panel.style = { cursor: 'ew-resize' };
+    await Promise.resolve();
+    expect(shown()).toBe('ew-resize');
+    button.style = { cursor: 'crosshair' };
+    await Promise.resolve();
+    expect(shown()).toBe('crosshair');
+
+    // A press keeps the pressed node's while dragging elsewhere.
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointermove', 30, { buttons: 1 });
+    expect(shown()).toBe('crosshair');
+    pointer('pointerup', 30, { button: 0, buttons: 0 });
+    expect(shown()).toBe('default'); // the label, under the root
+
+    pointer('pointermove', 20);
+    expect(shown()).toBe('ew-resize'); // other's parent's
+    other.remove();
+    await Promise.resolve();
+    expect(shown()).toBe('ew-resize'); // the panel, still hovered
+    view.rootElement.dispatchEvent(
+      new window.PointerEvent('pointerleave', { pointerId: 1 }),
+    );
+    expect(shown()).toBe('default');
+  });
+
+  it('is an I-beam over a text input, unless its style says otherwise', () => {
+    const { root } = setup();
+    const input = view.createNode('input');
+    root.appendChild(input);
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+    pointer('pointermove', 60);
+    expect(shown()).toBe('text');
+    input.style = { cursor: 'default' };
+    pointer('pointermove', 61);
+    expect(shown()).toBe('default');
+  });
+
+  it('rejects a cursor it does not know', () => {
+    const { button } = setup();
+    expect(() => {
+      button.style = { cursor: 'hand' as never };
+    }).toThrow(/style\.cursor: expected one of 'auto'/);
+  });
+});
+
+describe('text input presses', () => {
+  it("leave the pointer to the browser's text selection, other presses capture it", () => {
+    const { root } = setup();
+    const capture = vi.spyOn(view.rootElement, 'setPointerCapture');
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    const input = view.createNode('input');
+    root.appendChild(input);
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(input));
+    const seen: string[] = [];
+    for (const type of ['pointerdown', 'pointermove', 'pointerup'])
+      input.addEventListener(type, () => seen.push(type));
+    pointer('pointerdown', 60, { button: 0, buttons: 1 });
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(view.focusedNode()).toBe(input);
+
+    // Moved and released outside the view: the window delivers both.
+    const outside = (type: string, buttons: number) =>
+      document.body.dispatchEvent(
+        new window.PointerEvent(type, {
+          bubbles: true,
+          clientX: 500,
+          pointerId: 1,
+          pointerType: 'mouse',
+          button: type === 'pointerup' ? 0 : -1,
+          buttons,
+        }),
+      );
+    outside('pointermove', 1);
+    outside('pointerup', 0);
+    expect(seen).toEqual(['pointerdown', 'pointermove', 'pointerup']);
+    // Released: nothing goes to the input any more.
+    outside('pointermove', 0);
+    expect(seen).toHaveLength(3);
+  });
+});
+
+describe('pointer lock', () => {
+  /** The browser's lock on the view's element, as a page sees it. */
+  function browserLock(grant = true) {
+    let locked: Element | null = null;
+    Object.defineProperty(document, 'pointerLockElement', {
+      configurable: true,
+      get: () => locked,
+    });
+    const change = (element: Element | null) => {
+      locked = element;
+      document.dispatchEvent(new window.Event('pointerlockchange'));
+    };
+    const request = vi
+      .spyOn(view.rootElement, 'requestPointerLock')
+      .mockImplementation(() => {
+        if (!grant) {
+          document.dispatchEvent(new window.Event('pointerlockerror'));
+          return Promise.reject(new Error('refused'));
+        }
+        change(view.rootElement);
+        return Promise.resolve();
+      });
+    const exit = vi.fn<() => void>(() => change(null));
+    document.exitPointerLock = exit;
+    return { request, exit, escape: () => change(null) };
+  }
+  afterEach(() => {
+    delete (document as { pointerLockElement?: unknown }).pointerLockElement;
+    delete (document as { exitPointerLock?: unknown }).exitPointerLock;
+  });
+
+  it('locks the press from its pointerdown, with movement, until the release', async () => {
+    const { panel, events } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    const { request, exit } = browserLock();
+    const moves: number[][] = [];
+    let locking: Promise<void> | undefined;
+    panel.addEventListener('pointerdown', () => {
+      locking = panel.requestPointerLock();
+    });
+    panel.addEventListener('pointermove', (event) => {
+      const e = event as unknown as PointerEvent;
+      moves.push([e.clientX, e.movementX, e.movementY]);
+    });
+    pointer('pointerdown', 10, { button: 0, buttons: 1 }); // on the button, in the panel
+    await expect(locking).resolves.toBeUndefined();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(view.pointerLockNode()).toBe(panel);
+
+    // Locked, the browser keeps clientX where it was; the panel gets it all.
+    events.length = 0;
+    pointer('pointermove', 10, { buttons: 1, movementX: 30, movementY: -12 });
+    expect(events).toEqual(['pointermove@panel']);
+    expect(moves.at(-1)).toEqual([10, 30, -12]);
+
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('pointerup@panel');
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(view.pointerLockNode()).toBeNull();
+  });
+
+  it('ends early on Escape or when asked, and refuses without a press', async () => {
+    const { panel, button } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    const { escape, exit } = browserLock();
+    await expect(panel.requestPointerLock()).rejects.toMatchObject({
+      name: 'NotAllowedError',
+    });
+
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await button.requestPointerLock();
+    escape(); // the browser ended it
+    expect(view.pointerLockNode()).toBeNull();
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await button.requestPointerLock();
+    view.exitPointerLock();
+    expect(exit).toHaveBeenCalled();
+    expect(view.pointerLockNode()).toBeNull();
+  });
+
+  it('rejects, and routes as before, when the browser refuses', async () => {
+    const { panel, events } = setup();
+    view.rootElement.requestPointerLock = () => Promise.resolve();
+    browserLock(false);
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    await expect(panel.requestPointerLock()).rejects.toMatchObject({
+      name: 'NotAllowedError',
+    });
+    expect(view.pointerLockNode()).toBeNull();
+    events.length = 0;
+    pointer('pointermove', 20, { buttons: 1 });
+    expect(events).toEqual(['pointermove@panel']); // still the panel's press
+  });
+});
+
+describe('hover refresh', () => {
+  const frame = (): Promise<void> =>
+    new Promise((done) => window.requestAnimationFrame(() => done()));
+  const under = (node: UiNode) =>
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(node));
+
+  it('follows what changes under a pointer that does not move', () => {
+    const { panel, other, events } = setup();
+    pointer('pointermove', 10);
+    events.length = 0;
+    view.refreshHover();
+    expect(events).toEqual([]); // nothing changed under it
+
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual(['pointerleave@button', 'pointerenter@other']);
+    view.refreshHover();
+    expect(events).toHaveLength(2); // once
+
+    // The node goes: hover is back on its parent, which it never left.
+    events.length = 0;
+    other.remove();
+    under(panel);
+    view.refreshHover();
+    expect(events).toEqual([]);
+  });
+
+  it('leaves a pressed pointer, one that left the view, and touches alone', () => {
+    const { other, label, events } = setup();
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    events.length = 0;
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual([]);
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    view.rootElement.dispatchEvent(
+      new window.PointerEvent('pointerleave', { pointerId: 1 }),
+    );
+    events.length = 0;
+    under(label);
+    view.refreshHover();
+    expect(events).toEqual([]);
+
+    pointer('pointermove', 30, { pointerId: 2, pointerType: 'touch' });
+    events.length = 0;
+    under(other);
+    view.refreshHover();
+    expect(events).toEqual([]);
+  });
+
+  it('runs in the next frame after the tree changes or something scrolls', async () => {
+    const { root, panel, other, events } = setup();
+    pointer('pointermove', 10);
+    events.length = 0;
+    const cover = view.createNode('view');
+    cover.style = { cursor: 'pointer' };
+    cover.addEventListener('pointerenter', () => events.push('enter@cover'));
+    under(cover);
+    root.appendChild(cover);
+    await Promise.resolve(); // changes are gathered in a microtask
+    await frame();
+    expect(events).toEqual([
+      'pointerleave@button',
+      'pointerleave@panel',
+      'enter@cover',
+    ]);
+    expect(view.rootElement.style.cursor).toBe('pointer');
+
+    events.length = 0;
+    under(other);
+    el(panel).dispatchEvent(new window.Event('scroll'));
+    await frame();
+    expect(events).toEqual(['pointerenter@panel', 'pointerenter@other']);
+  });
+});
+
+describe('pointer routing', () => {
+  it('enters along the tree, presses, captures and clicks', () => {
+    const { events } = setup();
+    pointer('pointermove', 10);
+    expect(events).toEqual([
+      'pointerenter@root',
+      'pointerenter@panel',
+      'pointerenter@button',
+      'pointermove@button',
+    ]);
+    events.length = 0;
+
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    // Captured: the move over another node still goes to the button,
+    // and hover does not change while pressed.
+    pointer('pointermove', 20, { buttons: 1 });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toEqual([
+      'pointerdown@button',
+      'pointermove@button',
+      'pointerup@button',
+      'click@button',
+    ]);
+  });
+
+  it('clicks the deepest node holding both press and release', () => {
+    const { events } = setup();
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 20, { button: 0, buttons: 0 });
+    expect(events).toContain('click@panel');
+    expect(events).not.toContain('click@button');
+    expect(events.slice(-2)).toEqual([
+      'pointerleave@button',
+      'pointerenter@other',
+    ]);
+  });
+
+  it('counts clicks as the browser does: from its own click after a release', () => {
+    const { button, events } = setup();
+    const details: number[] = [];
+    button.addEventListener('click', (event) =>
+      details.push((event as PointerEvent).detail),
+    );
+    const press = (detail: number) => {
+      trusted('pointerdown', 10, { button: 0, buttons: 1 });
+      trusted('pointerup', 10, { button: 0, buttons: 0 });
+      // Nothing yet: the click waits for the browser's.
+      expect(events.filter((e) => e.startsWith('click'))).toEqual([]);
+      view.rootElement.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, detail }),
+      );
+      return events.splice(0).filter((e) => !e.startsWith('pointer'));
+    };
+    pointer('pointermove', 10);
+    events.length = 0;
+    expect(press(1)).toEqual(['click@button']);
+    expect(press(2)).toEqual(['click@button', 'dblclick@button']);
+    expect(press(3)).toEqual(['click@button']);
+    expect(details).toEqual([1, 2, 3]);
+    // The browser's own dblclick is not the page's.
+    const outside = vi.fn<() => void>();
+    document.body.addEventListener('dblclick', outside);
+    view.rootElement.dispatchEvent(
+      new window.MouseEvent('dblclick', { bubbles: true, detail: 2 }),
+    );
+    document.body.removeEventListener('dblclick', outside);
+    expect(outside).not.toHaveBeenCalled();
+    expect(events).toEqual([]);
+  });
+
+  it('clicks before hover changes, also when the click waits', () => {
+    const { events } = setup();
+    pointer('pointermove', 10);
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 20, { button: 0, buttons: 0 });
+    view.rootElement.dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true, detail: 1 }),
+    );
+    expect(events.slice(-3)).toEqual([
+      'click@panel',
+      'pointerleave@button',
+      'pointerenter@other',
+    ]);
+  });
+
+  it('clicks once on its own when the browser sends no click', async () => {
+    const { button, events } = setup();
+    const details: number[] = [];
+    button.addEventListener('click', (event) =>
+      details.push((event as PointerEvent).detail),
+    );
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events.filter((e) => e.endsWith('click@button'))).toEqual([
+      'click@button',
+    ]);
+    // A press before then sends it first.
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    trusted('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(details).toEqual([1, 1]);
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    view.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Gone with the view.
+    expect(details).toEqual([1, 1]);
+  });
+
+  it('clicks at once when the browser will not: what it pressed is gone', () => {
+    const { button, events } = setup();
+    const child = button.children[0]!;
+    pointer('pointermove', 10);
+    events.length = 0;
+    trusted('pointerdown', 10, { button: 0, buttons: 1 }, el(child));
+    button.removeChild(child);
+    trusted('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('click@button');
+    // Untrusted input (a script's) has no browser click to wait for.
+    events.length = 0;
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(events).toContain('click@button');
+    expect(events).not.toContain('dblclick@button');
+  });
+
+  it('does not click for other buttons or outside the view', () => {
+    const { events } = setup();
+    pointer('pointerdown', 10, { button: 2, buttons: 2 });
+    pointer('pointerup', 10, { button: 2, buttons: 0 });
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 50, { button: 0, buttons: 0 });
+    expect(events.filter((e) => e.startsWith('click'))).toEqual([]);
+  });
+
+  it('leaves from the innermost node out, when the pointer leaves the view', () => {
+    const { events } = setup();
+    pointer('pointermove', 10);
+    events.length = 0;
+    view.rootElement.dispatchEvent(
+      new window.PointerEvent('pointerleave', { pointerId: 1 }),
+    );
+    expect(events).toEqual([
+      'pointerleave@button',
+      'pointerleave@panel',
+      'pointerleave@root',
+    ]);
+  });
+
+  it('cancels a press', () => {
+    const { events } = setup();
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointercancel', 10);
+    // Then hover is cleared, as in the JUCE runtime.
+    expect(events.slice(-4)).toEqual([
+      'pointercancel@button',
+      'pointerleave@button',
+      'pointerleave@panel',
+      'pointerleave@root',
+    ]);
+  });
+
+  it('reports positions in view coordinates', () => {
+    const { button } = setup();
+    let seen: { x: number; offsetX: number; buttons: number } | undefined;
+    button.addEventListener('pointerdown', (event) => {
+      const e = event as unknown as {
+        clientX: number;
+        offsetX: number;
+        buttons: number;
+      };
+      seen = { x: e.clientX, offsetX: e.offsetX, buttons: e.buttons };
+    });
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(seen).toEqual({ x: 10, offsetX: 10, buttons: 1 });
+  });
+
+  it('gives pageX/Y on the view and locationX/Y in the target, in logical pixels', () => {
+    const { button } = setup();
+    // The host shows the 400×300 view at half size, 100 px from the page's
+    // corner; the button is at (40, 20) in the view (scrolling included).
+    const rects = new Map<Element, DOMRect>([
+      [view.rootElement, new DOMRect(100, 100, 200, 150)],
+      [el(button), new DOMRect(120, 110, 50, 25)],
+    ]);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        return rects.get(this) ?? new DOMRect();
+      },
+    );
+    Object.defineProperty(view.rootElement, 'offsetWidth', {
+      value: 400,
+      configurable: true,
+    });
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(button));
+    let seen: number[] = [];
+    button.addEventListener('pointerdown', (event) => {
+      const e = event as unknown as Record<string, number>;
+      seen = [e['pageX']!, e['pageY']!, e['locationX']!, e['locationY']!];
+      seen.push(e['clientX']! - e['pageX']!, e['offsetY']! - e['locationY']!);
+    });
+    pointer('pointerdown', 10, {
+      button: 0,
+      buttons: 1,
+      clientX: 130,
+      clientY: 120,
+    });
+    expect(seen).toEqual([60, 40, 20, 20, 0, 0]);
+  });
+});
+
+describe('overlay', () => {
+  it('measures and routes overlay nodes in view coordinates', () => {
+    setup();
+    const menu = view.createNode('view');
+    view.overlay.appendChild(menu);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLElement) {
+        if (this === view.rootElement) return new DOMRect(10, 10, 400, 300);
+        if (this === el(menu)) return new DOMRect(60, 30, 40, 40);
+        return new DOMRect();
+      },
+    );
+    vi.spyOn(document, 'elementFromPoint').mockReturnValue(el(menu));
+    expect(menu.getBoundingClientRect()).toEqual({
+      x: 50,
+      y: 20,
+      width: 40,
+      height: 40,
+    });
+    const seen: string[] = [];
+    menu.addEventListener('pointerdown', (event) => {
+      const e = event as unknown as Record<string, number>;
+      seen.push(`${e['pageX']},${e['locationY']}`);
+    });
+    pointer('pointerdown', 0, { clientX: 70, clientY: 35 });
+    expect(seen).toEqual(['60,5']);
+  });
+
+  it('Tab goes through the content, then the overlay', () => {
+    const { panel } = setup();
+    panel.focusable = true;
+    const menu = view.createNode('view');
+    menu.focusable = true;
+    view.overlay.appendChild(menu);
+    const tab = () =>
+      view.rootElement.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Tab', cancelable: true }),
+      );
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+    tab();
+    expect(view.focusedNode()).toBe(menu);
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+  });
+});
+
+describe('contextmenu', () => {
+  function contextMenu(x: number): MouseEvent {
+    const event = new window.MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: 0,
+      button: 2,
+      buttons: 2,
+    });
+    view.rootElement.dispatchEvent(event);
+    return event;
+  }
+
+  it("bridges the browser's request as a Soundor pointer event that bubbles", () => {
+    const { root, button, events } = setup();
+    const seen: string[] = [];
+    root.addEventListener('contextmenu', (event) => {
+      const e = event as unknown as Record<string, unknown>;
+      seen.push(`${e['button']} ${e['pageX']} ${e['cancelable']}`);
+    });
+    const allowed = contextMenu(10);
+    expect(events).toEqual(['contextmenu@button']);
+    expect(seen).toEqual(['2 10 true']);
+    // Nobody prevented it: the browser may show its own menu.
+    expect(allowed.defaultPrevented).toBe(false);
+
+    button.addEventListener('contextmenu', (event) => event.preventDefault());
+    expect(contextMenu(10).defaultPrevented).toBe(true);
+  });
+
+  it('goes to the pressed node while the pointer is captured', () => {
+    const { events } = setup();
+    pointer('pointerdown', 10, { button: 2, buttons: 2 });
+    contextMenu(20);
+    expect(events.filter((e) => !e.startsWith('pointerenter'))).toEqual([
+      'pointerdown@button',
+      'contextmenu@button',
+    ]);
+  });
+
+  it('is ignored outside the view', () => {
+    const { events } = setup();
+    contextMenu(50);
+    expect(events).toEqual([]);
+  });
+});
+
+describe('focus', () => {
+  it('goes to the nearest focusable node on press, or nowhere', () => {
+    const { panel, button, events } = setup();
+    panel.focusable = true;
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(view.focusedNode()).toBe(panel);
+    expect(events).toContain('focus@panel');
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+
+    pointer('pointerdown', 30, { button: 0, buttons: 1 });
+    expect(view.focusedNode()).toBeNull();
+    expect(events).toContain('blur@panel');
+    expect(button.focused).toBe(false);
+  });
+
+  it('is not moved by a press a listener prevented', () => {
+    const { panel, button } = setup();
+    panel.focusable = true;
+    button.addEventListener('pointerdown', (event) => event.preventDefault());
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    expect(view.focusedNode()).toBeNull();
+  });
+
+  it('cycles focusable nodes with Tab, skipping hidden ones', () => {
+    const { panel, other, label } = setup();
+    panel.focusable = true;
+    other.focusable = true;
+    label.focusable = true;
+    label.style = { display: 'none' };
+    const tab = (shiftKey = false) =>
+      el(view.focusedNode() ?? view.root).dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          key: 'Tab',
+          shiftKey,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+    tab();
+    expect(view.focusedNode()).toBe(other);
+    tab();
+    expect(view.focusedNode()).toBe(panel);
+    tab(true);
+    expect(view.focusedNode()).toBe(other);
+  });
+
+  it('sends keys to the focused node, or the root', () => {
+    const { other, events } = setup();
+    const key = (target: EventTarget) =>
+      target.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'a', bubbles: true }),
+      );
+    key(view.rootElement);
+    other.focusable = true;
+    other.focus();
+    key(el(other));
+    expect(events.filter((e) => e.startsWith('keydown'))).toEqual([
+      'keydown@root',
+      'keydown@other',
+    ]);
+  });
+
+  it('ignores nodes that cannot take focus, and blurs on removal', () => {
+    const { other } = setup();
+    other.focus();
+    expect(view.focusedNode()).toBeNull();
+    other.focusable = true;
+    other.focus();
+    expect(other.focused).toBe(true);
+    other.remove();
+    expect(view.focusedNode()).toBeNull();
+  });
+
+  it('blurs the plugin when focus leaves for the host page', () => {
+    const { other, events } = setup();
+    other.focusable = true;
+    other.focus();
+    const outside = document.createElement('button');
+    document.body.append(outside);
+    el(other).dispatchEvent(
+      new window.FocusEvent('focusout', {
+        bubbles: true,
+        relatedTarget: outside,
+      }),
+    );
+    expect(view.focusedNode()).toBeNull();
+    expect(events).toContain('blur@other');
+  });
+
+  it('shows focus the keyboard moved, and a pressed node from a key on', () => {
+    const { panel, other } = setup();
+    panel.focusable = true;
+    other.focusable = true;
+    const changes: string[] = [];
+    for (const [node, name] of [
+      [panel, 'panel'],
+      [other, 'other'],
+    ] as const)
+      node.addEventListener('focusvisiblechange', (event) =>
+        changes.push(
+          `${name}:${String((event as unknown as { focusVisible: boolean }).focusVisible)}`,
+        ),
+      );
+    const key = (name: string, init: KeyboardEventInit = {}) =>
+      el(view.focusedNode() ?? view.root).dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          key: name,
+          bubbles: true,
+          cancelable: true,
+          ...init,
+        }),
+      );
+    pointer('pointerdown', 10, { button: 0, buttons: 1 });
+    pointer('pointerup', 10, { button: 0, buttons: 0 });
+    expect(panel.focused).toBe(true);
+    expect(panel.focusVisible).toBe(false);
+    // A modifier on its own, or a shortcut, is not using the keyboard.
+    key('Shift');
+    key('c', { ctrlKey: true });
+    expect(panel.focusVisible).toBe(false);
+    key('ArrowUp');
+    expect(panel.focusVisible).toBe(true);
+    key('Tab');
+    expect(other.focusVisible).toBe(true);
+    expect(panel.focusVisible).toBe(false);
+    expect(changes).toEqual(['panel:true', 'panel:false', 'other:true']);
+  });
+
+  it('always shows the focus of a text input', () => {
+    setup();
+    const input = view.createNode('input');
+    view.root.appendChild(input);
+    pointer('pointerdown', 30, { button: 0, buttons: 1 });
+    pointer('pointerup', 30, { button: 0, buttons: 0 });
+    input.focus();
+    expect(input.focusVisible).toBe(true);
+  });
+});
+
+describe('wheel', () => {
+  it('scrolls the nearest scroll view, unless prevented', () => {
+    setup();
+    const scroll = scrollView(view);
+    const content = view.createNode('view');
+    view.root.appendChild(scroll);
+    scroll.appendChild(content);
+    vi.mocked(document.elementFromPoint).mockReturnValue(el(content));
+    let top = 0;
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      get: () => top,
+      set: (value: number) => {
+        top = Math.max(0, Math.min(value, 100));
+      },
+    });
+    const scrolled = vi.fn<() => void>();
+    scroll.addEventListener('scroll', scrolled);
+    const wheel = (deltaY: number, deltaMode = 0) => {
+      const event = new window.WheelEvent('wheel', {
+        deltaY,
+        deltaMode,
+        bubbles: true,
+        cancelable: true,
+      });
+      view.rootElement.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    expect(wheel(30)).toBe(true);
+    expect(top).toBe(30);
+    expect(wheel(1, 1)).toBe(true); // one line: 40 pixels
+    expect(top).toBe(70);
+    expect(scrolled).toHaveBeenCalledTimes(2);
+    wheel(100);
+    expect(top).toBe(100);
+    // At the end: nothing scrolls, so the page may.
+    expect(wheel(10)).toBe(false);
+
+    content.addEventListener('wheel', (event) => event.preventDefault());
+    expect(wheel(-50)).toBe(true);
+    expect(top).toBe(100);
+  });
+
+  it('with Control is the browser’s zoom, a pinch too: plugin code sees it, nothing scrolls', () => {
+    setup();
+    const scroll = scrollView(view);
+    const content = view.createNode('view');
+    view.root.appendChild(scroll);
+    scroll.appendChild(content);
+    vi.mocked(document.elementFromPoint).mockReturnValue(el(content));
+    let top = 0;
+    Object.defineProperty(el(scroll), 'scrollTop', {
+      get: () => top,
+      set: (value: number) => {
+        top = Math.max(0, Math.min(value, 100));
+      },
+    });
+    const seen: string[] = [];
+    content.addEventListener('wheel', (event) =>
+      seen.push(
+        `${(event as WheelEvent).ctrlKey} ${(event as WheelEvent).deltaY}`,
+      ),
+    );
+    // What a trackpad's pinch sends a page.
+    const pinch = () => {
+      const event = new window.WheelEvent('wheel', {
+        deltaY: 40,
+        bubbles: true,
+        cancelable: true,
+      });
+      // happy-dom's WheelEvent has no modifier keys; a browser's has.
+      Object.defineProperty(event, 'ctrlKey', { value: true });
+      view.rootElement.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+
+    // Left to the browser, which zooms.
+    expect(pinch()).toBe(false);
+    expect(top).toBe(0);
+    expect(seen).toEqual(['true 40']);
+    // Plugin code that takes it, to zoom something of its own, keeps it.
+    content.addEventListener('wheel', (event) => event.preventDefault());
+    expect(pinch()).toBe(true);
+    expect(top).toBe(0);
+  });
+});
+
+describe('text inputs', () => {
+  function input() {
+    setup();
+    const node = view.createNode('input');
+    view.root.appendChild(node);
+    const element = el(node) as HTMLInputElement;
+    const seen: string[] = [];
+    for (const type of ['beforeinput', 'input', 'change'])
+      node.addEventListener(type, (event) => {
+        const data = (event as unknown as { data?: string | null }).data;
+        seen.push(data === undefined ? type : `${type}:${data}`);
+      });
+    return { node, element, seen };
+  }
+
+  it('reports text before it arrives, and lets listeners refuse it', () => {
+    const { node, element, seen } = input();
+    const refuse = (event: Event) => {
+      if ((event as unknown as { data: string }).data === 'x')
+        event.preventDefault();
+    };
+    node.addEventListener('beforeinput', refuse);
+    const native = (data: string) => {
+      const event = new window.InputEvent('beforeinput', {
+        data,
+        inputType: 'insertText',
+        bubbles: true,
+        cancelable: true,
+      });
+      element.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(native('a')).toBe(false);
+    expect(native('x')).toBe(true);
+    expect(seen).toEqual(['beforeinput:a', 'beforeinput:x']);
+  });
+
+  it('reports edits, and commits on Enter and on blur', () => {
+    const { node, element, seen } = input();
+    node.focus();
+    element.value = 'ab';
+    element.dispatchEvent(
+      new window.InputEvent('input', {
+        data: 'b',
+        inputType: 'insertText',
+        bubbles: true,
+      }),
+    );
+    element.dispatchEvent(
+      new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+    element.dispatchEvent(
+      new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+    );
+    element.value = 'abc';
+    node.blur();
+    expect(seen).toEqual(['input:b', 'change', 'change']);
+  });
+});
+
+describe('clipboard', () => {
+  it('falls back to the page when the system clipboard is refused', async () => {
+    setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        readText: () => Promise.reject(new Error('denied')),
+        writeText: () => Promise.reject(new Error('denied')),
+      },
+    });
+    await view.writeClipboard('copied');
+    expect(await view.readClipboard()).toBe('copied');
+  });
+});
+
+describe('requestEditorSize', () => {
+  it('checks its arguments as the JUCE runtime does, then asks the host', () => {
+    const asked: { width: number; height: number }[] = [];
+    // A host that holds it to no more than 1000 wide.
+    view.setEditorRequester((size) => {
+      asked.push(size);
+      return { width: Math.min(size.width, 1000), height: size.height };
+    });
+    // Not resizable until the host says it is.
+    expect(view.requestEditorSize(500, 400)).toBeNull();
+    view.setGeometry({
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+    });
+    expect(view.editorSize().resizable).toBe(true);
+    // The size the host holds it to, frozen.
+    const size = view.requestEditorSize(640.6, 480.2);
+    expect(size).toEqual({ width: 641, height: 480 });
+    expect(Object.isFrozen(size)).toBe(true);
+    expect(asked).toEqual([{ width: 641, height: 480 }]);
+    expect(view.requestEditorSize(5000, 480)).toEqual({
+      width: 1000,
+      height: 480,
+    });
+    // Any finite size: none, or less, is a pixel, then the host's limits.
+    view.requestEditorSize(0, -40);
+    expect(asked.at(-1)).toEqual({ width: 1, height: 1 });
+    // Asking is not getting: the size is the host's until it says.
+    expect(view.editorSize().width).toBe(800);
+    expect(() => view.requestEditorSize('500', 400)).toThrow(
+      new TypeError('requestEditorSize(): width must be a number, got string'),
+    );
+    expect(() => view.requestEditorSize(500, undefined)).toThrow(
+      new TypeError(
+        'requestEditorSize(): height must be a number, got undefined',
+      ),
+    );
+    expect(() => view.requestEditorSize(NaN, 400)).toThrow(
+      new RangeError(
+        'requestEditorSize(): width must be a finite number, got NaN',
+      ),
+    );
+    expect(() => view.requestEditorSize(500, Infinity)).toThrow(
+      new RangeError(
+        'requestEditorSize(): height must be a finite number, got Infinity',
+      ),
+    );
+    expect(asked).toHaveLength(3);
+    // Without a host to ask: nothing is.
+    view.setEditorRequester(null);
+    expect(view.requestEditorSize(500, 400)).toBeNull();
+  });
+
+  it("goes to its own view's host only", () => {
+    const other = new UiView({ document });
+    const mine: unknown[] = [];
+    const theirs: unknown[] = [];
+    view.setEditorRequester((size) => (mine.push(size), size));
+    other.setEditorRequester((size) => (theirs.push(size), size));
+    const geometry = {
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+    };
+    view.setGeometry(geometry);
+    other.setGeometry(geometry);
+    view.requestEditorSize(900, 700);
+    expect(mine).toHaveLength(1);
+    expect(theirs).toHaveLength(0);
+    other.dispose();
+  });
+});
+
+describe('screenX and screenY', () => {
+  it("are the screen in the editor's pixels, the page's fit taken off", () => {
+    const { button } = setup();
+    const seen: number[][] = [];
+    button.addEventListener('pointerdown', (event) =>
+      seen.push([
+        (event as unknown as { screenX: number }).screenX,
+        (event as unknown as { screenY: number }).screenY,
+      ]),
+    );
+    view.setGeometry({
+      editor: { width: 800, height: 600 },
+      safeArea: null,
+      resizable: true,
+      fit: 0.5,
+    });
+    pointer('pointerdown', 10, {
+      button: 0,
+      buttons: 1,
+      screenX: 300,
+      screenY: 200,
+    });
+    pointer('pointerup', 10, { button: 0 });
+    expect(seen).toEqual([[600, 400]]);
+  });
+});

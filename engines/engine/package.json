@@ -61,6 +61,7 @@
     "@soundor/tsdown-config": "workspace:^",
     "@soundor/typescript-config": "workspace:^",
     "@types/node": "catalog:",
+    "happy-dom": "catalog:",
     "three": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",

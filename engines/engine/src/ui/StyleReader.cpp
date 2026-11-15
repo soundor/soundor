@@ -191,28 +191,47 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::ui
                 out.aspectRatio = number("aspectRatio");
             }
 
+            // An edged property's keys: the shorthand, the axes, then the sides.
+            struct EdgeKeys
+            {
+                const char* all;
+                const char* vertical;
+                const char* horizontal;
+                const char* top;
+                const char* right;
+                const char* bottom;
+                const char* left;
+            };
+
             // Shorthand, then axis, then side: `margin`, `marginHorizontal`, `marginLeft`.
             template <typename T, typename Read>
-            void edges(Edges<T>& out, const std::string& prefix, const std::string& suffix, Read read)
+            void edges(Edges<T>& out, const EdgeKeys& keys, Read read)
             {
-                const auto key = [&](const char* side) { return prefix + side + suffix; };
-                if (const auto all = read((prefix + suffix).c_str()))
+                if (const auto all = read(keys.all))
                     out = { *all, *all, *all, *all };
-                if (const auto vertical = read(key("Vertical").c_str()))
+                if (const auto vertical = read(keys.vertical))
                     out.top = out.bottom = *vertical;
-                if (const auto horizontal = read(key("Horizontal").c_str()))
+                if (const auto horizontal = read(keys.horizontal))
                     out.left = out.right = *horizontal;
-                assign(out.top, read(key("Top").c_str()));
-                assign(out.right, read(key("Right").c_str()));
-                assign(out.bottom, read(key("Bottom").c_str()));
-                assign(out.left, read(key("Left").c_str()));
+                assign(out.top, read(keys.top));
+                assign(out.right, read(keys.right));
+                assign(out.bottom, read(keys.bottom));
+                assign(out.left, read(keys.left));
             }
 
             void readSpacing(Style& out)
             {
-                edges(out.margin, "margin", "", [&](const char* key) { return length(key, true); });
-                edges(out.padding, "padding", "", [&](const char* key) { return length(key, false); });
-                edges(out.borderWidth, "border", "Width", [&](const char* key) { return number(key); });
+                static constexpr EdgeKeys margin { "margin",      "marginVertical", "marginHorizontal", "marginTop",
+                                                   "marginRight", "marginBottom",   "marginLeft" };
+                static constexpr EdgeKeys padding { "padding",    "paddingVertical", "paddingHorizontal",
+                                                    "paddingTop", "paddingRight",    "paddingBottom",
+                                                    "paddingLeft" };
+                static constexpr EdgeKeys border { "borderWidth",    "borderVerticalWidth", "borderHorizontalWidth",
+                                                   "borderTopWidth", "borderRightWidth",    "borderBottomWidth",
+                                                   "borderLeftWidth" };
+                edges(out.margin, margin, [&](const char* key) { return length(key, true); });
+                edges(out.padding, padding, [&](const char* key) { return length(key, false); });
+                edges(out.borderWidth, border, [&](const char* key) { return number(key); });
 
                 if (const auto inset = length("inset", true))
                     out.inset = { *inset, *inset, *inset, *inset };

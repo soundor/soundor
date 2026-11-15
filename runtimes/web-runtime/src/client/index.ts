@@ -24,7 +24,7 @@ import processorWasm from 'soundor:internal/processor';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
 import { WebAudioHost, type WebAudioInput } from './audio';
-import { hostContext, uiView } from './context';
+import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
 import { nativeChannelPublishers } from './native-channels';
@@ -107,7 +107,9 @@ export async function startSoundorWebHost(
       };
     },
   });
-  // The plugin view, measured again when the shell scales it.
+  // The plugin view, measured again when the shell scales it: the engine,
+  // whose WebAssembly loads first.
+  await loadEngine();
   const view = uiView();
   const shell = createShell(container, {
     pluginName: context.plugin.name,

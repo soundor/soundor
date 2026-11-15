@@ -79,10 +79,6 @@ producer executables; only this job receives signing permissions. Verify uses
 `release-build: false` on both PRs and main, keeps ordinary caches, and does not
 sign dependency snapshots. The source test suites keep their own configurations.
 
-`@soundor/yoga-wasm` needs no snapshot: Release compiles it from its pinned
-downloads wherever it builds it (`SOUNDOR_YOGA_WASM=release`), which takes under a
-minute. See [Yoga for the Web](/docs/contribute/yoga-wasm#in-a-release).
-
 Missing or mismatched CI artifacts fail verification; there is no fallback to an
 older engine. Release can opportunistically use verified dependency snapshots
 from earlier release builds; their absence triggers a clean build and creates
@@ -231,7 +227,7 @@ and [verify.yml](https://github.com/soundor/soundor/blob/main/.github/workflows/
 The website generates `/changelog` from the published package `CHANGELOG.md`
 files when Vite starts for development or a build. Shared notes appear once per
 release, with their affected packages; dependency-only bumps are omitted. The
-engine, Yoga WASM, JUCE runtime, web runtime and VST3 host each have their own release history and
+engine, JUCE runtime, web runtime and VST3 host each have their own release history and
 version numbers. Each history is a collapsible sidebar section, with one page
 per version, grouped under Packages, Runtimes, Engines and Hosts. Update release
 notes through Changesets. Overview pages show totals and category counts: minor

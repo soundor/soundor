@@ -17,7 +17,7 @@ export default defineConfig({
     {
       // A reassigned ancestor cursor is not a captured alias for callbacks.
       files: [
-        'runtimes/web-runtime/src/client/ui/node.ts',
+        'engines/engine/web/src/ui/node.ts',
         'packages/test-runtime/src/node.ts',
       ],
       rules: {
