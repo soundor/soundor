@@ -497,13 +497,14 @@ TEST_SUITE("Linux AT-SPI")
             {
                 auto next = bus.takeEvents();
                 notifications.insert(notifications.end(), next.begin(), next.end());
-                return std::ranges::any_of(notifications,
-                                           [](const auto& event) {
-                                               return event.member == "PropertyChange"
-                                                      && event.payload.find("accessible-value") != std::string::npos;
-                                           });
+                return std::ranges::any_of(notifications, [](const auto& event)
+                                           { return event.member == "BoundsChanged" && event.path.ends_with("n11"); });
             }));
-        CHECK(std::ranges::any_of(notifications, [](const auto& event) { return event.member == "BoundsChanged"; }));
+        CHECK(std::ranges::any_of(notifications,
+                                  [](const auto& event) {
+                                      return event.member == "PropertyChange"
+                                             && event.payload.find("accessible-value") != std::string::npos;
+                                  }));
         CHECK(std::ranges::any_of(
             notifications, [](const auto& event)
             { return event.member == "StateChanged" && event.payload.find("'busy', 1") != std::string::npos; }));
@@ -520,12 +521,12 @@ TEST_SUITE("Linux AT-SPI")
             {
                 auto next = bus.takeEvents();
                 notifications.insert(notifications.end(), next.begin(), next.end());
-                return std::ranges::any_of(notifications,
-                                           [](const auto& event) { return event.member == "RemoveAccessible"; });
+                return std::ranges::any_of(
+                    notifications, [](const auto& event)
+                    { return event.member == "ChildrenChanged" && event.payload.find("remove") != std::string::npos; });
             }));
-        CHECK(std::ranges::any_of(
-            notifications, [](const auto& event)
-            { return event.member == "ChildrenChanged" && event.payload.find("remove") != std::string::npos; }));
+        CHECK(std::ranges::any_of(notifications, [](const auto& event)
+                                  { return event.member == "RemoveAccessible" && event.signature == "((so))"; }));
     }
 
     TEST_CASE("text values use Unicode offsets without inventing caret or selection data")
@@ -702,5 +703,49 @@ TEST_SUITE("Linux AT-SPI")
             printed(bus, app, "/org/a11y/atspi/accessible/root", "org.a11y.atspi.Accessible", "GetChildren");
         CHECK(children.find("/org/a11y/atspi/accessible/n20") != std::string::npos);
         CHECK(session.takeRequests().empty());
+    }
+    TEST_CASE("reparenting without a node-data change refreshes the child parent and cache")
+    {
+        Bus bus;
+        atspi::Session session("Reparent", bus.address);
+        auto initial = example();
+        Node group;
+        group.id = 12;
+        group.label = "Group";
+        initial.nodes[0].children.push_back(group.id);
+        initial.nodes.push_back(group);
+        session.update(initial, {}, true);
+        REQUIRE(eventually([&] { return session.active(); }));
+        bus.takeEvents();
+        Node root = initial.nodes[0];
+        root.children = { group.id };
+        group.children = { 11 };
+        // The gain node's own data and frame are unchanged: only the parents
+        // appear in this incremental update.
+        session.update({ { root, group }, {}, 10, 11, false }, {}, true);
+        std::vector<Bus::Event> notifications;
+        REQUIRE(eventually(
+            [&]
+            {
+                auto next = bus.takeEvents();
+                notifications.insert(notifications.end(), next.begin(), next.end());
+                return std::ranges::any_of(notifications,
+                                           [](const auto& event)
+                                           {
+                                               return event.member == "AddAccessible"
+                                                      && event.payload.find("n11") != std::string::npos
+                                                      && event.payload.find("n12") != std::string::npos;
+                                           });
+            }));
+        const auto parent = printed(bus, bus.applications().front(), "/org/a11y/atspi/accessible/n11",
+                                    "org.freedesktop.DBus.Properties", "Get",
+                                    g_variant_new("(ss)", "org.a11y.atspi.Accessible", "Parent"));
+        CHECK(parent.find("/org/a11y/atspi/accessible/n12") != std::string::npos);
+        CHECK(std::ranges::any_of(notifications,
+                                  [](const auto& event)
+                                  {
+                                      return event.member == "PropertyChange" && event.path.ends_with("n11")
+                                             && event.payload.find("accessible-parent") != std::string::npos;
+                                  }));
     }
 }

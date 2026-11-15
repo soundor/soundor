@@ -580,7 +580,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     const bool focusChanged =
                         (previousFocus && id == previous.focus()) != (windowFocused && id == tree.focus())
                         || (previousFocus && id == previous.root()) != (windowFocused && id == tree.root());
-                    if (before == nullptr || *before != *node || focusChanged || moved)
+                    if (before == nullptr || *before != *node || previous.parent(id) != tree.parent(id) || focusChanged
+                        || moved)
                         changed(before, *node, previous, previousFocus, moved);
                 }
             if (previous.root() != tree.root()
