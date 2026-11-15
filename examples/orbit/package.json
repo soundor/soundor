@@ -12,7 +12,7 @@
     "doctor": "soundor doctor",
     "gen": "soundor gen",
     "test": "vitest run --project integration",
-    "test:e2e": "soundor build juce --debug && vitest run --project e2e",
+    "test:e2e": "soundor build juce --debug && soundor gen && vitest run --project e2e",
     "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
     "test:watch": "vitest watch --project integration",
     "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
