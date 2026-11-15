@@ -20,7 +20,6 @@ Soundor checks these tools with `doctor` and never installs them automatically.
 Native builds also need CMake, a C++20 compiler, and a JUCE checkout. Plugin
 builds use Ninja on macOS and Linux, and Visual Studio on Windows. Source engine
 builds additionally need the tools described in [Soundor Engine](/docs/engine#prebuilt-and-source-mode).
-Windows also needs the LLVM tools (`llvm-objcopy`) on PATH or in `Program Files/LLVM`.
 
 Soundor discovers JUCE in standard locations, including `/opt/JUCE` on Linux,
 or through `jucePath` or `JUCE_DIR`. You provide the JUCE checkout; Soundor never
