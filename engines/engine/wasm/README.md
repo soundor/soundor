@@ -164,7 +164,7 @@ reuse the cache.
   kerning was explicit. Other browsers were not tried.
 - Every engine is its own module instance and memory (about 1 MB to start),
   which keeps engines independent at a memory cost.
-- Not released. CI's `Engine (WebAssembly)` job (`.github/workflows/verify.yml`)
-  builds the module with the pinned Emscripten and runs `test:wasm` and
-  `test:browser` whenever `@soundor/engine` is affected; the benchmarks are
-  not a check.
+- Not released. CI's `Engine / wasm` job (`.github/workflows/engine.yml`,
+  among the engine's suites) builds the module with the pinned Emscripten and
+  runs `test:wasm` and `test:browser` whenever `@soundor/engine` is affected;
+  the benchmarks are not a check.

@@ -21,7 +21,6 @@ function jobs(flags = {}) {
       [
         'engine-plan',
         'engine',
-        'engine-web',
         'benchmark',
         'juce8',
         'juce9',
@@ -45,16 +44,6 @@ test('missing decisions and affected engines using a release fail', () => {
   assert.throws(() => verifyResults(needs), /Affected engine/);
   needs.changes.outputs = {};
   assert.throws(() => verifyResults(needs), /input detection/);
-});
-test('an affected engine requires its WebAssembly checks', () => {
-  const needs = jobs({ native: 'true' });
-  needs['engine-plan'] = { result: 'success', outputs: { build: 'true' } };
-  needs.engine.result = 'success';
-  assert.throws(() => verifyResults(needs), /engine-web=skipped/);
-  needs['engine-web'].result = 'failure';
-  assert.throws(() => verifyResults(needs));
-  needs['engine-web'].result = 'success';
-  verifyResults(needs);
 });
 test('consumer checks require engine planning and the chosen artifacts', () => {
   const needs = jobs({ juce: 'true' });

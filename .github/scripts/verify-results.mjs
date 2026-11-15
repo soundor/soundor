@@ -23,7 +23,6 @@ export function verifyResults(needs) {
   )
     throw new Error('Native input detection did not return every decision');
   if (changes.benchmark === 'true') required.add('benchmark');
-  if (changes.native === 'true') required.add('engine-web');
   if (changes.juce === 'true') {
     required.add('juce8');
     required.add('juce9');
