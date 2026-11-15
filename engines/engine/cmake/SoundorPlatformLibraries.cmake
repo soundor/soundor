@@ -11,7 +11,8 @@ if(IOS)
 elseif(APPLE)
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES "-framework AppKit" Threads::Threads)
 elseif(WIN32)
-  set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES bcrypt Threads::Threads) # crypto.getRandomValues
+  # crypto.getRandomValues, native UI Automation, and per-HWND subclassing.
+  set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES bcrypt uiautomationcore ole32 oleaut32 user32 comctl32 Threads::Threads)
 else()
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES Threads::Threads)
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

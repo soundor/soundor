@@ -462,8 +462,7 @@ The view is accessible to screen readers through Soundor's own semantics
 (the accessibility props of `@soundor/react`), not through JUCE's
 `AccessibilityHandler`. The generated editor only tells Soundor's platform
 backend where the view is: its peer's native window, the surface's place
-and scale in it, and whether it has focus. On Windows (UI Automation)
-that backend remains AccessKit, fetched prebuilt and pinned. Linux uses Soundor's
+and scale in it, and whether it has focus. On Windows that backend is Soundor's native Microsoft UI Automation provider. Linux uses Soundor's
 native AT-SPI adapter over dynamically linked system GIO/GDBus, with no AccessKit
 Rust archive. On macOS it is Soundor's native NSAccessibility bridge:
 the editor hands JUCE a container of Soundor's elements as its native
@@ -471,9 +470,9 @@ accessibility child (`AccessibilityHandler::setNativeChildForComponent`),
 JUCE's only part in it. See
 [native accessibility](/docs/contribute/engine-reference#accessibility).
 
-A Windows plugin contains AccessKit (MIT or Apache-2.0, with Chromium
-BSD-3-Clause code): ship its notices with the plugin. Linux requires the system
-GIO library (`libgio-2.0.so.0`, LGPL-2.1-or-later). See the
+Windows uses only system UI Automation libraries for accessibility; see the
+[Windows accessibility notes](/docs/contribute/windows-accessibility). Linux
+requires the system GIO library (`libgio-2.0.so.0`, LGPL-2.1-or-later). See the
 [Linux accessibility notes](/docs/contribute/linux-accessibility).
 
 ### Build integration

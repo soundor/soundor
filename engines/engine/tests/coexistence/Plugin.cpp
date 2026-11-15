@@ -9,6 +9,10 @@
 #include <soundor/platform/Resources.h>
 #include <soundor/runtime/RuntimeHost.h>
 
+#if defined(_WIN32)
+    #include "a11y/windows/Uia.h"
+#endif
+
 #if SOUNDOR_HAS_GPU
     #include "gpu/Context.h"
     #include "gpu/Egl.h"
@@ -51,8 +55,24 @@ namespace
         {
             host.surface().setSize({ size, size });
             ok = host.entryResult().ok();
+#if defined(_WIN32)
+            window = CreateWindowExW(0, L"STATIC", L"Plugin", WS_POPUP, 0, 0, size, size, nullptr, nullptr,
+                                     GetModuleHandleW(nullptr), nullptr);
+            ok = ok && window != nullptr;
+            windowsAccessibility = std::make_unique<soundor::a11y::uia::Session>(window, SOUNDOR_COEXIST_COLOR);
+            windowsAccessibility->update(host.accessibility().update(true), {}, true);
+#endif
 #if defined(SOUNDOR_TEST_SVG)
             ok = ok && soundor::render::svgDocumentProbe();
+#endif
+        }
+
+        ~Instance()
+        {
+#if defined(_WIN32)
+            windowsAccessibility.reset();
+            if (window != nullptr)
+                DestroyWindow(window);
 #endif
         }
 
@@ -70,8 +90,11 @@ namespace
             .resources = std::make_shared<soundor::platform::EmbeddedResources>(soundor::embedded::coexistUi()),
             .entry = "/bundle.js",
         } };
-        // Each plugin's own platform accessibility (AccessKit on Linux and
-        // Windows), side by side in one process.
+#if defined(_WIN32)
+        HWND window = nullptr;
+        std::unique_ptr<soundor::a11y::uia::Session> windowsAccessibility;
+#endif
+        // Each plugin's own platform accessibility, side by side.
         std::unique_ptr<soundor::a11y::PlatformAccessibility> accessibility =
             soundor::a11y::createPlatformAccessibility({ {}, SOUNDOR_COEXIST_COLOR });
         std::vector<std::uint32_t> pixels = std::vector<std::uint32_t>(std::size_t { size } * size);
@@ -175,6 +198,11 @@ SOUNDOR_COEXIST_EXPORT int soundor_coexist_click(void* handle)
     instance.host.tick();
     if (instance.accessibility != nullptr)
         instance.accessibility->tick(instance.host);
+#if defined(_WIN32)
+    for (const auto& request : instance.windowsAccessibility->takeRequests())
+        instance.host.performAccessibilityAction(request);
+    instance.windowsAccessibility->update(instance.host.accessibility().update(), {}, true);
+#endif
     return instance.count;
 }
 
@@ -203,3 +231,12 @@ SOUNDOR_COEXIST_EXPORT void soundor_coexist_destroy(void* handle)
 {
     delete static_cast<Instance*>(handle);
 }
+
+#if defined(_WIN32)
+// An owned COM reference across the binary boundary. The host can retain it
+// after destroying the instance and releasing its LoadLibrary reference.
+SOUNDOR_COEXIST_EXPORT IRawElementProviderSimple* soundor_coexist_accessibility(void* handle)
+{
+    return static_cast<Instance*>(handle)->windowsAccessibility->provider();
+}
+#endif

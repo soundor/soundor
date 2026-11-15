@@ -5,6 +5,8 @@
 #endif
 #if defined(__linux__) && ! defined(__ANDROID__)
     #include "a11y/linux/AtSpi.h"
+#elif defined(_WIN32)
+    #include "a11y/windows/Uia.h"
 #elif SOUNDOR_HAS_ACCESSKIT
     #include "a11y/accesskit/AccessKitPlatform.h"
 #elif defined(__APPLE__) && TARGET_OS_OSX
@@ -19,6 +21,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     {
 #if defined(__linux__) && ! defined(__ANDROID__)
         return atspi::createPlatform(options);
+#elif defined(_WIN32)
+        return uia::createPlatform(options);
 #elif SOUNDOR_HAS_ACCESSKIT
         return detail::createAccessKitPlatform(options);
 #elif defined(__APPLE__) && TARGET_OS_OSX
