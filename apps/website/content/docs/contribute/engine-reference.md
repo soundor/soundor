@@ -1323,6 +1323,66 @@ create/destroy and teardown with jobs and rejections still pending. Debug
 builds assert, when a context frees its Hermes runtime, that C++ holds none of
 its values any more.
 
+## Rust processor hosting
+
+A plugin's audio processing is its Rust crate (`native/`, the
+[Rust SDK](/docs/rust-processor) in the `soundor` npm package). The engine
+hosts it, natively and in the browser; the runtimes decide when, with which
+configuration, and where its audio comes from and goes.
+
+|                                                                         | Owns                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, channels, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                                            |
+| The engine, native (`include/soundor/processor/`, `src/processor/`)     | `RustProcessorAbi.h`, the C ABI's declaration, and `processor::RustProcessor`, the bridge: contract and ABI checks, preparing, blocks longer than prepared in parts, in-place channels with copies only where an input shares an output's channel, published values, silence on failure |
+| The engine, Web (`web/src/processor/`, `@soundor/engine/web/processor`) | `WasmProcessor` (the module's memory, views and calls) and the AudioWorklet that runs it, `createProcessorNode()`: registering the worklet once per context, instances, parameters and transport in, published values and channels out, errors, disposal                                |
+| A runtime (`juce-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and channels go                                                                                 |
+
+The plugin's processor is never part of the engine: natively its static
+library is linked into the plugin, and the bridge reaches it through a table
+of the ABI's six functions (`processor::linkedRustProcessor()`, inline, so
+the engine archive references none of them); in the browser the runtime
+passes the module's bytes. The engine adds no MIDI or processor-state
+transport of its own, as the ABI carries neither.
+
+```cpp
+#include <soundor/processor/RustProcessor.h>
+
+processor::RustProcessor rust { { parameters, published, channels }, processor::linkedRustProcessor() };
+rust.prepare(sampleRate, maxFrames, layout, values);          // off the audio thread
+rust.process(channelPointers, frames, values, publishedValues, // the audio callback
+             transport, &channelSink);
+```
+
+`RustBusLayout` says, for each bus, which channel of the callback's channel
+array holds each of its channels, as JUCE's `processBlock` buffer does
+(`backend::rustBusLayout()` in the JUCE runtime reads it from the
+`AudioProcessor`; `backend::processRust()` passes its buffer).
+
+**Threading.** Construct, prepare and destroy off the audio thread; process
+and reset on it, never at once. `process()` and `reset()` neither allocate
+nor lock (`soundor_processor_tests` counts allocations across preparing
+again; the JUCE runtime's `soundor_juce_rust_tests` does on a real Rust
+processor), and a failure is a status that the runtime reports off the audio
+thread (`lastStatus()`). Published channels go through the sink the runtime
+passes (`native::Channels`), never a callback into the UI. In the browser the
+main thread posts and the worklet processes: no DOM, no UI engine, no
+`SharedArrayBuffer`, and nothing allocated per block beyond the messages it
+posts.
+
+**Loading.** `@soundor/engine/web/processor` is apart from
+`@soundor/engine/web`, and the web runtime imports it only once the plugin
+has a processor and audio starts: a page that shows a UI alone loads none of
+it. The worklet is plain bundled JavaScript (its module is written from its
+own source, as a Blob URL), not another WebAssembly module.
+
+**Tests.** The engine's own (`tests/processor/`) run the bridge on a C++
+processor behind the function table. What needs a real Rust processor stays
+with the runtimes, which reach the SDK: the JUCE runtime's
+`soundor_juce_rust_tests` (its fixture crate, through `juce::AudioBuffer`s),
+the web runtime's `wasm-processor.test.ts` (Node) and
+`worklet.browser.test.ts` (Chromium), and the examples' native/WASM parity
+tests (Orbit's `e2e/parity.test.ts`).
+
 ## Dependencies
 
 Native dependencies are fetched by CMake (`FetchContent`) from exact revisions,

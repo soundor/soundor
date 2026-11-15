@@ -1,39 +1,33 @@
-#include "RustProcessor.h"
+#include <soundor/processor/RustProcessor.h>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <utility>
 
-namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
+namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
 {
     namespace
     {
         constexpr double unknown = std::numeric_limits<double>::quiet_NaN();
     } // namespace
 
-    RustBusLayout RustBusLayout::of(const juce::AudioProcessor& processor)
+    SoundorTransport unknownTransport() noexcept
     {
-        RustBusLayout layout;
-        for (const bool input : { true, false })
-        {
-            auto& buses = input ? layout.inputs : layout.outputs;
-            const int count = processor.getBusCount(input);
-            buses.resize(static_cast<std::size_t>(count));
-            for (int bus = 0; bus < count; ++bus)
-            {
-                const int channels = processor.getChannelCountOfBus(input, bus);
-                for (int channel = 0; channel < channels; ++channel)
-                    buses[static_cast<std::size_t>(bus)].push_back(
-                        processor.getChannelIndexInProcessBlockBuffer(input, bus, channel));
-            }
-        }
-        return layout;
+        return { unknown, unknown, unknown, 0, 0, 0 };
     }
 
-    RustProcessor::RustProcessor(RustContract expected) : contract(expected)
+    RustProcessor::RustProcessor(RustContract expected, const RustProcessorFunctions& functions)
+        : abi(functions), contract(expected)
     {
+        if (abi.info == nullptr || abi.create == nullptr || abi.prepare == nullptr || abi.process == nullptr
+            || abi.reset == nullptr || abi.destroy == nullptr)
+        {
+            problem = "The plugin's Rust processor is missing a function of the Soundor ABI.";
+            return;
+        }
         SoundorProcessorInfo info {};
-        if (soundor_processor_info(&info) != SOUNDOR_STATUS_OK || info.abiVersion != SOUNDOR_PROCESSOR_ABI_VERSION)
+        if (abi.info(&info) != SOUNDOR_STATUS_OK || info.abiVersion != SOUNDOR_PROCESSOR_ABI_VERSION)
         {
             problem = "The plugin's Rust processor was built for another Soundor ABI: rebuild it with soundor build.";
             return;
@@ -45,14 +39,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                       "differ): rebuild it with soundor build.";
             return;
         }
-        handle = soundor_processor_create();
+        handle = abi.create();
         if (handle == nullptr)
             problem = "The plugin's Rust processor panicked while it was constructed.";
     }
 
     RustProcessor::~RustProcessor()
     {
-        soundor_processor_destroy(handle);
+        if (handle != nullptr)
+            abi.destroy(handle);
     }
 
     std::int32_t RustProcessor::prepare(double sampleRate, int frames, const RustBusLayout& layout,
@@ -79,8 +74,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             outputCounts.push_back(static_cast<std::uint32_t>(bus.size()));
             outputChannels.insert(outputChannels.end(), bus.begin(), bus.end());
         }
-        // JUCE processes in place, one buffer channel per index: an input that
-        // shares its buffer channel with an output other than its own main one
+        // The block is processed in place, one channel per index: an input
+        // that shares its channel with an output other than its own main one
         // (a sidechain beside an aux output) is copied out before outputs are
         // written.
         const auto mainInputs = layout.inputs.empty() ? std::size_t { 0 } : layout.inputs.front().size();
@@ -103,7 +98,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 copiedInputs.push_back(static_cast<int>(index));
             }
         }
-        scratch.setSize(std::max(1, static_cast<int>(copiedInputs.size())), maxFrames, false, true, false);
+        scratch.assign(std::max<std::size_t>(1, copiedInputs.size()) * static_cast<std::size_t>(maxFrames), 0.0F);
         chunkPublished.assign(contract.published, unknown);
         inputs.assign(inputChannels.size(), nullptr);
         outputs.assign(outputChannels.size(), nullptr);
@@ -120,30 +115,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             .parameterCount = static_cast<std::uint32_t>(parameters.size()),
             .parameters = parameters.data(),
         };
-        const auto result = soundor_processor_prepare(handle, &config);
+        const auto result = abi.prepare(handle, &config);
         prepared = result == SOUNDOR_STATUS_OK;
         status.store(result, std::memory_order_relaxed);
         return result;
     }
 
-    std::int32_t RustProcessor::process(juce::AudioBuffer<float>& buffer, std::span<const double> parameters,
-                                        std::span<double> published, const SoundorTransport& transport,
-                                        const SoundorChannelSink* channels) noexcept
+    std::int32_t RustProcessor::process(std::span<float* const> channels, int frames,
+                                        std::span<const double> parameters, std::span<double> published,
+                                        const SoundorTransport& transport, const SoundorChannelSink* sink) noexcept
     {
         std::fill(published.begin(), published.end(), unknown);
-        const int frames = buffer.getNumSamples();
-        auto result = SOUNDOR_STATUS_OK;
+        frames = std::max(0, frames);
+        std::int32_t result = SOUNDOR_STATUS_OK;
         if (! prepared || handle == nullptr)
             result = handle == nullptr ? SOUNDOR_STATUS_FAILED : SOUNDOR_STATUS_NOT_PREPARED;
-        else if (buffer.getNumChannels() < neededChannels)
+        else if (std::cmp_less(channels.size(), neededChannels))
             result = SOUNDOR_STATUS_INVALID_ARGUMENT;
         if (result != SOUNDOR_STATUS_OK)
         {
             // Unprepared, it knows no outputs: everything is silenced.
             if (prepared)
-                silence(buffer, 0, frames);
+                silence(channels, 0, frames);
             else
-                buffer.clear();
+                for (float* channel : channels)
+                    std::fill_n(channel, frames, 0.0F);
             status.store(result, std::memory_order_relaxed);
             return result;
         }
@@ -155,19 +151,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
             for (std::size_t slot = 0; length > 0 && slot < copiedInputs.size(); ++slot)
             {
                 const auto index = static_cast<std::size_t>(copiedInputs[slot]);
-                scratch.copyFrom(static_cast<int>(slot), 0, buffer, inputChannels[index], start, length);
+                const float* from = channels[static_cast<std::size_t>(inputChannels[index])] + start;
+                std::copy_n(from, length, scratch.data() + (slot * static_cast<std::size_t>(maxFrames)));
             }
-            // An empty block has no sample to point at: its channels' starts.
-            const auto read = [&](int channel)
-            { return frames == 0 ? buffer.getReadPointer(channel) : buffer.getReadPointer(channel, start); };
-            const auto write = [&](int channel)
-            { return frames == 0 ? buffer.getWritePointer(channel) : buffer.getWritePointer(channel, start); };
             std::size_t copied = 0;
             for (std::size_t index = 0; index < inputChannels.size(); ++index)
-                inputs[index] = inputCopied[index] ? scratch.getReadPointer(static_cast<int>(copied++))
-                                                   : read(inputChannels[index]);
+                inputs[index] = inputCopied[index] ? scratch.data() + (copied++ * static_cast<std::size_t>(maxFrames))
+                                                   : channels[static_cast<std::size_t>(inputChannels[index])] + start;
             for (std::size_t index = 0; index < outputChannels.size(); ++index)
-                outputs[index] = write(outputChannels[index]);
+                outputs[index] = channels[static_cast<std::size_t>(outputChannels[index])] + start;
             const SoundorBlock block {
                 .size = sizeof(SoundorBlock),
                 .abiVersion = SOUNDOR_PROCESSOR_ABI_VERSION,
@@ -181,13 +173,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 .publishedCount = static_cast<std::uint32_t>(chunkPublished.size()),
                 .published = chunkPublished.data(),
                 .transport = &transport,
-                .channels = channels,
+                .channels = sink,
             };
-            result = static_cast<SoundorStatus>(soundor_processor_process(handle, &block));
+            result = abi.process(handle, &block);
             if (result != SOUNDOR_STATUS_OK)
             {
                 std::fill(published.begin(), published.end(), unknown);
-                silence(buffer, start, frames - start);
+                silence(channels, start, frames - start);
                 break;
             }
             // What a block published is the last value of any of its chunks.
@@ -205,38 +197,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     {
         if (handle == nullptr)
             return SOUNDOR_STATUS_FAILED;
-        return soundor_processor_reset(handle);
+        return abi.reset(handle);
     }
 
-    void RustProcessor::silence(juce::AudioBuffer<float>& buffer, int start, int frames) const noexcept
+    void RustProcessor::silence(std::span<float* const> channels, int start, int frames) const noexcept
     {
         if (frames <= 0)
             return;
         for (const int channel : outputChannels)
-            if (channel < buffer.getNumChannels())
-                buffer.clear(channel, start, frames);
+            if (std::cmp_less(channel, channels.size()))
+                std::fill_n(channels[static_cast<std::size_t>(channel)] + start, frames, 0.0F);
     }
-
-    SoundorTransport RustProcessor::transportOf(juce::AudioPlayHead* playHead) noexcept
-    {
-        SoundorTransport transport { unknown, unknown, unknown, 0, 0, 0 };
-        if (playHead == nullptr)
-            return transport;
-        const auto position = playHead->getPosition();
-        if (! position.hasValue())
-            return transport;
-        transport.flags = position->getIsPlaying() ? 1u : 0u;
-        if (const auto bpm = position->getBpm())
-            transport.tempo = *bpm;
-        if (const auto seconds = position->getTimeInSeconds())
-            transport.timeSeconds = *seconds;
-        if (const auto ppq = position->getPpqPosition())
-            transport.positionBeats = *ppq;
-        if (const auto signature = position->getTimeSignature())
-        {
-            transport.timeSignatureNumerator = static_cast<std::uint32_t>(std::max(0, signature->numerator));
-            transport.timeSignatureDenominator = static_cast<std::uint32_t>(std::max(0, signature->denominator));
-        }
-        return transport;
-    }
-} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
+} // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor

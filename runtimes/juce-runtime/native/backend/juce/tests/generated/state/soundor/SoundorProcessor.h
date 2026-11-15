@@ -5,7 +5,7 @@
 #include <soundor/Abi.h>
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
-#include <soundor/backend/RustProcessor.h>
+#include <soundor/backend/JuceRustProcessor.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -79,9 +79,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
         // The audio processing is the plugin's Rust crate (native/), which
-        // these call through its C ABI (RustProcessor.h): prepare it when the
-        // host does, give each block the parameters' values and the host's
-        // transport, and publish what it publishes.
+        // these call through the engine's bridge to its C ABI
+        // (processor::RustProcessor): prepare it when the host does, give
+        // each block the parameters' values and the host's transport, and
+        // publish what it publishes.
         void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
         void releaseResources() override {}
         void reset() override final;
@@ -89,7 +90,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         using juce::AudioProcessor::processBlock;
 
         // The Rust processor: whether it runs (valid()), and why not (error()).
-        const backend::RustProcessor& rustProcessor() const noexcept { return rust; }
+        const processor::RustProcessor& rustProcessor() const noexcept { return rust; }
 
         // Overrides must call this base implementation to keep soundor:host informed.
         void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
@@ -151,7 +152,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        backend::RustProcessor rust { backend::RustContract { 3, 0, 1 } };
+        processor::RustProcessor rust { processor::RustContract { 3, 0, 1 }, processor::linkedRustProcessor() };
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;

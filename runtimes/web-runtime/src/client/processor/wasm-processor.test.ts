@@ -4,6 +4,16 @@
 // source in an AudioWorkletGlobalScope's likeness.
 import { runInNewContext } from 'node:vm';
 
+import {
+  WASM_STATUS,
+  WasmProcessor,
+  type WasmChannel,
+} from '@soundor/engine/web/processor';
+import {
+  PROCESSOR_NAME,
+  workletSource,
+  type WorkletOptions,
+} from '@soundor/engine/web/processor';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -12,8 +22,6 @@ import {
   contract,
   parameters,
 } from './fixture/build';
-import { WASM_STATUS, WasmProcessor, type WasmChannel } from './wasm-processor';
-import { PROCESSOR_NAME, workletSource, type WorkletOptions } from './worklet';
 
 const channels: WasmChannel[] = [...fixtureChannels];
 

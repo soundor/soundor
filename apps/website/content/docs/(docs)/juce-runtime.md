@@ -308,8 +308,10 @@ and the plugin, with the VST3 host's plugin closed meanwhile and reopened
 after.
 
 - **The ABI.** `soundor::export!(Processor)` defines
-  `soundor_processor_{info,create,prepare,process,reset,destroy}`;
-  `RustProcessor.h` calls them. Every structure carries its size and the ABI
+  `soundor_processor_{info,create,prepare,process,reset,destroy}`; the
+  engine's bridge (`soundor/processor/RustProcessor.h`) calls them, and the
+  JUCE adapter (`JuceRustProcessor.h`) gives it `processBlock`'s buffer, the
+  buses and the host's transport. Every structure carries its size and the ABI
   version, the processor is an opaque handle, the C++ side owns every buffer
   for the length of a call, and a Rust panic is caught at the boundary and
   becomes a status. The generated processor checks that the Rust build

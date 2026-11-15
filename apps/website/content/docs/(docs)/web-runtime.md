@@ -339,7 +339,8 @@ source → input bus → the processor (AudioWorklet) → output bus → master 
   (`rustup target add wasm32-unknown-unknown`), which `soundor doctor`
   checks. Neither wasm-bindgen nor `SharedArrayBuffer` is used: the page
   needs no cross-origin isolation headers.
-- **The worklet.** The module is compiled on the audio rendering thread and
+- **The worklet.** The engine's (`@soundor/engine/web/processor`), loaded
+  only once there is a processor to run. The module is compiled on the audio rendering thread and
   owns its buffers in its own memory. Each render quantum's input is copied
   in, processed in place, and copied out. Render quanta of any length work; a
   longer one is processed in blocks of at most 1024 frames.

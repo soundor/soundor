@@ -1,8 +1,11 @@
 #pragma once
 
-// The C ABI between the JUCE runtime and a plugin's Rust processor: what
+// The C ABI between a native runtime and a plugin's Rust processor: what
 // `soundor::export!` defines in the project's `native/` crate (see the SDK's
-// ffi.rs, whose #[repr(C)] structures these mirror field for field).
+// ffi.rs, whose #[repr(C)] structures these mirror field for field). The
+// engine declares it and never calls these symbols itself: the plugin's
+// binary links the library that defines them, and hands them to
+// processor::RustProcessor (linkedRustProcessor() in RustProcessor.h).
 //
 // - Every structure starts with its size and the ABI version; a call with
 //   another version returns SOUNDOR_STATUS_ABI_MISMATCH.
@@ -14,7 +17,8 @@
 
 #include <cstdint>
 
-#define SOUNDOR_PROCESSOR_ABI_VERSION 1u
+// The version every structure carries, as the SDK's ffi.rs has it.
+inline constexpr std::uint32_t SOUNDOR_PROCESSOR_ABI_VERSION = 1;
 
 extern "C"
 {

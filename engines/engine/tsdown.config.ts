@@ -32,9 +32,13 @@ export default defineConfig([
     dts: true,
   }),
   // @soundor/engine/web: the WebAssembly engine's JavaScript (its module is
-  // built apart, by build:wasm).
+  // built apart, by build:wasm); /web/processor: the Rust processor's host,
+  // apart so a page with a UI alone loads none of it.
   withPreset(browser, {
-    entry: { web: 'web/src/index.ts' },
+    entry: {
+      web: 'web/src/index.ts',
+      'web/processor': 'web/src/processor/index.ts',
+    },
     tsconfig: './web/tsconfig.json',
     target: 'es2022',
   }),

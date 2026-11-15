@@ -1,3 +1,7 @@
+import type {
+  ProcessorNode,
+  ProcessorNodeOptions,
+} from '@soundor/engine/web/processor';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,7 +12,27 @@ import {
   type WebProcessorSource,
 } from './audio';
 import { WebHost } from './host';
-import type { ProcessorNode, ProcessorNodeOptions } from './processor/node';
+
+// The engine's processor host, as the page would import it: whether the host
+// loaded it, and what it made.
+const engineProcessor = vi.hoisted(() => ({
+  loaded: false,
+  create: undefined as
+    | ((
+        context: BaseAudioContext,
+        options: ProcessorNodeOptions,
+      ) => Promise<ProcessorNode>)
+    | undefined,
+}));
+vi.mock('@soundor/engine/web/processor', () => {
+  engineProcessor.loaded = true;
+  return {
+    createProcessorNode: (
+      context: BaseAudioContext,
+      options: ProcessorNodeOptions,
+    ) => engineProcessor.create?.(context, options),
+  };
+});
 
 /** A Web Audio node that records what it is connected to. */
 class FakeNode {
@@ -175,6 +199,28 @@ describe('WebAudioHost', () => {
     expect(oscillator.kind).toBe('oscillator');
     expect(oscillator.started).not.toBeNull();
     expect(reaches(oscillator, context.destination)).toBe(true);
+  });
+
+  it("loads the engine's processor host only for a processor, once audio starts", async () => {
+    const { audio, host } = setup();
+    await audio.start();
+    host.play();
+    expect(engineProcessor.loaded).toBe(false);
+
+    const fake = fakeProcessor();
+    engineProcessor.create = fake.create;
+    const withProcessor = setup(async () => ({
+      wasm: new Uint8Array([0, 97, 115, 109]),
+      parameters: [],
+      channels: [],
+      publishChannel: () => {},
+    }));
+    expect(engineProcessor.loaded).toBe(false);
+    await withProcessor.audio.start();
+    expect(engineProcessor.loaded).toBe(true);
+    expect(fake.create).toHaveBeenCalledOnce();
+    withProcessor.audio.dispose();
+    expect(fake.processor.dispose).toHaveBeenCalledOnce();
   });
 
   it("puts the plugin's processor between input and output, and cleans up", async () => {

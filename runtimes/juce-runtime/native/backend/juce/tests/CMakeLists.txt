@@ -127,7 +127,7 @@ add_custom_command(OUTPUT "${soundor_test_rust_library}"
 add_custom_target(soundor_juce_test_rust_library DEPENDS "${soundor_test_rust_library}")
 
 juce_add_console_app(soundor_juce_rust_tests)
-target_sources(soundor_juce_rust_tests PRIVATE JuceRustProcessorTests.cpp AllocationCounter.cpp ../soundor/backend/RustProcessor.cpp)
+target_sources(soundor_juce_rust_tests PRIVATE JuceRustProcessorTests.cpp "${engine_dir}/tests/support/AllocationCounter.cpp" ../soundor/backend/JuceRustProcessor.cpp)
 target_include_directories(soundor_juce_rust_tests PRIVATE ..)
 target_compile_definitions(soundor_juce_rust_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
 target_link_libraries(soundor_juce_rust_tests PRIVATE Soundor::Engine soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
@@ -147,7 +147,7 @@ target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp
   ../soundor/backend/JuceParameter.cpp
   ../soundor/backend/JuceParameterHost.cpp
   ../soundor/backend/JuceTransport.cpp
-  ../soundor/backend/RustProcessor.cpp)
+  ../soundor/backend/JuceRustProcessor.cpp)
 target_include_directories(soundor_juce_state_tests PRIVATE generated/state ..)
 target_compile_definitions(soundor_juce_state_tests PRIVATE SOUNDOR_STATE_CORPUS="${engine_dir}/../../packages/core/test-data/state-snapshots.json" JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0 JUCE_MODAL_LOOPS_PERMITTED=1)
 target_link_libraries(soundor_juce_state_tests PRIVATE Soundor::Engine soundor::runtime_internal soundor_doctest juce::juce_audio_processors juce::juce_recommended_config_flags)
