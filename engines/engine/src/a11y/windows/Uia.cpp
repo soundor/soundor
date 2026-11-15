@@ -11,6 +11,7 @@
 #include <atomic>
 #include <cmath>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <mutex>
 #include <new>
@@ -717,7 +718,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             if (out == nullptr)
                 return E_POINTER;
             *out = FALSE;
-            return read([](const Node&) { return UIA_E_NOTSUPPORTED; });
+            return read([](const Node&) { return static_cast<HRESULT>(UIA_E_NOTSUPPORTED); });
         }
         HRESULT STDMETHODCALLTYPE get_CanMaximize(BOOL* out) override { return selectionFlag(out, false); }
         HRESULT STDMETHODCALLTYPE get_CanMinimize(BOOL* out) override { return selectionFlag(out, false); }
@@ -841,14 +842,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         HRESULT read(F&& body)
         {
             return guarded(
-                [&]
+                [&]() -> HRESULT
                 {
                     const std::scoped_lock lock(state->mutex);
                     if (! state->alive)
-                        return UIA_E_ELEMENTNOTAVAILABLE;
+                        return static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE);
                     const Node* node = state->node(id);
                     if (node == nullptr)
-                        return UIA_E_ELEMENTNOTAVAILABLE;
+                        return static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE);
                     return body(*node);
                 });
         }
@@ -873,9 +874,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         HRESULT enqueue(const Node& node, Action action, std::variant<std::monostate, double, std::string> value = {})
         {
             if (node.state.disabled)
-                return UIA_E_ELEMENTNOTENABLED;
+                return static_cast<HRESULT>(UIA_E_ELEMENTNOTENABLED);
             if (! node.supports(action))
-                return UIA_E_NOTSUPPORTED;
+                return static_cast<HRESULT>(UIA_E_NOTSUPPORTED);
             if (state->requests.size() >= 1024)
                 return static_cast<HRESULT>(UIA_E_INVALIDOPERATION);
             state->requests.push_back({ node.id, action, {}, std::move(value) });
@@ -1065,6 +1066,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     events.push_back({ provider, property, std::move(was), std::move(now) });
                 }
             }
+            if (update.full && update.root != state->tree.root())
+                state->requests.clear();
             // An entirely empty SurfaceSemantics update means unchanged,
             // including focus. A focus-only update carries the root ID.
             if (! update.empty() || update.root != noNode)
@@ -1076,9 +1079,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             {
                 if (it->first != noNode && state->tree.find(it->first) == nullptr)
                 {
-                    Microsoft::WRL::ComPtr<Provider> removed;
-                    removed.Attach(it->second);
-                    retired.push_back(std::move(removed));
+                    // Acquire the temporary reference before giving up the
+                    // cache's: a vector allocation failure must leave it owned.
+                    retired.emplace_back(it->second);
+                    it->second->Release();
                     it = state->providers.erase(it);
                 }
                 else

@@ -254,7 +254,8 @@ namespace
         if (providerA && providerA2 && providerB)
         {
             VARIANT value;
-            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value) == UIA_E_ELEMENTNOTAVAILABLE,
+            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
                    "retained provider is disconnected after destroying its editor" + at);
             VariantClear(&value);
             expect(named(childA2.Get(), L"red") && named(childB.Get(), L"blue"),
@@ -281,10 +282,12 @@ namespace
         if (providerA && providerB)
         {
             VARIANT value;
-            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value) == UIA_E_ELEMENTNOTAVAILABLE,
+            expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
                    "stale COM reference is safe after host releases plugin library" + at);
             VariantClear(&value);
-            expect(providerB->GetPropertyValue(UIA_NamePropertyId, &value) == UIA_E_ELEMENTNOTAVAILABLE,
+            expect(providerB->GetPropertyValue(UIA_NamePropertyId, &value)
+                       == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
                    "destroyed B editor is unavailable" + at);
             VariantClear(&value);
             ComPtr<IRawElementProviderSimple> surviving;

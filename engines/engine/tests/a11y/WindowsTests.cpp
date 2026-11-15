@@ -327,7 +327,7 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(focus == nullptr);
         update.nodes[2].state.disabled = true;
         session.update(update, {}, false);
-        CHECK(toggler->Toggle() == UIA_E_ELEMENTNOTENABLED);
+        CHECK(toggler->Toggle() == static_cast<HRESULT>(UIA_E_ELEMENTNOTENABLED));
         ComPtr<IUnknown> unsupported;
         CHECK(gain->GetPatternProvider(UIA_TogglePatternId, &unsupported) == S_OK);
         CHECK(unsupported == nullptr);
@@ -346,12 +346,33 @@ TEST_SUITE("a11y Windows UIA")
         update.nodes.erase(update.nodes.begin() + 1);
         session.update(update, {}, true);
         double value = 0;
-        CHECK(range->get_Value(&value) == UIA_E_ELEMENTNOTAVAILABLE);
-        CHECK(range->SetValue(0) == UIA_E_ELEMENTNOTAVAILABLE);
+        CHECK(range->get_Value(&value) == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
+        CHECK(range->SetValue(0) == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
         CHECK(root(session).Get() == provider.Get());
+        auto oldToggle = navigate(provider.Get(), NavigateDirection_FirstChild);
+        auto toggler = pattern<IToggleProvider>(oldToggle.Get(), UIA_TogglePatternId);
+        CHECK(toggler->Toggle() == S_OK);
+        auto replacement = tree();
+        for (Node& node : replacement.nodes)
+        {
+            node.id += 1000;
+            for (NodeId& child : node.children)
+                child += 1000;
+        }
+        replacement.root += 1000;
+        replacement.focus += 1000;
+        session.update(replacement, {}, true);
+        CHECK(session.takeRequests().empty());
+        CHECK(root(session).Get() == provider.Get());
+        CHECK(toggler->Toggle() == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
+        auto replacementChild = navigate(provider.Get(), NavigateDirection_FirstChild);
+        CHECK(replacementChild.Get() != gain.Get());
+        CHECK(property(replacementChild.Get(), UIA_NamePropertyId) == L"Gain");
         session.close();
+        CHECK(session.takeRequests().empty());
         VARIANT result;
-        CHECK(provider->GetPropertyValue(UIA_NamePropertyId, &result) == UIA_E_ELEMENTNOTAVAILABLE);
+        CHECK(provider->GetPropertyValue(UIA_NamePropertyId, &result)
+              == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
         CHECK(session.provider() == nullptr);
         session.close();
     }
@@ -398,7 +419,7 @@ TEST_SUITE("a11y Windows UIA")
                 {
                     VARIANT value;
                     const HRESULT result = aChild->GetPropertyValue(UIA_NamePropertyId, &value);
-                    if (result != S_OK && result != UIA_E_ELEMENTNOTAVAILABLE)
+                    if (result != S_OK && result != static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE))
                         valid = false;
                     VariantClear(&value);
                     const HRESULT other = bChild->GetPropertyValue(UIA_NamePropertyId, &value);
