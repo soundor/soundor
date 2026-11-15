@@ -69,7 +69,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         virtual void setGeometry(const ViewGeometry& geometry) = 0;
         // Whether the native view's window has keyboard focus.
         virtual void setFocused(bool focused) = 0;
-        // Whether assistive technology asked for the tree.
+        // Whether platform accessibility is active. Linux: registered on the
+        // accessibility bus; Windows and Apple: assistive technology activated it.
         [[nodiscard]] virtual bool active() const = 0;
 
         // macOS and iOS: the object holding the view's elements, which the
