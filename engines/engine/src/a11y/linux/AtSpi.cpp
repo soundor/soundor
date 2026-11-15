@@ -11,6 +11,7 @@
 #include <cmath>
 #include <limits>
 #include <mutex>
+#include <ranges>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -47,6 +48,31 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             return parsed.ec == std::errc {} && parsed.ptr == path.data() + path.size() ? result : noNode;
         }
 
+        int integer(double value)
+        {
+            if (! std::isfinite(value))
+                return 0;
+            return static_cast<int>(std::clamp(std::floor(value), static_cast<double>(std::numeric_limits<int>::min()),
+                                               static_cast<double>(std::numeric_limits<int>::max())));
+        }
+
+        GVariant* rectangle(Rect rect)
+        {
+            const int x = integer(rect.x);
+            const int y = integer(rect.y);
+            return g_variant_new("(iiii)", x, y, integer(std::ceil(static_cast<double>(rect.x) + rect.width) - x),
+                                 integer(std::ceil(static_cast<double>(rect.y) + rect.height) - y));
+        }
+
+        std::vector<const ActionDescriptor*> actions(const Node& node)
+        {
+            std::vector<const ActionDescriptor*> result;
+            for (const ActionDescriptor& action : node.actions)
+                if (action.action != Action::SetValue)
+                    result.push_back(&action);
+            return result;
+        }
+
         std::vector<const char*> interfaces(const Node& node, bool app)
         {
             std::vector<const char*> result { accessible };
@@ -55,10 +81,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             else
             {
                 result.push_back(component);
-                if (! node.actions.empty())
+                if (! actions(node).empty())
                     result.push_back(actionInterface);
                 if (node.value.now)
                     result.push_back(valueInterface);
+                if (node.role == Role::Text || node.role == Role::TextInput || ! node.value.text.empty())
+                    result.push_back("org.a11y.atspi.Text");
+                if (node.role == Role::TextInput && node.supports(Action::SetValue))
+                    result.push_back("org.a11y.atspi.EditableText");
             }
             return result;
         }
@@ -79,7 +109,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
     {
     public:
         Impl(std::string label, std::string busAddress)
-            : name(std::move(label)),
+            : pluginName(std::move(label)),
               address(std::move(busAddress)),
               context(g_main_context_new()),
               cancel(g_cancellable_new()),
@@ -105,12 +135,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             TreeUpdate tree;
             ViewGeometry geometry;
             bool focused;
+            std::uint64_t generation;
         };
 
         void update(TreeUpdate update, ViewGeometry nextGeometry, bool focused)
         {
             const std::scoped_lock lock(mutex);
-            updates.push_back({ std::move(update), nextGeometry, focused });
+            if (update.full)
+            {
+                ++generation;
+                requests.clear();
+            }
+            updates.push_back({ std::move(update), nextGeometry, focused, generation });
             g_main_context_wakeup(context);
         }
 
@@ -237,6 +273,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             }
             self.connection = bus;
             self.busName = g_dbus_connection_get_unique_name(bus);
+            self.registryWatch = g_dbus_connection_signal_subscribe(
+                bus, "org.freedesktop.DBus", "org.freedesktop.DBus", "NameOwnerChanged", "/org/freedesktop/DBus",
+                registry, G_DBUS_SIGNAL_FLAGS_NONE, registryChanged, &self, nullptr);
             self.registerObjects();
             self.embed();
         }
@@ -289,11 +328,30 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
             g_clear_error(&error);
         }
 
+        static void registryChanged(GDBusConnection*, const gchar*, const gchar*, const gchar*, const gchar*,
+                                    GVariant* args, gpointer data)
+        {
+            auto& self = *static_cast<Impl*>(data);
+            const char* service = nullptr;
+            const char* oldOwner = nullptr;
+            const char* newOwner = nullptr;
+            g_variant_get(args, "(&s&s&s)", &service, &oldOwner, &newOwner);
+            static_cast<void>(service);
+            static_cast<void>(oldOwner);
+            static_cast<void>(newOwner);
+            self.registered = false;
+            self.parentBus.clear();
+            self.parentPath = nullPath;
+            self.retryAt = 0;
+        }
+
         void disconnect()
         {
             registered = false;
             if (connection == nullptr)
                 return;
+            if (registryWatch != 0)
+                g_dbus_connection_signal_unsubscribe(connection, std::exchange(registryWatch, 0));
             for (const auto& [id, registrations] : objects)
             {
                 static_cast<void>(id);
@@ -347,7 +405,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
 
         std::string nameOf(const Node& node) const
         {
-            return node.id == noNode || (node.id == tree.root() && node.label.empty()) ? name : node.label;
+            return node.id == noNode || (node.id == tree.root() && node.label.empty()) ? pluginName : node.label;
         }
 
         GVariant* cacheItem(const Node& node) const
@@ -390,32 +448,163 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 objects[noNode].push_back(token);
         }
 
+        void signal(const char* path, const char* interface, const char* member, GVariant* body) const
+        {
+            if (connection != nullptr && ! closing)
+                g_dbus_connection_emit_signal(connection, nullptr, path, interface, member, body, nullptr);
+            else
+            {
+                g_variant_ref_sink(body);
+                g_variant_unref(body);
+            }
+        }
+
+        void event(NodeId id, const char* member, const char* detail, int first, GVariant* payload,
+                   int second = 0) const
+        {
+            signal(pathOf(id).c_str(), "org.a11y.atspi.Event.Object", member,
+                   g_variant_new("(siiv@a{sv})", detail, first, second, payload,
+                                 g_variant_new_array(G_VARIANT_TYPE("{sv}"), nullptr, 0)));
+        }
+
+        void childrenChanged(const Node& before, const Node& after) const
+        {
+            const auto oldChildren = childrenOf(before);
+            const auto newChildren = childrenOf(after);
+            for (std::size_t i = oldChildren.size(); i > 0; --i)
+                if (i > newChildren.size() || oldChildren[i - 1] != newChildren[i - 1])
+                    event(after.id, "ChildrenChanged", "remove", static_cast<int>(i - 1),
+                          reference(oldChildren[i - 1]));
+            for (std::size_t i = 0; i < newChildren.size(); ++i)
+                if (i >= oldChildren.size() || newChildren[i] != oldChildren[i])
+                    event(after.id, "ChildrenChanged", "add", static_cast<int>(i), reference(newChildren[i]));
+        }
+
+        void changed(const Node* before, const Node& node, const Tree& previous, bool previousFocus, bool moved) const
+        {
+            const auto oldStates = before == nullptr ? std::array<std::uint32_t, 2> {}
+                                                     : states(*before, previousFocus && node.id == previous.focus(),
+                                                              previousFocus && node.id == previous.root());
+            const auto nextStates =
+                states(node, windowFocused && node.id == tree.focus(), windowFocused && node.id == tree.root());
+            constexpr std::pair<unsigned, const char*> names[] {
+                { 1, "active" },      { 3, "busy" },           { 4, "checked" },    { 5, "collapsed" },
+                { 7, "editable" },    { 8, "enabled" },        { 9, "expandable" }, { 10, "expanded" },
+                { 11, "focusable" },  { 12, "focused" },       { 16, "modal" },     { 20, "pressed" },
+                { 22, "selectable" }, { 23, "selected" },      { 24, "sensitive" }, { 25, "showing" },
+                { 30, "visible" },    { 32, "indeterminate" }, { 41, "checkable" }
+            };
+            for (const auto& [bit, name] : names)
+            {
+                const auto mask = std::uint32_t { 1 } << (bit % 32);
+                if ((oldStates[bit / 32] & mask) != (nextStates[bit / 32] & mask))
+                    event(node.id, "StateChanged", name, (nextStates[bit / 32] & mask) != 0 ? 1 : 0,
+                          g_variant_new_int32(0));
+            }
+            if (before == nullptr || before->label != node.label)
+                event(node.id, "PropertyChange", "accessible-name", 0, g_variant_new_string(nameOf(node).c_str()));
+            if (before == nullptr || before->hint != node.hint)
+                event(node.id, "PropertyChange", "accessible-description", 0, g_variant_new_string(node.hint.c_str()));
+            if (before == nullptr || before->role != node.role)
+                event(node.id, "PropertyChange", "accessible-role", 0, g_variant_new_uint32(role(node.role).value));
+            if (before == nullptr || before->value != node.value)
+            {
+                if (node.value.now)
+                    event(node.id, "PropertyChange", "accessible-value", 0, g_variant_new_double(*node.value.now));
+                event(node.id, "VisibleDataChanged", "", 0, g_variant_new_int32(0));
+            }
+            if (before != nullptr && textOf(*before) != textOf(node))
+            {
+                const std::string oldText = textOf(*before);
+                const std::string newText = textOf(node);
+                if (! oldText.empty())
+                    event(node.id, "TextChanged", "delete", 0, g_variant_new_string(oldText.c_str()),
+                          static_cast<int>(g_utf8_strlen(oldText.c_str(), -1)));
+                if (! newText.empty())
+                    event(node.id, "TextChanged", "insert", 0, g_variant_new_string(newText.c_str()),
+                          static_cast<int>(g_utf8_strlen(newText.c_str(), -1)));
+            }
+            if (before != nullptr && previous.parent(node.id) != tree.parent(node.id))
+                event(node.id, "PropertyChange", "accessible-parent", 0, parentReference(node));
+            if (before == nullptr || moved || before->bounds != node.bounds)
+                event(node.id, "BoundsChanged", "", 0, rectangle(bounds(node, tree, geometry, 0)));
+            if (before != nullptr)
+                childrenChanged(*before, node);
+            signal(cachePath, cacheInterface, "AddAccessible",
+                   g_variant_new("(@((so)(so)(so)iiassusau))", cacheItem(node)));
+        }
+
         void apply(const Update& update)
         {
+            const Tree previous = tree;
+            const bool previousFocus = windowFocused;
+            const bool moved = geometry != update.geometry;
+            const auto oldIds = ids;
             if (update.tree.full)
-            {
-                for (const NodeId id : ids)
-                    remove(id);
                 ids.clear();
-            }
             for (const NodeId id : update.tree.removed)
-            {
-                remove(id);
                 ids.erase(id);
-            }
-            tree.apply(update.tree);
+            for (const Node& node : update.tree.nodes)
+                ids.insert(node.id);
+            // An entirely empty update carries only presentation, not focus.
+            if (update.tree.full || update.tree.root != noNode || ! update.tree.nodes.empty()
+                || ! update.tree.removed.empty())
+                tree.apply(update.tree);
+            appliedGeneration = update.generation;
             geometry = update.geometry;
             windowFocused = update.focused;
-            for (const Node& node : update.tree.nodes)
-            {
-                if (connection != nullptr)
+            for (const NodeId id : oldIds)
+                if (! ids.contains(id))
                 {
-                    if (ids.contains(node.id))
-                        remove(node.id);
-                    registerObject(node.id, node);
+                    event(id, "StateChanged", "defunct", 1, g_variant_new_int32(0));
+                    signal(cachePath, cacheInterface, "RemoveAccessible", g_variant_new("(@(so))", reference(id)));
+                    remove(id);
                 }
-                ids.insert(node.id);
+            for (const NodeId id : ids)
+                if (const Node* node = tree.find(id))
+                {
+                    const Node* before = previous.find(id);
+                    if (connection != nullptr
+                        && (before == nullptr || interfaces(*before, false) != interfaces(*node, false)))
+                    {
+                        remove(id);
+                        registerObject(id, *node);
+                    }
+                    const bool focusChanged =
+                        (previousFocus && id == previous.focus()) != (windowFocused && id == tree.focus())
+                        || (previousFocus && id == previous.root()) != (windowFocused && id == tree.root());
+                    if (before == nullptr || *before != *node || focusChanged || moved)
+                        changed(before, *node, previous, previousFocus, moved);
+                }
+            if (previous.root() != tree.root()
+                || (previous.find(previous.root()) == nullptr) != (tree.find(tree.root()) == nullptr))
+            {
+                if (previous.find(previous.root()) != nullptr)
+                    event(noNode, "ChildrenChanged", "remove", 0, reference(previous.root()));
+                if (tree.find(tree.root()) != nullptr)
+                    event(noNode, "ChildrenChanged", "add", 0, reference(tree.root()));
+                signal(cachePath, cacheInterface, "AddAccessible",
+                       g_variant_new("(@((so)(so)(so)iiassusau))", cacheItem(app)));
             }
+            if (previousFocus != windowFocused && tree.root() != noNode)
+                signal(pathOf(tree.root()).c_str(), "org.a11y.atspi.Event.Window",
+                       windowFocused ? "Activate" : "Deactivate",
+                       g_variant_new("(siiv@a{sv})", "", 0, 0, g_variant_new_int32(0),
+                                     g_variant_new_array(G_VARIANT_TYPE("{sv}"), nullptr, 0)));
+        }
+
+        bool enqueue(const Node& node, Action action, std::string name = {},
+                     std::variant<std::monostate, double, std::string> value = {})
+        {
+            if (closing
+                || (action == Action::Custom ? ! node.supports(std::string_view(name)) : ! node.supports(action))
+                || (node.state.disabled && action != Action::Focus && action != Action::Blur))
+                return false;
+            const std::scoped_lock lock(mutex);
+            if (closing || generation != appliedGeneration || requests.size() >= 1024)
+                return false;
+            requests.push_back({ node.id, action, std::move(name), std::move(value) });
+            return true;
         }
 
         void remove(NodeId id)
@@ -469,7 +658,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     return g_variant_new_string("2.1");
             }
             if (interface == actionInterface && key == "NActions")
-                return g_variant_new_int32(static_cast<int>(node.actions.size()));
+                return g_variant_new_int32(static_cast<int>(actions(node).size()));
             if (interface == valueInterface)
             {
                 if (key == "CurrentValue")
@@ -483,8 +672,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 if (key == "Text")
                     return g_variant_new_string(node.value.text.c_str());
             }
+            if (interface == "org.a11y.atspi.Text")
+            {
+                if (key == "CharacterCount")
+                    return g_variant_new_int32(static_cast<int>(g_utf8_strlen(textOf(node).c_str(), -1)));
+                if (key == "CaretOffset")
+                    return g_variant_new_int32(-1); // Soundor has no semantic caret position.
+            }
             return nullptr;
         }
+
+        static std::string textOf(const Node& node) { return node.role == Role::Text ? node.label : node.value.text; }
 
         static gboolean setProperty(GDBusConnection*, const gchar*, const gchar* path, const gchar* interface,
                                     const gchar* key, GVariant* value, GError** error, gpointer data)
@@ -496,6 +694,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 self.applicationId = g_variant_get_int32(value);
                 return TRUE;
             }
+            if (std::string_view(interface) == valueInterface && std::string_view(key) == "CurrentValue")
+                if (const Node* node = self.find(path))
+                {
+                    const double number = g_variant_get_double(value);
+                    if (std::isfinite(number) && (! node->value.min || number >= *node->value.min)
+                        && (! node->value.max || number <= *node->value.max)
+                        && self.enqueue(*node, Action::SetValue, {}, number))
+                        return TRUE;
+                    g_set_error_literal(error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS,
+                                        "Value is not writable or outside its range");
+                    return FALSE;
+                }
             g_set_error_literal(error, G_DBUS_ERROR, G_DBUS_ERROR_PROPERTY_READ_ONLY, "Property is read-only");
             return FALSE;
         }
@@ -584,10 +794,128 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                 if (member == "GetApplicationBusAddress")
                     return g_variant_new("(s)", ""); // No separate peer-to-peer application bus.
             }
+            if (interface == actionInterface)
+            {
+                const auto offered = actions(node);
+                if (member == "GetActions")
+                {
+                    GVariantBuilder list;
+                    g_variant_builder_init(&list, G_VARIANT_TYPE("a(sss)"));
+                    for (const auto* action : offered)
+                        g_variant_builder_add(&list, "(sss)", action->name.c_str(), action->label.c_str(), "");
+                    return g_variant_new("(@a(sss))", g_variant_builder_end(&list));
+                }
+                gint32 index = -1;
+                g_variant_get(args, "(i)", &index);
+                if (index < 0 || static_cast<std::size_t>(index) >= offered.size())
+                    return nullptr;
+                const ActionDescriptor& action = *offered[static_cast<std::size_t>(index)];
+                if (member == "DoAction")
+                    return g_variant_new("(b)", enqueue(node, action.action, action.name));
+                if (member == "GetDescription")
+                    return g_variant_new("(s)", action.label.c_str());
+                if (member == "GetName" || member == "GetLocalizedName")
+                    return g_variant_new("(s)", action.name.c_str());
+                if (member == "GetKeyBinding")
+                    return g_variant_new("(s)", "");
+            }
+            if (interface == component)
+            {
+                if (member == "GrabFocus")
+                    return g_variant_new("(b)", enqueue(node, Action::Focus));
+                if (member == "GetLayer")
+                    return g_variant_new("(u)", node.modal ? 7U : 3U); // window / widget
+                if (member == "GetMDIZOrder")
+                    return g_variant_new("(n)", 0);
+                if (member == "GetAlpha")
+                    return g_variant_new("(d)", 1.0);
+                if (member == "GetSize")
+                    return g_variant_new("(ii)", integer(std::ceil(node.bounds.width * geometry.scale)),
+                                         integer(std::ceil(node.bounds.height * geometry.scale)));
+                if (member == "GetExtents" || member == "GetPosition")
+                {
+                    guint32 coordinates = 0;
+                    g_variant_get(args, "(u)", &coordinates);
+                    if (coordinates > 2)
+                        return nullptr;
+                    Rect rect = bounds(node, tree, geometry, coordinates);
+                    if (coordinates == 0 && geometry.screen.width == 0 && geometry.screen.height == 0)
+                        rect.x = rect.y = static_cast<float>(std::numeric_limits<int>::min());
+                    return member == "GetExtents" ? g_variant_new("(@(iiii))", rectangle(rect))
+                                                  : g_variant_new("(ii)", integer(rect.x), integer(rect.y));
+                }
+                if (member == "Contains" || member == "GetAccessibleAtPoint")
+                {
+                    gint32 x = 0;
+                    gint32 y = 0;
+                    guint32 coordinates = 0;
+                    g_variant_get(args, "(iiu)", &x, &y, &coordinates);
+                    if (coordinates > 2)
+                        return nullptr;
+                    const auto contains = [&](const Node& candidate)
+                    {
+                        Rect rect = bounds(candidate, tree, geometry, coordinates == 2 ? 1 : coordinates);
+                        if (coordinates == 2)
+                        {
+                            // All candidates must use the queried object's parent,
+                            // rather than each candidate's own parent coordinates.
+                            const Rect origin = bounds(node, tree, geometry, 1);
+                            const Rect relative = bounds(node, tree, geometry, 2);
+                            rect.x -= origin.x - relative.x;
+                            rect.y -= origin.y - relative.y;
+                        }
+                        return static_cast<double>(x) >= rect.x && static_cast<double>(y) >= rect.y
+                               && static_cast<double>(x) < static_cast<double>(rect.x) + rect.width
+                               && static_cast<double>(y) < static_cast<double>(rect.y) + rect.height;
+                    };
+                    if (member == "Contains")
+                        return g_variant_new("(b)", contains(node));
+                    // Children in semantic reading order; reverse order is topmost first.
+                    for (const NodeId childId : node.children | std::views::reverse)
+                        if (const Node* child = tree.find(childId); child != nullptr && contains(*child))
+                            return g_variant_new("(@(so))", reference(child->id));
+                    return g_variant_new("(@(so))", nullReference());
+                }
+                // Bounds are owned by layout; AT-SPI cannot move/resize them.
+                return g_variant_new("(b)", FALSE);
+            }
+            if (interface == "org.a11y.atspi.Text")
+            {
+                const std::string text = textOf(node);
+                const auto count = g_utf8_strlen(text.c_str(), -1);
+                if (member == "GetText")
+                {
+                    gint32 start = 0;
+                    gint32 end = 0;
+                    g_variant_get(args, "(ii)", &start, &end);
+                    if (end == -1)
+                        end = static_cast<gint32>(count);
+                    if (start < 0 || end < start || end > count)
+                        return nullptr;
+                    const char* begin = g_utf8_offset_to_pointer(text.c_str(), start);
+                    const char* finish = g_utf8_offset_to_pointer(text.c_str(), end);
+                    return g_variant_new("(s)", std::string(begin, finish).c_str());
+                }
+                if (member == "GetCharacterAtOffset")
+                {
+                    gint32 offset = 0;
+                    g_variant_get(args, "(i)", &offset);
+                    if (offset < 0 || offset >= count)
+                        return nullptr;
+                    return g_variant_new(
+                        "(i)", static_cast<gint32>(g_utf8_get_char(g_utf8_offset_to_pointer(text.c_str(), offset))));
+                }
+            }
+            if (interface == "org.a11y.atspi.EditableText" && member == "SetTextContents")
+            {
+                const char* text = nullptr;
+                g_variant_get(args, "(&s)", &text);
+                return g_variant_new("(b)", enqueue(node, Action::SetValue, {}, std::string(text)));
+            }
             return nullptr;
         }
 
-        std::string name;
+        std::string pluginName;
         std::string address;
         GMainContext* context;
         GCancellable* cancel;
@@ -596,6 +924,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         std::mutex mutex;
         std::vector<Update> updates;
         std::vector<ActionRequest> requests;
+        std::uint64_t generation = 0;
         // Everything below belongs exclusively to the owned event thread.
         GDBusNodeInfo* metadata = nullptr;
         GDBusConnection* connection = nullptr;
@@ -604,6 +933,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         std::string parentPath = nullPath;
         int applicationId = -1;
         unsigned pending = 0;
+        guint registryWatch = 0;
+        std::uint64_t appliedGeneration = 0;
         bool discovering = false;
         gint64 retryAt = 0;
         Tree tree;

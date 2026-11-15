@@ -3,7 +3,9 @@
 #if defined(__APPLE__)
     #include <TargetConditionals.h>
 #endif
-#if SOUNDOR_HAS_ACCESSKIT
+#if defined(__linux__)
+    #include "a11y/linux/AtSpi.h"
+#elif SOUNDOR_HAS_ACCESSKIT
     #include "a11y/accesskit/AccessKitPlatform.h"
 #elif defined(__APPLE__) && TARGET_OS_OSX
     #include "a11y/apple/MacPlatform.h"
@@ -15,7 +17,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
     std::unique_ptr<PlatformAccessibility> createPlatformAccessibility(const PlatformOptions& options)
     {
-#if SOUNDOR_HAS_ACCESSKIT
+#if defined(__linux__)
+        return atspi::createPlatform(options);
+#elif SOUNDOR_HAS_ACCESSKIT
         return detail::createAccessKitPlatform(options);
 #elif defined(__APPLE__) && TARGET_OS_OSX
         return detail::createMacPlatform(options);

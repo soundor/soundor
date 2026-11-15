@@ -203,6 +203,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
 <arg type="v"/>
 <arg type="a{sv}"/>
 </signal>
+<signal name="TextChanged">
+<arg type="s"/><arg type="i"/><arg type="i"/><arg type="v"/><arg type="a{sv}"/>
+</signal>
 <signal name="VisibleDataChanged">
 <arg type="s"/>
 <arg type="i"/>
@@ -226,6 +229,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
 <arg type="v"/>
 <arg type="a{sv}"/>
 </signal>
+</interface>
+<interface name="org.a11y.atspi.Text">
+<property name="CharacterCount" type="i" access="read"/>
+<property name="CaretOffset" type="i" access="read"/>
+<method name="GetText"><arg type="i" direction="in"/><arg type="i" direction="in"/><arg type="s" direction="out"/></method>
+<method name="GetCharacterAtOffset"><arg type="i" direction="in"/><arg type="i" direction="out"/></method>
+</interface>
+<interface name="org.a11y.atspi.EditableText">
+<method name="SetTextContents"><arg type="s" direction="in"/><arg type="b" direction="out"/></method>
 </interface>
 </node>)xml";
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi

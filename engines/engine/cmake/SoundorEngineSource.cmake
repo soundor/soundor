@@ -88,7 +88,7 @@ if(SOUNDOR_HAS_ACCESSKIT)
     src/a11y/accesskit/Mapping.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp)
+  list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
 endif()
 # The GPU: ANGLE's devices and contexts, the GPU compositor and where it
 # presents (see SoundorAngle.cmake).

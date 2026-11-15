@@ -89,6 +89,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         set(11, node.focusable);
         set(12, focused);
         set(16, node.modal);
+        set(20, (node.role == Role::ToggleButton || node.role == Role::Switch) && node.state.checked == Checked::True);
         set(22, node.state.selected.has_value());
         set(23, node.state.selected == true);
         set(24, ! node.state.disabled);
