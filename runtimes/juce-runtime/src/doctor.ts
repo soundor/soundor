@@ -93,9 +93,6 @@ export async function buildDoctorReport(
     checks: [
       checkCMake(probe),
       checkCompiler(probe, deps.platform ?? process.platform),
-      ...((deps.platform ?? process.platform) === 'win32'
-        ? [checkLlvmTools(probe, env)]
-        : []),
       checkNativeBuildTools(probe),
       await checkJuce(fs, options, env),
       checkEngine(
@@ -310,34 +307,6 @@ export function findCppCompiler(
     if (probe(compiler, ['--version']).ok) return compiler;
   }
   return undefined;
-}
-
-function checkLlvmTools(
-  probe: CommandProbe,
-  env: NodeJS.ProcessEnv,
-): DoctorCheck {
-  const missing: string[] = [];
-  for (const tool of ['llvm-objcopy', 'llvm-ar']) {
-    const candidates = [tool];
-    if (env.ProgramFiles)
-      candidates.push(`${env.ProgramFiles}/LLVM/bin/${tool}.exe`);
-    if (!candidates.some((command) => probe(command, ['--version']).ok))
-      missing.push(tool);
-  }
-  return missing.length === 0
-    ? {
-        label: 'Rust symbol isolation',
-        status: 'ok',
-        detail:
-          'LLVM object and archive tools isolate the Rust processor from other Rust libraries.',
-      }
-    : {
-        label: 'Rust symbol isolation',
-        status: 'fail',
-        detail: `${missing.join(', ')} was not found.`,
-        suggestion:
-          'Install the Windows LLVM tools, in Program Files/LLVM or on PATH.',
-      };
 }
 
 function checkCompiler(

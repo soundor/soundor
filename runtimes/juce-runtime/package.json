@@ -13,7 +13,6 @@
     "native/CMakeLists.txt",
     "native/SoundorPluginBundle.cmake",
     "native/SoundorRust.cmake",
-    "native/SoundorRustWindows.cmake",
     "native/backend"
   ],
   "type": "module",
@@ -38,8 +37,7 @@
     "test:plugin": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --config tests/plugin/soundor.config.ts",
     "test:plugin:audio": "node tests/plugin/audio.mjs",
     "test:plugin:debug": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --debug --config tests/plugin/soundor.config.ts",
-    "test:watch": "vitest watch",
-    "test:rust-link": "node scripts/rust-link.mjs"
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "@soundor/engine": "workspace:*",

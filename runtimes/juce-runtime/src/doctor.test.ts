@@ -383,29 +383,7 @@ describe('buildDoctorReport', () => {
     expect(commands).not.toContain('c++');
     expect(commands).not.toContain('clang++');
     expect(commands).not.toContain('g++');
-  });
-
-  it('finds Windows LLVM outside PATH and reports when it is missing', async () => {
-    for (const available of ['both', 'objcopy', 'neither']) {
-      const report = await buildDoctorReport(
-        memoryFs('/proj'),
-        {},
-        {
-          platform: 'win32',
-          env: { ProgramFiles: 'C:/Program Files' },
-          probe: (command) =>
-            (available !== 'neither' &&
-              command === 'C:/Program Files/LLVM/bin/llvm-objcopy.exe') ||
-            (available === 'both' &&
-              command === 'C:/Program Files/LLVM/bin/llvm-ar.exe')
-              ? ok(command)
-              : missing(command),
-        },
-      );
-      expect(check(report, 'Rust symbol isolation').status).toBe(
-        available === 'both' ? 'ok' : 'fail',
-      );
-    }
+    expect(commands.some((command) => command.startsWith('llvm-'))).toBe(false);
   });
 
   it('reports a missing compiler when every front-end fails', async () => {

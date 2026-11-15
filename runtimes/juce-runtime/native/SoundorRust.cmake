@@ -1,72 +1,27 @@
-# The plugin's Rust processor (its native/ crate, compiled by soundor dev and
-# soundor build into a static library), linked into a target.
-#
-# A Rust static library carries Rust's standard library and compiler
-# builtins, and so does AccessKit's (the engine's accessibility on Linux and
-# Windows): linked side by side, their symbols collide. On Linux the
-# processor is linked into one relocatable object first, and every symbol
-# but its C ABI (soundor_processor_*) made local, so that it shares nothing
-# with any other library, in this plugin or in another one in the process.
+# The plugin's native/ crate, built by Cargo into a static library.
+# Plugin export controls keep its Rust runtime private, like the C++ engine:
+# --exclude-libs,ALL and the VST3 version script on Linux, explicit exports
+# on Windows, and hidden symbols on macOS. No archive symbol rewriting is needed.
 include_guard(GLOBAL)
 
 function(soundor_link_rust_processor target library)
   if(NOT library)
     message(FATAL_ERROR "soundor_link_rust_processor: no library to link")
   endif()
+  target_link_libraries(${target} PRIVATE "${library}")
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if(NOT CMAKE_OBJCOPY)
-      find_program(CMAKE_OBJCOPY NAMES objcopy llvm-objcopy REQUIRED)
-    endif()
-    set(object "${CMAKE_CURRENT_BINARY_DIR}/${target}_rust_processor.o")
-    add_custom_command(OUTPUT "${object}"
-      COMMAND "${CMAKE_LINKER}" -r --whole-archive "${library}" -o "${object}"
-      # COMDAT signatures survive symbol localization. Give this exception
-      # reference its own signature, or GNU ld discards AccessKit's group in
-      # favour of this now-local one and leaves AccessKit's reference unresolved.
-      COMMAND "${CMAKE_OBJCOPY}"
-        --redefine-sym DW.ref.rust_eh_personality=DW.ref.soundor_processor_rust_eh_personality
-        "${object}"
-      # A release ships no debug information (Rust's standard library has it).
-      COMMAND "${CMAKE_OBJCOPY}" --wildcard "--keep-global-symbol=soundor_processor_*"
-        "$<$<NOT:$<CONFIG:Debug>>:--strip-debug>" "${object}"
-      DEPENDS "${library}"
-      COMMENT "Isolating the Rust processor's symbols"
-      COMMAND_EXPAND_LISTS
-      VERBATIM)
-    add_custom_target(${target}_rust_processor DEPENDS "${object}")
-    add_dependencies(${target} ${target}_rust_processor)
-    target_link_libraries(${target} PRIVATE "${object}")
     find_package(Threads REQUIRED)
-    # What Rust's standard library needs from the platform.
     target_link_libraries(${target} PRIVATE Threads::Threads ${CMAKE_DL_LIBS} m rt util)
+    # Rust's precompiled standard library carries debug sections even when
+    # the processor is built without them. Release plugins ship none.
+    target_link_options(${target} PUBLIC $<$<CONFIG:Release>:-Wl,--strip-debug>)
   elseif(WIN32)
-    # MSVC's linker rejects the two strong rust_eh_personality definitions
-    # carried by independently compiled Rust standard libraries. Rename the
-    # processor's definition and references, leaving AccessKit's untouched.
-    # LLVM's COFF-aware objcopy ships with the Windows LLVM tools.
-    find_program(SOUNDOR_LLVM_OBJCOPY NAMES llvm-objcopy
-      HINTS "$ENV{ProgramFiles}/LLVM/bin" REQUIRED)
-    find_program(SOUNDOR_LLVM_AR NAMES llvm-ar
-      HINTS "$ENV{ProgramFiles}/LLVM/bin" REQUIRED)
-    set(isolated "${CMAKE_CURRENT_BINARY_DIR}/${target}_rust_processor.lib")
-    add_custom_command(OUTPUT "${isolated}"
-      COMMAND "${CMAKE_COMMAND}"
-        "-DINPUT=${library}" "-DOUTPUT=${isolated}"
-        "-DOBJCOPY=${SOUNDOR_LLVM_OBJCOPY}" "-DAR=${SOUNDOR_LLVM_AR}"
-        -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorRustWindows.cmake"
-      DEPENDS "${library}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/SoundorRustWindows.cmake"
-      COMMENT "Isolating the Rust processor's exception personality"
-      VERBATIM)
-    add_custom_target(${target}_rust_processor DEPENDS "${isolated}")
-    add_dependencies(${target} ${target}_rust_processor)
-    target_link_libraries(${target} PRIVATE "${isolated}" kernel32 advapi32 ntdll userenv ws2_32 dbghelp bcrypt)
+    target_link_libraries(${target} PRIVATE kernel32 advapi32 ntdll userenv ws2_32 dbghelp bcrypt)
     # Rust links the release C runtime (static with /MT, as soundor builds
     # it); a Debug target links the debug one.
     if(MSVC)
       target_link_options(${target} PUBLIC
         $<$<CONFIG:Debug>:/NODEFAULTLIB:libcmt.lib> $<$<CONFIG:Debug>:/NODEFAULTLIB:msvcrt.lib>)
     endif()
-  else()
-    target_link_libraries(${target} PRIVATE "${library}")
   endif()
 endfunction()

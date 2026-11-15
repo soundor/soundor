@@ -98,12 +98,11 @@ actions, focus-only and incremental updates, modal relationships, Unicode text,
 independent editors, cancellation during authentication, unavailable services,
 registry restarts and bus reconnection. Existing semantic tests remain in place; Windows has focused native UIA tests.
 
-The JUCE runtime's `test:rust-link` builds a real Linux VST3 with an independent
-Rust processor static library and a prebuilt C++ engine. It checks the actual
-link inputs, dynamic GIO dependency and single Rust personality symbol, then
-loads and renders audio through the existing headless VST3 host. It opens no
-editor and introduces no accessibility E2E infrastructure. For a locally staged
-engine, pass `--engine /path/to/extracted-stage`.
+The JUCE runtime's real test plugin runs its Rust gain processor through the
+existing headless VST3 host (`test:plugin:audio`), using the prebuilt C++ engine.
+Release checks verify dynamic GIO linkage, the plugin's exported symbols and the
+absence of debug sections. The audio test opens no editor and introduces no
+accessibility E2E infrastructure.
 
 No Linux desktop environment or screen-reader combination has been manually
 certified by these tests. X11/XWayland integration relies on the existing editor

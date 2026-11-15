@@ -323,14 +323,11 @@ after.
   processor gets them in blocks no longer than it was prepared with.
 - **Failure.** A panic, an invalid block or a processor that was never
   prepared leaves the outputs silent; preparing again starts a new one.
-- **Symbols.** On Linux the Rust library is linked into one object whose
-  only global symbols are its ABI, so that its standard library meets no
-  other Rust code's (AccessKit's, or another plugin's). On Windows,
-  `llvm-objcopy` renames the processor's exception personality in its COFF
-  objects, and `llvm-ar` updates the library while preserving Windows import
-  records, to avoid a collision with AccessKit's Rust standard library. Install the Windows LLVM
-  tools in `Program Files/LLVM` or on `PATH`; `soundor doctor` checks for them.
-  Rust links the C runtime the plugin does (`windows.crt`).
+- **Symbols.** The Rust static library links directly into the plugin. Its
+  standard library stays private through the plugin's export controls, including
+  Linux's archive hiding and VST3 version script. Release builds strip debug
+  information; Debug builds retain it. Rust links the C runtime the plugin does
+  (`windows.crt`).
 
 ### `soundor:native`
 
