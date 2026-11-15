@@ -1,6 +1,6 @@
 // Soundor's macOS accessibility bridge: the semantic tree as virtual
 // NSAccessibilityElements, shown to VoiceOver in the plugin's NSView. No view
-// per node, nothing of AccessKit, nothing of JUCE.
+// per node, using native Apple accessibility.
 //
 // Plugin safety (see apple/README.md for the whole lifecycle):
 // - The element class is created at runtime (objc_allocateClassPair) under a

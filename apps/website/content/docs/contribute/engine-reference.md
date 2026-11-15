@@ -1219,7 +1219,6 @@ would pass its own view the same way. Call `tick(host)` after every
 | Web      | DOM / ARIA (`@soundor/web-runtime`) | built in                                                                      |
 | Windows  | Native UI Automation                | built in                                                                      |
 | Linux    | Native AT-SPI over GDBus            | system shared GIO; x64 and source builds on arm64                             |
-| Android  | AccessKit                           | not attached: Soundor has no Android view to attach to yet                    |
 | macOS    | Native NSAccessibility              | implemented; attached by the JUCE editor                                      |
 | iOS      | Soundor's Apple bridge              | implemented; simulator build checked, no iOS runtime or device validation yet |
 
@@ -1331,17 +1330,16 @@ verified by SHA-256, and built privately. See `cmake/SoundorDependencies.cmake`.
 Three.js is installed by `pnpm install` from the workspace catalog; CMake
 lowers its modules for the native GPU tests without downloading another copy.
 
-| Dependency  | Version                 | License          | Role                                                            |
-| ----------- | ----------------------- | ---------------- | --------------------------------------------------------------- |
-| Hermes      | main (`602befe`)        | MIT              | JavaScript engine (shipped: the interpreter; built from source) |
-| QuickJS-NG  | v0.17.0 (`6d46d07`)     | MIT              | Unicode tables for Hermes on Linux (shipped: libunicode)        |
-| ada         | v3.4.4 (`8d50724`)      | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)                   |
-| Yoga        | v3.2.1 (`042f501`)      | MIT              | flexbox layout (shipped)                                        |
-| Skia        | m144 (`ed427fd`)        | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
-| ANGLE       | M151 (`7e08726`)        | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
-| accesskit-c | 0.23.1                  | MIT / Apache-2.0 | Legacy Android acquisition; pending removal                     |
-| doctest     | v2.5.3 (`2d0a935`)      | MIT              | test framework (tests only)                                     |
-| three       | workspace catalog (npm) | MIT              | WebGL compatibility tests (tests only)                          |
+| Dependency | Version                 | License          | Role                                                            |
+| ---------- | ----------------------- | ---------------- | --------------------------------------------------------------- |
+| Hermes     | main (`602befe`)        | MIT              | JavaScript engine (shipped: the interpreter; built from source) |
+| QuickJS-NG | v0.17.0 (`6d46d07`)     | MIT              | Unicode tables for Hermes on Linux (shipped: libunicode)        |
+| ada        | v3.4.4 (`8d50724`)      | MIT / Apache-2.0 | WHATWG URL parser (shipped, ~370 KB stripped)                   |
+| Yoga       | v3.2.1 (`042f501`)      | MIT              | flexbox layout (shipped)                                        |
+| Skia       | m144 (`ed427fd`)        | BSD-3-Clause     | 2D rendering (shipped; built from source)                       |
+| ANGLE      | M151 (`7e08726`)        | BSD-3-Clause     | OpenGL ES 3 on the GPU (shipped; built from source)             |
+| doctest    | v2.5.3 (`2d0a935`)      | MIT              | test framework (tests only)                                     |
+| three      | workspace catalog (npm) | MIT              | WebGL compatibility tests (tests only)                          |
 
 Hermes is built by its own CMake, once per machine and configuration
 (revision, Soundor's patches, compiler, platform, architectures), into
@@ -1607,9 +1605,8 @@ compositor and WebGL (see "The GPU").
 Windows uses native UI Automation system libraries (`uiautomationcore`, `ole32`,
 `oleaut32`, `user32` and `comctl32`), propagated for source builds and prebuilt
 imports through `SoundorPlatformLibraries.cmake`. Linux uses system GIO and
-Apple platforms use their native bridges. Windows no longer acquires or links
-AccessKit. Its unused source, Android acquisition and packaging infrastructure
-remain pending a separate removal change.
+Apple platforms use their native bridges. No Rust toolchain or Rust static
+library is required for engine accessibility.
 
 ## Symbol isolation
 
@@ -1671,9 +1668,9 @@ with its own copy of the runtime. Two tests prove it:
 
 ## Footprint
 
-Measured on Linux x64, Release, with the stripped VST3 binary (everything:
-Hermes, ada, Yoga, Skia, ANGLE, AccessKit, JUCE and the UI), against the same
-build with QuickJS-NG before it (both linked with `--gc-sections`):
+Historical measurements from the Hermes migration on Linux x64, Release, with
+the stripped VST3 binary and the complete dependency set at that time, against
+the same build with QuickJS-NG before it (both linked with `--gc-sections`):
 
 | What                                     | QuickJS-NG | Hermes   | Difference |
 | ---------------------------------------- | ---------- | -------- | ---------- |
@@ -1809,7 +1806,6 @@ soundor-engine.json      what the archive is: version, ABI namespace, source com
 lib/                     the engine, ada, Yoga
 hermes/                  the variant's Hermes libraries, its headers (JSI), bin/hermesc
 skia/  angle/            their static libraries; ANGLE's headers
-accesskit/              legacy Android only; absent from desktop archives
 include/soundor/Abi.h    the generated ABI header, for reference
 licenses/                the notices of everything linked (licenses/README.md here)
 ```
@@ -1956,9 +1952,7 @@ need no engine artifact build.
 Every archive carries `licenses/`: the notices that ship with each linked
 dependency (Skia, Hermes and ANGLE per third-party library), plus those
 in this package's `licenses/` for what they leave out: Skia's image libraries,
-Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada, Yoga, the
-legacy AccessKit Rust crates and standard library (retained temporarily for
-the separate removal change, excluded from desktop archives). Staging fails
+Hermes's LLVM support and dtoa, QuickJS-NG's Unicode tables, ada and Yoga. Staging fails
 when a linked component has no notice. JUCE is never part of an archive.
 Distributing a plugin means distributing these notices with it. Linux uses
 the dynamically linked system GIO/GLib libraries (LGPL-2.1-or-later); they

@@ -14,7 +14,6 @@ include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
 include(SoundorAngle)
-include(SoundorAccessKit)
 
 # The VM the runtime links: with its compiler or bytecode only.
 add_library(soundor_hermes INTERFACE)
@@ -84,11 +83,6 @@ if(APPLE)
 endif()
 if(WIN32)
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/windows/Uia.cpp)
-endif()
-if(SOUNDOR_HAS_ACCESSKIT)
-  list(APPEND SOUNDOR_RUNTIME_SOURCES
-    src/a11y/accesskit/AccessKitPlatform.cpp
-    src/a11y/accesskit/Mapping.cpp)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   list(APPEND SOUNDOR_RUNTIME_SOURCES src/a11y/linux/AtSpi.cpp src/a11y/linux/Mapping.cpp src/a11y/linux/Platform.cpp)
@@ -162,12 +156,6 @@ function(soundor_configure_runtime target)
   # PRIVATE: Hermes is an implementation detail; its headers never reach consumers.
   target_link_libraries(${target} PRIVATE soundor_hermes soundor_ada soundor_yoga soundor_skia
                                            ${SOUNDOR_RUNTIME_SYSTEM_LIBRARIES})
-  if(SOUNDOR_HAS_ACCESSKIT)
-    target_link_libraries(${target} PRIVATE soundor_accesskit)
-    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
-  else()
-    target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_ACCESSKIT=0)
-  endif()
   if(SOUNDOR_HAS_GPU)
     target_link_libraries(${target} PRIVATE soundor_angle)
     target_compile_definitions(${target} PRIVATE SOUNDOR_HAS_GPU=1)

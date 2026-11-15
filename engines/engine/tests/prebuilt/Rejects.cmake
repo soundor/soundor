@@ -31,6 +31,8 @@ endif()
 # <name>|<expected message, - for success>|<member path, dot separated>|<JSON value>
 set(cases
   "valid|-|-|-"
+  "unknown-link|unknown link member obsolete|link.obsolete|[]"
+  "unknown-feature|unknown features member obsolete|features.obsolete|false"
   "format|reads format 1|format|2"
   "version|is for @soundor/engine 9.9.9|engine.version|\"9.9.9\""
   "fingerprint|is for engine inputs stale|engine.sourceFingerprint|\"stale\""
@@ -64,7 +66,7 @@ foreach(case IN LISTS cases)
   file(REMOVE_RECURSE "${WORK}/${name}")
   file(MAKE_DIRECTORY "${fake}")
   file(WRITE "${fake}/soundor-engine.json" "${json}")
-  foreach(group engine hermes skia angle accessKit)
+  foreach(group engine hermes skia angle)
     string(JSON count LENGTH "${original}" link ${group})
     if(count GREATER 0)
       math(EXPR last "${count} - 1")
@@ -76,7 +78,7 @@ foreach(case IN LISTS cases)
   endforeach()
   string(JSON compiler GET "${original}" hermes compiler)
   touch("${fake}/${compiler}")
-  foreach(directory hermes/include angle/include accesskit/include)
+  foreach(directory hermes/include angle/include)
     file(MAKE_DIRECTORY "${fake}/${directory}")
   endforeach()
 

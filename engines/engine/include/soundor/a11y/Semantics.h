@@ -15,7 +15,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
     // Soundor's own accessibility semantics: what assistive technology (a
     // screen reader, switch control) perceives of a plugin view. Platform
-    // adapters (AccessKit, the Apple bridge) translate these types into their
+    // adapters (UI Automation, AT-SPI, the Apple bridges) translate these types into their
     // platform's; nothing here belongs to a platform or a plugin framework.
 
     // Identifies a semantic node for as long as it exists. Never reused within

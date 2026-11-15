@@ -46,23 +46,14 @@ class VerifiedDependencies(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Incomplete Hermes"):
             archives.package(self.cache, self.output, self.identity)
 
-    def test_accesskit_download_is_excluded_but_install_is_packaged(self):
-        download = self.cache / "accesskit-c-0.23.1.zip"
-        download.write_bytes(b"download fixture")
-        header = self.cache / "accesskit-c-0.23.1-linux-x86_64-nodebug/include/accesskit.h"
-        header.parent.mkdir(parents=True)
-        header.write_text("header fixture")
-
+    def test_unrelated_cache_installs_are_not_packaged(self):
+        retired = self.cache / "retired-dependency-revision/include/header.h"
+        retired.parent.mkdir(parents=True)
+        retired.write_text("obsolete cache entry")
         archives.package(self.cache, self.output, self.identity)
         destination = self.root / "restored"
         archives.unpack(self.output / "dependencies.tar.gz", destination, self.key)
-        self.assertFalse((destination / download.name).exists())
-        self.assertEqual((destination / header.relative_to(self.cache)).read_text(), "header fixture")
-
-    def test_accesskit_download_symlink_is_rejected(self):
-        (self.cache / "accesskit-c-0.23.1.zip").symlink_to(self.identity)
-        with self.assertRaisesRegex(ValueError, "must be a directory"):
-            archives.package(self.cache, self.output, self.identity)
+        self.assertFalse((destination / "retired-dependency-revision").exists())
 
     def test_symlink_in_install_is_rejected(self):
         (self.cache / "skia-revision/link").symlink_to(self.identity)

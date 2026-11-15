@@ -153,15 +153,16 @@ export function checkStage(stage, expected) {
       `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`,
     );
   const link = metadata.link ?? {};
-  if (['linux', 'windows'].includes(metadata.target?.os)) {
-    expect('features.accessKit', metadata.features?.accessKit, false);
-    if (link.accessKit?.length)
-      problems.push(
-        'Native accessibility prebuilts must not link an AccessKit archive',
-      );
-  }
+  // Reject retired or unknown metadata instead of silently omitting a library.
+  for (const [section, allowed] of [
+    ['features', ['devtools', 'jsSource', 'gpu']],
+    ['link', ['engine', 'hermes', 'skia', 'angle', 'system', 'frameworks']],
+  ])
+    for (const key of Object.keys(metadata[section] ?? {}))
+      if (!allowed.includes(key))
+        problems.push(`unknown ${section} member ${key}`);
 
-  for (const group of ['engine', 'hermes', 'skia', 'angle', 'accessKit'])
+  for (const group of ['engine', 'hermes', 'skia', 'angle'])
     for (const file of link[group] ?? [])
       if (!exists(join(stage, file))) problems.push(`${file} is missing`);
   if (!link.engine?.length || !link.hermes?.length || !link.skia?.length)
@@ -184,7 +185,6 @@ export function checkStage(stage, expected) {
     'yoga',
     'skia',
     ...(metadata.features?.gpu ? ['angle'] : []),
-    ...(metadata.features?.accessKit ? ['accesskit'] : []),
   ])
     if (!files(join(stage, 'licenses', component)).length)
       problems.push(`no license notice for ${component}`);

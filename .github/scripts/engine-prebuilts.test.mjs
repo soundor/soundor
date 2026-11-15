@@ -69,7 +69,7 @@ function stage(target, variant, edit = (metadata) => metadata) {
           ? `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`
           : '',
     },
-    features: { devtools: debug, jsSource: debug, gpu: true, accessKit: false },
+    features: { devtools: debug, jsSource: debug, gpu: true },
     hermes: {
       revision: 'abc',
       bytecodeVersion: '96',
@@ -80,7 +80,6 @@ function stage(target, variant, edit = (metadata) => metadata) {
       hermes,
       skia: ['skia/lib/libskia.a'],
       angle: ['angle/lib/libangle.a'],
-      accessKit: [],
       system: ['dl'],
       frameworks: [],
     },
@@ -182,37 +181,14 @@ describe('pack', () => {
     );
   });
 
-  test('Windows engines cannot ship the obsolete accessibility archive', async () => {
-    for (const edit of [
-      (m) => ({ ...m, features: { ...m.features, accessKit: true } }),
-      (m) => ({
-        ...m,
-        link: { ...m.link, accessKit: ['accesskit/lib/accesskit.lib'] },
-      }),
-    ]) {
-      await assert.rejects(
-        () =>
-          pack(
-            stage('windows-x64', 'debug', edit),
-            join(work, 'reject-windows-accesskit'),
-            planned,
-          ),
-        /features.accessKit|must not link an AccessKit archive/,
-      );
-    }
-  });
-
   const rejects = {
-    'Linux AccessKit linkage': [
-      (m) => ({ ...m, features: { ...m.features, accessKit: true } }),
-      /features.accessKit/,
+    'an unknown link group': [
+      (m) => ({ ...m, link: { ...m.link, obsolete: ['retired/library.a'] } }),
+      /unknown link member obsolete/,
     ],
-    'a Linux AccessKit archive': [
-      (m) => ({
-        ...m,
-        link: { ...m.link, accessKit: ['accesskit/lib/libaccesskit.a'] },
-      }),
-      /must not link an AccessKit archive/,
+    'an unknown feature': [
+      (m) => ({ ...m, features: { ...m.features, obsolete: false } }),
+      /unknown features member obsolete/,
     ],
     'another engine version': [
       (m) => ({ ...m, engine: { ...m.engine, version: '0.2.2' } }),

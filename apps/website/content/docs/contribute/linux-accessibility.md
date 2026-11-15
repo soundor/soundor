@@ -86,12 +86,9 @@ linked, vendored or copied into prebuilt archives. See the engine's NOTICE.md
 for LGPL attribution and distribution requirements when bundling system libraries.
 Soundor-owned code remains MIT licensed.
 
-Previously Linux linked AccessKit's Rust static archive. A Rust audio processor
-could introduce another independently compiled Rust static library and duplicate
-Rust runtime symbols, including rust_eh_personality. Native C++ AT-SPI over the
-dynamically linked system GIO keeps accessibility in the prebuilt C++ engine
-and removes that AccessKit Rust archive from Linux plugin linkage. Windows also uses [native UI Automation](/docs/contribute/windows-accessibility).
-Unused AccessKit infrastructure remains pending its separate removal.
+Linux accessibility uses only dynamically linked system GIO/GDBus. Independent
+Rust audio processors remain supported; engine accessibility requires no Rust
+static library or toolchain. Windows uses [native UI Automation](/docs/contribute/windows-accessibility).
 
 ## Verification
 

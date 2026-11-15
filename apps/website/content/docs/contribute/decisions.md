@@ -94,16 +94,15 @@ The cost is owning the semantic rules and testing their platform mappings.
 Those rules live in engine `src/a11y/` and web client `ui/semantics.ts`, with
 tests in both implementations.
 
-## AccessKit on Windows/Linux, own bridges on Apple
+## Native platform accessibility
 
-[PR #84](https://github.com/soundor/soundor/pull/84) adds the AccessKit backend
-for Windows and Linux. AccessKit's
-[tree-and-action model](https://accesskit.dev/how-it-works/) fits Soundor's
-semantic tree: Soundor sends updates, and assistive technology requests actions
-through the adapter. Its Windows and Unix adapters supply UI Automation and
-AT-SPI integration, so Soundor can reuse those platform implementations.
-AccessKit types stay private to the backend. The pinned C release supplies
-static libraries, avoiding a Rust toolchain requirement for plugin authors.
+Soundor owns the semantic tree and actions. Native backends translate that tree
+into Windows UI Automation, Linux AT-SPI over GDBus, and Apple's accessibility
+APIs. Each editor owns its attachment and lifetime; platform callbacks read
+semantic snapshots and actions return to the UI thread. See the
+[Windows](/docs/contribute/windows-accessibility),
+[Linux](/docs/contribute/linux-accessibility) and
+[Apple](/docs/contribute/apple-accessibility) implementation notes.
 
 Several plugins and engine versions may share a host process. Objective-C class
 names are process-global, so hiding C++ symbols cannot prevent their collisions.

@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 MAX_BYTES = 8 * 1024**3
-ROOT = re.compile(r"(?:skia|angle|hermes|accesskit-c)-[a-zA-Z0-9_.-]+$")
+ROOT = re.compile(r"(?:skia|angle|hermes)-[a-zA-Z0-9_.-]+$")
 
 
 def checked_identity(value, key):
@@ -27,10 +27,6 @@ def package(cache, output, identity):
     directories = []
     for path in sorted(cache.iterdir()):
         if not ROOT.fullmatch(path.name) or path.name.endswith((".partial", ".lock")):
-            continue
-        # CMake keeps the AccessKit download beside extracted installations.
-        if (path.name.startswith("accesskit-c-") and path.name.endswith(".zip")
-                and not path.is_symlink() and path.is_file()):
             continue
         if path.is_symlink() or not path.is_dir():
             raise ValueError("Dependency install must be a directory")

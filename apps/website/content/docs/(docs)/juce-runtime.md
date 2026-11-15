@@ -463,8 +463,8 @@ The view is accessible to screen readers through Soundor's own semantics
 `AccessibilityHandler`. The generated editor only tells Soundor's platform
 backend where the view is: its peer's native window, the surface's place
 and scale in it, and whether it has focus. On Windows that backend is Soundor's native Microsoft UI Automation provider. Linux uses Soundor's
-native AT-SPI adapter over dynamically linked system GIO/GDBus, with no AccessKit
-Rust archive. On macOS it is Soundor's native NSAccessibility bridge:
+native AT-SPI adapter over dynamically linked system GIO/GDBus, with no Rust
+archive. On macOS it is Soundor's native NSAccessibility bridge:
 the editor hands JUCE a container of Soundor's elements as its native
 accessibility child (`AccessibilityHandler::setNativeChildForComponent`),
 JUCE's only part in it. See
