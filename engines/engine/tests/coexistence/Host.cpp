@@ -14,8 +14,12 @@
 #if defined(_WIN32)
     #define NOMINMAX
     #define WIN32_LEAN_AND_MEAN
-    #include <UIAutomation.h>
+    // UIA's SDK headers require Windows and COM declarations before inclusion.
+    // clang-format off
     #include <windows.h>
+    #include <ole2.h>
+    #include <UIAutomation.h>
+    // clang-format on
     #include <wrl/client.h>
 #else
     #include <dlfcn.h>

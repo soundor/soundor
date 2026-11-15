@@ -8,14 +8,22 @@
 #ifndef WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
 #endif
-#include <UIAutomation.h>
+// UIA's SDK headers require Windows and COM declarations before inclusion.
+// clang-format off
 #include <windows.h>
+#include <ole2.h>
+#include <UIAutomation.h>
+// clang-format on
 
 #include <memory>
 #include <vector>
 
 namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
 {
+    // Property notifications for a semantic change. Passive DSP values are
+    // still queryable, but do not generate per-frame value notifications.
+    [[nodiscard]] std::vector<PROPERTYID> changedProperties(const Node& before, const Node& after);
+
     // One editor's plain-data snapshot and COM providers. Queries never wait
     // for the UI thread; actions are drained by PlatformAccessibility::tick.
     // Construct, update and close on the HWND's thread. Provider references

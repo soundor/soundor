@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <thread>
 
@@ -110,6 +111,105 @@ namespace
 
 TEST_SUITE("a11y Windows UIA")
 {
+    TEST_CASE("every public role maps to a native UIA control type")
+    {
+        Window window;
+        uia::Session session(window.handle, "Plugin");
+        session.update(tree(), {}, true);
+        auto provider = root(session);
+        auto child = navigate(provider.Get(), NavigateDirection_FirstChild);
+        const std::pair<Role, CONTROLTYPEID> roles[] = {
+            { Role::None, UIA_GroupControlTypeId },          { Role::Text, UIA_TextControlTypeId },
+            { Role::Image, UIA_ImageControlTypeId },         { Role::Button, UIA_ButtonControlTypeId },
+            { Role::Link, UIA_HyperlinkControlTypeId },      { Role::Adjustable, UIA_SliderControlTypeId },
+            { Role::CheckBox, UIA_CheckBoxControlTypeId },   { Role::Switch, UIA_CheckBoxControlTypeId },
+            { Role::ToggleButton, UIA_ButtonControlTypeId }, { Role::Radio, UIA_RadioButtonControlTypeId },
+            { Role::RadioGroup, UIA_GroupControlTypeId },    { Role::ProgressBar, UIA_ProgressBarControlTypeId },
+            { Role::Search, UIA_GroupControlTypeId },        { Role::ComboBox, UIA_ComboBoxControlTypeId },
+            { Role::Menu, UIA_MenuControlTypeId },           { Role::MenuBar, UIA_MenuBarControlTypeId },
+            { Role::MenuItem, UIA_MenuItemControlTypeId },   { Role::ScrollBar, UIA_ScrollBarControlTypeId },
+            { Role::SpinButton, UIA_SpinnerControlTypeId },  { Role::Tab, UIA_TabItemControlTypeId },
+            { Role::TabList, UIA_TabControlTypeId },         { Role::Header, UIA_HeaderControlTypeId },
+            { Role::Summary, UIA_GroupControlTypeId },       { Role::KeyboardKey, UIA_ButtonControlTypeId },
+            { Role::Timer, UIA_GroupControlTypeId },         { Role::Toolbar, UIA_ToolBarControlTypeId },
+            { Role::Alert, UIA_GroupControlTypeId },         { Role::Dialog, UIA_GroupControlTypeId },
+            { Role::Group, UIA_GroupControlTypeId },         { Role::TextInput, UIA_EditControlTypeId },
+            { Role::ScrollView, UIA_PaneControlTypeId },     { Role::View, UIA_PaneControlTypeId }
+        };
+        for (const auto& [role, type] : roles)
+        {
+            auto update = tree();
+            update.nodes[1].role = role;
+            session.update(update, {}, true);
+            VARIANT value;
+            REQUIRE(child->GetPropertyValue(UIA_ControlTypePropertyId, &value) == S_OK);
+            CHECK(value.vt == VT_I4);
+            CHECK(value.lVal == type);
+            VariantClear(&value);
+        }
+    }
+
+    TEST_CASE("property events describe semantic changes and suppress passive DSP value churn")
+    {
+        Node meter;
+        meter.role = Role::ProgressBar;
+        meter.value = { 0, 1, 0.2, "20%" };
+        Node changed = meter;
+        changed.value.now = 0.3;
+        changed.value.text = "30%";
+        CHECK(uia::changedProperties(meter, changed).empty());
+        CHECK(uia::changedProperties(meter, meter).empty());
+        meter.actions = { { Action::SetValue } };
+        changed.actions = meter.actions;
+        auto events = uia::changedProperties(meter, changed);
+        CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_ValueValuePropertyId) != events.end());
+        changed = meter;
+        changed.label = "Meter";
+        changed.state.disabled = true;
+        changed.state.selected = true;
+        changed.state.expanded = false;
+        changed.bounds.x = 5;
+        events = uia::changedProperties(meter, changed);
+        CHECK(std::ranges::find(events, UIA_NamePropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_IsEnabledPropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_SelectionItemIsSelectedPropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_ExpandCollapseExpandCollapseStatePropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_BoundingRectanglePropertyId) != events.end());
+        CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) == events.end());
+    }
+
+    TEST_CASE("text values preserve Unicode and expansion requests remain queued")
+    {
+        Window window;
+        uia::Session session(window.handle, "Plugin");
+        auto update = tree();
+        Node& input = update.nodes[1];
+        input.role = Role::TextInput;
+        input.value = { {}, {}, {}, "é🎛" };
+        input.state.expanded = false;
+        input.actions = { { Action::SetValue }, { Action::Expand }, { Action::Collapse } };
+        session.update(update, {}, true);
+        auto provider = root(session);
+        auto child = navigate(provider.Get(), NavigateDirection_FirstChild);
+        auto value = pattern<IValueProvider>(child.Get(), UIA_ValuePatternId);
+        BSTR text = nullptr;
+        REQUIRE(value->get_Value(&text) == S_OK);
+        CHECK(std::wstring(text, SysStringLen(text)) == L"é🎛");
+        SysFreeString(text);
+        CHECK(value->SetValue(L"日本語🎛") == S_OK);
+        auto expansion = pattern<IExpandCollapseProvider>(child.Get(), UIA_ExpandCollapsePatternId);
+        ExpandCollapseState state = ExpandCollapseState_LeafNode;
+        CHECK(expansion->get_ExpandCollapseState(&state) == S_OK);
+        CHECK(state == ExpandCollapseState_Collapsed);
+        CHECK(expansion->Expand() == S_OK);
+        auto requests = session.takeRequests();
+        REQUIRE(requests.size() == 2);
+        CHECK(std::get<std::string>(requests[0].value) == "日本語🎛");
+        CHECK(requests[1].action == Action::Expand);
+        CHECK(property(child.Get(), UIA_ValueValuePropertyId) == L"é🎛");
+    }
+
     TEST_CASE("semantic properties, stable identity, navigation, range, and geometry")
     {
         Window window;
@@ -117,7 +217,13 @@ TEST_SUITE("a11y Windows UIA")
         session.update(tree(), { 5, 6, 2, {} }, true);
         auto provider = root(session);
         CHECK(property(provider.Get(), UIA_NamePropertyId) == L"Plugin");
+        ComPtr<IRawElementProviderSimple> nativeHost;
+        CHECK(provider->get_HostRawElementProvider(&nativeHost) == S_OK);
+        CHECK(nativeHost != nullptr);
         auto gain = navigate(provider.Get(), NavigateDirection_FirstChild);
+        ComPtr<IRawElementProviderSimple> noHost;
+        CHECK(gain->get_HostRawElementProvider(&noHost) == S_OK);
+        CHECK(noHost == nullptr);
         CHECK(property(gain.Get(), UIA_NamePropertyId) == L"Gain");
         CHECK(property(gain.Get(), UIA_HelpTextPropertyId) == L"Output level");
         auto again = navigate(provider.Get(), NavigateDirection_FirstChild);

@@ -120,6 +120,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             return S_OK;
         }
 
+        UiaRect screenBounds(const Node& node, const ViewGeometry& geometry, POINT origin)
+        {
+            return { static_cast<double>(origin.x) + geometry.x + node.bounds.x * geometry.scale,
+                     static_cast<double>(origin.y) + geometry.y + node.bounds.y * geometry.scale,
+                     node.bounds.width * geometry.scale, node.bounds.height * geometry.scale };
+        }
+
+        HRESULT rectangleValue(const UiaRect& rect, VARIANT* out)
+        {
+            SAFEARRAY* array = SafeArrayCreateVector(VT_R8, 0, 4);
+            if (array == nullptr)
+                return E_OUTOFMEMORY;
+            double values[] = { rect.left, rect.top, rect.width, rect.height };
+            for (LONG i = 0; i < 4; ++i)
+                SafeArrayPutElement(array, &i, &values[i]);
+            out->vt = VT_ARRAY | VT_R8;
+            out->parray = array;
+            return S_OK;
+        }
+
         // Every COM entry point that allocates or takes a mutex is guarded.
         // No C++ exception crosses the Windows ABI.
         template <typename F>
@@ -149,6 +169,40 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         };
     } // namespace
 
+    std::vector<PROPERTYID> changedProperties(const Node& before, const Node& after)
+    {
+        std::vector<PROPERTYID> properties;
+        const auto changed = [&](bool different, PROPERTYID property)
+        {
+            if (different)
+                properties.push_back(property);
+        };
+        changed(before.role != after.role, UIA_ControlTypePropertyId);
+        changed(before.label != after.label, UIA_NamePropertyId);
+        changed(before.hint != after.hint, UIA_HelpTextPropertyId);
+        changed(before.hint != after.hint, UIA_FullDescriptionPropertyId);
+        changed(before.state.disabled != after.state.disabled, UIA_IsEnabledPropertyId);
+        changed(before.focusable != after.focusable || before.state.disabled != after.state.disabled,
+                UIA_IsKeyboardFocusablePropertyId);
+        changed(before.state.busy != after.state.busy, UIA_ItemStatusPropertyId);
+        changed(before.state.checked != after.state.checked, UIA_ToggleToggleStatePropertyId);
+        changed(selected(before) != selected(after), UIA_SelectionItemIsSelectedPropertyId);
+        changed(before.state.expanded != after.state.expanded, UIA_ExpandCollapseExpandCollapseStatePropertyId);
+        changed(before.modal != after.modal || before.role != after.role, UIA_IsDialogPropertyId);
+        if (after.supports(Action::SetValue))
+        {
+            changed(before.value.text != after.value.text, UIA_ValueValuePropertyId);
+            changed(before.value.now != after.value.now, UIA_RangeValueValuePropertyId);
+        }
+        changed(before.value.min != after.value.min, UIA_RangeValueMinimumPropertyId);
+        changed(before.value.max != after.value.max, UIA_RangeValueMaximumPropertyId);
+        changed(before.bounds != after.bounds, UIA_BoundingRectanglePropertyId);
+        changed((before.bounds.width <= 0 || before.bounds.height <= 0)
+                    != (after.bounds.width <= 0 || after.bounds.height <= 0),
+                UIA_IsOffscreenPropertyId);
+        return properties;
+    }
+
     struct Session::State
     {
         std::mutex mutex;
@@ -170,12 +224,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         Provider* element(const std::shared_ptr<State>& owner, NodeId id);
         const Node* node(NodeId id) const { return tree.find(id == noNode ? tree.root() : id); }
         NodeId key(NodeId id) const { return id == tree.root() ? noNode : id; }
-        UiaRect bounds(const Node& node) const
-        {
-            return { static_cast<double>(origin.x) + geometry.x + node.bounds.x * geometry.scale,
-                     static_cast<double>(origin.y) + geometry.y + node.bounds.y * geometry.scale,
-                     node.bounds.width * geometry.scale, node.bounds.height * geometry.scale };
-        }
+        UiaRect bounds(const Node& node) const { return screenBounds(node, geometry, origin); }
     };
 
     class Session::Provider final : public IRawElementProviderSimple,
@@ -565,15 +614,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                         if (const Node* item = state->tree.find(child);
                             item != nullptr && selectable(*item) && selected(*item))
                             chosen.push_back(child);
-                    *out = SafeArrayCreateVector(VT_UNKNOWN, 0, static_cast<ULONG>(chosen.size()));
-                    if (*out == nullptr)
+                    std::unique_ptr<SAFEARRAY, decltype(&SafeArrayDestroy)> array(
+                        SafeArrayCreateVector(VT_UNKNOWN, 0, static_cast<ULONG>(chosen.size())), SafeArrayDestroy);
+                    if (array == nullptr)
                         return E_OUTOFMEMORY;
                     for (LONG i = 0; i < static_cast<LONG>(chosen.size()); ++i)
                     {
                         auto* item = static_cast<IRawElementProviderSimple*>(
                             state->element(state, chosen[static_cast<std::size_t>(i)]));
-                        SafeArrayPutElement(*out, &i, item);
+                        SafeArrayPutElement(array.get(), &i, item);
                     }
+                    *out = array.release();
                     return S_OK;
                 });
         }
@@ -617,6 +668,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             };
             switch (property)
             {
+                case UIA_BoundingRectanglePropertyId:
+                    return rectangleValue(state->bounds(node), out);
                 case UIA_ControlTypePropertyId:
                     return integer(controlType(node.role));
                 case UIA_NamePropertyId:
@@ -863,19 +916,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 state->focused ? (state->tree.focus() != noNode ? state->tree.focus() : state->tree.root()) : noNode;
             const bool notify = state->listening && clients;
             bool structure = update.full || ! update.removed.empty();
-            // DSP meters expose their current value on query, without sending
-            // a value event every frame. Only interactive values notify.
-            const PROPERTYID properties[] = { UIA_NamePropertyId,
-                                              UIA_HelpTextPropertyId,
-                                              UIA_IsEnabledPropertyId,
-                                              UIA_ItemStatusPropertyId,
-                                              UIA_ToggleToggleStatePropertyId,
-                                              UIA_SelectionItemIsSelectedPropertyId,
-                                              UIA_ExpandCollapseExpandCollapseStatePropertyId,
-                                              UIA_ValueValuePropertyId,
-                                              UIA_RangeValueValuePropertyId,
-                                              UIA_RangeValueMinimumPropertyId,
-                                              UIA_RangeValueMaximumPropertyId };
+            const bool moved =
+                geometry != state->geometry || origin.x != state->origin.x || origin.y != state->origin.y;
+            const auto boundsEvent = [&](Provider* provider, const Node& before, const Node& after)
+            {
+                auto was = std::make_shared<Variant>();
+                auto now = std::make_shared<Variant>();
+                if (SUCCEEDED(rectangleValue(state->bounds(before), &was->value))
+                    && SUCCEEDED(rectangleValue(screenBounds(after, geometry, origin), &now->value)))
+                    events.push_back({ provider, UIA_BoundingRectanglePropertyId, std::move(was), std::move(now) });
+            };
+            // Cached elements may move because the native window moved, even
+            // if their logical bounds did not change in this tree update.
+            if (notify && moved)
+                for (const auto& [key, provider] : state->providers)
+                    if (const Node* node = state->node(key);
+                        node != nullptr && std::ranges::find(update.nodes, node->id, &Node::id) == update.nodes.end())
+                        boundsEvent(provider, *node, *node);
             for (const Node& node : update.nodes)
             {
                 const Node* before = state->tree.find(node.id);
@@ -883,20 +940,18 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 if (! notify || before == nullptr)
                     continue;
                 auto* provider = state->element(state, state->key(node.id));
-                for (const PROPERTYID property : properties)
+                if (moved || node.bounds != before->bounds)
+                    boundsEvent(provider, *before, node);
+                for (const PROPERTYID property : changedProperties(*before, node))
                 {
-                    if ((property == UIA_ValueValuePropertyId || property == UIA_RangeValueValuePropertyId)
-                        && ! node.supports(Action::SetValue))
+                    if (property == UIA_BoundingRectanglePropertyId)
                         continue;
                     auto was = std::make_shared<Variant>();
                     auto now = std::make_shared<Variant>();
                     if (FAILED(provider->propertyValue(*before, property, &was->value))
                         || FAILED(provider->propertyValue(node, property, &now->value)))
                         continue;
-                    if (VarCmp(&was->value, &now->value, LOCALE_INVARIANT, 0) != VARCMP_EQ)
-                    {
-                        events.push_back({ provider, property, std::move(was), std::move(now) });
-                    }
+                    events.push_back({ provider, property, std::move(was), std::move(now) });
                 }
             }
             state->tree.apply(update);
@@ -921,15 +976,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             }
             const NodeId newFocus =
                 focused ? (state->tree.focus() != noNode ? state->tree.focus() : state->tree.root()) : noNode;
-            if (notify && oldFocus != newFocus && newFocus != noNode && state->tree.find(newFocus) != nullptr)
+            if (notify && oldFocus != newFocus)
             {
-                focusEvent = state->element(state, state->key(newFocus));
+                const auto focusProperty = [&](NodeId target, bool gained)
+                {
+                    if (target == noNode || state->tree.find(target) == nullptr)
+                        return;
+                    auto* provider = state->element(state, state->key(target));
+                    auto was = std::make_shared<Variant>();
+                    auto now = std::make_shared<Variant>();
+                    was->value.vt = now->value.vt = VT_BOOL;
+                    was->value.boolVal = gained ? VARIANT_FALSE : VARIANT_TRUE;
+                    now->value.boolVal = gained ? VARIANT_TRUE : VARIANT_FALSE;
+                    events.push_back({ provider, UIA_HasKeyboardFocusPropertyId, std::move(was), std::move(now) });
+                    if (gained)
+                        focusEvent = provider;
+                };
+                focusProperty(oldFocus, false);
+                focusProperty(newFocus, true);
             }
         }
         for (const PropertyEvent& event : events)
         {
             UiaRaiseAutomationPropertyChangedEvent(event.provider.Get(), event.property, event.before->value,
                                                    event.after->value);
+            if (event.property == UIA_SelectionItemIsSelectedPropertyId)
+                UiaRaiseAutomationEvent(event.provider.Get(),
+                                        event.after->value.boolVal == VARIANT_TRUE
+                                            ? UIA_SelectionItem_ElementSelectedEventId
+                                            : UIA_SelectionItem_ElementRemovedFromSelectionEventId);
         }
         if (rootEvent != nullptr)
         {

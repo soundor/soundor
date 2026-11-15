@@ -182,6 +182,26 @@ describe('pack', () => {
     );
   });
 
+  test('Windows engines cannot ship the obsolete accessibility archive', async () => {
+    for (const edit of [
+      (m) => ({ ...m, features: { ...m.features, accessKit: true } }),
+      (m) => ({
+        ...m,
+        link: { ...m.link, accessKit: ['accesskit/lib/accesskit.lib'] },
+      }),
+    ]) {
+      await assert.rejects(
+        () =>
+          pack(
+            stage('windows-x64', 'debug', edit),
+            join(work, 'reject-windows-accesskit'),
+            planned,
+          ),
+        /features.accessKit|must not link an AccessKit archive/,
+      );
+    }
+  });
+
   const rejects = {
     'Linux AccessKit linkage': [
       (m) => ({ ...m, features: { ...m.features, accessKit: true } }),
