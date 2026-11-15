@@ -514,6 +514,14 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             return read(
                 [&](const Node&)
                 {
+                    const Node* root = state->tree.find(state->tree.root());
+                    if (root == nullptr)
+                        return S_OK;
+                    const UiaRect view = state->bounds(*root);
+                    // Descendants may overflow a group, but never the editor's
+                    // surface into another plugin or the host's UI.
+                    if (x < view.left || y < view.top || x >= view.left + view.width || y >= view.top + view.height)
+                        return S_OK;
                     std::function<NodeId(NodeId)> hit = [&](NodeId target) -> NodeId
                     {
                         const Node* node = state->tree.find(target);
@@ -955,12 +963,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
 
     IRawElementProviderSimple* Session::provider()
     {
+        {
+            const std::scoped_lock lock(state->mutex);
+            if (! state->alive)
+                return nullptr;
+        }
+        // Loader synchronization must not happen with the tree lock held.
+        // Pin only this binary before exposing COM vtables to UIA clients.
+        detail::pinModule();
         const std::scoped_lock lock(state->mutex);
         if (! state->alive)
             return nullptr;
-        // COM clients can retain vtables after editor teardown. Like the Apple
-        // bridge, pin only this binary, once it exposes platform objects.
-        detail::pinModule();
         state->listening = true;
         auto* root = state->element(state, noNode);
         root->AddRef();

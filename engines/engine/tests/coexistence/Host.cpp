@@ -208,7 +208,7 @@ namespace
         expect(childA && childA2 && childB, "all plugin editors have semantic children" + at);
         const auto named = [](IRawElementProviderSimple* provider, const wchar_t* name)
         {
-            VARIANT value;
+            VARIANT value {};
             VariantInit(&value);
             const bool matches =
                 provider != nullptr && SUCCEEDED(provider->GetPropertyValue(UIA_NamePropertyId, &value))
@@ -253,7 +253,7 @@ namespace
 #if defined(_WIN32)
         if (providerA && providerA2 && providerB)
         {
-            VARIANT value;
+            VARIANT value {};
             expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
                        == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
                    "retained provider is disconnected after destroying its editor" + at);
@@ -281,7 +281,7 @@ namespace
         a.unload();
         if (providerA && providerB)
         {
-            VARIANT value;
+            VARIANT value {};
             expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value)
                        == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE),
                    "stale COM reference is safe after host releases plugin library" + at);

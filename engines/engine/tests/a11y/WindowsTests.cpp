@@ -100,7 +100,7 @@ namespace
 
     std::wstring property(IRawElementProviderSimple* provider, PROPERTYID id)
     {
-        VARIANT value;
+        VARIANT value {};
         REQUIRE(provider->GetPropertyValue(id, &value) == S_OK);
         REQUIRE(value.vt == VT_BSTR);
         std::wstring result(value.bstrVal, SysStringLen(value.bstrVal));
@@ -141,7 +141,7 @@ TEST_SUITE("a11y Windows UIA")
             auto update = tree();
             update.nodes[1].role = role;
             session.update(update, {}, true);
-            VARIANT value;
+            VARIANT value {};
             REQUIRE(child->GetPropertyValue(UIA_ControlTypePropertyId, &value) == S_OK);
             CHECK(value.vt == VT_I4);
             CHECK(value.lVal == type);
@@ -253,6 +253,13 @@ TEST_SUITE("a11y Windows UIA")
         ComPtr<IRawElementProviderSimple> hitSimple;
         REQUIRE(hit.As(&hitSimple) == S_OK);
         CHECK(hitSimple.Get() == gain.Get());
+        auto overflow = tree();
+        overflow.nodes[1].bounds.x = -1000;
+        session.update(overflow, { 5, 6, 2, {} }, true);
+        hit.Reset();
+        CHECK(fragmentRoot->ElementProviderFromPoint(origin.x - 1900, bounds.top + 1, &hit) == S_OK);
+        CHECK(hit == nullptr);
+        session.update(tree(), { 5, 6, 2, {} }, true);
         auto range = pattern<IRangeValueProvider>(gain.Get(), UIA_RangeValuePatternId);
         double value = 0;
         CHECK(range->get_Value(&value) == S_OK);
@@ -370,7 +377,7 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(property(replacementChild.Get(), UIA_NamePropertyId) == L"Gain");
         session.close();
         CHECK(session.takeRequests().empty());
-        VARIANT result;
+        VARIANT result {};
         CHECK(provider->GetPropertyValue(UIA_NamePropertyId, &result)
               == static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE));
         CHECK(session.provider() == nullptr);
@@ -412,12 +419,13 @@ TEST_SUITE("a11y Windows UIA")
         SafeArrayDestroy(bid);
         std::atomic<bool> stop { false };
         std::atomic<bool> valid { true };
+        std::atomic<unsigned> queries { 0 };
         std::thread worker(
             [&]
             {
                 while (! stop)
                 {
-                    VARIANT value;
+                    VARIANT value {};
                     const HRESULT result = aChild->GetPropertyValue(UIA_NamePropertyId, &value);
                     if (result != S_OK && result != static_cast<HRESULT>(UIA_E_ELEMENTNOTAVAILABLE))
                         valid = false;
@@ -426,9 +434,15 @@ TEST_SUITE("a11y Windows UIA")
                     if (other != S_OK)
                         valid = false;
                     VariantClear(&value);
+                    ++queries;
                 }
             });
+        while (queries < 16)
+            std::this_thread::yield();
         first.reset();
+        const unsigned afterClose = queries.load() + 16;
+        while (queries < afterClose)
+            std::this_thread::yield();
         for (int i = 0; i < 20; ++i)
             second.update(tree(), {}, i % 2 == 0);
         stop = true;
