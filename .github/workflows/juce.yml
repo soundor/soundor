@@ -36,6 +36,19 @@ on:
         type: string
         default: ''
 
+      build-host:
+        description: Use CI VST3 host artifacts rather than the released host
+        type: boolean
+        default: false
+      host-run-id:
+        description: Successful main run to reuse (empty for this run)
+        type: string
+        default: ''
+      host-commit:
+        description: Original source commit of the reused host
+        type: string
+        default: ''
+
 permissions: {}
 
 jobs:
@@ -236,6 +249,24 @@ jobs:
             fi
             grep -q 'Soundor engine: the release prebuilt' "$RUNNER_TEMP/plugin.log"
           fi
+      - name: Download the selected VST3 host
+        if: inputs.build-host && !matrix.lint && !matrix.sanitize
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.host-run-id || github.run_id }}
+          name: vst3-host-${{ inputs.host-commit || github.sha }}-${{ runner.os == 'Windows' && 'win32-x64' || runner.os == 'macOS' && 'darwin-universal' || 'linux-x64-gnu' }}
+          path: ${{ runner.temp }}/vst3-host
+      - name: Select the host artifact
+        if: inputs.build-host && !matrix.lint && !matrix.sanitize
+        run: |
+          artifact=$(cygpath -m "$RUNNER_TEMP/vst3-host" 2>/dev/null || echo "$RUNNER_TEMP/vst3-host")
+          echo "SOUNDOR_VST3_HOST_ARTIFACT=$artifact" >> "$GITHUB_ENV"
+      - name: Prepare the VST3 host for the audio test
+        if: ${{ !matrix.lint && !matrix.sanitize }}
+        env:
+          HOST_COMMIT: ${{ inputs.host-commit || github.sha }}
+        run: node hosts/vst3-host/src/cli.ts prepare --mode published --commit "$HOST_COMMIT"
       - name: Test the Rust gain through the VST3 host
         if: ${{ !matrix.lint && !matrix.sanitize }}
         run: pnpm --filter @soundor/juce-runtime test:plugin:audio

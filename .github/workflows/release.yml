@@ -202,12 +202,13 @@ jobs:
 
   juce:
     name: JUCE 8
-    needs: [select, validate, engine]
+    needs: [select, validate, engine, host-artifacts]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.validate.result == 'success' &&
       (needs.select.outputs.engine == 'true' || needs.select.outputs.juce == 'true') &&
-      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success')
+      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -218,15 +219,17 @@ jobs:
       cache: false
       build-engine: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'build' }}
       engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
+      build-host: ${{ needs.select.outputs.host == 'true' }}
 
   juce9:
     name: JUCE 9
-    needs: [select, validate, engine]
+    needs: [select, validate, engine, host-artifacts]
     if: >-
       always() && !cancelled() && needs.select.outputs.mode == 'publish' &&
       needs.validate.result == 'success' &&
       (needs.select.outputs.engine == 'true' || needs.select.outputs.juce == 'true') &&
-      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success')
+      (needs.select.outputs.engine != 'true' || needs.engine.result == 'success') &&
+      (needs.select.outputs.host != 'true' || needs.host-artifacts.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -236,6 +239,7 @@ jobs:
       cache: false
       build-engine: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'build' }}
       engine-release: ${{ needs.select.outputs.engine == 'true' && needs.engine.outputs.action == 'reuse' && needs.engine.outputs.tag || '' }}
+      build-host: ${{ needs.select.outputs.host == 'true' }}
 
   # ── Publish ────────────────────────────────────────────────────────────
   # Every job above, for what this release publishes, has passed.

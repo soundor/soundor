@@ -91,7 +91,7 @@ jobs:
   host-plan:
     name: Select VST3 host
     needs: changes
-    if: needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true'
+    if: needs.changes.outputs.host == 'true' || needs.changes.outputs.orbit == 'true' || needs.changes.outputs.juce == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -233,11 +233,13 @@ jobs:
 
   juce8:
     name: JUCE 8 (juce-runtime)
-    needs: [changes, engine-plan, engine]
+    needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
+      needs.host-plan.result == 'success' &&
+      (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -249,16 +251,21 @@ jobs:
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
       engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
+      build-host: ${{ needs.host-plan.outputs.build == 'true' || needs.host-plan.outputs.artifact-run != '' }}
+      host-run-id: ${{ needs.host-plan.outputs.artifact-run }}
+      host-commit: ${{ needs.host-plan.outputs.artifact-commit }}
 
   # JUCE 9 compiles its image libraries with plain C names, as Skia's (renamed)
   # copies.
   juce9:
     name: JUCE 9 (juce-runtime)
-    needs: [changes, engine-plan, engine]
+    needs: [changes, engine-plan, engine, host-plan, host]
     if: >-
       always() && !cancelled() && needs.changes.result == 'success' &&
       needs.changes.outputs.juce == 'true' && needs.engine-plan.result == 'success' &&
-      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success')
+      (needs.engine-plan.outputs.build != 'true' || needs.engine.result == 'success') &&
+      needs.host-plan.result == 'success' &&
+      (needs.host-plan.outputs.build != 'true' || needs.host.result == 'success')
     permissions:
       contents: read
       actions: read
@@ -268,6 +275,9 @@ jobs:
       build-engine: ${{ needs.engine-plan.outputs.build == 'true' || needs.engine-plan.outputs.artifact-run != '' }}
       engine-run-id: ${{ needs.engine-plan.outputs.artifact-run }}
       engine-commit: ${{ needs.engine-plan.outputs.artifact-commit }}
+      build-host: ${{ needs.host-plan.outputs.build == 'true' || needs.host-plan.outputs.artifact-run != '' }}
+      host-run-id: ${{ needs.host-plan.outputs.artifact-run }}
+      host-commit: ${{ needs.host-plan.outputs.artifact-commit }}
 
   benchmark:
     name: Benchmark smoke
