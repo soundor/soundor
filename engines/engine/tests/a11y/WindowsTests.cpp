@@ -179,6 +179,26 @@ TEST_SUITE("a11y Windows UIA")
         CHECK(std::ranges::find(events, UIA_RangeValueValuePropertyId) == events.end());
     }
 
+    TEST_CASE("full value snapshots do not flood structure notifications")
+    {
+        Tree mirror;
+        mirror.apply(tree());
+        auto values = tree();
+        values.nodes[1].value.now = -2.25;
+        values.nodes[1].value.text = "-2.25 dB";
+        CHECK_FALSE(uia::structureChanged(mirror, values));
+        CHECK_FALSE(uia::structureChanged(mirror, {}));
+        auto children = tree();
+        std::reverse(children.nodes[0].children.begin(), children.nodes[0].children.end());
+        CHECK(uia::structureChanged(mirror, children));
+        auto replacement = tree();
+        replacement.root = 200;
+        CHECK(uia::structureChanged(mirror, replacement));
+        auto removed = tree();
+        removed.nodes.pop_back();
+        CHECK(uia::structureChanged(mirror, removed));
+    }
+
     TEST_CASE("text values preserve Unicode and expansion requests remain queued")
     {
         Window window;

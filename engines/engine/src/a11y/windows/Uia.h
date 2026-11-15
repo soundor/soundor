@@ -23,6 +23,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
     // Property notifications for a semantic change. Passive DSP values are
     // still queryable, but do not generate per-frame value notifications.
     [[nodiscard]] std::vector<PROPERTYID> changedProperties(const Node& before, const Node& after);
+    // A full snapshot can contain only value changes (for example after a
+    // DevTools inspection); it does not by itself mean the topology changed.
+    [[nodiscard]] bool structureChanged(const Tree& before, const TreeUpdate& update);
 
     // One editor's plain-data snapshot and COM providers. Queries never wait
     // for the UI thread; actions are drained by PlatformAccessibility::tick.

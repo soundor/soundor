@@ -255,6 +255,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         return properties;
     }
 
+    bool structureChanged(const Tree& before, const TreeUpdate& update)
+    {
+        if ((update.root != noNode && update.root != before.root()) || ! update.removed.empty()
+            || (update.full && update.nodes.size() != before.size()))
+            return true;
+        return std::ranges::any_of(update.nodes,
+                                   [&](const Node& node)
+                                   {
+                                       const Node* previous = before.find(node.id);
+                                       return previous == nullptr || previous->children != node.children;
+                                   });
+    }
+
     struct Session::State
     {
         std::mutex mutex;
@@ -1035,7 +1048,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             const NodeId oldFocus =
                 state->focused ? (state->tree.focus() != noNode ? state->tree.focus() : state->tree.root()) : noNode;
             const bool notify = state->listening && clients;
-            bool structure = update.full || ! update.removed.empty();
+            const bool structure = structureChanged(state->tree, update);
             const bool moved =
                 geometry != state->geometry || origin.x != state->origin.x || origin.y != state->origin.y;
             const auto boundsEvent = [&](Provider* provider, const Node& before, const Node& after)
@@ -1056,7 +1069,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             for (const Node& node : update.nodes)
             {
                 const Node* before = state->tree.find(node.id);
-                structure = structure || before == nullptr || before->children != node.children;
                 if (! notify || before == nullptr)
                     continue;
                 auto* provider = state->element(state, state->key(node.id));
