@@ -77,6 +77,12 @@ if (engine !== undefined) {
   );
 }
 const rustSource = join(runtime, 'tests/rust-link/processor.rs');
+// Rust's precompiled std archives carry debug sections even with debuginfo=0.
+// Strip only debug data from this fixture's Release archive; unwind/runtime
+// symbols remain, including the personality whose collision this tests.
+const stripRust = debug
+  ? ''
+  : 'COMMAND "${CMAKE_STRIP}" --strip-debug "${RUST_LIBRARY}"';
 cmake += `
 # Rust link fixture
 find_program(RUSTC rustc REQUIRED)
@@ -84,6 +90,7 @@ set(RUST_LIBRARY "\${CMAKE_CURRENT_BINARY_DIR}/libsoundor_rust_link.a")
 add_custom_command(OUTPUT "\${RUST_LIBRARY}"
   COMMAND "\${RUSTC}" --edition=2024 --crate-type=staticlib --crate-name=soundor_rust_link
     -C opt-level=1 -C panic=unwind [==[${rustSource}]==] -o "\${RUST_LIBRARY}"
+  ${stripRust}
   DEPENDS [==[${rustSource}]==] VERBATIM)
 add_custom_target(soundor_rust_archive DEPENDS "\${RUST_LIBRARY}")
 add_library(soundor_rust_processor STATIC IMPORTED)
@@ -132,6 +139,8 @@ assert(
   dependencies.includes('[libgio-2.0.so.0]'),
   'System GIO must remain dynamically linked',
 );
+if (!debug)
+  run('bash', [join(root, '.github/scripts/linux-plugin-check.sh'), binary]);
 const symbols = execFileSync('nm', ['--defined-only', binary], {
   encoding: 'utf8',
   maxBuffer: 128 * 1024 * 1024,
