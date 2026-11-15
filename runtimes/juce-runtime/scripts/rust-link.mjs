@@ -114,10 +114,6 @@ const build = join(
 );
 const ninja = readFileSync(join(build, 'build.ninja'), 'utf8');
 assert(
-  !ninja.includes('libaccesskit.a'),
-  'Linux link must not contain AccessKit',
-);
-assert(
   !ninja.includes('soundor_runtime.dir/src/'),
   'Regression must consume the prebuilt C++ engine',
 );

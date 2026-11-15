@@ -159,14 +159,6 @@ if(SOUNDOR_HAS_GPU)
   file(STRINGS "${SOUNDOR_ANGLE_DIR}/frameworks.txt" soundor_stage_frameworks)
 endif()
 
-# AccessKit: its static library and header.
-set(soundor_stage_link_accesskit "")
-if(SOUNDOR_HAS_ACCESSKIT)
-  get_filename_component(name "${soundor_accesskit_library}" NAME)
-  list(APPEND soundor_stage_copies "${soundor_accesskit_library}|accesskit/lib/${name}")
-  list(APPEND soundor_stage_copies "${SOUNDOR_ACCESSKIT_DIR}/include/accesskit.h|accesskit/include/accesskit.h")
-  set(soundor_stage_link_accesskit "\"accesskit/lib/${name}\"")
-endif()
 list(REMOVE_DUPLICATES soundor_stage_system)
 
 # License notices: the texts each linked component ships with, plus the ones
@@ -188,14 +180,6 @@ endif()
 if(SOUNDOR_HAS_GPU)
   list(APPEND soundor_stage_licenses "angle|${SOUNDOR_ANGLE_DIR}/licenses")
 endif()
-if(SOUNDOR_HAS_ACCESSKIT)
-  list(APPEND soundor_stage_licenses
-    "accesskit|${SOUNDOR_ACCESSKIT_DIR}/LICENSE-MIT"
-    "accesskit|${SOUNDOR_ACCESSKIT_DIR}/LICENSE-APACHE"
-    "accesskit|${SOUNDOR_ACCESSKIT_DIR}/LICENSE.chromium"
-    "accesskit|${SoundorEngine_SOURCE_DIR}/licenses/accesskit/crates-${soundor_stage_target}.md"
-    "accesskit|${SoundorEngine_SOURCE_DIR}/licenses/rust")
-endif()
 
 function(soundor_stage_json_list out)
   set(items "")
@@ -213,7 +197,6 @@ soundor_stage_json_list(soundor_stage_frameworks_json ${soundor_stage_frameworks
 set(soundor_stage_bool_devtools false)
 set(soundor_stage_bool_source false)
 set(soundor_stage_bool_gpu false)
-set(soundor_stage_bool_accesskit false)
 if(SOUNDOR_ENABLE_DEVTOOLS)
   set(soundor_stage_bool_devtools true)
 endif()
@@ -222,9 +205,6 @@ if(SOUNDOR_JS_SOURCE)
 endif()
 if(SOUNDOR_HAS_GPU)
   set(soundor_stage_bool_gpu true)
-endif()
-if(SOUNDOR_HAS_ACCESSKIT)
-  set(soundor_stage_bool_accesskit true)
 endif()
 
 # What a consumer reads (SoundorEnginePrebuilt.cmake) and the release checks
@@ -253,8 +233,7 @@ set(soundor_stage_metadata [=[{
   "features": {
     "devtools": @soundor_stage_bool_devtools@,
     "jsSource": @soundor_stage_bool_source@,
-    "gpu": @soundor_stage_bool_gpu@,
-    "accessKit": @soundor_stage_bool_accesskit@
+    "gpu": @soundor_stage_bool_gpu@
   },
   "hermes": {
     "revision": "@SOUNDOR_HERMES_REVISION@",
@@ -266,7 +245,6 @@ set(soundor_stage_metadata [=[{
     "hermes": [@soundor_stage_link_hermes@],
     "skia": [@soundor_stage_link_skia@],
     "angle": [@soundor_stage_link_angle@],
-    "accessKit": [@soundor_stage_link_accesskit@],
     "system": @soundor_stage_system_json@,
     "frameworks": @soundor_stage_frameworks_json@
   }
@@ -281,7 +259,7 @@ set(EXPECTED_CONFIG [==[${soundor_stage_config}]==])
 set(COPIES [==[${soundor_stage_copies}]==])
 set(TREES [==[${soundor_stage_trees}]==])
 set(LICENSES [==[${soundor_stage_licenses}]==])
-set(LINKED [==[engine;hermes;ada;yoga;skia$<$<BOOL:${SOUNDOR_HAS_GPU}>:;angle>$<$<BOOL:${SOUNDOR_HAS_ACCESSKIT}>:;accesskit>]==])
+set(LINKED [==[engine;hermes;ada;yoga;skia$<$<BOOL:${SOUNDOR_HAS_GPU}>:;angle>]==])
 set(METADATA [==[${soundor_stage_metadata}]==])
 ")
 add_custom_target(soundor_engine_stage

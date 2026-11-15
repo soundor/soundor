@@ -14,7 +14,6 @@ and is never part of the engine.
 | Yoga                  | MIT                                             | Layout                                   |
 | Skia                  | BSD-3-Clause, plus compiled third-party notices | Rasterization                            |
 | ANGLE                 | BSD-3-Clause, plus compiled third-party notices | Graphics                                 |
-| AccessKit             | MIT / Apache-2.0, plus transitive notices       | Legacy Android acquisition only          |
 
 Distributors must include applicable dependency license texts and attribution
 notices from the exact fetched revisions, including compiled transitive code.

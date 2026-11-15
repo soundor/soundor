@@ -4,7 +4,7 @@
 #[unsafe(no_mangle)]
 pub extern "C" fn soundor_rust_initialize() -> usize {
     // Initialization is outside the audio callback. Pull in std and unwind
-    // machinery so the original AccessKit runtime-symbol conflict is covered.
+    // machinery so Rust runtime-symbol conflicts are covered.
     std::panic::catch_unwind(|| std::hint::black_box(vec![0.5_f32; 8]).len()).unwrap_or(0)
 }
 

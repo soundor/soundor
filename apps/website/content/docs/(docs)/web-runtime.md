@@ -207,7 +207,7 @@ UiNodes.
   `contextmenu` becomes Soundor's, and preventing it keeps the browser's
   menu away.
 - **Accessibility** is ARIA on the elements that draw the nodes: no second,
-  hidden DOM, and no AccessKit. The JUCE runtime's semantic rules decide
+  hidden DOM, and no native accessibility adapter. The JUCE runtime's semantic rules decide
   what is an element, as what, labelled how; a pass after each task's
   changes sets the matching attributes:
   - Roles: `adjustable` is `slider`, `togglebutton` a `button` with

@@ -2,8 +2,7 @@
 
 A prebuilt engine archive carries the license notices of everything it links
 (`licenses/` in the archive, assembled by `cmake/SoundorEngineStage.cmake`).
-Most come from the dependency builds themselves: Skia's, Hermes's and
-AccessKit's top-level licenses, and ANGLE's per-dependency `licenses/`. This
+Most come from the dependency builds themselves: Skia's and Hermes's top-level licenses, and ANGLE's per-dependency `licenses/`. This
 directory holds the rest, each taken verbatim from the exact pinned revision
 in `cmake/SoundorDependencies.cmake`:
 
@@ -19,15 +18,11 @@ in `cmake/SoundorDependencies.cmake`:
 | `hermes/quickjs-ng`    | Hermes (Linux)    | QuickJS-NG at its pinned revision (libunicode tables)                                   |
 | `ada`                  | the engine        | ada-url/ada `v3.4.4`                                                                    |
 | `yoga`                 | the engine        | facebook/yoga at its pinned revision                                                    |
-| `accesskit/crates-*`   | AccessKit         | generated: `node .github/scripts/accesskit-notices.mjs` (Windows Rust crates)        |
-| `rust`                 | AccessKit         | the Rust standard library (rust-lang/rust)                                              |
 
 Skia's skcms is Skia's own code, under Skia's license. JSI ships with Hermes
 under its license. When a pin changes, update the matching notices here; the
 staging step fails when a linked component has none.
 
-Linux accessibility links the system's shared GIO/GLib libraries (LGPL-2.1-or-later),
-not AccessKit. They are not copied into prebuilt archives. See `NOTICE.md` for
+Linux accessibility links the system's shared GIO/GLib libraries (LGPL-2.1-or-later). They are not copied into prebuilt archives. See `NOTICE.md` for
 system-library distribution requirements. Windows uses native UI Automation system
-libraries. The legacy AccessKit and Rust notice files remain pending a separate
-removal change; desktop engine archives no longer include them.
+libraries.

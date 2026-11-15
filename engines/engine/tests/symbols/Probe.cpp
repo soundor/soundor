@@ -42,7 +42,7 @@ SOUNDOR_PROBE_EXPORT int soundor_probe_entry()
                                       "/probe.js");
     std::vector<std::uint32_t> pixels(std::size_t { 100 } * 100);
     host.render({ pixels.data(), 100, 100, std::size_t { 100 } * 4 });
-    // Links the platform's accessibility (AccessKit) in, for the export check.
+    // Links the platform's native accessibility in, for the export check.
     auto accessibility = soundor::a11y::createPlatformAccessibility({});
     if (accessibility != nullptr)
         accessibility->tick(host);

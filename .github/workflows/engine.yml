@@ -104,11 +104,6 @@ jobs:
           # restore compiler objects or unauthenticated native installs.
           cache: ${{ inputs.release-build && 'false' || 'true' }}
 
-      # The archives carry these notices (engines/engine/licenses).
-      - name: AccessKit's crate notices match its Cargo.lock
-        if: runner.os == 'Linux'
-        run: node .github/scripts/accesskit-notices.mjs --check
-
       - name: Use Ninja
         if: runner.os != 'Windows'
         run: echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"

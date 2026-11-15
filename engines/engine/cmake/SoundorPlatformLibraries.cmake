@@ -45,16 +45,3 @@ endif()
 # ANGLE's headers declare everything, extensions included, without dllimport
 # or default visibility.
 set(SOUNDOR_ANGLE_DEFINITIONS KHRONOS_STATIC ANGLE_EXPORT= GL_GLEXT_PROTOTYPES=1 EGL_EGLEXT_PROTOTYPES=1)
-
-if(WIN32)
-  # The libraries the Rust standard library and UI Automation need; comctl32
-  # for the window subclass Soundor installs.
-  set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES
-    bcrypt ntdll propsys runtimeobject uiautomationcore userenv ws2_32 comctl32)
-elseif(ANDROID)
-  # The archive's symbols have default visibility: hide every one of them
-  # in whatever shared library links it. A flag in the link line (not a
-  # link option) so it reaches the plugin through static libraries.
-  set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES "-Wl,--exclude-libs,libaccesskit.a" m ${CMAKE_DL_LIBS} Threads::Threads)
-  list(APPEND SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES android log)
-endif()

@@ -81,10 +81,10 @@ function(archive name archive_commit)
   \"configuration\": \"Debug\",
   \"target\": { \"name\": \"${target}\", \"os\": \"${os}\", \"architectures\": [${archs}], \"minimumOsVersion\": \"${minimum}\" },
   \"toolchain\": { \"compiler\": \"test\", \"compilerVersion\": \"0\", \"msvcRuntime\": \"${runtime}\" },
-  \"features\": { \"devtools\": true, \"jsSource\": true, \"gpu\": false, \"accessKit\": false },
+  \"features\": { \"devtools\": true, \"jsSource\": true, \"gpu\": false },
   \"hermes\": { \"revision\": \"${SOUNDOR_HERMES_REVISION}\", \"bytecodeVersion\": \"96\", \"compiler\": \"${hermesc}\" },
   \"link\": { \"engine\": [\"${engine}\"], \"hermes\": [\"${hermes}\"], \"skia\": [\"${skia}\"], \"angle\": [],
-              \"accessKit\": [], \"system\": [], \"frameworks\": [] }
+              \"system\": [], \"frameworks\": [] }
 }
 ")
   execute_process(COMMAND ${CMAKE_COMMAND} -E tar czf "${WORK}/${name}.tar.gz" "${top}"

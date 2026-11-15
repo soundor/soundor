@@ -88,8 +88,3 @@ no commercial DAW or external accessibility E2E framework is required.
 The two module fixtures use the current engine version. Different-version
 artifacts and manual Narrator/DAW combinations are separate verification; these
 tests do not certify them. Linux AT-SPI and Apple's native bridges are unchanged.
-
-AccessKit's unused sources and packaging infrastructure remain temporarily for
-a separate removal change after this migration is merged. Windows source builds
-no longer acquire or link it, and newly staged Windows engines contain no
-AccessKit archive.

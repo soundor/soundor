@@ -64,7 +64,7 @@ function recipeFiles() {
       else if (
         entry.isFile() &&
         (directory !== 'engines/engine/cmake' ||
-          /^Soundor(?:Dependencies|Skia|Angle|Hermes|WindowsCrt|PlatformLibraries|AccessKit)/.test(
+          /^Soundor(?:Dependencies|Skia|Angle|Hermes|WindowsCrt|PlatformLibraries)/.test(
             entry.name,
           ))
       )
