@@ -252,9 +252,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
         changed(before.value.min != after.value.min, UIA_RangeValueMinimumPropertyId);
         changed(before.value.max != after.value.max, UIA_RangeValueMaximumPropertyId);
         changed(before.bounds != after.bounds, UIA_BoundingRectanglePropertyId);
-        changed((before.bounds.width <= 0 || before.bounds.height <= 0)
-                    != (after.bounds.width <= 0 || after.bounds.height <= 0),
-                UIA_IsOffscreenPropertyId);
         return properties;
     }
 
@@ -813,8 +810,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     return boolean(state->focused && node.id == focus());
                 case UIA_IsPasswordPropertyId:
                     return boolean(false);
-                case UIA_IsOffscreenPropertyId:
-                    return boolean(node.bounds.width <= 0 || node.bounds.height <= 0);
                 case UIA_ValueValuePropertyId:
                     return text(node.value.text);
                 case UIA_ValueIsReadOnlyPropertyId:
@@ -840,7 +835,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 case UIA_IsDialogPropertyId:
                     return boolean(node.role == Role::Dialog || node.modal);
                 default:
-                    return S_OK; // VT_EMPTY: UIA supplies defaults.
+                    return S_OK; // VT_EMPTY: preserve native HWND defaults, including offscreen state.
             }
         }
 

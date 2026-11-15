@@ -219,6 +219,11 @@ TEST_SUITE("a11y Windows UIA")
         session.update(tree(), { 5, 6, 2, {} }, true);
         auto provider = root(session);
         CHECK(property(provider.Get(), UIA_NamePropertyId) == L"Plugin");
+        // UIA's native HWND provider owns window visibility. Logical bounds
+        // alone cannot tell whether the host has hidden the editor.
+        VARIANT nativeState {};
+        CHECK(provider->GetPropertyValue(UIA_IsOffscreenPropertyId, &nativeState) == S_OK);
+        CHECK(nativeState.vt == VT_EMPTY);
         ComPtr<IRawElementProviderSimple> nativeHost;
         CHECK(provider->get_HostRawElementProvider(&nativeHost) == S_OK);
         CHECK(nativeHost != nullptr);
