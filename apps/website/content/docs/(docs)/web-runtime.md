@@ -33,6 +33,14 @@ same boxes and the same style errors in both runtimes, and the browser draws
 them with HTML elements and CSS. A page with a strict Content Security Policy
 has to allow it, with `wasm-unsafe-eval`.
 
+That module (`soundor-core.wasm`, about 150 KB compressed) is precompiled: it
+comes from the installed `@soundor/engine`'s prebuilt release, downloaded once
+into the Soundor cache and verified when `soundor dev` or `soundor build`
+first needs it, then served from your own site like any asset. A web plugin
+needs no Emscripten, CMake or C++ compiler; Rust only if it has a processor
+([Audio](#audio-the-plugins-processor-in-webassembly)). See
+[Soundor Engine](/docs/engine#the-webassembly-core).
+
 ## Usage
 
 ```ts
@@ -627,12 +635,11 @@ previous UI and runs the files again. Its messages with the page are in
 
 ## Limitations
 
-- The engine's WebAssembly module (`soundor-core.wasm`) is built from the
-  engine's sources (`pnpm --filter @soundor/engine build:wasm`, with
-  Emscripten), and is not yet published: in this repository the runtime
-  finds that build by itself; elsewhere, set `SOUNDOR_ENGINE_WASM` to one.
-  `soundor dev` and `soundor build` say so when it is missing. See
-  [The engine in the browser](/docs/contribute/web-engine).
+- The engine's WebAssembly module (`soundor-core.wasm`) comes from the
+  installed `@soundor/engine`'s prebuilt release, downloaded once (about
+  150 KB) into the Soundor cache when `soundor dev` or `soundor build` first
+  needs it: the first run needs the network. Engine versions released before
+  it had no module. See [Soundor Engine](/docs/engine#the-webassembly-core).
 - No DSP abstraction. Audio is your own Web Audio code; there is no portable
   Soundor DSP, no AudioWorklet layer, and no compiling of the JUCE DSP to
   WebAssembly.

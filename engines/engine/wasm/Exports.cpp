@@ -182,6 +182,12 @@ extern "C"
         }
     }
 
+    // The protocol this module speaks (protocolVersion), checked before anything else is called.
+    __attribute__((export_name("soundor_engine_protocol"))) std::uint32_t soundor_engine_protocol()
+    {
+        return soundor::wasm::protocolVersion;
+    }
+
     // Nodes alive in the engine, its root included.
     __attribute__((export_name("soundor_engine_nodes"))) std::size_t soundor_engine_nodes(const Engine* engine)
     {

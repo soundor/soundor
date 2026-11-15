@@ -3,6 +3,14 @@
 // answered by records of what changed. 32-bit little-endian words; a string
 // is its UTF-8 byte count, then its bytes padded to a whole word.
 
+/**
+ * The version of this encoding and of the module's exports: wasm/Engine.h's
+ * protocolVersion, which the module reports (soundor_engine_protocol) and a
+ * prebuilt module's metadata records. A change either side must make in step
+ * increments both.
+ */
+export const PROTOCOL_VERSION = 1;
+
 export const Command = {
   Create: 1,
   Release: 2,

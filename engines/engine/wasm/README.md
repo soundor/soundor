@@ -25,13 +25,26 @@ found and loaded, the tests, the measurements and the limitations are in
 From `engines/engine`:
 
 ```sh
-source <emsdk>/emsdk_env.sh   # Emscripten 7.0.0, as CI pins it (.github/actions/emsdk)
-pnpm build:wasm               # cmake --workflow --preset wasm → build/wasm/web/soundor-core.wasm
+source <emsdk>/emsdk_env.sh   # the Emscripten emscripten.json pins (CI installs the same)
+pnpm build:wasm               # engine({ target: 'web', mode: 'source' }): the wasm preset → build/wasm/web/soundor-core.wasm,
+                              # staged with its metadata in build/wasm/stage (what the release archive holds)
 pnpm test:wasm                # the module and the DOM adapter in Node (happy-dom)
 pnpm test:browser             # the DOM adapter in Chromium (Playwright)
 pnpm fixture                  # the fixture page (Vite), http://localhost:4380/
 pnpm bench:wasm               # sizes and timings in headless Chromium → build/wasm/bench.json
 ```
 
+`SOUNDOR_ENGINE_WASM=<module>` runs the tests and the fixture on another
+module (CI: the packed release archive's).
+
 `pnpm build` compiles the JavaScript only, and native builds never need
-Emscripten. The module is never committed or published.
+Emscripten. The module is never committed or put in the npm package: it is an
+archive of the engine's prebuilt release, which `engine({ target: 'web' })`
+prepares for the web runtime. In this repository that uses the published
+module while the core's sources match it, and builds them (with Emscripten)
+when they differ: only a change to them needs Emscripten.
+
+- `emscripten.json`: the pinned Emscripten (and emsdk's commit of it), which
+  the CMake checks, CI installs and the module's input fingerprint covers.
+- `Engine.h`'s `protocolVersion` and `web/src/protocol.ts`'s
+  `PROTOCOL_VERSION` change together when the encoding or the exports do.

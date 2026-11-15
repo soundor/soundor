@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const textFile = /\.(?:cmake|cpp|c|h|hpp|mm|m|js|mjs|ts|py|in|inc|idl|md|txt)$/;
@@ -56,6 +56,128 @@ export function engineInputs(root) {
   return {
     fingerprint: hash.digest('hex'),
     files: [...files.map((path) => join(root, path)), ...dependencyFiles],
+  };
+}
+
+/**
+ * The identity of the WebAssembly core (wasm/, `soundor-core.wasm`): what
+ * reaches the module, and nothing native-only, so that a native change keeps
+ * the published module and a web change keeps the native archives. Needs a
+ * source checkout (wasm/ is not in the npm package).
+ *
+ *   - wasm/ (its sources, its CMake, the pinned Emscripten: emscripten.json)
+ *   - the translation units the module compiles (SoundorCoreSources.cmake,
+ *     the src/ files wasm/CMakeLists.txt adds) and every header they reach
+ *     by #include, as text (a superset of what the preprocessor reads)
+ *   - the CMake a wasm configure reads: the top CMakeLists.txt up to its
+ *     Emscripten return(), the modules it and SoundorYoga include (Yoga's
+ *     pin and patch), and the wasm preset
+ *   - the engine version (the ABI namespace, SoundorAbi.h.in)
+ */
+export function webInputs(root) {
+  root = resolve(root);
+  const read = (path) => readFileSync(join(root, path), 'utf8');
+  if (!existsSync(join(root, 'wasm/CMakeLists.txt')))
+    throw new Error(
+      `${root} is not an engine source checkout: the WebAssembly core's inputs are not in the npm package`,
+    );
+  const wasmFiles = [];
+  for (const entry of readdirSync(join(root, 'wasm'), { withFileTypes: true }))
+    if (entry.isFile() && !/\.md$/.test(entry.name))
+      wasmFiles.push(`wasm/${entry.name}`);
+    else if (!entry.isFile())
+      throw new Error(
+        `wasm/${entry.name} is not a file: list it in webInputs()`,
+      );
+
+  const units = new Set(wasmFiles.filter((path) => path.endsWith('.cpp')));
+  for (const list of ['cmake/SoundorCoreSources.cmake', 'wasm/CMakeLists.txt'])
+    for (const match of read(list)
+      .replaceAll(/#.*$/gm, '') // comments name sources that are not compiled
+      .matchAll(/\bsrc\/[\w/.-]+\.cpp\b/g))
+      units.add(match[0]);
+  // #include closure, resolved as the wasm target's include directories do.
+  const searched = ['include', 'src'];
+  const reached = new Set();
+  const visit = (path) => {
+    if (reached.has(path)) return;
+    if (!existsSync(join(root, path)))
+      throw new Error(
+        `The WebAssembly core compiles ${path}, which is missing`,
+      );
+    reached.add(path);
+    for (const line of read(path).split('\n')) {
+      const directive = /^\s*#\s*include\s*(.*)$/.exec(line);
+      if (!directive) continue;
+      const target = /^["<]([^">]+)[">]/.exec(directive[1]);
+      if (!target)
+        throw new Error(
+          `${path}: a computed #include (${line.trim()}) cannot be fingerprinted`,
+        );
+      const candidates = [
+        ...(directive[1].startsWith('"')
+          ? [join(dirname(path), target[1])]
+          : []),
+        ...searched.map((directory) => join(directory, target[1])),
+      ];
+      const found = candidates.find((candidate) =>
+        existsSync(join(root, candidate)),
+      );
+      // System, Yoga's and generated headers (soundor/Abi.h, from
+      // SoundorAbi.h.in) are covered by what produces them.
+      if (found) visit(relative(root, join(root, found)).split(sep).join('/'));
+    }
+  };
+  for (const unit of [...units].sort()) visit(unit);
+
+  const top = read('CMakeLists.txt').replaceAll('\r\n', '\n');
+  const end =
+    /if\(EMSCRIPTEN\)\n\s*add_subdirectory\(wasm\)\n\s*return\(\)\n/.exec(top);
+  if (!end)
+    throw new Error(
+      'CMakeLists.txt no longer returns after add_subdirectory(wasm) for Emscripten: update webInputs()',
+    );
+  const presets = JSON.parse(read('CMakePresets.json'));
+  const preset = (name) => {
+    const found = presets.configurePresets.find((p) => p.name === name);
+    if (!found) throw new Error(`CMakePresets.json has no ${name} preset`);
+    return [found, ...[found.inherits ?? []].flat().flatMap(preset)];
+  };
+
+  const files = [
+    ...new Set([
+      ...wasmFiles,
+      ...reached,
+      'cmake/SoundorAbi.cmake',
+      'cmake/SoundorAbi.h.in',
+      'cmake/SoundorPluginShim.cmake',
+      'cmake/SoundorCompilerOptions.cmake',
+      'cmake/SoundorCoreSources.cmake',
+      'cmake/SoundorDependencies.cmake',
+      'cmake/SoundorYoga.cmake',
+      'cmake/SoundorYogaPatch.cmake',
+    ]),
+  ].sort();
+  const { version } = JSON.parse(read('package.json'));
+  const hash = createHash('sha256').update(
+    `soundor-engine-web-inputs-v1\0${version}\0`,
+  );
+  const digest = (content) => createHash('sha256').update(content).digest();
+  hash.update('CMakeLists.txt').update('\0');
+  hash.update(digest(top.slice(0, end.index + end[0].length))).update('\0');
+  hash.update('CMakePresets.json#wasm').update('\0');
+  hash.update(digest(JSON.stringify(preset('wasm')))).update('\0');
+  for (const path of files) {
+    hash.update(path).update('\0');
+    hash.update(digest(read(path).replaceAll('\r\n', '\n'))).update('\0');
+  }
+  return {
+    fingerprint: hash.digest('hex'),
+    files: [
+      join(root, 'CMakeLists.txt'),
+      join(root, 'CMakePresets.json'),
+      ...files.map((path) => join(root, path)),
+    ],
   };
 }
 
@@ -115,5 +237,11 @@ if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-  console.log(JSON.stringify(engineInputs(process.argv[2])));
+  console.log(
+    JSON.stringify(
+      process.argv[3] === 'web'
+        ? webInputs(process.argv[2])
+        : engineInputs(process.argv[2]),
+    ),
+  );
 }

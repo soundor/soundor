@@ -171,7 +171,20 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
   let base = '/';
   let environmentMode: EnvironmentMode =
     options.environmentMode ?? 'development';
-  const enginePath = (): string => options.engine?.wasm ?? engineWasmPath();
+  // Prepared once per plugin (a download or build at most), when the page
+  // first needs it; a failure is tried again on the next request.
+  let prepared: Promise<string> | undefined;
+  const enginePath = (): Promise<string> => {
+    if (options.engine?.wasm !== undefined)
+      return Promise.resolve(options.engine.wasm);
+    if (prepared === undefined) {
+      prepared = engineWasmPath();
+      prepared.catch(() => {
+        prepared = undefined;
+      });
+    }
+    return prepared;
+  };
   return {
     name: 'soundor:web-modules',
     enforce: 'pre',
@@ -181,17 +194,19 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       server.middlewares.use((request, response, next) => {
         const url = request.url?.split('?')[0];
         if (url !== `${base}${ENGINE_URL}`) return next();
-        readFile(enginePath()).then(
-          (bytes) => {
-            response.setHeader('content-type', 'application/wasm');
-            response.setHeader(
-              'cache-control',
-              'public, max-age=31536000, immutable',
-            );
-            response.end(bytes);
-          },
-          (error: unknown) => next(error),
-        );
+        enginePath()
+          .then((path) => readFile(path))
+          .then(
+            (bytes) => {
+              response.setHeader('content-type', 'application/wasm');
+              response.setHeader(
+                'cache-control',
+                'public, max-age=31536000, immutable',
+              );
+              response.end(bytes);
+            },
+            (error: unknown) => next(error),
+          );
       });
     },
     configResolved(config) {
@@ -231,7 +246,7 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       if (id === `\0${ENGINE_MODULE}`) {
         let path: string;
         try {
-          path = enginePath();
+          path = await enginePath();
         } catch (error) {
           this.error((error as Error).message);
         }

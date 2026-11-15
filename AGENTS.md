@@ -46,7 +46,8 @@ and tools.
 pnpm install
 pnpm build            # tsc -b && tsdown in every package
 pnpm test             # package unit tests (no native engine compilation; the web runtime's
-                      # need the engine's WebAssembly core: Emscripten, see below)
+                      # use the published WebAssembly core, built with Emscripten only
+                      # when the core's sources differ from it, see below)
 pnpm test:native      # engine source build and native tests (dev preset), and the VST3 host's
 pnpm lint             # oxlint
 pnpm lint:native      # clang-tidy (cmake --workflow --preset tidy)
@@ -77,8 +78,8 @@ cmake --workflow --preset sanitize   # ASan/UBSan/LSan                 → build
 cmake --workflow --preset tidy       # clang-tidy, build only          → build/tidy
 cmake --workflow --preset nogpu      # without ANGLE (as on iOS)        → build/nogpu
 cmake --workflow --preset bench      # Release soundor_run_ui (benchmarks) → build/bench
-cmake --workflow --preset wasm       # the WebAssembly core (Emscripten 7.0.0 from EMSDK) → build/wasm/web/soundor-core.wasm
-pnpm build:wasm && pnpm test:wasm && pnpm test:browser  # the same, then its Node and Chromium suites
+cmake --workflow --preset wasm       # the WebAssembly core (Emscripten wasm/emscripten.json pins, from EMSDK) → build/wasm/web/soundor-core.wasm
+pnpm build:wasm && pnpm test:wasm && pnpm test:browser  # the same, staged in build/wasm/stage, then its Node and Chromium suites
 cmake --workflow --preset prebuilt-debug    # stage a prebuilt engine (also -release; needs
                                             # SOUNDOR_ENGINE_SOURCE_COMMIT) → build/prebuilt-*/stage
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug  # tests against one
@@ -256,14 +257,21 @@ read the docs bundled with the installed package
   Also the engine in the browser: `wasm/` compiles the shared core
   (`cmake/SoundorCoreSources.cmake`, the same sources the native runtime
   compiles) to `soundor-core.wasm` with a pinned Emscripten
-  (`pnpm --filter @soundor/engine build:wasm`, turbo's
-  `@soundor/engine#build:wasm`), and `web/src/` is `@soundor/engine/web`:
-  the module's loader and command protocol (`core.ts`, `protocol.ts`) and the
-  DOM adapter that is the web runtime's `soundor:ui` (`ui/`). The module is
-  never committed or published. See `contribute/web-engine.md`.
+  (`wasm/emscripten.json`; `pnpm --filter @soundor/engine build:wasm`), and
+  `web/src/` is `@soundor/engine/web`: the module's loader and command
+  protocol (`core.ts`, `protocol.ts`; `PROTOCOL_VERSION` with
+  `wasm/Engine.h`'s `protocolVersion`) and the DOM adapter that is the web
+  runtime's `soundor:ui` (`ui/`). The module is never committed or in the npm
+  package: it is an archive of the prebuilt release (target `web`, its own
+  input fingerprint, `webInputs()` in `scripts/engine-inputs.mjs`). `node/` is
+  the package's Node API, `engine({ target, mode })` (`.` export): prepares the
+  web module or a native archive (prebuilt, published or source; the shared
+  content-addressed cache; `SOUNDOR_ENGINE_WASM`), following the VST3 host's
+  rules: integrity or network failures are errors, never a reason to build.
+  See `contribute/web-engine.md` and the docs' `engine.md`.
 - `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
-  `engine-wasm.ts`, the one place that finds the engine's module) and the
+  `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine
   as `soundor:ui`, IndexedDB storage/fs, the host UI in Preact under
   `src/client/shell/`).

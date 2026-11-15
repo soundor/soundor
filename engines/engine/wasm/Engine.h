@@ -66,6 +66,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::wasm
         Object = 6,  // string: String(); count, then each key and value
     };
 
+    // The version of this encoding and of the module's exports, which
+    // web/src/protocol.ts's PROTOCOL_VERSION must equal: a change either side
+    // must make in step increments both (the module reports it,
+    // soundor_engine_protocol(), and a prebuilt's metadata records it).
+    inline constexpr std::uint32_t protocolVersion = 1;
+
     // The handles of the surface's roots: the content, and the overlay layer.
     inline constexpr std::uint32_t rootHandle = 1;
     inline constexpr std::uint32_t overlayHandle = 2;

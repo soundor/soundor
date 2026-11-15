@@ -4,17 +4,24 @@ description: >
   activates it for the job's later steps: what builds the engine's
   WebAssembly core (`pnpm --filter @soundor/engine build:wasm`).
 
+inputs:
+  cache:
+    description: Restore and save the SDK in the Actions cache (release builds install it afresh)
+    default: 'true'
+
 runs:
   using: composite
   steps:
-    # The version local validation used, and emsdk's tag of it by commit.
-    # Not EMSDK_*: emsdk_env.sh clears those.
+    # The engine's pin (engines/engine/wasm/emscripten.json, which the wasm
+    # build checks and the module's input fingerprint covers), and emsdk's
+    # tag of it by commit. Not EMSDK_*: emsdk_env.sh clears those.
     - name: Emscripten's version
       shell: bash
       run: |
+        pin=engines/engine/wasm/emscripten.json
         {
-          echo "SOUNDOR_EMSDK_VERSION=7.0.0"
-          echo "SOUNDOR_EMSDK_COMMIT=1693ce7359fc9694f198694f902a2cc061239b86"
+          echo "SOUNDOR_EMSDK_VERSION=$(node -p "require('./$pin').version")"
+          echo "SOUNDOR_EMSDK_COMMIT=$(node -p "require('./$pin').emsdkCommit")"
           echo "EMSDK=$RUNNER_TEMP/emsdk"
           echo "EMSDK_QUIET=1"
         } >> "$GITHUB_ENV"
@@ -23,6 +30,7 @@ runs:
     # what a fresh install would be.
     - name: Cache Emscripten
       id: emsdk-cache
+      if: inputs.cache == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ env.EMSDK }}

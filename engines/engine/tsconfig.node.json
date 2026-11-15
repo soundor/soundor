@@ -1,7 +1,16 @@
 {
   "extends": "@soundor/typescript-config/node",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // The resolver shares the engine's selection scripts (plain JavaScript).
+    "allowJs": true,
+    "checkJs": false,
+    // Node's WebAssembly (checking a module) is typed by the DOM's lib.
+    "lib": ["es2022", "dom"]
   },
-  "include": ["scripts/native-module.ts"]
+  "include": [
+    "scripts/native-module.ts",
+    "node/src/**/*.ts",
+    "node/test/**/*.ts"
+  ]
 }

@@ -2,7 +2,12 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
   "agentGuidance": false,
-  "globalPassThroughEnv": ["RUSTUP_HOME", "CARGO_HOME"],
+  "globalPassThroughEnv": [
+    "RUSTUP_HOME",
+    "CARGO_HOME",
+    "XDG_CACHE_HOME",
+    "LOCALAPPDATA"
+  ],
   "globalDependencies": [
     "package.json",
     "pnpm-lock.yaml",
@@ -25,11 +30,17 @@
         "src/**",
         "include/**",
         "cmake/**",
+        "licenses/yoga/**",
         "CMakeLists.txt",
         "CMakePresets.json",
-        "web/scripts/build-wasm.ts"
+        "LICENSE",
+        "NOTICE.md",
+        "web/scripts/build-wasm.ts",
+        "web/src/protocol.ts",
+        "node/src/**",
+        "scripts/engine-inputs.mjs"
       ],
-      "env": ["SOUNDOR_EMSDK_VERSION"],
+      "env": ["SOUNDOR_EMSDK_VERSION", "SOUNDOR_ENGINE_SOURCE_COMMIT"],
       "passThroughEnv": [
         "EMSDK",
         "EMSDK_NODE",
@@ -37,15 +48,36 @@
         "EM_CACHE",
         "SOUNDOR_CACHE"
       ],
-      "outputs": ["build/wasm/web/soundor-core.wasm"]
+      "outputs": ["build/wasm/web/soundor-core.wasm", "build/wasm/stage/**"]
+    },
+    "@soundor/engine#test": {
+      "dependsOn": ["^test", "^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.github/scripts/engine-prebuilts.mjs"
+      ]
     },
     "@soundor/web-runtime#test": {
-      "dependsOn": ["^test", "^build", "@soundor/engine#build:wasm"],
-      "env": ["SOUNDOR_ENGINE_WASM"]
+      "dependsOn": ["^test", "^build"],
+      "env": ["SOUNDOR_ENGINE_WASM", "SOUNDOR_ENGINE_MANIFEST"],
+      "passThroughEnv": [
+        "EMSDK",
+        "EMSDK_NODE",
+        "EM_CONFIG",
+        "EM_CACHE",
+        "SOUNDOR_CACHE"
+      ]
     },
     "build:web": {
-      "dependsOn": ["^build", "@soundor/engine#build:wasm"],
-      "env": ["SOUNDOR_ENGINE_WASM"],
+      "dependsOn": ["^build"],
+      "env": ["SOUNDOR_ENGINE_WASM", "SOUNDOR_ENGINE_MANIFEST"],
+      "passThroughEnv": [
+        "EMSDK",
+        "EMSDK_NODE",
+        "EM_CONFIG",
+        "EM_CACHE",
+        "SOUNDOR_CACHE"
+      ],
       "outputs": [".soundor/dist/web/**", ".soundor/generated/**"]
     },
     "website#build": {

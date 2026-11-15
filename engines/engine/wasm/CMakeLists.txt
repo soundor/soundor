@@ -4,6 +4,18 @@
 # instantiates it). Configured by the engine's CMakeLists.txt with
 # Emscripten's toolchain: `cmake --workflow --preset wasm`.
 
+# The pinned Emscripten (emscripten.json, which CI's emsdk action installs and
+# the module's input fingerprint covers): another compiler makes another
+# module than the published one.
+file(READ "${CMAKE_CURRENT_LIST_DIR}/emscripten.json" soundor_emscripten_pin)
+string(JSON soundor_emscripten_version GET "${soundor_emscripten_pin}" version)
+if(NOT EMSCRIPTEN_VERSION VERSION_EQUAL soundor_emscripten_version)
+  message(FATAL_ERROR "The WebAssembly core is built with Emscripten ${soundor_emscripten_version} "
+                      "(wasm/emscripten.json), not ${EMSCRIPTEN_VERSION}: "
+                      "emsdk install ${soundor_emscripten_version} && emsdk activate ${soundor_emscripten_version}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/emscripten.json")
+
 include(SoundorYoga)
 include(SoundorCoreSources)
 

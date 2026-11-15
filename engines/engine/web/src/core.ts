@@ -7,6 +7,7 @@ import {
   Command,
   CommandWriter,
   NodeKind,
+  PROTOCOL_VERSION,
   RecordReader,
 } from './protocol.ts';
 import { cssFont, TextMeasurer } from './text.ts';
@@ -83,6 +84,7 @@ export const OVERLAY = 2;
 interface Exports {
   readonly memory: WebAssembly.Memory;
   _initialize(): void;
+  soundor_engine_protocol?(): number;
   soundor_engine_create(browserText: number): number;
   soundor_engine_destroy(engine: number): void;
   soundor_engine_input(engine: number, size: number): number;
@@ -303,6 +305,11 @@ export class EngineCore {
     const exports = instance.exports as unknown as Exports;
     if (typeof exports.soundor_engine_create !== 'function')
       throw new Error('The module is not the Soundor engine');
+    const protocol = exports.soundor_engine_protocol?.();
+    if (protocol !== PROTOCOL_VERSION)
+      throw new Error(
+        `The Soundor engine's module speaks protocol ${protocol ?? 'none'}; this @soundor/engine/web speaks ${PROTOCOL_VERSION}: use the module of the same engine version`,
+      );
     memory = exports.memory;
     exports._initialize();
     const engine = exports.soundor_engine_create(this.#measurer ? 1 : 0);

@@ -23,6 +23,10 @@
   "type": "module",
   "exports": {
     "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
     "./native-module": {
       "types": "./dist/native-module.d.mts",
       "import": "./dist/native-module.mjs"
@@ -36,7 +40,7 @@
     "format:native": "node ../../scripts/clang-format.mjs --check include src tests wasm",
     "format:native:fix": "node ../../scripts/clang-format.mjs --fix include src tests wasm",
     "lint:native": "cmake --workflow --preset tidy",
-    "test": "node --test tests/tooling/*.test.mjs",
+    "test": "node --test tests/tooling/*.test.mjs node/test/*.test.ts",
     "test:native": "cmake --workflow --preset dev",
     "build": "tsc -p tsconfig.node.json && tsc -p web/tsconfig.json && tsc -p web/tsconfig.test.json && tsdown --clean",
     "build:wasm": "node web/scripts/build-wasm.ts",
