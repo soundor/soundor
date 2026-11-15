@@ -1170,8 +1170,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 for (const ActionRequest& request : session.takeRequests())
                     if (sameHost)
                         host.performAccessibilityAction(request);
-                session.update(host.accessibility().update(! sameHost), geometry, focused);
+                const TreeUpdate changes = host.accessibility().update(! sameHost);
+                // UIA can re-enter window handling. Publish bookkeeping first,
+                // and do not access this editor after sending notifications.
                 lastHost = &host;
+                session.update(changes, geometry, focused);
             }
             void setGeometry(const ViewGeometry& next) override { geometry = next; }
             void setFocused(bool next) override { focused = next; }
