@@ -3,10 +3,15 @@ import { fileURLToPath } from 'node:url';
 
 import { defineConfig, type Plugin } from 'vite';
 
-/** The locally built module (`pnpm build:wasm`), never a downloaded one. */
-const wasm = fileURLToPath(
-  new URL('../../build/wasm/web/soundor-core.wasm', import.meta.url),
-);
+/**
+ * The locally built module (`pnpm build:wasm`), or the one SOUNDOR_ENGINE_WASM
+ * names (CI: the packed release archive's).
+ */
+const wasm =
+  process.env['SOUNDOR_ENGINE_WASM'] ||
+  fileURLToPath(
+    new URL('../../build/wasm/web/soundor-core.wasm', import.meta.url),
+  );
 
 function soundorCore(): Plugin {
   return {

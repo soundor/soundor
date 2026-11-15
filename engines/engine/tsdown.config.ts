@@ -24,6 +24,13 @@ export default defineConfig([
       );
     },
   }),
+  // @soundor/engine: engine(), the artifacts for build tooling (node/). Its
+  // selection scripts are bundled as the npm package also ships them.
+  withPreset(node, {
+    entry: { index: 'node/src/index.ts' },
+    tsconfig: './tsconfig.node.json',
+    dts: true,
+  }),
   // @soundor/engine/web: the WebAssembly engine's JavaScript (its module is
   // built apart, by build:wasm).
   withPreset(browser, {

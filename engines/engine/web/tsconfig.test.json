@@ -4,7 +4,11 @@
     "noEmit": true,
     // Tests and tools in Node, and the fixture's page in the browser.
     "lib": ["es2023", "DOM", "DOM.Iterable", "esnext.disposable"],
-    "types": ["node"]
+    "types": ["node"],
+    // scripts/build-wasm.ts runs engine(), which shares the engine's
+    // selection scripts (plain JavaScript).
+    "allowJs": true,
+    "checkJs": false
   },
   "include": ["src", "test", "fixture", "scripts", "*.ts"]
 }

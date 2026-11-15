@@ -1772,8 +1772,10 @@ and MSVC on Windows, and runs the sanitizer preset on Linux.
 
 The engine's native libraries, compiled once per engine version and published
 as a GitHub release, so that a plugin build links them instead of compiling
-Hermes, Skia and ANGLE. A release has eight archives: Debug and Release for
-Linux and macOS, and both configurations for each Windows C runtime.
+Hermes, Skia and ANGLE. A release has eight native archives: Debug and Release
+for Linux and macOS, and both configurations for each Windows C runtime; and
+one of the WebAssembly core, which the web runtime serves
+([below](#the-webassembly-cores-archive)).
 
 | Target            | Architectures    | Toolchain                                   |
 | ----------------- | ---------------- | ------------------------------------------- |
@@ -1813,6 +1815,39 @@ licenses/                the notices of everything linked (licenses/README.md he
 The engine's own headers, sources and CMake come from this package; the archive
 adds only what compiling would. `hermesc` is the archive's own build: it runs
 where the archive's target runs (a universal binary on macOS).
+
+### The WebAssembly core's archive
+
+`soundor-engine-<version>-web-release.tar.gz` (target `web`, variant
+`release`) holds the module and what identifies it, nothing else (no
+JavaScript: `@soundor/engine/web` is in the npm package):
+
+```text
+soundor-engine.json      version, ABI namespace, source commit, input fingerprint,
+                         protocol, toolchain (Emscripten), files.wasm (path, SHA-256, size)
+soundor-core.wasm        the standalone module
+licenses/                the engine's and Yoga's notices
+```
+
+Its input fingerprint is its own (`webInputs()` in `scripts/engine-inputs.mjs`):
+the translation units of `cmake/SoundorCoreSources.cmake` and `wasm/`, every
+header they reach by `#include`, `wasm/` itself (with `emscripten.json`, the
+pinned Emscripten), the top `CMakeLists.txt` up to its Emscripten `return()`,
+the CMake modules a wasm configure reads (Yoga's pin and patch), the `wasm`
+preset and the engine version. Native-only sources do not change it, and it
+is not part of the native fingerprint (`wasm/` is not either), so a change to
+one side keeps the other's published artifacts. `manifest.json` and
+`build-info.json` record it per artifact, with the protocol version
+(`wasm/Engine.h`'s `protocolVersion`, `web/src/protocol.ts`'s
+`PROTOCOL_VERSION`, which the module exports as `soundor_engine_protocol`):
+a module built from other sources, or speaking another protocol, is never
+accepted because its version matches.
+
+`engine({ target: 'web' })` (`node/src/`) prepares it: the archive from the
+manifest, downloaded into the same content-addressed cache as native archives,
+verified, extracted aside and renamed into place, then checked on every use
+(identity, module SHA-256, protocol). In the source checkout it compares
+fingerprints first and builds when they differ (`engine.md`, "In Node").
 
 ### Using one
 
@@ -1856,12 +1891,18 @@ evaluates source) can be used.
 ### Building them
 
 ```sh
+SOUNDOR_ENGINE_SOURCE_COMMIT=$(git rev-parse HEAD) pnpm build:wasm   # → build/wasm/stage
+node ../../.github/scripts/engine-prebuilts.mjs pack build/wasm/stage <out> --commit <sha> --target web
 SOUNDOR_ENGINE_SOURCE_COMMIT=$(git rev-parse HEAD) cmake --workflow --preset prebuilt-debug
 SOUNDOR_ENGINE_SOURCE_COMMIT=$(git rev-parse HEAD) cmake --workflow --preset prebuilt-release
 node ../../.github/scripts/engine-prebuilts.mjs pack build/prebuilt-debug/stage <out> --commit <sha>
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-debug
 SOUNDOR_ENGINE_PREBUILT_DIR=<extracted> cmake --workflow --preset prebuilt-check-release
 ```
+
+Packing the web stage checks that its fingerprint is this checkout's web
+inputs, its commit the planned one, its module the one `files.wasm` names,
+and that it holds nothing but the module, its metadata and license notices.
 
 The `prebuilt-*` presets stage a variant (`soundor_engine_stage`,
 `cmake/SoundorEngineStage.cmake`); on macOS set
@@ -1878,8 +1919,9 @@ DevTools code, ABI rejection).
 ### Releases
 
 `.github/workflows/engine-prebuilts.yml` orchestrates releases and calls the
-`engine.yml` workflow to build all eight archives on GitHub's
-runners. The Windows dynamic and static C runtime families build on separate
+`engine.yml` workflow to build all nine archives on GitHub's
+runners (the WebAssembly core with the pinned Emscripten, its Node and
+Chromium suites run against the packed archive as `engine()` prepares it). The Windows dynamic and static C runtime families build on separate
 runners with separate dependency caches. It tests the extracted archives with
 the engine's own native tests (what uses the engine, such as the JUCE
 adapters, is tested by its own workflow), and releases them as one set, named
@@ -1888,6 +1930,7 @@ after the engine version, the commit and a build revision:
 ```text
 engine-prebuilts-v<version>-<first 8 of the commit>-r<revision>
   soundor-engine-<version>-<target>-<variant>.tar.gz   ×8
+  soundor-engine-<version>-web-release.tar.gz
   build-info.json   per archive: target, variant, toolchain, SHA-256...; the
                     engine version, ABI namespace, full source commit, revision
   SHA256SUMS        the same checksums, for sha256sum -c

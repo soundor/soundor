@@ -30,6 +30,7 @@ import {
   release,
   targets,
   variantsOf,
+  webTarget,
 } from './engine-prebuilts.mjs';
 
 const work = mkdtempSync(join(tmpdir(), 'engine-prebuilts-'));
@@ -37,6 +38,46 @@ after(() => rmSync(work, { recursive: true, force: true }));
 const commit = 'a3f91c2d'.padEnd(40, '0');
 const later = 'b4e02d1f'.padEnd(40, '1');
 const planned = plan({ version: '0.2.1', commit, revision: 1 });
+
+/** A WebAssembly module: the magic number, the version, nothing else. */
+const wasmModule = Buffer.from([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]);
+const webFingerprint = 'c'.repeat(64);
+
+/** A staged WebAssembly core, as engine({ target: 'web', mode: 'source' }) lays one out. */
+function webStage(edit = (metadata) => metadata) {
+  const directory = mkdtempSync(join(work, 'web-stage-'));
+  const metadata = edit({
+    format: 1,
+    engine: {
+      version: '0.2.1',
+      abiNamespace: 'v0_2_1',
+      sourceCommit: commit,
+      sourceFingerprint: webFingerprint,
+    },
+    variant: 'release',
+    configuration: 'Release',
+    target: { name: 'web', os: 'web', architectures: ['wasm32'] },
+    toolchain: { compiler: 'Emscripten', compilerVersion: '7.0.0' },
+    protocol: 1,
+    files: {
+      wasm: {
+        path: 'soundor-core.wasm',
+        sha256: createHash('sha256').update(wasmModule).digest('hex'),
+        size: wasmModule.length,
+      },
+    },
+  });
+  writeFileSync(
+    join(directory, 'soundor-engine.json'),
+    JSON.stringify(metadata),
+  );
+  writeFileSync(join(directory, 'soundor-core.wasm'), wasmModule);
+  for (const component of ['engine', 'yoga']) {
+    mkdirSync(join(directory, 'licenses', component), { recursive: true });
+    writeFileSync(join(directory, 'licenses', component, 'LICENSE'), component);
+  }
+  return directory;
+}
 
 /** A small staged engine, as soundor_engine_stage lays one out. */
 function stage(target, variant, edit = (metadata) => metadata) {
@@ -132,7 +173,11 @@ describe('naming', () => {
     assert.equal(planned.tag, 'engine-prebuilts-v0.2.1-a3f91c2d-r1');
     assert.equal(
       planned.archives.length,
-      targets.flatMap((target) => variantsOf(target)).length,
+      targets.flatMap((target) => variantsOf(target)).length + 1,
+    );
+    // The WebAssembly core is part of every release.
+    assert.ok(
+      planned.assets.includes('soundor-engine-0.2.1-web-release.tar.gz'),
     );
     assert.ok(
       planned.assets.includes(
@@ -266,7 +311,99 @@ async function packAll(directory, edit) {
         ...planned,
         target,
       });
+  await pack(webStage(), directory, {
+    ...planned,
+    target: webTarget,
+    webFingerprint,
+  });
 }
+
+describe('the WebAssembly core', () => {
+  test('packs its stage with its own fingerprint and protocol', async () => {
+    const sidecar = await pack(webStage(), join(work, 'web-pack'), {
+      ...planned,
+      target: webTarget,
+      webFingerprint,
+    });
+    assert.equal(sidecar.file, 'soundor-engine-0.2.1-web-release.tar.gz');
+    assert.equal(sidecar.engine.sourceFingerprint, webFingerprint);
+    assert.equal(sidecar.protocol, 1);
+    const extracted = mkdtempSync(join(work, 'web-extracted-'));
+    execFileSync('tar', [
+      '-xzf',
+      join(work, 'web-pack', sidecar.file),
+      '-C',
+      extracted,
+    ]);
+    const top = join(extracted, 'soundor-engine-0.2.1-web-release');
+    assert.deepEqual(readFileSync(join(top, 'soundor-core.wasm')), wasmModule);
+  });
+
+  const wrong = {
+    'from other sources': [
+      (m) => m,
+      { webFingerprint: 'd'.repeat(64) },
+      /sourceFingerprint/,
+    ],
+    'from another commit': [
+      (m) => ({ ...m, engine: { ...m.engine, sourceCommit: later } }),
+      {},
+      /sourceCommit/,
+    ],
+    'without a protocol': [
+      (m) => ({ ...m, protocol: undefined }),
+      {},
+      /protocol/,
+    ],
+    'whose module changed': [
+      (m) => ({
+        ...m,
+        files: { wasm: { ...m.files.wasm, sha256: '0'.repeat(64) } },
+      }),
+      {},
+      /does not match/,
+    ],
+  };
+  for (const [name, [edit, expected, message]] of Object.entries(wrong))
+    test(`rejects a stage ${name}`, async () => {
+      await assert.rejects(
+        pack(webStage(edit), join(work, 'web-rejected'), {
+          ...planned,
+          target: webTarget,
+          webFingerprint,
+          ...expected,
+        }),
+        message,
+      );
+    });
+
+  test('rejects anything else in the stage', async () => {
+    const directory = webStage();
+    writeFileSync(join(directory, 'index.js'), 'export {}');
+    await assert.rejects(
+      pack(directory, join(work, 'web-rejected'), {
+        ...planned,
+        target: webTarget,
+      }),
+      /index.js is not part of the web archive/,
+    );
+  });
+
+  test('local manifests keep the native fingerprint and the module its own', async () => {
+    const directory = join(work, 'web-local');
+    await pack(stage('linux-x64', 'release'), directory, planned);
+    await pack(webStage(), directory, { ...planned, target: webTarget });
+    const value = localManifest(directory, commit);
+    assert.equal(value.sourceFingerprint, 'f'.repeat(64));
+    const web = value.artifacts.find((a) => a.target === webTarget);
+    assert.equal(web.sourceFingerprint, webFingerprint);
+    assert.equal(web.protocol, 1);
+    assert.equal(
+      value.artifacts.find((a) => a.target === 'linux-x64').sourceFingerprint,
+      undefined,
+    );
+  });
+});
 
 describe('assemble', () => {
   test('local manifests preserve identity and reject archives from another checkout', async () => {
@@ -293,7 +430,10 @@ describe('assemble', () => {
     const directory = join(work, 'all');
     await packAll(directory);
     const info = await assemble(directory, join(work, 'assets'), planned);
-    assert.equal(info.artifacts.length, 8);
+    assert.equal(info.artifacts.length, 9);
+    const web = info.artifacts.find((a) => a.target === webTarget);
+    assert.equal(web.sourceFingerprint, webFingerprint);
+    assert.equal(info.sourceFingerprint, 'f'.repeat(64));
     assert.equal(info.sourceCommit, commit);
     assert.equal(info.abiNamespace, 'v0_2_1');
     const sums = readFileSync(join(work, 'assets', 'SHA256SUMS'), 'utf8');
@@ -612,7 +752,16 @@ describe('the npm release', async () => {
       const value = await manifest(gh.client, published, planned);
       assert.equal(value.sourceCommit, commit);
       assert.equal(value.tag, planned.tag);
-      assert.equal(value.artifacts.length, 8);
+      assert.equal(value.artifacts.length, 9);
+      assert.deepEqual(
+        Object.entries(
+          value.artifacts.find((a) => a.target === webTarget),
+        ).filter(([key]) => key === 'sourceFingerprint' || key === 'protocol'),
+        [
+          ['sourceFingerprint', webFingerprint],
+          ['protocol', 1],
+        ],
+      );
       for (const artifact of value.artifacts) {
         const response = await fetch(artifact.url);
         const bytes = Buffer.from(await response.arrayBuffer());
@@ -662,6 +811,13 @@ describe('the npm release', async () => {
       {
         'artifacts/manifest.json': manifestText(expected),
         'build/dev/libsoundor_runtime.a': '',
+      },
+      /build output/,
+    ],
+    'the WebAssembly core': [
+      {
+        'artifacts/manifest.json': manifestText(expected),
+        'soundor-core.wasm': '',
       },
       /build output/,
     ],

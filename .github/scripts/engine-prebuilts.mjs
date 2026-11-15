@@ -18,6 +18,10 @@
 //                                    them before any release exists
 //
 // The release is named engine-prebuilts-v<version>-<short sha>-r<revision>.
+// It holds every native target's archives and the WebAssembly core's
+// (target `web`, staged by `pnpm --filter @soundor/engine build:wasm`), each
+// with its own input fingerprint: native changes keep the module, web ones
+// the native archives.
 // GitHub access: GITHUB_REPOSITORY, GITHUB_TOKEN, GITHUB_API_URL.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -35,9 +39,14 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createGzip } from 'node:zlib';
 
+import { webInputs } from '../../engines/engine/scripts/engine-inputs.mjs';
+
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
 export const targets = ['macos-universal', 'linux-x64', 'windows-x64'];
+/** The WebAssembly core's target: one archive, the Release module. */
+export const webTarget = 'web';
+export const webVariant = 'release';
 export const variants = ['debug', 'release'];
 // Windows has both for each C runtime: `-static` is /MTd and /MT.
 export function variantsOf(target) {
@@ -75,13 +84,20 @@ export function plan({ version, commit, revision }) {
     throw new Error(
       `The build revision is a positive integer, not "${revision}"`,
     );
-  const archives = targets.flatMap((target) =>
-    variantsOf(target).map((variant) => ({
-      file: archiveName(version, target, variant),
-      target,
-      variant,
-    })),
-  );
+  const archives = [
+    ...targets.flatMap((target) =>
+      variantsOf(target).map((variant) => ({
+        file: archiveName(version, target, variant),
+        target,
+        variant,
+      })),
+    ),
+    {
+      file: archiveName(version, webTarget, webVariant),
+      target: webTarget,
+      variant: webVariant,
+    },
+  ];
   return {
     engineVersion: version,
     abiNamespace: abiNamespace(version),
@@ -106,6 +122,8 @@ export function checkStage(stage, expected) {
   const metadata = JSON.parse(
     readFileSync(join(stage, 'soundor-engine.json'), 'utf8'),
   );
+  if (metadata.target?.name === webTarget || expected.target === webTarget)
+    return checkWebStage(stage, metadata, expected);
   const problems = [];
   const expect = (what, actual, wanted) => {
     if (actual !== wanted)
@@ -195,6 +213,73 @@ export function checkStage(stage, expected) {
   return metadata;
 }
 
+/**
+ * The WebAssembly core's stage (node/src/web.ts writes it): its module, as
+ * its metadata describes it, built from this checkout's web inputs
+ * (expected.webFingerprint) at the planned commit, and the license notices
+ * of what it compiles (the engine, Yoga). Nothing else.
+ */
+function checkWebStage(stage, metadata, expected) {
+  const problems = [];
+  const expect = (what, actual, wanted) => {
+    if (actual !== wanted)
+      problems.push(
+        `${what} is ${JSON.stringify(actual)}, not ${JSON.stringify(wanted)}`,
+      );
+  };
+  expect('format', metadata.format, 1);
+  expect('target.name', metadata.target?.name, webTarget);
+  if (expected.target) expect('the planned target', expected.target, webTarget);
+  expect('variant', metadata.variant, webVariant);
+  expect('configuration', metadata.configuration, 'Release');
+  expect('engine.version', metadata.engine?.version, expected.engineVersion);
+  expect(
+    'engine.abiNamespace',
+    metadata.engine?.abiNamespace,
+    expected.abiNamespace,
+  );
+  expect(
+    'engine.sourceCommit',
+    metadata.engine?.sourceCommit,
+    expected.sourceCommit,
+  );
+  if (!/^[0-9a-f]{64}$/.test(metadata.engine?.sourceFingerprint ?? ''))
+    problems.push('engine.sourceFingerprint must identify the module inputs');
+  else if (expected.webFingerprint)
+    expect(
+      'engine.sourceFingerprint',
+      metadata.engine.sourceFingerprint,
+      expected.webFingerprint,
+    );
+  if (!Number.isSafeInteger(metadata.protocol) || metadata.protocol < 1)
+    problems.push('protocol must be the module protocol version');
+  const wasm = metadata.files?.wasm;
+  const allowed = new Set(['soundor-engine.json', wasm?.path]);
+  for (const file of files(stage))
+    if (!allowed.has(file) && !file.startsWith('licenses/'))
+      problems.push(`${file} is not part of the web archive`);
+  if (!wasm?.path || !exists(join(stage, wasm.path)))
+    problems.push('files.wasm names no module in the stage');
+  else {
+    const contents = readFileSync(join(stage, wasm.path));
+    if (contents.subarray(0, 4).toString('latin1') !== '\0asm')
+      problems.push(`${wasm.path} is not WebAssembly`);
+    if (
+      createHash('sha256').update(contents).digest('hex') !== wasm.sha256 ||
+      contents.length !== wasm.size
+    )
+      problems.push(`${wasm.path} does not match files.wasm`);
+  }
+  for (const component of ['engine', 'yoga'])
+    if (!files(join(stage, 'licenses', component)).length)
+      problems.push(`no license notice for ${component}`);
+  if (problems.length)
+    throw new Error(
+      `The staged WebAssembly core in ${stage} is not the planned one:\n  ${problems.join('\n  ')}`,
+    );
+  return metadata;
+}
+
 function exists(path) {
   try {
     lstatSync(path);
@@ -277,7 +362,7 @@ export async function pack(stage, out, expected) {
   );
   const top = file.replace(/\.tar\.gz$/, '');
   mkdirSync(out, { recursive: true });
-  const executable = new Set([metadata.hermes.compiler]);
+  const executable = new Set(metadata.hermes ? [metadata.hermes.compiler] : []);
   async function* tar() {
     for (const path of files(stage)) {
       const contents = readFileSync(join(stage, path));
@@ -333,12 +418,16 @@ export async function assemble(directory, out, planned) {
     );
     const { sha256, size } = await digest(join(directory, file));
     const problems = [];
-    sourceFingerprint ??= sidecar.engine?.sourceFingerprint;
+    const web = target === webTarget;
+    // The native archives share one; the module has its own.
+    if (!web) sourceFingerprint ??= sidecar.engine?.sourceFingerprint;
     if (
-      !/^[0-9a-f]{64}$/.test(sourceFingerprint ?? '') ||
-      sidecar.engine?.sourceFingerprint !== sourceFingerprint
+      !/^[0-9a-f]{64}$/.test(sidecar.engine?.sourceFingerprint ?? '') ||
+      (!web && sidecar.engine.sourceFingerprint !== sourceFingerprint)
     )
       problems.push('engine input fingerprints are missing or mixed');
+    if (web && !Number.isSafeInteger(sidecar.protocol))
+      problems.push('it names no protocol');
     if (sidecar.file !== file)
       problems.push(`its sidecar names ${sidecar.file}`);
     if (sidecar.sha256 !== sha256)
@@ -371,11 +460,18 @@ export async function assemble(directory, out, planned) {
       sha256,
       size,
       toolchain: sidecar.toolchain,
-      features: sidecar.features,
-      hermes: {
-        revision: sidecar.hermes.revision,
-        bytecodeVersion: sidecar.hermes.bytecodeVersion,
-      },
+      ...(web
+        ? {
+            sourceFingerprint: sidecar.engine.sourceFingerprint,
+            protocol: sidecar.protocol,
+          }
+        : {
+            features: sidecar.features,
+            hermes: {
+              revision: sidecar.hermes.revision,
+              bytecodeVersion: sidecar.hermes.bytecodeVersion,
+            },
+          }),
     });
   }
   const buildInfo = {
@@ -406,7 +502,7 @@ export function releaseNotes(info) {
     (a) =>
       `| \`${a.file}\` | ${a.target} (${a.architectures.join(', ')}${a.minimumOsVersion ? `, macOS ${a.minimumOsVersion}+` : ''}) | ${a.variant} | ${a.toolchain.compiler} ${a.toolchain.compilerVersion}${a.toolchain.msvcRuntime ? `, ${a.toolchain.msvcRuntime}` : ''} | \`${a.sha256}\` |`,
   );
-  return `Native libraries of \`@soundor/engine\` ${info.engineVersion}, for \`juceRuntime({ engine: { mode: "prebuilt" } })\`. Not an npm release: the engine's package release is separate.
+  return `Native libraries and the WebAssembly core of \`@soundor/engine\` ${info.engineVersion}: what \`juceRuntime({ engine: { mode: "prebuilt" } })\` links, and the \`soundor-core.wasm\` the web runtime serves (\`engine({ target })\` in Node prepares either). Not an npm release: the engine's package release is separate.
 
 - Engine version: \`${info.engineVersion}\`
 - ABI namespace: \`soundor::${info.abiNamespace}\`
@@ -417,7 +513,7 @@ export function releaseNotes(info) {
 | ------- | ------ | ------- | --------- | ------- |
 ${rows.join('\n')}
 
-\`build-info.json\` is the machine-readable form of this table; \`SHA256SUMS\` lists the checksums for \`sha256sum -c\`. Each archive carries the license notices of everything it links in \`licenses/\`. JUCE is not part of the engine.
+\`build-info.json\` is the machine-readable form of this table (with each archive's input fingerprint: the native archives share one, the WebAssembly core has its own); \`SHA256SUMS\` lists the checksums for \`sha256sum -c\`. Each archive carries the license notices of everything it links in \`licenses/\`. JUCE is not part of the engine.
 `;
 }
 
@@ -668,12 +764,23 @@ export async function manifest(client, release, planned) {
       os: artifact.os,
       architectures: artifact.architectures,
       minimumOsVersion: artifact.minimumOsVersion,
+      ...webIdentity(artifact),
       sha256: artifact.sha256,
       size: artifact.size,
       url: release.assets.find((a) => a.name === artifact.file)
         .browser_download_url,
     })),
   };
+}
+
+/** The web archive's own identity, in build-info.json and manifests. */
+function webIdentity(artifact) {
+  return artifact.target === webTarget
+    ? {
+        sourceFingerprint: artifact.sourceFingerprint,
+        protocol: artifact.protocol,
+      }
+    : {};
 }
 
 /** A manifest of the archives `pack` wrote into <directory>, by file:// URL. */
@@ -684,13 +791,18 @@ export function localManifest(directory, commit) {
     .map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
   if (!sidecars.length) throw new Error(`No packed archives in ${directory}`);
   const [first] = sidecars;
-  if (!/^[0-9a-f]{64}$/.test(first.engine?.sourceFingerprint ?? ''))
-    throw new Error('Local engine archives have no input fingerprint');
+  // The native archives share one fingerprint; the module has its own.
+  const nativeFingerprint = sidecars.find(
+    (sidecar) => sidecar.target.name !== webTarget,
+  )?.engine.sourceFingerprint;
   for (const sidecar of sidecars) {
+    if (!/^[0-9a-f]{64}$/.test(sidecar.engine?.sourceFingerprint ?? ''))
+      throw new Error('Local engine archives have no input fingerprint');
     if (
       sidecar.engine.version !== first.engine.version ||
       sidecar.engine.sourceCommit !== first.engine.sourceCommit ||
-      sidecar.engine.sourceFingerprint !== first.engine.sourceFingerprint ||
+      (sidecar.target.name !== webTarget &&
+        sidecar.engine.sourceFingerprint !== nativeFingerprint) ||
       (commit && sidecar.engine.sourceCommit !== commit)
     )
       throw new Error(
@@ -702,7 +814,7 @@ export function localManifest(directory, commit) {
     engineVersion: first.engine.version,
     abiNamespace: first.engine.abiNamespace,
     sourceCommit: first.engine.sourceCommit,
-    sourceFingerprint: first.engine.sourceFingerprint,
+    sourceFingerprint: nativeFingerprint,
     revision: 0,
     tag: 'local',
     release: null,
@@ -713,6 +825,11 @@ export function localManifest(directory, commit) {
       os: sidecar.target.os,
       architectures: sidecar.target.architectures,
       minimumOsVersion: sidecar.target.minimumOsVersion || null,
+      ...webIdentity({
+        target: sidecar.target.name,
+        sourceFingerprint: sidecar.engine.sourceFingerprint,
+        protocol: sidecar.protocol,
+      }),
       sha256: sidecar.sha256,
       size: sidecar.size,
       url: pathToFileURL(join(directory, sidecar.file)).href,
@@ -755,7 +872,7 @@ export function checkPack(directory, expected) {
       'The packed engine carries another artifacts/manifest.json',
     );
   const built = entries.filter((entry) =>
-    /\.(a|lib|o|obj|so|dylib|dll|tar\.gz)$|\/build\//.test(entry),
+    /\.(a|lib|o|obj|so|dylib|dll|wasm|tar\.gz)$|\/build\//.test(entry),
   );
   if (built.length)
     throw new Error(
@@ -813,9 +930,14 @@ async function main([command, ...args]) {
       break;
     }
     case 'pack': {
+      const target = option(args, 'target');
       const sidecar = await pack(args[0], args[1], {
         ...planned(),
-        target: option(args, 'target'),
+        target,
+        // The module must be this checkout's: its inputs, now.
+        ...(target === webTarget && {
+          webFingerprint: webInputs(join(root, 'engines/engine')).fingerprint,
+        }),
       });
       console.log(
         `${sidecar.file}: ${sidecar.size} bytes, SHA-256 ${sidecar.sha256}`,

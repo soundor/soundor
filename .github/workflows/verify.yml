@@ -157,8 +157,9 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       # The engine's WebAssembly core, which the web runtime lays out with:
-      # its tests, the examples' web builds and the website need it (turbo's
-      # @soundor/engine#build:wasm, cached with the rest).
+      # engine({ target: 'web' }) uses the published module when the core's
+      # sources match it, and builds them (with this) when a change or an
+      # unpublished version makes them differ.
       - name: Setup Emscripten
         uses: ./.github/actions/emsdk
 
@@ -298,11 +299,10 @@ jobs:
         uses: ./.github/actions/setup
       - name: Rust WebAssembly target
         run: rustup target add wasm32-unknown-unknown
-      # The benchmark's web host lays out with the engine's WebAssembly core.
+      # The benchmark's web host lays out with the engine's WebAssembly core:
+      # the published one, or built when the core's sources differ from it.
       - name: Setup Emscripten
         uses: ./.github/actions/emsdk
-      - name: The engine's WebAssembly core
-        run: pnpm --filter @soundor/engine build:wasm
       - name: Setup native dependencies
         id: deps
         uses: ./.github/actions/native-deps

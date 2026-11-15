@@ -1,59 +1,20 @@
 /**
  * Where the Soundor engine's WebAssembly (`soundor-core.wasm`, the engine's
  * C++ core with its Yoga, which soundor:ui lays out with) comes from. One
- * place decides, so that a resolver of published engine modules can take
- * its place without the browser code knowing.
+ * place decides, without the browser code knowing: the page always loads it
+ * from the application's own assets.
  *
- * For now it is the module the engine package built locally
- * (`pnpm --filter @soundor/engine build:wasm`), or the file
- * `SOUNDOR_ENGINE_WASM` names.
+ * It is `engine({ target: 'web' })` of the installed `@soundor/engine`: the
+ * published module of that version, downloaded (and verified) once into the
+ * Soundor cache; in the engine's source checkout a local build when its
+ * sources differ. `SOUNDOR_ENGINE_WASM` names a module to use instead
+ * (checked by the engine: an unreleased build, a CI artifact).
  */
 
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { engine } from '@soundor/engine';
 
-/** The environment variable naming a module to use instead. */
-export const ENGINE_WASM_ENV = 'SOUNDOR_ENGINE_WASM';
-
-/** Where the engine package writes its module, from its directory. */
-const LOCAL_BUILD = 'build/wasm/web/soundor-core.wasm';
-
-const require = createRequire(import.meta.url);
-
-/** The engine package's directory, as this package resolves it. */
-function enginePackageDir(): string | undefined {
-  try {
-    return dirname(require.resolve('@soundor/engine/package.json'));
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * The path of the engine's module. Throws an error saying how to build it
- * when there is none.
- */
-export function engineWasmPath(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): string {
-  const given = env[ENGINE_WASM_ENV];
-  if (given !== undefined && given !== '') {
-    if (!existsSync(given))
-      throw new Error(
-        `${ENGINE_WASM_ENV} names ${given}, which does not exist: it should be the Soundor engine's soundor-core.wasm`,
-      );
-    return given;
-  }
-  const dir = enginePackageDir();
-  const local = dir === undefined ? undefined : join(dir, LOCAL_BUILD);
-  if (local !== undefined && existsSync(local)) return local;
-  throw new Error(
-    [
-      "The Soundor engine's WebAssembly (soundor-core.wasm) was not found" +
-        (local === undefined ? '.' : ` at ${local}.`),
-      'The web runtime lays its UI out with it. Build it with `pnpm --filter @soundor/engine build:wasm` (needs Emscripten),',
-      `or set ${ENGINE_WASM_ENV} to a soundor-core.wasm.`,
-    ].join('\n'),
-  );
+/** The path of the engine's module, prepared. Throws saying why there is none. */
+export async function engineWasmPath(): Promise<string> {
+  const artifact = await engine({ target: 'web' });
+  return artifact.files.wasm;
 }

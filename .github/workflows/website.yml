@@ -57,7 +57,8 @@ jobs:
 
       # The packages, the examples' web builds (never their native builds),
       # then the site; it fails on a broken link or an incomplete page.
-      # The examples' web builds lay out with the engine's WebAssembly core.
+      # The examples' web builds lay out with the engine's WebAssembly core:
+      # the published one, or built when the core's sources differ from it.
       - name: Setup Emscripten
         uses: ./.github/actions/emsdk
 

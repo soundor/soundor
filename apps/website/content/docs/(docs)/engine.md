@@ -1,6 +1,6 @@
 ---
 title: 'Soundor Engine'
-description: 'Native engine modes, supported prebuilt platforms, ABI checks, caching, and troubleshooting.'
+description: 'Native engine modes, the WebAssembly core, supported prebuilt platforms, the engine() Node API, ABI checks, caching, and troubleshooting.'
 ---
 
 The Soundor Engine (`@soundor/engine`) is the native C++ runtime inside every
@@ -16,7 +16,7 @@ bindings, and links the engine as one CMake target, `Soundor::Engine`.
 | What            | the C++ runtime, its headers, dependency recipes   | the JUCE plugin, codegen, `soundor dev/build` |
 | Versioned       | independently (outside the Changesets fixed group) | independently (outside the fixed group)       |
 | Depends on JUCE | never                                              | yes (your JUCE checkout, never downloaded)    |
-| Ships binaries  | as a separate prebuilt release                     | no                                            |
+| Ships binaries  | as a separate prebuilt release (native and wasm)   | no                                            |
 
 The [engine reference](/docs/contribute/engine-reference) documents its API, its
 modules and its internals; this page is about getting it into a plugin.
@@ -81,6 +81,67 @@ Both give the plugin the same `Soundor::Engine` target and the same JUCE
 adapters. CMake selects source for modified inputs or unpublished versions. An explicit
 CI manifest or extracted archive must match: a mismatch fails the build.
 Download and integrity errors also fail, without falling back to source.
+
+## The WebAssembly core
+
+The web runtime lays its UI out with the same engine, compiled to WebAssembly:
+`soundor-core.wasm`, the engine's platform-independent C++ core (node tree,
+styles, Yoga, text layout) without Hermes, Skia or ANGLE. Its JavaScript,
+`@soundor/engine/web`, is in the npm package; the module is not. It is part of
+the engine's prebuilt release, and the web runtime prepares it in Node, while
+`soundor dev` or `soundor build` starts: the published module of the installed
+engine version, downloaded once into the Soundor cache and verified. The page
+then loads it from the application's own assets (a content-hashed file),
+never from GitHub.
+
+So a web plugin needs no Emscripten, CMake or C++ compiler: Node and a
+package manager are enough. Emscripten is for engine contributors
+([below](#developing-the-engine-pnpm-workspace)).
+
+`SOUNDOR_ENGINE_WASM` names a module to use instead (an unreleased build, a
+CI artifact): it is checked to be the engine's, speaking the protocol of the
+installed `@soundor/engine/web`, and used as it is.
+
+## In Node: `engine()`
+
+Build tooling gets the engine's binaries from `@soundor/engine`'s one Node
+function, which the web runtime uses for its module:
+
+```ts
+import { engine } from '@soundor/engine';
+
+const web = await engine({ target: 'web' });
+web.files.wasm; // …/soundor-core.wasm (absolute)
+
+const native = await engine({ target: 'linux-x64' }); // variant: 'release' by default
+native.includeDirs; // the extracted archive's headers
+native.libraries; //   its static libraries, in link order
+native.linkFlags; //   system libraries and frameworks
+native.hermesc; //     the Hermes compiler of the same build
+```
+
+| Target            | What                                                                    |
+| ----------------- | ----------------------------------------------------------------------- |
+| `web`             | `soundor-core.wasm`                                                     |
+| `linux-x64`       | a native archive (`variant`: `debug` or `release`)                      |
+| `macos-universal` | a native archive (`debug` or `release`)                                 |
+| `windows-x64`     | a native archive (`debug`, `release`, `debug-static`, `release-static`) |
+
+| Mode                 | What it uses                                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prebuilt` (default) | The engine version's published artifact, from the cache or downloaded into it. In the engine's source checkout only if the artifact's input fingerprint matches the sources; otherwise a local build of them |
+| `published`          | The published artifact and nothing else: an error when there is none or the sources differ from it (release builds, CI)                                                                                      |
+| `source`             | Always a local build, in the engine's source checkout                                                                                                                                                        |
+
+The result says where it came from (`mode`: `prebuilt`, `source`, or
+`override` for `SOUNDOR_ENGINE_WASM`) and why (`reason`). A native artifact is
+for build systems other than the engine's CMake; plugin builds keep using
+`Soundor::Engine` (above), which reads the same archives. Failures are errors
+named `SoundorEngineError`, with a `code` (`unavailable`, `manifest`,
+`download`, `artifact`, `build`, `invalid-options`).
+
+Nothing is downloaded or compiled when a package is installed: only when
+`engine()` runs, once per artifact.
 
 ## Debug and Release
 
@@ -203,21 +264,33 @@ only changed documentation.
 
 The binaries are not in the npm package. They are the GitHub release
 `engine-prebuilts-v<version>-<commit>-r<revision>` of this repository: eight
-archives (Debug and Release for Linux and macOS, plus both configurations for
-each Windows C runtime), `build-info.json` and `SHA256SUMS`.
+native archives (Debug and Release for Linux and macOS, plus both
+configurations for each Windows C runtime), the WebAssembly core's
+(`soundor-engine-<version>-web-release.tar.gz`, about 150 KB), `build-info.json`
+and `SHA256SUMS`. No release is published without every one of them.
 The npm package carries `artifacts/manifest.json`, written when it is
-published, naming each archive's URL and SHA-256.
+published, naming each archive's URL and SHA-256, the commit and input
+fingerprint it was built from, and for the WebAssembly core its own
+fingerprint and protocol version.
 
 - The release is published, and its every asset downloaded anonymously and
   checked, before the npm package is published.
 - A build verifies the archive's SHA-256 before extracting it, then checks the
   extracted engine against the package: version, ABI namespace, Hermes
   revision, variant, platform, architectures, macOS deployment target, MSVC C
-  runtime, and the commit the manifest names.
+  runtime, and the commit the manifest names. `engine()` checks the same
+  identity (version, ABI namespace, target, variant, commit, fingerprint) and,
+  for the WebAssembly core, the module's SHA-256 and that it speaks the
+  protocol of the installed `@soundor/engine/web`, on every use.
 - The cache, `<SOUNDOR_CACHE>/engine-prebuilts/` (by default
   `~/.cache/soundor`, `~/Library/Caches/Soundor`, `%LOCALAPPDATA%\Soundor\cache`),
-  is keyed by SHA-256. An archive is used only after it matched; a corrupt or
-  interrupted one is downloaded again. Parallel builds share it safely.
+  is keyed by SHA-256, and shared by CMake and `engine()`. An archive is used
+  only after it matched; a corrupt or interrupted one is downloaded again, and
+  a damaged extraction is extracted again. Extractions appear whole (renamed
+  into place) and parallel builds wait for each other. A download, checksum or
+  manifest failure is an error: it is never taken for an unpublished version,
+  and never makes anything build from source instead. Verified copies are
+  reused offline.
 - Published releases are immutable, and a published npm version keeps the
   manifest it shipped with. A defective release is never edited. Before its
   engine version is on npm, a rebuild of the same commit under the next
@@ -247,6 +320,20 @@ cmake --workflow --preset sanitize     # with ASan/UBSan
 contents locally; `.github/workflows/engine-prebuilts.yml` builds the real ones
 (see the [reference](/docs/contribute/engine-reference#prebuilt-engines)).
 
+The WebAssembly core follows the same rule, with its own fingerprint: only
+what reaches the module counts (the core's sources and the headers they
+include, `wasm/`, the CMake its build reads, Yoga's pin and patch, the
+pinned Emscripten in `wasm/emscripten.json`). The web runtime's tests, the
+examples and the website use the published module while those match; after
+an edit to them (or on a version not yet published) they build it, which
+needs Emscripten (`source <emsdk>/emsdk_env.sh`, the version
+`wasm/emscripten.json` names), and reuse that build while the sources stay
+the same. `pnpm --filter @soundor/engine build:wasm` builds it explicitly
+(`engine({ target: 'web', mode: 'source' })`): incrementally, into
+`build/wasm/`, staged in `build/wasm/stage/` as a release archive holds it.
+Local builds stay in the checkout; the cache holds only downloaded releases.
+Ordinary React or TypeScript edits never rebuild it.
+
 ## Debugging native engine code
 
 Use source mode: the engine is then compiled in your build, with its sources
@@ -267,6 +354,11 @@ best reproduced in the Standalone format under a debugger.
 | `needs macOS 12 or later`                                  | Set `juceRuntime({ macos: { deploymentTarget } })` to 12.0 or later.                                                                            |
 | `Set SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR to build Release` | A Visual Studio tree configured for Debug only: configure it for the configuration you build.                                                   |
 | `SOUNDOR_ABI_NAMESPACE is owned by @soundor/engine`        | A build directory from an older runtime: delete it.                                                                                             |
+| `has no web artifact`                                      | The engine version's release predates the WebAssembly core: update `@soundor/engine`, or set `SOUNDOR_ENGINE_WASM`.                             |
+| `Could not read the prebuilt manifest`                     | The npm registry could not be reached the first time, or answered with an error: connect once (the manifest is then cached).                    |
+| `Downloading soundor-engine-…-web-release.tar.gz failed`   | As for native archives: connect once, or check the proxy. Nothing is built instead.                                                             |
+| `speaks protocol N; this @soundor/engine speaks M`         | A module of another engine version (often `SOUNDOR_ENGINE_WASM`): use the module of the installed version.                                      |
+| `needs Emscripten`                                         | In the engine's checkout, its WebAssembly sources differ from the release: install the pinned Emscripten, or revert the edit.                   |
 
 ## Licenses and attribution
 

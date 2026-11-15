@@ -1,11 +1,10 @@
 name: Engine
 
 # Shared by Verify and the release orchestrator. Builds and validates checkout
-# artifacts on every target. Only the isolated main signing job can attest
+# artifacts on every target, the WebAssembly core's included. Only the isolated main signing job can attest
 # dependency snapshots; no job creates or publishes releases. With `suites`
 # (Verify, when the engine is affected), also the engine's own suites: static
-# analysis and tests on Clang, the GCC, sanitizer and no-GPU builds, and the
-# WebAssembly core with its browser tests.
+# analysis and tests on Clang, the GCC, sanitizer and no-GPU builds.
 #
 # The engine's own checks only. A package that uses the engine tests itself
 # against these artifacts in its own workflow (juce.yml), which waits for all
@@ -287,48 +286,94 @@ jobs:
           retention-days: 14
           compression-level: 0
 
-  # The WebAssembly core (wasm/README.md): the module built with a pinned
-  # Emscripten, its Node suites, and its DOM adapter in Chromium. The core's
-  # own sources only: no native engine, no other package built.
+  # The WebAssembly core (wasm/README.md): one more release archive, built,
+  # packed and tested like the native ones, with the pinned Emscripten
+  # (wasm/emscripten.json). The core's own sources only: no native engine,
+  # no Hermes or Skia, no other package built. Its tests run against the
+  # packed archive as a consumer gets it: extracted, and prepared by
+  # engine({ target: 'web' }) from a manifest naming it.
   wasm:
-    name: wasm
-    if: inputs.suites
+    name: Build engine artifacts (web)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      SOUNDOR_ENGINE_SOURCE_COMMIT: ${{ github.sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup
         uses: ./.github/actions/setup
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
+      # A release build installs it afresh, as it builds native dependencies.
       - name: Setup Emscripten
         uses: ./.github/actions/emsdk
+        with:
+          cache: ${{ inputs.release-build && 'false' || 'true' }}
 
-      - name: Build the WebAssembly core
+      - name: Build and stage the WebAssembly core
         working-directory: engines/engine
         run: pnpm build:wasm
 
+      - name: Pack
+        run: |
+          node .github/scripts/engine-prebuilts.mjs pack engines/engine/build/wasm/stage "$RUNNER_TEMP/prebuilts" \
+            --commit "$GITHUB_SHA" --target web
+          node .github/scripts/engine-prebuilts.mjs local-manifest "$RUNNER_TEMP/prebuilts" \
+            --commit "$GITHUB_SHA" --out "$RUNNER_TEMP/web-manifest.json"
+
+      # What a project gets: the archive, verified and extracted into a
+      # fresh cache by the resolver, without Emscripten or a local build.
+      - name: Prepare the packed module
+        working-directory: engines/engine
+        env:
+          SOUNDOR_ENGINE_MANIFEST: ${{ runner.temp }}/web-manifest.json
+          SOUNDOR_CACHE: ${{ runner.temp }}/web-cache
+        run: |
+          rm -rf build/wasm
+          wasm=$(env -u EMSDK node --input-type=module -e "
+            import { engine } from './node/src/index.ts';
+            const artifact = await engine({ target: 'web', mode: 'published' });
+            console.log(artifact.files.wasm);")
+          echo "SOUNDOR_ENGINE_WASM=$wasm" >> "$GITHUB_ENV"
+
       - name: WebAssembly tests
+        if: inputs.tests
         working-directory: engines/engine
         run: pnpm test:wasm
 
       # Playwright's Chromium for the locked version; its system libraries
       # always from apt.
       - name: Cache Playwright's Chromium
+        if: inputs.tests && !inputs.release-build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
       - name: Install Playwright's Chromium
+        if: inputs.tests
         run: pnpm --filter @soundor/engine exec playwright install --with-deps chromium
 
       - name: Browser tests
+        if: inputs.tests
         working-directory: engines/engine
         run: pnpm test:browser
+
+      - name: Keep the archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine-prebuilt-${{ github.sha }}-web
+          path: |
+            ${{ runner.temp }}/prebuilts/*.tar.gz
+            ${{ runner.temp }}/prebuilts/*.tar.gz.json
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   clang:
     name: linux-clang

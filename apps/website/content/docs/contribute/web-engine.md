@@ -118,17 +118,32 @@ When a web font loads, `Fonts` empties the cache and lays text out again.
 ## Loading the module
 
 `soundor-core.wasm` is built apart from the package's JavaScript and is not
-in its npm package.
+in its npm package: it is an archive of the engine's prebuilt release
+([Prebuilt engines](/docs/contribute/engine-reference#the-webassembly-cores-archive)).
 
-- **Build it** with `pnpm --filter @soundor/engine build:wasm` (Emscripten
-  7.0.0, the version CI pins, from `EMSDK`). Turbo's
-  `@soundor/engine#build:wasm` builds it before what needs it (the web
-  runtime's tests, every example's `build:web`, the website) and caches it by
-  its sources. TypeScript builds, type checks and lint never need Emscripten.
-- **Finding it** is `engineWasmPath()` (`runtimes/web-runtime/src/engine-wasm.ts`):
-  `SOUNDOR_ENGINE_WASM` if set, otherwise the engine package's own build. It
-  fails with how to build it. Nothing else knows where the module is, so a
-  resolver of published modules can replace this function alone.
+- **Preparing it** is `engine({ target: 'web' })` (`@soundor/engine`'s Node
+  API, `node/src/`): the installed version's published module, downloaded
+  once into the Soundor cache and verified; in this repository, only while
+  the core's sources match it (its own input fingerprint), and otherwise a
+  local build of them, reused while they stay the same
+  ([Soundor Engine](/docs/engine#in-node-engine)). The web runtime calls it in
+  one place, `engineWasmPath()` (`runtimes/web-runtime/src/engine-wasm.ts`),
+  once per Vite plugin: `soundor dev`, `soundor build` and the runtime's tests.
+  `SOUNDOR_ENGINE_WASM` names a module to use instead, checked to be the
+  engine's and to speak this package's protocol.
+- **Building it** is `pnpm --filter @soundor/engine build:wasm`
+  (`engine({ target: 'web', mode: 'source' })`: the `wasm` preset with the
+  Emscripten `wasm/emscripten.json` pins, from `EMSDK`, incrementally; staged
+  in `build/wasm/stage/` as the release archive holds it). Only a change to
+  the core's sources, or an unpublished version, needs it; TypeScript builds,
+  type checks, lint, React edits and the web runtime's tests on unchanged
+  sources never do. Turbo no longer builds it before anything: preparation
+  decides.
+- **Its protocol**: the module exports `soundor_engine_protocol()`
+  (`wasm/Engine.h`'s `protocolVersion`), which `EngineCore` checks against
+  `PROTOCOL_VERSION` (`web/src/protocol.ts`) before anything else, so a
+  module of another engine version fails with what to do rather than
+  misreading commands.
 - **In a page**, the runtime's Vite plugin provides `soundor:internal/engine`:
   under `soundor dev`, a URL the dev server answers as `application/wasm`
   with a content hash (cached until it changes, reloaded when it is rebuilt);
@@ -141,7 +156,8 @@ when it has audio. It loads no Yoga of its own, no Hermes and no Skia.
 
 ## Tests
 
-From `engines/engine`, after `pnpm build:wasm`:
+From `engines/engine`, after `pnpm build:wasm` (or with `SOUNDOR_ENGINE_WASM`
+naming a module, as CI does with the packed archive's):
 
 |                                                    |                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -150,9 +166,16 @@ From `engines/engine`, after `pnpm build:wasm`:
 | `ctest --test-dir build/dev -R soundor_core_tests` | `wasm/Engine.cpp` compiled natively from the core's sources and Yoga alone: the protocol, both roots, styles with `transform` and `boxShadow`, natural sizes, inputs, extents                                                                                                                                             |
 
 The web runtime's own suites (`pnpm --filter @soundor/web-runtime test`) run
-`soundor:ui` and `@soundor/react` on the page's engine. Verify's Workspace job
-installs Emscripten (`.github/actions/emsdk`) for them, the examples' web builds
-and the website. The Engine group's `wasm` job runs the engine's suites above.
+`soundor:ui` and `@soundor/react` on the page's engine, prepared by
+`engine()`. Verify's Workspace job installs Emscripten
+(`.github/actions/emsdk`) for when the core's sources differ from the
+published module. The Engine group's `Build engine artifacts (web)` job
+builds the release archive, packs it, prepares it with
+`engine({ target: 'web', mode: 'published' })` from a manifest naming it
+(without Emscripten, in an empty cache), and runs the engine's suites above
+on that module. `node --test node/test/*.test.ts` (the engine's `pnpm test`)
+covers preparation: the cache, downloads, checksums, manifests, protocols,
+fingerprints, locks, overrides and the modes, without the network.
 
 ## Measurements
 
@@ -188,11 +211,25 @@ Sizes, `examples/basic`'s build:
 The module holds more than Yoga: the node tree, style reader, text layout,
 animation timeline and C++ runtime the native engine also compiles.
 
+### Distribution
+
+Linux x86-64, engine 0.8.1's module (363,625 bytes):
+
+|                                                         |                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------- |
+| Release archive (`…-web-release.tar.gz`, gzip -9)       | 152,946 bytes                                                 |
+| Download on a clean cache                               | the archive, once (and the npm manifest, once per version)    |
+| `engine({ target: 'web' })`, clean cache, archive local | 13 ms (verify, extract, check)                                |
+| `engine({ target: 'web' })`, warm cache                 | 10 to 12 ms (fingerprint, checks)                             |
+| `@soundor/engine` npm package (packed)                  | 2,250,068 → 2,293,845 bytes (the Node API, 46 KB); no `.wasm` |
+| `examples/basic` asset                                  | `soundor-core-<hash>.wasm`, 363.62 KB (151.24 KB gzip)        |
+| First engine in Chromium (fetch, compile, start)        | 2.8 ms (`pnpm bench:wasm`)                                    |
+
 ## Limitations
 
-- **The module must be built locally** until published engine modules and
-  their resolver exist. A project outside this repository needs
-  `SOUNDOR_ENGINE_WASM`.
+- **Releases before the WebAssembly core** (engine 0.8.1 and older) have no
+  web archive: the web runtime then needs this repository (which builds it)
+  or `SOUNDOR_ENGINE_WASM`.
 - **Text widths** are the browser's fonts, measured by a canvas. A canvas and
   an element agree to about 0.015 px a line when both resolve the same face.
   The engine's layout is checked in Chromium. Firefox and WebKit are not in CI.

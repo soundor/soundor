@@ -1,33 +1,16 @@
-// Builds the WebAssembly core (`pnpm build:wasm`): the engine's `wasm` CMake
-// preset, with Emscripten from the environment (EMSDK, as emsdk_env sets it).
-// Writes build/wasm/web/soundor-core.wasm; never part of `pnpm build`.
-import { spawnSync } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+// Builds the WebAssembly core (`pnpm build:wasm`): engine({ target: 'web',
+// mode: 'source' }), the engine's `wasm` CMake preset with Emscripten from the
+// environment (EMSDK, as emsdk_env sets it), staged in build/wasm/stage/ as a
+// release archive holds it. Never part of `pnpm build`; ordinary web builds
+// use the published module instead.
+import { statSync } from 'node:fs';
 
-const root = join(import.meta.dirname, '../..');
-const emsdk = process.env['EMSDK'];
-const toolchain =
-  emsdk &&
-  join(emsdk, 'upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake');
-if (!toolchain || !existsSync(toolchain)) {
-  console.error(
-    'build:wasm needs Emscripten: install the emsdk (https://emscripten.org/docs/getting_started/downloads.html), ' +
-      'then `source <emsdk>/emsdk_env.sh` so that EMSDK is set.',
-  );
-  process.exit(1);
+import { engine } from '../../node/src/index.ts';
+
+try {
+  const { files } = await engine({ target: 'web', mode: 'source' });
+  console.log(`${files.wasm}: ${statSync(files.wasm).size} bytes`);
+} catch (error) {
+  console.error((error as Error).message);
+  process.exitCode = 1;
 }
-
-// Flags meant for the native linker (the cell's LDFLAGS=-fuse-ld=lld) are not
-// Emscripten's.
-const env = { ...process.env };
-delete env['LDFLAGS'];
-const result = spawnSync('cmake', ['--workflow', '--preset', 'wasm'], {
-  cwd: root,
-  env,
-  stdio: 'inherit',
-});
-if (result.status !== 0) process.exit(result.status ?? 1);
-
-const output = join(root, 'build/wasm/web/soundor-core.wasm');
-console.log(`${output}: ${statSync(output).size} bytes`);

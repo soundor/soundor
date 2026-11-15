@@ -12,8 +12,9 @@ name: Release
 #
 #   validate  this publishing commit's package format, lint, build and unit tests
 #   engine    when @soundor/engine is to be published: its prebuilt archives
-#             for this commit, built and tested (engine-prebuilts.yml, phase
-#             build), or its published prebuilt release, verified and reused
+#             for this commit (native and WebAssembly), built and tested
+#             (engine-prebuilts.yml, phase build), or its published prebuilt
+#             release, verified and reused
 #   host-artifacts  when @soundor/vst3-host is to be published: its executables
 #             for this commit, built and tested (vst3-host-artifacts.yml)
 #
@@ -156,7 +157,8 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           cache: false
-      # The web runtime's tests lay out with the engine's WebAssembly core.
+      # The web runtime's tests lay out with the engine's WebAssembly core,
+      # built from this commit when it publishes a new engine version.
       - uses: ./.github/actions/emsdk
       - name: Format, lint, build and test
         run: pnpm run check
