@@ -11,7 +11,7 @@ status=0
 
 for library in $(readelf -d "$binary" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p'); do
   case $library in
-    libc.so.6 | libm.so.6 | ld-linux-x86-64.so.2 | libfontconfig.so.1 | libfreetype.so.6) ;;
+    libc.so.6 | libm.so.6 | ld-linux-x86-64.so.2 | libfontconfig.so.1 | libfreetype.so.6 | libgio-2.0.so.0 | libgobject-2.0.so.0 | libglib-2.0.so.0) ;;
     *)
       echo "::error::$binary needs $library"
       status=1
