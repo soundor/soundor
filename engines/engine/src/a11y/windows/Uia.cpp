@@ -228,6 +228,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
     };
 
     class Session::Provider final : public IRawElementProviderSimple,
+                                    public IRawElementProviderFragment,
                                     public IRawElementProviderFragmentRoot,
                                     public IInvokeProvider,
                                     public IValueProvider,
