@@ -1,5 +1,7 @@
-// Counts operator new on the threads that ask, for JuceRustProcessorTests.cpp:
-// kept in a file of its own, apart from the code it counts.
+// Counts operator new on the threads that ask, for the Rust processor bridge's
+// tests (processor/RustProcessorTests.cpp here, and the JUCE runtime's
+// JuceRustProcessorTests.cpp): kept in a file of its own, apart from the code
+// it counts.
 
 #include <atomic>
 #include <cstdint>
@@ -8,8 +10,8 @@
 
 // ── Allocations, counted on the thread that asks ────────────────────────────
 //
-// The adapter runs in processBlock, on the audio thread: it must not call the
-// allocator there. Counted by replacing the global operator new, which
+// The bridge runs in the audio callback: it must not call the allocator
+// there. Counted by replacing the global operator new, which
 // AddressSanitizer replaces itself: under it nothing is counted. The Rust
 // side's allocations are counted by the SDK's own tests (CountingAllocator).
 

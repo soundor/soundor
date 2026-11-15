@@ -11,7 +11,7 @@ import {
   WasmProcessor,
   type WasmChannel,
   type WasmContract,
-} from './wasm-processor';
+} from './wasm-processor.ts';
 
 /** The registered processor's name. */
 export const PROCESSOR_NAME = 'soundor-processor';

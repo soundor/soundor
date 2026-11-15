@@ -354,7 +354,7 @@ target_sources(\${PROJECT_NAME}
           'JucePointerLock',
           'JucePresentation',
           'JuceTransport',
-          'RustProcessor',
+          'JuceRustProcessor',
         ]
           .map((name) =>
             cmakeString(
@@ -515,7 +515,7 @@ function renderProcessorHeader(
 #include <soundor/Abi.h>
 #include <soundor/backend/JuceParameter.h>
 #include <soundor/backend/JuceTransport.h>
-#include <soundor/backend/RustProcessor.h>
+#include <soundor/backend/JuceRustProcessor.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/parameters/Parameters.h>
 #include "SoundorState.h"
@@ -575,9 +575,10 @@ ${audioDeclaration(config)}
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
         // The audio processing is the plugin's Rust crate (native/), which
-        // these call through its C ABI (RustProcessor.h): prepare it when the
-        // host does, give each block the parameters' values and the host's
-        // transport, and publish what it publishes.
+        // these call through the engine's bridge to its C ABI
+        // (processor::RustProcessor): prepare it when the host does, give
+        // each block the parameters' values and the host's transport, and
+        // publish what it publishes.
         void prepareToPlay(double sampleRate, int samplesPerBlock) override final;
         void releaseResources() override {}
         void reset() override final;
@@ -585,7 +586,7 @@ ${audioDeclaration(config)}
         using juce::AudioProcessor::processBlock;
 
         // The Rust processor: whether it runs (valid()), and why not (error()).
-        const backend::RustProcessor& rustProcessor() const noexcept { return rust; }
+        const processor::RustProcessor& rustProcessor() const noexcept { return rust; }
 
         // Overrides must call this base implementation to keep soundor:host informed.
         void updateTrackProperties(const juce::AudioProcessor::TrackProperties& properties) override
@@ -653,7 +654,7 @@ ${handles || '        // no parameters'}
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        backend::RustProcessor rust { backend::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.channels.length} } };
+        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.channels.length} }, processor::linkedRustProcessor() };
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;
@@ -748,7 +749,7 @@ ${audioImplementation(config)}
     {
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::RustBusLayout::of(*this), parameterValues);
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -765,7 +766,7 @@ ${audioImplementation(config)}
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        rust.process(buffer, parameterValues, publishedValues, backend::RustProcessor::transportOf(playHead), ${channels.length > 0 ? '&channelSink' : 'nullptr'});
+        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${channels.length > 0 ? '&channelSink' : 'nullptr'});
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

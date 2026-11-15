@@ -1,3 +1,5 @@
+import type { createProcessorNode } from '@soundor/engine/web/processor';
+
 /**
  * One AudioContext: selected input → the plugin's processor (its Rust crate,
  * native/, as WebAssembly in an AudioWorklet) → master volume → speakers.
@@ -8,7 +10,6 @@ import type { HostSnapshot, WebHost } from './host';
 import { Listeners } from './listeners';
 import type { WebNativeChannel } from './manifest';
 import { publishParameter, type WebParameter } from './parameters';
-import { createProcessorNode } from './processor/node';
 import { report } from './report';
 
 /** Releases the nodes, subscriptions or other resources an input owns. */
@@ -374,7 +375,12 @@ export class WebAudioHost {
           (parameter) => parameter.info.access === 'readOnly',
         );
         const plain = () => parameters.map(plainValue);
-        const create = this.#options.createProcessorNode ?? createProcessorNode;
+        // The engine's processor host, loaded once there is a processor to
+        // run: a page without one never fetches it.
+        const create =
+          this.#options.createProcessorNode ??
+          (await import('@soundor/engine/web/processor')).createProcessorNode;
+        if (this.#disposed) return;
         const processor = await create(context, {
           wasm: source.wasm,
           contract: {

@@ -203,8 +203,6 @@ export type {
   WebAudioInputContext,
   WebAudioInputInfo,
 } from './audio';
-export { createProcessorNode } from './processor/node';
-export type { ProcessorNode, ProcessorNodeOptions } from './processor/node';
 // The generated `events` and `channels` of runtimes/web's native contract.
 export { nativeChannelPublishers } from './native-channels';
 export { nativeEventPublishers } from './native-events';

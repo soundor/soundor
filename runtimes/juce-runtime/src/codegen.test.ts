@@ -392,14 +392,14 @@ describe('generateJuceSources', () => {
     expect(header).toContain('void reset() override final;');
     // The contract the Rust build must match: parameters, read-only ones, channels.
     expect(header).toContain(
-      `backend::RustProcessor rust { backend::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0 } };`,
+      `processor::RustProcessor rust { processor::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0 }, processor::linkedRustProcessor() };`,
     );
     expect(source).toContain('transport.capture(playHead);');
     expect(source).toContain(
-      'rust.process(buffer, parameterValues, publishedValues, backend::RustProcessor::transportOf(playHead), nullptr);',
+      'backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), nullptr);',
     );
     expect(source).toContain(
-      'rust.prepare(sampleRate, samplesPerBlock, backend::RustBusLayout::of(*this), parameterValues);',
+      'rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);',
     );
     expect(header).toContain(
       'static constexpr const char* pluginId = "com.acme.synth";',
@@ -412,7 +412,7 @@ describe('generateJuceSources', () => {
     expect(cmake).toContain(
       'soundor_link_rust_processor(${PROJECT_NAME} "${SOUNDOR_RUST_LIBRARY}")',
     );
-    expect(cmake).toMatch(/backend\/RustProcessor\.cpp"/);
+    expect(cmake).toMatch(/backend\/JuceRustProcessor\.cpp"/);
   });
 
   it('keeps native paint callbacks from advancing the runtime frame', () => {

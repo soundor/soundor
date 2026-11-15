@@ -127,6 +127,11 @@ one call; no Rust collections cross the boundary. Main audio is borrowed in
 place, with scratch copies only where overlapping bus mappings require them.
 See [JUCE integration](/docs/juce-runtime#the-audio-processing).
 
+Both adapters are the engine's (see
+[Rust processor hosting](/docs/contribute/engine-reference#rust-processor-hosting));
+the runtimes own the audio callback or the AudioContext and the plugin's
+lifecycle.
+
 The Web adapter instantiates the same processor in single-threaded WASM inside
 an AudioWorklet. It allocates reusable linear-memory buffers before processing,
 copies Web Audio inputs into them and outputs back, and handles variable render

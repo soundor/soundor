@@ -4,14 +4,14 @@
  * parameters' and the transport's values posted to it as they change.
  */
 
-import type { WasmChannel, WasmContract } from './wasm-processor';
+import type { WasmChannel, WasmContract } from './wasm-processor.ts';
 import {
   PROCESSOR_NAME,
   workletSource,
   type WorkletCommand,
   type WorkletMessage,
   type WorkletOptions,
-} from './worklet';
+} from './worklet.ts';
 
 export interface ProcessorNodeOptions {
   /** The processor's WebAssembly module, as built from native/. */

@@ -48,6 +48,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/platform/FileLog.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
+  src/processor/RustProcessor.cpp
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp
   src/render/Canvas2D.cpp

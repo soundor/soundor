@@ -109,6 +109,55 @@ const PAGE = `<!doctype html>
     processor.dispose();
     return result;
   };
+  // Several processors in one context, each on its own output channel, the
+  // worklet's module added once; one more is made and disposed first.
+  window.instances = async (options) => {
+    const wasm = await (await fetch('./fixture.wasm')).arrayBuffer();
+    const context = new OfflineAudioContext({
+      numberOfChannels: options.gains.length,
+      length: options.frames,
+      sampleRate: RATE,
+    });
+    let added = 0;
+    const addModule = context.audioWorklet.addModule.bind(context.audioWorklet);
+    context.audioWorklet.addModule = (url) => (added++, addModule(url));
+    const errors = [];
+    const create = (parameters) =>
+      createProcessorNode(context, {
+        wasm,
+        contract: options.contract,
+        inputs: [1, 0],
+        outputs: [1],
+        channels: options.channels,
+        parameters,
+        maxFrames: 128,
+        onError: (message) => errors.push(message),
+      });
+    const disposed = await create(options.parameters[0]);
+    disposed.dispose();
+    const processors = [];
+    for (const parameters of options.parameters) processors.push(await create(parameters));
+    const input = context.createBuffer(1, options.frames, RATE);
+    const data = input.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = i / data.length - 0.5;
+    const source = context.createBufferSource();
+    source.buffer = input;
+    const merger = context.createChannelMerger(processors.length);
+    processors.forEach((processor, index) => {
+      source.connect(processor.node);
+      processor.node.connect(merger, 0, index);
+    });
+    merger.connect(context.destination);
+    source.start();
+    const rendered = await context.startRendering();
+    const ready = await Promise.all(processors.map((processor) => processor.ready.then(() => true)));
+    for (const processor of processors) processor.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const output = [];
+    for (let channel = 0; channel < rendered.numberOfChannels; channel++)
+      output.push([...rendered.getChannelData(channel)]);
+    return { added, ready, errors, output };
+  };
   window.loaded = true;
 </script>
 `;
@@ -126,7 +175,10 @@ beforeAll(async () => {
       write: false,
       minify: true,
       lib: {
-        entry: fileURLToPath(new URL('./node.ts', import.meta.url)),
+        // The engine's processor entry, as the host's bundle has it.
+        entry: fileURLToPath(
+          import.meta.resolve('@soundor/engine/web/processor'),
+        ),
         formats: ['es'],
         fileName: 'node',
       },
@@ -303,6 +355,38 @@ describe('the Rust processor in an AudioWorklet', () => {
       'The audio processor panicked; it is silent until the audio restarts',
     ]);
     expect(result.output[0]!.every((sample) => sample === 0)).toBe(true);
+  });
+
+  it('runs several instances in one context, each its own, and disposes them', async () => {
+    const frames = 4800;
+    const gains = [0.25, 0.5, 0.75];
+    const result = await page.evaluate(
+      (settings) =>
+        (
+          window as unknown as {
+            instances(options: unknown): Promise<{
+              added: number;
+              ready: boolean[];
+              errors: string[];
+              output: number[][];
+            }>;
+          }
+        ).instances(settings),
+      {
+        gains,
+        frames,
+        contract,
+        channels,
+        parameters: gains.map((gain) => parameters(gain)),
+      },
+    );
+    // The worklet's module, once for the context, for all four nodes.
+    expect(result.added).toBe(1);
+    expect(result.ready).toEqual([true, true, true]);
+    expect(result.errors).toEqual([]);
+    expect(result.output).toEqual(
+      gains.map((gain) => times(ramp(frames, 0), gain)),
+    );
   });
 
   it('refuses a module built from another config, and stays silent', async () => {

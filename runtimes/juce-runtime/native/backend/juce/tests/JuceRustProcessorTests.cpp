@@ -1,10 +1,11 @@
-// The JUCE adapter of a plugin's Rust processor (RustProcessor), linked to a
-// real one (tests/rust, built with Cargo against the SDK's fixture contract):
-// juce::AudioBuffers through the C ABI, as processBlock passes them.
+// The engine's Rust processor bridge (processor::RustProcessor) through the
+// JUCE adapter (JuceRustProcessor.h), linked to a real processor (tests/rust,
+// built with Cargo against the SDK's fixture contract): juce::AudioBuffers
+// through the C ABI, as processBlock passes them.
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 
-#include <soundor/backend/RustProcessor.h>
+#include <soundor/backend/JuceRustProcessor.h>
 
 #include <doctest/doctest.h>
 
@@ -12,9 +13,31 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <vector>
 
 namespace backend = soundor::backend;
+namespace processor = soundor::processor;
+
+namespace
+{
+    // The engine's bridge on the linked Rust library, processing JUCE buffers
+    // as the generated processBlock does.
+    struct RustProcessor : processor::RustProcessor
+    {
+        explicit RustProcessor(processor::RustContract expected)
+            : processor::RustProcessor(expected, processor::linkedRustProcessor())
+        {
+        }
+
+        std::int32_t process(juce::AudioBuffer<float>& buffer, std::span<const double> parameters,
+                             std::span<double> published, const SoundorTransport& transport,
+                             const SoundorChannelSink* sink) noexcept
+        {
+            return backend::processRust(*this, buffer, parameters, published, transport, sink);
+        }
+    };
+} // namespace
 
 // Allocations on this thread, counted by AllocationCounter.cpp's operator new
 // (0 under AddressSanitizer, which owns it). The Rust side's allocations are
@@ -35,16 +58,16 @@ namespace
 {
     // The fixture config's: gain, bypass, mode, steps, peak (read-only); the
     // channels `history` (a buffer) and `level` (a number), in name order.
-    constexpr backend::RustContract contract { 5, 1, 2 };
+    constexpr processor::RustContract contract { 5, 1, 2 };
 
     std::array<double, 5> parameters(double gain)
     {
         return { gain, 0.0, 1.0, 0.0, -96.0 };
     }
 
-    const SoundorTransport noTransport = backend::RustProcessor::transportOf(nullptr);
+    const SoundorTransport noTransport = backend::rustTransport(nullptr);
 
-    backend::RustBusLayout stereo()
+    processor::RustBusLayout stereo()
     {
         return { { { 0, 1 } }, { { 0, 1 } } };
     }
@@ -95,18 +118,18 @@ namespace
 
 TEST_CASE("the Rust processor is created when it was built from the same contract")
 {
-    const backend::RustProcessor processor(contract);
+    const RustProcessor processor(contract);
     CHECK(processor.valid());
     CHECK(processor.error().empty());
 
-    const backend::RustProcessor stale({ 4, 1, 2 });
+    const RustProcessor stale({ 4, 1, 2 });
     CHECK_FALSE(stale.valid());
     CHECK(stale.error().find("another soundor.config") != std::string::npos);
 }
 
 TEST_CASE("a stale Rust build stays silent")
 {
-    backend::RustProcessor processor({ 1, 0, 0 });
+    RustProcessor processor({ 1, 0, 0 });
     const auto values = parameters(1.0);
     CHECK(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_INVALID_ARGUMENT);
     juce::AudioBuffer<float> buffer(2, 16);
@@ -118,7 +141,7 @@ TEST_CASE("a stale Rust build stays silent")
 
 TEST_CASE("blocks are processed in place, with the parameters' values")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(0.5);
     REQUIRE(processor.prepare(48000, 512, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 256);
@@ -135,7 +158,7 @@ TEST_CASE("blocks are processed in place, with the parameters' values")
 
 TEST_CASE("mono, and blocks longer than the host prepared for")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(0.25);
     REQUIRE(processor.prepare(44100, 64, { { { 0 } }, { { 0 } } }, values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(1, 1000);
@@ -147,7 +170,7 @@ TEST_CASE("mono, and blocks longer than the host prepared for")
 
 TEST_CASE("an empty block is processed")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(1.0);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 0);
@@ -159,9 +182,9 @@ TEST_CASE("an input sharing its buffer channel with another output is read befor
 {
     // As JUCE arranges mono in plus a mono sidechain, and mono out plus a mono
     // aux out: the sidechain and the aux output are buffer channel 1.
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(1.0);
-    const backend::RustBusLayout layout { { { 0 }, { 1 } }, { { 0 }, { 1 } } };
+    const processor::RustBusLayout layout { { { 0 }, { 1 } }, { { 0 }, { 1 } } };
     REQUIRE(processor.prepare(48000, 32, layout, values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 100);
     fill(buffer, 0, 0.5f);
@@ -176,7 +199,7 @@ TEST_CASE("an input sharing its buffer channel with another output is read befor
 
 TEST_CASE("a buffer with fewer channels than the layout is silenced")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(1.0);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(1, 16);
@@ -188,7 +211,7 @@ TEST_CASE("a buffer with fewer channels than the layout is silenced")
 
 TEST_CASE("processing before prepare is silent")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     juce::AudioBuffer<float> buffer(2, 16);
     fill(buffer, 0, 1.0f);
     const auto values = parameters(1.0);
@@ -200,7 +223,7 @@ TEST_CASE("processing before prepare is silent")
 
 TEST_CASE("channels and the transport reach the processing")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(0.75);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 8);
@@ -227,7 +250,7 @@ TEST_CASE("processing allocates nothing")
     CHECK(allocationsOf([] { delete new int(1); }) == 1);
 
     // In place, blocks longer than prepared, channels and the transport.
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     const auto values = parameters(0.5);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 1000);
@@ -251,8 +274,8 @@ TEST_CASE("processing allocates nothing")
     CHECK(channels.committed == 2);
 
     // An input copied out because it shares a channel with another output.
-    backend::RustProcessor aliased(contract);
-    const backend::RustBusLayout layout { { { 0 }, { 1 } }, { { 0 }, { 1 } } };
+    RustProcessor aliased(contract);
+    const processor::RustBusLayout layout { { { 0 }, { 1 } }, { { 0 }, { 1 } } };
     REQUIRE(aliased.prepare(48000, 32, layout, values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> sidechain(2, 100);
     const auto copied = allocationsOf(
@@ -267,7 +290,7 @@ TEST_CASE("processing allocates nothing")
 
 TEST_CASE("a panic silences the processor until it is prepared again")
 {
-    backend::RustProcessor processor(contract);
+    RustProcessor processor(contract);
     auto values = parameters(2.0);
     REQUIRE(processor.prepare(48000, 64, stereo(), values) == SOUNDOR_STATUS_OK);
     juce::AudioBuffer<float> buffer(2, 16);
@@ -288,8 +311,8 @@ TEST_CASE("a panic silences the processor until it is prepared again")
 
 TEST_CASE("instances are independent")
 {
-    backend::RustProcessor half(contract);
-    backend::RustProcessor silent(contract);
+    RustProcessor half(contract);
+    RustProcessor silent(contract);
     const auto halfValues = parameters(0.5);
     const auto silentValues = parameters(0.0);
     REQUIRE(half.prepare(48000, 64, stereo(), halfValues) == SOUNDOR_STATUS_OK);
@@ -333,7 +356,7 @@ TEST_CASE("the bus layout is read from a JUCE processor")
         void getStateInformation(juce::MemoryBlock&) override {}
         void setStateInformation(const void*, int) override {}
     } processor;
-    const auto layout = backend::RustBusLayout::of(processor);
+    const auto layout = backend::rustBusLayout(processor);
     CHECK(layout.inputs == std::vector<std::vector<int>> { { 0, 1 }, { 2 } });
     CHECK(layout.outputs == std::vector<std::vector<int>> { { 0, 1 } });
 }

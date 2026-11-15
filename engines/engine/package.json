@@ -34,6 +34,10 @@
     "./web": {
       "types": "./dist/web.d.ts",
       "import": "./dist/web.js"
+    },
+    "./web/processor": {
+      "types": "./dist/web/processor.d.ts",
+      "import": "./dist/web/processor.js"
     }
   },
   "scripts": {
