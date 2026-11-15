@@ -14,7 +14,7 @@
 # | ada        | v3.4.4  | MIT/Apache-2.0 | WHATWG URL parser (shipped) |
 # | Yoga       | v3.2.1  | MIT     | flexbox layout (shipped)    |
 # | Skia       | m144    | BSD-3-Clause | 2D rendering (shipped; built from source, see SoundorSkia.cmake) |
-# | accesskit-c | 0.23.1 | MIT/Apache-2.0 | Windows/Linux accessibility (shipped; official prebuilt, see SoundorAccessKit.cmake) |
+# | accesskit-c | 0.23.1 | MIT/Apache-2.0 | Windows accessibility (shipped; official prebuilt, see SoundorAccessKit.cmake) |
 # | ANGLE      | chromium/7922 (M151) | BSD-3-Clause | OpenGL ES 3 / WebGL 2 over Metal, D3D11, Vulkan (shipped; built from source, see SoundorAngle.cmake) |
 # | doctest    | v2.5.3  | MIT     | native unit tests (tests)   |
 

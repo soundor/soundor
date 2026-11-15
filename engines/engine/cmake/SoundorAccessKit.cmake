@@ -1,6 +1,6 @@
 # AccessKit (accesskit-c) as the private imported target `soundor_accesskit`:
-# what presents Soundor's semantic tree to Windows (UI Automation) and Linux
-# (AT-SPI). Not used on Apple platforms, which have Soundor's own bridge.
+# what presents Soundor's semantic tree to Windows (UI Automation).
+# Linux and Apple platforms have Soundor-owned native adapters.
 #
 # The library is the official prebuilt one, from the accesskit-c release
 # archive (pinned, SHA-256 verified): building it needs Rust, which Soundor
@@ -8,11 +8,10 @@
 # per machine into Soundor's cache directory (SOUNDOR_CACHE), and only this
 # platform's static library and the header are kept.
 #
-# Releases ship static libraries for Windows (x64, arm64; MSVC), Linux x64 and
-# Android, but not Linux arm64: there, and wherever SOUNDOR_ACCESSKIT is OFF,
-# the runtime builds without platform accessibility (SOUNDOR_HAS_ACCESSKIT 0).
+# Windows keeps the official prebuilt archive. Android acquisition remains
+# available for a future runtime; Linux never acquires or links AccessKit.
 #
-#   SOUNDOR_ACCESSKIT       use AccessKit where a prebuilt library exists (ON)
+#   SOUNDOR_ACCESSKIT       use AccessKit on supported Windows/Android targets (ON)
 #   SOUNDOR_ACCESSKIT_DIR   an extracted accesskit-c release to use instead
 #
 # The library is linked PRIVATE and its symbols are kept out of a plugin's
@@ -24,7 +23,7 @@ include_guard(GLOBAL)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorDependencies.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/SoundorPlatformLibraries.cmake)
 
-option(SOUNDOR_ACCESSKIT "Present accessibility through AccessKit on Windows and Linux" ON)
+option(SOUNDOR_ACCESSKIT "Present accessibility through AccessKit on Windows and Android" ON)
 set(SOUNDOR_ACCESSKIT_DIR "" CACHE PATH "An extracted accesskit-c release; empty: download the pinned one")
 
 set(SOUNDOR_HAS_ACCESSKIT OFF)
@@ -42,8 +41,6 @@ if(SOUNDOR_ACCESSKIT AND NOT APPLE)
     endif()
   elseif(ANDROID AND ANDROID_ABI MATCHES "^(arm64-v8a|x86_64)$")
     set(soundor_accesskit_platform "android/${ANDROID_ABI}")
-  elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND soundor_accesskit_cpu MATCHES "^(x86_64|amd64)$")
-    set(soundor_accesskit_platform "linux/x86_64")
   endif()
 endif()
 
@@ -84,19 +81,6 @@ if(soundor_accesskit_platform)
         file(ARCHIVE_EXTRACT INPUT "${archive}" DESTINATION "${staging}"
           PATTERNS "${root}/include/*" "${root}/lib/${soundor_accesskit_platform}/static/*"
                    "${root}/LICENSE-MIT" "${root}/LICENSE-APACHE" "${root}/LICENSE.chromium")
-        # Linux: the library carries debug info for its Rust code and standard
-        # library, 39 of its 47 MB, which would otherwise end up in every plugin.
-        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-          if(NOT CMAKE_STRIP)
-            message(FATAL_ERROR "Removing AccessKit's debug info needs strip, which CMake did not find (CMAKE_STRIP)")
-          endif()
-          execute_process(
-            COMMAND "${CMAKE_STRIP}" --strip-debug "${staging}/${root}/lib/${soundor_accesskit_platform}/static/libaccesskit.a"
-            RESULT_VARIABLE status)
-          if(NOT status EQUAL 0)
-            message(FATAL_ERROR "Removing AccessKit's debug info failed: ${CMAKE_STRIP} exited with ${status}")
-          endif()
-        endif()
         file(REMOVE_RECURSE "${SOUNDOR_ACCESSKIT_DIR}")
         file(RENAME "${staging}/${root}" "${SOUNDOR_ACCESSKIT_DIR}")
         file(REMOVE_RECURSE "${staging}")
@@ -122,6 +106,6 @@ if(soundor_accesskit_platform)
   target_include_directories(soundor_accesskit SYSTEM INTERFACE "${SOUNDOR_ACCESSKIT_DIR}/include")
   target_link_libraries(soundor_accesskit INTERFACE ${SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES})
   set(SOUNDOR_HAS_ACCESSKIT ON)
-elseif(SOUNDOR_ACCESSKIT AND NOT APPLE)
+elseif(SOUNDOR_ACCESSKIT AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   message(STATUS "No prebuilt AccessKit for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}: building without platform accessibility")
 endif()

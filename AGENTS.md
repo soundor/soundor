@@ -319,8 +319,8 @@ has no runtime-version check or config-feature version gates. See
 Soundor owns its accessibility semantics: React props → `node.accessibility`
 (`soundor:ui`) → the semantic tree (`a11y::SurfaceSemantics` natively; the
 same rules in `web-runtime/src/client/ui/semantics.ts`) → a platform backend.
-The backends are ARIA (web), AccessKit (Windows, Linux) and Soundor's own
-Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
+The backends are ARIA (web), native AT-SPI over system GDBus (Linux), AccessKit
+(Windows) and Soundor's own Apple bridges (macOS, iOS). JUCE only supplies the native view; AccessKit
 types never leave `src/a11y/accesskit/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
 swizzle (see `contribute/apple-accessibility.md`).

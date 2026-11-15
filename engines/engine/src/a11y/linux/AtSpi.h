@@ -15,7 +15,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
     public:
         // Empty address: discover org.a11y.Bus on a private session connection.
         // Explicit address: an accessibility bus (also used by protocol tests).
-        explicit Session(std::string name, std::string address = {});
+        // sessionAddress optionally selects an isolated session bus for embedding
+        // environments and native protocol fixtures; empty uses the desktop.
+        explicit Session(std::string name, std::string address = {}, std::string sessionAddress = {});
         ~Session();
         Session(const Session&) = delete;
         Session& operator=(const Session&) = delete;

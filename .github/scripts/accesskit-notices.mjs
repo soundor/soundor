@@ -26,7 +26,6 @@ const pins = readFileSync(
 const version = pins.match(/SOUNDOR_ACCESSKIT_VERSION "([^"]+)"/)[1];
 // The prebuilt targets that link AccessKit (Apple uses Soundor's own bridges).
 const targets = {
-  'linux-x64': 'x86_64-unknown-linux-gnu',
   'windows-x64': 'x86_64-pc-windows-msvc',
 };
 const noticeName = /^(licen[cs]e|copying|notice|unlicense|copyright)/i;

@@ -126,6 +126,11 @@ namespace
             const std::scoped_lock lock(mutex);
             return std::exchange(events, {});
         }
+        std::vector<std::string> discoveryClients()
+        {
+            const std::scoped_lock lock(mutex);
+            return discoveries;
+        }
         void service(bool enabled) { serviceEnabled = enabled; }
         std::string address;
 
@@ -156,6 +161,16 @@ namespace
             }
             g_dbus_method_invocation_return_value(
                 invocation, g_variant_new("((so))", "org.a11y.atspi.Registry", "/org/a11y/atspi/accessible/root"));
+        }
+        static void getAddress(GDBusConnection*, const gchar* sender, const gchar*, const gchar*, const gchar*,
+                               GVariant*, GDBusMethodInvocation* invocation, gpointer data)
+        {
+            auto& self = *static_cast<Bus*>(data);
+            {
+                const std::scoped_lock lock(self.mutex);
+                self.discoveries.emplace_back(sender);
+            }
+            g_dbus_method_invocation_return_value(invocation, g_variant_new("(s)", self.address.c_str()));
         }
         static void notification(GDBusConnection*, const gchar* sender, const gchar* path, const gchar*,
                                  const gchar* member, GVariant* args, gpointer data)
@@ -204,6 +219,19 @@ namespace
             static const GDBusInterfaceVTable vtable { embed, nullptr, nullptr, {} };
             const auto registration = g_dbus_connection_register_object(
                 server, "/org/a11y/atspi/accessible/root", info->interfaces[0], &vtable, this, nullptr, nullptr);
+            auto* discoveryReply = g_dbus_connection_call_sync(
+                server, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "RequestName",
+                g_variant_new("(su)", "org.a11y.Bus", 0U), G_VARIANT_TYPE("(u)"), G_DBUS_CALL_FLAGS_NONE, 1000, nullptr,
+                nullptr);
+            if (discoveryReply != nullptr)
+                g_variant_unref(discoveryReply);
+            auto* discoveryInfo =
+                g_dbus_node_info_new_for_xml("<node><interface name='org.a11y.Bus'><method name='GetAddress'>"
+                                             "<arg type='s' direction='out'/></method></interface></node>",
+                                             nullptr);
+            static const GDBusInterfaceVTable discoveryVtable { getAddress, nullptr, nullptr, {} };
+            const auto discoveryRegistration = g_dbus_connection_register_object(
+                server, "/org/a11y/bus", discoveryInfo->interfaces[0], &discoveryVtable, this, nullptr, nullptr);
             const auto watch =
                 g_dbus_connection_signal_subscribe(server, nullptr, nullptr, nullptr, nullptr, nullptr,
                                                    G_DBUS_SIGNAL_FLAGS_NONE, notification, this, nullptr);
@@ -217,6 +245,8 @@ namespace
             g_source_unref(timer);
             g_dbus_connection_signal_unsubscribe(server, watch);
             g_dbus_connection_unregister_object(server, registration);
+            g_dbus_connection_unregister_object(server, discoveryRegistration);
+            g_dbus_node_info_unref(discoveryInfo);
             g_dbus_node_info_unref(info);
             g_dbus_connection_close_sync(server, nullptr, nullptr);
             g_object_unref(server);
@@ -234,6 +264,7 @@ namespace
         std::atomic<bool> stop { false };
         std::mutex mutex;
         std::vector<std::string> apps;
+        std::vector<std::string> discoveries;
         std::vector<Event> events;
     };
 
@@ -615,5 +646,61 @@ TEST_SUITE("Linux AT-SPI")
         const auto items = printed(bus, apps.back(), "/org/a11y/atspi/cache", "org.a11y.atspi.Cache", "GetItems",
                                    nullptr, G_VARIANT_TYPE("(a((so)(so)(so)iiassusau))"));
         CHECK(items.find("Gain") != std::string::npos);
+    }
+    TEST_CASE("accessibility-bus discovery uses a separate private session connection")
+    {
+        Bus bus;
+        atspi::Session session("Discovery", {}, bus.address);
+        session.update(example(), {}, true);
+        REQUIRE(eventually([&] { return session.active(); }));
+        const auto clients = bus.discoveryClients();
+        const auto apps = bus.applications();
+        REQUIRE(clients.size() == 1);
+        REQUIRE(apps.size() == 1);
+        CHECK(clients[0] != apps[0]);
+        CHECK(printed(bus, apps[0], "/org/a11y/atspi/accessible/root", "org.freedesktop.DBus.Properties", "Set",
+                      g_variant_new("(ssv)", "org.a11y.atspi.Application", "Id", g_variant_new_int32(42)))
+              == "()");
+        CHECK(printed(bus, apps[0], "/org/a11y/atspi/accessible/root", "org.freedesktop.DBus.Properties", "Get",
+                      g_variant_new("(ss)", "org.a11y.atspi.Application", "Id"))
+                  .find("42")
+              != std::string::npos);
+    }
+
+    TEST_CASE("a full reset replaces the root, retires old objects and refreshes the cache")
+    {
+        Bus bus;
+        atspi::Session session("Reset", bus.address);
+        session.update(example(), {}, true);
+        REQUIRE(eventually([&] { return session.active(); }));
+        const auto app = bus.applications()[0];
+        auto replacement = example();
+        replacement.root = 20;
+        replacement.focus = 21;
+        replacement.nodes[0].id = 20;
+        replacement.nodes[0].children = { 21 };
+        replacement.nodes[1].id = 21;
+        replacement.nodes[1].label = "Replacement";
+        session.update(replacement, {}, true);
+        REQUIRE(eventually(
+            [&]
+            {
+                GError* error = nullptr;
+                auto* reply = bus.call(app, "/org/a11y/atspi/accessible/n11", "org.a11y.atspi.Accessible", "GetRole",
+                                       nullptr, nullptr, &error);
+                const bool removed = reply == nullptr;
+                if (reply != nullptr)
+                    g_variant_unref(reply);
+                g_clear_error(&error);
+                return removed;
+            }));
+        const auto cache = printed(bus, app, "/org/a11y/atspi/cache", "org.a11y.atspi.Cache", "GetItems", nullptr,
+                                   G_VARIANT_TYPE("(a((so)(so)(so)iiassusau))"));
+        CHECK(cache.find("Replacement") != std::string::npos);
+        CHECK(cache.find("Gain") == std::string::npos);
+        const auto children =
+            printed(bus, app, "/org/a11y/atspi/accessible/root", "org.a11y.atspi.Accessible", "GetChildren");
+        CHECK(children.find("/org/a11y/atspi/accessible/n20") != std::string::npos);
+        CHECK(session.takeRequests().empty());
     }
 }

@@ -50,12 +50,10 @@ if(WIN32)
   # for the window subclass Soundor installs.
   set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES
     bcrypt ntdll propsys runtimeobject uiautomationcore userenv ws2_32 comctl32)
-else()
+elseif(ANDROID)
   # The archive's symbols have default visibility: hide every one of them
   # in whatever shared library links it. A flag in the link line (not a
   # link option) so it reaches the plugin through static libraries.
   set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES "-Wl,--exclude-libs,libaccesskit.a" m ${CMAKE_DL_LIBS} Threads::Threads)
-  if(ANDROID)
-    list(APPEND SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES android log)
-  endif()
+  list(APPEND SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES android log)
 endif()

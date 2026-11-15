@@ -3,7 +3,7 @@
 #if defined(__APPLE__)
     #include <TargetConditionals.h>
 #endif
-#if defined(__linux__)
+#if defined(__linux__) && ! defined(__ANDROID__)
     #include "a11y/linux/AtSpi.h"
 #elif SOUNDOR_HAS_ACCESSKIT
     #include "a11y/accesskit/AccessKitPlatform.h"
@@ -17,7 +17,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
 {
     std::unique_ptr<PlatformAccessibility> createPlatformAccessibility(const PlatformOptions& options)
     {
-#if defined(__linux__)
+#if defined(__linux__) && ! defined(__ANDROID__)
         return atspi::createPlatform(options);
 #elif SOUNDOR_HAS_ACCESSKIT
         return detail::createAccessKitPlatform(options);

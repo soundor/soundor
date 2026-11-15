@@ -115,9 +115,9 @@ runtime's platform backend then presents it:
 | -------- | ----------------------------------------------- |
 | Web      | ARIA on the DOM elements that draw nodes        |
 | Windows  | AccessKit (UI Automation)                       |
-| Linux    | AccessKit (AT-SPI), x64                         |
+| Linux    | Native AT-SPI over GDBus                        |
 | Android  | AccessKit, once a runtime has an Android view   |
-| macOS    | Soundor's VoiceOver bridge                      |
+| macOS    | Native NSAccessibility                          |
 | iOS      | Soundor's VoiceOver bridge (no iOS runtime yet) |
 
 - **Not tied to a framework:** the semantics do not come from JUCE, iPlug2
@@ -144,6 +144,11 @@ runtime's platform backend then presents it:
   those do not replace the backend's conversion of accessibility bounds.
 - **Cost:** nothing is computed until assistive technology is listening.
   After that, each frame sends only the elements that changed.
+
+Linux needs the system GIO library (`libgio-2.0.so.0`). Text caret positions,
+selections and character geometry are not part of the native semantic contract.
+See the [Linux adapter notes](/docs/contribute/linux-accessibility) for its
+capabilities and current verification limits.
 
 See the [native accessibility reference](/docs/contribute/engine-reference#accessibility)
 for the rules in detail and the backends, and its

@@ -85,7 +85,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     result.push_back(actionInterface);
                 if (node.value.now)
                     result.push_back(valueInterface);
-                if (node.role == Role::Text || node.role == Role::TextInput || ! node.value.text.empty())
+                if (node.role == Role::Text || node.role == Role::TextInput
+                    || (! node.value.text.empty() && ! node.value.now))
                     result.push_back("org.a11y.atspi.Text");
                 if (node.role == Role::TextInput && node.supports(Action::SetValue))
                     result.push_back("org.a11y.atspi.EditableText");
@@ -108,9 +109,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
     class Session::Impl
     {
     public:
-        Impl(std::string label, std::string busAddress)
+        Impl(std::string label, std::string busAddress, std::string sessionBus)
             : pluginName(std::move(label)),
               address(std::move(busAddress)),
+              sessionAddress(std::move(sessionBus)),
               context(g_main_context_new()),
               cancel(g_cancellable_new()),
               worker([this] { run(); })
@@ -212,21 +214,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         void connect()
         {
             std::string target = address;
-            if (target.empty())
+            if (target.empty() && sessionAddress.empty())
             {
                 if (const char* provided = g_getenv("AT_SPI_BUS_ADDRESS"))
                     target = provided;
             }
             if (! target.empty())
                 open(target, false);
+            else if (! sessionAddress.empty())
+                open(sessionAddress, true);
             else
             {
                 GError* error = nullptr;
-                char* sessionAddress = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, cancel, &error);
-                if (sessionAddress != nullptr)
+                char* desktopAddress = g_dbus_address_get_for_bus_sync(G_BUS_TYPE_SESSION, cancel, &error);
+                if (desktopAddress != nullptr)
                 {
-                    open(sessionAddress, true);
-                    g_free(sessionAddress);
+                    open(desktopAddress, true);
+                    g_free(desktopAddress);
                 }
                 g_clear_error(&error);
             }
@@ -322,6 +326,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     self.parentBus = bus;
                     self.parentPath = path;
                     self.registered = true;
+                    self.event(noNode, "PropertyChange", "accessible-parent", 0, self.parentReference(self.app));
+                    self.signal(cachePath, cacheInterface, "AddAccessible",
+                                g_variant_new("(@((so)(so)(so)iiassusau))", self.cacheItem(self.app)));
                 }
                 g_variant_unref(reply);
             }
@@ -802,7 +809,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     GVariantBuilder list;
                     g_variant_builder_init(&list, G_VARIANT_TYPE("a(sss)"));
                     for (const auto* action : offered)
-                        g_variant_builder_add(&list, "(sss)", action->name.c_str(), action->label.c_str(), "");
+                        g_variant_builder_add(&list, "(sss)",
+                                              (action->label.empty() ? action->name : action->label).c_str(),
+                                              action->label.c_str(), "");
                     return g_variant_new("(@a(sss))", g_variant_builder_end(&list));
                 }
                 gint32 index = -1;
@@ -814,8 +823,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                     return g_variant_new("(b)", enqueue(node, action.action, action.name));
                 if (member == "GetDescription")
                     return g_variant_new("(s)", action.label.c_str());
-                if (member == "GetName" || member == "GetLocalizedName")
+                if (member == "GetName")
                     return g_variant_new("(s)", action.name.c_str());
+                if (member == "GetLocalizedName")
+                    return g_variant_new("(s)", (action.label.empty() ? action.name : action.label).c_str());
                 if (member == "GetKeyBinding")
                     return g_variant_new("(s)", "");
             }
@@ -854,6 +865,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
                         return nullptr;
                     const auto contains = [&](const Node& candidate)
                     {
+                        if (coordinates == 0 && geometry.screen.width == 0 && geometry.screen.height == 0)
+                            return false;
                         Rect rect = bounds(candidate, tree, geometry, coordinates == 2 ? 1 : coordinates);
                         if (coordinates == 2)
                         {
@@ -917,6 +930,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
 
         std::string pluginName;
         std::string address;
+        std::string sessionAddress;
         GMainContext* context;
         GCancellable* cancel;
         std::atomic<bool> closing { false };
@@ -946,8 +960,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::atspi
         std::thread worker;
     };
 
-    Session::Session(std::string name, std::string address)
-        : impl(std::make_unique<Impl>(std::move(name), std::move(address)))
+    Session::Session(std::string name, std::string address, std::string sessionAddress)
+        : impl(std::make_unique<Impl>(std::move(name), std::move(address), std::move(sessionAddress)))
     {
     }
     Session::~Session() = default;

@@ -183,6 +183,17 @@ describe('pack', () => {
   });
 
   const rejects = {
+    'Linux AccessKit linkage': [
+      (m) => ({ ...m, features: { ...m.features, accessKit: true } }),
+      /features.accessKit/,
+    ],
+    'a Linux AccessKit archive': [
+      (m) => ({
+        ...m,
+        link: { ...m.link, accessKit: ['accesskit/lib/libaccesskit.a'] },
+      }),
+      /must not link an AccessKit archive/,
+    ],
     'another engine version': [
       (m) => ({ ...m, engine: { ...m.engine, version: '0.2.2' } }),
       /engine.version/,

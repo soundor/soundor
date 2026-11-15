@@ -247,6 +247,13 @@ jobs:
           plugin=$(find runtimes/juce-runtime/tests/plugin/.soundor/dist/juce -path '*.vst3/Contents/x86_64-linux/*.so' -type f | head -1)
           [ -n "$plugin" ] || { echo "::error::No VST3 binary found"; exit 1; }
           .github/scripts/linux-plugin-check.sh "$plugin"
+      - name: Rust processor links with the prebuilt Linux engine
+        if: matrix.name == 'linux-clang'
+        env:
+          JUCE_DIR: ${{ github.workspace }}/.soundor/ci-juce
+        run: |
+          pnpm --filter @soundor/vst3-host build:native
+          pnpm --filter @soundor/juce-runtime test:rust-link
       - name: The test plugin needs no C or C++ runtime DLL
         if: runner.os == 'Windows'
         run: |
