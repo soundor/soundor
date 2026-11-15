@@ -1,11 +1,11 @@
 import { writeFileSync } from 'node:fs';
 
-import { node, withPreset } from '@soundor/tsdown-config';
+import { browser, node, withPreset } from '@soundor/tsdown-config';
 import { defineConfig } from 'tsdown';
 
 import { loweringInputs } from './scripts/engine-inputs.mjs';
 
-export default defineConfig(
+export default defineConfig([
   withPreset(node, {
     entry: ['scripts/native-module.ts'],
     tsconfig: './tsconfig.node.json',
@@ -24,4 +24,11 @@ export default defineConfig(
       );
     },
   }),
-);
+  // @soundor/engine/web: the WebAssembly engine's JavaScript (its module is
+  // built apart, by build:wasm).
+  withPreset(browser, {
+    entry: { web: 'web/src/index.ts' },
+    tsconfig: './web/tsconfig.json',
+    target: 'es2022',
+  }),
+]);

@@ -14,6 +14,7 @@ include(SoundorAda)
 include(SoundorYoga)
 include(SoundorSkia)
 include(SoundorAngle)
+include(SoundorCoreSources)
 
 # The VM the runtime links: with its compiler or bytecode only.
 add_library(soundor_hermes INTERFACE)
@@ -52,7 +53,6 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/render/Canvas2D.cpp
   src/render/DrawingSurface.cpp
   src/render/Damage.cpp
-  src/render/Frame.cpp
   src/render/RasterCompositor.cpp
   src/render/Renderer.cpp
   src/render/SkiaText.cpp
@@ -60,10 +60,6 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/render/VectorScene.cpp
   src/render/AnimationRenderer.cpp
   src/render/ViewRenderer.cpp
-  src/ui/Color.cpp
-  src/ui/Animation.cpp
-  src/ui/Surface.cpp
-  src/ui/Text.cpp
   src/web/Encoding.cpp
   src/web/Files.cpp
   src/web/Host.cpp
@@ -71,6 +67,8 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/web/Random.cpp
   src/web/Url.cpp
   src/web/Web.cpp)
+# The core the WebAssembly engine is built from too.
+list(APPEND SOUNDOR_RUNTIME_SOURCES ${SOUNDOR_CORE_SOURCES})
 # macOS and iOS: Soundor's own accessibility bridges (Objective-C++, ARC).
 if(APPLE)
   enable_language(OBJCXX)

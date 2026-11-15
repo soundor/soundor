@@ -601,6 +601,9 @@ importers:
       '@babel/plugin-transform-private-property-in-object':
         specifier: 'catalog:'
         version: 8.0.5(@babel/core@8.1.0)
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.65.0
       '@soundor/tsdown-config':
         specifier: workspace:^
         version: link:../../configs/tsdown-config
@@ -619,6 +622,12 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
+      vite:
+        specifier: 'catalog:'
+        version: 8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
+      vitest:
+        specifier: 'catalog:'
+        version: 5.1.0(@types/node@24.19.2)(happy-dom@21.0.4)(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
 
   engines/yoga-wasm:
     devDependencies:

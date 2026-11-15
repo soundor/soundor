@@ -159,6 +159,16 @@
         "SOUNDOR_ENGINE_PREBUILT_RELEASE_DIR": "$env{SOUNDOR_ENGINE_PREBUILT_DIR}",
         "CMAKE_MSVC_RUNTIME_LIBRARY": "MultiThreaded"
       }
+    },
+    {
+      "name": "wasm",
+      "displayName": "The WebAssembly core (Emscripten, from EMSDK), Release",
+      "binaryDir": "${sourceDir}/build/wasm",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SOUNDOR_WARNINGS_AS_ERRORS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -230,6 +240,11 @@
     {
       "name": "prebuilt-check-release-static",
       "configurePreset": "prebuilt-check-release-static",
+      "configuration": "Release"
+    },
+    {
+      "name": "wasm",
+      "configurePreset": "wasm",
       "configuration": "Release"
     }
   ],
@@ -499,6 +514,19 @@
         {
           "type": "test",
           "name": "prebuilt-check-release-static"
+        }
+      ]
+    },
+    {
+      "name": "wasm",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wasm"
+        },
+        {
+          "type": "build",
+          "name": "wasm"
         }
       ]
     }

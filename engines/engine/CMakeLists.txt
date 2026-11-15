@@ -20,6 +20,14 @@ include(SoundorAbi)
 include(SoundorPluginShim)
 
 include(SoundorCompilerOptions)
+
+# Built with Emscripten (the wasm preset), this is the WebAssembly core alone:
+# the platform-independent sources, Yoga, and no Hermes, Skia or ANGLE.
+if(EMSCRIPTEN)
+  add_subdirectory(wasm)
+  return()
+endif()
+
 include(SoundorEmbed)
 include(SoundorPlatformLibraries)
 

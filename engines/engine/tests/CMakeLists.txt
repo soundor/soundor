@@ -35,6 +35,26 @@ if(NOT SOUNDOR_ENGINE_PREBUILT)
   set_tests_properties(soundor_svg_tests PROPERTIES TIMEOUT 30)
 endif()
 
+# The WebAssembly engine's C++ side (wasm/Engine.cpp), compiled natively from
+# the engine's core sources (SoundorCoreSources.cmake) and Yoga alone, as the
+# WebAssembly module is: no Hermes, Skia or ANGLE.
+if(NOT SOUNDOR_ENGINE_PREBUILT)
+  set(soundor_core_test_sources ${SOUNDOR_CORE_SOURCES} src/render/NoVectorScene.cpp wasm/Engine.cpp)
+  list(TRANSFORM soundor_core_test_sources PREPEND "${SoundorEngine_SOURCE_DIR}/")
+  add_executable(soundor_core_tests main.cpp core/WasmEngineTests.cpp ${soundor_core_test_sources})
+  target_include_directories(soundor_core_tests PRIVATE
+    ${SoundorEngine_SOURCE_DIR}/include ${SoundorEngine_BINARY_DIR}/generated ${SoundorEngine_SOURCE_DIR}/src)
+  target_compile_definitions(soundor_core_tests PRIVATE SOUNDOR_DEVTOOLS=0)
+  target_compile_features(soundor_core_tests PRIVATE cxx_std_20)
+  target_link_libraries(soundor_core_tests PRIVATE soundor_yoga soundor_doctest)
+  if(WIN32)
+    target_link_libraries(soundor_core_tests PRIVATE dbghelp)
+  endif()
+  soundor_configure_target(soundor_core_tests)
+  add_test(NAME soundor_core_tests COMMAND soundor_core_tests)
+  set_tests_properties(soundor_core_tests PROPERTIES TIMEOUT 30)
+endif()
+
 # Ganesh interop uses private Skia/GPU seams, so check it against the source
 # build independently of the runtime tests that also consume prebuilts in CI.
 if(NOT SOUNDOR_ENGINE_PREBUILT AND SOUNDOR_HAS_GPU AND SOUNDOR_ENABLE_GANESH AND SOUNDOR_JS_SOURCE)

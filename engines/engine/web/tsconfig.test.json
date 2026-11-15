@@ -1,0 +1,10 @@
+{
+  "extends": "@soundor/typescript-config/node",
+  "compilerOptions": {
+    "noEmit": true,
+    // Tests and tools in Node, and the fixture's page in the browser.
+    "lib": ["es2023", "DOM", "DOM.Iterable", "esnext.disposable"],
+    "types": ["node"]
+  },
+  "include": ["src", "test", "fixture", "scripts", "*.ts"]
+}
