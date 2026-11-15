@@ -391,6 +391,7 @@ foreach(plugin a:red b:blue)
   const { root, createView } = require('soundor:ui');
   let count = 0;
   const box = createView({ width: 64, height: 64, backgroundColor: '${color}' });
+  box.accessibility = { role: 'button', label: '${color}' };
   box.addEventListener('click', () => { count += 1; console.log('count=' + count); });
   root.appendChild(box);
 });

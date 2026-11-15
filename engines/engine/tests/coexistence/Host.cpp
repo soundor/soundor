@@ -191,6 +191,64 @@ namespace
             expect(again.Get() == providerA.Get(), "stable editor provider identity" + at);
         }
 #endif
+#if defined(_WIN32)
+        const auto childOf = [](IRawElementProviderSimple* provider)
+        {
+            ComPtr<IRawElementProviderFragment> rootFragment;
+            ComPtr<IRawElementProviderFragment> child;
+            ComPtr<IRawElementProviderSimple> result;
+            if (provider != nullptr && SUCCEEDED(provider->QueryInterface(IID_PPV_ARGS(&rootFragment)))
+                && SUCCEEDED(rootFragment->Navigate(NavigateDirection_FirstChild, &child)) && child != nullptr)
+                child.As(&result);
+            return result;
+        };
+        auto childA = childOf(providerA.Get());
+        auto childA2 = childOf(providerA2.Get());
+        auto childB = childOf(providerB.Get());
+        expect(childA && childA2 && childB, "all plugin editors have semantic children" + at);
+        const auto named = [](IRawElementProviderSimple* provider, const wchar_t* name)
+        {
+            VARIANT value;
+            VariantInit(&value);
+            const bool matches =
+                provider != nullptr && SUCCEEDED(provider->GetPropertyValue(UIA_NamePropertyId, &value))
+                && value.vt == VT_BSTR && std::wstring(value.bstrVal, SysStringLen(value.bstrVal)) == name;
+            VariantClear(&value);
+            return matches;
+        };
+        expect(named(childA.Get(), L"red") && named(childA2.Get(), L"red") && named(childB.Get(), L"blue"),
+               "each module exposes its own semantic tree" + at);
+        const auto idsDiffer = [](IRawElementProviderSimple* left, IRawElementProviderSimple* right)
+        {
+            if (left == nullptr || right == nullptr)
+                return false;
+            ComPtr<IRawElementProviderFragment> lf;
+            ComPtr<IRawElementProviderFragment> rf;
+            if (FAILED(left->QueryInterface(IID_PPV_ARGS(&lf))) || FAILED(right->QueryInterface(IID_PPV_ARGS(&rf))))
+                return false;
+            SAFEARRAY* lid = nullptr;
+            SAFEARRAY* rid = nullptr;
+            lf->GetRuntimeId(&lid);
+            rf->GetRuntimeId(&rid);
+            bool different = false;
+            if (lid != nullptr && rid != nullptr)
+                for (LONG i = 1; i <= 4; ++i)
+                {
+                    int l = 0;
+                    int r = 0;
+                    SafeArrayGetElement(lid, &i, &l);
+                    SafeArrayGetElement(rid, &i, &r);
+                    different = different || l != r;
+                }
+            if (lid != nullptr)
+                SafeArrayDestroy(lid);
+            if (rid != nullptr)
+                SafeArrayDestroy(rid);
+            return different;
+        };
+        expect(idsDiffer(childA.Get(), childA2.Get()) && idsDiffer(childA.Get(), childB.Get()),
+               "runtime IDs are disjoint within and across plugin modules" + at);
+#endif
         a.destroy(a1);
 #if defined(_WIN32)
         if (providerA && providerA2 && providerB)
@@ -199,6 +257,8 @@ namespace
             expect(providerA->GetPropertyValue(UIA_NamePropertyId, &value) == UIA_E_ELEMENTNOTAVAILABLE,
                    "retained provider is disconnected after destroying its editor" + at);
             VariantClear(&value);
+            expect(named(childA2.Get(), L"red") && named(childB.Get(), L"blue"),
+                   "other editors keep their semantic trees after A1 closes" + at);
             expect(providerA2->GetPropertyValue(UIA_NamePropertyId, &value) == S_OK,
                    "second instance survives first editor destruction" + at);
             VariantClear(&value);

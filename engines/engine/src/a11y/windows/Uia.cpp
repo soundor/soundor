@@ -618,7 +618,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     if (const Node* container = selectionContainer(node))
                         for (const NodeId child : container->children)
                             if (const Node* sibling = state->tree.find(child); sibling != nullptr && selected(*sibling))
-                                return UIA_E_INVALIDOPERATION;
+                                return static_cast<HRESULT>(UIA_E_INVALIDOPERATION);
                     return enqueue(node, Action::Activate);
                 });
         }
@@ -629,7 +629,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                 {
                     if (! selected(node))
                         return S_OK;
-                    return selectionContainer(node) != nullptr ? UIA_E_INVALIDOPERATION
+                    return selectionContainer(node) != nullptr ? static_cast<HRESULT>(UIA_E_INVALIDOPERATION)
                                                                : enqueue(node, Action::Activate);
                 });
         }
@@ -709,7 +709,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
 
         HRESULT STDMETHODCALLTYPE SetVisualState(WindowVisualState) override
         {
-            return read([](const Node&) { return UIA_E_INVALIDOPERATION; });
+            return read([](const Node&) { return static_cast<HRESULT>(UIA_E_INVALIDOPERATION); });
         }
         HRESULT STDMETHODCALLTYPE Close() override { return ask(Action::Escape); }
         HRESULT STDMETHODCALLTYPE WaitForInputIdle(int, BOOL* out) override
@@ -877,7 +877,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
             if (! node.supports(action))
                 return UIA_E_NOTSUPPORTED;
             if (state->requests.size() >= 1024)
-                return UIA_E_INVALIDOPERATION;
+                return static_cast<HRESULT>(UIA_E_INVALIDOPERATION);
             state->requests.push_back({ node.id, action, {}, std::move(value) });
             return S_OK;
         }
@@ -1065,7 +1065,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::uia
                     events.push_back({ provider, property, std::move(was), std::move(now) });
                 }
             }
-            state->tree.apply(update);
+            // An entirely empty SurfaceSemantics update means unchanged,
+            // including focus. A focus-only update carries the root ID.
+            if (! update.empty() || update.root != noNode)
+                state->tree.apply(update);
             state->geometry = geometry;
             state->origin = origin;
             state->focused = focused;

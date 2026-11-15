@@ -308,6 +308,19 @@ TEST_SUITE("a11y Windows UIA")
         ComPtr<IRawElementProviderSimple> focusSimple;
         REQUIRE(focus.As(&focusSimple) == S_OK);
         CHECK(focusSimple.Get() == gain.Get());
+        // Geometry/native-focus updates can arrive without a semantic diff.
+        session.update({}, { 5, 6, 2, {} }, true);
+        focus.Reset();
+        REQUIRE(fragment->GetFocus(&focus) == S_OK);
+        focusSimple.Reset();
+        REQUIRE(focus.As(&focusSimple) == S_OK);
+        CHECK(focusSimple.Get() == gain.Get());
+        session.update({ {}, {}, 100, 102, false }, {}, true);
+        focus.Reset();
+        REQUIRE(fragment->GetFocus(&focus) == S_OK);
+        focusSimple.Reset();
+        REQUIRE(focus.As(&focusSimple) == S_OK);
+        CHECK(focusSimple.Get() == toggle.Get());
         session.update({ {}, {}, 100, noNode, false }, {}, false);
         focus.Reset();
         CHECK(fragment->GetFocus(&focus) == S_OK);
@@ -420,7 +433,8 @@ TEST_SUITE("a11y Windows UIA")
         BOOL modal = FALSE;
         CHECK(patternProvider->get_IsModal(&modal) == S_OK);
         CHECK(modal);
-        CHECK(patternProvider->SetVisualState(WindowVisualState_Maximized) == UIA_E_INVALIDOPERATION);
+        CHECK(patternProvider->SetVisualState(WindowVisualState_Maximized)
+              == static_cast<HRESULT>(UIA_E_INVALIDOPERATION));
         CHECK(patternProvider->Close() == S_OK);
         auto requests = session.takeRequests();
         REQUIRE(requests.size() == 1);
