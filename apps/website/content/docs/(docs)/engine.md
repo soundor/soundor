@@ -31,12 +31,13 @@ plugin (JUCE)                     your processor, editor, DSP
             ├─ Yoga, ada           layout, URLs
             ├─ Skia                2D drawing (Ganesh GPU on macOS, Windows and Linux, CPU fallback)
             ├─ ANGLE               WebGL 2 and the GPU compositor (Metal, Direct3D 11)
-            └─ AccessKit           accessibility on Windows and Linux (own bridges on macOS)
+            ├─ AccessKit           Windows accessibility
+            └─ System GIO          native Linux AT-SPI (dynamically linked)
 ```
 
-Every dependency is pinned (`engines/engine/cmake/SoundorDependencies.cmake`),
-linked statically and hidden: two Soundor plugins in one host never share or
-clash on a symbol.
+Bundled dependencies are pinned (`engines/engine/cmake/SoundorDependencies.cmake`),
+linked statically and hidden. Linux accessibility uses the system shared GIO library;
+macOS uses native NSAccessibility.
 
 ## Prebuilt and source mode
 
@@ -147,10 +148,13 @@ built it: **build the releases you ship on Ubuntu 24.04**, not on a newer deskto
 distribution. `soundor build` prints the version a release needs, and `soundor
 doctor` warns when this machine's is newer than 2.39.
 
-| Where           | Needs                                                |
-| --------------- | ---------------------------------------------------- |
-| A user's system | glibc 2.39 or newer, `libfontconfig`, `libfreetype`  |
-| A build machine | CMake, Ninja, a C++ compiler, its static C++ library |
+| Where           | Needs                                                                                      |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| A user's system | glibc 2.39 or newer, `libfontconfig`, `libfreetype`, `libgio-2.0.so.0`                     |
+| A build machine | CMake, Ninja, a C++ compiler, its static C++ library, pkg-config and GIO development files |
+
+GIO comes from GLib (`libglib2.0-dev` on Ubuntu/Debian). CMake propagates the
+dynamic library through source builds and prebuilt imports automatically.
 
 The static library comes with the compiler on most distributions. On Fedora and
 RHEL it is a separate package, and every build stops without it, before compiling

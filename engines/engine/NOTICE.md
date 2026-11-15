@@ -14,7 +14,7 @@ and is never part of the engine.
 | Yoga                  | MIT                                             | Layout                                   |
 | Skia                  | BSD-3-Clause, plus compiled third-party notices | Rasterization                            |
 | ANGLE                 | BSD-3-Clause, plus compiled third-party notices | Graphics                                 |
-| AccessKit             | MIT / Apache-2.0, plus transitive notices       | Accessibility                            |
+| AccessKit             | MIT / Apache-2.0, plus transitive notices       | Windows accessibility                    |
 
 Distributors must include applicable dependency license texts and attribution
 notices from the exact fetched revisions, including compiled transitive code.
@@ -27,3 +27,9 @@ Doctest and Three.js are test-only dependencies and are not shipped in this
 source package. No compiled native libraries are included in this npm
 package; they are published separately as prebuilt engine releases
 (README.md, "Prebuilt engines").
+
+Linux accessibility uses the system GIO/GDBus library dynamically
+(`libgio-2.0.so.0`), with GLib/GObject. GIO and GLib are LGPL-2.1-or-later;
+they are not bundled in the engine archive. Distributors bundling those
+system libraries must provide their applicable LGPL notices and meet their
+distribution requirements. Soundor-owned engine code remains MIT licensed.

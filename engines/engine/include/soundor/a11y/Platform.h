@@ -69,7 +69,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
         virtual void setGeometry(const ViewGeometry& geometry) = 0;
         // Whether the native view's window has keyboard focus.
         virtual void setFocused(bool focused) = 0;
-        // Whether assistive technology asked for the tree.
+        // Whether platform accessibility is active. Linux: registered on the
+        // accessibility bus; Windows and Apple: assistive technology activated it.
         [[nodiscard]] virtual bool active() const = 0;
 
         // macOS and iOS: the object holding the view's elements, which the
@@ -81,7 +82,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y
     };
 
     // The platform's accessibility for `options.view`; null where Soundor has
-    // none here: Android (no runtime yet), or a build without AccessKit (Linux
-    // arm64, SOUNDOR_ACCESSKIT=OFF).
+    // none here: Android (no runtime yet), or a Windows build without AccessKit.
     [[nodiscard]] std::unique_ptr<PlatformAccessibility> createPlatformAccessibility(const PlatformOptions& options);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y

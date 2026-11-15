@@ -1,6 +1,5 @@
-// PlatformAccessibility through AccessKit: UI Automation on Windows, AT-SPI
-// on Linux. Soundor's semantic tree goes in (Mapping.h), AccessKit's requests
-// come out, queued for the UI thread.
+// PlatformAccessibility through AccessKit: UI Automation on Windows. Soundor's semantic tree goes in (Mapping.h),
+// AccessKit's requests come out, queued for the UI thread.
 //
 // Lifetime rules, because a plugin lives in someone else's process:
 // - The platform calls back with a token, not a pointer. Callbacks find their
@@ -9,8 +8,7 @@
 // - Requests made on a platform thread are plain data in a queue; only tick(),
 //   on the UI thread, turns them into actions on the view.
 // - Once AccessKit has run code the platform may still call into later (UI
-//   Automation providers held by a screen reader on Windows; the AT-SPI
-//   thread on Linux), the plugin's binary is pinned: unloading it would leave
+//   Automation providers held by a screen reader on Windows), the plugin's binary is pinned: unloading it would leave
 //   the platform calling code that is gone.
 
 #include "a11y/accesskit/AccessKitPlatform.h"
@@ -224,44 +222,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
             HWND hwnd;
             accesskit_windows_adapter* adapter = nullptr;
         };
-#elif defined(__linux__)
-        // ── Linux: AT-SPI ───────────────────────────────────────────────────
-
-        class UnixPlatform final : public AccessKitPlatform
-        {
-        public:
-            explicit UnixPlatform(std::string name) : AccessKitPlatform(std::move(name))
-            {
-                // The adapter starts AccessKit's AT-SPI thread, which lives on.
-                pinModule();
-                adapter = accesskit_unix_adapter_new(activate, tokenPointer(token()), request, tokenPointer(token()),
-                                                     deactivate, tokenPointer(token()));
-            }
-
-            ~UnixPlatform() override { accesskit_unix_adapter_free(adapter); }
-
-            UnixPlatform(const UnixPlatform&) = delete;
-            UnixPlatform& operator=(const UnixPlatform&) = delete;
-
-            void setFocused(bool focused) final { accesskit_unix_adapter_update_window_focus_state(adapter, focused); }
-
-        protected:
-            void send(Pending* pending) final
-            {
-                accesskit_unix_adapter_update_if_active(adapter, buildUpdate, pending);
-            }
-
-            void moved() final
-            {
-                const Rect& screen = viewGeometry().screen;
-                const accesskit_rect bounds { screen.x, screen.y, static_cast<double>(screen.x) + screen.width,
-                                              static_cast<double>(screen.y) + screen.height };
-                accesskit_unix_adapter_set_root_window_bounds(adapter, bounds, bounds);
-            }
-
-        private:
-            accesskit_unix_adapter* adapter = nullptr;
-        };
 #endif
     } // namespace
 
@@ -271,8 +231,6 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::a11y::detail
         if (options.view.handle == nullptr)
             return nullptr;
         return std::make_unique<WindowsPlatform>(static_cast<HWND>(options.view.handle), options.name);
-#elif defined(__linux__)
-        return std::make_unique<UnixPlatform>(options.name);
 #else
         // Android: the runtime has no Android view to attach to yet.
         static_cast<void>(options);

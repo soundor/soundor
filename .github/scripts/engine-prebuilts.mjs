@@ -153,6 +153,12 @@ export function checkStage(stage, expected) {
       `MultiThreaded${debug ? 'Debug' : ''}${staticCrt ? '' : 'DLL'}`,
     );
   const link = metadata.link ?? {};
+  if (metadata.target?.os === 'linux') {
+    expect('features.accessKit', metadata.features?.accessKit, false);
+    if (link.accessKit?.length)
+      problems.push('Linux prebuilts must not link an AccessKit archive');
+  }
+
   for (const group of ['engine', 'hermes', 'skia', 'angle', 'accessKit'])
     for (const file of link[group] ?? [])
       if (!exists(join(stage, file))) problems.push(`${file} is missing`);

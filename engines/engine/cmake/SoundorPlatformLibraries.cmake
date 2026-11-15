@@ -14,6 +14,13 @@ elseif(WIN32)
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES bcrypt Threads::Threads) # crypto.getRandomValues
 else()
   set(SOUNDOR_RUNTIME_SYSTEM_LIBRARIES Threads::Threads)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    if(NOT TARGET PkgConfig::SOUNDOR_GIO)
+      pkg_check_modules(SOUNDOR_GIO REQUIRED IMPORTED_TARGET GLOBAL gio-2.0)
+    endif()
+    list(APPEND SOUNDOR_RUNTIME_SYSTEM_LIBRARIES PkgConfig::SOUNDOR_GIO)
+  endif()
 endif()
 
 set(SOUNDOR_HERMES_SYSTEM_LIBRARIES Threads::Threads ${CMAKE_DL_LIBS})
@@ -43,12 +50,10 @@ if(WIN32)
   # for the window subclass Soundor installs.
   set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES
     bcrypt ntdll propsys runtimeobject uiautomationcore userenv ws2_32 comctl32)
-else()
+elseif(ANDROID)
   # The archive's symbols have default visibility: hide every one of them
   # in whatever shared library links it. A flag in the link line (not a
   # link option) so it reaches the plugin through static libraries.
   set(SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES "-Wl,--exclude-libs,libaccesskit.a" m ${CMAKE_DL_LIBS} Threads::Threads)
-  if(ANDROID)
-    list(APPEND SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES android log)
-  endif()
+  list(APPEND SOUNDOR_ACCESSKIT_SYSTEM_LIBRARIES android log)
 endif()

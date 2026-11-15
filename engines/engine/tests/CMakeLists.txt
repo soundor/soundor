@@ -182,6 +182,11 @@ if(SOUNDOR_JS_SOURCE)
     target_compile_definitions(soundor_runtime_tests PRIVATE SOUNDOR_HAS_ACCESSKIT=1)
   endif()
 
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(soundor_runtime_tests PRIVATE a11y/AtSpiTests.cpp)
+    target_link_libraries(soundor_runtime_tests PRIVATE PkgConfig::SOUNDOR_GIO)
+  endif()
+
   if(APPLE AND NOT IOS)
     target_sources(soundor_runtime_tests PRIVATE apple/MacBridgeTests.mm)
     target_link_libraries(soundor_runtime_tests PRIVATE "-framework AppKit")
