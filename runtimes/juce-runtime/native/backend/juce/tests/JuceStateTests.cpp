@@ -729,7 +729,9 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
+    // The methods are the Rust controller's (inactive here: another contract); the
+    // events and streams are connected all the same.
+    native::installController(context, processor.rustController(), processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
                                 "globalThis.seen = [];"
@@ -753,7 +755,9 @@ TEST_CASE("the processor's native streams carry the audio thread's latest value 
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
+    // The methods are the Rust controller's (inactive here: another contract); the
+    // events and streams are connected all the same.
+    native::installController(context, processor.rustController(), processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { streams } = require('soundor:native');"
                                 "globalThis.seen = [];"

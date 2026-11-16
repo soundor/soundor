@@ -23,7 +23,7 @@ use crate::ABI_VERSION;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES};
 use crate::plugin::{PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot};
-use crate::processor::AudioProcessor;
+use crate::processor::Processor;
 use crate::streams::{NoStreams, StreamSink};
 use crate::transport::Transport;
 
@@ -206,8 +206,15 @@ unsafe fn state<'a>(
 }
 
 /// The processor behind a handle.
-pub struct Handle<P: AudioProcessor> {
+pub struct Handle<P: Processor> {
     instance: Instance<P>,
+}
+
+impl<P: Processor> Handle<P> {
+    /// Its resources' handoff, which the plugin's controller publishes to.
+    pub(crate) fn resource_slots(&self) -> std::sync::Arc<crate::plugin::ResourceSlots> {
+        self.instance.resource_slots()
+    }
 }
 
 /// # Safety
@@ -241,7 +248,7 @@ pub fn info() -> SoundorProcessorInfo {
 }
 
 /// `soundor_processor_create`: null when the processor's construction panicked.
-pub fn create<P: AudioProcessor>() -> *mut Handle<P> {
+pub fn create<P: Processor>() -> *mut Handle<P> {
     catch_unwind(|| {
         Box::into_raw(Box::new(Handle {
             instance: Instance::<P>::new(),
@@ -255,7 +262,7 @@ pub fn create<P: AudioProcessor>() -> *mut Handle<P> {
 /// # Safety
 ///
 /// `handle` is null, or came from [`create`] and is not used again.
-pub unsafe fn destroy<P: AudioProcessor>(handle: *mut Handle<P>) {
+pub unsafe fn destroy<P: Processor>(handle: *mut Handle<P>) {
     if handle.is_null() {
         return;
     }
@@ -270,10 +277,7 @@ pub unsafe fn destroy<P: AudioProcessor>(handle: *mut Handle<P>) {
 ///
 /// `handle` came from [`create`]; `config` is null or valid, with its
 /// arrays valid for their counts.
-pub unsafe fn prepare<P: AudioProcessor>(
-    handle: *mut Handle<P>,
-    config: *const SoundorPrepare,
-) -> i32 {
+pub unsafe fn prepare<P: Processor>(handle: *mut Handle<P>, config: *const SoundorPrepare) -> i32 {
     guarded(|| {
         // SAFETY: as the caller promises.
         let (Some(handle), Some(config)) = (unsafe { handle.as_mut() }, unsafe { config.as_ref() })
@@ -337,10 +341,7 @@ pub unsafe fn prepare<P: AudioProcessor>(
 /// `handle` came from [`create`]; `block` is null or valid, its arrays valid
 /// for their counts and each channel pointer for `frames` samples, as
 /// [`SoundorBlock`] describes.
-pub unsafe fn process<P: AudioProcessor>(
-    handle: *mut Handle<P>,
-    block: *const SoundorBlock,
-) -> i32 {
+pub unsafe fn process<P: Processor>(handle: *mut Handle<P>, block: *const SoundorBlock) -> i32 {
     guarded(|| {
         // SAFETY: as the caller promises.
         let (Some(handle), Some(block)) = (unsafe { handle.as_mut() }, unsafe { block.as_ref() })
@@ -409,7 +410,7 @@ pub unsafe fn process<P: AudioProcessor>(
 /// # Safety
 ///
 /// `handle` came from [`create`].
-pub unsafe fn reset<P: AudioProcessor>(handle: *mut Handle<P>) -> i32 {
+pub unsafe fn reset<P: Processor>(handle: *mut Handle<P>) -> i32 {
     guarded(|| {
         // SAFETY: as the caller promises.
         match unsafe { handle.as_mut() } {
@@ -431,16 +432,34 @@ pub struct Exports {
     pub destroy: unsafe extern "C" fn(*mut c_void),
 }
 
-/// Defines the processor's C ABI and, compiled to WebAssembly, its module's
-/// exports (see [`crate::wasm`]): what a runtime calls. Invoke it once, in the crate's root, with
-/// the type that implements [`AudioProcessor`](crate::AudioProcessor):
+pub use crate::controller_ffi as controller;
+
+/// Defines what a runtime calls: the processor's C ABI and, compiled to
+/// WebAssembly, its module's exports (see [`crate::wasm`]), and natively the
+/// controller's C ABI. Invoke it once, in the crate's root, with the type
+/// that implements [`Processor`](crate::Processor), and the one that
+/// implements [`Controller`](crate::Controller) when the plugin has one:
 ///
 /// ```ignore
-/// soundor::export!(Processor);
+/// soundor::export!(PluginProcessor, PluginController);
 /// ```
+///
+/// A controller must implement the config's generated
+/// [`NativeMethods`](crate::NativeMethods): every method soundor.config
+/// declares, with its types, which the compiler checks here. Without a
+/// controller (`soundor::export!(PluginProcessor)`), a runtime's own native
+/// method implementation, if any, backs `soundor:native`.
 #[macro_export]
 macro_rules! export {
     ($processor:ty) => {
+        $crate::export!(@processor $processor);
+        $crate::__export_controller!(none);
+    };
+    ($processor:ty, $controller:ty) => {
+        $crate::export!(@processor $processor);
+        $crate::__export_controller!($processor, $controller);
+    };
+    (@processor $processor:ty) => {
         /// The processor's ABI, as `soundor::export!` defines it.
         #[doc(hidden)]
         pub mod __soundor_exports {

@@ -117,6 +117,9 @@ describe('the native scaffold', () => {
       'native/Cargo.toml',
       'native/.gitignore',
       'native/src/lib.rs',
+      // The fixture declares native methods: a controller for them.
+      'native/src/controller.rs',
+      'native/tests/controller.rs',
       'native/tests/processor.rs',
       'native/tests/realtime.rs',
     ]);
@@ -126,13 +129,40 @@ describe('the native scaffold', () => {
       'soundor = { path = "../.soundor/generated/rust/soundor" }',
     );
     expect(files[0]!.contents).toContain('channel = "stable"');
-    expect(files[3]!.contents).toContain('soundor::export!(Processor);');
+    expect(files[3]!.contents).toContain(
+      'soundor::export!(PluginProcessor, PluginController);',
+    );
+    expect(files[3]!.contents).toContain('impl Processor for PluginProcessor');
     expect(files[3]!.contents).toContain('ctx.params.gain');
-    expect(files[4]!.contents).toContain('use sdk_fixture::Processor;');
-    expect(files[5]!.contents).toContain(
+    const controller = files[4]!.contents;
+    expect(controller).toContain('impl NativeMethods for PluginController');
+    expect(controller).toContain(
+      '    fn increment(_ctx: &mut TaskContext<Self>) -> i32 {',
+    );
+    expect(controller).toContain(
+      '    async fn load_table(_ctx: AsyncTaskContext<Self>, _length: u32) -> Result<Vec<f32>, Error> {',
+    );
+    expect(controller).toContain(
+      '    fn reset(_ctx: &mut TaskContext<Self>) {\n        // TODO: implement it.\n    }',
+    );
+    expect(files[5]!.contents).toContain('TestController::<PluginController>');
+    expect(files[6]!.contents).toContain('use sdk_fixture::PluginProcessor;');
+    expect(files[7]!.contents).toContain(
       'static ALLOCATOR: CountingAllocator = CountingAllocator;',
     );
-    expect(files[5]!.contents).toContain('use sdk_fixture::Processor;');
+    expect(files[7]!.contents).toContain('use sdk_fixture::PluginProcessor;');
+  });
+
+  it('exports a processor alone when the config declares no native methods', async () => {
+    const config = await parseConfig({ path: FIXTURE });
+    const files = nativeScaffoldFiles({
+      ...config,
+      native: { ...config.native, methods: {} },
+    });
+    expect(files.map((file) => file.path)).not.toContain(
+      'native/src/controller.rs',
+    );
+    expect(files[3]!.contents).toContain('soundor::export!(PluginProcessor);');
   });
 
   it('derives a crate name from any plugin name', () => {

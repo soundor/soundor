@@ -5,6 +5,10 @@
  * everything else in the crate is the user's to change.
  */
 import type { ResolvedSoundorConfig } from '@soundor/config';
+import { describeNativeApi } from '@soundor/core';
+
+import { RUST_NAMES } from './codegen';
+import { renderControllerScaffold } from './controller-codegen';
 
 /** A file to scaffold, path relative to the project root. */
 export interface NativeScaffoldFile {
@@ -32,20 +36,71 @@ export function nativeScaffoldFiles(
     (parameter) => parameter.id === 'gain' && parameter.type === 'float32',
   );
   const name = crateName(config.plugin.name);
+  const native = describeNativeApi(config.native);
+  // A controller only when the config declares native methods for it.
+  const controller =
+    native.ok && native.model.methods.length > 0
+      ? renderControllerScaffold(native.model, RUST_NAMES)
+      : undefined;
+  const processor = gain ? gainProcessor() : passThrough();
   return [
     { path: 'rust-toolchain.toml', contents: toolchain() },
     { path: 'native/Cargo.toml', contents: manifest(name) },
     { path: 'native/.gitignore', contents: '/target\n' },
     {
       path: 'native/src/lib.rs',
-      contents: gain ? gainProcessor() : passThrough(),
+      contents:
+        controller === undefined ? processor : withController(processor),
     },
+    ...(controller === undefined
+      ? []
+      : [
+          { path: 'native/src/controller.rs', contents: controller },
+          {
+            path: 'native/tests/controller.rs',
+            contents: controllerTests(name),
+          },
+        ]),
     {
       path: 'native/tests/processor.rs',
       contents: gain ? gainTests(name) : passThroughTests(name),
     },
     { path: 'native/tests/realtime.rs', contents: realtimeTests(name) },
   ];
+}
+
+/** The processor's module, exporting the controller of `controller.rs` too. */
+function withController(processor: string): string {
+  return processor
+    .replace(
+      'use soundor::prelude::*;\n',
+      'use soundor::prelude::*;\n\nmod controller;\npub use controller::PluginController;\n',
+    )
+    .replace(
+      'soundor::export!(PluginProcessor);',
+      'soundor::export!(PluginProcessor, PluginController);',
+    )
+    .replace(
+      "//! Its parameters are soundor.config.ts's, typed",
+      "//! Its controller (controller.rs) backs soundor:native's methods.\n//! Its parameters are soundor.config.ts's, typed",
+    );
+}
+
+function controllerTests(name: string): string {
+  return `//! The controller, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
+
+use ${crateIdent(name)}::PluginController;
+use soundor::testing::TestController;
+
+#[test]
+fn starts_with_empty_stores() {
+    let controller = TestController::<PluginController>::new();
+    // With \`use soundor::prelude::*;\`, a synchronous method:
+    // \`controller.task(PluginController::method)\`; an async one:
+    // \`controller.block_on(PluginController::method(controller.async_context()))\`.
+    controller.task(|ctx| assert_eq!(ctx.plugin.name, soundor::config::PLUGIN_NAME));
+}
+`;
 }
 
 function toolchain(): string {
@@ -91,12 +146,12 @@ use soundor::prelude::*;
 /// Applies the \`gain\` parameter as a linear gain, ramping from one block's
 /// value to the next so that automation doesn't click.
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     /// The last block's gain, where the next ramp starts.
     gain: f32,
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         // Start from the current value, rather than gliding up from silence.
         self.gain = ctx.params.gain;
@@ -122,7 +177,7 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);
 `;
 }
 
@@ -136,15 +191,15 @@ use soundor::prelude::*;
 /// Passes its input through: the main output starts each block holding the
 /// main input, processed in place.
 #[derive(Default)]
-pub struct Processor;
+pub struct PluginProcessor;
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, _ctx: &PrepareContext) {}
 
     fn process(&mut self, _ctx: &mut ProcessContext) {}
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);
 `;
 }
 
@@ -154,7 +209,7 @@ function crateIdent(name: string): string {
 
 function testImports(name: string, types: string): string {
   return [
-    `use ${crateIdent(name)}::Processor;`,
+    `use ${crateIdent(name)}::PluginProcessor;`,
     `use soundor::testing::${types};`,
   ]
     .sort()
@@ -168,7 +223,7 @@ ${testImports(name, 'TestProcessor')}
 
 #[test]
 fn applies_the_gain() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .sample_rate(48_000.0)
         .block_size(256)
         .parameter("gain", 0.5)
@@ -186,7 +241,7 @@ ${testImports(name, 'TestProcessor')}
 
 #[test]
 fn passes_its_input_through() {
-    let mut processor = TestProcessor::<Processor>::new().build();
+    let mut processor = TestProcessor::<PluginProcessor>::new().build();
     let output = processor.process(&[vec![1.0, 0.5, -1.0]]);
     assert_eq!(output[0], [1.0, 0.5, -1.0]);
 }
@@ -206,7 +261,7 @@ static ALLOCATOR: CountingAllocator = CountingAllocator;
 #[test]
 fn processing_does_not_allocate() {
     for block_size in [1, 64, 512, 4096] {
-        let mut processor = TestProcessor::<Processor>::new()
+        let mut processor = TestProcessor::<PluginProcessor>::new()
             .block_size(block_size)
             .build();
         let input: Vec<f32> = (0..24_000)

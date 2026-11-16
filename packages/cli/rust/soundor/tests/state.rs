@@ -24,7 +24,7 @@ struct Recorder {
     last_length: usize,
 }
 
-impl AudioProcessor for Recorder {
+impl Processor for Recorder {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.prepared = Some((ctx.state.processing_mode, ctx.state.pattern.to_vec()));
         self.modes.reserve(64);

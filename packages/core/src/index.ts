@@ -101,6 +101,12 @@ export {
 
 export * from './state';
 export {
+  DESCRIPTOR_TAGS,
+  DESCRIPTOR_VERSION,
+  byteLiterals,
+  describeController,
+} from './controller-descriptor';
+export {
   environmentIssues,
   resolveEnvironment,
   renderEnvironmentModule,

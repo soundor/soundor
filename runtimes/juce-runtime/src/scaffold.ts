@@ -93,10 +93,11 @@ function processorHeader(
 #include <soundor/soundor.h>
 
 // Your plugin's processor. Inherits soundor::AudioProcessor, which owns the
-// parameters generated from soundor.config and runs the audio processing:
-// the Rust crate in native/. What is here is the rest of the plugin: its
-// editor${configuredAudio ? '' : ', its buses'} and, when the config declares one, its native API
-// (createNativeApi()).
+// parameters generated from soundor.config and runs the Rust crate in
+// native/: its audio processing, and its controller, which backs the native
+// API's methods when it exports one. What is here is the rest of the plugin:
+// its editor${configuredAudio ? '' : ', its buses'} and, for a native API in C++ instead,
+// createNativeApi().
 class ${cls}Processor final : public soundor::AudioProcessor
 {
 public:

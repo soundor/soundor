@@ -24,7 +24,7 @@ pub fn decibels(gain: f32) -> f32 {
 }
 
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     fft: Option<Fft>,
     window: Vec<f32>,
     /// The last FFT_SIZE samples (mono), written circularly.
@@ -36,7 +36,7 @@ pub struct Processor {
     band_start: Vec<usize>,
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.fft = Some(Fft::new(FFT_SIZE));
         // Hann, normalized to an average of 1.
@@ -103,7 +103,7 @@ impl AudioProcessor for Processor {
     }
 }
 
-impl Processor {
+impl PluginProcessor {
     /// The window's spectrum, by band, in decibels, written straight into the
     /// stream's own storage: the UI never sees a partly written one.
     fn analyze(&mut self, spectrum: &mut [f32]) {
@@ -126,4 +126,4 @@ impl Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);

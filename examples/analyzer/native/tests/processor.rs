@@ -2,7 +2,7 @@
 //! config's streams, and that its audio passes through untouched.
 
 use soundor::testing::TestProcessor;
-use soundor_analyzer::{BANDS, Processor};
+use soundor_analyzer::{BANDS, PluginProcessor};
 
 const RATE: f64 = 48_000.0;
 
@@ -22,7 +22,7 @@ fn band_of(frequency: f64) -> usize {
 
 #[test]
 fn passes_its_audio_through() {
-    let mut processor = TestProcessor::<Processor>::new().sample_rate(RATE).build();
+    let mut processor = TestProcessor::<PluginProcessor>::new().sample_rate(RATE).build();
     let input = sine(440.0, 0.5, 4096);
     let output = processor.process(&[input.clone(), input.clone()]);
     assert_eq!(output, [input.clone(), input]);
@@ -30,7 +30,7 @@ fn passes_its_audio_through() {
 
 #[test]
 fn publishes_the_peak_of_each_block() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .sample_rate(RATE)
         .block_size(256)
         .build();
@@ -43,7 +43,7 @@ fn publishes_the_peak_of_each_block() {
 
 #[test]
 fn finds_a_tone_in_its_band() {
-    let mut processor = TestProcessor::<Processor>::new().sample_rate(RATE).build();
+    let mut processor = TestProcessor::<PluginProcessor>::new().sample_rate(RATE).build();
     let tone = sine(1000.0, 0.5, 8192);
     processor.process(&[tone.clone(), tone]);
     let spectrum = processor.stream_buffer::<f32>("spectrum").unwrap();
@@ -63,7 +63,7 @@ fn finds_a_tone_in_its_band() {
 
 #[test]
 fn publishes_a_spectrum_every_half_window() {
-    let mut processor = TestProcessor::<Processor>::new().sample_rate(RATE).build();
+    let mut processor = TestProcessor::<PluginProcessor>::new().sample_rate(RATE).build();
     processor.process(&[vec![0.0; 1023]]);
     assert_eq!(processor.stream_buffer::<f32>("spectrum"), None);
     processor.process(&[vec![0.0; 1]]);
@@ -73,7 +73,7 @@ fn publishes_a_spectrum_every_half_window() {
 
 #[test]
 fn analyzes_mono_too() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .sample_rate(RATE)
         .layout(&[1], &[1])
         .build();

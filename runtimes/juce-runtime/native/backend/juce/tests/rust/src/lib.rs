@@ -2,17 +2,24 @@
 //! sidechain doubled into a second output bus when there is one, `peak`
 //! published, both streams filled (`history`: the gain, the tempo, then
 //! `processingMode` and the length of `pattern` as the state has them, then
-//! the length of the `wavetable` resource `prepare` published), and a
-//! panic at `gain` 2.
+//! the length of the `wavetable` resource last published), and a panic at
+//! `gain` 2.
+//!
+//! And a controller implementing the fixture's native methods, for
+//! JuceRustControllerTests.cpp: a counter in its local store, the services,
+//! `schedule()`, and an async `loadTable` that publishes the wavetable.
+
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use soundor::prelude::*;
+use soundor::types::{Analysis, Curve, Point};
 
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     max_frames: usize,
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.max_frames = ctx.max_frames;
         // A resource prepared outside the audio thread: one element a frame.
@@ -63,4 +70,86 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+#[derive(Default)]
+pub struct LocalStore {
+    counter: i32,
+}
+
+#[derive(Default)]
+pub struct SharedStore {
+    requests: AtomicU64,
+}
+
+pub struct PluginController;
+
+impl Controller for PluginController {
+    type Local = LocalStore;
+    type Shared = SharedStore;
+}
+
+impl NativeMethods for PluginController {
+    fn analyze(_ctx: &mut TaskContext<Self>, samples: Vec<f32>) -> Analysis {
+        Analysis {
+            peak: samples
+                .iter()
+                .fold(0.0f32, |peak, sample| peak.max(sample.abs())),
+            points: vec![Point {
+                x: samples.len() as f64,
+                y: 0.0,
+            }],
+            label: None,
+        }
+    }
+
+    fn describe(ctx: &mut TaskContext<Self>, gain: f32, id: u64, tags: Vec<String>) -> String {
+        ctx.params.gain.set(gain);
+        ctx.state.tags.set(tags.clone());
+        format!(
+            "{id}: {} [{}] {}",
+            ctx.params.gain.get(),
+            tags.join(","),
+            ctx.state.processing_mode.get()
+        )
+    }
+
+    async fn fail(_ctx: AsyncTaskContext<Self>, message: String) -> Result<(), Error> {
+        Err(Error::new(message))
+    }
+
+    fn increment(ctx: &mut TaskContext<Self>) -> i32 {
+        ctx.store.local.counter += 1;
+        ctx.store.local.counter
+    }
+
+    async fn increment_later(ctx: AsyncTaskContext<Self>) -> Result<i32, Error> {
+        ctx.store.shared.requests.fetch_add(1, Ordering::Relaxed);
+        Ok(ctx
+            .schedule(|ctx| {
+                ctx.store.local.counter += 1;
+                ctx.store.local.counter
+            })
+            .await?)
+    }
+
+    async fn load_table(ctx: AsyncTaskContext<Self>, length: u32) -> Result<Vec<f32>, Error> {
+        let table = soundor::unblock(move || vec![0.25f32; length as usize]).await;
+        ctx.processor.resources().wavetable.publish(table.clone());
+        ctx.schedule(move |ctx| {
+            ctx.state
+                .selected_preset
+                .set(Some(format!("table {length}")))
+        })
+        .await?;
+        Ok(table)
+    }
+
+    fn pick(_ctx: &mut TaskContext<Self>, curve: Option<Curve>) -> Curve {
+        curve.unwrap_or(Curve::EaseIn)
+    }
+
+    fn reset(ctx: &mut TaskContext<Self>) {
+        ctx.store.local.counter = 0;
+    }
+}
+
+soundor::export!(PluginProcessor, PluginController);

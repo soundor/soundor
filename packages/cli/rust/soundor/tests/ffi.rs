@@ -13,7 +13,7 @@ struct Gain {
     largest_block: usize,
 }
 
-impl AudioProcessor for Gain {
+impl Processor for Gain {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.max_frames = ctx.max_frames;
     }

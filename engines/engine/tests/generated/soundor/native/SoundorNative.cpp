@@ -2,6 +2,7 @@
 #include "SoundorNative.h"
 
 #include "js/Bindings.h"
+#include "js/RustMethods.h"
 
 #include <array>
 #include <stdexcept>
@@ -18,6 +19,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
 
         // Identifies this context's NativeApi in its module data.
         const char apiKey = 0;
+
+        // Identifies this context's Rust controller in its module data.
+        const char controllerKey = 0;
 
         constexpr std::array<std::string_view, 3> kCurveValues { "linear", "exponential", "low-cut" };
 
@@ -770,6 +774,26 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
                                          bind::setProperty(ctx, exports, "sumBytes", bind::function(ctx, "sumBytes", 1, call_sumBytes));
                                          bind::setProperty(ctx, exports, "sumInts", bind::function(ctx, "sumInts", 1, call_sumInts));
                                          bind::setProperty(ctx, exports, "sumWords", bind::function(ctx, "sumWords", 1, call_sumWords));
+                                         bind::installEvents(ctx, exports, eventNames, &eventsKey);
+                                         bind::installStreams(ctx, exports, streamNames, &streamsKey);
+                                     },
+                                     {},
+                                     {},
+                                 });
+    }
+
+    void installController(js::Context& context, std::shared_ptr<processor::RustController> controller, const Events& events, const Streams& streams)
+    {
+        if (controller == nullptr)
+            throw std::invalid_argument("soundor:native needs a Rust controller");
+        bind::setRustController(context, &controllerKey, std::move(controller));
+        bind::connectEvents(context, events, deliverEvent);
+        bind::connectStreams(context, { streams.frames.core(), streams.level.core(), streams.spectrum.core() }, &streamsKey);
+        js::registerNativeModule(context, "soundor:native",
+                                 {
+                                     [](bind::ContextState& ctx, jsi::Object& exports)
+                                     {
+                                         bind::installRustMethods(ctx, exports, &controllerKey);
                                          bind::installEvents(ctx, exports, eventNames, &eventsKey);
                                          bind::installStreams(ctx, exports, streamNames, &streamsKey);
                                      },

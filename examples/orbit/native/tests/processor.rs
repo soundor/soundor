@@ -1,15 +1,15 @@
 //! Orbit's processor through Soundor's testing harness: parameters by id, as
 //! the runtimes pass them, and the host's transport.
 
-use orbit::Processor;
+use orbit::PluginProcessor;
 use soundor::testing::{Status, TestProcessor};
 
 const RATE: f64 = 48_000.0;
 
 /// The first voice alone and fully wet, with no drift or repeats, the filter
 /// wide open, and free time (500 ms a beat).
-fn one_voice() -> TestProcessor<Processor> {
-    TestProcessor::<Processor>::new()
+fn one_voice() -> TestProcessor<PluginProcessor> {
+    TestProcessor::<PluginProcessor>::new()
         .sample_rate(RATE)
         .block_size(512)
         .parameter("sync", 0.0)
@@ -24,7 +24,7 @@ fn one_voice() -> TestProcessor<Processor> {
         .build()
 }
 
-fn settle(processor: &mut TestProcessor<Processor>) {
+fn settle(processor: &mut TestProcessor<PluginProcessor>) {
     processor.process(&[vec![0.0; RATE as usize], vec![0.0; RATE as usize]]);
 }
 
@@ -74,7 +74,7 @@ fn bypass_returns_the_dry_signal() {
 
 #[test]
 fn mono_folds_both_sides_into_one() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .layout(&[1], &[1])
         .parameter("bypass", 1.0)
         .build();
@@ -95,7 +95,7 @@ fn reset_forgets_the_echoes() {
 
 #[test]
 fn stays_finite_at_maximum_feedback_and_hold() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .parameter("feedback", 0.92)
         .parameter("mix", 1.0)
         .build();

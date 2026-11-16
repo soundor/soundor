@@ -21,7 +21,7 @@ use crate::context::{PrepareContext, ProcessContext};
 ///
 /// A panic is caught at the runtime's boundary: the processor is then
 /// considered failed, and its outputs are silent until it is prepared again.
-pub trait AudioProcessor: Default + Send + 'static {
+pub trait Processor: Default + Send + 'static {
     /// Sizes the processor's resources for the sample rate, the most frames a
     /// block will hold, and the active layout.
     fn prepare(&mut self, ctx: &PrepareContext<'_>);

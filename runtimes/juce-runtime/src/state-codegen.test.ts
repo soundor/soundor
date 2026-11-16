@@ -65,6 +65,12 @@ const config = resolveConfig({
     },
     // The processor owns them (JuceStateTests.cpp publishes one).
     events: { bandChanged: { band: 'Band', index: 'uint32' } },
+    // Backed by a Rust controller when the crate exports one: the tests'
+    // crate has another contract, so its controller stays inactive here.
+    methods: {
+      setBand: { args: { band: 'Band' }, returns: 'uint32' },
+      loadGroup: { args: { path: 'string' }, returns: 'Group?', async: true },
+    },
     streams: { meter: { type: 'buffer<float32>', maxLength: 4 } },
   },
   state: {

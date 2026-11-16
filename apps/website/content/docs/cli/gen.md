@@ -15,7 +15,11 @@ in `.soundor/generated/`:
   imports, and the Web globals the runtimes provide;
 - each runtime's own framework: for JUCE, its CMake integration, processor
   and editor bases, and the C++ native API with its bindings; for the web,
-  a manifest and the `WebNativeApi` interface `native.ts` implements.
+  a manifest and the `WebNativeApi` interface `native.ts` implements;
+- the Rust SDK, `rust/soundor`, with the config's contract in `src/plugin.rs`:
+  the processor's parameters, layouts, streams, state and resources, and the
+  controller's `NativeMethods` trait, native types, and the controller
+  descriptor the runtime checks it against.
 
 | Option            | What it does                                                      |
 | ----------------- | ----------------------------------------------------------------- |

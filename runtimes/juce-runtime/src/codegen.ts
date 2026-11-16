@@ -29,6 +29,7 @@ import { dirname } from 'node:path';
 
 import {
   describeAudioState,
+  describeController,
   describeNativeApi,
   describeState,
 } from '@soundor/runtime-sdk';
@@ -129,7 +130,14 @@ export function generateJuceSources(
         nativeApi.model,
       ),
     },
-    ...generateNativeModuleSources(nativeApi.model),
+    ...generateNativeModuleSources(
+      nativeApi.model,
+      describeController(
+        nativeApi.model,
+        describeState(config.state, config.native),
+        parameters.length,
+      ),
+    ),
     ...generateStateSources(config),
     ...generatePresetSources(config),
   ].map((file) => ({
@@ -196,6 +204,23 @@ ${cases('buffer', (name) => `streams.${name}.commit(length); break;`)}
 
 /** The editor's install() of soundor:native into each new context. */
 function renderNativeInstall(native: NativeApiModel): string {
+  const fallback = renderNativeApiInstall(native);
+  if (native.methods.length === 0) return fallback;
+  const feeds = [
+    ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
+    ...(native.streams.length > 0 ? ['owner.nativeStreams'] : []),
+  ];
+  // The Rust controller backs the methods when the crate exports one;
+  // otherwise the C++ NativeApi, as before.
+  return `            if (const auto& controller = owner.rustController(); controller != nullptr && controller->present())
+                native::installController(${['context', 'controller', ...feeds].join(', ')});
+            else
+            {
+${fallback.replace(/^/gm, '    ')}
+            }`;
+}
+
+function renderNativeApiInstall(native: NativeApiModel): string {
   const feeds = [
     ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
     ...(native.streams.length > 0 ? ['owner.nativeStreams'] : []),
@@ -612,6 +637,19 @@ ${audioDeclaration(config)}
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 ${
+  native.methods.length > 0
+    ? `
+        // The plugin's Rust controller (native/'s, when it exports one with
+        // soundor::export!(PluginProcessor, PluginController)): one per plugin
+        // instance, created with it and shut down with it, whether or not an
+        // editor is open. It backs soundor:native's methods in every editor,
+        // ahead of createNativeApi(). Its control queue runs on the message
+        // thread, woken through an AsyncUpdater.
+        const std::shared_ptr<processor::RustController>& rustController() const noexcept { return controller; }
+`
+    : ''
+}
+${
   hasEvents
     ? `
         // The config's native events (\`events\` of soundor:native): publish
@@ -664,10 +702,105 @@ ${handles || '        // no parameters'}
         std::vector<double> parameterValues;
         std::vector<double> publishedValues;
         ${hasStreams ? 'SoundorStreamSink streamSink {};' : ''}
-
+        // Before anything it reaches goes: the controller stops first.
+        void shutdownController() noexcept;
+${
+  native.methods.length > 0
+    ? `        class ControllerServices;
+        std::unique_ptr<ControllerServices> controllerServices;
+        std::shared_ptr<processor::RustController> controller;
+`
+    : ''
+}
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
 } // namespace ${NS}
+`;
+}
+
+/** The controller's services and shutdown, in SoundorProcessor.cpp. */
+function renderControllerShutdown(native: NativeApiModel): string {
+  if (native.methods.length === 0)
+    return `    void AudioProcessor::shutdownController() noexcept {}`;
+  return `    void AudioProcessor::shutdownController() noexcept
+    {
+        if (controller != nullptr)
+            controller->shutdown();
+    }`;
+}
+
+function renderControllerServices(
+  config: SoundorConfig,
+  native: NativeApiModel,
+): string {
+  if (native.methods.length === 0) return '';
+  const fields = describeState(config.state, config.native).fields;
+  return `    namespace
+    {
+        // The persistent state's fields, as the Rust controller numbers them.
+        constexpr std::array<const char*, ${fields.length}> controllerStateFields { ${fields.map((field) => cppString(field.name)).join(', ')} };
+    } // namespace
+
+    // The plugin's services, as its Rust controller reaches them: the very
+    // editors, state store, History and presets the UI's edits go through, on
+    // the message thread, which is the controller's control thread.
+    class AudioProcessor::ControllerServices final : public processor::ControllerServices, private juce::AsyncUpdater
+    {
+    public:
+        explicit ControllerServices(AudioProcessor& processor) : owner(processor) {}
+        ~ControllerServices() override { cancelPendingUpdate(); }
+        ControllerServices(const ControllerServices&) = delete;
+        ControllerServices& operator=(const ControllerServices&) = delete;
+        ControllerServices(ControllerServices&&) = delete;
+        ControllerServices& operator=(ControllerServices&&) = delete;
+
+        // Any thread: posts a message, which JUCE coalesces.
+        void wake() noexcept override { triggerAsyncUpdate(); }
+
+        double parameter(std::uint32_t index) override { return owner.parameterEditors.at(index)->get(); }
+        void setParameter(std::uint32_t index, double plain) override { owner.parameterEditors.at(index)->set(plain); }
+        std::string state(std::uint32_t index) override { return owner.state.storage().get(controllerStateFields.at(index)); }
+        void setState(std::uint32_t index, std::string_view json) override
+        {
+            owner.state.storage().set(controllerStateFields.at(index), std::string(json));
+        }
+        bool history(HistoryAction action) override
+        {
+            auto& history = owner.history;
+            switch (action)
+            {
+            case HistoryAction::Undo:
+                if (! history.canUndo())
+                    return false;
+                history.undo();
+                return true;
+            case HistoryAction::Redo:
+                if (! history.canRedo())
+                    return false;
+                history.redo();
+                return true;
+            case HistoryAction::CanUndo:
+                return history.canUndo();
+            case HistoryAction::CanRedo:
+                return history.canRedo();
+            }
+            return false;
+        }
+        void loadPreset(std::string_view id) override { owner.factoryPresets->loadFactory(id); }
+
+    private:
+        // At the message loop's next turn: one scheduled callback or async
+        // completion at a time, each followed by its context's microtasks; a
+        // busy controller yields after its budget and runs again at the next.
+        void handleAsyncUpdate() override
+        {
+            if (owner.controller != nullptr && owner.controller->pump())
+                triggerAsyncUpdate();
+        }
+
+        AudioProcessor& owner;
+    };
+
 `;
 }
 
@@ -686,14 +819,19 @@ function renderProcessorSource(
     .join('\n');
   return `${HEADER}#include "SoundorProcessor.h"
 
+#include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace ${NS}
 {
 ${renderStreamSink(streams)}
-    AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
+${renderControllerServices(config, native)}    AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
         : juce::AudioProcessor(ioLayouts)
     {
         // Soundor's parameters, with the behavior soundor.config gives them.
@@ -745,8 +883,22 @@ ${renderStreamSink(streams)}
             parameterEditors.push_back(std::make_unique<backend::ParameterEditor>(*parameter, history));
 
 ${bindings || '        // no parameters'}
-        factoryPresets = std::make_unique<FactoryPresets>(*this);
+        factoryPresets = std::make_unique<FactoryPresets>(*this);${
+          native.methods.length > 0
+            ? `
+        // The Rust controller, if the crate exports one: last, once every
+        // service it reaches exists.
+        controllerServices = std::make_unique<ControllerServices>(*this);
+        controller = std::make_shared<processor::RustController>(
+            std::span<const std::uint8_t>(native::controllerDescriptor), processor::linkedRustController(),
+            *controllerServices, rust.nativeHandle());
+        if (controller->present() && ! controller->active())
+            juce::Logger::writeToLog(juce::String("Soundor: ") + controller->error());`
+            : ''
+        }
     }
+
+${renderControllerShutdown(native)}
 
 ${audioImplementation(config)}
     void AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)

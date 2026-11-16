@@ -2,10 +2,10 @@
 //! `cargo test --manifest-path native/Cargo.toml` (after `soundor gen`).
 
 use soundor::testing::TestProcessor;
-use soundor_snippets::Processor;
+use soundor_snippets::PluginProcessor;
 
-fn processor(gain: f64, bypass: bool) -> TestProcessor<Processor> {
-    TestProcessor::<Processor>::new()
+fn processor(gain: f64, bypass: bool) -> TestProcessor<PluginProcessor> {
+    TestProcessor::<PluginProcessor>::new()
         .parameter("gain", gain)
         .parameter("bypass", if bypass { 1.0 } else { 0.0 })
         .build()
@@ -26,7 +26,7 @@ fn bypass_passes_the_input() {
 
 #[test]
 fn ramps_into_bypass_over_one_block() {
-    let mut gain = TestProcessor::<Processor>::new()
+    let mut gain = TestProcessor::<PluginProcessor>::new()
         .block_size(4)
         .parameter("gain", 0.0)
         .build();

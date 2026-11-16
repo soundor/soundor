@@ -105,6 +105,7 @@ if(SOUNDOR_JS_SOURCE)
     native/NativeModuleTests.cpp
     native/NativeStreamsTests.cpp
     native/NativeEventsTests.cpp
+    native/RustControllerTests.cpp
     parameters/ParametersTests.cpp
     history/HistoryTests.cpp
     render/CompositorTests.cpp

@@ -112,6 +112,15 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 
+        // The plugin's Rust controller (native/'s, when it exports one with
+        // soundor::export!(PluginProcessor, PluginController)): one per plugin
+        // instance, created with it and shut down with it, whether or not an
+        // editor is open. It backs soundor:native's methods in every editor,
+        // ahead of createNativeApi(). Its control queue runs on the message
+        // thread, woken through an AsyncUpdater.
+        const std::shared_ptr<processor::RustController>& rustController() const noexcept { return controller; }
+
+
         // The config's native events (`events` of soundor:native): publish
         // them from any thread but the audio callback, and every open editor
         // receives them on its UI thread.
@@ -158,6 +167,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         std::vector<double> parameterValues;
         std::vector<double> publishedValues;
         SoundorStreamSink streamSink {};
+        // Before anything it reaches goes: the controller stops first.
+        void shutdownController() noexcept;
+        class ControllerServices;
+        std::unique_ptr<ControllerServices> controllerServices;
+        std::shared_ptr<processor::RustController> controller;
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };

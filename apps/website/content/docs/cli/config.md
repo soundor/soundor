@@ -350,8 +350,10 @@ path, custom mappings and `format`/`parse` round trips included. See
 
 ### `native`
 
-The plugin's typed native API, implemented in C++ and imported by JavaScript
-from `soundor:native`:
+The plugin's typed native API, implemented by the plugin's
+[Rust controller](/docs/rust-controller) (or a runtime's own implementation:
+C++ in the JUCE runtime, TypeScript in the Web runtime) and imported by
+JavaScript from `soundor:native`:
 
 ```ts
 native: {

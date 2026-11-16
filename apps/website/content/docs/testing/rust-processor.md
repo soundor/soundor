@@ -30,12 +30,12 @@ In a unit test in `native/src/lib.rs`, for a processor with a `gain` parameter:
 ```rust
 #[cfg(test)]
 mod tests {
-    use super::Processor;
+    use super::PluginProcessor;
     use soundor::testing::{Status, TestProcessor};
 
     #[test]
     fn gain_and_reprepare() {
-        let mut processor = TestProcessor::<Processor>::new()
+        let mut processor = TestProcessor::<PluginProcessor>::new()
             .sample_rate(48_000.0)
             .block_size(64)
             .channels(1)
@@ -139,3 +139,13 @@ also assert that the signal is nonzero so silence cannot pass as parity.
 These layers each exercise their own boundary. A native `WasmHandle` unit test
 alone is not a WASM test, and invoking a worklet class in Node alone is not a
 browser AudioWorklet test. Keep both fast DSP tests and actual runtime tests.
+
+## The controller
+
+A crate that exports a [controller](/docs/rust-controller) tests it with
+`soundor::testing::TestController`, which runs the controller as a runtime
+runs it (its stores, control queue, worker and dispatch) on a `TestHost` that
+stands in for the runtime's parameters, state, History and presets.
+`TestController::for_processor(&processor)` shares a `TestProcessor`'s
+resources, so what the controller publishes is what the next `process()`
+reads. See [Testing](/docs/rust-controller#testing) in the controller guide.

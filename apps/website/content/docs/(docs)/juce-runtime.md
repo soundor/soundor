@@ -348,7 +348,20 @@ typed native API. `gen` turns it into:
 - `soundor/native/SoundorNative.cpp` — the JavaScript bindings: argument
   validation, conversion, exceptions and promises.
 
-Implement it by overriding `createNativeApi()` in your processor:
+Implement the methods in Rust, as the crate's
+[controller](/docs/rust-controller) (`soundor::export!(PluginProcessor,
+PluginController)`): the generated processor creates it with the plugin
+instance (`rustController()`), after its parameters, state, History and
+presets, which it reaches as the UI does, and shuts it down first when the
+instance is destroyed. Every editor installs its methods into its context
+(`native::installController()`); its async methods run on the controller's
+worker, and the controller's queue runs on the message thread, woken through
+an `AsyncUpdater`, a few milliseconds of work per turn of the message loop.
+A controller built from another config is refused and logged, and its
+methods then throw saying so.
+
+Or implement them in C++, by overriding `createNativeApi()` in your
+processor; it backs `soundor:native` when the crate exports no controller:
 
 ```cpp
 std::shared_ptr<soundor::native::NativeApi> createNativeApi() override

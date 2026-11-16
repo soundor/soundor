@@ -135,6 +135,17 @@ add_dependencies(soundor_juce_rust_tests soundor_juce_test_rust_library)
 soundor_link_rust_processor(soundor_juce_rust_tests "${soundor_test_rust_library}")
 add_test(NAME soundor_juce_rust_tests COMMAND soundor_juce_rust_tests)
 
+# The Rust controller, through Hermes and the engine's generic bindings, on
+# the same Rust library: JavaScript calling Rust.
+juce_add_console_app(soundor_juce_controller_tests)
+target_sources(soundor_juce_controller_tests PRIVATE JuceRustControllerTests.cpp)
+target_include_directories(soundor_juce_controller_tests PRIVATE .. "${engine_dir}/tests")
+target_compile_definitions(soundor_juce_controller_tests PRIVATE JUCE_USE_CURL=0 JUCE_WEB_BROWSER=0)
+target_link_libraries(soundor_juce_controller_tests PRIVATE Soundor::Engine soundor::runtime_internal soundor_doctest juce::juce_core juce::juce_recommended_config_flags)
+add_dependencies(soundor_juce_controller_tests soundor_juce_test_rust_library)
+soundor_link_rust_processor(soundor_juce_controller_tests "${soundor_test_rust_library}")
+add_test(NAME soundor_juce_controller_tests COMMAND soundor_juce_controller_tests)
+
 # Compile the actual generated persistent processor and its Hermes bindings.
 juce_add_console_app(soundor_juce_state_tests)
 target_sources(soundor_juce_state_tests PRIVATE JuceStateTests.cpp

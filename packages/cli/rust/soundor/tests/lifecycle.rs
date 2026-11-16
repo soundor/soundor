@@ -20,7 +20,7 @@ struct Probe {
     tempo: Option<f64>,
 }
 
-impl AudioProcessor for Probe {
+impl Processor for Probe {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.prepared.push((
             ctx.sample_rate,
@@ -238,7 +238,7 @@ fn refuses_to_prepare_invalid_configurations() {
 fn feeds_other_buses() {
     #[derive(Default)]
     struct Ducker;
-    impl AudioProcessor for Ducker {
+    impl Processor for Ducker {
         fn prepare(&mut self, _: &PrepareContext) {}
         fn process(&mut self, ctx: &mut ProcessContext) {
             let frames = ctx.audio.frames();
@@ -265,7 +265,7 @@ fn feeds_other_buses() {
 fn starts_wider_outputs_silent() {
     #[derive(Default)]
     struct Pass;
-    impl AudioProcessor for Pass {
+    impl Processor for Pass {
         fn prepare(&mut self, _: &PrepareContext) {}
         fn process(&mut self, ctx: &mut ProcessContext) {
             assert_eq!(ctx.audio.channel_count(), 2);

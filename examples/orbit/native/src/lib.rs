@@ -9,11 +9,11 @@ use soundor::prelude::*;
 use delay::{Delay, Settings};
 
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     delay: Delay,
 }
 
-impl Processor {
+impl PluginProcessor {
     /// The delay's settings for a block: times in seconds, from beats of the
     /// host's tempo (120 BPM when it gives none) or of a fixed 500 ms.
     pub fn settings(params: &Parameters, transport: &Transport) -> Settings {
@@ -34,7 +34,7 @@ impl Processor {
     }
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.delay.prepare(ctx.sample_rate);
     }
@@ -65,4 +65,4 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);

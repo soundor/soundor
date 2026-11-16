@@ -10,7 +10,10 @@ soundor init [runtime] [--config <path>]
 `init` writes each configured runtime's host project into `runtimes/<id>/`:
 the files you own and edit. The JUCE runtime writes its CMake project, plugin
 processor and editor; the web runtime its page, Vite config and `native.ts`.
-Both run the project's Rust crate, `native/`, which `init` writes once too.
+Both run the project's Rust crate, `native/`, which `init` writes once too:
+its processor, and, when the config declares native methods, a
+[controller](/docs/rust-controller) (`native/src/controller.rs`) with every
+method returning its type's default until you write it.
 
 | Argument / option | What it does                                                      |
 | ----------------- | ----------------------------------------------------------------- |
