@@ -29,14 +29,14 @@ useful for refreshing types in an editor.
 | --------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
 | `soundor.config.ts`   | You                 | Declare identity, parameters, native API, and runtime options                              |
 | `src/`                | You                 | Shared UI and application logic                                                            |
-| `native/`             | You                 | Shared Rust processor, dependencies, lockfile and processor tests                          |
+| `lib/`                | You                 | Rust processor and controller library, dependencies, lockfile and tests                    |
 | `rust-toolchain.toml` | You                 | Rust toolchain choice, generated once                                                      |
 | `.soundor/generated/` | Soundor             | Regenerated declarations, manifests, and framework; change the config or generator instead |
 | `.soundor/ui/`        | Soundor             | Development and production UI bundles, assets, and build metadata                          |
 | `.soundor/dist/<id>/` | Build tools         | Runtime build trees and output                                                             |
 | `.soundor/dev/`       | Development session | Build logs and session files                                                               |
 
-`gen` creates a Rust starter crate when `native/Cargo.toml` is absent,
+`gen` creates a Rust starter crate when `lib/Cargo.toml` is absent,
 preserving existing files. Existing crates keep their sources, tests and layout. It
 regenerates the derived contract under `.soundor/`. `gen --check` only
 compares that derived output and never creates starter files. Framework changes belong in the runtime package or generated code,
@@ -52,7 +52,7 @@ with paths into the configuration.
 Shared generation writes `.soundor/generated/` declarations for parameters,
 the configured native API, runtime modules, Web globals, and imported images.
 It also writes the Rust SDK with config-specific types under
-`.soundor/generated/rust/soundor/`, the crate `native/` depends on.
+`.soundor/generated/rust/soundor/`, the crate `lib/` depends on.
 Runtime generation adds its own implementation contract:
 
 - JUCE generates CMake integration, processor/editor bases, and C++ native API

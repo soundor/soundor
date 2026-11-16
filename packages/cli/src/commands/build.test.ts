@@ -69,6 +69,36 @@ describe('runBuild', () => {
     expect(module).toMatch(/from\s*["']soundor:host["']/);
   });
 
+  it('hands both runtimes the same canonical Rust library', async () => {
+    await writeConfig(root, ['alpha', 'beta']);
+    await runBuild({ cwd: root });
+    for (const id of ['alpha', 'beta']) {
+      expect(
+        await readFile(join(root, '.soundor/dist', id, 'library.txt'), 'utf8'),
+      ).toBe(join(root, 'lib/Cargo.toml'));
+    }
+    await expect(readFile(join(root, 'native/Cargo.toml'))).rejects.toThrow(
+      /ENOENT/,
+    );
+  });
+
+  it.each([false, true])(
+    'rejects obsolete Rust layouts before building (ambiguous=%s)',
+    async (ambiguous) => {
+      await writeConfig(root, ['alpha', 'beta']);
+      await mkdir(join(root, 'native'));
+      await writeFile(join(root, 'native/Cargo.toml'), '# legacy');
+      if (ambiguous) {
+        await mkdir(join(root, 'lib'));
+        await writeFile(join(root, 'lib/Cargo.toml'), '# current');
+      }
+      await expect(runBuild({ cwd: root })).rejects.toThrow(
+        ambiguous ? /Both lib\/Cargo.toml/ : /rename native\/ to lib\//,
+      );
+      expect(globalThis.__soundorBuildEvents).toEqual([]);
+    },
+  );
+
   it.each([false, true])(
     'forwards configured environment to the UI (debug=%s)',
     async (debug) => {
@@ -280,6 +310,8 @@ function runtime(id) {
       globalThis.__soundorBuildEvents.push('build:' + id + ':' + ctx.mode);
       if (id === ${JSON.stringify(options.fail)}) throw new Error('build failed for ' + id);
       globalThis.__soundorBuildUi = ctx.ui;
+      if ('native' in ctx) throw new Error('Obsolete Rust context');
+      await ctx.fs.write(ctx.paths.dist + '/library.txt', ctx.lib.manifest);
       await ctx.fs.write(ctx.paths.dist + '/artifact.txt', id + ':' + ctx.mode + '\\n');
     },
     async doctor() {

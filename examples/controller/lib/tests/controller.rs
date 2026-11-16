@@ -1,5 +1,5 @@
 //! The controller, tested in plain Rust, as the runtime runs it:
-//! `cargo test --manifest-path native/Cargo.toml`.
+//! `cargo test --manifest-path lib/Cargo.toml`.
 
 use soundor::prelude::*;
 use soundor::testing::{TestController, TestProcessor};

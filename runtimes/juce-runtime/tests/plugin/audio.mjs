@@ -1,5 +1,5 @@
 // The test plugin's audio through the VST3 host: the Rust gain `soundor gen`
-// scaffolds (native/), run by the JUCE plugin, in stereo and in mono, at
+// scaffolds (lib/), run by the JUCE plugin, in stereo and in mono, at
 // several block sizes. Run after `test:plugin` (Release) or
 // `test:plugin:debug`: node tests/plugin/audio.mjs [path/to/Plugin.vst3]
 import { existsSync, readdirSync, statSync } from 'node:fs';

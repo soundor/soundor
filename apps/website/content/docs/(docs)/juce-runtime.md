@@ -150,7 +150,7 @@ consists of `gen`, `dev`, `build`, and `doctor`.
 `soundor::AudioProcessor` / `soundor::AudioProcessorEditor` classes, bindings
 and `setup.cmake`. It is reproducible (`gen --check` is stable). Build files
 stay in `.soundor/cache/juce/` and output in `.soundor/dist/juce/`.
-The project still owns its Rust processor and controller in `native/`;
+The project still owns its Rust processor and controller in `lib/`;
 `soundor gen` creates that crate once when setting up a project.
 
 ## Migration
@@ -161,7 +161,7 @@ never deletes or overwrites these files.
 
 Review the directory before removing it yourself. Keep a backup of any
 customizations. Move C++ audio processing and native methods into the Rust
-processor and controller in `native/`. Declare plugin identity, formats,
+processor and controller in `lib/`. Declare plugin identity, formats,
 audio buses, parameters, presets and editor dimensions in `soundor.config.ts`.
 The managed host uses those settings and generated bindings. With no audio
 configuration it retains the legacy stereo default and matching mono/stereo
@@ -306,7 +306,7 @@ a `readOnly` one is a meter (JUCE's output-meter category), not automatable
 either. A value the UI sets is stored exactly; one from the host's
 automation arrives as a normalized 32-bit float and is mapped and snapped.
 
-The audio processing is the project's Rust crate, `native/`: the generated
+The Rust library in `lib/` contains the processor and controller: the generated
 base processor implements `prepareToPlay()`, `reset()` and `processBlock()`
 (all `final`) and calls it through its C ABI, giving each block every
 parameter's value, typed as the config declares it (`ctx.params.gain`), and
@@ -322,10 +322,10 @@ enum, in `namespace choices`, its enumerators in the options' order.
 
 ### The audio processing
 
-`soundor dev` and `soundor build` compile `native/` with Cargo (`cargo rustc
---crate-type staticlib`, in `.soundor/cache/native`, a debug or release
+`soundor dev` and `soundor build` compile `lib/` with Cargo (`cargo rustc
+--crate-type staticlib`, in `.soundor/cache/lib`, a debug or release
 build as the plugin's) before CMake, and pass the library to `setup.cmake`,
-which links it. A change to `native/` during `soundor dev` builds it again,
+which links it. A change to `lib/` during `soundor dev` builds it again,
 and the plugin, with the VST3 host's plugin closed meanwhile and reopened
 after.
 

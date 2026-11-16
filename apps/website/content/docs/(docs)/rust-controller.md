@@ -3,7 +3,7 @@ title: 'Rust controller'
 description: "soundor:native's methods in Rust: typed by the config, on the control thread, with async tasks that schedule back onto it."
 ---
 
-A plugin's Rust crate (`native/`) holds its [processor](/docs/rust-processor),
+A plugin's Rust crate (`lib/`) holds its [processor](/docs/rust-processor),
 on the audio thread, and its required **controller**, on the control thread
 beside the UI: the Rust behind the methods `soundor:native` exports. The
 controller has the plugin's parameters, persistent state, History and presets
@@ -127,7 +127,7 @@ Every plugin exports both types through
 `soundor::export!(PluginProcessor, PluginController)`. A processor-only
 export is a compile error, including for plugins without native methods.
 
-`soundor gen` always creates `native/src/lib.rs`, `controller.rs` and
+`soundor gen` always creates `lib/src/lib.rs`, `controller.rs` and
 `processor.rs`. Only `lib.rs` registers the two modules. Configured methods
 get compiling default stubs; without methods, omit `impl NativeMethods`
 because the generated trait supplies its blanket implementation.
@@ -378,7 +378,7 @@ restarts, and plugin destruction releases pending operations and resources.
 
 ## Migrating existing projects
 
-Move processor code into `native/src/processor.rs`; keep module declarations
+Move processor code into `lib/src/processor.rs`; keep module declarations
 and the two-type export in `lib.rs`. Add the default controller and stores
 even if there are no methods. Run `soundor gen` and rebuild both runtimes.
 

@@ -14,7 +14,7 @@
     "gen": "soundor gen",
     "typecheck": "soundor gen && tsc -b",
     "test": "vitest run",
-    "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
+    "test:rust": "soundor gen && cargo test --manifest-path lib/Cargo.toml",
     "test:svg-native": "node scripts/svg-native-test.mjs"
   },
   "dependencies": {

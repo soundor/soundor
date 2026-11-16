@@ -14,7 +14,7 @@ import {
 } from './worklet.ts';
 
 export interface ProcessorNodeOptions {
-  /** The processor's WebAssembly module, as built from native/. */
+  /** The processor's WebAssembly module, as built from lib/. */
   readonly wasm: ArrayBuffer | Uint8Array;
   readonly contract: WasmContract;
   /** Each input bus's channels, and each output bus's. */

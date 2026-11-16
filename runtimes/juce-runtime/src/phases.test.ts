@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HostModule } from './dev-host';
 import { juceBuild, juceDev, juceGen, NATIVE_DIR } from './index';
 import type { JuceOptions } from './options';
-import { fakeNative, makeCtx } from './testing';
+import { fakeLibrary, makeCtx } from './testing';
 
 const config: ResolvedSoundorConfig = resolveConfig({
   plugin: { id: 'com.example.basic', name: 'Soundor Basic' },
@@ -899,16 +899,16 @@ describe('build tree', () => {
   });
 });
 
-describe('the Rust processor', () => {
+describe('the Rust library', () => {
   const build = async (overrides: Parameters<typeof makeCtx>[0] = {}) => {
     const root = await tempProjectWithJuce();
-    const native = fakeNative(root);
+    const lib = fakeLibrary(root);
     const ctx = makeCtx({
       root,
       fs: createNodeFileSystem(root),
       options: { jucePath: join(root, 'JUCE') },
       mode: 'production',
-      native,
+      lib,
       ...overrides,
     });
     const calls: string[][] = [];
@@ -916,22 +916,67 @@ describe('the Rust processor', () => {
       calls.push([o.cmd, ...o.args]);
       return Promise.resolve();
     };
-    return { root, ctx, native, calls, run };
+    return { root, ctx, lib, calls, run };
   };
 
   it('is compiled before the plugin, for its configuration, and linked', async () => {
-    const { root, ctx, native, calls, run } = await build();
+    const { root, ctx, lib, calls, run } = await build();
     await juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' });
-    expect(native.requests).toEqual([
+    expect(lib.requests).toEqual([
       { crateType: 'staticlib', profile: 'release', staticCrt: false },
     ]);
     expect(calls[0]).toContain(
-      `-DSOUNDOR_RUST_LIBRARY=${root}/.soundor/cache/native/target/release/libplugin.a`,
+      `-DSOUNDOR_RUST_LIBRARY=${root}/.soundor/cache/lib/target/release/libplugin.a`,
     );
   });
 
+  it('rebuilds and relinks lib during dev and unsubscribes on abort', async () => {
+    const { ctx, lib, calls, run } = await build({ mode: 'debug' });
+    const controller = new AbortController();
+    let changed: (() => void) | undefined;
+    const stop = vi.fn<() => void>();
+    const running = juceDev(
+      config,
+      {
+        ...ctx,
+        signal: controller.signal,
+        lib: {
+          ...lib,
+          onChange: (listener) => {
+            changed = listener;
+            return stop;
+          },
+        },
+      },
+      { run, probe: okProbe, platform: 'linux' },
+    );
+    try {
+      await vi.waitFor(() => expect(changed).toBeDefined());
+      const initialBuilds = calls.filter((call) =>
+        call.includes('--build'),
+      ).length;
+      changed!();
+      await vi.waitFor(() =>
+        expect(calls.filter((call) => call.includes('--build'))).toHaveLength(
+          initialBuilds + 1,
+        ),
+      );
+      expect(lib.requests).toEqual(
+        Array.from({ length: 2 }, () => ({
+          crateType: 'staticlib',
+          profile: 'debug',
+          staticCrt: false,
+        })),
+      );
+    } finally {
+      controller.abort();
+      await running;
+    }
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
   it('is a debug build in soundor dev', async () => {
-    const { ctx, native, run } = await build({ mode: 'debug' });
+    const { ctx, lib, run } = await build({ mode: 'debug' });
     const controller = new AbortController();
     controller.abort();
     await juceDev(
@@ -939,13 +984,13 @@ describe('the Rust processor', () => {
       { ...ctx, signal: controller.signal },
       { run, probe: okProbe, platform: 'linux' },
     );
-    expect(native.requests[0]).toMatchObject({ profile: 'debug' });
+    expect(lib.requests[0]).toMatchObject({ profile: 'debug' });
   });
 
   it('links the C runtime statically for a /MT plugin on Windows', async () => {
-    const { ctx, native, run } = await build();
+    const { ctx, lib, run } = await build();
     await juceBuild(config, ctx, { run, probe: okProbe, platform: 'win32' });
-    expect(native.requests[0]).toMatchObject({ staticCrt: true });
+    expect(lib.requests[0]).toMatchObject({ staticCrt: true });
     const dynamic = await build({
       options: { windows: { crt: 'MD' } },
     });
@@ -960,14 +1005,14 @@ describe('the Rust processor', () => {
       },
       { run: dynamic.run, probe: okProbe, platform: 'win32' },
     );
-    expect(dynamic.native.requests[0]).toMatchObject({ staticCrt: false });
+    expect(dynamic.lib.requests[0]).toMatchObject({ staticCrt: false });
   });
 
-  it('is required: a project without native/ is told to create it', async () => {
-    const { ctx, calls, run } = await build({ native: null });
+  it('is required: a project without lib/ is told to create it', async () => {
+    const { ctx, calls, run } = await build({ lib: null });
     await expect(
       juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' }),
-    ).rejects.toThrow(/no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor gen/);
+    ).rejects.toThrow(/no Rust library \(lib\/Cargo.toml\)[\s\S]*soundor gen/);
     expect(calls).toEqual([]);
   });
 });

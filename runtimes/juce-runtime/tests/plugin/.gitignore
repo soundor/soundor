@@ -1,5 +1,5 @@
-# Written by soundor init, gen and build.
+# Written by soundor gen and build.
 .soundor/
 runtimes/
-native/
+lib/
 rust-toolchain.toml

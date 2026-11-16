@@ -75,7 +75,7 @@ export async function webDev(
 ): Promise<void> {
   const options = resolveWebOptions(ctx.options);
   await validateProject(ctx);
-  const processor = await buildProcessor(ctx);
+  const processor = await buildLibrary(ctx);
   const createServer = deps.createServer ?? viteCreateServer;
   let server: Awaited<ReturnType<typeof viteCreateServer>>;
   try {
@@ -87,25 +87,23 @@ export async function webDev(
   } catch (error) {
     throw viteFailure('start the Web host dev server', 'dev', error);
   }
-  // The audio processing changed: Cargo again, then the page reloads with it.
+  // The Rust library changed: Cargo again, then the page reloads with it.
   let rebuilding = Promise.resolve();
-  const stopWatching = ctx.native?.onChange?.(() => {
+  const stopWatching = ctx.lib?.onChange?.(() => {
     rebuilding = rebuilding.then(async () => {
-      ctx.logger.info(
-        'The native crate changed; rebuilding the audio processor',
-      );
+      ctx.logger.info('The Rust library changed; rebuilding the Rust library');
       try {
-        await buildProcessor(ctx);
+        await buildLibrary(ctx);
         const module = server.moduleGraph.getModuleById(
           `\0${PROCESSOR_MODULE}`,
         );
         if (module !== undefined) server.moduleGraph.invalidateModule(module);
         server.ws.send({ type: 'full-reload' });
-        ctx.logger.info('Rebuilt the audio processor; the page reloads.');
+        ctx.logger.info('Rebuilt the Rust library; the page reloads.');
       } catch (error) {
         if (!ctx.signal.aborted)
           ctx.logger.error(
-            `The audio processor could not be rebuilt; fix the error and save again.\n${error instanceof Error ? error.message : String(error)}`,
+            `The Rust library could not be rebuilt; fix the error and save again.\n${error instanceof Error ? error.message : String(error)}`,
           );
       }
     });
@@ -154,7 +152,7 @@ export async function webBuild(
       'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
     );
   }
-  const processor = await buildProcessor(ctx);
+  const processor = await buildLibrary(ctx);
   const build = deps.build ?? viteBuild;
   try {
     await build({
@@ -238,16 +236,16 @@ function viteFailure(
 export const WASM_TARGET = 'wasm32-unknown-unknown';
 
 /**
- * Compiles the project's Rust crate (native/), the plugin's audio
- * processing, to WebAssembly: always optimized, as it runs in real time.
+ * Compiles the project's Rust library (lib/), the plugin's processor
+ * and controller, to WebAssembly: always optimized, as it runs in real time.
  */
-async function buildProcessor(ctx: Ctx): Promise<string> {
-  if (ctx.native === undefined)
+async function buildLibrary(ctx: Ctx): Promise<string> {
+  if (ctx.lib === undefined)
     throw new EnvError(
-      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor gen` to create missing Rust starter files.",
+      "The project has no Rust library (lib/Cargo.toml), which holds the plugin's processor and controller. Run `soundor gen` to create missing Rust starter files.",
     );
-  ctx.logger.info('Compiling the audio processing (native/) to WebAssembly');
-  const library = await ctx.native.build({
+  ctx.logger.info('Compiling the Rust library (lib/) to WebAssembly');
+  const library = await ctx.lib.build({
     crateType: 'cdylib',
     target: WASM_TARGET,
     profile: 'release',

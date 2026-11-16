@@ -1,6 +1,6 @@
 /**
  * The project's Rust crate, scaffolded once by `soundor gen` and never
- * overwritten: `native/` (the plugin's audio processing, the user's own) and
+ * overwritten: `lib/` (the plugin's Rust processor and controller, the user's own) and
  * `rust-toolchain.toml`. Only the `soundor` dependency's path is Soundor's;
  * everything else in the crate is the user's to change.
  */
@@ -11,7 +11,7 @@ import { RUST_NAMES } from './codegen';
 import { renderControllerScaffold } from './controller-codegen';
 
 /** A file to scaffold, path relative to the project root. */
-export interface NativeScaffoldFile {
+export interface LibraryScaffoldFile {
   readonly path: string;
   readonly contents: string;
 }
@@ -29,9 +29,9 @@ export function crateName(pluginName: string): string {
     : `plugin${name.length > 0 ? `-${name}` : ''}`;
 }
 
-export function nativeScaffoldFiles(
+export function libraryScaffoldFiles(
   config: ResolvedSoundorConfig,
-): NativeScaffoldFile[] {
+): LibraryScaffoldFile[] {
   const gain = config.parameters.some(
     (parameter) => parameter.id === 'gain' && parameter.type === 'float32',
   );
@@ -42,10 +42,10 @@ export function nativeScaffoldFiles(
   const processor = gain ? gainProcessor() : passThrough();
   return [
     { path: 'rust-toolchain.toml', contents: toolchain() },
-    { path: 'native/Cargo.toml', contents: manifest(name) },
-    { path: 'native/.gitignore', contents: '/target\n' },
+    { path: 'lib/Cargo.toml', contents: manifest(name) },
+    { path: 'lib/.gitignore', contents: '/target\n' },
     {
-      path: 'native/src/lib.rs',
+      path: 'lib/src/lib.rs',
       contents: `//! The plugin's Rust entry point.
 
 mod controller;
@@ -57,19 +57,19 @@ pub use processor::PluginProcessor;
 soundor::export!(PluginProcessor, PluginController);
 `,
     },
-    { path: 'native/src/controller.rs', contents: controller },
-    { path: 'native/src/processor.rs', contents: processor },
-    { path: 'native/tests/controller.rs', contents: controllerTests(name) },
+    { path: 'lib/src/controller.rs', contents: controller },
+    { path: 'lib/src/processor.rs', contents: processor },
+    { path: 'lib/tests/controller.rs', contents: controllerTests(name) },
     {
-      path: 'native/tests/processor.rs',
+      path: 'lib/tests/processor.rs',
       contents: gain ? gainTests(name) : passThroughTests(name),
     },
-    { path: 'native/tests/realtime.rs', contents: realtimeTests(name) },
+    { path: 'lib/tests/realtime.rs', contents: realtimeTests(name) },
   ];
 }
 
 function controllerTests(name: string): string {
-  return `//! The controller, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
+  return `//! The controller, tested in plain Rust: \`cargo test --manifest-path lib/Cargo.toml\`.
 
 use ${crateIdent(name)}::PluginController;
 use soundor::testing::TestController;
@@ -86,15 +86,15 @@ fn starts_with_empty_stores() {
 }
 
 function toolchain(): string {
-  return `# The Rust that builds native/: stable, which rustup keeps up to date.
+  return `# The Rust that builds lib/: stable, which rustup keeps up to date.
 [toolchain]
 channel = "stable"
 `;
 }
 
 function manifest(name: string): string {
-  return `# The plugin's audio processing, in Rust: yours, like any crate. Soundor's
-# runtimes run it, natively in the JUCE plugin and compiled to WebAssembly on
+  return `# The plugin's processor and controller library, in Rust: yours, like any crate.
+# Soundor's runtimes run it, natively in JUCE and compiled to WebAssembly on
 # the Web; \`soundor dev\` and \`soundor build\` compile it with Cargo.
 [package]
 name = ${JSON.stringify(name)}
@@ -195,7 +195,7 @@ function testImports(name: string, types: string): string {
 }
 
 function gainTests(name: string): string {
-  return `//! The processor, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
+  return `//! The processor, tested in plain Rust: \`cargo test --manifest-path lib/Cargo.toml\`.
 
 ${testImports(name, 'TestProcessor')}
 
@@ -213,7 +213,7 @@ fn applies_the_gain() {
 }
 
 function passThroughTests(name: string): string {
-  return `//! The processor, tested in plain Rust: \`cargo test --manifest-path native/Cargo.toml\`.
+  return `//! The processor, tested in plain Rust: \`cargo test --manifest-path lib/Cargo.toml\`.
 
 ${testImports(name, 'TestProcessor')}
 

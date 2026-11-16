@@ -35,7 +35,7 @@ declare module 'soundor:env' {
 }
 
 declare module 'soundor:internal/processor' {
-  /** The audio processor's WebAssembly module (native/), base64; undefined without one. */
+  /** The audio processor's WebAssembly module (lib/), base64; undefined without one. */
   const wasm: string | undefined;
   export default wasm;
 }

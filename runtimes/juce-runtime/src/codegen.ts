@@ -19,7 +19,7 @@
  *   bindings generated from the config's `native` API (see native-codegen.ts).
  *
  * Everything is derived from config only — deterministic, so `gen --check` is
- * reproducible. Audio processing and controller behavior live in native/.
+ * reproducible. Audio processing and controller behavior live in lib/.
  */
 
 import { createRequire } from 'node:module';
@@ -396,10 +396,10 @@ target_sources(\${PROJECT_NAME}
           .join('\n        ')})
 target_link_libraries(\${PROJECT_NAME} PRIVATE soundor_generated)
 
-# The plugin's audio processing: its Rust crate (native/), which soundor dev
+# The plugin's audio processing: its Rust crate (lib/), which soundor dev
 # and soundor build compile with Cargo and name here (SoundorRust.cmake).
 if(NOT SOUNDOR_RUST_LIBRARY OR NOT EXISTS "\${SOUNDOR_RUST_LIBRARY}")
-  message(FATAL_ERROR "The plugin's Rust processor (native/) was not built: build the plugin with soundor dev or soundor build, which compile it with Cargo first.")
+  message(FATAL_ERROR "The plugin's Rust library (lib/) was not built: build the plugin with soundor dev or soundor build, which compile it with Cargo first.")
 endif()
 include(${cmakeString(cmakePath(`${params.nativeDir}/SoundorRust.cmake`))})
 soundor_link_rust_processor(\${PROJECT_NAME} "\${SOUNDOR_RUST_LIBRARY}")
@@ -568,7 +568,7 @@ namespace ${NS}
     } // namespace generated
 ${renderChoiceEnums(parameters, enums)}
     // Base processor: owns the parameter tree generated from soundor.config,
-    // and runs the plugin's audio processing, its Rust crate (native/).
+    // and runs the plugin's audio processing, its Rust crate (lib/).
     // Derive your plugin's processor from this for what is not processing:
     // its editor, its native API.
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
@@ -604,7 +604,7 @@ ${audioDeclaration(config)}
         void getStateInformation(juce::MemoryBlock& destData) override final;
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
-        // The audio processing is the plugin's Rust crate (native/), which
+        // The audio processing is the plugin's Rust crate (lib/), which
         // these call through the engine's bridge to its C ABI
         // (processor::RustProcessor): prepare it when the host does, give
         // each block the parameters' values and the host's transport, and
@@ -640,7 +640,7 @@ ${audioDeclaration(config)}
 ${
   native.methods.length > 0
     ? `
-        // The plugin's Rust controller (native/'s, when it exports one with
+        // The plugin's Rust controller (lib/'s, when it exports one with
         // soundor::export!(PluginProcessor, PluginController)): one per plugin
         // instance, created with it and shut down with it, whether or not an
         // editor is open. It backs soundor:native's methods in every editor,

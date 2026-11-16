@@ -116,8 +116,8 @@ try {
     logger,
     signal: controller.signal,
     signing: { macos: { identity: '-', source: 'default' } },
-    native: {
-      manifest: join(project, 'native/Cargo.toml'),
+    lib: {
+      manifest: join(project, 'lib/Cargo.toml'),
       async build(request) {
         requests.push(request);
         return {

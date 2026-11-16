@@ -1,4 +1,4 @@
-// Cross-runtime parity: the same native/ crate, run as the JUCE runtime runs
+// Cross-runtime parity: the same lib/ crate, run as the JUCE runtime runs
 // it (the Debug VST3, in the VST3 host) and as the Web runtime runs it (built
 // for wasm32-unknown-unknown, driven by the worklet's WasmProcessor in
 // Node), given the same input, parameters, transport and blocks, gives the
@@ -34,13 +34,13 @@ let module: WebAssembly.Module;
 
 beforeAll(() => {
   // As `soundor build web` compiles it, into the same target directory.
-  const target = `${ROOT}.soundor/cache/native/target`;
+  const target = `${ROOT}.soundor/cache/lib/target`;
   const built = spawnSync(
     'cargo',
     [
       'rustc',
       '--manifest-path',
-      `${ROOT}native/Cargo.toml`,
+      `${ROOT}lib/Cargo.toml`,
       '--lib',
       '--crate-type',
       'cdylib',
@@ -54,7 +54,7 @@ beforeAll(() => {
   );
   if (built.status !== 0)
     throw new Error(
-      `Cargo could not build native/ for WebAssembly:\n${built.stderr}`,
+      `Cargo could not build lib/ for WebAssembly:\n${built.stderr}`,
     );
   module = new WebAssembly.Module(
     readFileSync(`${target}/wasm32-unknown-unknown/release/orbit.wasm`),

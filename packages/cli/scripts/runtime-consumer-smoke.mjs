@@ -143,7 +143,7 @@ export default defineSoundorConfig({
   for (const args of [['init'], ['init', 'web'], ['init', 'juce']]) {
     assert.match(run(soundor, args, { status: 2 }), /Unknown command/i);
   }
-  assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
+  assert.ok(existsSync(resolve(temporary, 'lib/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
   assert.ok(
     !existsSync(resolve(temporary, 'runtimes/web')),
@@ -159,9 +159,9 @@ export default defineSoundorConfig({
   );
   assert.ok(existsSync(resolve(juceHost, 'CMakeLists.txt')));
   assert.ok(existsSync(resolve(juceHost, 'Plugin.cpp')));
-  run('cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml']);
+  run('cargo', ['fmt', '--check', '--manifest-path', 'lib/Cargo.toml']);
   // Its tests: the controller, the processor, and allocation-free processing.
-  const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
+  const tested = run('cargo', ['test', '--manifest-path', 'lib/Cargo.toml']);
   assert.match(tested, /Running tests\/controller\.rs/);
   assert.match(tested, /Running tests\/processor\.rs/);
   assert.match(tested, /Running tests\/realtime\.rs/);
@@ -171,7 +171,7 @@ export default defineSoundorConfig({
   run('cargo', [
     'rustc',
     '--manifest-path',
-    'native/Cargo.toml',
+    'lib/Cargo.toml',
     '--lib',
     '--crate-type',
     'cdylib',
@@ -181,7 +181,7 @@ export default defineSoundorConfig({
   ]);
   const release = resolve(
     temporary,
-    'native/target/wasm32-unknown-unknown/release',
+    'lib/target/wasm32-unknown-unknown/release',
   );
   const [module] = (await readdir(release)).filter((file) =>
     file.endsWith('.wasm'),

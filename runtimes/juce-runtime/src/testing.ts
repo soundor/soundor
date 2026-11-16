@@ -12,8 +12,8 @@ import {
   type FileSystemHost,
   type LifecycleContext,
   type Logger,
-  type NativeBuildRequest,
-  type NativeCrateContext,
+  type LibraryBuildRequest,
+  type LibraryBuildContext,
 } from '@soundor/runtime-sdk';
 
 import type { JuceOptions } from './options';
@@ -120,23 +120,23 @@ export interface MakeCtxOptions {
   readonly signal?: AbortSignal;
   readonly signing?: LifecycleContext['signing'];
   /** The project's Rust crate; a fake that records builds by default, none with null. */
-  readonly native?: NativeCrateContext | null;
+  readonly lib?: LibraryBuildContext | null;
 }
 
 /** A fake Rust crate: records each build and returns a library path. */
-export interface FakeNative extends NativeCrateContext {
-  readonly requests: NativeBuildRequest[];
+export interface FakeLibrary extends LibraryBuildContext {
+  readonly requests: LibraryBuildRequest[];
 }
 
-export function fakeNative(root = '/proj'): FakeNative {
-  const requests: NativeBuildRequest[] = [];
+export function fakeLibrary(root = '/proj'): FakeLibrary {
+  const requests: LibraryBuildRequest[] = [];
   return {
-    manifest: `${root}/native/Cargo.toml`,
+    manifest: `${root}/lib/Cargo.toml`,
     requests,
     build: (request) => {
       requests.push(request);
       return Promise.resolve({
-        path: `${root}/.soundor/cache/native/target/${request.profile}/libplugin.a`,
+        path: `${root}/.soundor/cache/lib/target/${request.profile}/libplugin.a`,
         target: request.target ?? 'x86_64-unknown-linux-gnu',
       });
     },
@@ -171,8 +171,8 @@ export function makeCtx(overrides: MakeCtxOptions = {}): TestCtx {
       macos: { identity: '-', source: 'default' },
     },
     signal: overrides.signal ?? new AbortController().signal,
-    ...(overrides.native === null
+    ...(overrides.lib === null
       ? {}
-      : { native: overrides.native ?? fakeNative(root) }),
+      : { lib: overrides.lib ?? fakeLibrary(root) }),
   };
 }

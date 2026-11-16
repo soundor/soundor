@@ -4,7 +4,7 @@ The reference Soundor runtime: JUCE plugins with a shared TypeScript/React UI, n
 
 The JUCE host is managed by the installed package. `soundor dev juce` and
 `soundor build juce` need no initialization or `runtimes/juce/`. The project
-still owns its Rust processor and controller in `native/`. For older projects,
+still owns its Rust processor and controller in `lib/`. For older projects,
 review and migrate host customizations before removing `runtimes/juce/` yourself.
 
 - [Guide and reference](https://soundor.dev/docs/juce-runtime)

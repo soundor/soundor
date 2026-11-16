@@ -4,8 +4,8 @@ description: 'Test real audio, lifecycle, the C ABI, allocations and parity betw
 ---
 
 The `soundor` SDK includes a pure-Rust test harness. It runs your actual
-processor without JUCE, a browser, or the rendering engine. `gen` creates a starter crate when `native/Cargo.toml` is absent, including a
-processor integration test alongside `native/src/processor.rs`.
+processor without JUCE, a browser, or the rendering engine. `gen` creates a starter crate when `lib/Cargo.toml` is absent, including a
+processor integration test alongside `lib/src/processor.rs`.
 
 ## Run the crate
 
@@ -13,19 +13,19 @@ Generate the config contract first:
 
 ```sh
 pnpm gen
-cargo check --manifest-path native/Cargo.toml
-cargo test --manifest-path native/Cargo.toml
-cargo clippy --all-targets --manifest-path native/Cargo.toml -- -D warnings
-cargo fmt --check --manifest-path native/Cargo.toml
+cargo check --manifest-path lib/Cargo.toml
+cargo test --manifest-path lib/Cargo.toml
+cargo clippy --all-targets --manifest-path lib/Cargo.toml -- -D warnings
+cargo fmt --check --manifest-path lib/Cargo.toml
 ```
 
 The template's `pnpm test:rust` runs generation and Cargo tests together. Commit
-`native/Cargo.lock` so CI resolves the same third-party dependencies. There is
+`lib/Cargo.lock` so CI resolves the same third-party dependencies. There is
 no compilation in npm `postinstall`.
 
 ## Audio and lifecycle
 
-In a unit test in `native/src/processor.rs`, for a processor with a `gain` parameter:
+In a unit test in `lib/src/processor.rs`, for a processor with a `gain` parameter:
 
 ```rust
 #[cfg(test)]

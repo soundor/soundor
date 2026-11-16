@@ -1,7 +1,7 @@
 #pragma once
 
 // The C ABI between a native runtime and a plugin's Rust processor: what
-// `soundor::export!` defines in the project's `native/` crate (see the SDK's
+// `soundor::export!` defines in the project's `lib/` crate (see the SDK's
 // ffi.rs, whose #[repr(C)] structures these mirror field for field). The
 // engine declares it and never calls these symbols itself: the plugin's
 // binary links the library that defines them, and hands them to

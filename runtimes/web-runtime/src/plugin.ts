@@ -63,7 +63,7 @@ export interface SoundorWebPluginOptions {
   readonly clientDir?: string;
   /** The plugin UI bundle; undefined when the project has no UI. */
   readonly ui?: UiBundleContext;
-  /** The audio processor's WebAssembly module (native/, built by Cargo). */
+  /** The audio processor's WebAssembly module (lib/, built by Cargo). */
   readonly processor?: string;
   /** Names the plugin in the UI log of `soundor dev`. */
   readonly pluginName?: string;

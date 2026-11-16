@@ -400,7 +400,7 @@ async function checkManagedHost(fs: FileSystemHost): Promise<DoctorCheck> {
       status: 'fail',
       detail: 'Legacy runtimes/juce host found.',
       suggestion:
-        'Review customizations, move processing and native methods to native/ and settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. See https://soundor.dev/docs/juce-runtime#migration.',
+        'Review customizations, move processing and native methods to lib/ and settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. See https://soundor.dev/docs/juce-runtime#migration.',
     };
   }
   return {

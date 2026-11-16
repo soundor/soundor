@@ -1,5 +1,5 @@
 // The plugin's UI. Its native methods are the Rust controller's
-// (native/src/controller.rs): synchronous ones return their value at once,
+// (lib/src/controller.rs): synchronous ones return their value at once,
 // async ones a promise the controller settles.
 
 import {

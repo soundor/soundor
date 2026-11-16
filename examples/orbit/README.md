@@ -39,7 +39,7 @@ version always processes the host's audio input.
   identifies the starting point; parameter edits do not rename it.
 
 `src/` is portable Soundor UI: no DOM, browser audio, or platform checks.
-The managed JUCE and Web hosts run the same Rust processor from `native/`,
+The managed JUCE and Web hosts run the same Rust processor from `lib/`,
 natively and in an AudioWorklet respectively. It uses three
 filtered, saturated feedback lines, interpolated reads, smoothed delay times
 and mix/bypass. The wet signal uses the input's mono sum; the dry signal

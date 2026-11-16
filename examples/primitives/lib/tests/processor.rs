@@ -1,4 +1,4 @@
-//! The processor, tested in plain Rust: `cargo test --manifest-path native/Cargo.toml`.
+//! The processor, tested in plain Rust: `cargo test --manifest-path lib/Cargo.toml`.
 
 use soundor::testing::TestProcessor;
 use soundor_primitives::PluginProcessor;

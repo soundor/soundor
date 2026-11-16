@@ -11,6 +11,8 @@ import {
   type DoctorReport,
   type FileSystemHost,
   type Logger,
+  type LibraryBuildContext,
+  type LibraryBuildRequest,
   type RuntimePhase,
   type ResolvedSoundorConfig,
 } from './index';
@@ -62,6 +64,14 @@ describe('runtime lifecycle', () => {
   it('drives a fake runtime through all four phases via the SDK', async () => {
     const calls: RuntimePhase[] = [];
     const seenOptions: unknown[] = [];
+    const requests: LibraryBuildRequest[] = [];
+    const lib: LibraryBuildContext = {
+      manifest: '/p/lib/Cargo.toml',
+      build: async (request) => {
+        requests.push(request);
+        return { path: '/p/library.wasm', target: request.target! };
+      },
+    };
 
     const juceRuntime = defineRuntime<{ format: string }>({
       id: 'juce',
@@ -79,6 +89,18 @@ describe('runtime lifecycle', () => {
       build: async (_config, ctx) => {
         calls.push('build');
         expect(ctx.mode).toBe('production');
+        expect(ctx.lib).toBe(lib);
+        expect(ctx).not.toHaveProperty('native');
+        await expect(
+          ctx.lib!.build({
+            crateType: 'cdylib',
+            profile: 'release',
+            target: 'wasm32-unknown-unknown',
+          }),
+        ).resolves.toEqual({
+          path: '/p/library.wasm',
+          target: 'wasm32-unknown-unknown',
+        });
       },
       doctor: async (): Promise<DoctorReport> => {
         calls.push('doctor');
@@ -107,6 +129,7 @@ describe('runtime lifecycle', () => {
       logger: recordingLogger(logs),
       fs,
       codegen,
+      lib,
     };
 
     const resolved = resolveRuntime(config, 'juce');
@@ -122,6 +145,13 @@ describe('runtime lifecycle', () => {
 
     // Selection is by phase string alone — every phase ran, in order.
     expect(calls).toEqual(['gen', 'dev', 'build', 'doctor']);
+    expect(requests).toEqual([
+      {
+        crateType: 'cdylib',
+        profile: 'release',
+        target: 'wasm32-unknown-unknown',
+      },
+    ]);
     // Options from the resolved config entry reached the runtime.
     expect(seenOptions).toEqual([{ format: 'vst3' }]);
     // Side effects went through the injected host seams.

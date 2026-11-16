@@ -39,7 +39,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     } // namespace choices
 
     // Base processor: owns the parameter tree generated from soundor.config,
-    // and runs the plugin's audio processing, its Rust crate (native/).
+    // and runs the plugin's audio processing, its Rust crate (lib/).
     // Derive your plugin's processor from this for what is not processing:
     // its editor, its native API.
     class AudioProcessor : public juce::AudioProcessor, private juce::AsyncUpdater
@@ -78,7 +78,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         void getStateInformation(juce::MemoryBlock& destData) override final;
         void setStateInformation(const void* data, int sizeInBytes) override final;
 
-        // The audio processing is the plugin's Rust crate (native/), which
+        // The audio processing is the plugin's Rust crate (lib/), which
         // these call through the engine's bridge to its C ABI
         // (processor::RustProcessor): prepare it when the host does, give
         // each block the parameters' values and the host's transport, and
@@ -112,7 +112,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // the plugin declares no native methods.
         virtual std::shared_ptr<native::NativeApi> createNativeApi() { return nullptr; }
 
-        // The plugin's Rust controller (native/'s, when it exports one with
+        // The plugin's Rust controller (lib/'s, when it exports one with
         // soundor::export!(PluginProcessor, PluginController)): one per plugin
         // instance, created with it and shut down with it, whether or not an
         // editor is open. It backs soundor:native's methods in every editor,

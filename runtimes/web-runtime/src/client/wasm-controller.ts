@@ -100,7 +100,7 @@ export class WasmController {
       ) {
         this.#closePorts();
         throw new Error(
-          `Missing Rust controller exports (${missing.join(', ')}): use soundor::export!(PluginProcessor, PluginController) and rebuild native/`,
+          `Missing Rust controller exports (${missing.join(', ')}): use soundor::export!(PluginProcessor, PluginController) and rebuild lib/`,
         );
       }
       const expected = context.manifest.controller;
@@ -116,7 +116,7 @@ export class WasmController {
       ) {
         this.#closePorts();
         throw new Error(
-          'The Rust controller was built from another generated contract: run soundor gen and rebuild native/',
+          'The Rust controller was built from another generated contract: run soundor gen and rebuild lib/',
         );
       }
       const metadata = new TextDecoder().decode(
@@ -138,7 +138,7 @@ export class WasmController {
       ) {
         this.#closePorts();
         throw new Error(
-          'The Rust controller instance contract differs: regenerate and rebuild native/',
+          'The Rust controller instance contract differs: regenerate and rebuild lib/',
         );
       }
       this.#handle = exports.soundor_web_controller_create();

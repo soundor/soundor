@@ -1,4 +1,4 @@
-# The plugin's native/ crate, built by Cargo into a static library.
+# The plugin's lib/ crate, built by Cargo into a static library.
 # Plugin export controls keep its Rust runtime private, like the C++ engine:
 # --exclude-libs,ALL and the VST3 version script on Linux, explicit exports
 # on Windows, and hidden symbols on macOS. No archive symbol rewriting is needed.

@@ -73,7 +73,7 @@ export async function startSoundorWebHost(
   await context.state.ready;
   if (processorWasm === undefined)
     throw new Error(
-      'Missing native/ WebAssembly: rebuild the plugin with soundor build web',
+      'Missing lib/ WebAssembly: rebuild the plugin with soundor build web',
     );
   const wasm = Uint8Array.from(atob(processorWasm), (char) =>
     char.charCodeAt(0),

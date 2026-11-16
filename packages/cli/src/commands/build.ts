@@ -20,7 +20,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
-import { nativeCrateContext } from '../native/cargo';
+import { libraryBuildContext } from '../library/cargo';
 import { bundleUi } from '../ui/bundle';
 import { runGen } from './gen';
 
@@ -146,7 +146,7 @@ export async function runBuild(
           dir: bundle.dir,
           module: bundle.module,
         },
-        native: nativeCrateContext(root, logger.child(runtimeEntry.id)),
+        lib: libraryBuildContext(root, logger.child(runtimeEntry.id)),
       });
       results.push({ runtime: runtimeEntry.id, status: 'built' });
     } catch (error) {

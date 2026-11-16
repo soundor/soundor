@@ -1,6 +1,6 @@
 #pragma once
 
-// A plugin's Rust controller (the project's native/ crate, when it exports
+// A plugin's Rust controller (the project's lib/ crate, when it exports
 // one), called through its C ABI (RustControllerAbi.h): the engine's native
 // side of the controller. Plain C++ and runtime-independent: a runtime gives
 // it its services (ControllerServices) and a way to run it on the control

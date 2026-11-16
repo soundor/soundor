@@ -1,7 +1,7 @@
 //! Soundor plugins in Rust: their audio processing, and their controller.
 //!
 //! A Soundor plugin's UI is TypeScript and React; the rest of it is Rust, in
-//! the project's `native/` crate:
+//! the project's `lib/` crate:
 //!
 //! - its [`Processor`], on the audio thread. Soundor's runtimes run the same
 //!   one: the JUCE runtime calls it through a C ABI on the host's audio

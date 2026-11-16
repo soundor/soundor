@@ -62,7 +62,7 @@ have their own versions. See [Dependency versions](/docs/cli/create-soundor-app#
 before upgrading.
 
 The template includes a gain control UI and one Rust gain processor shared by
-both runtimes. Implement audio behavior in `native/src/processor.rs`; declaring a
+both runtimes. Implement audio behavior in `lib/src/processor.rs`; declaring a
 parameter does not apply it to the audio automatically. See
 [Rust audio processing](/docs/rust-processor).
 
@@ -74,11 +74,11 @@ my-plugin/
   src/index.tsx            renders the UI
   src/App.tsx              shared TypeScript/React UI
   rust-toolchain.toml      Rust stable, generated once
-  native/Cargo.toml        your Rust crate and dependencies
-  native/Cargo.lock        locked Rust dependency versions
-  native/src/lib.rs        registers the controller and processor
-  native/src/controller.rs required controller and instance stores
-  native/src/processor.rs  shared Rust audio processor
+  lib/Cargo.toml           your Rust crate and dependencies
+  lib/Cargo.lock           locked Rust dependency versions
+  lib/src/lib.rs           registers the controller and processor
+  lib/src/controller.rs    required controller and instance stores
+  lib/src/processor.rs     shared Rust audio processor
   tsconfig.json            UI types, including generated declarations
   .soundor/
     generated/            generated types and runtime framework
@@ -86,7 +86,11 @@ my-plugin/
     dist/                 runtime build output
 ```
 
-You own `src/`, `native/`, the toolchain file and the config. Soundor owns
+You own `src/`, `lib/`, the toolchain file and the config.
+`src/` contains the Soundor UI; `lib/` is the cross-platform Rust library
+containing both the processor and controller. The `native` API
+(`native.methods`, `native.events`, and `soundor:native`) describes communication
+between the UI and its host, including in a browser. Soundor owns
 `.soundor/`, which is disposable build output. `gen` creates a Rust starter crate
 when its manifest is absent, leaves existing crates untouched, and rewrites the derived files in `.soundor/`. See [Project lifecycle](/docs/project-lifecycle).
 
@@ -183,9 +187,9 @@ For optional custom inputs, add a [browser TypeScript project](/docs/web-runtime
 Then run it with `pnpm dev:web`.
 
 Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
-browser host, and so does your audio processing: the Rust crate in `native/`,
+browser host, and so does your audio processing: the Rust crate in `lib/`,
 compiled to WebAssembly (it needs `rustup target add wasm32-unknown-unknown`).
-`native/src/controller.rs` implements your configured native API for the
+`lib/src/controller.rs` implements your configured native API for the
 browser and JUCE plugin alike.
 
 Press Play in the host to enable audio. The
@@ -225,3 +229,16 @@ This path needs no JUCE or native engine build. The example uses both managed ru
 one shared Rust gain processor and application tests. See
 [Basic example](/docs/examples/basic) for its file map and
 [Contributing](/docs/contribute) for repository checks.
+
+## Migrating the Rust library directory
+
+If your project uses `native/Cargo.toml`, rename the user-owned `native/`
+directory to `lib/`, update Cargo manifest paths in scripts and editor tooling,
+and run `soundor gen`. Keep the Cargo package name and the processor/controller
+exports unchanged. The relative dependency on `.soundor/generated/rust/soundor`
+stays the same. Both JUCE and Web build this library with Cargo.
+
+Soundor rejects the old layout and also rejects projects with both
+`native/Cargo.toml` and `lib/Cargo.toml`. Resolve which crate to keep in `lib/`
+yourself; Soundor never renames or deletes user files. The native methods/events
+API and platform-native C++ directories are unaffected.

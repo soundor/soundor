@@ -15,10 +15,10 @@ runs the same Rust controller in JUCE and web: use `pnpm dev` or
 ```text
 soundor.config.ts         the `rate` and `depth` parameters, the `shape` state, the methods, the `wavetable` resource
 src/App.tsx               the UI: calls the methods, awaits the async ones
-native/src/lib.rs         registers both modules
-native/src/processor.rs   the processor: the input times the wavetable, at `rate`
-native/src/controller.rs  the controller: its stores and NativeMethods
-native/tests/             the processor and the controller, tested in Rust
+lib/src/lib.rs            registers both modules
+lib/src/processor.rs      the processor: the input times the wavetable, at `rate`
+lib/src/controller.rs     the controller: its stores and NativeMethods
+lib/tests/                the processor and the controller, tested in Rust
 ```
 
 | Method                   | Kind  | Shows                                                                                                  |

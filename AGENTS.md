@@ -220,7 +220,7 @@ read the docs bundled with the installed package
   `toNativeModule()` of the engine it links (`@soundor/engine/native-module`). `dev` tails
   the plugin's log file and maps stack frames back through source maps.
   It ships the Rust SDK (`rust/soundor`), which `gen` copies into each
-  project with `src/plugin.rs` generated from the config (`src/native/`; the
+  project with `src/plugin.rs` generated from the config (`src/library/`; the
   SDK's own is from `rust/fixture/soundor.config.ts`, `UPDATE_GOLDEN=1`): the
   `Processor`, and the `Controller` with its generated `NativeMethods`, both
   exported by `soundor::export!`. See the docs' `rust-processor.md` and
@@ -354,7 +354,7 @@ swizzle (see `contribute/apple-accessibility.md`).
 
 ### Source and generated file ownership
 
-`gen` creates the shared Rust starter crate when `native/Cargo.toml` is absent and never overwrites existing
+`gen` creates the shared Rust starter crate when `lib/Cargo.toml` is absent and never overwrites existing
 user files. Both first-party hosts are package-managed; no runtime host
 directories or initialization hooks are needed. `gen` regenerates
 `.soundor/generated/` deterministically; `soundor gen --check` is read-only

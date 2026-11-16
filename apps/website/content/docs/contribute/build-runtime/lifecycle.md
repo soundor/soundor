@@ -50,6 +50,7 @@ A doctor report contains `checks`, each with `label`, `status` (`ok`, `warn` or
 | `fs`                       | Filesystem interface, replaceable in tests                       |
 | `logger`                   | Structured runtime logger; use its pipe for subprocess output    |
 | `codegen`                  | Collection sink for generated sources                            |
+| `lib`                      | Optional Rust library build context for dev/build                |
 | `ui`                       | Optional CLI-produced bundle, supplied to dev/build              |
 | `session`                  | Optional development terminal integration                        |
 | `signing`                  | Signing policy already resolved by the CLI's dispatcher          |
@@ -65,6 +66,29 @@ accepts absolute paths and is not a filesystem sandbox.
 production explicitly. It preserves `SoundorError` subclasses and wraps other
 exceptions as `RuntimeError` with the runtime ID, phase and cause. Use `EnvError`
 for a missing prerequisite and a message that identifies the fix.
+
+### Rust library compilation
+
+`ctx.lib` is a `LibraryBuildContext` for the project's `lib/Cargo.toml`. It
+contains the processor and controller library. It is undefined when the project
+has no library; report an `EnvError` explaining that `soundor gen` creates one.
+The CLI rejects legacy `native/` and ambiguous layouts before invoking builds.
+
+```ts
+const artifact = await ctx.lib.build({
+  crateType: 'cdylib',
+  target: 'wasm32-unknown-unknown',
+  profile: 'release',
+});
+```
+
+`LibraryBuildRequest` preserves Cargo target and profile selection; omit `target`
+for the host. Use `staticlib` for native plugin linking. `LibraryArtifact` gives
+the compiled `path` and `target`. The CLI owns Cargo compilation and its cache
+in `.soundor/cache/lib/`; runtimes link or load the artifact. During development,
+subscribe through `ctx.lib.onChange` and stop the subscription during cleanup.
+This build service is separate from the public `native.methods` and
+`native.events` UI-to-host API, whose names stay unchanged.
 
 ### Development protocol
 
