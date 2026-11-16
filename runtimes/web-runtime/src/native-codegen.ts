@@ -74,8 +74,7 @@ export interface WebNativeStreams {
 ${members.join('\n')}
 }
 
-export const streams =
-  nativeStreamPublishers() as unknown as WebNativeStreams;
+export const streams = nativeStreamPublishers() as unknown as WebNativeStreams;
 `;
 }
 
