@@ -136,16 +136,22 @@ export default defineSoundorConfig({
   assert.ok(existsSync(resolve(sdk, 'Cargo.toml')));
   assert.ok(existsSync(resolve(sdk, 'src/lib.rs')));
   assert.ok(!existsSync(resolve(sdk, 'src/plugin.rs')));
-  run(soundor, ['init']);
+  const help = run(soundor, ['--help']);
+  assert.doesNotMatch(help, /\binit\b/);
+  for (const phase of ['gen', 'dev', 'build', 'doctor'])
+    assert.match(help, new RegExp(`\\b${phase}\\b`));
+  for (const args of [['init'], ['init', 'web'], ['init', 'juce']]) {
+    assert.match(run(soundor, args, { status: 2 }), /Unknown command/i);
+  }
   assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
   assert.ok(
     !existsSync(resolve(temporary, 'runtimes/web')),
-    'web init must not create a host',
+    'web gen must not create a host',
   );
   assert.ok(
     !existsSync(resolve(temporary, 'runtimes/juce')),
-    'juce init must not create a host',
+    'juce gen must not create a host',
   );
   const juceHost = resolve(
     temporary,

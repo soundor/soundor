@@ -4,7 +4,7 @@ description: 'Build and check a lifecycle package, then connect its execution ba
 ---
 
 This walkthrough starts with a small lifecycle package. You can register it,
-initialize host files, generate a manifest and run doctor before implementing
+generate a manifest and run doctor before implementing
 its execution backend. Development and build report an explicit error until
 that backend is connected.
 
@@ -29,7 +29,7 @@ entry will export `demoRuntime`; a plugin config imports that factory. See
 [Publishing](/docs/contribute/build-runtime/publishing) for dependency placement
 and the published exports.
 
-## 2. Define the five phases
+## 2. Define the four phases
 
 Put this in `src/index.ts`:
 
@@ -42,13 +42,6 @@ export interface DemoOptions {
 
 export const demoRuntime = defineRuntime<DemoOptions>({
   id: 'demo',
-
-  async init(_config, ctx) {
-    const file = ctx.fs.resolve('runtimes', 'demo', 'README.md');
-    if (!(await ctx.fs.exists(file))) {
-      await ctx.fs.write(file, '# Demo host\n\nYour host code belongs here.\n');
-    }
-  },
 
   async gen(config, ctx) {
     const label = ctx.options.label;
@@ -96,8 +89,7 @@ export const demoRuntime = defineRuntime<DemoOptions>({
 
 The runtime ID is the directory and dispatch identity, independent of the npm
 package name. `defineRuntime` wraps the lifecycle implementation in a
-config-callable factory. `init` writes through the filesystem only when the user file is
-missing. `gen` emits contents through the sink, so the CLI controls writes and
+config-callable factory. `gen` emits contents through the sink, so the CLI controls writes and
 check mode. Options need runtime validation even though the factory is typed.
 
 When options affect several phases, move validation into a shared resolver and
@@ -119,20 +111,18 @@ runtimes: [demoRuntime({ label: 'Local demo' })],
 Run from the plugin project:
 
 ```sh
-pnpm exec soundor init demo
 pnpm exec soundor gen
 pnpm exec soundor gen --check
 pnpm exec soundor doctor
 ```
 
-`init` creates `runtimes/demo/README.md`. `gen` writes the manifest into
+`gen` writes the manifest into
 `.soundor/generated/runtimes/demo/`, alongside core's portable declarations.
 Doctor reports the missing execution backend. `soundor gen` and `--check`
 operate on all configured runtimes; keep only `demo` configured for an isolated
 exercise.
 
-Edit the README and run `init` again: it must preserve the edit. Change the
-label in config: check mode should report the stale manifest, and a subsequent
+Change the label in config: check mode should report the stale manifest, and a subsequent
 `gen` should update it. These are useful first tests for your package.
 
 ## 4. Connect execution
@@ -157,7 +147,7 @@ last bundle-writing step using `ctx.signing`.
 ## 5. Add evidence before publishing
 
 Test the lifecycle with injected filesystems, codegen sinks and command runners.
-Test repeat initialization, deterministic generation, option failures, missing
+Test deterministic generation, option failures, missing
 tools and cancellation. Then run execution and platform tests for
 [conformance](/docs/contribute/build-runtime/conformance). Doctor should report
 the actual backend's readiness once it is implemented.

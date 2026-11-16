@@ -56,23 +56,20 @@ function recordingLogger(records: string[]): Logger {
   return make();
 }
 
-const PHASES: RuntimePhase[] = ['init', 'gen', 'dev', 'build', 'doctor'];
+const PHASES: RuntimePhase[] = ['gen', 'dev', 'build', 'doctor'];
 
 describe('runtime lifecycle', () => {
-  it('drives a fake runtime through all five phases via the SDK', async () => {
+  it('drives a fake runtime through all four phases via the SDK', async () => {
     const calls: RuntimePhase[] = [];
     const seenOptions: unknown[] = [];
 
     const juceRuntime = defineRuntime<{ format: string }>({
       id: 'juce',
-      init: async (_config, ctx) => {
-        calls.push('init');
-        seenOptions.push(ctx.options);
-        await ctx.fs.write('init.txt', 'ready');
-        ctx.logger.info('initialized');
-      },
       gen: async (_config, ctx) => {
         calls.push('gen');
+        seenOptions.push(ctx.options);
+        await ctx.fs.write('generated.txt', 'ready');
+        ctx.logger.info('generated');
         ctx.codegen.emit({ path: 'params.ts', contents: '// generated' });
       },
       dev: async (_config, ctx) => {
@@ -124,15 +121,15 @@ describe('runtime lifecycle', () => {
     }
 
     // Selection is by phase string alone — every phase ran, in order.
-    expect(calls).toEqual(['init', 'gen', 'dev', 'build', 'doctor']);
+    expect(calls).toEqual(['gen', 'dev', 'build', 'doctor']);
     // Options from the resolved config entry reached the runtime.
     expect(seenOptions).toEqual([{ format: 'vst3' }]);
     // Side effects went through the injected host seams.
-    expect(fs.store.get('init.txt')).toBe('ready');
+    expect(fs.store.get('generated.txt')).toBe('ready');
     expect(codegen.files()).toEqual([
       { path: 'params.ts', contents: '// generated' },
     ]);
-    expect(logs).toContain('info:initialized');
+    expect(logs).toContain('info:generated');
     // doctor's report is returned.
     expect(report).toEqual({ checks: [{ label: 'toolchain', status: 'ok' }] });
   });
@@ -141,7 +138,6 @@ describe('runtime lifecycle', () => {
     const boom = new Error('build blew up');
     const runtime = defineRuntime({
       id: 'juce',
-      init: async () => {},
       gen: async () => {},
       dev: async () => {},
       build: async () => {

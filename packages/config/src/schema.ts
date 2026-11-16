@@ -17,7 +17,7 @@ import type { ResolvedSoundorConfig, SoundorConfig } from './types';
 import { CONFIG_VERSION } from './version';
 
 /** The lifecycle methods every {@link Runtime} must expose. */
-const RUNTIME_METHODS = ['init', 'gen', 'dev', 'build', 'doctor'] as const;
+const RUNTIME_METHODS = ['gen', 'dev', 'build', 'doctor'] as const;
 
 /**
  * Structural check that a value is a live {@link Runtime}: a `string` id plus

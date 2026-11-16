@@ -271,7 +271,6 @@ function runtime(id) {
   return {
     id,
     ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
-    async init() {},
     async gen(_config, ctx) {
       globalThis.__soundorBuildEvents.push('gen:' + id + ':' + ctx.mode);
       ctx.codegen.emit({ path: 'runtime.txt', contents: id + ':' + ctx.mode + '\\n' });

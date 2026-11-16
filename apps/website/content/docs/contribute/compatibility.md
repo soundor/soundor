@@ -75,7 +75,7 @@ CLI hands a phase) is therefore recognized by a data contract, never by
   `instanceof` only for errors your own code throws and catches. A code a copy
   does not know maps to the `INTERNAL` exit code.
 - **Runtimes** are registered structurally: a `{ id, options, runtime }` entry
-  whose `runtime` has an `id` and the five phases. The schema does not check
+  whose `runtime` has an `id` and the four phases. The schema does not check
   how the object was made.
 - **Shared state** is owned by an instance, not a module. Where state must be
   shared by copies on purpose, as the test runtime's context is between a test

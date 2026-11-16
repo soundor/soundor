@@ -128,7 +128,6 @@ try {
     },
   };
   const requests = [];
-  await runtime.juceInit(config, ctx);
   assert.equal(await ctx.fs.exists(join(project, 'runtimes')), false);
   await runtime.juceGen(config, ctx);
   const files = new Map(
@@ -176,7 +175,7 @@ try {
   }
   assert.equal(await ctx.fs.exists(join(project, 'runtimes')), false);
   console.log(
-    'Packed JUCE consumer: init, generation, release, debug and dev paths passed.',
+    'Packed JUCE consumer: generation, release, debug and dev paths passed.',
   );
 } finally {
   await rm(root, { recursive: true, force: true });

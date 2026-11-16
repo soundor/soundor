@@ -38,7 +38,7 @@ descriptors. The CLI does not import a concrete runtime to dispatch a command.
 `soundor gen` first writes portable declarations, then collects each runtime's
 `ctx.codegen` output under its generated directory. `--check` compares expected
 contents without writing. [Ownership](/docs/contribute/ownership) lists the
-directories and explains why `init` is separate.
+directories and explains how user-owned Rust files are preserved.
 
 `soundor build` runs generation in production mode, bundles the UI once, then
 calls the selected runtimes in production mode. It records per-runtime results

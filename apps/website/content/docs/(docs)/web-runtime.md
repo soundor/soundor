@@ -124,7 +124,6 @@ files are copied into your project.
 
 | Phase    | What it does                                                                                 |
 | -------- | -------------------------------------------------------------------------------------------- |
-| `init`   | No web host files; the CLI still prepares the shared Rust crate and other runtimes.          |
 | `gen`    | Writes contracts under `.soundor/generated/runtimes/web/`, checked by `soundor gen --check`. |
 | `dev`    | Serves the installed host until Ctrl+C.                                                      |
 | `build`  | Emits a static site with relative URLs in `.soundor/dist/web/`.                              |
@@ -212,8 +211,8 @@ silently ignoring customizations. Soundor never deletes your files.
    deleting the legacy directory yourself.
 
 If you never customized the host, remove `runtimes/web/` and its old typecheck
-script suffix. No input option is needed: defaults stay the same. JUCE's
-initialization and user-owned files are unchanged.
+script suffix. No input option is needed: defaults stay the same. Preserve
+your shared Rust crate and other user-owned files.
 
 ## `soundor:*` in the browser
 

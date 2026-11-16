@@ -1,5 +1,5 @@
 /**
- * The project's Rust crate, scaffolded once by `soundor init` and never
+ * The project's Rust crate, scaffolded once by `soundor gen` and never
  * overwritten: `native/` (the plugin's audio processing, the user's own) and
  * `rust-toolchain.toml`. Only the `soundor` dependency's path is Soundor's;
  * everything else in the crate is the user's to change.

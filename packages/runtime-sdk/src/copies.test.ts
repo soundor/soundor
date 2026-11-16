@@ -197,7 +197,6 @@ import { ConfigError, EnvError, defineRuntime } from '@soundor/runtime-sdk';
 const noop = async () => {};
 const definition = {
   id: 'third',
-  init: noop,
   async gen(config, ctx) {
     switch (${JSON.stringify(scenario.gen)}) {
       case 'config-error':

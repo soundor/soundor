@@ -157,7 +157,7 @@ from it. A host supporting plugin program lists can show their names and load
 them. Program order follows config order; preserve it after release where hosts
 store program indices. Existing projects adopting a factory catalog must remove
 handwritten `getNumPrograms()`, `getCurrentProgram()`, `setCurrentProgram()`,
-`getProgramName()`, and `changeProgramName()` overrides. `init` never overwrites
+`getProgramName()`, and `changeProgramName()` overrides. `gen` never overwrites
 existing files. Without a catalog, existing program overrides remain supported.
 
 Host program changes do not create local History entries. Off-message-thread

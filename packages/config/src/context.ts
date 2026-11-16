@@ -19,7 +19,7 @@ import type { RuntimeConfig } from './types';
 export type RuntimeMode = 'debug' | 'production';
 
 /** The five lifecycle phases every runtime implements. */
-export type RuntimePhase = 'init' | 'gen' | 'dev' | 'build' | 'doctor';
+export type RuntimePhase = 'gen' | 'dev' | 'build' | 'doctor';
 
 /** Credentials for one development session. Never log or embed in artifacts. */
 export interface DevToolsConnection {

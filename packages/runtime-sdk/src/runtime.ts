@@ -18,7 +18,6 @@ export type RuntimeDefinition<Options extends object = object> =
  *
  * export const juceRuntime: RuntimeFactory<JuceOptions> = defineRuntime({
  *   id: 'juce',
- *   async init(config, ctx) { ... },
  *   async gen(config, ctx) { ... },
  *   async dev(config, ctx) { ... },
  *   async build(config, ctx) { ... },

@@ -11,7 +11,6 @@ it('discovers optional support without invoking runtime methods', async () => {
   const method = vi.fn<() => Promise<void>>(async () => {});
   const runtime: Runtime = {
     id: 'third-party',
-    init: method,
     gen: method,
     dev: method,
     build: method,

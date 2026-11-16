@@ -65,7 +65,6 @@ function config(...runtimes: RuntimeDescriptor[]): ResolvedSoundorConfig {
 describe('resolveRuntime', () => {
   const juce: Runtime = {
     id: 'juce',
-    init: async () => {},
     gen: async () => {},
     dev: async () => {},
     build: async () => {},
@@ -104,7 +103,6 @@ describe('runPhase', () => {
     const runtime: Runtime = {
       id: 'custom',
       capabilities: { devtools: {} },
-      init: record,
       gen: record,
       dev: record,
       build: record,
@@ -117,7 +115,7 @@ describe('runPhase', () => {
       sessionId: 'session',
       token: 'secret',
     };
-    for (const phase of ['init', 'gen', 'dev', 'build'] as const) {
+    for (const phase of ['gen', 'dev', 'build'] as const) {
       await runPhase(resolved, phase, cfg, dispatchInput({ devtools }));
     }
     await runPhase(
@@ -134,7 +132,6 @@ describe('runPhase', () => {
     );
     expect(seen).toEqual([
       undefined,
-      undefined,
       devtools,
       undefined,
       undefined,
@@ -145,10 +142,9 @@ describe('runPhase', () => {
     const seen: Array<{ phase: string; mode: string; options: unknown }> = [];
     const runtime: Runtime = {
       id: 'juce',
-      init: async (_c, ctx) => {
+      gen: async (_c, ctx) => {
         seen.push({ phase: ctx.phase, mode: ctx.mode, options: ctx.options });
       },
-      gen: async () => {},
       dev: async () => {},
       build: async (_c, ctx) => {
         seen.push({ phase: ctx.phase, mode: ctx.mode, options: ctx.options });
@@ -160,7 +156,7 @@ describe('runPhase', () => {
     const cfg = config(descriptor('juce', runtime, { format: 'vst3' }));
     const resolved = resolveRuntime(cfg, 'juce');
 
-    await runPhase(resolved, 'init', cfg, dispatchInput());
+    await runPhase(resolved, 'gen', cfg, dispatchInput());
     await runPhase(
       resolved,
       'build',
@@ -170,7 +166,7 @@ describe('runPhase', () => {
     const report = await runPhase(resolved, 'doctor', cfg, dispatchInput());
 
     expect(seen).toEqual([
-      { phase: 'init', mode: 'debug', options: { format: 'vst3' } },
+      { phase: 'gen', mode: 'debug', options: { format: 'vst3' } },
       { phase: 'build', mode: 'production', options: { format: 'vst3' } },
     ]);
     expect(report).toEqual({ checks: [{ label: 'ok', status: 'ok' }] });
@@ -180,7 +176,6 @@ describe('runPhase', () => {
     const seen: unknown[] = [];
     const runtime: Runtime = {
       id: 'juce',
-      init: async () => {},
       gen: async () => {},
       dev: async () => {},
       build: async (_c, ctx) => {
@@ -222,7 +217,6 @@ describe('runPhase', () => {
     const boom = new Error('kaboom');
     const runtime: Runtime = {
       id: 'juce',
-      init: async () => {},
       gen: async () => {},
       dev: async () => {
         throw boom;
@@ -246,17 +240,16 @@ describe('runPhase', () => {
     const original = new RuntimeError('explicit', { runtimeId: 'juce' });
     const runtime: Runtime = {
       id: 'juce',
-      init: async () => {
+      gen: async () => {
         throw original;
       },
-      gen: async () => {},
       dev: async () => {},
       build: async () => {},
       doctor: async () => ({ checks: [] }),
     };
     const cfg = config(descriptor('juce', runtime));
     const resolved = resolveRuntime(cfg, 'juce');
-    await expect(runPhase(resolved, 'init', cfg, dispatchInput())).rejects.toBe(
+    await expect(runPhase(resolved, 'gen', cfg, dispatchInput())).rejects.toBe(
       original,
     );
   });
@@ -265,17 +258,16 @@ describe('runPhase', () => {
     const signals: AbortSignal[] = [];
     const runtime: Runtime = {
       id: 'juce',
-      init: async (_c, ctx) => {
+      gen: async (_c, ctx) => {
         signals.push(ctx.signal);
       },
-      gen: async () => {},
       dev: async () => {},
       build: async () => {},
       doctor: async () => ({ checks: [] }),
     };
     const cfg = config(descriptor('juce', runtime));
     const resolved = resolveRuntime(cfg, 'juce');
-    await runPhase(resolved, 'init', cfg, dispatchInput());
+    await runPhase(resolved, 'gen', cfg, dispatchInput());
     expect(signals[0]).toBeInstanceOf(AbortSignal);
     expect(signals[0]?.aborted).toBe(false);
   });

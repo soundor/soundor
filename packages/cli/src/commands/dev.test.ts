@@ -227,7 +227,6 @@ async function writeConfig(
 const runtime = {
   id: 'test',
   ${options.devtools ? 'capabilities: { devtools: { inspector: true } },' : ''}
-  async init() {},
   async gen(_config, ctx) {
     globalThis.__soundorDevEvents.push('gen:' + ctx.mode);
     ctx.codegen.emit({ path: 'runtime.txt', contents: 'generated\\n' });

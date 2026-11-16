@@ -127,7 +127,7 @@ Every plugin exports both types through
 `soundor::export!(PluginProcessor, PluginController)`. A processor-only
 export is a compile error, including for plugins without native methods.
 
-`soundor init` always creates `native/src/lib.rs`, `controller.rs` and
+`soundor gen` always creates `native/src/lib.rs`, `controller.rs` and
 `processor.rs`. Only `lib.rs` registers the two modules. Configured methods
 get compiling default stubs; without methods, omit `impl NativeMethods`
 because the generated trait supplies its blanket implementation.

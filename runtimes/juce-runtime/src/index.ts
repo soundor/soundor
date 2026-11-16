@@ -99,12 +99,6 @@ type StandaloneLauncher = (
   descriptorPath?: string,
 ) => boolean;
 
-/** The shared lifecycle requires init; the managed JUCE host needs no files. */
-export async function juceInit(
-  _config: ResolvedSoundorConfig,
-  _ctx: Ctx,
-): Promise<void> {}
-
 /** Reject legacy hosts before any compilation; never discard user customizations. */
 async function requireManagedHost(ctx: Ctx): Promise<void> {
   if (await ctx.fs.exists(ctx.fs.resolve('runtimes', RUNTIME_ID))) {
@@ -377,7 +371,7 @@ async function buildRust(
 ): Promise<string> {
   if (ctx.native === undefined)
     throw new EnvError(
-      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor init` to create it.",
+      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor gen` to create missing Rust starter files.",
     );
   ctx.logger.info('Compiling the audio processing (native/) with Cargo');
   const library = await ctx.native.build({
@@ -546,7 +540,6 @@ export const juceRuntime = defineRuntime<JuceOptions>({
       capture: true,
     },
   },
-  init: juceInit,
   gen: juceGen,
   dev: (config, ctx) => juceDev(config, ctx),
   build: (config, ctx) => juceBuild(config, ctx),

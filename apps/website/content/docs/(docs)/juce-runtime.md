@@ -124,7 +124,6 @@ continues normally when debugging is disabled or unavailable.
 
 | Phase    | What it does                                                                                                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`   | No-op: the installed runtime package owns its CMake project, processor and editor; no initialization needed.                                                                        |
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
 | `dev`    | Debug CMake build that loads the development UI bundle from disk; opens the VST3 in the host or the Standalone. Signed ad-hoc on macOS.                                             |
 | `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
@@ -144,15 +143,15 @@ Runtime reload clears all old node references. See the
 
 The installed `@soundor/juce-runtime` owns the CMake entry point and C++ host.
 `soundor dev juce` and `soundor build juce` use it directly, without running
-`soundor init juce` or creating `runtimes/juce/`. The five lifecycle phases
-remain; JUCE's `init` is a no-op.
+an initialization step or creating `runtimes/juce/`. The runtime lifecycle
+consists of `gen`, `dev`, `build`, and `doctor`.
 
 `gen` produces the config-derived framework into `.soundor/generated/`: the
 `soundor::AudioProcessor` / `soundor::AudioProcessorEditor` classes, bindings
 and `setup.cmake`. It is reproducible (`gen --check` is stable). Build files
 stay in `.soundor/cache/juce/` and output in `.soundor/dist/juce/`.
 The project still owns its Rust processor and controller in `native/`;
-`soundor init` creates that crate once when setting up a project.
+`soundor gen` creates that crate once when setting up a project.
 
 ## Migration
 

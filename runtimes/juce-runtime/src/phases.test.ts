@@ -21,7 +21,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostModule } from './dev-host';
-import { juceBuild, juceDev, juceGen, juceInit, NATIVE_DIR } from './index';
+import { juceBuild, juceDev, juceGen, NATIVE_DIR } from './index';
 import type { JuceOptions } from './options';
 import { fakeNative, makeCtx } from './testing';
 
@@ -66,18 +66,6 @@ async function writeBundle(
 }
 
 afterEach(() => vi.restoreAllMocks());
-
-describe('juceInit', () => {
-  it('is a no-op, including for an existing host', async () => {
-    const ctx = makeCtx();
-    await juceInit(config, ctx);
-    expect(await ctx.fs.exists(ctx.fs.resolve('runtimes/juce'))).toBe(false);
-    const path = ctx.fs.resolve('runtimes/juce/CMakeLists.txt');
-    await ctx.fs.write(path, 'custom host');
-    await juceInit(config, ctx);
-    expect(await ctx.fs.read(path)).toBe('custom host');
-  });
-});
 
 describe('juceGen', () => {
   it('emits the generated framework through the codegen sink', async () => {
@@ -979,9 +967,7 @@ describe('the Rust processor', () => {
     const { ctx, calls, run } = await build({ native: null });
     await expect(
       juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' }),
-    ).rejects.toThrow(
-      /no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor init/,
-    );
+    ).rejects.toThrow(/no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor gen/);
     expect(calls).toEqual([]);
   });
 });

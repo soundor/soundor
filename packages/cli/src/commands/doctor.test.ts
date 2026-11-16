@@ -328,7 +328,6 @@ async function writeConfig(
 function runtime(id, checks) {
   return {
     id,
-    async init() {},
     async gen() {},
     async dev() {},
     async build() {},

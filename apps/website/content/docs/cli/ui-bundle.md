@@ -57,8 +57,8 @@ The scaffolder includes `customConditions`. When setting up a project from
 scratch or upgrading an existing one, add `"customConditions": ["soundor"]`
 to the UI's tsconfig (usually `tsconfig.app.json`), keeping any other custom
 conditions you use. This makes TypeScript select a library's Soundor
-declarations, matching the CLI's bundle resolution. `soundor init` creates the Rust crate and initializes runtimes that need host
-files (neither JUCE nor Web does); it does not update the UI's tsconfig. The web host's own
+declarations, matching the CLI's bundle resolution. `soundor gen` creates missing Rust starter
+files; it does not update the UI's tsconfig. The web host's own
 DOM and Web Audio code has a separate tsconfig.
 
 The bundler never ships with the plugin: the plugin contains plain JavaScript

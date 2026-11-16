@@ -21,7 +21,7 @@ implementations are `runtimes/juce-runtime/` and `runtimes/web-runtime/`.
 ```mermaid
 flowchart TD
     config["soundor.config.ts: runtime factory and options"] --> cli["CLI orchestrates phases"]
-    cli --> node["Runtime package: init, gen, dev, build, doctor"]
+    cli --> node["Runtime package: gen, dev, build, doctor"]
     cli --> bundle["Shared UI bundle"]
     node --> host["Platform host and build graph"]
     bundle --> host
@@ -61,7 +61,7 @@ should fit that boundary without adding runtime-specific branches to the CLI.
 ## Invariants and tests
 
 The same UI must see the [cross-runtime contract](/docs/contribute/contract).
-User-owned host files survive `init`; generated framework files are
+Host code belongs in the runtime package; generated framework files are
 deterministic. Development aborts cleanly, and reloading releases the previous
 UI's subscriptions, jobs and resources.
 

@@ -24,6 +24,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { nativeScaffoldFiles } from '../native/scaffold';
 import { rustSdkFiles } from '../native/sdk';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -83,6 +84,15 @@ export async function runGen(
     resolveRuntime(config, runtimeEntry.id),
   );
   const groups: RunGenGroupReport[] = [];
+
+  // Starter Rust files are user-owned: fill gaps, never overwrite edits.
+  if (options.check !== true) {
+    for (const file of nativeScaffoldFiles(config)) {
+      if (!(await fs.exists(file.path))) {
+        await fs.write(file.path, file.contents);
+      }
+    }
+  }
 
   if (options.check === true) {
     await checkGeneratedFiles(fs, portableDir, portableFiles);
