@@ -2,11 +2,9 @@
 //! (`delay`), set from soundor.config.ts's parameters once a block, their
 //! times in beats of the host's tempo when Tempo sync is on.
 
-pub mod delay;
-
 use soundor::prelude::*;
 
-use delay::{Delay, Settings};
+use crate::delay::{Delay, Settings};
 
 #[derive(Default)]
 pub struct PluginProcessor {

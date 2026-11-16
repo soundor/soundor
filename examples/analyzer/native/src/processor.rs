@@ -2,11 +2,9 @@
 //! and peak of what it hears to the UI, through the config's native streams
 //! (`ctx.streams`), from the audio thread: realtime-safe, the latest only.
 
-pub mod fft;
-
 use soundor::prelude::*;
 
-use fft::Fft;
+use crate::fft::Fft;
 
 const FFT_SIZE: usize = 2048;
 /// A spectrum every half window (1024 samples): about 47 a second at 48 kHz.
