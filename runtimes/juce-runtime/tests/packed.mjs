@@ -44,12 +44,20 @@ try {
   // Git for Windows' tar treats the colon in C:\... as a remote archive host.
   execFileSync('tar', ['-xzf', 'runtime.tgz'], { cwd: root });
   const installed = join(root, 'package');
-  // Use the installed dependency graph without a registry or an extra install.
-  await symlink(
-    join(packageDir, 'node_modules'),
-    join(installed, 'node_modules'),
-    'junction',
+  // Link each dependency's canonical directory. Linking node_modules itself
+  // relocates pnpm's relative links across drives on Windows (D: checkout, C: temp).
+  const manifest = JSON.parse(
+    await readFile(join(installed, 'package.json'), 'utf8'),
   );
+  for (const name of Object.keys(manifest.dependencies)) {
+    const target = join(installed, 'node_modules', name);
+    await mkdir(join(target, '..'), { recursive: true });
+    await symlink(
+      await realpath(join(packageDir, 'node_modules', name)),
+      target,
+      'junction',
+    );
+  }
   const runtime = await import(
     pathToFileURL(join(installed, 'dist/index.mjs')).href
   );
