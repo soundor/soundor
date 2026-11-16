@@ -21,7 +21,7 @@ export default defineSoundorConfig({
     juceRuntime({
       formats: ['vst3', 'standalone'],
     }),
-    webRuntime(),
+    webRuntime({ inputs: './web/inputs.ts' }),
   ],
   state: {
     presetDescription: {

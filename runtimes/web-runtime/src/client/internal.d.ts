@@ -45,3 +45,8 @@ declare module 'soundor:internal/engine' {
   const source: import('@soundor/engine/web').ModuleSource;
   export default source;
 }
+
+declare module 'soundor:internal/inputs' {
+  const inputs: unknown;
+  export default inputs;
+}

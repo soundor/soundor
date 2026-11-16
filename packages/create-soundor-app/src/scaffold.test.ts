@@ -1,4 +1,5 @@
 import {
+  cp,
   mkdtemp,
   mkdir,
   readdir,
@@ -12,6 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyTokens,
   buildScripts,
   clearDirectory,
   devScripts,
@@ -19,6 +21,7 @@ import {
   projectManifest,
   resolveProjectTarget,
   tokenReplace,
+  type Runtime,
 } from './scaffold';
 
 describe('tokenReplace', () => {
@@ -199,7 +202,7 @@ describe('projectManifest', () => {
       dev: 'soundor dev juce',
       'dev:web': 'soundor dev web',
       gen: 'soundor gen',
-      typecheck: 'soundor gen && tsc -b && tsc -p runtimes/web',
+      typecheck: 'soundor gen && tsc -b',
     });
   });
 
@@ -210,4 +213,31 @@ describe('projectManifest', () => {
       ],
     ).toBe('soundor gen && tsc -b');
   });
+});
+
+it.each<{ runtimes: Runtime[] }>([
+  { runtimes: ['web'] },
+  { runtimes: ['juce', 'web'] },
+  { runtimes: ['juce'] },
+])('keeps solution references valid for %j projects', async ({ runtimes }) => {
+  const root = await mkdtemp(join(tmpdir(), 'soundor-template-'));
+  try {
+    await cp(new URL('../templates/base/', import.meta.url), root, {
+      recursive: true,
+    });
+    await applyTokens(root, 'test-plugin', runtimes);
+    const solution = JSON.parse(
+      await readFile(join(root, 'tsconfig.json'), 'utf8'),
+    ) as { references: { path: string }[] };
+    expect(solution.references.map(({ path }) => path)).toEqual([
+      './tsconfig.app.json',
+      './tsconfig.node.json',
+      ...(runtimes.includes('web') ? ['./tsconfig.web.json'] : []),
+    ]);
+    for (const { path } of solution.references)
+      expect(await readFile(join(root, path), 'utf8')).toBeTruthy();
+    expect((await readdir(root)).includes('runtimes')).toBe(false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

@@ -25,8 +25,7 @@ same: the same `src/main.tsx`, the same `@soundor/react` components, the same
 ```
 
 This is not the JUCE plugin compiled for the Web. The browser's own engine runs
-the plugin UI's JavaScript and draws it, without Hermes or Skia, and your own
-TypeScript provides the native API and the audio. The UI's engine is Soundor's
+the plugin UI's JavaScript and draws it, without Hermes or Skia, and your Rust controller and processor run through WebAssembly. The UI's engine is Soundor's
 own, though: its C++ core (the node tree, styles, Yoga layout and text layout,
 the same code the JUCE runtime compiles) runs as WebAssembly, so a UI gets the
 same boxes and the same style errors in both runtimes, and the browser draws
@@ -37,7 +36,7 @@ That module (`soundor-core.wasm`, about 150 KB compressed) is precompiled: it
 comes from the installed `@soundor/engine`'s prebuilt release, downloaded once
 into the Soundor cache and verified when `soundor dev` or `soundor build`
 first needs it, then served from your own site like any asset. A web plugin
-needs no Emscripten, CMake or C++ compiler; Rust only if it has a processor
+needs no Emscripten, CMake or C++ compiler; Rust compiles its controller and processor
 ([Audio](#audio-the-plugins-processor-in-webassembly)). See
 [Soundor Engine](/docs/engine#the-webassembly-core).
 
@@ -58,90 +57,162 @@ export default defineSoundorConfig({
 });
 ```
 
-`webRuntime({ port })` takes one option: the port `soundor dev` serves on
-(5173 by default, or the next free one).
+Soundor manages the complete Web host, including HTML, browser services, audio
+and its build system. There is no `runtimes/web/` project or web initialization
+step. A newly created project can run immediately:
 
 ```sh
-soundor init web    # scaffold runtimes/web/ (yours; existing files are kept)
-soundor dev web     # serve the Web host; edits reload the page
-soundor build web   # a static site in .soundor/dist/web
-soundor doctor      # Node.js, Vite, the scaffold, Rust for WebAssembly
+pnpm create soundor-app my-plugin
+cd my-plugin
+pnpm dev:web       # choose JUCE + Web in the scaffolder
 ```
 
-`@soundor/web-runtime` is an ordinary dependency of your project, added with
-the package manager you already use. It brings Vite; the Web host has no
-`package.json` or lockfile of its own.
+For a web-only project the scaffolder names this script `dev`.
+Existing projects can add `webRuntime()` to their runtimes and run:
 
-## Lifecycle and ownership
-
-The Web runtime follows the same five phases as the JUCE runtime, with the
-same split between what you own and what Soundor regenerates.
-
-| Phase    | What it does                                                                                            |
-| -------- | ------------------------------------------------------------------------------------------------------- |
-| `init`   | Writes the Web host project under `runtimes/web/`. A file that exists is never overwritten.             |
-| `gen`    | Writes `.soundor/generated/runtimes/web/`, deterministically (`soundor gen --check` verifies it).       |
-| `dev`    | Runs Vite's dev server on `runtimes/web/` until Ctrl+C.                                                 |
-| `build`  | Runs a Vite production build into `.soundor/dist/web/`, with relative URLs.                             |
-| `doctor` | Checks Node.js against what Vite needs, Vite, the scaffold, and Rust's `wasm32-unknown-unknown` target. |
-
-**Yours** (`runtimes/web/`, written once by `init`):
-
-```text
-runtimes/web/
-├── index.html        the page
-├── vite.config.ts    your Vite settings (defineWebConfig)
-├── tsconfig.json     DOM and Web Audio types, plus the soundor:* declarations
-└── src/
-    └── main.ts       starts the host
+```sh
+soundor dev web
+soundor build web   # static site in .soundor/dist/web
+soundor doctor     # Node.js, Vite, Rust for WebAssembly, migration checks
 ```
 
-**Generated** (`.soundor/generated/runtimes/web/`, rewritten by `gen`):
+`port` selects the development port (5173 by default, or the next free one).
+`inputs` selects the optional audio sources:
 
-- `manifest.json`: the plugin's identity, parameters and native methods.
-- `native.ts`: typed event and stream publishers. Methods dispatch to Rust.
+| Configuration      | Behavior                                  |
+| ------------------ | ----------------------------------------- |
+| omitted            | Oscillator, audio file, microphone        |
+| built-in array     | Exactly those sources, in that order      |
+| module path string | The module's default-exported input array |
+| `[]`               | No optional sources                       |
 
-Everything generic (the parameter store, the transport, the DOM `soundor:ui`,
-storage, the host UI) lives in this package, not in generated code.
+**No input** is always available. Explicit lists replace defaults. The initial
+selection is the first oscillator or custom input, or No input if neither is
+present. File and microphone always require explicit selection.
 
-**Release output** (`.soundor/dist/web/`): the static site and nothing else.
+### Built-in inputs first
 
-## Vite and the plugin UI
-
-Vite is the Web host's dev server and build system. It is not a second UI
-bundler.
-
-```text
-src/main.tsx ──(soundor CLI bundler)──▶ bundle.mjs ──(Vite)──▶ browser
-```
-
-The Soundor CLI bundles the plugin UI as it does for every runtime (`bundle.mjs`
-plus content-addressed assets) and hands it to the runtime as `ctx.ui`. Vite
-loads that bundle as it is and never reads `src/main.tsx`. Vite resolves the
-bundle's `soundor:*` imports to this package's browser modules.
-
-- **In `soundor dev`,** the CLI rebuilds the bundle on every change. The page
-  reloads when a new `build-id` appears, so a failed rebuild leaves the last
-  working page in place. Changes under `runtimes/web/` are Vite's own and
-  update as usual. The page's console and uncaught errors also appear in the
-  terminal, as the JUCE plugin's do.
-- **In `soundor build`,** the bundle becomes part of the production build, and
-  its images are emitted under `soundor-assets/`.
-
-`runtimes/web/vite.config.ts` is yours to extend:
+Prefer the built-in inputs before implementing your own. For example:
 
 ```ts
-import { defineWebConfig } from '@soundor/web-runtime/vite';
+import { webRuntime } from '@soundor/web-runtime';
 
-export default defineWebConfig({
-  plugins: [/* your Vite plugins */],
+// In soundor.config.ts's runtimes array:
+webRuntime({
+  inputs: [
+    { type: 'oscillator', waveform: 'sine', frequency: 440, gain: 0.2 },
+    { type: 'file' },
+  ],
 });
 ```
 
-The lifecycle adds Soundor's own Vite plugin to every run, whatever this file
-says. That plugin fixes the root, the output directory, the relative base and
-the `soundor:*` resolution, so a config cannot cut the host off from the
-runtime. Running `vite` directly fails with a pointer to `soundor dev web`.
+`oscillator` defaults to a triangle at 220 Hz and gain 0.3. Frequency must be
+positive and finite; gain is between 0 and 1. Supported waveforms are `sine`,
+`square`, `sawtooth` and `triangle`. `file` uses the existing file picker and
+loops at the transport position. `microphone` uses browser capture with echo
+cancellation, noise suppression and automatic gain control disabled.
+Duplicate types, unknown options and invalid values are errors.
+
+If built-ins are insufficient, use a [custom input module](#custom-inputs).
+Consider contributing broadly useful sources to Soundor's built-in collection.
+
+## Lifecycle and ownership
+
+You own your UI in `src/`, Rust code in `native/`, and optional browser input
+modules. Soundor owns the host inside `@soundor/web-runtime`; no implementation
+files are copied into your project.
+
+| Phase    | What it does                                                                                 |
+| -------- | -------------------------------------------------------------------------------------------- |
+| `init`   | No web host files; the CLI still prepares the shared Rust crate and other runtimes.          |
+| `gen`    | Writes contracts under `.soundor/generated/runtimes/web/`, checked by `soundor gen --check`. |
+| `dev`    | Serves the installed host until Ctrl+C.                                                      |
+| `build`  | Emits a static site with relative URLs in `.soundor/dist/web/`.                              |
+| `doctor` | Checks Node.js, Vite, Rust's WASM target and legacy host migration.                          |
+
+The manifest includes plugin metadata, parameters, state and the native API.
+Generated `parameters.js` provides compiled parameter behavior; `native.ts`
+provides typed event and stream publishers. Generated files are never edited.
+The installed package brings its browser dependencies and Vite; no extra
+package.json, HTML or Vite configuration is needed. The plugin's `public/`
+directory, if present, supplies static files.
+
+## Development and builds
+
+The CLI bundles the shared plugin UI just as for every runtime. The Web host
+loads that bundle with its `soundor:*` modules resolved to browser services.
+Successful UI builds reload the page; a failed UI rebuild keeps the last
+working bundle. Custom input modules and their imports are compiled separately
+for the browser and update through the development server. Rust edits rebuild
+the processor and controller, then reload the page. Config changes need a restart.
+Browser logs and uncaught errors appear in the terminal during development.
+Production output contains the host, UI, WASM and bundled input code and assets.
+
+## Browser TypeScript environment
+
+Keep browser input code separate from the shared UI: the UI runs in every
+runtime and deliberately has no DOM globals. New projects with Web include
+`tsconfig.web.json` and reference it from the solution-style `tsconfig.json`.
+`tsconfig.app.json`, Node, test and E2E references keep their existing roles.
+
+For an existing project, add this project and append
+`{ "path": "./tsconfig.web.json" }` to the root's `references`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.web.tsbuildinfo"
+  },
+  "include": ["web/**/*.ts", "web/**/*.js", ".soundor/generated/platform.d.ts"]
+}
+```
+
+Run `soundor gen && tsc -b` to check all projects. The generated module-only
+`platform.d.ts` keeps an empty browser project valid without importing Soundor's
+UI globals. DOM and Web Audio declarations come from TypeScript, not the input
+helper. Include generated module declarations individually if you import
+`soundor:*` APIs. For JavaScript diagnostics enable `allowJs` and `checkJs`.
+
+The input path can be anywhere in the plugin project: for example
+`inputs: './audio/sources.ts'`. Add that directory and any local imports to
+`tsconfig.web.json`'s `include`; the runtime always resolves the entry relative
+to the plugin root, regardless of the working directory. Browser input modules
+are never evaluated while Node loads `soundor.config.ts`. Use normal local
+and npm imports; browser dependencies must be installed in your project.
+The dev server shows syntax/import errors; run TypeScript for semantic errors.
+
+## Migration
+
+Older versions scaffolded a user-owned `runtimes/web/`. Development and builds
+now reject that directory, even when `inputs` is explicitly set, to avoid
+silently ignoring customizations. Soundor never deletes your files.
+
+1. Move custom source definitions out of `runtimes/web/src/main.ts` into a
+   browser module, for example `web/inputs.ts`, with a default-exported array.
+2. Use `@soundor/web-runtime/input` for input types, `defineInput` and factories.
+   Include factories for any default sources you want to keep. Place a custom
+   source first to make it the initial selection.
+3. Set `webRuntime({ inputs: './web/inputs.ts' })` and add the browser TypeScript
+   project above. Replace `tsc -p runtimes/web` with the solution's `tsc -b`
+   and remove any root reference to the old `runtimes/web/tsconfig.json`.
+4. Review other custom host code and assets. Move static files to `public/` and
+   source-owned assets next to the module. HTML, host presentation overrides and
+   Vite customizations have no managed-host configuration equivalent. The old
+   `@soundor/web-runtime/vite` entry is removed. Preserve needed code before
+   deleting the legacy directory yourself.
+
+If you never customized the host, remove `runtimes/web/` and its old typecheck
+script suffix. No input option is needed: defaults stay the same. JUCE's
+initialization and user-owned files are unchanged.
 
 ## `soundor:*` in the browser
 
@@ -361,59 +432,64 @@ No audio is recorded or uploaded by the host.
 
 ### Custom inputs
 
-Register project-defined inputs in `runtimes/web/src/main.ts`. They appear in
-the same **Input** selector, without adding controls around the plugin:
+Use a browser module when the built-ins do not cover your source:
 
 ```ts
-import {
-  startSoundorWebHost,
-  type WebAudioInput,
-} from '@soundor/web-runtime/client';
-
-const demo: WebAudioInput = {
-  id: 'demo-loop',
-  label: 'Demo loop',
-  async start({ context, destination, timeInSeconds, signal }) {
-    const beganAt = context.currentTime;
-    // Supply your own bundled audio asset next to this module.
-    const response = await fetch(new URL('./demo.wav', import.meta.url), {
-      signal,
-    });
-    if (!response.ok)
-      throw new Error(`Audio request failed: ${response.status}`);
-    const buffer = await context.decodeAudioData(await response.arrayBuffer());
-    signal.throwIfAborted();
-    const source = context.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.connect(destination);
-    source.start(
-      0,
-      (timeInSeconds + context.currentTime - beganAt) % buffer.duration,
-    );
-    return () => {
-      source.stop();
-      source.disconnect();
-    };
-  },
-};
-
-await startSoundorWebHost({
-  native: () => import('./native'),
-  audioInputs: [demo],
-  defaultAudioInput: demo.id,
-});
+// soundor.config.ts: in runtimes
+webRuntime({ inputs: './web/inputs.ts' });
 ```
 
-A `WebAudioInput` has a unique, nonempty `id`, a display `label`, and a `start`
-function returning cleanup, synchronously or asynchronously. The built-in ids
-`oscillator`, `file`, `microphone` and `none` are reserved. Duplicate ids,
-unknown defaults and empty labels are rejected when the host starts.
+```ts
+// web/inputs.ts
+import {
+  defineInput,
+  oscillator,
+  audioFile,
+  microphone,
+} from '@soundor/web-runtime/input';
 
-`defaultAudioInput` defaults to `oscillator`. It can name a custom input,
-`oscillator` or `none`; files and microphones require explicit selection.
-The same inputs are registered in every presentation, although `embed` hides
-the host controls.
+const fifth = defineInput({
+  id: 'fifth',
+  label: 'Open fifth',
+  start({ context, destination }) {
+    const level = context.createGain();
+    level.gain.value = 0.15;
+    level.connect(destination);
+    const notes = [220, 330].map((frequency) => {
+      const note = context.createOscillator();
+      note.frequency.value = frequency;
+      note.connect(level);
+      note.start();
+      return note;
+    });
+    return () => {
+      for (const note of notes) {
+        note.stop();
+        note.disconnect();
+      }
+      level.disconnect();
+    };
+  },
+});
+
+export default [
+  fifth,
+  oscillator({ frequency: 110 }),
+  audioFile(),
+  microphone(),
+];
+```
+
+This uses the existing `WebAudioInput` contract: a unique nonempty `id`, display
+`label` and `start` returning cleanup synchronously or asynchronously. The helper
+provides inference without changing behavior. Built-in identifiers `oscillator`,
+`file`, `microphone` and `none` are reserved for their definitions. Duplicate ids
+and invalid exports fail visibly at host startup; missing modules, exports or
+imports are reported by the build or development server. Invalid explicit
+configuration never falls back to defaults. Modules must default-export an array.
+
+The first eligible source is selected initially (here `fifth`). Sources appear
+in the same Input selector in every presentation, although embed hides controls.
 
 The host calls `start` on Play, after the project's DSP is ready. Use its
 `context` and connect to its `destination`; the host routes that source
@@ -471,7 +547,6 @@ docs, a phone, the panel open). The host stays out of its way:
   state to the panel and remembers whether the panel was open. A build shows
   the `demo` presentation, or `embed` when opened with `?embed`
   ([Embedding one view](#embedding-one-view)).
-  `startSoundorWebHost({ presentation })` overrides the default.
 
 ### Resizing and scaling
 
@@ -614,9 +689,8 @@ previous UI and runs the files again. Its messages with the page are in
   150 KB) into the Soundor cache when `soundor dev` or `soundor build` first
   needs it: the first run needs the network. Engine versions released before
   it had no module. See [Soundor Engine](/docs/engine#the-webassembly-core).
-- No DSP abstraction. Audio is your own Web Audio code; there is no portable
-  Soundor DSP, no AudioWorklet layer, and no compiling of the JUCE DSP to
-  WebAssembly.
+- Audio runs the shared Rust processor in an AudioWorklet; JUCE C++ DSP is not
+  compiled for the browser.
 - The host is a test bench, not a DAW: no tracks, automation lanes, MIDI or
   recording. `beginGesture()`/`endGesture()` are tracked but not recorded.
 - `node.style.width = 120` changes one style property and `'120px'` lengths
@@ -631,17 +705,6 @@ previous UI and runs the files again. Its messages with the page are in
   nodes.
 - `soundor:storage` and `soundor:fs` need IndexedDB. In a browser mode that
   refuses it, their promises reject with an explanation.
-
-## Post-MVP direction
-
-Planned, but not part of this runtime yet:
-
-- A portable Soundor DSP description, so one DSP source runs natively and in
-  the browser (on an AudioWorklet).
-- Host automation and MIDI.
-- A control protocol between a docs page and an embedded plugin.
-
-Until then, the Web runtime uses the audio code you write for it.
 
 ## License
 

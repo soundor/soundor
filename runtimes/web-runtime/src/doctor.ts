@@ -1,8 +1,8 @@
 /**
  * The Web runtime's `doctor` checks: a Node.js that Vite supports, Vite
  * itself (installed with this package), Rust's WebAssembly target (the
- * audio processor, native/, is compiled to it) and the scaffolded Web host
- * project. Dependencies are injected so the report is unit-testable.
+ * audio processor, native/, is compiled to it) and legacy Web host
+ * migration. Dependencies are injected so the report is unit-testable.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -113,18 +113,18 @@ async function checkScaffold(
   fs: FileSystemHost,
   runtimeId: string,
 ): Promise<DoctorCheck> {
-  const dir = `runtimes/${runtimeId}`;
-  const missing: string[] = [];
-  for (const file of ['index.html', 'src/main.ts']) {
-    if (!(await fs.exists(fs.resolve(dir, file)))) missing.push(file);
-  }
-  if (missing.length === 0) {
-    return { label: 'Web host project', status: 'ok', detail: dir };
+  if (await fs.exists(fs.resolve('runtimes', runtimeId))) {
+    return {
+      label: 'Managed Web host',
+      status: 'fail',
+      detail: 'Legacy runtimes/web host found.',
+      suggestion:
+        "Move custom inputs to a browser module, set webRuntime({ inputs: './web/inputs.ts' }), then remove runtimes/web yourself. See https://soundor.dev/docs/web-runtime#migration.",
+    };
   }
   return {
-    label: 'Web host project',
-    status: 'warn',
-    detail: `${dir} is missing ${missing.join(', ')}.`,
-    suggestion: `Run \`soundor init ${runtimeId}\` to scaffold it (existing files are kept).`,
+    label: 'Managed Web host',
+    status: 'ok',
+    detail: 'Provided by @soundor/web-runtime; no initialization needed.',
   };
 }

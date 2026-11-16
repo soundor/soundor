@@ -10,7 +10,7 @@
     "dev:web": "soundor dev web",
     "doctor": "soundor doctor",
     "gen": "soundor gen",
-    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web",
+    "typecheck": "soundor gen && tsc -b",
     "test": "vitest run",
     "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
     "test:watch": "vitest watch"

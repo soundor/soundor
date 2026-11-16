@@ -9,7 +9,8 @@
   },
   "files": [
     "README.md",
-    "dist"
+    "dist",
+    "host"
   ],
   "type": "module",
   "sideEffects": false,
@@ -29,9 +30,9 @@
       "types": "./dist/client/processor.d.ts",
       "import": "./dist/client/processor.js"
     },
-    "./vite": {
-      "types": "./dist/vite.d.mts",
-      "import": "./dist/vite.mjs"
+    "./input": {
+      "types": "./dist/client/input.d.ts",
+      "import": "./dist/client/input.js"
     }
   },
   "scripts": {

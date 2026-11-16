@@ -4,13 +4,15 @@ import { defineConfig } from 'tsdown';
 export default defineConfig([
   // The runtime and the Vite integration, for Node.
   withPreset(node, {
-    entry: ['src/index.ts', 'src/vite.ts'],
+    entry: ['src/index.ts'],
     tsconfig: './tsconfig.node.json',
     dts: true,
   }),
   // The Web host, for the browser. Kept apart so no Node code reaches it.
   withPreset(browser, {
     entry: {
+      'client/input': 'src/client/input-api.ts',
+      'client/managed': 'src/client/managed.ts',
       'client/index': 'src/client/index.ts',
       'client/processor': 'src/client/processor/index.ts',
       'client/modules/host': 'src/client/modules/host.ts',

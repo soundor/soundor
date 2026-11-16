@@ -167,21 +167,17 @@ pnpm add @soundor/web-runtime
 ```
 
 Import `webRuntime` from `@soundor/web-runtime` in `soundor.config.ts` and append
-`webRuntime()` to the existing `runtimes` array. Then initialize it, once:
-
-```sh
-pnpm exec soundor init web
-```
-
-and give `package.json` the scripts a new project with both runtimes has (the
-Web host's code has its own tsconfig, so `typecheck` checks it separately):
+`webRuntime()` to the existing `runtimes` array. The host is managed by Soundor;
+there is no web initialization step. Add these scripts to `package.json`:
 
 ```json
 "build:juce": "soundor build juce",
 "build:web": "soundor build web",
 "dev:web": "soundor dev web",
-"typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+"typecheck": "soundor gen && tsc -b"
 ```
+
+For optional custom inputs, add a [browser TypeScript project](/docs/web-runtime#browser-typescript-environment).
 
 Then run it with `pnpm dev:web`.
 
@@ -189,11 +185,11 @@ Open the URL printed by the CLI. Your shared `src/main.tsx` runs inside the
 browser host, and so does your audio processing: the Rust crate in `native/`,
 compiled to WebAssembly (it needs `rustup target add wasm32-unknown-unknown`).
 `native/src/controller.rs` implements your configured native API for the
-browser, separately from the JUCE plugin's C++.
+browser and JUCE plugin alike.
 
 Press Play in the host to enable audio. The
 [web runtime guide](/docs/web-runtime) explains the host, storage, transport,
-TypeScript native API, and browser limitations.
+shared Rust native API, and browser limitations.
 
 ## Test and build
 

@@ -224,8 +224,9 @@ not provide a hard real-time guarantee even when Rust processing allocates nothi
    `Processor` in `native/src/processor.rs`. Move reusable allocations to `prepare`.
 3. Remove the JUCE DSP override; the generated processor now owns the JUCE
    processing lifecycle. Keep runtime-specific native methods and editor code.
-4. Delete `runtimes/web/src/audio.ts` and remove the `audio` option from
-   `startSoundorWebHost`. Keep Web Audio hosting, sources and routing.
+4. Move custom Web input sources into a browser module and migrate to the
+   [managed Web host](/docs/web-runtime#migration). Soundor owns audio hosting
+   and routing.
 5. Add Cargo tests, verify both builds, and compare their audio under equivalent
    parameters, transport and layouts. Preserve the config's parameter and state
    definitions so existing automation and saved sessions retain their meaning.

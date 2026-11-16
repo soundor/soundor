@@ -9,7 +9,8 @@ soundor init [runtime] [--config <path>]
 
 `init` writes each configured runtime's host project into `runtimes/<id>/`:
 the files you own and edit. The JUCE runtime writes its CMake project, plugin
-processor and editor; the web runtime its page and Vite config.
+processor and editor. The web runtime manages its own host and writes no host
+files; it needs no web initialization.
 
 Every plugin gets `native/src/lib.rs` (module declarations and
 `soundor::export!(PluginProcessor, PluginController)`), `controller.rs`
@@ -27,12 +28,12 @@ methods get compiling stubs in `controller.rs`.
   generated framework ([`gen`](/docs/cli/gen)) or the runtime package, so an
   update of Soundor reaches existing projects without touching your code.
 - **Adding a runtime:** install its package, add its factory to `runtimes`
-  in the config, then `soundor init <id>`.
+  in the config, then `soundor init <id>` if it needs host files. Web does not.
 
 ```sh
 pnpm add @soundor/web-runtime
 # soundor.config.ts: runtimes: [juceRuntime({ … }), webRuntime()]
-pnpm exec soundor init web
+pnpm exec soundor dev web
 ```
 
 A new project from [`create-soundor-app`](/docs/cli/create-soundor-app) has

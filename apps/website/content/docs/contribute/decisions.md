@@ -71,7 +71,7 @@ parent: a box's content overflowing it instead of being squeezed, for one; then
 it called a separately compiled Yoga from TypeScript, with its own copy of the
 style mapping and text layout. See [The engine in the browser](/docs/contribute/web-engine), the
 [UI implementation](/docs/contribute/engine-reference#soundorui) and the
-[web implementation](/docs/web-runtime#vite-and-the-plugin-ui).
+[web implementation](/docs/web-runtime#development-and-builds).
 
 The tradeoff is a WebAssembly module in every page, about 150 KB gzipped (the
 engine's core, not only Yoga), and a new style property needs declarations, the

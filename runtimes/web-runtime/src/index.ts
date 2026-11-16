@@ -2,14 +2,15 @@
  * `@soundor/web-runtime` — runs a Soundor plugin in the browser.
  *
  * The plugin contract generated from soundor.config is implemented with
- * browser services and the same Rust controller/processor through WASM. `init` scaffolds a
- * user-owned Web host project under `runtimes/web/`, `gen` emits the project's
- * manifest, and `dev` and `build` run Vite programmatically on that project.
+ * browser services and the same Rust controller/processor through WASM. The
+ * package owns the Web host; gen emits the project manifest and dev/build
+ * run Vite on the installed host.
  * The plugin UI is the bundle the CLI builds (`ctx.ui`), which the host loads
  * as it is.
  */
 
-import { join, relative, sep } from 'node:path';
+import { stat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 import {
   ConfigError,
@@ -31,9 +32,10 @@ import {
 import { generateWebSources } from './codegen';
 import { buildWebDoctorReport } from './doctor';
 import { resolveWebOptions, type WebOptions } from './options';
+import { HOST_DIR } from './paths';
 import { PROCESSOR_MODULE, soundorWebPlugin } from './plugin';
-import { webScaffoldFiles } from './scaffold';
 
+export type { BuiltinInput } from './input-options';
 export type { WebOptions, ResolvedWebOptions } from './options';
 export type {
   WebEditor,
@@ -56,33 +58,12 @@ export interface WebPhaseDeps {
 
 type Ctx = LifecycleContext<WebOptions>;
 
-/**
- * `init` — scaffold the user-owned Web host under `runtimes/<id>/`
- * (idempotent): files that exist are never overwritten.
- */
+/** The shared lifecycle requires init; the managed Web host needs no files. */
 export async function webInit(
-  config: ResolvedSoundorConfig,
+  _config: ResolvedSoundorConfig,
   ctx: Ctx,
 ): Promise<void> {
   resolveWebOptions(ctx.options);
-  const scaffoldDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
-  const generatedPath = relative(scaffoldDir, join(ctx.paths.gen, '..', '..'))
-    .split(sep)
-    .join('/');
-  const files = webScaffoldFiles(RUNTIME_ID, {
-    pluginName: config.plugin.name,
-    generatedPath,
-  });
-
-  for (const file of files) {
-    const target = ctx.fs.resolve(file.path);
-    if (await ctx.fs.exists(target)) {
-      ctx.logger.info(`skip ${file.path} (exists)`);
-      continue;
-    }
-    await ctx.fs.write(target, file.contents);
-    ctx.logger.info(`create ${file.path}`);
-  }
 }
 
 /** `gen` — emit the project's manifest into `.soundor/generated/runtimes/<id>/`. */
@@ -101,7 +82,7 @@ export async function webDev(
   deps: WebPhaseDeps = {},
 ): Promise<void> {
   const options = resolveWebOptions(ctx.options);
-  await requireScaffold(ctx);
+  await validateProject(ctx);
   const processor = await buildProcessor(ctx);
   const createServer = deps.createServer ?? viteCreateServer;
   let server: Awaited<ReturnType<typeof viteCreateServer>>;
@@ -175,7 +156,7 @@ export async function webBuild(
   deps: WebPhaseDeps = {},
 ): Promise<void> {
   resolveWebOptions(ctx.options);
-  await requireScaffold(ctx);
+  await validateProject(ctx);
   if (ctx.ui === undefined) {
     ctx.logger.warn(
       'The project has no UI entry (src/main.ts[x]); the plugin view will be empty.',
@@ -194,7 +175,7 @@ export async function webBuild(
   ctx.logger.info(`Built the Web host -> ${ctx.paths.dist}`);
 }
 
-/** `doctor` — Node.js, Vite and the scaffolded Web host project. */
+/** `doctor` — Node.js, Vite, Rust and managed-host migration. */
 export async function webDoctor(
   _config: ResolvedSoundorConfig,
   ctx: Ctx,
@@ -216,9 +197,7 @@ export const webRuntime = defineRuntime<WebOptions>({
 export default webRuntime;
 
 /**
- * What every Vite run gets from the lifecycle. The project's own
- * `vite.config.ts` (found in the host directory) is merged in by Vite; the
- * Soundor plugin then fixes what it must not change.
+ * The package-owned host and explicit plugin project paths for every Vite run.
  */
 function viteConfig(
   config: ResolvedSoundorConfig,
@@ -226,14 +205,19 @@ function viteConfig(
   deps: WebPhaseDeps,
   processor: string,
 ): InlineConfig {
-  const hostDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
+  const hostDir = HOST_DIR;
   return {
     root: hostDir,
+    configFile: false,
+    publicDir: ctx.fs.resolve('public'),
+    cacheDir: ctx.fs.resolve('.soundor', 'cache', 'vite'),
     logLevel: 'info',
     customLogger: viteLogger(ctx.logger),
     plugins: [
       soundorWebPlugin({
         hostDir,
+        projectRoot: ctx.fs.resolve(),
+        inputs: ctx.options.inputs,
         genDir: ctx.paths.gen,
         outDir: ctx.paths.dist,
         clientDir: deps.clientDir,
@@ -280,13 +264,24 @@ async function buildProcessor(ctx: Ctx): Promise<string> {
   return library.path;
 }
 
-async function requireScaffold(ctx: Ctx): Promise<void> {
-  const index = ctx.fs.resolve('runtimes', RUNTIME_ID, 'index.html');
-  if (!(await ctx.fs.exists(index))) {
+async function validateProject(ctx: Ctx): Promise<void> {
+  if (await ctx.fs.exists(ctx.fs.resolve('runtimes', RUNTIME_ID))) {
     throw new ConfigError(
-      'not-found',
-      `The Web host project is missing (runtimes/${RUNTIME_ID}/index.html). Run \`soundor init ${RUNTIME_ID}\` to scaffold it.`,
+      'validation',
+      "The Web host is now managed by @soundor/web-runtime. Move custom inputs from runtimes/web to a browser module and set webRuntime({ inputs: './web/inputs.ts' }). Migrate other host customizations, then remove runtimes/web yourself. Existing files are never deleted; the legacy host cannot be combined with the managed host. See https://soundor.dev/docs/web-runtime#migration.",
     );
+  }
+  const inputs = resolveWebOptions(ctx.options).inputs;
+  if (typeof inputs === 'string') {
+    const path = resolve(ctx.fs.resolve(), inputs);
+    if (
+      !/\.[cm]?[jt]s$/.test(path) ||
+      !(await stat(path).catch(() => undefined))?.isFile()
+    )
+      throw new ConfigError(
+        'validation',
+        `Web input module not found or not JavaScript/TypeScript: ${inputs} (resolved from ${ctx.fs.resolve()})`,
+      );
   }
 }
 

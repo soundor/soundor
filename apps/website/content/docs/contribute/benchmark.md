@@ -21,7 +21,6 @@ src/scenarios/          the scenarios, one file per kind (types.ts: what one is)
 scripts/bench.ts        `pnpm bench`: the headless benchmark in the JUCE runtime
 native/                 shared Rust audio processor: applies `gain`
 runtimes/juce/          JUCE host integration
-runtimes/web/           Web host integration
 ```
 
 | Group          | Scenario                             | Stresses                                                                                                                         |

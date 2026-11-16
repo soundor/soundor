@@ -823,3 +823,52 @@ it('releases a granted microphone if the Web Audio connection cannot be created'
   expect(audio.status.inputError).toContain('Device connection failed');
   audio.dispose();
 });
+
+it('replaces default inputs, always retaining No input', async () => {
+  const { audio, host, context } = setup(undefined, { configuredInputs: [] });
+  expect(audio.inputs).toEqual([{ id: 'none', label: 'No input' }]);
+  expect(audio.status.source).toBe('none');
+  await expect(audio.setSource('oscillator')).rejects.toThrow(
+    'Unknown audio input',
+  );
+  await audio.start();
+  host.play();
+  expect(context.sources).toHaveLength(0);
+  audio.dispose();
+});
+
+it('runs configured built-ins with their options through the existing audio graph', async () => {
+  const { audio, host, context } = setup(undefined, {
+    configuredInputs: [
+      { type: 'oscillator', waveform: 'sine', frequency: 440, gain: 0.1 },
+    ],
+  });
+  expect(audio.inputs.map(({ id }) => id)).toEqual(['oscillator', 'none']);
+  await audio.start();
+  host.play();
+  const source = context.sources[0]!;
+  expect(source.type).toBe('sine');
+  expect(source.frequency.value).toBe(440);
+  const level = [...source.connections][0] as FakeGain;
+  expect(level.gain.value).toBe(0.1);
+  expect(reaches(source, context.destination)).toBe(true);
+  host.pause();
+  expect(source.stopped).toBe(true);
+  audio.dispose();
+});
+
+it('composes custom and built-in inputs without adding omitted defaults', async () => {
+  const cleanup = vi.fn<() => void>();
+  const start = vi.fn<() => () => void>(() => cleanup);
+  const { audio, host } = setup(undefined, {
+    configuredInputs: [{ id: 'demo', label: 'Demo', start }, { type: 'file' }],
+  });
+  expect(audio.status.source).toBe('demo');
+  expect(audio.inputs.map(({ id }) => id)).toEqual(['demo', 'file', 'none']);
+  await audio.start();
+  host.play();
+  expect(start).toHaveBeenCalledOnce();
+  host.pause();
+  expect(cleanup).toHaveBeenCalledOnce();
+  audio.dispose();
+});

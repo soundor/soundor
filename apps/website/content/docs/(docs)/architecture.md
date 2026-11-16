@@ -110,7 +110,7 @@ IndexedDB, isolated by plugin ID.
 
 The CLI still bundles `src/index.tsx` (or an existing `src/main.tsx`). Vite serves or builds the browser host and
 resolves the bundle's `soundor:*` imports. See the
-[web runtime](/docs/web-runtime#vite-and-the-plugin-ui).
+[web runtime](/docs/web-runtime#development-and-builds).
 
 ## Accessibility and input
 

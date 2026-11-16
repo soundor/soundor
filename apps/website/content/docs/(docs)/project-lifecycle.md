@@ -94,7 +94,7 @@ and pending work from the old UI end. Processor parameters and persisted data
 can outlive the UI; local React state cannot.
 
 For the web runtime, Vite serves the host. A changed UI build ID reloads the
-page. Host-source edits follow Vite's own update behavior. In either runtime a
+page. Custom browser input edits follow Vite's own update behavior. In either runtime a
 failed UI rebuild reports an error and keeps the last working UI build.
 
 Rust crate edits rebuild through Cargo; UI-only edits do not recompile Rust.
@@ -126,8 +126,9 @@ and the separate notarization workflow are documented in the
 
 ## Adding a runtime
 
-Install its package, add its factory to `runtimes`, and run `soundor init <id>`.
-Implement that host's audio and native API while keeping the UI contract shared.
+Install its package and add its factory to `runtimes`. Run `soundor init <id>`
+if it needs user-owned host files (JUCE does; Web manages its own host).
+Both first-party runtimes run the shared Rust processor and controller.
 
 Runtime authors implement `init`, `gen`, `dev`, `build`, and `doctor` with
 [`@soundor/runtime-sdk`](/docs/contribute/runtime-sdk). Lifecycle context carries the project

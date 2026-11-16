@@ -1,4 +1,9 @@
-import type { WebAudioInput } from '@soundor/web-runtime/client';
+import {
+  oscillator,
+  audioFile,
+  microphone,
+  type WebAudioInput,
+} from '@soundor/web-runtime/input';
 
 /** An original, deterministic four-bar loop. No samples or external assets. */
 export function demoLoop(context: BaseAudioContext): AudioBuffer {
@@ -58,3 +63,5 @@ export const demoInput: WebAudioInput = {
     };
   },
 };
+
+export default [demoInput, oscillator(), audioFile(), microphone()];

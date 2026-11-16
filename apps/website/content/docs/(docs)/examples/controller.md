@@ -20,7 +20,6 @@ native/src/processor.rs   the processor: the input times the wavetable, at `rate
 native/src/controller.rs  the controller: its stores and NativeMethods
 native/tests/             the processor and the controller, tested in Rust
 runtimes/juce/            JUCE host integration
-runtimes/web/             browser host
 ```
 
 | Method                   | Kind  | Shows                                                                                                  |
