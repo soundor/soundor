@@ -144,9 +144,15 @@ export default defineSoundorConfig({
     'web init must not create a host',
   );
   assert.ok(
-    existsSync(resolve(temporary, 'runtimes/juce/CMakeLists.txt')),
-    'other runtime initialization is unchanged',
+    !existsSync(resolve(temporary, 'runtimes/juce')),
+    'juce init must not create a host',
   );
+  const juceHost = resolve(
+    temporary,
+    'node_modules/@soundor/juce-runtime/native/plugin',
+  );
+  assert.ok(existsSync(resolve(juceHost, 'CMakeLists.txt')));
+  assert.ok(existsSync(resolve(juceHost, 'Plugin.cpp')));
   run('cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml']);
   // Its tests: the controller, the processor, and allocation-free processing.
   const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
