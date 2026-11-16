@@ -14,12 +14,28 @@ export { resolveSetter, type ValueOrUpdater } from './setter';
 export interface StateDeclaration {
   readonly type: string;
   readonly default: unknown;
+  /**
+   * Whether the Rust audio processor reads this field (`ctx.state`). A field
+   * the processor reads is a number, a boolean, or an array of them with a
+   * `maxLength`. Defaults to `false`.
+   */
+  readonly audio?: boolean;
+  /**
+   * For an array: the most elements it holds, which every value is checked
+   * against. Required for an array the processor reads (`audio: true`),
+   * whose storage is allocated for it.
+   */
+  readonly maxLength?: number;
 }
 export type StateDeclarations = Readonly<Record<string, StateDeclaration>>;
 export interface StateField {
   readonly name: string;
   readonly type: NativeType;
   readonly default: unknown;
+  /** The audio processor reads it (`audio: true`). */
+  readonly audio?: boolean;
+  /** An array's capacity (`maxLength`). */
+  readonly maxLength?: number;
 }
 export interface StateSchema {
   readonly fields: readonly StateField[];
@@ -66,9 +82,13 @@ export type CheckedState<
   readonly [K in keyof S]: {
     readonly type: S[K]['type'];
     readonly default: StateValue<S[K]['type'], NonNullable<N['types']>>;
+    readonly audio?: boolean;
+    readonly maxLength?: number;
   };
 };
 export const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
+/** The most elements a state array's `maxLength` may declare. */
+export const MAX_STATE_ARRAY_LENGTH = 1 << 20;
 export interface SoundorSnapshot {
   readonly version: 1;
   readonly parameters: Readonly<Record<string, unknown>>;
@@ -102,8 +122,24 @@ export function describeState(
       !Object.hasOwn(field, 'default')
     )
       throw new TypeError(`state.${name}: requires type and default`);
-    if (Object.keys(field).some((k) => k !== 'type' && k !== 'default'))
+    if (
+      Object.keys(field).some(
+        (k) => !['type', 'default', 'audio', 'maxLength'].includes(k),
+      )
+    )
       throw new TypeError(`state.${name}: unknown declaration property`);
+    if (field.audio !== undefined && typeof field.audio !== 'boolean')
+      throw new TypeError(`state.${name}.audio: expected a boolean`);
+    if (
+      field.maxLength !== undefined &&
+      (typeof field.maxLength !== 'number' ||
+        !Number.isInteger(field.maxLength) ||
+        field.maxLength < 1 ||
+        field.maxLength > MAX_STATE_ARRAY_LENGTH)
+    )
+      throw new TypeError(
+        `state.${name}.maxLength: expected an integer from 1 to ${MAX_STATE_ARRAY_LENGTH}`,
+      );
     refs[name] = field.type;
   }
   // Resolve references through exactly the native registry and parser.
@@ -121,10 +157,15 @@ export function describeState(
         .join('\n'),
     );
   const schema: StateSchema = {
-    fields: result.model.methods[0]!.args.map((f) => ({
-      ...f,
-      default: declaration[f.name]!.default,
-    })),
+    fields: result.model.methods[0]!.args.map((f) => {
+      const { audio, maxLength } = declaration[f.name]!;
+      return {
+        ...f,
+        default: declaration[f.name]!.default,
+        ...(audio === true ? { audio } : {}),
+        ...(maxLength !== undefined ? { maxLength } : {}),
+      };
+    }),
     types: result.model.types,
   };
   const used = new Set<string>();
@@ -140,14 +181,268 @@ export function describeState(
     }
   };
   schema.fields.forEach((f) => visit(f.type));
-  return {
+  for (const f of schema.fields) {
+    if (f.maxLength !== undefined && f.type.kind !== 'array')
+      throw new TypeError(
+        `state.${f.name}.maxLength: only an array has a maxLength`,
+      );
+    if (f.audio === true) checkAudioField(f);
+  }
+  const resolved: StateSchema = {
     ...schema,
     types: schema.types.filter((t) => used.has(t.name)),
     fields: schema.fields.map((f) => ({
       ...f,
-      default: stateValue(schema, f.type, f.default, `state.${f.name}.default`),
+      default: stateFieldValue(schema, f, f.default, `state.${f.name}.default`),
     })),
   };
+  const size = describeAudioState(resolved).size;
+  if (size > MAX_SNAPSHOT_BYTES)
+    throw new TypeError(
+      `state: the fields the audio processor reads take ${size} bytes, more than ${MAX_SNAPSHOT_BYTES}`,
+    );
+  return resolved;
+}
+
+/** The numbers and booleans a field the audio processor reads may hold. */
+export const AUDIO_STATE_ELEMENTS = [
+  'boolean',
+  'int8',
+  'uint8',
+  'int16',
+  'uint16',
+  'int32',
+  'uint32',
+  'int64',
+  'uint64',
+  'float32',
+  'float64',
+] as const;
+export type AudioStateElement = (typeof AUDIO_STATE_ELEMENTS)[number];
+
+function audioElement(type: NativeType): AudioStateElement | undefined {
+  return type.kind === 'primitive' &&
+    (AUDIO_STATE_ELEMENTS as readonly string[]).includes(type.name)
+    ? (type.name as AudioStateElement)
+    : undefined;
+}
+
+function checkAudioField(field: StateField): void {
+  const path = `state.${field.name}`;
+  const supported = `the audio processor reads a number or boolean (${AUDIO_STATE_ELEMENTS.join(', ')}), or an array of them with a maxLength`;
+  if (field.type.kind === 'array') {
+    if (audioElement(field.type.element) === undefined)
+      throw new TypeError(
+        `${path}: '${typeName(field.type)}' cannot be audio state; ${supported}`,
+      );
+    if (field.maxLength === undefined)
+      throw new TypeError(
+        `${path}: an array the audio processor reads needs maxLength, the most elements it holds: its storage is allocated for it`,
+      );
+    return;
+  }
+  if (audioElement(field.type) === undefined)
+    throw new TypeError(
+      `${path}: '${typeName(field.type)}' cannot be audio state; ${supported}`,
+    );
+}
+
+function typeName(type: NativeType): string {
+  switch (type.kind) {
+    case 'primitive':
+      return type.name;
+    case 'declared':
+      return type.name;
+    case 'array':
+      return `${typeName(type.element)}[]`;
+    case 'nullable':
+      return `${typeName(type.inner)}?`;
+    default:
+      return type.kind;
+  }
+}
+
+/** One field of the audio processor's state, where its binary snapshot holds it. */
+export type AudioStateField =
+  | {
+      readonly name: string;
+      readonly kind: 'value';
+      readonly element: AudioStateElement;
+      /** Where the value is. */
+      readonly offset: number;
+      readonly default: number | bigint | boolean;
+    }
+  | {
+      readonly name: string;
+      readonly kind: 'array';
+      readonly element: AudioStateElement;
+      readonly maxLength: number;
+      /** Where the array is: its length, a uint32, then its elements. */
+      readonly offset: number;
+      /** Where its elements start. */
+      readonly dataOffset: number;
+      readonly default: readonly (number | bigint | boolean)[];
+    };
+
+/**
+ * The state the audio processor reads, as one binary snapshot: the
+ * `audio: true` fields in name order, laid out as a C struct (Rust's
+ * `#[repr(C)]`), each array a struct of its length (uint32) and `maxLength`
+ * elements. Every runtime writes it, and the Rust SDK reads it, with this
+ * layout.
+ */
+export interface AudioStateLayout {
+  readonly fields: readonly AudioStateField[];
+  /** The snapshot's size in bytes, a multiple of `align`; 0 without fields. */
+  readonly size: number;
+  readonly align: number;
+}
+
+/** Bytes per element, which is also its alignment. */
+export const AUDIO_STATE_ELEMENT_SIZE: Readonly<
+  Record<AudioStateElement, number>
+> = {
+  boolean: 1,
+  int8: 1,
+  uint8: 1,
+  int16: 2,
+  uint16: 2,
+  int32: 4,
+  uint32: 4,
+  int64: 8,
+  uint64: 8,
+  float32: 4,
+  float64: 8,
+};
+
+const roundUp = (value: number, align: number) =>
+  Math.ceil(value / align) * align;
+
+export function describeAudioState(schema: StateSchema): AudioStateLayout {
+  const fields: AudioStateField[] = [];
+  let offset = 0;
+  let align = 1;
+  for (const field of schema.fields) {
+    if (field.audio !== true) continue;
+    if (field.type.kind === 'array') {
+      const element = audioElement(field.type.element)!;
+      const size = AUDIO_STATE_ELEMENT_SIZE[element];
+      const arrayAlign = Math.max(4, size);
+      const maxLength = field.maxLength!;
+      offset = roundUp(offset, arrayAlign);
+      const dataOffset = offset + roundUp(4, size);
+      fields.push({
+        name: field.name,
+        kind: 'array',
+        element,
+        maxLength,
+        offset,
+        dataOffset,
+        default: field.default as readonly (number | bigint | boolean)[],
+      });
+      offset = roundUp(dataOffset + size * maxLength, arrayAlign);
+      align = Math.max(align, arrayAlign);
+    } else {
+      const element = audioElement(field.type)!;
+      const size = AUDIO_STATE_ELEMENT_SIZE[element];
+      offset = roundUp(offset, size);
+      fields.push({
+        name: field.name,
+        kind: 'value',
+        element,
+        offset,
+        default: field.default as number | bigint | boolean,
+      });
+      offset += size;
+      align = Math.max(align, size);
+    }
+  }
+  return { fields, size: roundUp(offset, align), align };
+}
+
+/**
+ * Writes `values` (a field name to its value, as the store holds them) into
+ * `bytes`, the snapshot `layout` describes. An array's elements past its
+ * length are left as they are.
+ */
+export function writeAudioState(
+  layout: AudioStateLayout,
+  values: Readonly<Record<string, unknown>>,
+  bytes: DataView,
+): void {
+  for (const field of layout.fields) {
+    const value = values[field.name];
+    if (field.kind === 'value') {
+      writeElement(bytes, field.offset, field.element, value);
+      continue;
+    }
+    const items = value as readonly unknown[];
+    const length = Math.min(items.length, field.maxLength);
+    bytes.setUint32(field.offset, length, true);
+    const size = AUDIO_STATE_ELEMENT_SIZE[field.element];
+    for (let index = 0; index < length; index++)
+      writeElement(
+        bytes,
+        field.dataOffset + index * size,
+        field.element,
+        items[index],
+      );
+  }
+}
+
+function writeElement(
+  bytes: DataView,
+  offset: number,
+  element: AudioStateElement,
+  value: unknown,
+): void {
+  switch (element) {
+    case 'boolean':
+      return bytes.setUint8(offset, value === true ? 1 : 0);
+    case 'int8':
+      return bytes.setInt8(offset, value as number);
+    case 'uint8':
+      return bytes.setUint8(offset, value as number);
+    case 'int16':
+      return bytes.setInt16(offset, value as number, true);
+    case 'uint16':
+      return bytes.setUint16(offset, value as number, true);
+    case 'int32':
+      return bytes.setInt32(offset, value as number, true);
+    case 'uint32':
+      return bytes.setUint32(offset, value as number, true);
+    case 'int64':
+      return bytes.setBigInt64(offset, value as bigint, true);
+    case 'uint64':
+      return bytes.setBigUint64(offset, value as bigint, true);
+    case 'float32':
+      return bytes.setFloat32(offset, value as number, true);
+    case 'float64':
+      return bytes.setFloat64(offset, value as number, true);
+  }
+}
+
+/**
+ * A field's value, validated and detached as {@link stateValue} does, and
+ * checked against the field's `maxLength`.
+ */
+export function stateFieldValue(
+  schema: StateSchema,
+  field: StateField,
+  value: unknown,
+  path: string,
+  wire = false,
+): unknown {
+  const checked = stateValue(schema, field.type, value, path, wire);
+  if (
+    field.maxLength !== undefined &&
+    Array.isArray(checked) &&
+    checked.length > field.maxLength
+  )
+    throw new RangeError(
+      `${path}: ${checked.length} elements, more than its maxLength of ${field.maxLength}`,
+    );
+  return checked;
 }
 
 export function record(value: unknown): value is Record<string, unknown> {
@@ -328,7 +623,7 @@ export class StateStore {
         schema.fields.map((f) => {
           this.#values.set(
             f.name,
-            stateValue(schema, f.type, f.default, `state.${f.name}`, true),
+            stateFieldValue(schema, f, f.default, `state.${f.name}`, true),
           );
           this.#listeners.set(f.name, new Set());
           const id = `state:${f.name}`;
@@ -338,7 +633,7 @@ export class StateStore {
             read: () => this.#values.get(f.name),
             equal: (a, b) => stateJson(a) === stateJson(b),
             prepare: (raw) => {
-              const value = stateValue(schema, f.type, raw, `state.${f.name}`);
+              const value = stateFieldValue(schema, f, raw, `state.${f.name}`);
               stateJson(value);
               const listeners = [...this.#listeners.get(f.name)!];
               return {
@@ -407,9 +702,9 @@ export class StateStore {
     return Object.fromEntries(
       this.schema.fields.map((f) => [
         f.name,
-        stateValue(
+        stateFieldValue(
           this.schema,
-          f.type,
+          f,
           Object.hasOwn(values, f.name) ? values[f.name] : f.default,
           `state.${f.name}`,
           Object.hasOwn(values, f.name),
@@ -442,9 +737,9 @@ export class StateStore {
     this.history.edit(
       id,
       () => {
-        const value = stateValue(
+        const value = stateFieldValue(
           this.schema,
-          field.type,
+          field,
           resolveSetter(raw, () => this.history.read(id)),
           `state.${field.name}`,
         );

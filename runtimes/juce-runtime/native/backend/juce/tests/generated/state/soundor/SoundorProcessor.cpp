@@ -117,7 +117,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     {
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
+                                         state.audioState().acquire());
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -134,7 +135,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), &streamSink);
+        // The newest state snapshot, unchanged until the next block.
+        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), &streamSink,
+                             state.audioState().acquire());
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

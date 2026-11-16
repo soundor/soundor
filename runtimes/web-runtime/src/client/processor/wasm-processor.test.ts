@@ -20,6 +20,7 @@ import {
   buildFixture,
   streams as fixtureStreams,
   contract,
+  fixtureState,
   parameters,
 } from './fixture/build';
 
@@ -164,11 +165,31 @@ describe('the Rust processor in WebAssembly', () => {
     gain.process([one, one], [new Float32Array(32), new Float32Array(32)], 32);
     expect(gain.published(1)[0]).toBeCloseTo(20 * Math.log10(0.75), 5);
     const changes = gain.streamChanges();
+    // Without a state set, the config's defaults: processingMode 1, pattern [60, 64, 67].
     expect(changes).toEqual([
-      [0, Float32Array.from([0.75, 96])],
+      [0, Float32Array.from([0.75, 96, 1, 3])],
       [1, Math.fround(0.75)],
     ]);
     expect(gain.streamChanges()).toEqual([]);
+  });
+
+  it('reads the state set before each block, whole', () => {
+    const gain = processor(0.5, [1, 0], [1]);
+    const history = () => {
+      gain.process([new Float32Array(16)], [new Float32Array(16)], 16);
+      const change = gain.streamChanges().find(([index]) => index === 0);
+      return [...(change![1] as Float32Array)].slice(2);
+    };
+    expect(history()).toEqual([1, 3]);
+    gain.setState(fixtureState(7, 8));
+    expect(history()).toEqual([7, 8]);
+    // The latest of several, at the next block; kept while nothing changes.
+    gain.setState(fixtureState(2, 0));
+    gain.setState(fixtureState(4, 5));
+    expect(history()).toEqual([4, 5]);
+    expect(history()).toEqual([4, 5]);
+    // Instances keep their own.
+    expect(processor(0.5, [1, 0], [1]).state).toEqual(new Uint8Array(80));
   });
 
   it('resets, and keeps instances independent', () => {
@@ -307,6 +328,28 @@ describe('the worklet', () => {
     ];
     instance.process([[]], silent);
     expect(silent[0]![0]).toEqual(new Float32Array(128));
+  });
+
+  it('takes the state it is given, and posted, between render quanta', () => {
+    const { instance, posted } = worklet({ state: fixtureState(6, 2) });
+    const history = () => {
+      posted.length = 0;
+      // Enough render quanta for the streams to be posted (every 800 frames).
+      for (let block = 0; block < 7; block++)
+        instance.process(
+          [[new Float32Array(128), new Float32Array(128)]],
+          [[new Float32Array(128), new Float32Array(128)]],
+        );
+      const message = posted.find(
+        (m) => (m as { type: string }).type === 'streams',
+      ) as { changes: [number, Float32Array][] };
+      return [...message.changes.find(([index]) => index === 0)![1]].slice(2);
+    };
+    expect(history()).toEqual([6, 2]);
+    instance.port.onmessage!({
+      data: { type: 'state', snapshot: fixtureState(3, 1) },
+    });
+    expect(history()).toEqual([3, 1]);
   });
 
   it('posts what the processing publishes', () => {

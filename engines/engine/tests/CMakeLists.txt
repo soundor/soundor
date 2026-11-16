@@ -22,7 +22,8 @@ set_tests_properties(soundor_svg_image_tests PROPERTIES TIMEOUT 30)
 
 # The Rust processor bridge, on a C++ processor behind its function table (the
 # JUCE runtime's tests run it on a real Rust one). Installed headers only.
-add_executable(soundor_processor_tests main.cpp processor/RustProcessorTests.cpp support/AllocationCounter.cpp)
+add_executable(soundor_processor_tests main.cpp processor/RustProcessorTests.cpp processor/AudioStateTests.cpp
+                                       support/AllocationCounter.cpp)
 target_link_libraries(soundor_processor_tests PRIVATE Soundor::Engine soundor_doctest)
 if(WIN32)
   target_link_libraries(soundor_processor_tests PRIVATE dbghelp)

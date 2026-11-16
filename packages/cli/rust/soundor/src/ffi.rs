@@ -22,7 +22,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use crate::ABI_VERSION;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES};
-use crate::plugin::{PUBLISHED, Parameters, STREAMS};
+use crate::plugin::{PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot};
 use crate::processor::AudioProcessor;
 use crate::streams::{NoStreams, StreamSink};
 use crate::transport::Transport;
@@ -37,6 +37,8 @@ pub struct SoundorProcessorInfo {
     pub parameter_count: u32,
     pub published_count: u32,
     pub stream_count: u32,
+    /// The size of the state snapshot the processor reads.
+    pub state_size: u32,
 }
 
 /// `prepare`'s configuration.
@@ -57,6 +59,11 @@ pub struct SoundorPrepare {
     /// processor's `prepare` sees them; null keeps the last ones.
     pub parameter_count: u32,
     pub parameters: *const f64,
+    /// The state the processor reads, as `prepare` sees it: `state_size`
+    /// bytes laid out as [`StateSnapshot`], aligned for it; null is the
+    /// config's defaults.
+    pub state_size: u32,
+    pub state: *const c_void,
 }
 
 /// The host's transport; NaN where the host does not say.
@@ -167,6 +174,35 @@ pub struct SoundorBlock {
     pub transport: *const SoundorTransport,
     /// May be null.
     pub streams: *const SoundorStreamSink,
+    /// The block's state: `state_size` bytes laid out as [`StateSnapshot`],
+    /// aligned for it, which nothing writes during the call; null is the
+    /// config's defaults.
+    pub state_size: u32,
+    pub state: *const c_void,
+}
+
+/// The state at `pointer`: `None` for null, and an error when its size or
+/// alignment is not the snapshot's.
+///
+/// # Safety
+///
+/// `pointer` is null, or valid for `size` reads of a snapshot nothing
+/// writes for `'a`.
+unsafe fn state<'a>(
+    pointer: *const c_void,
+    size: u32,
+) -> Result<Option<&'a StateSnapshot>, Status> {
+    if pointer.is_null() {
+        return Ok(None);
+    }
+    if size as usize != STATE_SIZE
+        || !(pointer as usize).is_multiple_of(std::mem::align_of::<StateSnapshot>())
+    {
+        return Err(Status::InvalidArgument);
+    }
+    // SAFETY: as the caller promises; the runtime writes the snapshot with
+    // its layout, so every field holds a valid value.
+    Ok(Some(unsafe { &*pointer.cast::<StateSnapshot>() }))
 }
 
 /// The processor behind a handle.
@@ -200,6 +236,7 @@ pub fn info() -> SoundorProcessorInfo {
         parameter_count: Parameters::COUNT as u32,
         published_count: PUBLISHED.len() as u32,
         stream_count: STREAMS.len() as u32,
+        state_size: STATE_SIZE as u32,
     }
 }
 
@@ -277,12 +314,18 @@ pub unsafe fn prepare<P: AudioProcessor>(
                 None => return Status::InvalidArgument,
             }
         };
+        // SAFETY: as the caller promises.
+        let state = match unsafe { state(config.state, config.state_size) } {
+            Ok(state) => state,
+            Err(status) => return status,
+        };
         handle.instance.prepare(
             config.sample_rate,
             config.max_frames as usize,
             &inputs[..input_channels.len()],
             &outputs[..output_channels.len()],
             parameters,
+            state,
         )
     })
 }
@@ -327,6 +370,11 @@ pub unsafe fn process<P: AudioProcessor>(
             }
         };
         // SAFETY: as the caller promises.
+        let state = match unsafe { state(block.state, block.state_size) } {
+            Ok(state) => state,
+            Err(status) => return status,
+        };
+        // SAFETY: as the caller promises.
         let transport = unsafe { block.transport.as_ref() }
             .map(SoundorTransport::read)
             .unwrap_or_default();
@@ -344,6 +392,7 @@ pub unsafe fn process<P: AudioProcessor>(
             parameters,
             transport,
             streams,
+            state,
         });
         if !block.published.is_null() {
             let count = (block.published_count as usize).min(PUBLISHED.len());

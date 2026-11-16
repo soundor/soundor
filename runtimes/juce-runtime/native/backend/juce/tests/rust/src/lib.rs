@@ -1,6 +1,8 @@
 //! A processor for the JUCE adapter's tests: the main bus times `gain`, the
 //! sidechain doubled into a second output bus when there is one, `peak`
-//! published, both streams filled, and a panic at `gain` 2.
+//! published, both streams filled (`history`: the gain, the tempo, then
+//! `processingMode` and the length of `pattern` as the state has them), and a
+//! panic at `gain` 2.
 
 use soundor::prelude::*;
 
@@ -43,9 +45,12 @@ impl AudioProcessor for Processor {
             -96.0
         });
         ctx.streams.level.publish(peak);
-        ctx.streams
-            .history
-            .publish(&[gain, ctx.transport.tempo.unwrap_or(0.0) as f32]);
+        ctx.streams.history.publish(&[
+            gain,
+            ctx.transport.tempo.unwrap_or(0.0) as f32,
+            ctx.state.processing_mode as f32,
+            ctx.state.pattern.len() as f32,
+        ]);
     }
 }
 

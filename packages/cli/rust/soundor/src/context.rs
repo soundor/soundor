@@ -1,6 +1,6 @@
 use crate::audio::Audio;
 use crate::layout::Layout;
-use crate::plugin::{LAYOUTS, Parameters, Publish, Streams};
+use crate::plugin::{LAYOUTS, Parameters, Publish, StateSnapshot, Streams};
 use crate::transport::Transport;
 
 /// The audio layout the host negotiated, among those soundor.config
@@ -57,6 +57,9 @@ pub struct PrepareContext<'a> {
     pub layout: ActiveLayout<'a>,
     /// The parameters' current values.
     pub params: &'a Parameters,
+    /// The persistent state the processing reads (`audio: true`), as it is
+    /// now.
+    pub state: &'a StateSnapshot,
 }
 
 /// What [`process`](crate::AudioProcessor::process) is given for one block.
@@ -68,6 +71,11 @@ pub struct ProcessContext<'a> {
     /// The parameters' values for this block, typed as soundor.config
     /// declares them. Automation reaches the processing once a block.
     pub params: &'a Parameters,
+    /// The persistent state the processing reads (`audio: true`), typed as
+    /// soundor.config declares it. The block sees one snapshot from start to
+    /// end, every field as of the same state change: a change reaches the
+    /// processing at the next block, and changes in between are coalesced.
+    pub state: &'a StateSnapshot,
     /// The block's audio.
     pub audio: Audio<'a>,
     /// The host's transport at the start of the block.

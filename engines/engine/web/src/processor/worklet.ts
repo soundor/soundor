@@ -25,6 +25,8 @@ export interface WorkletOptions {
   readonly outputs: readonly number[];
   readonly streams: readonly WasmStream[];
   readonly parameters: readonly number[];
+  /** The state snapshot to start with (contract.state bytes), if any. */
+  readonly state?: Uint8Array;
   /** The most frames a block holds; longer render quanta go in parts. */
   readonly maxFrames: number;
 }
@@ -43,6 +45,7 @@ export type WorkletMessage =
 export type WorkletCommand =
   | { readonly type: 'parameters'; readonly values: readonly number[] }
   | { readonly type: 'transport'; readonly values: readonly number[] }
+  | { readonly type: 'state'; readonly snapshot: Uint8Array }
   | { readonly type: 'reset' };
 
 declare const sampleRate: number;
@@ -88,6 +91,7 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
           settings.streams,
         );
         processor.parameters.set(settings.parameters);
+        if (settings.state !== undefined) processor.setState(settings.state);
         const status = processor.prepare(sampleRate, settings.maxFrames);
         if (status !== 0)
           throw new Error(
@@ -110,6 +114,8 @@ function workletMain(Processor: typeof WasmProcessor, name: string): void {
           processor.parameters.set(command.values);
         else if (command.type === 'transport')
           processor.transport.set(command.values);
+        // Between render quanta: the next block reads it whole.
+        else if (command.type === 'state') processor.setState(command.snapshot);
         else if (command.type === 'reset') processor.reset();
       };
     }

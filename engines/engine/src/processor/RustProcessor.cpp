@@ -33,10 +33,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
             return;
         }
         if (info.parameterCount != contract.parameters || info.publishedCount != contract.published
-            || info.streamCount != contract.streams)
+            || info.streamCount != contract.streams || info.stateSize != contract.stateSize)
         {
-            problem = "The plugin's Rust processor was built from another soundor.config (its parameters or streams "
-                      "differ): rebuild it with soundor build.";
+            problem =
+                "The plugin's Rust processor was built from another soundor.config (its parameters, streams or state "
+                "differ): rebuild it with soundor build.";
             return;
         }
         handle = abi.create();
@@ -51,7 +52,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     }
 
     std::int32_t RustProcessor::prepare(double sampleRate, int frames, const RustBusLayout& layout,
-                                        std::span<const double> parameters)
+                                        std::span<const double> parameters, const void* state)
     {
         prepared = false;
         if (handle == nullptr || frames <= 0)
@@ -114,6 +115,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
             .outputChannels = outputCounts.data(),
             .parameterCount = static_cast<std::uint32_t>(parameters.size()),
             .parameters = parameters.data(),
+            .stateSize = state != nullptr ? contract.stateSize : 0,
+            .state = state,
         };
         const auto result = abi.prepare(handle, &config);
         prepared = result == SOUNDOR_STATUS_OK;
@@ -123,7 +126,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
 
     std::int32_t RustProcessor::process(std::span<float* const> channels, int frames,
                                         std::span<const double> parameters, std::span<double> published,
-                                        const SoundorTransport& transport, const SoundorStreamSink* sink) noexcept
+                                        const SoundorTransport& transport, const SoundorStreamSink* sink,
+                                        const void* state) noexcept
     {
         std::fill(published.begin(), published.end(), unknown);
         frames = std::max(0, frames);
@@ -174,6 +178,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
                 .published = chunkPublished.data(),
                 .transport = &transport,
                 .streams = sink,
+                .stateSize = state != nullptr ? contract.stateSize : 0,
+                .state = state,
             };
             result = abi.process(handle, &block);
             if (result != SOUNDOR_STATUS_OK)

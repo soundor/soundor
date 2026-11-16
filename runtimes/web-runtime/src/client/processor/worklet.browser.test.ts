@@ -10,7 +10,13 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildFixture, contract, parameters, streams } from './fixture/build';
+import {
+  buildFixture,
+  contract,
+  fixtureState,
+  parameters,
+  streams,
+} from './fixture/build';
 
 /** What the page's `render` takes. */
 interface Render {
@@ -24,9 +30,13 @@ interface Render {
     readonly at: number;
     readonly gain?: number;
     readonly tempo?: number;
+    /** processingMode and pattern's length, as fixtureState() writes them. */
+    readonly state?: readonly [number, number];
   };
   /** The host's tempo, posted before the processor exists. */
   readonly early?: number;
+  /** The state to start with: processingMode and pattern's length. */
+  readonly state?: readonly [number, number];
 }
 
 /** What it gives back. */
@@ -58,6 +68,7 @@ const PAGE = `<!doctype html>
       outputs: options.outputs,
       streams: options.streams,
       parameters: options.parameters,
+      ...(options.state ? { state: new Uint8Array(options.state) } : {}),
       maxFrames: 128,
       onPublished: (values) => result.published.push([...values]),
       onStreams: (changes) =>
@@ -91,6 +102,8 @@ const PAGE = `<!doctype html>
           processor.setParameters(options.change.parameters);
         if (options.change.tempo !== undefined)
           processor.setTransport([options.change.tempo, 0, Number.NaN, 1, 0]);
+        if (options.change.snapshot !== undefined)
+          processor.setState(new Uint8Array(options.change.snapshot));
         // The message reaches the rendering thread before rendering goes on.
         await new Promise((resolve) => setTimeout(resolve, 50));
         await context.resume();
@@ -232,6 +245,10 @@ async function render(options: Render): Promise<Rendered> {
       contract: options.contract ?? contract,
       streams,
       parameters: parameters(options.gain),
+      state:
+        options.state === undefined
+          ? undefined
+          : [...fixtureState(...options.state)],
       change:
         options.change === undefined
           ? undefined
@@ -241,6 +258,10 @@ async function render(options: Render): Promise<Rendered> {
                 options.change.gain === undefined
                   ? undefined
                   : parameters(options.change.gain),
+              snapshot:
+                options.change.state === undefined
+                  ? undefined
+                  : [...fixtureState(...options.change.state)],
             },
     },
   );
@@ -318,10 +339,11 @@ describe('the Rust processor in an AudioWorklet', () => {
     // About 60 times a second: 4800 frames at 48 kHz are 0.1 s.
     expect(result.streams.length).toBeGreaterThanOrEqual(5);
     expect(result.streams.length).toBeLessThanOrEqual(7);
-    // history: the gain and the host's tempo; level: the block's peak.
+    // history: the gain, the host's tempo and, without a state given, the
+    // config's defaults (processingMode 1, 3 pattern steps); level: the peak.
     for (const changes of result.streams) {
       expect(changes.map(([index]) => index)).toEqual([0, 1]);
-      expect(changes[0]![1]).toEqual([0.75, 96]);
+      expect(changes[0]![1]).toEqual([0.75, 96, 1, 3]);
     }
     const last = result.streams.at(-1)![1]![1] as number;
     expect(last).toBeGreaterThan(0);
@@ -340,7 +362,28 @@ describe('the Rust processor in an AudioWorklet', () => {
     });
     expect(result.streams.length).toBeGreaterThan(0);
     for (const changes of result.streams)
-      expect(changes[0]![1]).toEqual([0.5, 140]);
+      expect(changes[0]![1]).toEqual([0.5, 140, 1, 3]);
+  });
+
+  it('reads the state it starts with, then the state posted, from the next block', async () => {
+    const result = await render({
+      gain: 0.5,
+      inputs: [1, 0],
+      outputs: [1],
+      frames: 9600,
+      state: [6, 2],
+      change: { at: 4800 / 48_000, state: [3, 7] },
+    });
+    const states = result.streams.map((changes) =>
+      (changes[0]![1] as number[]).slice(2),
+    );
+    expect(states[0]).toEqual([6, 2]);
+    expect(states.at(-1)).toEqual([3, 7]);
+    // Never a mix of the two.
+    for (const state of states)
+      expect([JSON.stringify([6, 2]), JSON.stringify([3, 7])]).toContain(
+        JSON.stringify(state),
+      );
   });
 
   it('is silent after a panic, and says so once', async () => {

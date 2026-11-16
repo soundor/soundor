@@ -8,7 +8,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::audio::Audio;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
-use crate::plugin::{PUBLISHED, Parameters, Publish, Streams};
+use crate::plugin::{PUBLISHED, Parameters, Publish, StateSnapshot, Streams};
 use crate::processor::AudioProcessor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
@@ -57,6 +57,8 @@ pub(crate) struct Block<'a> {
     pub parameters: Option<&'a [f64]>,
     pub transport: Transport,
     pub streams: &'a dyn StreamSink,
+    /// The state for this block; `None` is the config's defaults.
+    pub state: Option<&'a StateSnapshot>,
 }
 
 pub(crate) struct Instance<P: AudioProcessor> {
@@ -71,6 +73,8 @@ pub(crate) struct Instance<P: AudioProcessor> {
     output_chunk: Vec<*mut f32>,
     parameters: Parameters,
     published: [f64; PUBLISHED.len()],
+    // What a block without a state of its own sees.
+    default_state: Box<StateSnapshot>,
 }
 
 impl<P: AudioProcessor> Instance<P> {
@@ -86,6 +90,7 @@ impl<P: AudioProcessor> Instance<P> {
             output_chunk: Vec::new(),
             parameters: Parameters::default(),
             published: [f64::NAN; PUBLISHED.len()],
+            default_state: StateSnapshot::boxed_defaults(),
         }
     }
 
@@ -116,7 +121,8 @@ impl<P: AudioProcessor> Instance<P> {
     }
 
     /// Outside the audio thread. A failed processor is replaced by a new one.
-    /// `parameters`, when given, are the current plain values `prepare` sees.
+    /// `parameters`, when given, are the current plain values `prepare` sees;
+    /// `state` the current state (`None`: the config's defaults).
     pub fn prepare(
         &mut self,
         sample_rate: f64,
@@ -124,6 +130,7 @@ impl<P: AudioProcessor> Instance<P> {
         inputs: &[usize],
         outputs: &[usize],
         parameters: Option<&[f64]>,
+        state: Option<&StateSnapshot>,
     ) -> Status {
         if !(sample_rate.is_finite() && sample_rate > 0.0)
             || max_frames == 0
@@ -167,6 +174,7 @@ impl<P: AudioProcessor> Instance<P> {
                 outputs: &self.outputs,
             },
             params: &self.parameters,
+            state: state.unwrap_or(&self.default_state),
         };
         let processor = &mut self.processor;
         match catch_unwind(AssertUnwindSafe(|| processor.prepare(&ctx))) {
@@ -247,6 +255,7 @@ impl<P: AudioProcessor> Instance<P> {
             };
             let mut ctx = ProcessContext {
                 params: &self.parameters,
+                state: block.state.unwrap_or(&self.default_state),
                 audio,
                 transport: &block.transport,
                 publish: Publish {

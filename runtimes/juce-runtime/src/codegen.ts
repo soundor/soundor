@@ -27,7 +27,11 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
-import { describeNativeApi } from '@soundor/runtime-sdk';
+import {
+  describeAudioState,
+  describeNativeApi,
+  describeState,
+} from '@soundor/runtime-sdk';
 import {
   resolveEditor,
   type CodegenFile,
@@ -654,7 +658,7 @@ ${handles || '        // no parameters'}
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length} }, processor::linkedRustProcessor() };
+        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor() };
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;
@@ -749,7 +753,8 @@ ${audioImplementation(config)}
     {
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
+                                         state.audioState().acquire());
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -766,7 +771,9 @@ ${audioImplementation(config)}
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${streams.length > 0 ? '&streamSink' : 'nullptr'});
+        // The newest state snapshot, unchanged until the next block.
+        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${streams.length > 0 ? '&streamSink' : 'nullptr'},
+                             state.audioState().acquire());
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

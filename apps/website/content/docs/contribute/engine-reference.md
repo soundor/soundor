@@ -1341,16 +1341,16 @@ The plugin's processor is never part of the engine: natively its static
 library is linked into the plugin, and the bridge reaches it through a table
 of the ABI's six functions (`processor::linkedRustProcessor()`, inline, so
 the engine archive references none of them); in the browser the runtime
-passes the module's bytes. The engine adds no MIDI or processor-state
-transport of its own, as the ABI carries neither.
+passes the module's bytes. The engine adds no MIDI transport, as the ABI
+carries none.
 
 ```cpp
 #include <soundor/processor/RustProcessor.h>
 
-processor::RustProcessor rust { { parameters, published, streams }, processor::linkedRustProcessor() };
-rust.prepare(sampleRate, maxFrames, layout, values);          // off the audio thread
-rust.process(channelPointers, frames, values, publishedValues, // the audio callback
-             transport, &streamSink);
+processor::RustProcessor rust { { parameters, published, streams, stateSize }, processor::linkedRustProcessor() };
+rust.prepare(sampleRate, maxFrames, layout, values, state.acquire()); // off the audio thread
+rust.process(channelPointers, frames, values, publishedValues,        // the audio callback
+             transport, &streamSink, state.acquire());
 ```
 
 `RustBusLayout` says, for each bus, which channel of the callback's channel
@@ -1368,6 +1368,33 @@ passes (`native::Streams`), never a callback into the UI. In the browser the
 main thread posts and the worklet processes: no DOM, no UI engine, no
 `SharedArrayBuffer`, and nothing allocated per block beyond the messages it
 posts.
+
+**State** (`processor::AudioState`, `include/soundor/processor/AudioState.h`).
+The persistent state fields declared with `audio: true` reach the processor
+as one binary snapshot of `stateSize` bytes, laid out as a C struct
+(`describeAudioState()` in `@soundor/core`: the fields in name order, each
+array a `uint32` length then `maxLength` elements), which the SDK reads as its
+generated `#[repr(C)] StateSnapshot` (compile-time asserts check every
+offset). The SDK checks the size and alignment, and null is the config's
+defaults. `AudioState` is the streams' triple buffer the other way round:
+publishing (`publish()`, `publishWith()`, any thread but the audio thread, a
+mutex between publishers) writes a whole snapshot into the slot only it
+uses, then one atomic exchange; `acquire()` on the audio thread takes the
+newest published slot if there is one, one relaxed load when there is none,
+with no lock, allocation or copy, and what it returns stays unchanged until
+the next `acquire()`: so a block sees one snapshot from start to end, and
+snapshots in between are coalesced. The three slots are allocated with it and
+freed with it, after audio stops, so nothing is reclaimed on the audio thread.
+The JUCE runtime's generated `PersistentState` owns one: each change of an
+audio field (a set, History, a restore, a preset) encodes every audio field's
+committed value under the store's lock, so a snapshot is coherent across the
+fields of one commit and snapshots are published in commit order
+(`tests/processor/AudioStateTests.cpp` checks tearing and order with
+concurrent writers; `JuceStateTests.cpp` every path, on the generated
+processor). In the browser the page encodes the same layout
+(`writeAudioState()`) once per batch of changes and posts it; the worklet's
+`WasmProcessor.setState()` copies it, and writes it into the module before
+the next block.
 
 **Loading.** `@soundor/engine/web/processor` is apart from
 `@soundor/engine/web`, and the web runtime imports it only once the plugin

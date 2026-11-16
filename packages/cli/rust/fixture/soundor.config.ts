@@ -1,6 +1,7 @@
 // The config the SDK's own tests run with: its src/plugin.rs is generated
 // from it (UPDATE_GOLDEN=1 pnpm --filter soundor test), and covers every kind
-// of parameter, read-only ones, both kinds of channels and optional buses.
+// of parameter, read-only ones, both kinds of streams, the state the
+// processing reads (and state it does not) and optional buses.
 import { defineSoundorConfig } from '@soundor/config';
 
 export default defineSoundorConfig({
@@ -46,6 +47,21 @@ export default defineSoundorConfig({
       default: -96,
       access: 'readOnly',
     },
+  },
+  state: {
+    // UI-only: not in the processing's StateSnapshot.
+    selectedTab: { type: 'int32', default: 0 },
+    processingMode: { type: 'int32', default: 1, audio: true },
+    enabled: { type: 'boolean', default: true, audio: true },
+    depth: { type: 'float64', default: 0.25, audio: true },
+    seed: { type: 'uint64', default: 7n, audio: true },
+    pattern: {
+      type: 'int32[]',
+      default: [60, 64, 67],
+      audio: true,
+      maxLength: 8,
+    },
+    weights: { type: 'float32[]', default: [], audio: true, maxLength: 3 },
   },
   native: {
     streams: {

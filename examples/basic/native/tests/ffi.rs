@@ -73,6 +73,8 @@ fn is_silent_before_prepare_and_after_an_invalid_block() {
         published: std::ptr::null_mut(),
         transport: std::ptr::null(),
         streams: std::ptr::null(),
+        state_size: 0,
+        state: std::ptr::null(),
     };
     // SAFETY: valid pointers; only its version is wrong.
     assert_eq!(

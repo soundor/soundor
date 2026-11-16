@@ -537,6 +537,8 @@ calling `parseConfig({ path })`.
 
 The optional top-level `state` section declares typed application data persisted
 with the plugin, independently of its editor. Types reuse `native.types`; every
-field requires a validated default. See [`soundor:state`](/docs/api/state) for
+field requires a validated default. A field may set `audio: true` for the Rust
+audio processor to read it (`ctx.state`), and an array a `maxLength`, which an
+audio array requires. See [`soundor:state`](/docs/api/state) for
 configuration and JavaScript/native examples. Runtime API 2 adds this feature;
 a runtime implementing an older API is refused when state is declared.

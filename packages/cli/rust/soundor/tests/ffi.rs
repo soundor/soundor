@@ -183,6 +183,8 @@ fn refuses_other_abis_and_null_arguments() {
         published: std::ptr::null_mut(),
         transport: std::ptr::null(),
         streams: std::ptr::null(),
+        state_size: 0,
+        state: std::ptr::null(),
     };
     // SAFETY: valid pointers; only the version is wrong.
     assert_eq!(

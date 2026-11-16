@@ -6,6 +6,7 @@
 
 use crate::streams::{BufferStream, StreamSink, ValueStream};
 use crate::layout::Layout;
+use crate::state::StateArray;
 
 /// The plugin's id (`plugin.id`).
 pub const PLUGIN_ID: &str = "dev.soundor.sdk-fixture";
@@ -157,6 +158,54 @@ impl<'a> Streams<'a> {
         }
     }
 }
+
+/// The persistent state the audio processing reads: the fields soundor.config
+/// declares with `audio: true`, as one snapshot the runtime hands every
+/// block. Its layout is the runtimes' (`describeAudioState()`).
+#[repr(C)]
+#[derive(Debug, PartialEq)]
+pub struct StateSnapshot {
+    /// `depth` (float64).
+    pub depth: f64,
+    /// `enabled` (boolean).
+    pub enabled: bool,
+    /// `pattern`: up to 8 int32s.
+    pub pattern: StateArray<i32, 8>,
+    /// `processingMode` (int32).
+    pub processing_mode: i32,
+    /// `seed` (uint64).
+    pub seed: u64,
+    /// `weights`: up to 3 float32s.
+    pub weights: StateArray<f32, 3>,
+}
+
+impl StateSnapshot {
+    /// The config's defaults, allocated where they are (an array may be large).
+    pub(crate) fn boxed_defaults() -> Box<Self> {
+        // SAFETY: every field is a number, a bool or a StateArray, which zero
+        // bytes are a valid value of.
+        #[allow(unused_mut)]
+        let mut state = unsafe { Box::<Self>::new_zeroed().assume_init() };
+        state.depth = 0.25;
+        state.enabled = true;
+        state.pattern.set(&[60, 64, 67]);
+        state.processing_mode = 1;
+        state.seed = 7;
+        state.weights.clear();
+        state
+    }
+}
+
+/// The snapshot's size, which the runtimes write.
+pub const STATE_SIZE: usize = 80;
+const _: () = assert!(std::mem::size_of::<StateSnapshot>() == STATE_SIZE);
+const _: () = assert!(std::mem::align_of::<StateSnapshot>() == 8);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, depth) == 0);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, enabled) == 8);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, pattern) == 12);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, processing_mode) == 48);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, seed) == 56);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, weights) == 64);
 
 /// The config's audio layouts (`audio.layouts`), in its order. Input buses:
 /// `input`, `sidechain`; output buses: `output`.

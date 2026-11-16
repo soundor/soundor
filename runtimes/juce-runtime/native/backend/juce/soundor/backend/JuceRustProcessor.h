@@ -22,9 +22,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
     // Processes `buffer` in place (see processor::RustProcessor::process).
     inline std::int32_t processRust(processor::RustProcessor& rust, juce::AudioBuffer<float>& buffer,
                                     std::span<const double> parameters, std::span<double> published,
-                                    const SoundorTransport& transport, const SoundorStreamSink* sink) noexcept
+                                    const SoundorTransport& transport, const SoundorStreamSink* sink,
+                                    const void* state = nullptr) noexcept
     {
         return rust.process({ buffer.getArrayOfWritePointers(), static_cast<std::size_t>(buffer.getNumChannels()) },
-                            buffer.getNumSamples(), parameters, published, transport, sink);
+                            buffer.getNumSamples(), parameters, published, transport, sink, state);
     }
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend

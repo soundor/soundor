@@ -105,6 +105,13 @@ types; choices become generated enums. Config defaults, ranges, snapping and
 mapping remain authoritative. Use the generated type's documentation in your
 editor rather than copying the contract into Rust.
 
+The persistent state fields declared with `audio: true` arrive as
+`ctx.state` (a generated `soundor::StateSnapshot`, also in `PrepareContext`),
+typed as declared: `ctx.state.processing_mode` is an `i32`, an array a
+`StateArray` that reads as a slice. A block sees one snapshot throughout, and
+a change reaches the next block; see
+[`soundor:state`](/docs/api/state#state-the-audio-processor-reads).
+
 Read-only parameters are written through `ctx.publish`, and configured native
 streams through `ctx.streams`. For example, the analyzer uses
 `ctx.publish.peak(value)` to report its peak. These routes preserve Soundor's

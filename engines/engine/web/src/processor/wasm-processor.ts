@@ -13,6 +13,8 @@ export interface WasmContract {
   readonly parameters: number;
   readonly published: number;
   readonly streams: number;
+  /** The size of the state snapshot (`audio: true` fields); 0 by default. */
+  readonly state?: number;
 }
 
 /** A native stream as the processor's mailbox holds it. */
@@ -36,6 +38,7 @@ interface Exports {
   soundor_wasm_parameters(handle: number): number;
   soundor_wasm_transport(handle: number): number;
   soundor_wasm_published(handle: number): number;
+  soundor_wasm_state(handle: number): number;
   soundor_wasm_prepare(handle: number, rate: number, frames: number): number;
   soundor_wasm_input(handle: number, index: number): number;
   soundor_wasm_output(handle: number, index: number): number;
@@ -57,7 +60,7 @@ export const WASM_STATUS = {
 } as const;
 
 /** The ABI the module must have been built for. */
-export const WASM_ABI_VERSION = 1;
+export const WASM_ABI_VERSION = 2;
 
 // Statuses are the numbers of WASM_STATUS, written out: the class cannot
 // refer to anything outside itself. Its fields are declared, never defined
@@ -75,6 +78,13 @@ export class WasmProcessor {
   declare readonly parameters: Float64Array;
   /** tempo, seconds, beats (NaN unknown), playing, signature (0 unknown). */
   declare readonly transport: Float64Array;
+  /**
+   * The state the processing reads, as describeAudioState() lays it out;
+   * written into the module before the next block once set (setState()).
+   */
+  declare readonly state: Uint8Array;
+  declare stateChanged: boolean;
+  declare stateView: Uint8Array;
   declare inputViews: Float32Array[];
   declare outputViews: Float32Array[];
   declare parameterView: Float64Array;
@@ -98,20 +108,21 @@ export class WasmProcessor {
       throw new Error(
         "The audio processor's module has no Soundor exports: does native/src/lib.rs call soundor::export!?",
       );
-    const built = [0, 1, 2, 3].map((index) =>
+    const built = [0, 1, 2, 3, 4].map((index) =>
       exports.soundor_wasm_contract(index),
     );
-    if (built[0] !== 1)
+    if (built[0] !== 2)
       throw new Error(
-        `The audio processor was built for Soundor ABI ${built[0]}, not ${1}: rebuild it`,
+        `The audio processor was built for Soundor ABI ${built[0]}, not ${2}: rebuild it`,
       );
     if (
       built[1] !== contract.parameters ||
       built[2] !== contract.published ||
-      built[3] !== contract.streams
+      built[3] !== contract.streams ||
+      built[4] !== (contract.state ?? 0)
     )
       throw new Error(
-        'The audio processor was built from another soundor.config (its parameters or streams differ): rebuild it',
+        'The audio processor was built from another soundor.config (its parameters, streams or state differ): rebuild it',
       );
     this.exports = exports;
     this.handle = exports.soundor_wasm_create();
@@ -122,6 +133,9 @@ export class WasmProcessor {
     this.failed = false;
     this.parameters = new Float64Array(contract.parameters);
     this.transport = new Float64Array([NaN, NaN, NaN, 0, 0, 0]);
+    this.state = new Uint8Array(contract.state ?? 0);
+    // The module starts with the config's defaults: nothing to write yet.
+    this.stateChanged = false;
     this.inputViews = [];
     this.outputViews = [];
     this.buffer = null;
@@ -278,10 +292,24 @@ export class WasmProcessor {
     this.failed = true;
   }
 
-  /** The parameters and transport, into the module's memory. */
+  /**
+   * Sets the state the processing reads from the next block (or prepare):
+   * a snapshot of `state.length` bytes. Copied now, written into the module
+   * between blocks, so a block never sees one partly written.
+   */
+  setState(snapshot: Uint8Array): void {
+    this.state.set(snapshot.subarray(0, this.state.length));
+    this.stateChanged = true;
+  }
+
+  /** The parameters, transport and a changed state, into the module's memory. */
   writeValues(): void {
     this.parameterView.set(this.parameters);
     this.transportView.set(this.transport);
+    if (this.stateChanged) {
+      this.stateView.set(this.state);
+      this.stateChanged = false;
+    }
   }
 
   /** The streams' views, made again when memory grew (or after prepare). */
@@ -298,6 +326,11 @@ export class WasmProcessor {
       buffer,
       this.exports.soundor_wasm_transport(this.handle),
       6,
+    );
+    this.stateView = new Uint8Array(
+      buffer,
+      this.exports.soundor_wasm_state(this.handle),
+      this.state.length,
     );
     const view = (pointer: number) =>
       new Float32Array(buffer, pointer, this.maxFrames);

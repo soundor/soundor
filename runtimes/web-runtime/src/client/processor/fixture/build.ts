@@ -6,8 +6,20 @@ import { fileURLToPath } from 'node:url';
 
 const FIXTURE = fileURLToPath(new URL('./', import.meta.url));
 
-/** gain, bypass, mode, steps, peak (read-only); streams history, level. */
-export const contract = { parameters: 5, published: 1, streams: 2 };
+/**
+ * gain, bypass, mode, steps, peak (read-only); streams history (the gain,
+ * the tempo, then processingMode and the length of pattern as the state has
+ * them), level; a state of 80 bytes.
+ */
+export const contract = { parameters: 5, published: 1, streams: 2, state: 80 };
+/** The fixture's state snapshot: processingMode and pattern's length set. */
+export function fixtureState(mode: number, patternLength: number): Uint8Array {
+  const bytes = new Uint8Array(contract.state);
+  const view = new DataView(bytes.buffer);
+  view.setInt32(48, mode, true);
+  view.setUint32(12, patternLength, true);
+  return bytes;
+}
 export const streams = [
   { kind: 'buffer', element: 'float32' },
   { kind: 'number', element: 'float32' },

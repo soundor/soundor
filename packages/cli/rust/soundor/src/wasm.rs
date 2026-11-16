@@ -7,14 +7,17 @@
 //! The order of calls:
 //!
 //! 1. `create`; write the layout (`layout`: input bus count, output bus count,
-//!    then each bus's channels) and the parameters' plain values
-//!    (`parameters`);
+//!    then each bus's channels), the parameters' plain values
+//!    (`parameters`) and the state the processor reads (`state`, `STATE_SIZE`
+//!    bytes laid out as [`StateSnapshot`](crate::StateSnapshot), the config's
+//!    defaults until written);
 //! 2. `prepare(sample_rate, max_frames)`, which allocates the channels; read
 //!    their addresses (`input`, `output`) and the other buffers' again, as
 //!    memory may have grown;
 //! 3. per block of at most `max_frames`: write each input channel's samples
 //!    at `input(i)` (a main input channel processed in place is its output's
-//!    address), the parameters and the transport, `process(frames)`, read the
+//!    address), the parameters, the transport and the state when it changed,
+//!    `process(frames)`, read the
 //!    outputs at `output(i)`, `published`, and the streams that changed;
 //! 4. `reset` between blocks; `destroy`.
 //!
@@ -28,7 +31,7 @@ use std::cell::{Cell, UnsafeCell};
 use crate::ABI_VERSION;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES, MAX_FRAMES};
-use crate::plugin::{PUBLISHED, Parameters, STREAMS};
+use crate::plugin::{PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot};
 use crate::processor::AudioProcessor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
@@ -107,6 +110,7 @@ pub struct WasmHandle<P: AudioProcessor> {
     published: [f64; PUBLISHED.len()],
     transport: [f64; TRANSPORT_SLOTS],
     mailbox: Mailbox,
+    state: Box<StateSnapshot>,
 }
 
 impl<P: AudioProcessor> WasmHandle<P> {
@@ -130,6 +134,7 @@ impl<P: AudioProcessor> WasmHandle<P> {
             published: [f64::NAN; PUBLISHED.len()],
             transport: [f64::NAN, f64::NAN, f64::NAN, 0.0, 0.0, 0.0],
             mailbox: Mailbox::new(),
+            state: StateSnapshot::boxed_defaults(),
         }
     }
 
@@ -142,6 +147,12 @@ impl<P: AudioProcessor> WasmHandle<P> {
     /// The parameters' plain values, in the config's order.
     pub fn parameters(&mut self) -> &mut [f64] {
         &mut self.parameters
+    }
+
+    /// The state the processor reads: `STATE_SIZE` bytes where JavaScript
+    /// writes a [`StateSnapshot`] between calls, with its layout.
+    pub fn state(&mut self) -> *mut u8 {
+        std::ptr::from_mut::<StateSnapshot>(&mut self.state).cast()
     }
 
     /// The transport (see [`TRANSPORT_SLOTS`]).
@@ -187,6 +198,7 @@ impl<P: AudioProcessor> WasmHandle<P> {
             &inputs,
             &outputs,
             Some(&self.parameters),
+            Some(&self.state),
         );
         if status != Status::Ok {
             return status;
@@ -259,6 +271,7 @@ impl<P: AudioProcessor> WasmHandle<P> {
             parameters: Some(&self.parameters),
             transport,
             streams: &self.mailbox,
+            state: Some(&self.state),
         });
         self.published.copy_from_slice(self.instance.published());
         status
@@ -300,12 +313,13 @@ impl<P: AudioProcessor> Default for WasmHandle<P> {
 }
 
 /// The counts a runtime checks the module against.
-pub fn contract() -> [u32; 4] {
+pub fn contract() -> [u32; 5] {
     [
         ABI_VERSION,
         Parameters::COUNT as u32,
         PUBLISHED.len() as u32,
         STREAMS.len() as u32,
+        STATE_SIZE as u32,
     ]
 }
 
@@ -359,6 +373,10 @@ macro_rules! __export_wasm {
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_transport(pointer: *mut __Handle) -> *mut f64 {
                 handle(pointer).transport().as_mut_ptr()
+            }
+            #[unsafe(no_mangle)]
+            pub extern "C" fn soundor_wasm_state(pointer: *mut __Handle) -> *mut u8 {
+                handle(pointer).state()
             }
             #[unsafe(no_mangle)]
             pub extern "C" fn soundor_wasm_published(pointer: *mut __Handle) -> *const f64 {

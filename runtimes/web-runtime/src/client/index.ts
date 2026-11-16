@@ -24,6 +24,7 @@ import processorWasm from 'soundor:internal/processor';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
 import { WebAudioHost, type WebAudioInput } from './audio';
+import { processorState } from './audio-state';
 import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
@@ -104,6 +105,7 @@ export async function startSoundorWebHost(
           const stream = streams[index];
           if (stream !== undefined) publishers[stream.name]?.publish(value);
         },
+        state: processorState(context.state.store),
       };
     },
   });

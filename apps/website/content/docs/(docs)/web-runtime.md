@@ -351,6 +351,10 @@ source → input bus → the processor (AudioWorklet) → output bus → master 
   what it publishes comes back and updates the UI and the host's controls.
   Streams the processor publishes reach `soundor:native`'s streams about
   60 times a second.
+- **State.** The state fields declared with `audio: true` are posted to the
+  worklet as one snapshot when any of them changes, once per batch of changes
+  (a transaction's or a restore's fields together), and the processor reads
+  the latest from the start of its next block, as `ctx.state`.
 - **Buses.** The host feeds the main input bus and plays the main output.
   A sidechain or an auxiliary bus is present but silent.
 - **Failure.** If the module cannot run (it was built from another

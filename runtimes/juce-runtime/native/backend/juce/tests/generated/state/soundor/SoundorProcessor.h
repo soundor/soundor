@@ -152,7 +152,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        processor::RustProcessor rust { processor::RustContract { 3, 0, 1 }, processor::linkedRustProcessor() };
+        processor::RustProcessor rust { processor::RustContract { 3, 0, 1, 48 }, processor::linkedRustProcessor() };
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;

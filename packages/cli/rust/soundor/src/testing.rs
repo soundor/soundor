@@ -50,7 +50,9 @@ use crate::ffi::{
 };
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance};
-use crate::plugin::{DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parameters, STREAMS};
+use crate::plugin::{
+    DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot,
+};
 use crate::processor::AudioProcessor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
@@ -334,6 +336,7 @@ impl<P: AudioProcessor> TestProcessorBuilder<P> {
             parameters: self.parameters,
             transport: Transport::default(),
             streams: RecordedStreams::new(),
+            state: StateSnapshot::boxed_defaults(),
             allocations: 0,
         };
         let status = processor.prepare_with(
@@ -356,6 +359,7 @@ pub struct TestProcessor<P: AudioProcessor> {
     parameters: Parameters,
     transport: Transport,
     streams: RecordedStreams,
+    state: Box<StateSnapshot>,
     allocations: usize,
 }
 
@@ -435,8 +439,14 @@ impl<P: AudioProcessor> TestProcessor<P> {
         self.block_size = block_size;
         let mut values = [0.0; Parameters::COUNT];
         self.parameters.write(&mut values);
-        self.instance
-            .prepare(sample_rate, block_size, inputs, outputs, Some(&values))
+        self.instance.prepare(
+            sample_rate,
+            block_size,
+            inputs,
+            outputs,
+            Some(&values),
+            Some(&self.state),
+        )
     }
 
     /// Resets the processor, as a host does between playbacks.
@@ -568,6 +578,7 @@ impl<P: AudioProcessor> TestProcessor<P> {
             parameters: Some(&values),
             transport: self.transport,
             streams: &self.streams,
+            state: Some(&self.state),
         };
         let (status, allocations) = counted(|| self.instance.process(block));
         self.allocations += allocations;
@@ -605,6 +616,18 @@ impl<P: AudioProcessor> TestProcessor<P> {
     pub fn allocations(&self) -> usize {
         count_allocations(|| ());
         self.allocations
+    }
+
+    /// The state the processor reads (`ctx.state`), as the plugin's state
+    /// would set it: the config's defaults to start with. Changes reach the
+    /// next block.
+    pub fn state_mut(&mut self) -> &mut StateSnapshot {
+        &mut self.state
+    }
+
+    /// The state the processor reads.
+    pub fn state(&self) -> &StateSnapshot {
+        &self.state
     }
 
     /// The latest value published to stream `name`, a number stream.
@@ -648,6 +671,8 @@ pub struct NativeProcessor {
     pub published: Vec<f64>,
     /// The transport passed with each block.
     pub transport: SoundorTransport,
+    /// The state passed to `prepare` and with each block.
+    pub state: Box<StateSnapshot>,
     allocations: usize,
 }
 
@@ -664,6 +689,7 @@ impl NativeProcessor {
         assert_eq!(unsafe { (exports.info)(&mut info) }, 0);
         assert_eq!(info.abi_version, ABI_VERSION);
         assert_eq!(info.parameter_count as usize, Parameters::COUNT);
+        assert_eq!(info.state_size as usize, STATE_SIZE);
         // SAFETY: no arguments.
         let handle = unsafe { (exports.create)() };
         assert!(!handle.is_null(), "creating the processor failed");
@@ -684,6 +710,7 @@ impl NativeProcessor {
                 time_signature_numerator: 0,
                 time_signature_denominator: 0,
             },
+            state: StateSnapshot::boxed_defaults(),
             allocations: 0,
         }
     }
@@ -725,6 +752,8 @@ impl NativeProcessor {
             output_channels: outputs.as_ptr(),
             parameter_count: self.parameters.len() as u32,
             parameters: self.parameters.as_ptr(),
+            state_size: STATE_SIZE as u32,
+            state: std::ptr::from_ref::<StateSnapshot>(&self.state).cast(),
         };
         // SAFETY: a handle from `create`, and a valid configuration.
         unsafe { (self.exports.prepare)(self.handle, &config) }
@@ -771,6 +800,8 @@ impl NativeProcessor {
             published: self.published.as_mut_ptr(),
             transport: &self.transport,
             streams: streams.map_or(std::ptr::null(), |sink| sink as *const SoundorStreamSink),
+            state_size: STATE_SIZE as u32,
+            state: std::ptr::from_ref::<StateSnapshot>(&self.state).cast(),
         };
         let (process, handle) = (self.exports.process, self.handle);
         // SAFETY: a handle from `create`, and a block whose arrays live for

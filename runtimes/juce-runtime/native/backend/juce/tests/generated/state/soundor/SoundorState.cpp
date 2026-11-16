@@ -103,12 +103,24 @@ namespace {
         auto nativeValue = backend::StateCodec<bool>::decode(backend::parseStateJson(json));
         value = write(ctx, nativeValue);
       }
+if (field == "gates") {
+        auto nativeValue = backend::StateCodec<std::vector<bool>>::decode(backend::parseStateJson(json));
+        value = bind::writeArray(ctx, std::move(nativeValue), [](bind::ContextState& elementCtx, bool&& item) { return write(elementCtx, item); });
+      }
 if (field == "groups") {
         auto nativeValue = backend::StateCodec<std::vector<native::Group>>::decode(backend::parseStateJson(json));
         value = bind::writeArray(ctx, std::move(nativeValue), [](bind::ContextState& elementCtx, Group&& item) { return write(elementCtx, std::move(item)); });
       }
+if (field == "level") {
+        auto nativeValue = backend::StateCodec<float>::decode(backend::parseStateJson(json));
+        value = write(ctx, nativeValue);
+      }
 if (field == "precise") {
         auto nativeValue = backend::StateCodec<double>::decode(backend::parseStateJson(json));
+        value = write(ctx, nativeValue);
+      }
+if (field == "seed") {
+        auto nativeValue = backend::StateCodec<std::uint64_t>::decode(backend::parseStateJson(json));
         value = write(ctx, nativeValue);
       }
 if (field == "selectedPreset") {
@@ -118,6 +130,10 @@ if (field == "selectedPreset") {
 if (field == "signedValue") {
         auto nativeValue = backend::StateCodec<std::int64_t>::decode(backend::parseStateJson(json));
         value = write(ctx, nativeValue);
+      }
+if (field == "steps") {
+        auto nativeValue = backend::StateCodec<std::vector<std::int32_t>>::decode(backend::parseStateJson(json));
+        value = bind::writeArray(ctx, std::move(nativeValue), [](bind::ContextState& elementCtx, std::int32_t&& item) { return write(elementCtx, item); });
       }
 if (field == "unsignedValue") {
         auto nativeValue = backend::StateCodec<std::uint64_t>::decode(backend::parseStateJson(json));
@@ -182,6 +198,52 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
 {
       bind::ObjectBuilder field(ctx);
       field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
+        return bind::invoke(c, "state.gates.get", [&] { return valueFor(c, "gates", binding(c).state.storage().get("gates")); });
+      }));
+      field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
+        return bind::invoke(ctx, "state.gates.set", [&] { return history::invoke(ctx, binding(ctx).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count < 1 || count > 2) bind::throwTypeError(ctx, "set expects a value and optional History options");
+          const auto options = history::readOptions(ctx, args, count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "gates", binding(ctx).state.storage().get("gates"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
+          std::size_t budget = 100000;
+          validateInput(ctx, resolved, 0, budget);
+          const bind::Path path { "state.gates" };
+          std::vector<bool> value {};
+          bind::readArray(ctx, resolved, path, value, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, bool& item) { read(elementCtx, element, elementPath, item); });
+          binding(ctx).state.gates.set(std::move(value), options);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.gates.beginGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count > 1) bind::throwTypeError(c, "beginGesture expects optional History options");
+          auto& view = binding(c);
+          view.state.storage().beginGesture("gates", view.session, history::readOptions(c, args, count, 0));
+          return jsi::Value::undefined();
+        }); });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.gates.endGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("gates", view.session);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "gates", args, count); });
+      }));
+      fields.set("gates", freeze(ctx, field.release()));
+    }
+{
+      bind::ObjectBuilder field(ctx);
+      field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
         return bind::invoke(c, "state.groups.get", [&] { return valueFor(c, "groups", binding(c).state.storage().get("groups")); });
       }));
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
@@ -228,6 +290,52 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
 {
       bind::ObjectBuilder field(ctx);
       field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
+        return bind::invoke(c, "state.level.get", [&] { return valueFor(c, "level", binding(c).state.storage().get("level")); });
+      }));
+      field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
+        return bind::invoke(ctx, "state.level.set", [&] { return history::invoke(ctx, binding(ctx).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count < 1 || count > 2) bind::throwTypeError(ctx, "set expects a value and optional History options");
+          const auto options = history::readOptions(ctx, args, count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "level", binding(ctx).state.storage().get("level"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
+          std::size_t budget = 100000;
+          validateInput(ctx, resolved, 0, budget);
+          const bind::Path path { "state.level" };
+          float value {};
+          read(ctx, resolved, path, value);
+          binding(ctx).state.level.set(std::move(value), options);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.level.beginGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count > 1) bind::throwTypeError(c, "beginGesture expects optional History options");
+          auto& view = binding(c);
+          view.state.storage().beginGesture("level", view.session, history::readOptions(c, args, count, 0));
+          return jsi::Value::undefined();
+        }); });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.level.endGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("level", view.session);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "level", args, count); });
+      }));
+      fields.set("level", freeze(ctx, field.release()));
+    }
+{
+      bind::ObjectBuilder field(ctx);
+      field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
         return bind::invoke(c, "state.precise.get", [&] { return valueFor(c, "precise", binding(c).state.storage().get("precise")); });
       }));
       field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
@@ -270,6 +378,52 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "precise", args, count); });
       }));
       fields.set("precise", freeze(ctx, field.release()));
+    }
+{
+      bind::ObjectBuilder field(ctx);
+      field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
+        return bind::invoke(c, "state.seed.get", [&] { return valueFor(c, "seed", binding(c).state.storage().get("seed")); });
+      }));
+      field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
+        return bind::invoke(ctx, "state.seed.set", [&] { return history::invoke(ctx, binding(ctx).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count < 1 || count > 2) bind::throwTypeError(ctx, "set expects a value and optional History options");
+          const auto options = history::readOptions(ctx, args, count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "seed", binding(ctx).state.storage().get("seed"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
+          std::size_t budget = 100000;
+          validateInput(ctx, resolved, 0, budget);
+          const bind::Path path { "state.seed" };
+          std::uint64_t value {};
+          read(ctx, resolved, path, value);
+          binding(ctx).state.seed.set(std::move(value), options);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.seed.beginGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count > 1) bind::throwTypeError(c, "beginGesture expects optional History options");
+          auto& view = binding(c);
+          view.state.storage().beginGesture("seed", view.session, history::readOptions(c, args, count, 0));
+          return jsi::Value::undefined();
+        }); });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.seed.endGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("seed", view.session);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "seed", args, count); });
+      }));
+      fields.set("seed", freeze(ctx, field.release()));
     }
 {
       bind::ObjectBuilder field(ctx);
@@ -362,6 +516,52 @@ field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const au
         return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "signedValue", args, count); });
       }));
       fields.set("signedValue", freeze(ctx, field.release()));
+    }
+{
+      bind::ObjectBuilder field(ctx);
+      field.set("get", bind::closure(ctx, "get", 0, [](auto& c, const auto&, const auto*, auto) {
+        return bind::invoke(c, "state.steps.get", [&] { return valueFor(c, "steps", binding(c).state.storage().get("steps")); });
+      }));
+      field.set("set", bind::closure(ctx, "set", 1, [](auto& ctx, const auto&, const auto* args, auto count) {
+        return bind::invoke(ctx, "state.steps.set", [&] { return history::invoke(ctx, binding(ctx).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count < 1 || count > 2) bind::throwTypeError(ctx, "set expects a value and optional History options");
+          const auto options = history::readOptions(ctx, args, count, 1);
+          auto resolved = jsi::Value(ctx.rt, args[0]);
+          if (bind::isFunction(ctx, resolved)) {
+            auto current = valueFor(ctx, "steps", binding(ctx).state.storage().get("steps"));
+            resolved = resolved.getObject(ctx.rt).getFunction(ctx.rt).call(ctx.rt, current);
+          }
+          if (resolved.isObject() && bind::isFunction(ctx, resolved.getObject(ctx.rt).getProperty(ctx.rt, "then")))
+            bind::throwTypeError(ctx, "Setters require synchronous values, not promises or thenables");
+          std::size_t budget = 100000;
+          validateInput(ctx, resolved, 0, budget);
+          const bind::Path path { "state.steps" };
+          std::vector<std::int32_t> value {};
+          bind::readArray(ctx, resolved, path, value, [](bind::ContextState& elementCtx, const jsi::Value& element, const bind::Path& elementPath, std::int32_t& item) { read(elementCtx, element, elementPath, item); });
+          binding(ctx).state.steps.set(std::move(value), options);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("beginGesture", bind::closure(ctx, "beginGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.steps.beginGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          if (count > 1) bind::throwTypeError(c, "beginGesture expects optional History options");
+          auto& view = binding(c);
+          view.state.storage().beginGesture("steps", view.session, history::readOptions(c, args, count, 0));
+          return jsi::Value::undefined();
+        }); });
+      }));
+field.set("endGesture", bind::closure(ctx, "endGesture", 0, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.steps.endGesture", [&] { return history::invoke(c, binding(c).state.storage().historyManager(), [&]() -> jsi::Value {
+          bind::expectArgumentCount(c, "endGesture", count, 0);
+          auto& view = binding(c);
+          view.state.storage().endGesture("steps", view.session);
+          return jsi::Value::undefined();
+        }); });
+      }));
+      field.set("subscribe", bind::closure(ctx, "subscribe", 1, [](auto& c, const auto&, const auto* args, auto count) {
+        return bind::invoke(c, "state.subscribe", [&] { return subscribe(c, "steps", args, count); });
+      }));
+      fields.set("steps", freeze(ctx, field.release()));
     }
 {
       bind::ObjectBuilder field(ctx);

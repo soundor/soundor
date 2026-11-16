@@ -80,3 +80,29 @@ it('checks factory value types against the declared parameters and state', async
   });
   expect(() => resolveConfig(config)).toThrow('Invalid Soundor config');
 });
+
+it('checks a factory preset against an array field’s maxLength', () => {
+  const config = {
+    ...base,
+    state: {
+      ...base.state,
+      pattern: {
+        type: 'int32[]',
+        default: [1],
+        audio: true,
+        maxLength: 2,
+      },
+    },
+  };
+  const preset = resolveConfig({
+    ...config,
+    presets: [{ id: 'ok', name: 'OK', state: { pattern: [3, 4] } }],
+  }).presets?.[0];
+  expect(preset?.state).toEqual({ title: 'Init', pattern: [3, 4] });
+  expect(() =>
+    resolveConfig({
+      ...config,
+      presets: [{ id: 'long', name: 'Long', state: { pattern: [1, 2, 3] } }],
+    }),
+  ).toThrow('Invalid Soundor config');
+});

@@ -43,9 +43,12 @@ impl AudioProcessor for Processor {
             -96.0
         });
         ctx.streams.level.publish(peak);
-        ctx.streams
-            .history
-            .publish(&[gain, ctx.transport.tempo.unwrap_or(0.0) as f32]);
+        ctx.streams.history.publish(&[
+            gain,
+            ctx.transport.tempo.unwrap_or(0.0) as f32,
+            ctx.state.processing_mode as f32,
+            ctx.state.pattern.len() as f32,
+        ]);
     }
 }
 

@@ -9,7 +9,8 @@
 //! `soundor.config.ts` stays the one source of the plugin's contract: its
 //! parameters arrive here as the typed [`Parameters`], its audio layouts as
 //! the [`ActiveLayout`] the host negotiated, its native streams as
-//! [`Streams`]. Nothing about the plugin is declared again in Rust.
+//! [`Streams`], the persistent state it reads (`audio: true`) as the
+//! [`StateSnapshot`]. Nothing about the plugin is declared again in Rust.
 //!
 //! ```ignore
 //! use soundor::prelude::*;
@@ -51,6 +52,7 @@ mod layout;
 #[rustfmt::skip]
 mod plugin;
 mod processor;
+mod state;
 mod streams;
 pub mod testing;
 mod transport;
@@ -58,8 +60,9 @@ pub mod wasm;
 
 pub use audio::{Audio, Bus, BusMut, Channels as ChannelIter, ChannelsMut};
 pub use context::{ActiveLayout, PrepareContext, ProcessContext};
-pub use plugin::{Parameters, Publish, Streams, choices};
+pub use plugin::{Parameters, Publish, STATE_SIZE, StateSnapshot, Streams, choices};
 pub use processor::AudioProcessor;
+pub use state::StateArray;
 pub use streams::{BufferStream, StreamElement, ValueStream};
 pub use transport::Transport;
 
@@ -75,10 +78,10 @@ pub mod config {
 pub mod prelude {
     pub use crate::{
         ActiveLayout, Audio, AudioProcessor, Parameters, PrepareContext, ProcessContext, Publish,
-        Streams, Transport, choices,
+        StateArray, StateSnapshot, Streams, Transport, choices,
     };
 }
 
 /// The version of the ABI between the runtimes and the processor. A runtime
 /// refuses a processor built with another.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;

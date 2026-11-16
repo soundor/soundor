@@ -316,7 +316,13 @@ after.
   for the length of a call, and a Rust panic is caught at the boundary and
   becomes a status. The generated processor checks that the Rust build
   matches its config (the counts of parameters, read-only parameters and
-  streams): a stale one is refused and stays silent.
+  streams, and the size of its state snapshot): a stale one is refused and
+  stays silent.
+- **State.** The state fields declared with `audio: true` reach the
+  processing as `ctx.state`: the processor's `state` publishes a snapshot of
+  them whenever one changes, and `processBlock` hands the Rust processing the
+  newest, unchanged for the block, without a lock or a copy (see
+  [`soundor:state`](/docs/api/state#state-the-audio-processor-reads)).
 - **In place, without copies.** JUCE's buffer is passed as it is: the main
   output's channels hold the main input's on entry. Only an input that
   shares its buffer channel with another output (a sidechain beside an aux

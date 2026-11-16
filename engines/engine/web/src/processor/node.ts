@@ -23,6 +23,8 @@ export interface ProcessorNodeOptions {
   readonly streams: readonly WasmStream[];
   /** The parameters' plain values to start with, in the config's order. */
   readonly parameters: readonly number[];
+  /** The state snapshot to start with (contract.state bytes), if any. */
+  readonly state?: Uint8Array;
   /** The most frames a block holds; 1024 by default. */
   readonly maxFrames?: number;
   /** Read-only parameters' values the processing published, by slot. */
@@ -41,6 +43,11 @@ export interface ProcessorNode {
   setParameters(values: readonly number[]): void;
   /** tempo, seconds, beats (NaN unknown), playing (0 or 1), signature (0 unknown). */
   setTransport(values: readonly number[]): void;
+  /**
+   * The state the processing reads from its next block: a snapshot of
+   * contract.state bytes, laid out as describeAudioState() says.
+   */
+  setState(snapshot: Uint8Array): void;
   reset(): void;
   dispose(): void;
 }
@@ -78,6 +85,7 @@ export async function createProcessorNode(
     outputs: options.outputs,
     streams: options.streams,
     parameters: options.parameters,
+    ...(options.state !== undefined ? { state: options.state.slice() } : {}),
     maxFrames: options.maxFrames ?? 1024,
   };
   const node = new AudioWorkletNode(context, PROCESSOR_NAME, {
@@ -116,6 +124,7 @@ export async function createProcessorNode(
     setParameters: (values) =>
       post({ type: 'parameters', values: [...values] }),
     setTransport: (values) => post({ type: 'transport', values: [...values] }),
+    setState: (snapshot) => post({ type: 'state', snapshot: snapshot.slice() }),
     reset: () => post({ type: 'reset' }),
     dispose: () => {
       node.port.onmessage = null;
