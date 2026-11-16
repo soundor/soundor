@@ -37,7 +37,8 @@ try {
       stdio: 'pipe',
     },
   );
-  execFileSync('tar', ['-xzf', join(root, 'runtime.tgz'), '-C', root]);
+  // Git for Windows' tar treats the colon in C:\... as a remote archive host.
+  execFileSync('tar', ['-xzf', 'runtime.tgz'], { cwd: root });
   const installed = join(root, 'package');
   // Use the installed dependency graph without a registry or an extra install.
   await symlink(
