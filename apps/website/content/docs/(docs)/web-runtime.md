@@ -151,11 +151,12 @@ Production output contains the host, UI, WASM and bundled input code and assets.
 ## Browser TypeScript environment
 
 Keep browser input code separate from the shared UI: the UI runs in every
-runtime and deliberately has no DOM globals. New projects with Web include
+runtime and deliberately has no DOM globals. Projects using only built-in inputs
+need no browser TypeScript project. When adding a custom input module, create
 `tsconfig.web.json` and reference it from the solution-style `tsconfig.json`.
 `tsconfig.app.json`, Node, test and E2E references keep their existing roles.
 
-For an existing project, add this project and append
+Add this browser project and append
 `{ "path": "./tsconfig.web.json" }` to the root's `references`:
 
 ```json
@@ -172,15 +173,15 @@ For an existing project, add this project and append
     "noEmit": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.web.tsbuildinfo"
   },
-  "include": ["web/**/*.ts", "web/**/*.js", ".soundor/generated/platform.d.ts"]
+  "include": ["web/**/*.ts", "web/**/*.js"]
 }
 ```
 
-Run `soundor gen && tsc -b` to check all projects. The generated module-only
-`platform.d.ts` keeps an empty browser project valid without importing Soundor's
-UI globals. DOM and Web Audio declarations come from TypeScript, not the input
-helper. Include generated module declarations individually if you import
-`soundor:*` APIs. For JavaScript diagnostics enable `allowJs` and `checkJs`.
+Run `soundor gen && tsc -b` to check all projects. DOM and Web Audio declarations
+come from TypeScript, not the input helper. Include generated module declarations
+individually only if your custom code imports the corresponding `soundor:*` APIs.
+For JavaScript diagnostics enable `allowJs` and `checkJs`. If you remove all
+custom input code, remove the browser project and its root reference too.
 
 The input path can be anywhere in the plugin project: for example
 `inputs: './audio/sources.ts'`. Add that directory and any local imports to

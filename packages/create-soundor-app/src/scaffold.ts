@@ -219,17 +219,6 @@ export async function applyTokens(
   runtimes: readonly Runtime[],
   versions?: Readonly<Record<string, string>>,
 ): Promise<void> {
-  if (!runtimes.includes('web')) {
-    await rm(join(dir, 'tsconfig.web.json'), { force: true });
-    const solutionPath = join(dir, 'tsconfig.json');
-    const solution = JSON.parse(await readFile(solutionPath, 'utf8')) as {
-      references: { path: string }[];
-    };
-    solution.references = solution.references.filter(
-      ({ path }) => path !== './tsconfig.web.json',
-    );
-    await writeFile(solutionPath, JSON.stringify(solution, null, 2) + '\n');
-  }
   const pkgPath = join(dir, 'package.json');
   const template = JSON.parse(await readFile(pkgPath, 'utf-8')) as Manifest;
   const pkg = projectManifest(template, name, runtimes, versions);

@@ -244,17 +244,14 @@ export default [custom, oscillator({ frequency: 330 }), audioFile(), microphone(
       "webRuntime({ inputs: './audio/inputs.ts' })",
     ),
   );
-  // Use the template's browser project, preserving the config project's types.
+  // Custom inputs opt into a browser project, as Orbit does. Preserve the config project's types.
   const browserConfig = JSON.parse(
     await readFile(
-      resolve(
-        repository,
-        'packages/create-soundor-app/templates/base/tsconfig.web.json',
-      ),
+      resolve(repository, 'examples/orbit/tsconfig.web.json'),
       'utf8',
     ),
   );
-  browserConfig.include = ['audio/**/*.ts', '.soundor/generated/platform.d.ts'];
+  browserConfig.include = ['audio/**/*.ts'];
   await writeFile(
     resolve(temporary, 'tsconfig.web.json'),
     JSON.stringify(browserConfig),

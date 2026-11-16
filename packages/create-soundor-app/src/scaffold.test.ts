@@ -232,11 +232,11 @@ it.each<{ runtimes: Runtime[] }>([
     expect(solution.references.map(({ path }) => path)).toEqual([
       './tsconfig.app.json',
       './tsconfig.node.json',
-      ...(runtimes.includes('web') ? ['./tsconfig.web.json'] : []),
     ]);
     for (const { path } of solution.references)
       expect(await readFile(join(root, path), 'utf8')).toBeTruthy();
     expect((await readdir(root)).includes('runtimes')).toBe(false);
+    expect((await readdir(root)).includes('tsconfig.web.json')).toBe(false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
