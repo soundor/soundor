@@ -138,13 +138,14 @@ export default defineSoundorConfig({
   assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
   run('cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml']);
-  // Its tests: the processor's, and that processing allocates nothing.
+  // Its tests: the controller, the processor, and allocation-free processing.
   const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
+  assert.match(tested, /Running tests\/controller\.rs/);
   assert.match(tested, /Running tests\/processor\.rs/);
   assert.match(tested, /Running tests\/realtime\.rs/);
-  assert.equal(tested.match(/test result: ok\. 1 passed/g)?.length, 2);
-  // The same crate for the Web runtime: a module with the SDK's WebAssembly
-  // exports and no imports, as the worklet instantiates it.
+  assert.equal(tested.match(/test result: ok\. 1 passed/g)?.length, 3);
+  // The same crate for the Web runtime: the processor and controller exports,
+  // with the browser adapter's service and event-loop imports.
   run('cargo', [
     'rustc',
     '--manifest-path',
@@ -165,12 +166,35 @@ export default defineSoundorConfig({
   );
   assert.ok(module, 'the crate built no WebAssembly module');
   const wasm = new WebAssembly.Module(await readFile(resolve(release, module)));
-  assert.deepEqual(WebAssembly.Module.imports(wasm), []);
+  assert.deepEqual(
+    WebAssembly.Module.imports(wasm).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+    ['read_service_result', 'service', 'wake'].map((name) => ({
+      module: 'soundor_controller',
+      name,
+      kind: 'function',
+    })),
+  );
   assert.ok(
     WebAssembly.Module.exports(wasm).some(
       (entry) => entry.name === 'soundor_wasm_contract',
     ),
   );
+  const { exports } = new WebAssembly.Instance(wasm, {
+    soundor_controller: {
+      wake() {},
+      service() {
+        throw new Error('empty controller unexpectedly called a service');
+      },
+      read_service_result() {
+        throw new Error('empty controller unexpectedly read a service result');
+      },
+    },
+  });
+  const controller = exports.soundor_web_controller_create();
+  assert.ok(controller, 'the scaffold controller must initialize');
+  exports.soundor_web_controller_destroy(controller);
 
   // The SDK is a regular dependency; the CLI is the runtime's host peer.
   for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {

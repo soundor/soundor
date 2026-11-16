@@ -193,6 +193,7 @@ describe('the native scaffold', () => {
         await writeFile(target, file.contents);
       }
       for (const args of [
+        ['fmt', '--check', '--manifest-path', 'native/Cargo.toml'],
         ['test', '--manifest-path', 'native/Cargo.toml'],
         [
           'rustc',

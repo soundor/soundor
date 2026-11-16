@@ -158,7 +158,6 @@ impl Processor for PluginProcessor {
         self.gain = target;
     }
 }
-
 `;
 }
 
@@ -179,7 +178,6 @@ impl Processor for PluginProcessor {
 
     fn process(&mut self, _ctx: &mut ProcessContext) {}
 }
-
 `;
 }
 

@@ -404,7 +404,8 @@ export function renderControllerScaffold(
     return `    ${doc}
     ${method.model.async ? 'async ' : ''}${head} {${body ? `\n        // TODO: implement it.\n        ${body}\n    ` : '\n        // TODO: implement it.\n    '}}`;
   };
-  return `//! The plugin's controller: the Rust behind \`soundor:native\`'s methods,
+  return (
+    `//! The plugin's controller: the Rust behind \`soundor:native\`'s methods,
 //! on the control thread beside the UI. Each method soundor.config declares
 //! is one here, typed as declared (the compiler checks every one of them,
 //! from the generated \`NativeMethods\`); a synchronous one gets a
@@ -431,8 +432,9 @@ impl Controller for PluginController {
     type Shared = SharedStore;
 }
 
-${list.length === 0 ? '' : `impl NativeMethods for PluginController {\n${list.map(stub).join('\n\n')}\n}\n`}
-`;
+${list.length === 0 ? '' : `impl NativeMethods for PluginController {\n${list.map(stub).join('\n\n')}\n}`}
+`.trimEnd() + '\n'
+  );
 }
 
 /** The controller's part of `src/plugin.rs`. */
