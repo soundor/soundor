@@ -181,7 +181,7 @@ export function webManifest(config: ResolvedSoundorConfig): WebManifest {
         name: event.name,
         fields: event.fields,
       })),
-      channels: native.channels,
+      streams: native.streams,
     },
   };
 }

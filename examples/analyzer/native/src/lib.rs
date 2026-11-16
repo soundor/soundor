@@ -1,6 +1,6 @@
 //! A spectrum analyzer: passes its audio through, and publishes the spectrum
-//! and peak of what it hears to the UI, through the config's native channels
-//! (`ctx.channels`), from the audio thread: realtime-safe, the latest only.
+//! and peak of what it hears to the UI, through the config's native streams
+//! (`ctx.streams`), from the audio thread: realtime-safe, the latest only.
 
 pub mod fft;
 
@@ -89,11 +89,11 @@ impl AudioProcessor for Processor {
             self.since_last += 1;
             if self.since_last == HOP {
                 self.since_last = 0;
-                self.analyze(ctx.channels.spectrum.buffer_mut());
-                ctx.channels.spectrum.commit(BANDS);
+                self.analyze(ctx.streams.spectrum.buffer_mut());
+                ctx.streams.spectrum.commit(BANDS);
             }
         }
-        ctx.channels.peak.publish(decibels(peak));
+        ctx.streams.peak.publish(decibels(peak));
     }
 
     fn reset(&mut self) {
@@ -105,7 +105,7 @@ impl AudioProcessor for Processor {
 
 impl Processor {
     /// The window's spectrum, by band, in decibels, written straight into the
-    /// channel's own storage: the UI never sees a partly written one.
+    /// stream's own storage: the UI never sees a partly written one.
     fn analyze(&mut self, spectrum: &mut [f32]) {
         let Some(fft) = self.fft.as_mut() else { return };
         // The window, oldest sample first.

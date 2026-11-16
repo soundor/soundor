@@ -664,6 +664,12 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
                 }
             }
         }
+        // A field's committed value (outside any open transaction), as JSON.
+        std::string committed(const std::string& field) const
+        {
+            const std::lock_guard guard(lock);
+            return values.at(field);
+        }
         Values snapshot() const
         {
             const std::lock_guard historyGuard(history.mutex());
@@ -814,18 +820,32 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::backend
         std::list<Event> events;
     };
 
+    // Throws when an array holds more elements than its maxLength.
+    template <typename T>
+    void checkStateLength(const T& value, std::optional<std::size_t> maxLength)
+    {
+        if constexpr (requires { value.size(); })
+            if (maxLength && value.size() > *maxLength)
+                throw std::invalid_argument("state array exceeds its maxLength");
+        static_cast<void>(value);
+        static_cast<void>(maxLength);
+    }
+
     template <typename T>
     class StateField
     {
     public:
-        StateField(StateStore& owner, std::string name, T initial) : store(owner), field(std::move(name))
+        // `maxLength`, for an array: the most elements every value may hold.
+        StateField(StateStore& owner, std::string name, T initial, std::optional<std::size_t> maxLength = {})
+            : store(owner), field(std::move(name))
         {
             auto value = stateJson(StateCodec<T>::encode(initial));
             store.initialize(field, std::move(value),
-                             [](const std::string& json)
+                             [maxLength](const std::string& json)
                              {
                                  checkSnapshotText(json);
-                                 static_cast<void>(StateCodec<T>::decode(parseStateJson(json)));
+                                 const auto decoded = StateCodec<T>::decode(parseStateJson(json));
+                                 checkStateLength(decoded, maxLength);
                              });
         }
         // Control-thread only, like get/set. No JUCE automation is involved.

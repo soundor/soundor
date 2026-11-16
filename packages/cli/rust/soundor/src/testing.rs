@@ -44,15 +44,17 @@ use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::channels::ChannelSink;
 use crate::ffi::{
-    Exports, SoundorBlock, SoundorChannelSink, SoundorPrepare, SoundorProcessorInfo,
+    Exports, SoundorBlock, SoundorPrepare, SoundorProcessorInfo, SoundorStreamSink,
     SoundorTransport,
 };
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance};
-use crate::plugin::{CHANNELS, DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parameters};
+use crate::plugin::{
+    DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot,
+};
 use crate::processor::AudioProcessor;
+use crate::streams::StreamSink;
 use crate::transport::Transport;
 use crate::{ABI_VERSION, config};
 
@@ -169,39 +171,39 @@ pub fn parameter(parameters: &Parameters, id: &str) -> Option<f64> {
     Some(values[index])
 }
 
-/// Records what a processor publishes to the config's native channels.
+/// Records what a processor publishes to the config's native streams.
 #[derive(Default)]
-struct RecordedChannels {
+struct RecordedStreams {
     values: RefCell<Vec<Option<f64>>>,
-    // Each buffer channel's storage: `u64`s, so that it is aligned for, and
-    // holds, `maxLength` elements of any type a channel carries.
+    // Each buffer stream's storage: `u64`s, so that it is aligned for, and
+    // holds, `maxLength` elements of any type a stream carries.
     storage: RefCell<Vec<Vec<u64>>>,
     // What was committed, copied into storage of the same size: committing
-    // allocates nothing, as a runtime's channel does not.
+    // allocates nothing, as a runtime's stream does not.
     buffers: RefCell<Vec<Vec<u64>>>,
     committed: RefCell<Vec<bool>>,
     lengths: RefCell<Vec<usize>>,
 }
 
-impl RecordedChannels {
+impl RecordedStreams {
     fn new() -> Self {
         let storage = || {
-            CHANNELS
+            STREAMS
                 .iter()
                 .map(|(_, length)| vec![0; length.unwrap_or(0)])
                 .collect()
         };
         Self {
-            values: RefCell::new(vec![None; CHANNELS.len()]),
+            values: RefCell::new(vec![None; STREAMS.len()]),
             storage: RefCell::new(storage()),
             buffers: RefCell::new(storage()),
-            committed: RefCell::new(vec![false; CHANNELS.len()]),
-            lengths: RefCell::new(vec![0; CHANNELS.len()]),
+            committed: RefCell::new(vec![false; STREAMS.len()]),
+            lengths: RefCell::new(vec![0; STREAMS.len()]),
         }
     }
 }
 
-impl ChannelSink for RecordedChannels {
+impl StreamSink for RecordedStreams {
     fn publish(&self, index: u32, value: f64) {
         if let Some(slot) = self.values.borrow_mut().get_mut(index as usize) {
             *slot = Some(value);
@@ -333,7 +335,8 @@ impl<P: AudioProcessor> TestProcessorBuilder<P> {
             block_size: self.block_size,
             parameters: self.parameters,
             transport: Transport::default(),
-            channels: RecordedChannels::new(),
+            streams: RecordedStreams::new(),
+            state: StateSnapshot::boxed_defaults(),
             allocations: 0,
         };
         let status = processor.prepare_with(
@@ -355,7 +358,8 @@ pub struct TestProcessor<P: AudioProcessor> {
     block_size: usize,
     parameters: Parameters,
     transport: Transport,
-    channels: RecordedChannels,
+    streams: RecordedStreams,
+    state: Box<StateSnapshot>,
     allocations: usize,
 }
 
@@ -435,8 +439,14 @@ impl<P: AudioProcessor> TestProcessor<P> {
         self.block_size = block_size;
         let mut values = [0.0; Parameters::COUNT];
         self.parameters.write(&mut values);
-        self.instance
-            .prepare(sample_rate, block_size, inputs, outputs, Some(&values))
+        self.instance.prepare(
+            sample_rate,
+            block_size,
+            inputs,
+            outputs,
+            Some(&values),
+            Some(&self.state),
+        )
     }
 
     /// Resets the processor, as a host does between playbacks.
@@ -567,7 +577,8 @@ impl<P: AudioProcessor> TestProcessor<P> {
             outputs: &output_pointers,
             parameters: Some(&values),
             transport: self.transport,
-            channels: &self.channels,
+            streams: &self.streams,
+            state: Some(&self.state),
         };
         let (status, allocations) = counted(|| self.instance.process(block));
         self.allocations += allocations;
@@ -607,24 +618,36 @@ impl<P: AudioProcessor> TestProcessor<P> {
         self.allocations
     }
 
-    /// The latest value published to channel `name`, a number channel.
-    pub fn channel(&self, name: &str) -> Option<f64> {
-        let index = CHANNELS.iter().position(|(id, _)| *id == name)?;
-        self.channels.values.borrow()[index]
+    /// The state the processor reads (`ctx.state`), as the plugin's state
+    /// would set it: the config's defaults to start with. Changes reach the
+    /// next block.
+    pub fn state_mut(&mut self) -> &mut StateSnapshot {
+        &mut self.state
     }
 
-    /// The latest buffer committed to channel `name`, read as `T` (its
+    /// The state the processor reads.
+    pub fn state(&self) -> &StateSnapshot {
+        &self.state
+    }
+
+    /// The latest value published to stream `name`, a number stream.
+    pub fn stream(&self, name: &str) -> Option<f64> {
+        let index = STREAMS.iter().position(|(id, _)| *id == name)?;
+        self.streams.values.borrow()[index]
+    }
+
+    /// The latest buffer committed to stream `name`, read as `T` (its
     /// declared element type).
-    pub fn channel_buffer<T: crate::ChannelElement>(&self, name: &str) -> Option<Vec<T>> {
-        let index = CHANNELS.iter().position(|(id, _)| *id == name)?;
-        if !self.channels.committed.borrow()[index] {
+    pub fn stream_buffer<T: crate::StreamElement>(&self, name: &str) -> Option<Vec<T>> {
+        let index = STREAMS.iter().position(|(id, _)| *id == name)?;
+        if !self.streams.committed.borrow()[index] {
             return None;
         }
-        let buffers = self.channels.buffers.borrow();
+        let buffers = self.streams.buffers.borrow();
         let buffer = &buffers[index];
-        let length = self.channels.lengths.borrow()[index];
+        let length = self.streams.lengths.borrow()[index];
         // SAFETY: the storage holds at least `length` elements of the
-        // channel's type (8 bytes per element reserved), and is aligned.
+        // stream's type (8 bytes per element reserved), and is aligned.
         let elements = unsafe { std::slice::from_raw_parts(buffer.as_ptr().cast::<T>(), length) };
         Some(elements.to_vec())
     }
@@ -648,6 +671,8 @@ pub struct NativeProcessor {
     pub published: Vec<f64>,
     /// The transport passed with each block.
     pub transport: SoundorTransport,
+    /// The state passed to `prepare` and with each block.
+    pub state: Box<StateSnapshot>,
     allocations: usize,
 }
 
@@ -664,6 +689,7 @@ impl NativeProcessor {
         assert_eq!(unsafe { (exports.info)(&mut info) }, 0);
         assert_eq!(info.abi_version, ABI_VERSION);
         assert_eq!(info.parameter_count as usize, Parameters::COUNT);
+        assert_eq!(info.state_size as usize, STATE_SIZE);
         // SAFETY: no arguments.
         let handle = unsafe { (exports.create)() };
         assert!(!handle.is_null(), "creating the processor failed");
@@ -684,6 +710,7 @@ impl NativeProcessor {
                 time_signature_numerator: 0,
                 time_signature_denominator: 0,
             },
+            state: StateSnapshot::boxed_defaults(),
             allocations: 0,
         }
     }
@@ -725,6 +752,8 @@ impl NativeProcessor {
             output_channels: outputs.as_ptr(),
             parameter_count: self.parameters.len() as u32,
             parameters: self.parameters.as_ptr(),
+            state_size: STATE_SIZE as u32,
+            state: std::ptr::from_ref::<StateSnapshot>(&self.state).cast(),
         };
         // SAFETY: a handle from `create`, and a valid configuration.
         unsafe { (self.exports.prepare)(self.handle, &config) }
@@ -749,13 +778,13 @@ impl NativeProcessor {
         self.process_raw(frames, &inputs, &outputs, None)
     }
 
-    /// `soundor_processor_process` with the given pointers, and channels.
+    /// `soundor_processor_process` with the given pointers, and streams.
     pub fn process_raw(
         &mut self,
         frames: u32,
         inputs: &[*const f32],
         outputs: &[*mut f32],
-        channels: Option<&SoundorChannelSink>,
+        streams: Option<&SoundorStreamSink>,
     ) -> i32 {
         let block = SoundorBlock {
             size: std::mem::size_of::<SoundorBlock>() as u32,
@@ -770,7 +799,9 @@ impl NativeProcessor {
             published_count: self.published.len() as u32,
             published: self.published.as_mut_ptr(),
             transport: &self.transport,
-            channels: channels.map_or(std::ptr::null(), |sink| sink as *const SoundorChannelSink),
+            streams: streams.map_or(std::ptr::null(), |sink| sink as *const SoundorStreamSink),
+            state_size: STATE_SIZE as u32,
+            state: std::ptr::from_ref::<StateSnapshot>(&self.state).cast(),
         };
         let (process, handle) = (self.exports.process, self.handle);
         // SAFETY: a handle from `create`, and a block whose arrays live for

@@ -8,8 +8,10 @@
 //!
 //! `soundor.config.ts` stays the one source of the plugin's contract: its
 //! parameters arrive here as the typed [`Parameters`], its audio layouts as
-//! the [`ActiveLayout`] the host negotiated, its native channels as
-//! [`Channels`]. Nothing about the plugin is declared again in Rust.
+//! the [`ActiveLayout`] the host negotiated, its native streams as
+//! [`Streams`], the persistent state it reads (`audio: true`) as the
+//! [`StateSnapshot`], its audio resources as [`Resources`]. Nothing about
+//! the plugin is declared again in Rust.
 //!
 //! ```ignore
 //! use soundor::prelude::*;
@@ -42,7 +44,6 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod audio;
-mod channels;
 mod context;
 #[doc(hidden)]
 pub mod ffi;
@@ -52,15 +53,22 @@ mod layout;
 #[rustfmt::skip]
 mod plugin;
 mod processor;
+mod resources;
+mod state;
+mod streams;
 pub mod testing;
 mod transport;
 pub mod wasm;
 
 pub use audio::{Audio, Bus, BusMut, Channels as ChannelIter, ChannelsMut};
-pub use channels::{BufferChannel, ChannelElement, ValueChannel};
 pub use context::{ActiveLayout, PrepareContext, ProcessContext};
-pub use plugin::{Channels, Parameters, Publish, choices};
+pub use plugin::{
+    Parameters, Publish, ResourcePublishers, Resources, STATE_SIZE, StateSnapshot, Streams, choices,
+};
 pub use processor::AudioProcessor;
+pub use resources::{Resource, ResourceElement, ResourcePublisher};
+pub use state::StateArray;
+pub use streams::{BufferStream, StreamElement, ValueStream};
 pub use transport::Transport;
 
 /// The plugin's identity, from `soundor.config.ts`.
@@ -74,11 +82,11 @@ pub mod config {
 /// What a processor's module usually imports: `use soundor::prelude::*;`.
 pub mod prelude {
     pub use crate::{
-        ActiveLayout, Audio, AudioProcessor, Channels, Parameters, PrepareContext, ProcessContext,
-        Publish, Transport, choices,
+        ActiveLayout, Audio, AudioProcessor, Parameters, PrepareContext, ProcessContext, Publish,
+        ResourcePublishers, Resources, StateArray, StateSnapshot, Streams, Transport, choices,
     };
 }
 
 /// The version of the ABI between the runtimes and the processor. A runtime
 /// refuses a processor built with another.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 2;

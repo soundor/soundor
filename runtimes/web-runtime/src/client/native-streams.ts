@@ -1,15 +1,15 @@
 /**
- * The channels of `soundor:native` in the browser, with the JUCE runtime's
- * latest-value semantics (`js/Channels.h` in the engine): the project's
- * `runtimes/web` code publishes through the generated `channels`, and the
+ * The streams of `soundor:native` in the browser, with the JUCE runtime's
+ * latest-value semantics (`js/Streams.h` in the engine): the project's
+ * `runtimes/web` code publishes through the generated `streams`, and the
  * plugin UI receives the newest value once a frame.
  *
- * - A published value is checked against the channel's type; a buffer is
+ * - A published value is checked against the stream's type; a buffer is
  *   copied (into the copy not yet delivered when there is one of its length)
  *   and refused, returning false, when longer than its `maxLength`.
  * - Latest only: a value replaces the one not yet delivered. Delivery runs
  *   on the next animation frame, so a hidden page delivers nothing and keeps
- *   one value per channel, never a queue.
+ *   one value per stream, never a queue.
  * - Each value is numbered (1 for the first); `get()` keeps the latest
  *   delivered, the same object until a newer one, and undefined before any.
  * - Subscribing during a delivery takes effect from the next value; one
@@ -18,8 +18,8 @@
  */
 
 import { hostContext } from './context';
-import type { WebNativeChannel } from './manifest';
-import { nativeChannelValue } from './native-values';
+import type { WebNativeStream } from './manifest';
+import { nativeStreamValue } from './native-values';
 import { report } from './report';
 
 interface Subscriber {
@@ -27,8 +27,8 @@ interface Subscriber {
   active: boolean;
 }
 
-interface ChannelState {
-  readonly channel: WebNativeChannel;
+interface StreamState {
+  readonly stream: WebNativeStream;
   readonly subscribers: Set<Subscriber>;
   /** What get() returns. */
   value: unknown;
@@ -39,12 +39,12 @@ interface ChannelState {
   published: number;
 }
 
-let states: ChannelState[] | undefined;
+let states: StreamState[] | undefined;
 let scheduled = false;
 
-function channelStates(): ChannelState[] {
-  states ??= hostContext().manifest.native.channels.map((channel) => ({
-    channel,
+function streamStates(): StreamState[] {
+  states ??= hostContext().manifest.native.streams.map((stream) => ({
+    stream,
     subscribers: new Set(),
     value: undefined,
     pending: undefined,
@@ -56,7 +56,7 @@ function channelStates(): ChannelState[] {
 
 function deliver(): void {
   scheduled = false;
-  for (const state of channelStates()) {
+  for (const state of streamStates()) {
     if (!state.hasPending) continue;
     const value = state.pending;
     const sequence = state.published;
@@ -82,8 +82,8 @@ function schedule(): void {
   else setTimeout(deliver, 16);
 }
 
-/** The `channels` `soundor:native` exports: one channel per name. */
-export function nativeChannels(): Readonly<
+/** The `streams` `soundor:native` exports: one stream per name. */
+export function nativeStreams(): Readonly<
   Record<
     string,
     {
@@ -96,10 +96,10 @@ export function nativeChannels(): Readonly<
 > {
   return Object.freeze(
     Object.fromEntries(
-      channelStates().map((state) => [
-        state.channel.name,
+      streamStates().map((state) => [
+        state.stream.name,
         // Closures, not methods: they work unbound
-        // (useSyncExternalStore(channel.subscribe, channel.get)).
+        // (useSyncExternalStore(stream.subscribe, stream.get)).
         Object.freeze({
           get: () => state.value,
           subscribe: (
@@ -107,7 +107,7 @@ export function nativeChannels(): Readonly<
           ): (() => void) => {
             if (typeof listener !== 'function') {
               throw new TypeError(
-                `channels.${state.channel.name}.subscribe() expects a function, got ${listener === null ? 'null' : typeof listener}`,
+                `streams.${state.stream.name}.subscribe() expects a function, got ${listener === null ? 'null' : typeof listener}`,
               );
             }
             const subscriber: Subscriber = { listener, active: true };
@@ -124,17 +124,17 @@ export function nativeChannels(): Readonly<
 }
 
 /**
- * The publishers the generated `channels` of the project's native contract
- * are: one `publish` per declared channel. A number's returns nothing; a
+ * The publishers the generated `streams` of the project's native contract
+ * are: one `publish` per declared stream. A number's returns nothing; a
  * buffer's whether it fit.
  */
-export function nativeChannelPublishers(): Readonly<
+export function nativeStreamPublishers(): Readonly<
   Record<string, { publish(value: unknown): boolean | undefined }>
 > {
   return Object.freeze(
     Object.fromEntries(
-      channelStates().map((state) => [
-        state.channel.name,
+      streamStates().map((state) => [
+        state.stream.name,
         Object.freeze({
           publish: (value: unknown) => publish(state, value),
         }),
@@ -145,13 +145,13 @@ export function nativeChannelPublishers(): Readonly<
 
 type TypedArray = Float32Array | Float64Array | Int32Array | BigInt64Array;
 
-function publish(state: ChannelState, value: unknown): boolean | undefined {
-  const checked = nativeChannelValue(state.channel, value);
-  if (state.channel.kind === 'number') {
+function publish(state: StreamState, value: unknown): boolean | undefined {
+  const checked = nativeStreamValue(state.stream, value);
+  if (state.stream.kind === 'number') {
     state.pending = checked;
   } else {
     const values = checked as TypedArray;
-    if (values.length > state.channel.maxLength) return false;
+    if (values.length > state.stream.maxLength) return false;
     const pending = state.hasPending
       ? (state.pending as TypedArray)
       : undefined;
@@ -163,5 +163,5 @@ function publish(state: ChannelState, value: unknown): boolean | undefined {
   state.hasPending = true;
   ++state.published;
   schedule();
-  return state.channel.kind === 'buffer' ? true : undefined;
+  return state.stream.kind === 'buffer' ? true : undefined;
 }

@@ -291,7 +291,7 @@ describe('webGen', () => {
           default: 'warm',
         },
       ],
-      native: { types: [], methods: [], events: [], channels: [] },
+      native: { types: [], methods: [], events: [], streams: [] },
       state: { fields: [], types: [] },
     });
   });

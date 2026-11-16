@@ -24,10 +24,11 @@ import processorWasm from 'soundor:internal/processor';
 import { hasUi, loadUi } from 'soundor:internal/ui';
 
 import { WebAudioHost, type WebAudioInput } from './audio';
+import { processorState } from './audio-state';
 import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
 import { installNative } from './native';
-import { nativeChannelPublishers } from './native-channels';
+import { nativeStreamPublishers } from './native-streams';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
 import { createShell, EMBED_PARAM, type Presentation } from './shell';
@@ -92,18 +93,19 @@ export async function startSoundorWebHost(
     defaultInput: options.defaultAudioInput,
     loadProcessor: async () => {
       if (processorWasm === undefined) return undefined;
-      const channels = context.manifest.native.channels;
-      const publishers = nativeChannelPublishers();
+      const streams = context.manifest.native.streams;
+      const publishers = nativeStreamPublishers();
       return {
         wasm: Uint8Array.from(atob(processorWasm), (char) =>
           char.charCodeAt(0),
         ),
         parameters: context.parameters.list,
-        channels,
-        publishChannel: (index, value) => {
-          const channel = channels[index];
-          if (channel !== undefined) publishers[channel.name]?.publish(value);
+        streams,
+        publishStream: (index, value) => {
+          const stream = streams[index];
+          if (stream !== undefined) publishers[stream.name]?.publish(value);
         },
+        state: processorState(context.state.store),
       };
     },
   });
@@ -203,8 +205,8 @@ export type {
   WebAudioInputContext,
   WebAudioInputInfo,
 } from './audio';
-// The generated `events` and `channels` of runtimes/web's native contract.
-export { nativeChannelPublishers } from './native-channels';
+// The generated `events` and `streams` of runtimes/web's native contract.
+export { nativeStreamPublishers } from './native-streams';
 export { nativeEventPublishers } from './native-events';
 export type { Presentation } from './shell';
 export type { PlaygroundHost, PlaygroundScript } from './playground';

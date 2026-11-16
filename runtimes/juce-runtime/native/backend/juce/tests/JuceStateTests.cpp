@@ -3,14 +3,16 @@
 
 #include <soundor/backend/JuceParameterHost.h>
 #include <soundor/history/Module.h>
-#include <soundor/js/Channels.h>
 #include <soundor/js/Context.h>
 #include <soundor/js/Events.h>
 #include <soundor/js/Runtime.h>
+#include <soundor/js/Streams.h>
 #include <soundor/runtime/RuntimeHost.h>
 
 #include <doctest/doctest.h>
 
+#include <atomic>
+#include <cstring>
 #include <span>
 #include <thread>
 
@@ -22,8 +24,8 @@ namespace
         using AudioProcessor::bypassParameter;
         using AudioProcessor::gainParameter;
         using AudioProcessor::history;
-        using AudioProcessor::nativeChannels;
         using AudioProcessor::nativeEvents;
+        using AudioProcessor::nativeStreams;
         using AudioProcessor::state;
         int restored = 0;
         std::vector<std::string> observations;
@@ -727,7 +729,7 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
                 .evaluateModule("(function (exports, require) { const { events } = require('soundor:native');"
                                 "globalThis.seen = [];"
@@ -745,17 +747,17 @@ TEST_CASE("the processor's native events reach an editor runtime from another th
     CHECK(context.evaluateScript("seen.join()").value().asString() == "2:440");
 }
 
-TEST_CASE("the processor's native channels carry the audio thread's latest value to the UI")
+TEST_CASE("the processor's native streams carry the audio thread's latest value to the UI")
 {
     juce::ScopedJuceInitialiser_GUI init;
     Processor processor;
     js::Runtime runtime;
     js::Context context(runtime);
-    native::install(context, nullptr, processor.nativeEvents, processor.nativeChannels);
+    native::install(context, nullptr, processor.nativeEvents, processor.nativeStreams);
     REQUIRE(context
-                .evaluateModule("(function (exports, require) { const { channels } = require('soundor:native');"
+                .evaluateModule("(function (exports, require) { const { streams } = require('soundor:native');"
                                 "globalThis.seen = [];"
-                                "channels.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
+                                "streams.meter.subscribe((v, s) => seen.push(s + ':' + Array.from(v).join('/'))); })",
                                 "/ui.js")
                 .ok());
     // As the audio processing would, on another thread: in place, without allocating.
@@ -764,14 +766,14 @@ TEST_CASE("the processor's native channels carry the audio thread's latest value
         {
             for (int block = 1; block <= 3; ++block)
             {
-                const std::span<float> levels = processor.nativeChannels.meter.buffer();
+                const std::span<float> levels = processor.nativeStreams.meter.buffer();
                 levels[0] = static_cast<float>(block);
                 levels[1] = 0.5F;
-                processor.nativeChannels.meter.commit(2);
+                processor.nativeStreams.meter.commit(2);
             }
         });
     audio.join();
-    CHECK(js::deliverChannels(context) == 1);
+    CHECK(js::deliverStreams(context) == 1);
     CHECK(context.evaluateScript("seen.join()").value().asString() == "3:3/0.5");
 }
 
@@ -930,4 +932,209 @@ TEST_CASE("host-saved factory and custom snapshots retain the existing wire form
     restore(processor, saved);
     CHECK(! processor.presets().snapshot().factoryId.has_value());
     CHECK(processor.state.selectedPreset.get() == "User preset");
+}
+
+namespace
+{
+    // The fixture's audio state (`audio: true`), as the Rust processing reads
+    // it: describeAudioState()'s layout of enabled, gates, level, seed, steps.
+    struct AudioView
+    {
+        bool enabled = false;
+        std::vector<bool> gates;
+        float level = 0;
+        std::uint64_t seed = 0;
+        std::vector<std::int32_t> steps;
+    };
+    template <typename T>
+    T readAt(const std::byte* bytes, std::size_t offset)
+    {
+        T value {};
+        std::memcpy(&value, bytes + offset, sizeof value);
+        return value;
+    }
+    AudioView decodeAudio(const void* snapshot)
+    {
+        REQUIRE(snapshot != nullptr);
+        const auto* bytes = static_cast<const std::byte*>(snapshot);
+        AudioView view;
+        view.enabled = readAt<std::uint8_t>(bytes, 0) != 0;
+        for (std::uint32_t index = 0, length = readAt<std::uint32_t>(bytes, 4); index < length; ++index)
+            view.gates.push_back(readAt<std::uint8_t>(bytes, 8 + index) != 0);
+        view.level = readAt<float>(bytes, 12);
+        view.seed = readAt<std::uint64_t>(bytes, 16);
+        for (std::uint32_t index = 0, length = readAt<std::uint32_t>(bytes, 24); index < length; ++index)
+            view.steps.push_back(readAt<std::int32_t>(bytes, 28 + 4 * std::size_t { index }));
+        return view;
+    }
+    // What the audio thread's next block sees.
+    AudioView audio(Processor& p)
+    {
+        return decodeAudio(p.state.audioState().acquire());
+    }
+} // namespace
+
+TEST_CASE("the processing's state starts as the config's defaults and follows every set")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    CHECK(p.state.audioState().size() == 48);
+    auto view = audio(p);
+    CHECK(view.enabled);
+    CHECK(view.gates == std::vector<bool> { true });
+    CHECK(view.level == 0.5f);
+    CHECK(view.seed == 3);
+    CHECK(view.steps == std::vector<std::int32_t> { 1, 2, 3 });
+
+    p.state.level.set(0.25f);
+    p.state.seed.set(UINT64_MAX);
+    p.state.enabled.set(false);
+    view = audio(p);
+    CHECK(view.level == 0.25f);
+    CHECK(view.seed == UINT64_MAX);
+    CHECK_FALSE(view.enabled);
+
+    // Arrays of every length up to maxLength.
+    for (const auto& steps :
+         { std::vector<std::int32_t> {}, std::vector<std::int32_t> { 9 }, std::vector<std::int32_t> { 4, 3, 2, 1 } })
+    {
+        p.state.steps.set(steps);
+        CHECK(audio(p).steps == steps);
+    }
+    p.state.gates.set({ false, true, true });
+    CHECK(audio(p).gates == std::vector<bool> { false, true, true });
+
+    // UI-only fields publish nothing.
+    const auto published = p.state.audioState().statistics().published;
+    p.state.selectedPreset.set(std::string("UI only"));
+    CHECK(p.state.audioState().statistics().published == published);
+}
+
+TEST_CASE("an array beyond its maxLength is refused on every path, and the processing keeps the last value")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    p.state.steps.set({ 5, 6 });
+    CHECK_THROWS(p.state.steps.set({ 1, 2, 3, 4, 5 }));
+    CHECK_THROWS(p.state.gates.set({ true, true, true, true }));
+    CHECK(p.state.steps.get() == std::vector<std::int32_t> { 5, 6 });
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 5, 6 });
+
+    // A host's saved state with too many elements is refused whole.
+    p.getParameters().getParameter("gain")->setValueNotifyingHost(0.75f);
+    juce::MemoryBlock saved;
+    p.getStateInformation(saved);
+    auto data = juce::JSON::fromString(
+        juce::String::fromUTF8(static_cast<const char*>(saved.getData()), static_cast<int>(saved.getSize())));
+    juce::Array<juce::var> tooMany;
+    for (int index = 0; index < 5; ++index)
+        tooMany.add(index);
+    data["state"].getDynamicObject()->setProperty("steps", tooMany);
+    data["state"].getDynamicObject()->setProperty("level", 0.125);
+    const auto text = juce::JSON::toString(data);
+    p.setStateInformation(text.toRawUTF8(), static_cast<int>(text.getNumBytesAsUTF8()));
+    CHECK(p.restored == 0);
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 5, 6 });
+    CHECK(audio(p).level == 0.5f);
+}
+
+TEST_CASE("transactions, History, presets and restoration all reach the processing, coherently")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    // A transaction's fields arrive together: one snapshot holds all of them.
+    p.history.transaction("Pattern",
+                          [&]
+                          {
+                              p.state.steps.set({ 8, 8 });
+                              p.state.level.set(0.75f);
+                              CHECK(audio(p).steps == std::vector<std::int32_t> { 1, 2, 3 });
+                          });
+    auto view = audio(p);
+    CHECK(view.steps == std::vector<std::int32_t> { 8, 8 });
+    CHECK(view.level == 0.75f);
+
+    p.history.undo();
+    view = audio(p);
+    CHECK(view.steps == std::vector<std::int32_t> { 1, 2, 3 });
+    CHECK(view.level == 0.5f);
+    p.history.redo();
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 8, 8 });
+
+    // A factory preset (Warm sets steps to [7, 5]), and the defaults back.
+    p.presets().loadFactory("warm", history::Options(true));
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 7, 5 });
+    p.history.undo();
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 8, 8 });
+    p.setCurrentProgram(0);
+    CHECK(audio(p).steps == std::vector<std::int32_t> { 1, 2, 3 });
+
+    // A host restoring a saved project.
+    Processor original;
+    original.state.steps.set({ 4 });
+    original.state.seed.set(42);
+    original.getParameters().getParameter("gain")->setValueNotifyingHost(0.75f);
+    juce::MemoryBlock saved;
+    original.getStateInformation(saved);
+    restore(p, saved);
+    CHECK(p.restored == 1);
+    view = audio(p);
+    CHECK(view.steps == std::vector<std::int32_t> { 4 });
+    CHECK(view.seed == 42);
+    // Each instance has its own.
+    CHECK(audio(original).steps == std::vector<std::int32_t> { 4 });
+    Processor fresh;
+    CHECK(audio(fresh).steps == std::vector<std::int32_t> { 1, 2, 3 });
+}
+
+TEST_CASE("the audio thread reads whole snapshots while the UI keeps writing")
+{
+    juce::ScopedJuceInitialiser_GUI init;
+    Processor p;
+    p.history.transaction("Start",
+                          [&]
+                          {
+                              p.state.steps.set({ 1 });
+                              p.state.level.set(1.0f);
+                          });
+    std::atomic<bool> done { false };
+    std::atomic<int> torn { 0 }, blocks { 0 };
+    // As processBlock would: one acquire() a block, read through the block.
+    std::thread audioThread(
+        [&]
+        {
+            while (! done.load(std::memory_order_acquire))
+            {
+                const auto* bytes = static_cast<const std::byte*>(p.state.audioState().acquire());
+                const auto length = readAt<std::uint32_t>(bytes, 24);
+                const auto level = readAt<float>(bytes, 12);
+                // Every write below has steps all equal to their length, and
+                // level the same number: a mix of two writes is torn.
+                bool whole = length <= 4 && (length == 0 || level == static_cast<float>(length));
+                for (std::uint32_t index = 0; index < length && whole; ++index)
+                    whole = readAt<std::int32_t>(bytes, 28 + 4 * std::size_t { index })
+                            == static_cast<std::int32_t>(length);
+                if (! whole)
+                    ++torn;
+                ++blocks;
+            }
+        });
+    for (int write = 0; write < 4000; ++write)
+    {
+        const auto length = static_cast<std::size_t>(1 + write % 4);
+        p.history.transaction("Write",
+                              [&]
+                              {
+                                  p.state.steps.set(
+                                      std::vector<std::int32_t>(length, static_cast<std::int32_t>(length)));
+                                  p.state.level.set(static_cast<float>(length));
+                              });
+    }
+    done.store(true, std::memory_order_release);
+    audioThread.join();
+    CHECK(torn == 0);
+    CHECK(blocks > 0);
+    // The latest value wins.
+    const auto view = audio(p);
+    CHECK(view.steps == std::vector<std::int32_t>(4, 4));
 }

@@ -10,7 +10,13 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildFixture, channels, contract, parameters } from './fixture/build';
+import {
+  buildFixture,
+  contract,
+  fixtureState,
+  parameters,
+  streams,
+} from './fixture/build';
 
 /** What the page's `render` takes. */
 interface Render {
@@ -24,9 +30,13 @@ interface Render {
     readonly at: number;
     readonly gain?: number;
     readonly tempo?: number;
+    /** processingMode and pattern's length, as fixtureState() writes them. */
+    readonly state?: readonly [number, number];
   };
   /** The host's tempo, posted before the processor exists. */
   readonly early?: number;
+  /** The state to start with: processingMode and pattern's length. */
+  readonly state?: readonly [number, number];
 }
 
 /** What it gives back. */
@@ -34,7 +44,7 @@ interface Rendered {
   readonly ready: true | string;
   readonly output: number[][];
   readonly published: number[][];
-  readonly channels: [number, number | number[]][][];
+  readonly streams: [number, number | number[]][][];
   readonly errors: string[];
 }
 
@@ -50,18 +60,19 @@ const PAGE = `<!doctype html>
       length: options.frames,
       sampleRate: RATE,
     });
-    const result = { published: [], channels: [], errors: [] };
+    const result = { published: [], streams: [], errors: [] };
     const processor = await createProcessorNode(context, {
       wasm,
       contract: options.contract,
       inputs: options.inputs,
       outputs: options.outputs,
-      channels: options.channels,
+      streams: options.streams,
       parameters: options.parameters,
+      ...(options.state ? { state: new Uint8Array(options.state) } : {}),
       maxFrames: 128,
       onPublished: (values) => result.published.push([...values]),
-      onChannels: (changes) =>
-        result.channels.push(
+      onStreams: (changes) =>
+        result.streams.push(
           changes.map(([index, value]) => [
             index,
             typeof value === 'number' ? value : [...value],
@@ -91,6 +102,8 @@ const PAGE = `<!doctype html>
           processor.setParameters(options.change.parameters);
         if (options.change.tempo !== undefined)
           processor.setTransport([options.change.tempo, 0, Number.NaN, 1, 0]);
+        if (options.change.snapshot !== undefined)
+          processor.setState(new Uint8Array(options.change.snapshot));
         // The message reaches the rendering thread before rendering goes on.
         await new Promise((resolve) => setTimeout(resolve, 50));
         await context.resume();
@@ -128,7 +141,7 @@ const PAGE = `<!doctype html>
         contract: options.contract,
         inputs: [1, 0],
         outputs: [1],
-        channels: options.channels,
+        streams: options.streams,
         parameters,
         maxFrames: 128,
         onError: (message) => errors.push(message),
@@ -230,8 +243,12 @@ async function render(options: Render): Promise<Rendered> {
     {
       ...options,
       contract: options.contract ?? contract,
-      channels,
+      streams,
       parameters: parameters(options.gain),
+      state:
+        options.state === undefined
+          ? undefined
+          : [...fixtureState(...options.state)],
       change:
         options.change === undefined
           ? undefined
@@ -241,6 +258,10 @@ async function render(options: Render): Promise<Rendered> {
                 options.change.gain === undefined
                   ? undefined
                   : parameters(options.change.gain),
+              snapshot:
+                options.change.state === undefined
+                  ? undefined
+                  : [...fixtureState(...options.change.state)],
             },
     },
   );
@@ -300,13 +321,13 @@ describe('the Rust processor in an AudioWorklet', () => {
     );
   });
 
-  it('posts what the processing publishes: read-only parameters and channels', async () => {
+  it('posts what the processing publishes: read-only parameters and streams', async () => {
     const result = await render({
       gain: 0.75,
       inputs: [2, 0],
       outputs: [2],
       frames: 4800,
-      // The first render quantum's end, before the first channels go.
+      // The first render quantum's end, before the first streams go.
       change: { at: 128 / 48_000, tempo: 96 },
     });
     expect(result.published.length).toBeGreaterThan(0);
@@ -316,14 +337,16 @@ describe('the Rust processor in an AudioWorklet', () => {
       expect(peak).toBeLessThanOrEqual(20 * Math.log10(0.75 * 0.5) + 1e-6);
     }
     // About 60 times a second: 4800 frames at 48 kHz are 0.1 s.
-    expect(result.channels.length).toBeGreaterThanOrEqual(5);
-    expect(result.channels.length).toBeLessThanOrEqual(7);
-    // history: the gain and the host's tempo; level: the block's peak.
-    for (const changes of result.channels) {
+    expect(result.streams.length).toBeGreaterThanOrEqual(5);
+    expect(result.streams.length).toBeLessThanOrEqual(7);
+    // history: the gain, the host's tempo and, without a state given, the
+    // config's defaults (processingMode 1, 3 pattern steps), and the
+    // wavetable prepare published (maxFrames long); level: the peak.
+    for (const changes of result.streams) {
       expect(changes.map(([index]) => index)).toEqual([0, 1]);
-      expect(changes[0]![1]).toEqual([0.75, 96]);
+      expect(changes[0]![1]).toEqual([0.75, 96, 1, 3, 128]);
     }
-    const last = result.channels.at(-1)![1]![1] as number;
+    const last = result.streams.at(-1)![1]![1] as number;
     expect(last).toBeGreaterThan(0);
     expect(last).toBeLessThanOrEqual(0.75 * 0.5);
   });
@@ -338,9 +361,30 @@ describe('the Rust processor in an AudioWorklet', () => {
       // Waits for it to arrive, then goes on.
       change: { at: 128 / 48_000 },
     });
-    expect(result.channels.length).toBeGreaterThan(0);
-    for (const changes of result.channels)
-      expect(changes[0]![1]).toEqual([0.5, 140]);
+    expect(result.streams.length).toBeGreaterThan(0);
+    for (const changes of result.streams)
+      expect(changes[0]![1]).toEqual([0.5, 140, 1, 3, 128]);
+  });
+
+  it('reads the state it starts with, then the state posted, from the next block', async () => {
+    const result = await render({
+      gain: 0.5,
+      inputs: [1, 0],
+      outputs: [1],
+      frames: 9600,
+      state: [6, 2],
+      change: { at: 4800 / 48_000, state: [3, 7] },
+    });
+    const states = result.streams.map((changes) =>
+      (changes[0]![1] as number[]).slice(2, 4),
+    );
+    expect(states[0]).toEqual([6, 2]);
+    expect(states.at(-1)).toEqual([3, 7]);
+    // Never a mix of the two.
+    for (const state of states)
+      expect([JSON.stringify([6, 2]), JSON.stringify([3, 7])]).toContain(
+        JSON.stringify(state),
+      );
   });
 
   it('is silent after a panic, and says so once', async () => {
@@ -376,7 +420,7 @@ describe('the Rust processor in an AudioWorklet', () => {
         gains,
         frames,
         contract,
-        channels,
+        streams,
         parameters: gains.map((gain) => parameters(gain)),
       },
     );
@@ -395,7 +439,7 @@ describe('the Rust processor in an AudioWorklet', () => {
       inputs: [2, 0],
       outputs: [2],
       frames: 4800,
-      contract: { ...contract, channels: 3 },
+      contract: { ...contract, streams: 3 },
     });
     expect(result.ready).toMatch(/another soundor.config/);
     expect(result.errors).toEqual([

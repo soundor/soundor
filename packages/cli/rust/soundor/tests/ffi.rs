@@ -3,7 +3,7 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use soundor::ffi::{SoundorBlock, SoundorChannelSink};
+use soundor::ffi::{SoundorBlock, SoundorStreamSink};
 use soundor::prelude::*;
 use soundor::testing::{NativeProcessor, Status};
 
@@ -31,12 +31,12 @@ impl AudioProcessor for Gain {
             }
         }
         ctx.publish.peak(-6.0);
-        ctx.channels.level.publish(gain);
-        let buffer = ctx.channels.history.buffer_mut();
+        ctx.streams.level.publish(gain);
+        let buffer = ctx.streams.history.buffer_mut();
         if let Some(first) = buffer.first_mut() {
             *first = gain;
         }
-        ctx.channels.history.commit(1);
+        ctx.streams.history.commit(1);
     }
 }
 
@@ -59,7 +59,7 @@ fn reports_what_it_was_built_from() {
     assert_eq!(info.abi_version, soundor::ABI_VERSION);
     assert_eq!(info.parameter_count, 5);
     assert_eq!(info.published_count, 1);
-    assert_eq!(info.channel_count, 2);
+    assert_eq!(info.stream_count, 2);
     // SAFETY: null is allowed.
     assert_eq!(
         unsafe { __soundor_exports::soundor_processor_info(std::ptr::null_mut()) },
@@ -182,7 +182,9 @@ fn refuses_other_abis_and_null_arguments() {
         published_count: 0,
         published: std::ptr::null_mut(),
         transport: std::ptr::null(),
-        channels: std::ptr::null(),
+        streams: std::ptr::null(),
+        state_size: 0,
+        state: std::ptr::null(),
     };
     // SAFETY: valid pointers; only the version is wrong.
     assert_eq!(
@@ -246,7 +248,7 @@ static PUBLISHED: AtomicU32 = AtomicU32::new(0);
 static mut HISTORY: [f32; 8] = [0.0; 8];
 static COMMITTED: AtomicU32 = AtomicU32::new(u32::MAX);
 
-// Channels are in name order: `history` is 0, `level` 1.
+// Streams are in name order: `history` is 0, `level` 1.
 unsafe extern "C" fn publish(_: *mut c_void, index: u32, value: f64) {
     assert_eq!(index, 1);
     PUBLISHED.store((value as f32).to_bits(), Ordering::SeqCst);
@@ -265,12 +267,12 @@ unsafe extern "C" fn commit(_: *mut c_void, index: u32, length: u32) {
 }
 
 #[test]
-fn publishes_channels_through_the_runtime_callbacks() {
+fn publishes_streams_through_the_runtime_callbacks() {
     let mut processor = native();
     assert_eq!(processor.prepare(48_000.0, 16, &[1, 0], &[1]), OK);
     processor.parameters[0] = 0.75;
     let mut samples = [0.0f32; 4];
-    let sink = SoundorChannelSink {
+    let sink = SoundorStreamSink {
         user: std::ptr::null_mut(),
         publish: Some(publish),
         buffer: Some(buffer),

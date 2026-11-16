@@ -44,6 +44,57 @@ A field's name is its persistent identity. Keep it stable after releasing a
 plugin. Names used by the state infrastructure, including `onRestored`, are
 reserved and rejected during validation.
 
+## State the audio processor reads
+
+A field declared with `audio: true` is also visible to the
+[Rust audio processor](/docs/rust-processor), as `ctx.state` in `prepare()`
+and `process()`. It stays an ordinary state field: persisted, restored, part of
+presets and History, and written by the UI and native code as before.
+`audio` defaults to `false`, and the processor cannot read a field without it:
+`ctx.state.selected_tab` is a compile error.
+
+```ts
+state: {
+  selectedTab: { type: 'int32', default: 0 }, // the UI's own
+  processingMode: { type: 'int32', default: 0, audio: true },
+  pattern: { type: 'int32[]', default: [60, 64, 67], audio: true, maxLength: 128 },
+},
+```
+
+```rust
+fn process(&mut self, ctx: &mut ProcessContext) {
+    let mode = ctx.state.processing_mode; // i32
+    let pattern: &[i32] = &ctx.state.pattern; // up to 128 steps
+    // ...
+}
+```
+
+- **Types.** A number (`int8` … `uint64`, `float32`, `float64`) or a `boolean`,
+  or an array of them with a `maxLength`. Strings, structs, enums, nullable
+  values and arrays without `maxLength` cannot be audio state: their size is
+  not fixed.
+- **`maxLength`** is an array's capacity, from 1 to 1048576, not its length.
+  Every value of the field is checked against it, from any path (a set, a
+  restored project, a factory preset, History), and a longer one is refused
+  like any invalid value. The processor's storage is allocated for it. Any
+  array field may declare a `maxLength`; only `audio: true` requires it.
+  In Rust, an array is a `StateArray<T, N>`, which reads as a `&[T]` of the
+  current length.
+- **When changes arrive.** A change reaches the processor at the start of its
+  next block. A block sees one snapshot from start to end, never one changing
+  or partly written. Changes made between two blocks are coalesced: the block
+  sees the latest.
+- **Coherent across fields.** Every change publishes all the audio fields as
+  they are committed, so fields written together (one transaction, one
+  restore, one preset, one undo) reach the same block together.
+- **Real-time safe.** Reading `ctx.state` takes no lock, allocates nothing and
+  copies nothing: the runtime hands the processor a snapshot it prepared off
+  the audio thread. In the JUCE runtime, a change of an audio field is encoded
+  on the thread that made it and handed over through a preallocated triple
+  buffer. In the Web runtime, the page posts the snapshot to the AudioWorklet,
+  which writes it into the processor's memory between render quanta.
+- **Size.** All audio fields together may take up to 8 MiB.
+
 ## JavaScript
 
 ```ts
@@ -163,9 +214,10 @@ thread; unsubscribe before destroying the processor.
 
 **State access is control-thread work, never real-time safe.** It allocates and
 uses synchronization. Do not read, write, subscribe or begin/end gestures in
-`process()`. Maintain your own real-time-safe derived DSP representation and publish it with your
-usual control-to-audio mechanism. Ordinary parameter handles retain their
-existing real-time-safe reads.
+`process()`. The audio processing reads the fields declared with `audio: true`
+as `ctx.state` (see [above](#state-the-audio-processor-reads)), which the
+generated processor hands it, real-time safe, from `state.audioState()`.
+Ordinary parameter handles retain their existing real-time-safe reads.
 
 ## Saving and restoration
 

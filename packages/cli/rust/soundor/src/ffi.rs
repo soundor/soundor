@@ -20,11 +20,11 @@ use std::ffi::c_void;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::ABI_VERSION;
-use crate::channels::{ChannelSink, NoChannels};
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES};
-use crate::plugin::{CHANNELS, PUBLISHED, Parameters};
+use crate::plugin::{PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot};
 use crate::processor::AudioProcessor;
+use crate::streams::{NoStreams, StreamSink};
 use crate::transport::Transport;
 
 /// What the processor was built from: the runtime checks it against what it
@@ -36,7 +36,9 @@ pub struct SoundorProcessorInfo {
     pub abi_version: u32,
     pub parameter_count: u32,
     pub published_count: u32,
-    pub channel_count: u32,
+    pub stream_count: u32,
+    /// The size of the state snapshot the processor reads.
+    pub state_size: u32,
 }
 
 /// `prepare`'s configuration.
@@ -57,6 +59,11 @@ pub struct SoundorPrepare {
     /// processor's `prepare` sees them; null keeps the last ones.
     pub parameter_count: u32,
     pub parameters: *const f64,
+    /// The state the processor reads, as `prepare` sees it: `state_size`
+    /// bytes laid out as [`StateSnapshot`], aligned for it; null is the
+    /// config's defaults.
+    pub state_size: u32,
+    pub state: *const c_void,
 }
 
 /// The host's transport; NaN where the host does not say.
@@ -91,25 +98,25 @@ impl SoundorTransport {
     }
 }
 
-/// The runtime's native channels, as callbacks. Each is realtime-safe.
+/// The runtime's native streams, as callbacks. Each is realtime-safe.
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
-pub struct SoundorChannelSink {
+pub struct SoundorStreamSink {
     pub user: *mut c_void,
-    /// Publishes channel `index`'s value (a number channel).
+    /// Publishes stream `index`'s value (a number stream).
     pub publish: Option<unsafe extern "C" fn(user: *mut c_void, index: u32, value: f64)>,
-    /// Channel `index`'s storage (a buffer channel), of its element type, and
+    /// Stream `index`'s storage (a buffer stream), of its element type, and
     /// its capacity in elements; null when it has none.
     pub buffer: Option<
         unsafe extern "C" fn(user: *mut c_void, index: u32, capacity: *mut u32) -> *mut c_void,
     >,
-    /// Publishes the first `length` elements of channel `index`'s storage.
+    /// Publishes the first `length` elements of stream `index`'s storage.
     pub commit: Option<unsafe extern "C" fn(user: *mut c_void, index: u32, length: u32)>,
 }
 
-struct NativeChannels<'a>(&'a SoundorChannelSink);
+struct NativeStreams<'a>(&'a SoundorStreamSink);
 
-impl ChannelSink for NativeChannels<'_> {
+impl StreamSink for NativeStreams<'_> {
     fn publish(&self, index: u32, value: f64) {
         if let Some(publish) = self.0.publish {
             // SAFETY: the runtime passed this callback for this call.
@@ -124,7 +131,7 @@ impl ChannelSink for NativeChannels<'_> {
         let mut capacity = 0;
         // SAFETY: as `publish`.
         let pointer = unsafe { buffer(self.0.user, index, &mut capacity) };
-        let declared = CHANNELS
+        let declared = STREAMS
             .get(index as usize)
             .and_then(|(_, length)| *length)
             .unwrap_or(0);
@@ -166,7 +173,36 @@ pub struct SoundorBlock {
     /// May be null.
     pub transport: *const SoundorTransport,
     /// May be null.
-    pub channels: *const SoundorChannelSink,
+    pub streams: *const SoundorStreamSink,
+    /// The block's state: `state_size` bytes laid out as [`StateSnapshot`],
+    /// aligned for it, which nothing writes during the call; null is the
+    /// config's defaults.
+    pub state_size: u32,
+    pub state: *const c_void,
+}
+
+/// The state at `pointer`: `None` for null, and an error when its size or
+/// alignment is not the snapshot's.
+///
+/// # Safety
+///
+/// `pointer` is null, or valid for `size` reads of a snapshot nothing
+/// writes for `'a`.
+unsafe fn state<'a>(
+    pointer: *const c_void,
+    size: u32,
+) -> Result<Option<&'a StateSnapshot>, Status> {
+    if pointer.is_null() {
+        return Ok(None);
+    }
+    if size as usize != STATE_SIZE
+        || !(pointer as usize).is_multiple_of(std::mem::align_of::<StateSnapshot>())
+    {
+        return Err(Status::InvalidArgument);
+    }
+    // SAFETY: as the caller promises; the runtime writes the snapshot with
+    // its layout, so every field holds a valid value.
+    Ok(Some(unsafe { &*pointer.cast::<StateSnapshot>() }))
 }
 
 /// The processor behind a handle.
@@ -199,7 +235,8 @@ pub fn info() -> SoundorProcessorInfo {
         abi_version: ABI_VERSION,
         parameter_count: Parameters::COUNT as u32,
         published_count: PUBLISHED.len() as u32,
-        channel_count: CHANNELS.len() as u32,
+        stream_count: STREAMS.len() as u32,
+        state_size: STATE_SIZE as u32,
     }
 }
 
@@ -277,12 +314,18 @@ pub unsafe fn prepare<P: AudioProcessor>(
                 None => return Status::InvalidArgument,
             }
         };
+        // SAFETY: as the caller promises.
+        let state = match unsafe { state(config.state, config.state_size) } {
+            Ok(state) => state,
+            Err(status) => return status,
+        };
         handle.instance.prepare(
             config.sample_rate,
             config.max_frames as usize,
             &inputs[..input_channels.len()],
             &outputs[..output_channels.len()],
             parameters,
+            state,
         )
     })
 }
@@ -327,15 +370,20 @@ pub unsafe fn process<P: AudioProcessor>(
             }
         };
         // SAFETY: as the caller promises.
+        let state = match unsafe { state(block.state, block.state_size) } {
+            Ok(state) => state,
+            Err(status) => return status,
+        };
+        // SAFETY: as the caller promises.
         let transport = unsafe { block.transport.as_ref() }
             .map(SoundorTransport::read)
             .unwrap_or_default();
         // SAFETY: as the caller promises.
-        let sink = unsafe { block.channels.as_ref() };
-        let native = sink.map(NativeChannels);
-        let channels: &dyn ChannelSink = match &native {
+        let sink = unsafe { block.streams.as_ref() };
+        let native = sink.map(NativeStreams);
+        let streams: &dyn StreamSink = match &native {
             Some(native) => native,
-            None => &NoChannels,
+            None => &NoStreams,
         };
         let status = handle.instance.process(Block {
             frames: block.frames as usize,
@@ -343,7 +391,8 @@ pub unsafe fn process<P: AudioProcessor>(
             outputs,
             parameters,
             transport,
-            channels,
+            streams,
+            state,
         });
         if !block.published.is_null() {
             let count = (block.published_count as usize).min(PUBLISHED.len());

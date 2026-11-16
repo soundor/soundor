@@ -1,5 +1,5 @@
 //! The analyzer through Soundor's testing harness: what it publishes to the
-//! config's channels, and that its audio passes through untouched.
+//! config's streams, and that its audio passes through untouched.
 
 use soundor::testing::TestProcessor;
 use soundor_analyzer::{BANDS, Processor};
@@ -35,10 +35,10 @@ fn publishes_the_peak_of_each_block() {
         .block_size(256)
         .build();
     processor.process(&[vec![0.5; 256], vec![0.5; 256]]);
-    let peak = processor.channel("peak").unwrap();
+    let peak = processor.stream("peak").unwrap();
     assert!((peak - -6.0206).abs() < 1e-3, "{peak}");
     processor.process(&[vec![0.0; 256], vec![0.0; 256]]);
-    assert_eq!(processor.channel("peak"), Some(-96.0));
+    assert_eq!(processor.stream("peak"), Some(-96.0));
 }
 
 #[test]
@@ -46,7 +46,7 @@ fn finds_a_tone_in_its_band() {
     let mut processor = TestProcessor::<Processor>::new().sample_rate(RATE).build();
     let tone = sine(1000.0, 0.5, 8192);
     processor.process(&[tone.clone(), tone]);
-    let spectrum = processor.channel_buffer::<f32>("spectrum").unwrap();
+    let spectrum = processor.stream_buffer::<f32>("spectrum").unwrap();
     assert_eq!(spectrum.len(), BANDS);
     let loudest = (0..BANDS)
         .max_by(|a, b| spectrum[*a].total_cmp(&spectrum[*b]))
@@ -65,9 +65,9 @@ fn finds_a_tone_in_its_band() {
 fn publishes_a_spectrum_every_half_window() {
     let mut processor = TestProcessor::<Processor>::new().sample_rate(RATE).build();
     processor.process(&[vec![0.0; 1023]]);
-    assert_eq!(processor.channel_buffer::<f32>("spectrum"), None);
+    assert_eq!(processor.stream_buffer::<f32>("spectrum"), None);
     processor.process(&[vec![0.0; 1]]);
-    let silence = processor.channel_buffer::<f32>("spectrum").unwrap();
+    let silence = processor.stream_buffer::<f32>("spectrum").unwrap();
     assert!(silence.iter().all(|level| *level == -96.0));
 }
 
@@ -78,6 +78,6 @@ fn analyzes_mono_too() {
         .layout(&[1], &[1])
         .build();
     processor.process(&[sine(1000.0, 0.5, 4096)]);
-    assert!(processor.channel_buffer::<f32>("spectrum").is_some());
-    assert!(processor.channel("peak").unwrap() > -7.0);
+    assert!(processor.stream_buffer::<f32>("spectrum").is_some());
+    assert!(processor.stream("peak").unwrap() > -7.0);
 }

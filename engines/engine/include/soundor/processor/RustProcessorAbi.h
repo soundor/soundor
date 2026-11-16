@@ -18,7 +18,7 @@
 #include <cstdint>
 
 // The version every structure carries, as the SDK's ffi.rs has it.
-inline constexpr std::uint32_t SOUNDOR_PROCESSOR_ABI_VERSION = 1;
+inline constexpr std::uint32_t SOUNDOR_PROCESSOR_ABI_VERSION = 2;
 
 extern "C"
 {
@@ -38,7 +38,8 @@ extern "C"
         std::uint32_t abiVersion;
         std::uint32_t parameterCount;
         std::uint32_t publishedCount;
-        std::uint32_t channelCount;
+        std::uint32_t streamCount;
+        std::uint32_t stateSize;
     };
 
     struct SoundorPrepare
@@ -55,6 +56,10 @@ extern "C"
         // keeps the last ones.
         std::uint32_t parameterCount;
         const double* parameters;
+        // The state the processor reads (`audio: true`), stateSize bytes in
+        // the config's layout; null is the config's defaults.
+        std::uint32_t stateSize;
+        const void* state;
     };
 
     // NaN (or 0 for the time signature) where the host does not say.
@@ -68,7 +73,7 @@ extern "C"
         std::uint32_t timeSignatureDenominator;
     };
 
-    struct SoundorChannelSink
+    struct SoundorStreamSink
     {
         void* user;
         void (*publish)(void* user, std::uint32_t index, double value);
@@ -93,8 +98,12 @@ extern "C"
         // NaN where the block published no value.
         std::uint32_t publishedCount;
         double* published;
-        const SoundorTransport* transport;  // may be null
-        const SoundorChannelSink* channels; // may be null
+        const SoundorTransport* transport; // may be null
+        const SoundorStreamSink* streams;  // may be null
+        // The block's state, which nothing writes during the call; null is
+        // the config's defaults.
+        std::uint32_t stateSize;
+        const void* state;
     };
 
     std::int32_t soundor_processor_info(SoundorProcessorInfo* info);

@@ -6,7 +6,7 @@ import {
   getHostState as snapshot,
   subscribeHostState as subscribe,
 } from 'soundor:host';
-import { channels, events, loadPreset, probe } from 'soundor:native';
+import { streams, events, loadPreset, probe } from 'soundor:native';
 import { parameters } from 'soundor:parameters';
 import {
   createTextInput,
@@ -24,7 +24,7 @@ import {
   testHost,
   mockNative,
   emitNative,
-  publishChannel,
+  publishStream,
   screen,
   userEvent,
 } from './index';
@@ -173,23 +173,23 @@ test('emitNative publishes a declared native event to its subscribers', () => {
     "Unknown soundor:native event 'missing'",
   );
 });
-test('publishChannel sets a declared native channel and notifies its subscribers', () => {
-  expect(channels.level.get()).toBeUndefined();
+test('publishStream sets a declared native stream and notifies its subscribers', () => {
+  expect(streams.level.get()).toBeUndefined();
   const seen = vi.fn<(...args: unknown[]) => void>();
-  const stop = channels.level.subscribe(seen);
-  publishChannel('level', 0.5);
-  publishChannel('level', 0.75);
+  const stop = streams.level.subscribe(seen);
+  publishStream('level', 0.5);
+  publishStream('level', 0.75);
   expect(seen.mock.calls).toEqual([
     [0.5, 1],
     [0.75, 2],
   ]);
-  expect(channels.level.get()).toBe(0.75);
+  expect(streams.level.get()).toBe(0.75);
   stop();
-  publishChannel('level', 1);
+  publishStream('level', 1);
   expect(seen).toHaveBeenCalledTimes(2);
-  expect(channels.level.get()).toBe(1);
-  expect(() => publishChannel('missing', 1)).toThrow(
-    "Unknown soundor:native channel 'missing'",
+  expect(streams.level.get()).toBe(1);
+  expect(() => publishStream('missing', 1)).toThrow(
+    "Unknown soundor:native stream 'missing'",
   );
 });
 

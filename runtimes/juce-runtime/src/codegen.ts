@@ -27,7 +27,11 @@
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
 
-import { describeNativeApi } from '@soundor/runtime-sdk';
+import {
+  describeAudioState,
+  describeNativeApi,
+  describeState,
+} from '@soundor/runtime-sdk';
 import {
   resolveEditor,
   type CodegenFile,
@@ -39,7 +43,7 @@ import {
 
 import { version as RUNTIME_VERSION } from '../package.json';
 import { audioDeclaration, audioImplementation } from './audio-codegen';
-import { channelType, generateNativeModuleSources } from './native-codegen';
+import { streamType, generateNativeModuleSources } from './native-codegen';
 import type { JuceFormat, ResolvedJuceOptions } from './options';
 import { renderParametersSource } from './parameter-codegen';
 import { generatePresetSources } from './preset-codegen';
@@ -135,54 +139,54 @@ export function generateJuceSources(
 }
 
 /**
- * The native channels as the Rust processing reaches them: callbacks by
+ * The native streams as the Rust processing reaches them: callbacks by
  * index, in the order the Rust SDK numbers them (by name, as the model).
  */
-function renderChannelSink(channels: NativeApiModel['channels']): string {
-  if (channels.length === 0) return '';
+function renderStreamSink(streams: NativeApiModel['streams']): string {
+  if (streams.length === 0) return '';
   const cases = (
     kind: 'number' | 'buffer',
     body: (name: string, type: string) => string,
   ) =>
-    channels
-      .map((channel, index) => ({ channel, index }))
-      .filter(({ channel }) => channel.kind === kind)
+    streams
+      .map((stream, index) => ({ stream, index }))
+      .filter(({ stream }) => stream.kind === kind)
       .map(
-        ({ channel, index }) =>
-          `                case ${index}: ${body(channel.name, channelType(channel))}`,
+        ({ stream, index }) =>
+          `                case ${index}: ${body(stream.name, streamType(stream))}`,
       )
       .join('\n');
   return `    namespace
     {
-        // Realtime-safe, as the channels are: the Rust processing calls these
+        // Realtime-safe, as the streams are: the Rust processing calls these
         // on the audio thread.
-        void publishChannel(void* user, std::uint32_t index, double value)
+        void publishStream(void* user, std::uint32_t index, double value)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             switch (index)
             {
-${cases('number', (name, type) => `channels.${name}.publish(static_cast<${type.slice(type.indexOf('<') + 1, -1)}>(value)); break;`)}
+${cases('number', (name, type) => `streams.${name}.publish(static_cast<${type.slice(type.indexOf('<') + 1, -1)}>(value)); break;`)}
                 default: break;
             }
         }
 
-        void* channelBuffer(void* user, std::uint32_t index, std::uint32_t* capacity)
+        void* streamBuffer(void* user, std::uint32_t index, std::uint32_t* capacity)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             *capacity = 0;
             switch (index)
             {
-${cases('buffer', (name) => `{ const auto storage = channels.${name}.buffer(); *capacity = static_cast<std::uint32_t>(storage.size()); return storage.data(); }`)}
+${cases('buffer', (name) => `{ const auto storage = streams.${name}.buffer(); *capacity = static_cast<std::uint32_t>(storage.size()); return storage.data(); }`)}
                 default: return nullptr;
             }
         }
 
-        void commitChannel(void* user, std::uint32_t index, std::uint32_t length)
+        void commitStream(void* user, std::uint32_t index, std::uint32_t length)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             switch (index)
             {
-${cases('buffer', (name) => `channels.${name}.commit(length); break;`)}
+${cases('buffer', (name) => `streams.${name}.commit(length); break;`)}
                 default: break;
             }
         }
@@ -194,12 +198,12 @@ ${cases('buffer', (name) => `channels.${name}.commit(length); break;`)}
 function renderNativeInstall(native: NativeApiModel): string {
   const feeds = [
     ...(native.events.length > 0 ? ['owner.nativeEvents'] : []),
-    ...(native.channels.length > 0 ? ['owner.nativeChannels'] : []),
+    ...(native.streams.length > 0 ? ['owner.nativeStreams'] : []),
   ];
   if (feeds.length === 0)
     return `            if (auto api = owner.createNativeApi())
                 native::install(context, std::move(api));`;
-  // Events and channels need no implementation of methods: there may be none.
+  // Events and streams need no implementation of methods: there may be none.
   if (native.methods.length === 0)
     return `            native::install(context, owner.createNativeApi(), ${feeds.join(', ')});`;
   return `            if (auto api = owner.createNativeApi())
@@ -501,7 +505,7 @@ function renderProcessorHeader(
   config: SoundorConfig,
 ): string {
   const hasEvents = native.events.length > 0;
-  const hasChannels = native.channels.length > 0;
+  const hasStreams = native.streams.length > 0;
   const enums = choiceEnums(parameters);
   const handles = parameters
     .map(
@@ -617,12 +621,12 @@ ${
 `
     : ''
 }${
-    hasChannels
+    hasStreams
       ? `
-        // The config's native channels (\`channels\` of soundor:native): the
-        // Rust processing publishes their latest values (\`ctx.channels\`),
+        // The config's native streams (\`streams\` of soundor:native): the
+        // Rust processing publishes their latest values (\`ctx.streams\`),
         // and every open editor reads the newest.
-        native::Channels nativeChannels;
+        native::Streams nativeStreams;
 `
       : ''
   }
@@ -654,12 +658,12 @@ ${handles || '        // no parameters'}
         backend::TransportCapture transport;
         std::unique_ptr<FactoryPresets> factoryPresets;
         // What the Rust processing gets and gives each block, allocated once.
-        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.channels.length} }, processor::linkedRustProcessor() };
+        processor::RustProcessor rust { processor::RustContract { ${parameters.length}, ${parameters.filter((p) => p.access === 'readOnly').length}, ${native.streams.length}, ${describeAudioState(describeState(config.state, config.native)).size} }, processor::linkedRustProcessor() };
         std::vector<backend::JuceParameter*> processingParameters;
         std::vector<backend::JuceParameter*> publishedParameters;
         std::vector<double> parameterValues;
         std::vector<double> publishedValues;
-        ${hasChannels ? 'SoundorChannelSink channelSink {};' : ''}
+        ${hasStreams ? 'SoundorStreamSink streamSink {};' : ''}
 
         JUCE_DECLARE_NON_COPYABLE(AudioProcessor)
     };
@@ -673,7 +677,7 @@ function renderProcessorSource(
   native: NativeApiModel,
 ): string {
   const enums = choiceEnums(parameters);
-  const channels = native.channels;
+  const streams = native.streams;
   const bindings = parameters
     .map(
       (p, i) =>
@@ -688,7 +692,7 @@ function renderProcessorSource(
 
 namespace ${NS}
 {
-${renderChannelSink(channels)}
+${renderStreamSink(streams)}
     AudioProcessor::AudioProcessor(const BusesProperties& ioLayouts)
         : juce::AudioProcessor(ioLayouts)
     {
@@ -732,7 +736,7 @@ ${renderChannelSink(channels)}
         publishedParameters = readOnly;
         parameterValues.assign(created.size(), 0.0);
         publishedValues.assign(readOnly.size(), std::numeric_limits<double>::quiet_NaN());
-        ${channels.length > 0 ? 'channelSink = { &nativeChannels, publishChannel, channelBuffer, commitChannel };' : ''}
+        ${streams.length > 0 ? 'streamSink = { &nativeStreams, publishStream, streamBuffer, commitStream };' : ''}
         if (! rust.valid())
             juce::Logger::writeToLog(juce::String("Soundor: ") + rust.error());
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
@@ -749,7 +753,8 @@ ${audioImplementation(config)}
     {
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
+                                         state.audioState().acquire());
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -766,7 +771,9 @@ ${audioImplementation(config)}
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${channels.length > 0 ? '&channelSink' : 'nullptr'});
+        // The newest state snapshot, unchanged until the next block.
+        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), ${streams.length > 0 ? '&streamSink' : 'nullptr'},
+                             state.audioState().acquire());
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

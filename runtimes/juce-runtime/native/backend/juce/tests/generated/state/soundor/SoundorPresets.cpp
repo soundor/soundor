@@ -23,7 +23,7 @@ parent.owner.getParameters().getParameter("mode")->removeListener(this);
 };
 namespace {
   [[maybe_unused]] const std::vector<backend::StateStore::Values>& factoryStateValues() {
-    static const std::vector<backend::StateStore::Values> values { PersistentState::prepare(backend::parseStateJson("{\"enabled\":true,\"groups\":[{\"bands\":[{\"frequency\":1000,\"gain\":-3.125,\"label\":null}],\"index\":\"18446744073709551615\"}],\"precise\":0.000012345678901234568,\"selectedPreset\":null,\"signedValue\":\"-9223372036854775808\",\"unsignedValue\":\"18446744073709551615\"}")), PersistentState::prepare(backend::parseStateJson("{\"enabled\":true,\"groups\":[{\"bands\":[{\"frequency\":1000,\"gain\":-3.125,\"label\":null}],\"index\":\"18446744073709551615\"}],\"precise\":0.000012345678901234568,\"selectedPreset\":\"Warm\",\"signedValue\":\"-9223372036854775808\",\"unsignedValue\":\"18446744073709551615\"}")) };
+    static const std::vector<backend::StateStore::Values> values { PersistentState::prepare(backend::parseStateJson("{\"enabled\":true,\"gates\":[true],\"groups\":[{\"bands\":[{\"frequency\":1000,\"gain\":-3.125,\"label\":null}],\"index\":\"18446744073709551615\"}],\"level\":0.5,\"precise\":0.000012345678901234568,\"seed\":\"3\",\"selectedPreset\":null,\"signedValue\":\"-9223372036854775808\",\"steps\":[1,2,3],\"unsignedValue\":\"18446744073709551615\"}")), PersistentState::prepare(backend::parseStateJson("{\"enabled\":true,\"gates\":[true],\"groups\":[{\"bands\":[{\"frequency\":1000,\"gain\":-3.125,\"label\":null}],\"index\":\"18446744073709551615\"}],\"level\":0.5,\"precise\":0.000012345678901234568,\"seed\":\"3\",\"selectedPreset\":\"Warm\",\"signedValue\":\"-9223372036854775808\",\"steps\":[7,5],\"unsignedValue\":\"18446744073709551615\"}")) };
     return values;
   }
 }
@@ -58,8 +58,8 @@ std::span<const FactoryPresets::Info> FactoryPresets::factoryPresets() const {
 }
 // Canonical plain values are compared exactly: every changed stored value is modified.
 bool FactoryPresets::matches(std::size_t index) const {
-  switch(index) { case 0: return std::equal_to<double>{}(owner.parameterEditors[0]->get(), static_cast<double>(static_cast<float>(0.5))) && std::equal_to<double>{}(owner.parameterEditors[1]->get(), static_cast<double>(static_cast<float>(0))) && std::equal_to<double>{}(owner.parameterEditors[2]->get(), static_cast<double>(static_cast<float>(0))) && owner.state.storage().get("enabled") == factoryStateValues()[0].at("enabled") && owner.state.storage().get("groups") == factoryStateValues()[0].at("groups") && owner.state.storage().get("precise") == factoryStateValues()[0].at("precise") && owner.state.storage().get("selectedPreset") == factoryStateValues()[0].at("selectedPreset") && owner.state.storage().get("signedValue") == factoryStateValues()[0].at("signedValue") && owner.state.storage().get("unsignedValue") == factoryStateValues()[0].at("unsignedValue");
-case 1: return std::equal_to<double>{}(owner.parameterEditors[0]->get(), static_cast<double>(static_cast<float>(0.75))) && std::equal_to<double>{}(owner.parameterEditors[1]->get(), static_cast<double>(static_cast<float>(0))) && std::equal_to<double>{}(owner.parameterEditors[2]->get(), static_cast<double>(static_cast<float>(1))) && owner.state.storage().get("enabled") == factoryStateValues()[1].at("enabled") && owner.state.storage().get("groups") == factoryStateValues()[1].at("groups") && owner.state.storage().get("precise") == factoryStateValues()[1].at("precise") && owner.state.storage().get("selectedPreset") == factoryStateValues()[1].at("selectedPreset") && owner.state.storage().get("signedValue") == factoryStateValues()[1].at("signedValue") && owner.state.storage().get("unsignedValue") == factoryStateValues()[1].at("unsignedValue"); default: return false; }
+  switch(index) { case 0: return std::equal_to<double>{}(owner.parameterEditors[0]->get(), static_cast<double>(static_cast<float>(0.5))) && std::equal_to<double>{}(owner.parameterEditors[1]->get(), static_cast<double>(static_cast<float>(0))) && std::equal_to<double>{}(owner.parameterEditors[2]->get(), static_cast<double>(static_cast<float>(0))) && owner.state.storage().get("enabled") == factoryStateValues()[0].at("enabled") && owner.state.storage().get("gates") == factoryStateValues()[0].at("gates") && owner.state.storage().get("groups") == factoryStateValues()[0].at("groups") && owner.state.storage().get("level") == factoryStateValues()[0].at("level") && owner.state.storage().get("precise") == factoryStateValues()[0].at("precise") && owner.state.storage().get("seed") == factoryStateValues()[0].at("seed") && owner.state.storage().get("selectedPreset") == factoryStateValues()[0].at("selectedPreset") && owner.state.storage().get("signedValue") == factoryStateValues()[0].at("signedValue") && owner.state.storage().get("steps") == factoryStateValues()[0].at("steps") && owner.state.storage().get("unsignedValue") == factoryStateValues()[0].at("unsignedValue");
+case 1: return std::equal_to<double>{}(owner.parameterEditors[0]->get(), static_cast<double>(static_cast<float>(0.75))) && std::equal_to<double>{}(owner.parameterEditors[1]->get(), static_cast<double>(static_cast<float>(0))) && std::equal_to<double>{}(owner.parameterEditors[2]->get(), static_cast<double>(static_cast<float>(1))) && owner.state.storage().get("enabled") == factoryStateValues()[1].at("enabled") && owner.state.storage().get("gates") == factoryStateValues()[1].at("gates") && owner.state.storage().get("groups") == factoryStateValues()[1].at("groups") && owner.state.storage().get("level") == factoryStateValues()[1].at("level") && owner.state.storage().get("precise") == factoryStateValues()[1].at("precise") && owner.state.storage().get("seed") == factoryStateValues()[1].at("seed") && owner.state.storage().get("selectedPreset") == factoryStateValues()[1].at("selectedPreset") && owner.state.storage().get("signedValue") == factoryStateValues()[1].at("signedValue") && owner.state.storage().get("steps") == factoryStateValues()[1].at("steps") && owner.state.storage().get("unsignedValue") == factoryStateValues()[1].at("unsignedValue"); default: return false; }
 }
 FactoryPresets::Selection FactoryPresets::snapshot() const {
   const std::lock_guard guard(owner.history.mutex());
@@ -87,10 +87,14 @@ void FactoryPresets::loadFactory(std::string_view id, const history::Options& op
 owner.parameterEditors[1]->set(static_cast<double>(static_cast<float>(0)));
 owner.parameterEditors[2]->set(static_cast<double>(static_cast<float>(0)));
     owner.state.storage().set("enabled", factoryStateValues()[0].at("enabled"));
+owner.state.storage().set("gates", factoryStateValues()[0].at("gates"));
 owner.state.storage().set("groups", factoryStateValues()[0].at("groups"));
+owner.state.storage().set("level", factoryStateValues()[0].at("level"));
 owner.state.storage().set("precise", factoryStateValues()[0].at("precise"));
+owner.state.storage().set("seed", factoryStateValues()[0].at("seed"));
 owner.state.storage().set("selectedPreset", factoryStateValues()[0].at("selectedPreset"));
 owner.state.storage().set("signedValue", factoryStateValues()[0].at("signedValue"));
+owner.state.storage().set("steps", factoryStateValues()[0].at("steps"));
 owner.state.storage().set("unsignedValue", factoryStateValues()[0].at("unsignedValue"));
     break;
   }
@@ -99,10 +103,14 @@ case 1: {
 owner.parameterEditors[1]->set(static_cast<double>(static_cast<float>(0)));
 owner.parameterEditors[2]->set(static_cast<double>(static_cast<float>(1)));
     owner.state.storage().set("enabled", factoryStateValues()[1].at("enabled"));
+owner.state.storage().set("gates", factoryStateValues()[1].at("gates"));
 owner.state.storage().set("groups", factoryStateValues()[1].at("groups"));
+owner.state.storage().set("level", factoryStateValues()[1].at("level"));
 owner.state.storage().set("precise", factoryStateValues()[1].at("precise"));
+owner.state.storage().set("seed", factoryStateValues()[1].at("seed"));
 owner.state.storage().set("selectedPreset", factoryStateValues()[1].at("selectedPreset"));
 owner.state.storage().set("signedValue", factoryStateValues()[1].at("signedValue"));
+owner.state.storage().set("steps", factoryStateValues()[1].at("steps"));
 owner.state.storage().set("unsignedValue", factoryStateValues()[1].at("unsignedValue"));
     break;
   } default: break; }

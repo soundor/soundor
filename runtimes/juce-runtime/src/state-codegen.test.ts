@@ -34,7 +34,7 @@ const config = resolveConfig({
       id: 'warm',
       name: 'Warm',
       parameters: { gain: 0.75, mode: 'b' },
-      state: { selectedPreset: 'Warm' },
+      state: { selectedPreset: 'Warm', steps: [7, 5] },
     },
   ],
   parameterGroups: { output: { label: 'Output' } },
@@ -65,14 +65,19 @@ const config = resolveConfig({
     },
     // The processor owns them (JuceStateTests.cpp publishes one).
     events: { bandChanged: { band: 'Band', index: 'uint32' } },
-    channels: { meter: { type: 'buffer<float32>', maxLength: 4 } },
+    streams: { meter: { type: 'buffer<float32>', maxLength: 4 } },
   },
   state: {
     signedValue: { type: 'int64', default: -9223372036854775808n },
     unsignedValue: { type: 'uint64', default: 18446744073709551615n },
     precise: { type: 'float64', default: Number('0.000012345678901234567') },
     selectedPreset: { type: 'string?', default: null },
-    enabled: { type: 'boolean', default: true },
+    enabled: { type: 'boolean', default: true, audio: true },
+    // What the processing reads (\`audio: true\`), as JuceStateTests.cpp checks.
+    level: { type: 'float32', default: 0.5, audio: true },
+    seed: { type: 'uint64', default: 3n, audio: true },
+    steps: { type: 'int32[]', default: [1, 2, 3], audio: true, maxLength: 4 },
+    gates: { type: 'boolean[]', default: [true], audio: true, maxLength: 3 },
     groups: {
       type: 'Group[]',
       default: [

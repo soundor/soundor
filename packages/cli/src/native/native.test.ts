@@ -66,7 +66,7 @@ describe('the generated Rust contract', () => {
     );
   });
 
-  it('types a config without parameters, channels or audio', async () => {
+  it('types a config without parameters, streams or audio', async () => {
     const dir = await project(`export default {
       plugin: { id: 'dev.soundor.empty', name: 'Empty' },
       runtimes: [],

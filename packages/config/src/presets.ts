@@ -1,7 +1,7 @@
 import {
   describeState,
   record,
-  stateValue,
+  stateFieldValue,
   stateJson,
   type StateDeclarations,
   type NativeApiDeclaration,
@@ -126,9 +126,9 @@ export function resolvePresets(
     const persistent: Record<string, unknown> = {};
     for (const field of schema.fields) {
       try {
-        persistent[field.name] = stateValue(
+        persistent[field.name] = stateFieldValue(
           schema,
-          field.type,
+          field,
           fields && Object.hasOwn(fields, field.name)
             ? fields[field.name]
             : field.default,

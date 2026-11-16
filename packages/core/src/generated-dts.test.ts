@@ -99,7 +99,7 @@ const config: CoreSoundorConfig = {
       presetLoaded: { path: 'string', preset: 'Preset?' },
       ready: {},
     },
-    channels: {
+    streams: {
       spectrum: { type: 'buffer<float32>', maxLength: 512 },
       level: { type: 'float32' },
     },
@@ -113,7 +113,7 @@ import { parameters, type Parameter } from 'soundor:parameters';
 import * as fs from 'soundor:fs';
 import { env } from 'soundor:env';
 import { plugin, environment, getHostState as snapshot, subscribeHostState as subscribe } from 'soundor:host';
-import { channels, events, loadPreset, measure, setSolo, type Level, type NativeChannel, type NativeEvent, type Preset } from 'soundor:native';
+import { streams, events, loadPreset, measure, setSolo, type Level, type NativeStream, type NativeEvent, type Preset } from 'soundor:native';
 import { storage } from 'soundor:storage';
 import { clipboard, createCanvas, createImage, createText, createTextInput, createView, pressable, root, type PointerEvent as UiPointerEvent, type UiNode } from 'soundor:ui';
 
@@ -137,23 +137,23 @@ events.missing.subscribe(() => {});
 // @ts-expect-error event fields are typed
 events.presetLoaded.subscribe(({ path }) => { const wrong: number = path; void wrong; });
 
-const spectrum: Float32Array | undefined = channels.spectrum.get();
+const spectrum: Float32Array | undefined = streams.spectrum.get();
 void spectrum;
-const stopLevel: () => void = channels.level.subscribe((value, sequence) => {
+const stopLevel: () => void = streams.level.subscribe((value, sequence) => {
   const level: number = value;
   const count: number = sequence;
   void level;
   void count;
 });
 stopLevel();
-const unbound: NativeChannel<Float32Array> = channels.spectrum;
+const unbound: NativeStream<Float32Array> = streams.spectrum;
 const { get: snapshotOf, subscribe: subscribeTo } = unbound;
 void snapshotOf;
 void subscribeTo;
-// @ts-expect-error channels are declared ones only
-channels.missing.get();
-// @ts-expect-error channel values are typed
-const wrongLevel: string | undefined = channels.level.get();
+// @ts-expect-error streams are declared ones only
+streams.missing.get();
+// @ts-expect-error stream values are typed
+const wrongLevel: string | undefined = streams.level.get();
 void wrongLevel;
 
 const selected: string | null = state.selectedPreset.get();

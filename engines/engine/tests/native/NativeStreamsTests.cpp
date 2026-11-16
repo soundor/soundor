@@ -1,11 +1,11 @@
-// The `channels` of the generated `soundor:native` (tests/generated, from the
+// The `streams` of the generated `soundor:native` (tests/generated, from the
 // fixture in src/native-codegen.test.ts): latest values published by native
-// code on any one thread, taken by js::deliverChannels() on the context's.
+// code on any one thread, taken by js::deliverStreams() on the context's.
 
 #include "../support/Modules.h"
 
-#include <soundor/js/Channels.h>
 #include <soundor/js/Context.h>
+#include <soundor/js/Streams.h>
 #include <soundor/native/SoundorNative.h>
 #include <soundor/runtime/RuntimeHost.h>
 
@@ -63,7 +63,7 @@ namespace
 
     struct Fixture
     {
-        explicit Fixture(native::Channels& source, const js::RuntimeOptions& options = {}) : runtime(options)
+        explicit Fixture(native::Streams& source, const js::RuntimeOptions& options = {}) : runtime(options)
         {
             native::install(context, std::make_shared<Methods>(), events, source);
         }
@@ -71,8 +71,8 @@ namespace
         void run(const std::string& body)
         {
             const auto evaluated =
-                context.evaluateModule(soundor::test::module(std::string("import { channels } from 'soundor:native';\n"
-                                                                         "globalThis.channels = channels;\n")
+                context.evaluateModule(soundor::test::module(std::string("import { streams } from 'soundor:native';\n"
+                                                                         "globalThis.streams = streams;\n")
                                                              + body),
                                        "/test" + std::to_string(++counter) + ".js");
             REQUIRE_MESSAGE(evaluated.ok(), (evaluated.ok() ? "" : evaluated.error().toString()));
@@ -98,50 +98,50 @@ namespace
         int counter = 0;
     };
 
-    void publishRamp(native::Channels& channels, std::size_t length, float start)
+    void publishRamp(native::Streams& streams, std::size_t length, float start)
     {
         std::array<float, 8> values {};
         for (std::size_t index = 0; index < length; ++index)
             values.at(index) = start + static_cast<float>(index);
-        REQUIRE(channels.spectrum.publish(std::span<const float>(values.data(), length)));
+        REQUIRE(streams.spectrum.publish(std::span<const float>(values.data(), length)));
     }
 } // namespace
 
-TEST_SUITE("soundor:native channels")
+TEST_SUITE("soundor:native streams")
 {
-    TEST_CASE("exports one frozen channel per declaration, without a value at first")
+    TEST_CASE("exports one frozen stream per declaration, without a value at first")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
-        f.run("globalThis.names = Object.keys(channels).sort().join();");
+        f.run("globalThis.names = Object.keys(streams).sort().join();");
         CHECK(f.text("names") == "frames,level,spectrum");
-        CHECK(f.text("Object.isFrozen(channels) && Object.isFrozen(channels.level)") == "true");
-        CHECK(f.text("channels.level.get()") == "undefined");
-        CHECK(f.text("channels.spectrum.get()") == "undefined");
-        CHECK(f.text("(() => { try { channels.level.subscribe(null); } catch (e) { return e.name + ': ' + e.message; "
+        CHECK(f.text("Object.isFrozen(streams) && Object.isFrozen(streams.level)") == "true");
+        CHECK(f.text("streams.level.get()") == "undefined");
+        CHECK(f.text("streams.spectrum.get()") == "undefined");
+        CHECK(f.text("(() => { try { streams.level.subscribe(null); } catch (e) { return e.name + ': ' + e.message; "
                      "} })()")
-              == "TypeError: channels.level.subscribe() expects a function, got null");
-        CHECK(js::deliverChannels(f.context) == 0);
+              == "TypeError: streams.level.subscribe() expects a function, got null");
+        CHECK(js::deliverStreams(f.context) == 0);
     }
 
     TEST_CASE("delivers the newest value once, with its sequence number")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
-        f.run("globalThis.log = []; channels.level.subscribe((value, sequence) => log.push(value + '@' + sequence));");
+        f.run("globalThis.log = []; streams.level.subscribe((value, sequence) => log.push(value + '@' + sequence));");
         source.level.publish(0.25F);
         source.level.publish(0.5F);
         source.level.publish(0.75F);
         // Nothing runs JavaScript before the context's own thread delivers.
         CHECK(f.text("log.join()").empty());
-        CHECK(f.text("channels.level.get()") == "undefined");
-        CHECK(js::deliverChannels(f.context) == 1);
+        CHECK(f.text("streams.level.get()") == "undefined");
+        CHECK(js::deliverStreams(f.context) == 1);
         // The two before were coalesced: the sequence says how many.
         CHECK(f.text("log.join()") == "0.75@3");
-        CHECK(f.number("channels.level.get()") == 0.75);
-        CHECK(js::deliverChannels(f.context) == 0);
+        CHECK(f.number("streams.level.get()") == 0.75);
+        CHECK(js::deliverStreams(f.context) == 0);
         source.level.publish(1.0F);
-        CHECK(js::deliverChannels(f.context) == 1);
+        CHECK(js::deliverStreams(f.context) == 1);
         CHECK(f.text("log.join()") == "0.75@3,1@4");
         CHECK(source.level.statistics().published == 4);
         CHECK(source.level.statistics().taken == 2);
@@ -149,23 +149,23 @@ TEST_SUITE("soundor:native channels")
 
     TEST_CASE("buffers arrive as typed arrays of the length published")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
-        f.run("globalThis.log = []; channels.spectrum.subscribe((value) => log.push(value.constructor.name + ' ' + "
+        f.run("globalThis.log = []; streams.spectrum.subscribe((value) => log.push(value.constructor.name + ' ' + "
               "Array.from(value).join('/')));");
         publishRamp(source, 3, 1);
-        js::deliverChannels(f.context);
-        f.run("globalThis.held = channels.spectrum.get();");
+        js::deliverStreams(f.context);
+        f.run("globalThis.held = streams.spectrum.get();");
         publishRamp(source, 1, 9);
-        js::deliverChannels(f.context);
+        js::deliverStreams(f.context);
         // Too long for its storage: nothing is published.
         const std::vector<float> tooLong(9, 1.0F);
         CHECK_FALSE(source.spectrum.publish(tooLong));
-        CHECK(js::deliverChannels(f.context) == 0);
+        CHECK(js::deliverStreams(f.context) == 0);
         CHECK(f.text("log.join('|')") == "Float32Array 1/2/3|Float32Array 9");
         // A value received earlier is never overwritten by a newer one.
         CHECK(f.text("Array.from(held).join('/')") == "1/2/3");
-        CHECK(f.text("channels.spectrum.get() === channels.spectrum.get()") == "true");
+        CHECK(f.text("streams.spectrum.get() === streams.spectrum.get()") == "true");
 
         // Written in place, without a copy.
         CHECK(source.spectrum.maxLength() == 8);
@@ -175,40 +175,40 @@ TEST_SUITE("soundor:native channels")
         slot[1] = 5;
         source.spectrum.commit(2);
         publishRamp(source, 0, 0);
-        js::deliverChannels(f.context);
-        CHECK(f.text("channels.spectrum.get().length") == "0");
+        js::deliverStreams(f.context);
+        CHECK(f.text("streams.spectrum.get().length") == "0");
         source.spectrum.buffer()[0] = 7;
         source.spectrum.commit(100);
-        js::deliverChannels(f.context);
+        js::deliverStreams(f.context);
         // A length beyond the storage commits all of it.
-        CHECK(f.text("channels.spectrum.get().length") == "8");
-        CHECK(f.text("channels.spectrum.get()[0]") == "7");
+        CHECK(f.text("streams.spectrum.get().length") == "8");
+        CHECK(f.text("streams.spectrum.get()[0]") == "7");
     }
 
     TEST_CASE("64-bit integers arrive as bigints, exactly")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
         f.run("");
         source.frames.publish(9007199254740993ULL);
-        js::deliverChannels(f.context);
-        CHECK(f.text("typeof channels.frames.get()") == "bigint");
-        CHECK(f.text("channels.frames.get()") == "9007199254740993");
+        js::deliverStreams(f.context);
+        CHECK(f.text("typeof streams.frames.get()") == "bigint");
+        CHECK(f.text("streams.frames.get()") == "9007199254740993");
     }
 
     TEST_CASE("a UI imported later starts with the value published last")
     {
-        native::Channels source;
+        native::Streams source;
         source.level.publish(0.1F);
         source.level.publish(0.2F);
         Fixture f(source);
-        CHECK(js::deliverChannels(f.context) == 0);
-        f.run("globalThis.calls = 0; channels.level.subscribe(() => ++globalThis.calls);");
+        CHECK(js::deliverStreams(f.context) == 0);
+        f.run("globalThis.calls = 0; streams.level.subscribe(() => ++globalThis.calls);");
         // get() has it from the start; subscribers hear only of newer values.
-        CHECK(f.number("channels.level.get()") == doctest::Approx(0.2));
-        CHECK(js::deliverChannels(f.context) == 0);
+        CHECK(f.number("streams.level.get()") == doctest::Approx(0.2));
+        CHECK(js::deliverStreams(f.context) == 0);
         CHECK(f.number("calls") == 0);
-        CHECK(f.text("channels.spectrum.get()") == "undefined");
+        CHECK(f.text("streams.spectrum.get()") == "undefined");
     }
 
     TEST_CASE("subscribers share a value; unsubscribing stops one; a throw is logged")
@@ -220,54 +220,54 @@ TEST_SUITE("soundor:native channels")
             if (level == js::LogLevel::Error)
                 errors.emplace_back(message);
         };
-        native::Channels source;
+        native::Streams source;
         Fixture f(source, options);
         f.run(R"(
             globalThis.seen = [];
-            globalThis.stopFirst = channels.spectrum.subscribe((value) => { seen.push('first'); globalThis.firstValue = value; });
-            channels.spectrum.subscribe((value) => { seen.push('second'); globalThis.same = globalThis.firstValue === value; });
-            channels.spectrum.subscribe(() => { throw new Error('boom'); });
-            channels.spectrum.subscribe((value) => { seen.push('after ' + (value === channels.spectrum.get())); });
+            globalThis.stopFirst = streams.spectrum.subscribe((value) => { seen.push('first'); globalThis.firstValue = value; });
+            streams.spectrum.subscribe((value) => { seen.push('second'); globalThis.same = globalThis.firstValue === value; });
+            streams.spectrum.subscribe(() => { throw new Error('boom'); });
+            streams.spectrum.subscribe((value) => { seen.push('after ' + (value === streams.spectrum.get())); });
         )");
         publishRamp(source, 2, 0);
-        js::deliverChannels(f.context);
+        js::deliverStreams(f.context);
         CHECK(f.text("seen.join()") == "first,second,after true");
         CHECK(f.text("same") == "true");
         REQUIRE(errors.size() == 1);
-        CHECK(errors[0].starts_with("soundor:native channel subscriber threw: Error: boom"));
+        CHECK(errors[0].starts_with("soundor:native stream subscriber threw: Error: boom"));
         f.run("stopFirst(); stopFirst();");
         publishRamp(source, 2, 0);
-        js::deliverChannels(f.context);
+        js::deliverStreams(f.context);
         CHECK(f.text("seen.join()") == "first,second,after true,second,after true");
     }
 
     TEST_CASE("every connected context receives the newest value")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture first(source);
         Fixture second(source);
-        first.run("globalThis.log = []; channels.level.subscribe((v, s) => log.push(s));");
-        second.run("globalThis.log = []; channels.level.subscribe((v, s) => log.push(s));");
+        first.run("globalThis.log = []; streams.level.subscribe((v, s) => log.push(s));");
+        second.run("globalThis.log = []; streams.level.subscribe((v, s) => log.push(s));");
         source.level.publish(1);
-        CHECK(js::deliverChannels(first.context) == 1);
+        CHECK(js::deliverStreams(first.context) == 1);
         source.level.publish(2);
-        CHECK(js::deliverChannels(second.context) == 1);
-        CHECK(js::deliverChannels(first.context) == 1);
-        CHECK(js::deliverChannels(second.context) == 0);
+        CHECK(js::deliverStreams(second.context) == 1);
+        CHECK(js::deliverStreams(first.context) == 1);
+        CHECK(js::deliverStreams(second.context) == 0);
         CHECK(first.text("log.join()") == "1,2");
         CHECK(second.text("log.join()") == "2");
     }
 
     TEST_CASE("a UI that does not take values accumulates nothing")
     {
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
-        f.run("globalThis.count = 0; channels.spectrum.subscribe(() => ++globalThis.count);");
+        f.run("globalThis.count = 0; streams.spectrum.subscribe(() => ++globalThis.count);");
         for (int index = 0; index < 10000; ++index)
             publishRamp(source, 8, static_cast<float>(index));
-        CHECK(js::deliverChannels(f.context) == 1);
+        CHECK(js::deliverStreams(f.context) == 1);
         CHECK(f.number("count") == 1);
-        CHECK(f.number("channels.spectrum.get()[0]") == 9999);
+        CHECK(f.number("streams.spectrum.get()[0]") == 9999);
         CHECK(source.spectrum.statistics().published == 10000);
         CHECK(source.spectrum.statistics().taken == 1);
     }
@@ -276,13 +276,13 @@ TEST_SUITE("soundor:native channels")
     {
         // Every value is `length` copies of its own number, `length` from 1
         // to 8 following it: a torn read would mix two values or lengths.
-        native::Channels source;
+        native::Streams source;
         Fixture f(source);
         f.run(R"(
             globalThis.problems = [];
             globalThis.received = 0;
             let last = 0;
-            channels.spectrum.subscribe((value, sequence) => {
+            streams.spectrum.subscribe((value, sequence) => {
                 ++globalThis.received;
                 if (sequence <= last) problems.push('sequence ' + sequence + ' after ' + last);
                 last = sequence;
@@ -309,32 +309,32 @@ TEST_SUITE("soundor:native channels")
             });
         std::size_t delivered = 0;
         while (! done.load())
-            delivered += js::deliverChannels(f.context);
+            delivered += js::deliverStreams(f.context);
         producer.join();
-        delivered += js::deliverChannels(f.context);
+        delivered += js::deliverStreams(f.context);
         CHECK(f.text("problems.slice(0, 5).join('; ')").empty());
         CHECK(f.number("received") == static_cast<double>(delivered));
         // The last value always arrives.
-        CHECK(f.number("channels.spectrum.get()[0]") == total - 1);
+        CHECK(f.number("streams.spectrum.get()[0]") == total - 1);
         CHECK(source.spectrum.statistics().published == total);
     }
 
     TEST_CASE("the triple buffer alone: every value taken is whole and newer")
     {
         // Without JavaScript, so it runs many more exchanges.
-        js::BufferChannel<std::uint32_t> channel(64);
-        const auto core = channel.core();
+        js::BufferStream<std::uint32_t> stream(64);
+        const auto core = stream.core();
         constexpr std::uint32_t total = 500000;
         std::thread producer(
-            [&channel]
+            [&stream]
             {
                 for (std::uint32_t number = 1; number <= total; ++number)
                 {
-                    const std::span<std::uint32_t> slot = channel.buffer();
+                    const std::span<std::uint32_t> slot = stream.buffer();
                     const std::size_t length = (number % 64) + 1;
                     for (std::size_t index = 0; index < length; ++index)
                         slot[index] = number;
-                    channel.commit(length);
+                    stream.commit(length);
                 }
             });
         std::uint64_t last = 0;
@@ -355,60 +355,60 @@ TEST_SUITE("soundor:native channels")
         }
         producer.join();
         CHECK(problems == 0);
-        CHECK(channel.statistics().published == total);
+        CHECK(stream.statistics().published == total);
     }
 
-    TEST_CASE("a context going, or the channels going, is clean either way")
+    TEST_CASE("a context going, or the streams going, is clean either way")
     {
-        native::Channels source;
+        native::Streams source;
         {
             Fixture f(source);
-            f.run("channels.level.subscribe(() => {});");
+            f.run("streams.level.subscribe(() => {});");
             source.level.publish(1);
             // Destroyed with a value not taken.
         }
         source.level.publish(2);
 
-        auto early = std::make_unique<native::Channels>();
+        auto early = std::make_unique<native::Streams>();
         Fixture f(*early);
-        f.run("globalThis.log = []; channels.level.subscribe((v) => log.push(v));");
+        f.run("globalThis.log = []; streams.level.subscribe((v) => log.push(v));");
         early->level.publish(3);
         early.reset();
         // What was published before they went is still delivered.
-        CHECK(js::deliverChannels(f.context) == 1);
+        CHECK(js::deliverStreams(f.context) == 1);
         CHECK(f.text("log.join()") == "3");
     }
 
     TEST_CASE("a reloaded UI starts with the latest value")
     {
-        native::Channels source;
+        native::Streams source;
         auto first = std::make_unique<Fixture>(source);
         first->run("");
         source.level.publish(1);
-        js::deliverChannels(first->context);
+        js::deliverStreams(first->context);
         source.level.publish(2);
         // Reload: the old context goes before taking 2.
         first.reset();
         Fixture second(source);
-        second.run("globalThis.log = []; channels.level.subscribe((v, s) => log.push(v + '@' + s));");
-        CHECK(second.number("channels.level.get()") == 2);
+        second.run("globalThis.log = []; streams.level.subscribe((v, s) => log.push(v + '@' + s));");
+        CHECK(second.number("streams.level.get()") == 2);
         source.level.publish(3);
-        js::deliverChannels(second.context);
+        js::deliverStreams(second.context);
         CHECK(second.text("log.join()") == "3@3");
     }
 
     TEST_CASE("RuntimeHost::tick delivers them")
     {
         native::Events events;
-        native::Channels source;
+        native::Streams source;
         RuntimeHost::Options options;
         options.installModules = [&events, &source](js::Context& context)
         { native::install(context, std::make_shared<Methods>(), events, source); };
         RuntimeHost host(std::move(options));
         REQUIRE(host.context()
-                    .evaluateModule(soundor::test::module("import { channels } from 'soundor:native';"
+                    .evaluateModule(soundor::test::module("import { streams } from 'soundor:native';"
                                                           "globalThis.values = [];"
-                                                          "channels.level.subscribe((v) => values.push(v));"),
+                                                          "streams.level.subscribe((v) => values.push(v));"),
                                     "/ui.js")
                     .ok());
         source.level.publish(0.5F);

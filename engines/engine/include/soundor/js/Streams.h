@@ -18,22 +18,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
 {
     class Context;
 
-    // Latest-value channels from native code to the UI: what a plugin's
-    // generated `native::Channels` (soundor.config `native.channels`) holds,
-    // and the `channels` of `soundor:native` read.
+    // Latest-value streams from native code to the UI: what a plugin's
+    // generated `native::Streams` (soundor.config `native.streams`) holds,
+    // and the `streams` of `soundor:native` read.
     //
-    // A channel is a number or a buffer of up to `maxLength` numbers that one
+    // A stream is a number or a buffer of up to `maxLength` numbers that one
     // producer keeps replacing (a meter's level, an analyzer's spectrum), and
     // the UI shows the latest of:
     //
     // - Realtime-safe publishing: publish(), buffer() and commit() take no
     //   lock, never allocate (a buffer's storage is allocated when the
-    //   channel is made), never wait and never run JavaScript: a copy into
+    //   stream is made), never wait and never run JavaScript: a copy into
     //   memory only the producer uses, then one atomic exchange. Call them
     //   from the audio callback.
-    // - One producer at a time: calls on a channel's producer side must not
+    // - One producer at a time: calls on a stream's producer side must not
     //   overlap (a host may move the audio callback between threads, never
-    //   run it twice at once). Different channels are independent.
+    //   run it twice at once). Different streams are independent.
     // - Never torn: the UI reads a value only once its producer committed it
     //   whole, from memory the producer no longer writes (a triple buffer:
     //   one slot the producer fills, one the UI reads, one handed between
@@ -42,17 +42,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
     //   skipped, never queued, so a slow, hidden or closed UI costs nothing
     //   and accumulates nothing. Every value carries its sequence number (1
     //   for the first), so a gap counts what was skipped.
-    // - The UI side runs on the UI thread only (deliverChannels(), from
-    //   RuntimeHost::tick): every context connected to a channel receives at
+    // - The UI side runs on the UI thread only (deliverStreams(), from
+    //   RuntimeHost::tick): every context connected to a stream receives at
     //   most one value of it per tick, the newest, and a context connected
     //   later starts with the value published last. Before any publication a
-    //   channel has no value.
+    //   stream has no value.
     //
-    // A channel outlives or not the contexts reading it: either may go first.
+    // A stream outlives or not the contexts reading it: either may go first.
 
     namespace detail
     {
-        enum class ChannelElement : std::uint8_t
+        enum class StreamElement : std::uint8_t
         {
             Int8,
             Uint8,
@@ -67,37 +67,37 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         };
 
         template <typename T>
-        consteval ChannelElement channelElement()
+        consteval StreamElement streamElement()
         {
             if constexpr (std::is_same_v<T, std::int8_t>)
-                return ChannelElement::Int8;
+                return StreamElement::Int8;
             else if constexpr (std::is_same_v<T, std::uint8_t>)
-                return ChannelElement::Uint8;
+                return StreamElement::Uint8;
             else if constexpr (std::is_same_v<T, std::int16_t>)
-                return ChannelElement::Int16;
+                return StreamElement::Int16;
             else if constexpr (std::is_same_v<T, std::uint16_t>)
-                return ChannelElement::Uint16;
+                return StreamElement::Uint16;
             else if constexpr (std::is_same_v<T, std::int32_t>)
-                return ChannelElement::Int32;
+                return StreamElement::Int32;
             else if constexpr (std::is_same_v<T, std::uint32_t>)
-                return ChannelElement::Uint32;
+                return StreamElement::Uint32;
             else if constexpr (std::is_same_v<T, std::int64_t>)
-                return ChannelElement::Int64;
+                return StreamElement::Int64;
             else if constexpr (std::is_same_v<T, std::uint64_t>)
-                return ChannelElement::Uint64;
+                return StreamElement::Uint64;
             else if constexpr (std::is_same_v<T, float>)
-                return ChannelElement::Float32;
+                return StreamElement::Float32;
             else
             {
-                static_assert(std::is_same_v<T, double>, "a channel holds a fixed-width number type");
-                return ChannelElement::Float64;
+                static_assert(std::is_same_v<T, double>, "a stream holds a fixed-width number type");
+                return StreamElement::Float64;
             }
         }
 
-        // What every channel shares, whatever its element type: three slots
+        // What every stream shares, whatever its element type: three slots
         // and the index of the one between producer and UI. Allocated when
-        // the channel is made; shared with the contexts reading it.
-        class ChannelCore
+        // the stream is made; shared with the contexts reading it.
+        class StreamCore
         {
         public:
             struct Slot
@@ -107,19 +107,19 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
                 std::uint64_t sequence = 0;
             };
 
-            ChannelCore(ChannelElement type, bool isBuffer, std::size_t capacity) noexcept
+            StreamCore(StreamElement type, bool isBuffer, std::size_t capacity) noexcept
                 : element(type), buffer(isBuffer), maxLength(capacity)
             {
             }
 
-            virtual ~ChannelCore() = default;
+            virtual ~StreamCore() = default;
 
-            ChannelCore(const ChannelCore&) = delete;
-            ChannelCore& operator=(const ChannelCore&) = delete;
-            ChannelCore(ChannelCore&&) = delete;
-            ChannelCore& operator=(ChannelCore&&) = delete;
+            StreamCore(const StreamCore&) = delete;
+            StreamCore& operator=(const StreamCore&) = delete;
+            StreamCore(StreamCore&&) = delete;
+            StreamCore& operator=(StreamCore&&) = delete;
 
-            const ChannelElement element;
+            const StreamElement element;
             // A buffer (a typed array in JavaScript), not one number.
             const bool buffer;
             const std::size_t maxLength;
@@ -194,11 +194,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         };
 
         template <typename T>
-        class ChannelStorage final : public ChannelCore
+        class StreamStorage final : public StreamCore
         {
         public:
-            ChannelStorage(bool isBuffer, std::size_t capacity)
-                : ChannelCore(channelElement<T>(), isBuffer, capacity),
+            StreamStorage(bool isBuffer, std::size_t capacity)
+                : StreamCore(streamElement<T>(), isBuffer, capacity),
                   storage { std::vector<T>(capacity), std::vector<T>(capacity), std::vector<T>(capacity) }
             {
                 for (std::size_t index = 0; index < slots.size(); ++index)
@@ -212,7 +212,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         };
     } // namespace detail
 
-    struct ChannelStatistics
+    struct StreamStatistics
     {
         // Values published.
         std::uint64_t published = 0;
@@ -221,35 +221,35 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         std::uint64_t taken = 0;
     };
 
-    // The base of both kinds of channel: its shared state, for bindings.
-    class Channel
+    // The base of both kinds of stream: its shared state, for bindings.
+    class Stream
     {
     public:
-        Channel(const Channel&) = delete;
-        Channel& operator=(const Channel&) = delete;
-        Channel(Channel&&) = delete;
-        Channel& operator=(Channel&&) = delete;
+        Stream(const Stream&) = delete;
+        Stream& operator=(const Stream&) = delete;
+        Stream(Stream&&) = delete;
+        Stream& operator=(Stream&&) = delete;
 
-        [[nodiscard]] ChannelStatistics statistics() const noexcept
+        [[nodiscard]] StreamStatistics statistics() const noexcept
         {
             return { state->publishedCount(), state->takenCount() };
         }
 
-        [[nodiscard]] std::shared_ptr<detail::ChannelCore> core() const noexcept { return state; }
+        [[nodiscard]] std::shared_ptr<detail::StreamCore> core() const noexcept { return state; }
 
     protected:
-        explicit Channel(std::shared_ptr<detail::ChannelCore> core) : state(std::move(core)) {}
-        ~Channel() = default;
+        explicit Stream(std::shared_ptr<detail::StreamCore> core) : state(std::move(core)) {}
+        ~Stream() = default;
 
-        std::shared_ptr<detail::ChannelCore> state;
+        std::shared_ptr<detail::StreamCore> state;
     };
 
-    // A channel of one number.
+    // A stream of one number.
     template <typename T>
-    class ValueChannel final : public Channel
+    class ValueStream final : public Stream
     {
     public:
-        ValueChannel() : ValueChannel(std::make_shared<detail::ChannelStorage<T>>(false, 1)) {}
+        ValueStream() : ValueStream(std::make_shared<detail::StreamStorage<T>>(false, 1)) {}
 
         // Realtime-safe (see above).
         void publish(T value) noexcept
@@ -259,20 +259,20 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         }
 
     private:
-        explicit ValueChannel(std::shared_ptr<detail::ChannelStorage<T>> made) : Channel(made), storage(made.get()) {}
+        explicit ValueStream(std::shared_ptr<detail::StreamStorage<T>> made) : Stream(made), storage(made.get()) {}
 
-        detail::ChannelStorage<T>* storage;
+        detail::StreamStorage<T>* storage;
     };
 
-    // A channel of a buffer of up to maxLength() numbers.
+    // A stream of a buffer of up to maxLength() numbers.
     template <typename T>
-    class BufferChannel final : public Channel
+    class BufferStream final : public Stream
     {
     public:
-        // Allocates the channel's storage, three buffers of `capacity`
+        // Allocates the stream's storage, three buffers of `capacity`
         // elements (at least 1), its maxLength(): not realtime-safe.
-        explicit BufferChannel(std::size_t capacity)
-            : BufferChannel(std::make_shared<detail::ChannelStorage<T>>(true, std::max<std::size_t>(capacity, 1)))
+        explicit BufferStream(std::size_t capacity)
+            : BufferStream(std::make_shared<detail::StreamStorage<T>>(true, std::max<std::size_t>(capacity, 1)))
         {
         }
 
@@ -301,13 +301,13 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js
         void commit(std::size_t length) noexcept { storage->commit(length); }
 
     private:
-        explicit BufferChannel(std::shared_ptr<detail::ChannelStorage<T>> made) : Channel(made), storage(made.get()) {}
+        explicit BufferStream(std::shared_ptr<detail::StreamStorage<T>> made) : Stream(made), storage(made.get()) {}
 
-        detail::ChannelStorage<T>* storage;
+        detail::StreamStorage<T>* storage;
     };
 
     // On the context's UI thread: gives its JavaScript the newest value of
-    // every connected channel that has one it has not received. Returns how
+    // every connected stream that has one it has not received. Returns how
     // many values it delivered.
-    std::size_t deliverChannels(Context& context);
+    std::size_t deliverStreams(Context& context);
 } // namespace soundor::inline SOUNDOR_ABI_NAMESPACE::js

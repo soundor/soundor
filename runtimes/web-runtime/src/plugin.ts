@@ -298,7 +298,7 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
 
 /**
  * `soundor:native`: one export per declared method, each calling the
- * project's implementation directly, and the declared `events` and `channels`.
+ * project's implementation directly, and the declared `events` and `streams`.
  */
 function nativeModule(manifest: WebManifest, bridge: string): string {
   const methods = manifest.native.methods.map(
@@ -309,11 +309,11 @@ function nativeModule(manifest: WebManifest, bridge: string): string {
     manifest.native.events.length > 0
       ? 'export const events = nativeEvents();\n'
       : '';
-  const channels =
-    manifest.native.channels.length > 0
-      ? 'export const channels = nativeChannels();\n'
+  const streams =
+    manifest.native.streams.length > 0
+      ? 'export const streams = nativeStreams();\n'
       : '';
-  return `import { nativeChannels, nativeEvents, nativeMethod } from ${JSON.stringify(bridge)};\n${methods.join('')}${events}${channels}`;
+  return `import { nativeEvents, nativeMethod, nativeStreams } from ${JSON.stringify(bridge)};\n${methods.join('')}${events}${streams}`;
 }
 
 /** How the host loads the plugin UI: the CLI's bundle, imported as it is. */

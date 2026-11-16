@@ -1,6 +1,6 @@
 # The analyzer's audio processing, in Rust: it passes its audio through and
 # publishes the spectrum and peak of what it hears to the UI, through
-# soundor.config.ts's native channels.
+# soundor.config.ts's native streams.
 [package]
 name = "soundor-analyzer"
 version = "0.1.0"
@@ -8,7 +8,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-# Soundor's SDK, with the channels of soundor.config.ts, written by
+# Soundor's SDK, with the streams of soundor.config.ts, written by
 # `soundor gen` (which `soundor dev` and `soundor build` run).
 soundor = { path = "../.soundor/generated/rust/soundor" }
 

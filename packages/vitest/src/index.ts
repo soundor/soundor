@@ -50,7 +50,7 @@ export interface SoundorOptions {
     | 'native'
     | 'nativeMethods'
     | 'nativeEvents'
-    | 'nativeChannels'
+    | 'nativeStreams'
     | 'parameters'
     | 'state'
   > & {
@@ -113,7 +113,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
       } = options.runtime ?? {};
       let runtime: Omit<
         RuntimeOptions,
-        'native' | 'nativeMethods' | 'nativeEvents' | 'nativeChannels'
+        'native' | 'nativeMethods' | 'nativeEvents' | 'nativeStreams'
       > = {
         ...given,
         ...(options.runtime?.parameters !== undefined && { parameters }),
@@ -224,7 +224,7 @@ export function soundor(options: SoundorOptions = {}): Plugin {
                 ...runtime,
                 nativeMethods: Object.keys(native.methods ?? {}),
                 nativeEvents: Object.keys(native.events ?? {}),
-                nativeChannels: Object.keys(native.channels ?? {}),
+                nativeStreams: Object.keys(native.streams ?? {}),
               },
             },
           },
@@ -362,9 +362,9 @@ function virtualModule(
       result.model.events.length > 0
         ? `\nexport const events = Object.freeze({ ${result.model.events.map((event) => `${JSON.stringify(event.name)}: Object.freeze({ subscribe: (listener) => getTestRuntime().subscribeNativeEvent(${JSON.stringify(event.name)}, listener) })`).join(', ')} });`
         : '';
-    const channels =
-      result.model.channels.length > 0
-        ? `\nexport const channels = Object.freeze({ ${result.model.channels.map((channel) => `${JSON.stringify(channel.name)}: Object.freeze({ get: () => getTestRuntime().nativeChannelValue(${JSON.stringify(channel.name)}), subscribe: (listener) => getTestRuntime().subscribeNativeChannel(${JSON.stringify(channel.name)}, listener) })`).join(', ')} });`
+    const streams =
+      result.model.streams.length > 0
+        ? `\nexport const streams = Object.freeze({ ${result.model.streams.map((stream) => `${JSON.stringify(stream.name)}: Object.freeze({ get: () => getTestRuntime().nativeStreamValue(${JSON.stringify(stream.name)}), subscribe: (listener) => getTestRuntime().subscribeNativeStream(${JSON.stringify(stream.name)}, listener) })`).join(', ')} });`
         : '';
     return (
       header +
@@ -375,7 +375,7 @@ function virtualModule(
         )
         .join('\n') +
       events +
-      channels
+      streams
     );
   }
   return [

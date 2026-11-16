@@ -83,7 +83,7 @@ namespace
     {
         explicit Fixture(native::Events& source, const js::RuntimeOptions& options = {}) : runtime(options)
         {
-            native::install(context, std::make_shared<NoMethods>(), source, channels);
+            native::install(context, std::make_shared<NoMethods>(), source, streams);
         }
 
         void run(const std::string& body)
@@ -108,7 +108,7 @@ namespace
             return value.value().asNumber();
         }
 
-        native::Channels channels;
+        native::Streams streams;
         js::Runtime runtime;
         js::Context context { runtime };
         int counter = 0;
@@ -353,9 +353,9 @@ TEST_SUITE("soundor:native events")
     {
         native::Events source;
         RuntimeHost::Options options;
-        native::Channels channels;
-        options.installModules = [&source, &channels](js::Context& context)
-        { native::install(context, std::make_shared<NoMethods>(), source, channels); };
+        native::Streams streams;
+        options.installModules = [&source, &streams](js::Context& context)
+        { native::install(context, std::make_shared<NoMethods>(), source, streams); };
         RuntimeHost host(std::move(options));
         REQUIRE(host.context()
                     .evaluateModule(soundor::test::module("import { events } from 'soundor:native';"

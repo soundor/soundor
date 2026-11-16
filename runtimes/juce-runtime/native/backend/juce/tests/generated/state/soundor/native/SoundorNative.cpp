@@ -59,10 +59,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
             }
         }
 
-        // Identifies this context's channel update function among its retained values.
-        const char channelsKey = 0;
-        // By channel number: the order install() connects them in.
-        constexpr std::array<const char*, 1> channelNames { "meter" };
+        // Identifies this context's stream update function among its retained values.
+        const char streamsKey = 0;
+        // By stream number: the order install() connects them in.
+        constexpr std::array<const char*, 1> streamNames { "meter" };
     } // namespace
 
     bool Events::bandChanged(events::BandChanged event) const
@@ -70,17 +70,17 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::native
         return publish(0, std::make_shared<const events::BandChanged>(std::move(event)));
     }
 
-    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Channels& channels)
+    void install(js::Context& context, std::shared_ptr<NativeApi> api, const Events& events, const Streams& streams)
     {
         bind::setContextData(context, &apiKey, std::move(api));
         bind::connectEvents(context, events, deliverEvent);
-        bind::connectChannels(context, { channels.meter.core() }, &channelsKey);
+        bind::connectStreams(context, { streams.meter.core() }, &streamsKey);
         js::registerNativeModule(context, "soundor:native",
                                  {
                                      [](bind::ContextState& ctx, jsi::Object& exports)
                                      {
                                          bind::installEvents(ctx, exports, eventNames, &eventsKey);
-                                         bind::installChannels(ctx, exports, channelNames, &channelsKey);
+                                         bind::installStreams(ctx, exports, streamNames, &streamsKey);
                                      },
                                      {},
                                      {},

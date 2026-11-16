@@ -7,10 +7,13 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::audio::Audio;
-use crate::channels::ChannelSink;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
-use crate::plugin::{Channels, PUBLISHED, Parameters, Publish};
+use crate::plugin::{
+    PUBLISHED, Parameters, Publish, ResourcePublishers, ResourceSlots, Resources, StateSnapshot,
+    Streams,
+};
 use crate::processor::AudioProcessor;
+use crate::streams::StreamSink;
 use crate::transport::Transport;
 
 /// The most buses, channels per bus, and frames per block a runtime may
@@ -56,7 +59,9 @@ pub(crate) struct Block<'a> {
     /// `None` keeps the last block's.
     pub parameters: Option<&'a [f64]>,
     pub transport: Transport,
-    pub channels: &'a dyn ChannelSink,
+    pub streams: &'a dyn StreamSink,
+    /// The state for this block; `None` is the config's defaults.
+    pub state: Option<&'a StateSnapshot>,
 }
 
 pub(crate) struct Instance<P: AudioProcessor> {
@@ -71,6 +76,11 @@ pub(crate) struct Instance<P: AudioProcessor> {
     output_chunk: Vec<*mut f32>,
     parameters: Parameters,
     published: [f64; PUBLISHED.len()],
+    // What a block without a state of its own sees.
+    default_state: Box<StateSnapshot>,
+    // Each resource's handoff; dropped with the instance, outside the audio
+    // thread, with whatever it still holds.
+    resources: ResourceSlots,
 }
 
 impl<P: AudioProcessor> Instance<P> {
@@ -86,6 +96,8 @@ impl<P: AudioProcessor> Instance<P> {
             output_chunk: Vec::new(),
             parameters: Parameters::default(),
             published: [f64::NAN; PUBLISHED.len()],
+            default_state: StateSnapshot::boxed_defaults(),
+            resources: ResourceSlots::default(),
         }
     }
 
@@ -116,7 +128,8 @@ impl<P: AudioProcessor> Instance<P> {
     }
 
     /// Outside the audio thread. A failed processor is replaced by a new one.
-    /// `parameters`, when given, are the current plain values `prepare` sees.
+    /// `parameters`, when given, are the current plain values `prepare` sees;
+    /// `state` the current state (`None`: the config's defaults).
     pub fn prepare(
         &mut self,
         sample_rate: f64,
@@ -124,6 +137,7 @@ impl<P: AudioProcessor> Instance<P> {
         inputs: &[usize],
         outputs: &[usize],
         parameters: Option<&[f64]>,
+        state: Option<&StateSnapshot>,
     ) -> Status {
         if !(sample_rate.is_finite() && sample_rate > 0.0)
             || max_frames == 0
@@ -167,7 +181,11 @@ impl<P: AudioProcessor> Instance<P> {
                 outputs: &self.outputs,
             },
             params: &self.parameters,
+            state: state.unwrap_or(&self.default_state),
+            resources: ResourcePublishers::new(&self.resources),
         };
+        // What the audio thread is done with, freed here.
+        self.resources.collect();
         let processor = &mut self.processor;
         match catch_unwind(AssertUnwindSafe(|| processor.prepare(&ctx))) {
             Ok(()) => {
@@ -219,6 +237,9 @@ impl<P: AudioProcessor> Instance<P> {
             }
             self.parameters.read(values);
         }
+        // SAFETY: only `process` acquires and reads, one call at a time; the
+        // last block's `Resources` are gone.
+        unsafe { self.resources.acquire() };
         start_in_place(
             &block,
             self.inputs.first().copied().unwrap_or(0),
@@ -247,12 +268,15 @@ impl<P: AudioProcessor> Instance<P> {
             };
             let mut ctx = ProcessContext {
                 params: &self.parameters,
+                state: block.state.unwrap_or(&self.default_state),
                 audio,
                 transport: &block.transport,
                 publish: Publish {
                     slots: &mut self.published,
                 },
-                channels: Channels::new(block.channels),
+                streams: Streams::new(block.streams),
+                // SAFETY: acquired at this block's start; `ctx` ends with it.
+                resources: unsafe { Resources::new(&self.resources) },
                 sample_rate: self.sample_rate,
             };
             let processor = &mut self.processor;

@@ -1,6 +1,9 @@
 //! A processor for the Web runtime's WebAssembly tests: the main bus times `gain`, the
 //! sidechain doubled into a second output bus when there is one, `peak`
-//! published, both channels filled, and a panic at `gain` 2.
+//! published, both streams filled (`history`: the gain, the tempo,
+//! `processingMode` and the length of `pattern` as the state has them, then
+//! the length of the `wavetable` resource `prepare` published), and a panic
+//! at `gain` 2.
 
 use soundor::prelude::*;
 
@@ -12,6 +15,10 @@ pub struct Processor {
 impl AudioProcessor for Processor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.max_frames = ctx.max_frames;
+        // A resource prepared outside the audio thread: one element a frame.
+        ctx.resources
+            .wavetable
+            .publish(vec![0.5f32; ctx.max_frames]);
     }
 
     fn process(&mut self, ctx: &mut ProcessContext) {
@@ -37,9 +44,22 @@ impl AudioProcessor for Processor {
                 *sample = side * 2.0;
             }
         }
-        ctx.publish.peak(if peak > 0.0 { (20.0 * peak.log10()).clamp(-96.0, 0.0) } else { -96.0 });
-        ctx.channels.level.publish(peak);
-        ctx.channels.history.publish(&[gain, ctx.transport.tempo.unwrap_or(0.0) as f32]);
+        ctx.publish.peak(if peak > 0.0 {
+            (20.0 * peak.log10()).clamp(-96.0, 0.0)
+        } else {
+            -96.0
+        });
+        ctx.streams.level.publish(peak);
+        ctx.streams.history.publish(&[
+            gain,
+            ctx.transport.tempo.unwrap_or(0.0) as f32,
+            ctx.state.processing_mode as f32,
+            ctx.state.pattern.len() as f32,
+            ctx.resources
+                .wavetable
+                .get()
+                .map_or(-1.0, |table| table.len() as f32),
+        ]);
     }
 }
 

@@ -53,7 +53,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
     {
         std::uint32_t parameters = 0;
         std::uint32_t published = 0;
-        std::uint32_t channels = 0;
+        std::uint32_t streams = 0;
+        // The size of the state snapshot (`audio: true` fields).
+        std::uint32_t stateSize = 0;
     };
 
     // The transport of a host that tells nothing: NaN, not playing, no
@@ -81,19 +83,22 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         // Off the audio thread: (re)prepares for a sample rate, the most
         // frames a block holds, and the buses' arrangement, allocating what
         // process() needs; the processor sees the parameters' current plain
-        // values. Returns the processor's status.
+        // values, and `state` (contract.stateSize bytes, or null for the
+        // config's defaults). Returns the processor's status.
         std::int32_t prepare(double sampleRate, int maxFrames, const RustBusLayout& layout,
-                             std::span<const double> parameters);
+                             std::span<const double> parameters, const void* state = nullptr);
 
         // Audio thread: processes `channels`' first `frames` frames in place
         // (the main output's channels hold the main input's on entry), with
         // the parameters' plain values, in the config's order. `published`
-        // receives the read-only parameters' values (NaN for none). Never
-        // allocates or locks. Any failure leaves the outputs silent; an
-        // unprepared processor silences every channel.
+        // receives the read-only parameters' values (NaN for none). `state`
+        // is the block's state snapshot (contract.stateSize bytes, unchanged
+        // for the call, as AudioState::acquire() returns it; null for the
+        // config's defaults). Never allocates or locks. Any failure leaves
+        // the outputs silent; an unprepared processor silences every channel.
         std::int32_t process(std::span<float* const> channels, int frames, std::span<const double> parameters,
                              std::span<double> published, const SoundorTransport& transport,
-                             const SoundorChannelSink* sink) noexcept;
+                             const SoundorStreamSink* sink, const void* state = nullptr) noexcept;
 
         // Audio thread, between blocks.
         std::int32_t reset() noexcept;

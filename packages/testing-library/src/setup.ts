@@ -76,12 +76,12 @@ export function emitNative(name: string, value?: unknown): void {
 }
 
 /**
- * Publish a declared native channel's latest value, as the plugin's native
- * code does: `channels.<name>.get()` of soundor:native returns it, and its
+ * Publish a declared native stream's latest value, as the plugin's native
+ * code does: `streams.<name>.get()` of soundor:native returns it, and its
  * subscribers receive it now with the next sequence number.
  */
-export function publishChannel(name: string, value: unknown): void {
-  getTestRuntime().publishNativeChannel(name, value);
+export function publishStream(name: string, value: unknown): void {
+  getTestRuntime().publishNativeStream(name, value);
 }
 
 /** Register a declared simulated native method with an ordinary function or vi.fn(). */

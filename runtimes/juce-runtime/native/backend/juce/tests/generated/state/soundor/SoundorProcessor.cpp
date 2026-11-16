@@ -9,11 +9,11 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
 {
     namespace
     {
-        // Realtime-safe, as the channels are: the Rust processing calls these
+        // Realtime-safe, as the streams are: the Rust processing calls these
         // on the audio thread.
-        void publishChannel(void* user, std::uint32_t index, double value)
+        void publishStream(void* user, std::uint32_t index, double value)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             switch (index)
             {
 
@@ -21,23 +21,23 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             }
         }
 
-        void* channelBuffer(void* user, std::uint32_t index, std::uint32_t* capacity)
+        void* streamBuffer(void* user, std::uint32_t index, std::uint32_t* capacity)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             *capacity = 0;
             switch (index)
             {
-                case 0: { const auto storage = channels.meter.buffer(); *capacity = static_cast<std::uint32_t>(storage.size()); return storage.data(); }
+                case 0: { const auto storage = streams.meter.buffer(); *capacity = static_cast<std::uint32_t>(storage.size()); return storage.data(); }
                 default: return nullptr;
             }
         }
 
-        void commitChannel(void* user, std::uint32_t index, std::uint32_t length)
+        void commitStream(void* user, std::uint32_t index, std::uint32_t length)
         {
-            [[maybe_unused]] auto& channels = *static_cast<native::Channels*>(user);
+            [[maybe_unused]] auto& streams = *static_cast<native::Streams*>(user);
             switch (index)
             {
-                case 0: channels.meter.commit(length); break;
+                case 0: streams.meter.commit(length); break;
                 default: break;
             }
         }
@@ -80,7 +80,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         publishedParameters = readOnly;
         parameterValues.assign(created.size(), 0.0);
         publishedValues.assign(readOnly.size(), std::numeric_limits<double>::quiet_NaN());
-        channelSink = { &nativeChannels, publishChannel, channelBuffer, commitChannel };
+        streamSink = { &nativeStreams, publishStream, streamBuffer, commitStream };
         if (! rust.valid())
             juce::Logger::writeToLog(juce::String("Soundor: ") + rust.error());
         published = std::make_unique<backend::PublishedParameters>(std::move(readOnly));
@@ -117,7 +117,8 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
     {
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);
+        const auto status = rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,
+                                         state.audioState().acquire());
         if (rust.valid() && status != SOUNDOR_STATUS_OK)
             juce::Logger::writeToLog("Soundor: the plugin's Rust processor could not be prepared (status " + juce::String(status) + "); it is silent");
     }
@@ -134,7 +135,9 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         transport.capture(playHead);
         for (std::size_t index = 0; index < processingParameters.size(); ++index)
             parameterValues[index] = static_cast<double>(processingParameters[index]->plain());
-        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), &channelSink);
+        // The newest state snapshot, unchanged until the next block.
+        backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), &streamSink,
+                             state.audioState().acquire());
         for (std::size_t slot = 0; slot < publishedParameters.size(); ++slot)
             if (! std::isnan(publishedValues[slot]))
                 publishedParameters[slot]->publish(publishedValues[slot]);

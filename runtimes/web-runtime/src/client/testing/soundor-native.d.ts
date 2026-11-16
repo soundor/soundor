@@ -122,7 +122,7 @@ declare module 'soundor:native' {
    * at most once a frame, the values published in between skipped. `get` and
    * `subscribe` need no `this` (`useSyncExternalStore(c.subscribe, c.get)`).
    */
-  export interface NativeChannel<T> {
+  export interface NativeStream<T> {
     /**
      * The latest value the UI received; the same one until a newer arrives,
      * and undefined until native code published one. A UI opened later starts
@@ -138,10 +138,10 @@ declare module 'soundor:native' {
     subscribe(listener: (value: T, sequence: number) => void): () => void;
   }
 
-  /** The channels declared under `native.channels`. */
-  export const channels: {
-    readonly frames: NativeChannel<bigint>;
-    readonly level: NativeChannel<number>;
-    readonly spectrum: NativeChannel<Float32Array>;
+  /** The streams declared under `native.streams`. */
+  export const streams: {
+    readonly frames: NativeStream<bigint>;
+    readonly level: NativeStream<number>;
+    readonly spectrum: NativeStream<Float32Array>;
   };
 }

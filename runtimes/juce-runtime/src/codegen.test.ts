@@ -252,31 +252,31 @@ describe('generateJuceSources', () => {
     );
   });
 
-  it('owns the native channels and installs them into every editor runtime', () => {
+  it('owns the native streams and installs them into every editor runtime', () => {
     const withNative = (native: ResolvedSoundorConfig['native']) =>
       fileMap({ ...config, native });
     const all = withNative({
       methods: { probe: {} },
       events: { ready: {} },
-      channels: { level: { type: 'float32' } },
+      streams: { level: { type: 'float32' } },
     });
     expect(all.get('soundor/SoundorProcessor.h')).toContain(
-      '        native::Channels nativeChannels;',
+      '        native::Streams nativeStreams;',
     );
     expect(all.get('soundor/SoundorEditor.cpp')).toContain(
-      'native::install(context, std::move(api), owner.nativeEvents, owner.nativeChannels);',
+      'native::install(context, std::move(api), owner.nativeEvents, owner.nativeStreams);',
     );
-    const channelsOnly = withNative({
-      channels: { spectrum: { type: 'buffer<float32>', maxLength: 512 } },
+    const streamsOnly = withNative({
+      streams: { spectrum: { type: 'buffer<float32>', maxLength: 512 } },
     });
-    expect(channelsOnly.get('soundor/SoundorEditor.cpp')).toContain(
-      'native::install(context, owner.createNativeApi(), owner.nativeChannels);',
+    expect(streamsOnly.get('soundor/SoundorEditor.cpp')).toContain(
+      'native::install(context, owner.createNativeApi(), owner.nativeStreams);',
     );
-    expect(channelsOnly.get('soundor/SoundorProcessor.h')).not.toContain(
+    expect(streamsOnly.get('soundor/SoundorProcessor.h')).not.toContain(
       'nativeEvents',
     );
     expect(fileMap(config).get('soundor/SoundorProcessor.h')).not.toContain(
-      'nativeChannels',
+      'nativeStreams',
     );
   });
 
@@ -390,16 +390,17 @@ describe('generateJuceSources', () => {
       'void prepareToPlay(double sampleRate, int samplesPerBlock) override final;',
     );
     expect(header).toContain('void reset() override final;');
-    // The contract the Rust build must match: parameters, read-only ones, channels.
+    // The contract the Rust build must match: parameters, read-only ones,
+    // streams, the state snapshot's size.
     expect(header).toContain(
-      `processor::RustProcessor rust { processor::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0 }, processor::linkedRustProcessor() };`,
+      `processor::RustProcessor rust { processor::RustContract { ${config.parameters.length}, ${config.parameters.filter((p) => p.access === 'readOnly').length}, 0, 0 }, processor::linkedRustProcessor() };`,
     );
     expect(source).toContain('transport.capture(playHead);');
     expect(source).toContain(
-      'backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), nullptr);',
+      'backend::processRust(rust, buffer, parameterValues, publishedValues, backend::rustTransport(playHead), nullptr,\n                             state.audioState().acquire());',
     );
     expect(source).toContain(
-      'rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues);',
+      'rust.prepare(sampleRate, samplesPerBlock, backend::rustBusLayout(*this), parameterValues,\n                                         state.audioState().acquire());',
     );
     expect(header).toContain(
       'static constexpr const char* pluginId = "com.acme.synth";',

@@ -17,8 +17,8 @@ impl AudioProcessor for Gain {
             }
         }
         ctx.publish.peak(-12.0);
-        ctx.channels.level.publish(gain);
-        ctx.channels
+        ctx.streams.level.publish(gain);
+        ctx.streams
             .history
             .publish(&[gain, ctx.transport.tempo.unwrap_or(0.0) as f32]);
     }
@@ -53,19 +53,19 @@ fn processes_in_place_in_its_own_memory() {
 }
 
 #[test]
-fn reports_channel_changes_once() {
+fn reports_stream_changes_once() {
     let mut handle = WasmHandle::<Gain>::new();
     handle.parameters()[0] = 0.75;
     handle.transport()[0] = 140.0;
     assert_eq!(handle.prepare(48_000.0, 64), Status::Ok);
     assert_eq!(handle.process(8), Status::Ok);
     // `history` (0) holds two elements; `level` (1) is a number.
-    assert_eq!(handle.take_channel_change(0), 3);
-    assert_eq!(handle.take_channel_change(1), 1);
-    assert_eq!(handle.take_channel_change(1), 0);
-    assert_eq!(handle.channel_value(1), 0.75);
+    assert_eq!(handle.take_stream_change(0), 3);
+    assert_eq!(handle.take_stream_change(1), 1);
+    assert_eq!(handle.take_stream_change(1), 0);
+    assert_eq!(handle.stream_value(1), 0.75);
     // SAFETY: two f32s were committed.
-    let history = unsafe { std::slice::from_raw_parts(handle.channel_buffer(0).cast::<f32>(), 2) };
+    let history = unsafe { std::slice::from_raw_parts(handle.stream_buffer(0).cast::<f32>(), 2) };
     assert_eq!(history, [0.75, 140.0]);
 }
 

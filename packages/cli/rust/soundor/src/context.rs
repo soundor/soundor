@@ -1,6 +1,8 @@
 use crate::audio::Audio;
 use crate::layout::Layout;
-use crate::plugin::{Channels, LAYOUTS, Parameters, Publish};
+use crate::plugin::{
+    LAYOUTS, Parameters, Publish, ResourcePublishers, Resources, StateSnapshot, Streams,
+};
 use crate::transport::Transport;
 
 /// The audio layout the host negotiated, among those soundor.config
@@ -57,6 +59,13 @@ pub struct PrepareContext<'a> {
     pub layout: ActiveLayout<'a>,
     /// The parameters' current values.
     pub params: &'a Parameters,
+    /// The persistent state the processing reads (`audio: true`), as it is
+    /// now.
+    pub state: &'a StateSnapshot,
+    /// The config's audio resources, to publish: prepare a wavetable or an
+    /// impulse response here, outside the audio thread, and `process` reads
+    /// it from the next block (`ctx.resources.wavetable.publish(table)`).
+    pub resources: ResourcePublishers<'a>,
 }
 
 /// What [`process`](crate::AudioProcessor::process) is given for one block.
@@ -68,14 +77,22 @@ pub struct ProcessContext<'a> {
     /// The parameters' values for this block, typed as soundor.config
     /// declares them. Automation reaches the processing once a block.
     pub params: &'a Parameters,
+    /// The persistent state the processing reads (`audio: true`), typed as
+    /// soundor.config declares it. The block sees one snapshot from start to
+    /// end, every field as of the same state change: a change reaches the
+    /// processing at the next block, and changes in between are coalesced.
+    pub state: &'a StateSnapshot,
     /// The block's audio.
     pub audio: Audio<'a>,
     /// The host's transport at the start of the block.
     pub transport: &'a Transport,
     /// Sets the config's read-only parameters (meters) the processing owns.
     pub publish: Publish<'a>,
-    /// The config's native channels, to publish to editors.
-    pub channels: Channels<'a>,
+    /// The config's native streams, to publish to editors.
+    pub streams: Streams<'a>,
+    /// The config's audio resources, as published before this block: each
+    /// the same throughout the block (`ctx.resources.wavetable.get()`).
+    pub resources: Resources<'a>,
     /// The sample rate, in hertz, as prepared.
     pub sample_rate: f64,
 }

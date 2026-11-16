@@ -97,7 +97,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
             std::uint64_t parameters = 0;       // parameter and host changes
             std::uint64_t modules = 0;          // Options::dispatchModules
             std::uint64_t events = 0;           // soundor:native events
-            std::uint64_t channels = 0;         // soundor:native channels
+            std::uint64_t streams = 0;          // soundor:native streams
             std::uint64_t jobs = 0;             // promise jobs
             std::uint64_t animationFrames = 0;  // requestAnimationFrame callbacks
             std::uint64_t nativeAnimations = 0; // C++ timeline, outside the JS time limit
@@ -125,7 +125,7 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE
         // Settles finished asynchronous work (fetch, files), runs due timers,
         // delivers parameter and host changes, the notifications of the
         // backend's modules (Options::dispatchModules), native events and the
-        // latest values of native channels, runs animation frame callbacks
+        // latest values of native streams, runs animation frame callbacks
         // (requestAnimationFrame), then runs pending jobs.
         void tick();
 

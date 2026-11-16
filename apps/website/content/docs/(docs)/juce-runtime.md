@@ -316,7 +316,13 @@ after.
   for the length of a call, and a Rust panic is caught at the boundary and
   becomes a status. The generated processor checks that the Rust build
   matches its config (the counts of parameters, read-only parameters and
-  channels): a stale one is refused and stays silent.
+  streams, and the size of its state snapshot): a stale one is refused and
+  stays silent.
+- **State.** The state fields declared with `audio: true` reach the
+  processing as `ctx.state`: the processor's `state` publishes a snapshot of
+  them whenever one changes, and `processBlock` hands the Rust processing the
+  newest, unchanged for the block, without a lock or a copy (see
+  [`soundor:state`](/docs/api/state#state-the-audio-processor-reads)).
 - **In place, without copies.** JUCE's buffer is passed as it is: the main
   output's channels hold the main input's on entry. Only an input that
   shares its buffer channel with another output (a sidechain beside an aux
@@ -369,26 +375,26 @@ logging how many; with no editor open, events are dropped. A publisher
 returns whether an editor took the event. The audio callback should not
 publish (it allocates): hand what it has to another thread first.
 
-Channels declared under `native.channels` are the processor's
-`nativeChannels` (a `soundor::native::Channels`, one member per channel: a
-`js::ValueChannel<T>` for a number, a `js::BufferChannel<T>` for a buffer),
+Streams declared under `native.streams` are the processor's
+`nativeStreams` (a `soundor::native::Streams`, one member per stream: a
+`js::ValueStream<T>` for a number, a `js::BufferStream<T>` for a buffer),
 which the Rust processing publishes to from the audio thread:
 
 ```rust
 fn process(&mut self, ctx: &mut ProcessContext) {
     // ...
-    ctx.channels.peak.publish(peak_decibels);
-    compute_spectrum(ctx.channels.spectrum.buffer_mut());
-    ctx.channels.spectrum.commit(BANDS);
+    ctx.streams.peak.publish(peak_decibels);
+    compute_spectrum(ctx.streams.spectrum.buffer_mut());
+    ctx.streams.spectrum.commit(BANDS);
 }
 ```
 
 Publishing takes no lock, never allocates and never waits: it writes into a
 slot of storage allocated when the processor was made and hands it over with
-one atomic exchange. One thread at a time publishes a channel. Each editor's
-runtime takes the newest value of every channel at its tick, on the message
+one atomic exchange. One thread at a time publishes a stream. Each editor's
+runtime takes the newest value of every stream at its tick, on the message
 thread; values in between are skipped, so with no editor open, or a slow one,
-nothing accumulates. See [`soundor:native`](/docs/api/native#channels).
+nothing accumulates. See [`soundor:native`](/docs/api/native#streams).
 
 JavaScript imports the methods from `soundor:native` with full types (from
 `.soundor/generated/native.d.ts`). Buffer arguments are lent to C++ without

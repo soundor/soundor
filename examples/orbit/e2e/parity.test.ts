@@ -105,7 +105,7 @@ function throughWasm(
 ) {
   const processor = new WasmProcessor(
     module,
-    { parameters: parameters.length, published: 0, channels: 0 },
+    { parameters: parameters.length, published: 0, streams: 0 },
     [2],
     [2],
     [],

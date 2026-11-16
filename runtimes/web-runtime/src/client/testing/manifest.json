@@ -851,7 +851,7 @@
         "fields": []
       }
     ],
-    "channels": [
+    "streams": [
       {
         "name": "frames",
         "kind": "number",

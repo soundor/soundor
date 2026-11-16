@@ -1,6 +1,9 @@
 import {
+  AUDIO_STATE_ELEMENT_SIZE,
+  describeAudioState,
   describeState,
   stateJson,
+  type AudioStateLayout,
   enumeratorName,
   type ResolvedSoundorConfig,
   type NativeType,
@@ -32,7 +35,44 @@ export function generateStateSources(config: ResolvedSoundorConfig) {
     { path: 'soundor/SoundorState.cpp', contents: stateBindings(schema) },
   ];
 }
+/** The C++ type of an audio state element. */
+function audioElementType(element: string): string {
+  return element === 'boolean'
+    ? 'bool'
+    : valueType({ kind: 'primitive', name: element } as NativeType);
+}
+
+/**
+ * PersistentState's \`publishAudio()\`: the audio fields' committed values,
+ * written into the snapshot at the offsets of \`describeAudioState()\`.
+ */
+function renderAudioWrites(layout: AudioStateLayout): string {
+  return layout.fields
+    .map((field) => {
+      const type = audioElementType(field.element);
+      const read = `backend::StateCodec<${field.kind === 'array' ? `std::vector<${type}>` : type}>::decode(backend::parseStateJson(store.committed(${quote(field.name)})))`;
+      if (field.kind === 'value')
+        return field.element === 'boolean'
+          ? `{ const std::uint8_t value = ${read} ? 1 : 0; std::memcpy(out.data() + ${field.offset}, &value, 1); }`
+          : `{ const ${type} value = ${read}; std::memcpy(out.data() + ${field.offset}, &value, sizeof value); }`;
+      const size = AUDIO_STATE_ELEMENT_SIZE[field.element];
+      const copy =
+        field.element === 'boolean'
+          ? `for (std::uint32_t index = 0; index < length; ++index) out[${field.dataOffset} + index] = std::byte { static_cast<std::uint8_t>(values[index] ? 1 : 0) };`
+          : `if (length > 0) std::memcpy(out.data() + ${field.dataOffset}, values.data(), std::size_t { length } * ${size});`;
+      return `{ const auto values = ${read};
+        const auto length = static_cast<std::uint32_t>(std::min<std::size_t>(values.size(), ${field.maxLength}));
+        std::memcpy(out.data() + ${field.offset}, &length, sizeof length);
+        ${copy} }`;
+    })
+    .join('\n      ');
+}
+
 function stateHeader(schema: StateSchema): string {
+  const audio = describeAudioState(schema);
+  const audioFields = audio.fields.map((field) => field.name);
+  const maxLength = (f: StateSchema['fields'][number]) =>
+    f.maxLength === undefined ? '' : `, std::size_t { ${f.maxLength} }`;
   const codecs = schema.types.map((t) => {
     const type = `native::${t.name}`;
     if (t.kind === 'enum')
@@ -66,14 +106,34 @@ function stateHeader(schema: StateSchema): string {
   return `${header}#pragma once
 #include <soundor/backend/JuceState.h>
 #include <soundor/native/SoundorNative.h>
+#include <soundor/processor/AudioState.h>
+#include <algorithm>
+#include <cstddef>
+#include <cstring>
 namespace ${ns}::backend { ${codecs.join('\n')} }
 namespace ${ns} {
   class PersistentState {
     backend::StateStore store;
   public:
-    explicit PersistentState(history::StateHistory* history = nullptr) : store(history)${schema.fields.length ? ', ' : ''}${schema.fields.map((f) => `${f.name}(store, ${quote(f.name)}, backend::StateCodec<${cppType(f.type)}>::decode(backend::parseStateJson(${quote(stateJson(f.default))})))`).join(', ')} {}
+    explicit PersistentState(history::StateHistory* history = nullptr) : store(history)${schema.fields.length ? ', ' : ''}${schema.fields.map((f) => `${f.name}(store, ${quote(f.name)}, backend::StateCodec<${cppType(f.type)}>::decode(backend::parseStateJson(${quote(stateJson(f.default))}))${maxLength(f)})`).join(', ')} {${
+      audioFields.length > 0
+        ? `
+      publishAudio();
+      ${audioFields.map((name) => `audioSubscriptions.push_back(store.subscribe(${quote(name)}, [this](const std::string&) { publishAudio(); }));`).join('\n      ')}
+    `
+        : ''
+    }}
+    ~PersistentState() { for (auto& unsubscribe : audioSubscriptions) unsubscribe(); }
+    PersistentState(const PersistentState&) = delete;
+    PersistentState& operator=(const PersistentState&) = delete;
     ${schema.fields.map((f) => `backend::StateField<${cppType(f.type)}> ${f.name};`).join('\n')}
     backend::StateStore& storage() { return store; }
+    // The fields the Rust processing reads (\`audio: true\`), as snapshots of
+    // ${audio.size} bytes (the layout of describeAudioState()): every change
+    // to one of them, from any path (a set, History, a restore, a preset),
+    // publishes all of them as committed, so a snapshot is coherent across
+    // fields. Audio thread: audioState().acquire() once a block.
+    processor::AudioState& audioState() { return audio; }
     juce::var snapshot() const {
       juce::var result(new juce::DynamicObject());
         auto* out = result.getDynamicObject();
@@ -87,7 +147,7 @@ namespace ${ns} {
         .map(
           (f) => `{
         auto raw = data.hasProperty(${quote(f.name)}) ? data[${quote(f.name)}] : backend::parseStateJson(${quote(stateJson(f.default))});
-        auto value = backend::StateCodec<${cppType(f.type)}>::decode(raw);
+        auto value = backend::StateCodec<${cppType(f.type)}>::decode(raw);${f.maxLength === undefined ? '' : `\n        backend::checkStateLength(value, std::size_t { ${f.maxLength} });`}
         out[${quote(f.name)}] = backend::stateJson(backend::StateCodec<${cppType(f.type)}>::encode(value));
       }`,
         )
@@ -99,6 +159,22 @@ namespace ${ns} {
       store.replace(values);
       store.restored();
     }
+  private:
+    processor::AudioState audio { ${audio.size} };
+    std::vector<std::function<void()>> audioSubscriptions;
+    // Under the store's lock, which every change holds or takes before it
+    // (History's, then the store's, then the snapshot's): snapshots are
+    // published in the order of the changes they hold.
+    void publishAudio() {${
+      audio.fields.length > 0
+        ? `
+      const std::lock_guard guard(store.mutex());
+      audio.publishWith([this](std::span<std::byte> out) {
+      ${renderAudioWrites(audio)}
+      });
+    `
+        : ''
+    }}
   };
   namespace persistent {
     void install(js::Context&, PersistentState&);

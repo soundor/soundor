@@ -53,8 +53,12 @@ mod tests {
 it. `process` divides input into blocks no larger than prepared. `channels`,
 `layout`, and `named_layout` choose layouts declared by your config.
 `parameters_mut` exposes typed values; `set_parameter` checks a plain value by
-ID. `transport_mut` supplies transport snapshots. `process_buses` and
-`try_process_buses` exercise sidechains and multiple outputs.
+ID. `transport_mut` supplies transport snapshots. `state_mut` is the
+`ctx.state` the processor reads (`audio: true` fields), the config's defaults
+to start with: change it as the plugin's state would, and the next block sees
+it (`processor.state_mut().pattern.set(&[60, 67])`, false when longer than its
+`maxLength`). `process_buses` and `try_process_buses` exercise sidechains and
+multiple outputs.
 
 Test unity and zero gain, negative samples, silence, mono and stereo, irregular
 and empty blocks, repeated blocks, changed parameters, sample-rate changes,

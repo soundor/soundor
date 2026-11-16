@@ -4,8 +4,10 @@
 
 #![allow(clippy::all, unused_imports)]
 
-use crate::channels::{BufferChannel, ChannelSink, ValueChannel};
+use crate::streams::{BufferStream, StreamSink, ValueStream};
 use crate::layout::Layout;
+use crate::resources::{Resource, ResourcePublisher, ResourceSlot};
+use crate::state::StateArray;
 
 /// The plugin's id (`plugin.id`).
 pub const PLUGIN_ID: &str = "dev.soundor.sdk-fixture";
@@ -134,26 +136,151 @@ impl Publish<'_> {
     }
 }
 
-/// The config's native channels (`native.channels`), in name order.
-pub(crate) const CHANNELS: [(&str, Option<usize>); 2] = [("history", Some(8)), ("level", None)];
+/// The config's native streams (`native.streams`), in name order.
+pub(crate) const STREAMS: [(&str, Option<usize>); 2] = [("history", Some(8)), ("level", None)];
 
-/// The config's native channels: the latest value the processing publishes,
+/// The config's native streams: the latest value the processing publishes,
 /// which every open editor reads once a frame.
-pub struct Channels<'a> {
+pub struct Streams<'a> {
     /// `history`: up to 8 float32s.
-    pub history: BufferChannel<'a, f32>,
+    pub history: BufferStream<'a, f32>,
     /// `level`: a float32.
-    pub level: ValueChannel<'a, f32>,
-    _sink: std::marker::PhantomData<&'a dyn ChannelSink>,
+    pub level: ValueStream<'a, f32>,
+    _sink: std::marker::PhantomData<&'a dyn StreamSink>,
 }
 
-impl<'a> Channels<'a> {
-    pub(crate) fn new(sink: &'a dyn ChannelSink) -> Self {
+impl<'a> Streams<'a> {
+    pub(crate) fn new(sink: &'a dyn StreamSink) -> Self {
         let _ = sink;
         Self {
-            history: BufferChannel::new(sink, 0),
-            level: ValueChannel::new(sink, 1),
+            history: BufferStream::new(sink, 0),
+            level: ValueStream::new(sink, 1),
             _sink: std::marker::PhantomData,
+        }
+    }
+}
+
+/// The persistent state the audio processing reads: the fields soundor.config
+/// declares with `audio: true`, as one snapshot the runtime hands every
+/// block. Its layout is the runtimes' (`describeAudioState()`).
+#[repr(C)]
+#[derive(Debug, PartialEq)]
+pub struct StateSnapshot {
+    /// `depth` (float64).
+    pub depth: f64,
+    /// `enabled` (boolean).
+    pub enabled: bool,
+    /// `pattern`: up to 8 int32s.
+    pub pattern: StateArray<i32, 8>,
+    /// `processingMode` (int32).
+    pub processing_mode: i32,
+    /// `seed` (uint64).
+    pub seed: u64,
+    /// `weights`: up to 3 float32s.
+    pub weights: StateArray<f32, 3>,
+}
+
+impl StateSnapshot {
+    /// The config's defaults, allocated where they are (an array may be large).
+    pub(crate) fn boxed_defaults() -> Box<Self> {
+        // SAFETY: every field is a number, a bool or a StateArray, which zero
+        // bytes are a valid value of.
+        #[allow(unused_mut)]
+        let mut state = unsafe { Box::<Self>::new_zeroed().assume_init() };
+        state.depth = 0.25;
+        state.enabled = true;
+        state.pattern.set(&[60, 64, 67]);
+        state.processing_mode = 1;
+        state.seed = 7;
+        state.weights.clear();
+        state
+    }
+}
+
+/// The snapshot's size, which the runtimes write.
+pub const STATE_SIZE: usize = 80;
+const _: () = assert!(std::mem::size_of::<StateSnapshot>() == STATE_SIZE);
+const _: () = assert!(std::mem::align_of::<StateSnapshot>() == 8);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, depth) == 0);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, enabled) == 8);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, pattern) == 12);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, processing_mode) == 48);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, seed) == 56);
+const _: () = assert!(std::mem::offset_of!(StateSnapshot, weights) == 64);
+
+/// The config's audio resources (`native.resources`): each one's handoff
+/// between its publishers and the audio thread.
+#[derive(Default)]
+pub(crate) struct ResourceSlots {
+    pub impulse: ResourceSlot<Box<[f64]>>,
+    pub wavetable: ResourceSlot<Box<[f32]>>,
+}
+
+impl ResourceSlots {
+    /// On the audio thread, at a block's start: takes each resource's
+    /// latest publication.
+    ///
+    /// # Safety
+    ///
+    /// One thread at a time, and no [`Resources`] of an earlier block lives on.
+    pub(crate) unsafe fn acquire(&self) {
+        // SAFETY: as the caller promises.
+        unsafe {
+            self.impulse.acquire();
+            self.wavetable.acquire();
+        }
+    }
+
+    /// Outside the audio thread: frees what the audio thread is done with.
+    pub(crate) fn collect(&self) {
+        self.impulse.collect();
+        self.wavetable.collect();
+    }
+}
+
+/// The config's audio resources, to publish from `prepare`: the
+/// processing reads each from the next block (`ctx.resources`).
+pub struct ResourcePublishers<'a> {
+    /// `impulse`: float64s.
+    pub impulse: ResourcePublisher<'a, f64>,
+    /// `wavetable`: float32s.
+    pub wavetable: ResourcePublisher<'a, f32>,
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> ResourcePublishers<'a> {
+    pub(crate) fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+            impulse: ResourcePublisher::new(&slots.impulse),
+            wavetable: ResourcePublisher::new(&slots.wavetable),
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
+
+/// The config's audio resources as one block reads them: the latest
+/// publication before the block, the same throughout it.
+pub struct Resources<'a> {
+    /// `impulse`: float64s.
+    pub impulse: Resource<'a, f64>,
+    /// `wavetable`: float32s.
+    pub wavetable: Resource<'a, f32>,
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> Resources<'a> {
+    /// # Safety
+    ///
+    /// The block holds `slots`' reader side, acquired at its start, for `'a`.
+    pub(crate) unsafe fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+            // SAFETY: as the caller promises.
+            impulse: unsafe { Resource::new(&slots.impulse) },
+            // SAFETY: as the caller promises.
+            wavetable: unsafe { Resource::new(&slots.wavetable) },
+            _slots: std::marker::PhantomData,
         }
     }
 }

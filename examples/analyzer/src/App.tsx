@@ -1,8 +1,8 @@
 // The analyzer's UI: the spectrum and the peak the plugin's audio code
-// publishes, read from soundor:native's channels.
+// publishes, read from soundor:native's streams.
 //
 // The spectrum arrives up to once a frame and is drawn straight into a
-// canvas from the channel's subscriber, without rendering React again; the
+// canvas from the stream's subscriber, without rendering React again; the
 // peak is React state (useSyncExternalStore), re-rendered as it changes.
 
 import {
@@ -19,7 +19,7 @@ import {
   useRef,
   useSyncExternalStore,
 } from 'react';
-import { channels } from 'soundor:native';
+import { streams } from 'soundor:native';
 import { subscribeVisibility, isVisible, type UiNode } from 'soundor:ui';
 
 import { hold } from './spectrum';
@@ -67,16 +67,16 @@ function Spectrum() {
   }, [size]);
 
   // Each new spectrum, drawn as it arrives. A spectrum the UI had no frame
-  // for was skipped by the channel, never queued.
+  // for was skipped by the stream, never queued.
   useEffect(() => {
     const show = (spectrum: Float32Array) => {
       bars.current = hold(bars.current, spectrum, FALL);
       const context = canvas.current?.getContext('2d');
       if (context && size.width > 0) draw(context, size, bars.current);
     };
-    const latest = channels.spectrum.get();
+    const latest = streams.spectrum.get();
     if (latest !== undefined) show(latest);
-    return channels.spectrum.subscribe(show);
+    return streams.spectrum.subscribe(show);
   }, [size]);
 
   return (
@@ -90,7 +90,7 @@ function Spectrum() {
 
 function Peak() {
   // get and subscribe work unbound, as useSyncExternalStore calls them.
-  const peak = useSyncExternalStore(channels.peak.subscribe, channels.peak.get);
+  const peak = useSyncExternalStore(streams.peak.subscribe, streams.peak.get);
   const text = peak === undefined || peak <= -96 ? '-∞' : peak.toFixed(1);
   return (
     <Text style={styles.peak} accessibilityLabel="Peak level">

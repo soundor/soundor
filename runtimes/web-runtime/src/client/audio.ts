@@ -6,9 +6,10 @@ import type { createProcessorNode } from '@soundor/engine/web/processor';
  * Input instances belong to the transport, and release their resources on
  * pause, replacement or disposal, including work that finishes after a switch.
  */
+import type { WebProcessorState } from './audio-state';
 import type { HostSnapshot, WebHost } from './host';
 import { Listeners } from './listeners';
-import type { WebNativeChannel } from './manifest';
+import type { WebNativeStream } from './manifest';
 import { publishParameter, type WebParameter } from './parameters';
 import { report } from './report';
 
@@ -21,10 +22,12 @@ export interface WebProcessorSource {
   readonly wasm: Uint8Array;
   /** Every parameter, in the config's order: the processor's values. */
   readonly parameters: readonly WebParameter[];
-  /** The native channels, in name order, as the processor numbers them. */
-  readonly channels: readonly WebNativeChannel[];
-  /** Publishes channel `index`'s value, as the processing published it. */
-  readonly publishChannel: (index: number, value: unknown) => void;
+  /** The native streams, in name order, as the processor numbers them. */
+  readonly streams: readonly WebNativeStream[];
+  /** Publishes stream `index`'s value, as the processing published it. */
+  readonly publishStream: (index: number, value: unknown) => void;
+  /** The state the processing reads (`audio: true`); none by default. */
+  readonly state?: WebProcessorState;
 }
 
 /** A parameter's value as the processor has it: a boolean's 0 or 1, a choice's index. */
@@ -386,15 +389,19 @@ export class WebAudioHost {
           contract: {
             parameters: parameters.length,
             published: readOnly.length,
-            channels: source.channels.length,
+            streams: source.streams.length,
+            state: source.state?.size ?? 0,
           },
           inputs: layout.inputChannels > 0 ? [layout.inputChannels] : [],
           outputs: [layout.outputChannels],
-          channels: source.channels.map(({ kind, element }) => ({
+          streams: source.streams.map(({ kind, element }) => ({
             kind,
             element,
           })),
           parameters: plain(),
+          ...(source.state !== undefined && source.state.size > 0
+            ? { state: source.state.snapshot() }
+            : {}),
           onPublished: (values) =>
             readOnly.forEach((parameter, slot) => {
               const value = values[slot];
@@ -404,9 +411,9 @@ export class WebAudioHost {
                   fromPlain(parameter, value) as never,
                 );
             }),
-          onChannels: (changes) => {
+          onStreams: (changes) => {
             for (const [index, value] of changes)
-              source.publishChannel(index, value);
+              source.publishStream(index, value);
           },
           onError: (message) =>
             this.#update({
@@ -431,6 +438,13 @@ export class WebAudioHost {
           );
         // Any that moved while it loaded.
         processor.setParameters(plain());
+        const state = source.state;
+        if (state !== undefined && state.size > 0) {
+          unsubscribe.push(
+            state.subscribe(() => processor.setState(state.snapshot())),
+          );
+          processor.setState(state.snapshot());
+        }
         let transport = transportValues(this.#host.snapshot());
         processor.setTransport(transport);
         unsubscribe.push(

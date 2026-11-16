@@ -2,6 +2,7 @@ import type {
   ProcessorNode,
   ProcessorNodeOptions,
 } from '@soundor/engine/web/processor';
+import { describeState, StateStore } from '@soundor/runtime-sdk/client';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -11,6 +12,7 @@ import {
   type WebAudioInputContext,
   type WebProcessorSource,
 } from './audio';
+import { processorState } from './audio-state';
 import { WebHost } from './host';
 
 // The engine's processor host, as the page would import it: whether the host
@@ -124,6 +126,7 @@ function fakeProcessor(ready: Promise<void> = Promise.resolve()) {
     ready,
     setParameters: vi.fn<(values: readonly number[]) => void>(),
     setTransport: vi.fn<(values: readonly number[]) => void>(),
+    setState: vi.fn<(snapshot: Uint8Array) => void>(),
     reset: vi.fn<() => void>(),
     dispose: vi.fn<() => void>(),
   } satisfies ProcessorNode;
@@ -212,8 +215,8 @@ describe('WebAudioHost', () => {
     const withProcessor = setup(async () => ({
       wasm: new Uint8Array([0, 97, 115, 109]),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     }));
     expect(engineProcessor.loaded).toBe(false);
     await withProcessor.audio.start();
@@ -228,8 +231,8 @@ describe('WebAudioHost', () => {
     const source = {
       wasm: new Uint8Array([0, 97, 115, 109]),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     };
     const { audio, host, context } = setup(async () => source, {
       audio: { inputChannels: 1, outputChannels: 2 },
@@ -244,7 +247,7 @@ describe('WebAudioHost', () => {
       wasm: source.wasm,
       inputs: [1],
       outputs: [2],
-      contract: { parameters: 0, published: 0, channels: 0 },
+      contract: { parameters: 0, published: 0, streams: 0 },
     });
     expect(fake.processor.setTransport).toHaveBeenCalled();
 
@@ -283,8 +286,8 @@ describe('WebAudioHost', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: list,
-        channels: [{ name: 'level', kind: 'number', element: 'float32' }],
-        publishChannel: (index, value) => published.push([index, value]),
+        streams: [{ name: 'level', kind: 'number', element: 'float32' }],
+        publishStream: (index, value) => published.push([index, value]),
       }),
       { createProcessorNode: fake.create },
     );
@@ -293,7 +296,8 @@ describe('WebAudioHost', () => {
     expect(fake.created.options?.contract).toEqual({
       parameters: 4,
       published: 1,
-      channels: 1,
+      streams: 1,
+      state: 0,
     });
     expect(list.map(plainValue)).toEqual([0.5, 1, 1, -60]);
     // Once ready, the values again: one may have moved while it loaded.
@@ -304,11 +308,93 @@ describe('WebAudioHost', () => {
     ]);
     fake.created.options!.onPublished!(Float64Array.of(-12));
     expect(byId['meter']!.get()).toBe(-12);
-    fake.created.options!.onChannels!([[0, 0.5]]);
+    fake.created.options!.onStreams!([[0, 0.5]]);
     expect(published).toEqual([[0, 0.5]]);
     audio.dispose();
     byId['gain']!.set(0.75);
     expect(fake.processor.setParameters).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends the processing the state it reads, once per batch of changes', async () => {
+    const store = new StateStore(
+      describeState({
+        tab: { type: 'int32', default: 0 },
+        mode: { type: 'int32', default: 2, audio: true },
+        pattern: {
+          type: 'uint8[]',
+          default: [1, 2],
+          audio: true,
+          maxLength: 4,
+        },
+      }),
+    );
+    const state = processorState(store);
+    // mode at 0; pattern's length at 4, its elements at 8.
+    expect(state.size).toBe(12);
+    const read = (bytes: Uint8Array) => {
+      const view = new DataView(bytes.buffer, bytes.byteOffset);
+      const length = view.getUint32(4, true);
+      return {
+        mode: view.getInt32(0, true),
+        pattern: [...bytes.subarray(8, 8 + length)],
+      };
+    };
+    const fake = fakeProcessor();
+    const { audio } = setup(
+      async () => ({
+        wasm: new Uint8Array(),
+        parameters: [],
+        streams: [],
+        publishStream: () => {},
+        state,
+      }),
+      { createProcessorNode: fake.create },
+    );
+    await audio.start();
+    expect(fake.created.options?.contract.state).toBe(12);
+    expect(read(fake.created.options!.state!)).toEqual({
+      mode: 2,
+      pattern: [1, 2],
+    });
+    const sent = () => fake.processor.setState.mock.calls.map(([b]) => read(b));
+    const settled = () => new Promise<void>((done) => queueMicrotask(done));
+    fake.processor.setState.mockClear();
+
+    // A transaction's fields arrive in one snapshot.
+    store.history.transaction('Both', () => {
+      store.fields['mode']!.set(5);
+      store.fields['pattern']!.set([9, 9, 9]);
+    });
+    await settled();
+    expect(sent()).toEqual([{ mode: 5, pattern: [9, 9, 9] }]);
+    // Rapid writes coalesce into the latest.
+    for (let value = 0; value < 10; value++) store.fields['mode']!.set(value);
+    await settled();
+    expect(sent().at(-1)).toEqual({ mode: 9, pattern: [9, 9, 9] });
+    expect(sent()).toHaveLength(2);
+    // History and restoration reach it too; UI-only fields do not. (The
+    // writes above were not recorded: undo reverts the transaction.)
+    store.history.undo();
+    await settled();
+    expect(sent().at(-1)).toEqual({ mode: 2, pattern: [1, 2] });
+    store.history.redo();
+    await settled();
+    expect(sent().at(-1)).toEqual({ mode: 5, pattern: [9, 9, 9] });
+    store.restore(store.prepare({ pattern: [] }));
+    await settled();
+    expect(sent().at(-1)).toEqual({ mode: 2, pattern: [] });
+    const count = sent().length;
+    store.fields['tab']!.set(3);
+    await settled();
+    expect(sent()).toHaveLength(count);
+    // Beyond maxLength, a write is refused, and nothing is sent.
+    expect(() => store.fields['pattern']!.set([1, 2, 3, 4, 5])).toThrow(
+      /maxLength of 4/,
+    );
+    audio.dispose();
+    store.fields['mode']!.set(1);
+    await settled();
+    expect(sent()).toHaveLength(count);
   });
 
   it('passes the input through when the processor cannot start', async () => {
@@ -320,8 +406,8 @@ describe('WebAudioHost', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: [],
-        channels: [],
-        publishChannel: () => {},
+        streams: [],
+        publishStream: () => {},
       }),
       { createProcessorNode: fake.create },
     );
@@ -481,8 +567,8 @@ describe('custom audio inputs', () => {
       async () => ({
         wasm: new Uint8Array(),
         parameters: [],
-        channels: [],
-        publishChannel: () => {},
+        streams: [],
+        publishStream: () => {},
       }),
       {
         createProcessorNode: fake.create,
@@ -704,8 +790,8 @@ it('cleans up a processor that finishes starting after disposal, without creatin
     async () => ({
       wasm: new Uint8Array(),
       parameters: [],
-      channels: [],
-      publishChannel: () => {},
+      streams: [],
+      publishStream: () => {},
     }),
     { createProcessorNode: fake.create },
   );

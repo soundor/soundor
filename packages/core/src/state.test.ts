@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import corpus from '../test-data/state-snapshots.json';
-import { describeState, StateStore, readSnapshot, stateJson } from './state';
+import {
+  describeAudioState,
+  describeState,
+  StateStore,
+  readSnapshot,
+  stateJson,
+  writeAudioState,
+} from './state';
 import { renderStateDts } from './state-dts';
 
 const native = {
@@ -296,4 +303,158 @@ it.each([
   expect(store.fields.count!.get()).toBe(0);
   expect(listener).not.toHaveBeenCalled();
   expect(store.gestureDepth('count')).toBe(0);
+});
+
+describe('state the audio processor reads', () => {
+  const audio = describeState(
+    {
+      tab: { type: 'int32', default: 0 },
+      mode: { type: 'int32', default: 1, audio: true },
+      on: { type: 'boolean', default: true, audio: true },
+      seed: { type: 'uint64', default: 9n, audio: true },
+      pattern: {
+        type: 'int16[]',
+        default: [3, 4],
+        audio: true,
+        maxLength: 5,
+      },
+      gates: { type: 'boolean[]', default: [], audio: true, maxLength: 2 },
+      labels: { type: 'string[]', default: [], maxLength: 2 },
+    },
+    native,
+  );
+
+  it('keeps audio and maxLength on the fields, false by default', () => {
+    const byName = Object.fromEntries(audio.fields.map((f) => [f.name, f]));
+    expect(byName['tab']!.audio).toBeUndefined();
+    expect(byName['mode']!.audio).toBe(true);
+    expect(byName['pattern']!.maxLength).toBe(5);
+    expect(byName['labels']!.audio).toBeUndefined();
+  });
+
+  it('lays the audio fields out as a C struct, in name order', () => {
+    const layout = describeAudioState(audio);
+    expect(
+      layout.fields.map((f) => [
+        f.name,
+        f.offset,
+        f.kind === 'array' ? f.dataOffset : undefined,
+      ]),
+    ).toEqual([
+      // gates: a uint32 length, then 2 bytes; padded to 4.
+      ['gates', 0, 4],
+      ['mode', 8, undefined],
+      ['on', 12, undefined],
+      // pattern: aligned for its uint32 length; int16 elements after it.
+      ['pattern', 16, 20],
+      // seed: aligned to 8 after pattern's 4 + 10 bytes.
+      ['seed', 32, undefined],
+    ]);
+    expect(layout.size).toBe(40);
+    expect(layout.align).toBe(8);
+    expect(describeAudioState(schema)).toEqual({
+      fields: [],
+      size: 0,
+      align: 1,
+    });
+  });
+
+  it('writes snapshots any runtime can read', () => {
+    const layout = describeAudioState(audio);
+    const bytes = new DataView(new ArrayBuffer(layout.size));
+    writeAudioState(
+      layout,
+      {
+        mode: -2,
+        on: true,
+        seed: 2n ** 64n - 1n,
+        pattern: [7],
+        gates: [false, true],
+      },
+      bytes,
+    );
+    expect(bytes.getUint32(0, true)).toBe(2);
+    expect([bytes.getUint8(4), bytes.getUint8(5)]).toEqual([0, 1]);
+    expect(bytes.getInt32(8, true)).toBe(-2);
+    expect(bytes.getUint8(12)).toBe(1);
+    expect(bytes.getUint32(16, true)).toBe(1);
+    expect(bytes.getInt16(20, true)).toBe(7);
+    expect(bytes.getBigUint64(32, true)).toBe(2n ** 64n - 1n);
+  });
+
+  it.each([
+    [
+      { type: 'string', default: '', audio: true },
+      /'string' cannot be audio state/,
+    ],
+    [
+      { type: 'int32?', default: null, audio: true },
+      /'int32\?' cannot be audio state/,
+    ],
+    [
+      {
+        type: 'Band',
+        default: { frequency: 1, gain: 1, label: null },
+        audio: true,
+      },
+      /'Band' cannot be audio state/,
+    ],
+    [
+      { type: 'string[]', default: [], audio: true, maxLength: 2 },
+      /'string\[\]' cannot be audio state/,
+    ],
+    [{ type: 'int32[]', default: [], audio: true }, /needs maxLength/],
+    [
+      { type: 'int32[][]', default: [], audio: true, maxLength: 2 },
+      /is not supported/,
+    ],
+    [
+      { type: 'int32', default: 0, maxLength: 2 },
+      /only an array has a maxLength/,
+    ],
+    [{ type: 'int32[]', default: [], maxLength: 0 }, /an integer from 1 to/],
+    [{ type: 'int32[]', default: [], maxLength: 1.5 }, /an integer from 1 to/],
+    [{ type: 'int32', default: 0, audio: 'yes' }, /audio: expected a boolean/],
+    [
+      { type: 'int32[]', default: [1, 2, 3], maxLength: 2 },
+      /3 elements, more than its maxLength of 2/,
+    ],
+  ])('rejects %j', (field, message) => {
+    expect(() => describeState({ field } as never, native)).toThrow(message);
+  });
+
+  it('rejects audio state larger than a snapshot may be', () => {
+    expect(() =>
+      describeState({
+        big: {
+          type: 'float64[]',
+          default: [],
+          audio: true,
+          maxLength: 1 << 20,
+        },
+      }),
+    ).toThrow(/take 8388616 bytes, more than 8388608/);
+  });
+
+  it('checks every value against its maxLength, on every path', () => {
+    const store = new StateStore(audio);
+    const pattern = store.fields['pattern']!;
+    pattern.set([1, 2, 3, 4, 5]);
+    expect(() => pattern.set([1, 2, 3, 4, 5, 6])).toThrow(
+      /state.pattern: 6 elements, more than its maxLength of 5/,
+    );
+    expect(pattern.get()).toEqual([1, 2, 3, 4, 5]);
+    expect(() => store.prepare({ pattern: [1, 2, 3, 4, 5, 6] })).toThrow(
+      /maxLength/,
+    );
+    expect(() => store.fields['labels']!.set(['a', 'b', 'c'])).toThrow(
+      /maxLength of 2/,
+    );
+    // A UI-only field without maxLength stays unbounded.
+    expect(() =>
+      new StateStore(
+        describeState({ list: { type: 'int32[]', default: [] } }),
+      ).fields['list']!.set(Array.from({ length: 1000 }, (_, i) => i)),
+    ).not.toThrow();
+  });
 });
