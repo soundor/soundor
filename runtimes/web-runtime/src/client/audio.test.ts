@@ -126,6 +126,7 @@ function fakeProcessor(ready: Promise<void> = Promise.resolve()) {
     ready,
     setParameters: vi.fn<(values: readonly number[]) => void>(),
     setTransport: vi.fn<(values: readonly number[]) => void>(),
+    publishResource: vi.fn<(index: number, bytes: Uint8Array) => void>(),
     setState: vi.fn<(snapshot: Uint8Array) => void>(),
     reset: vi.fn<() => void>(),
     dispose: vi.fn<() => void>(),

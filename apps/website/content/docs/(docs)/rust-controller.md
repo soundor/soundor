@@ -4,7 +4,7 @@ description: "soundor:native's methods in Rust: typed by the config, on the cont
 ---
 
 A plugin's Rust crate (`native/`) holds its [processor](/docs/rust-processor),
-on the audio thread, and optionally its **controller**, on the control thread
+on the audio thread, and its required **controller**, on the control thread
 beside the UI: the Rust behind the methods `soundor:native` exports. The
 controller has the plugin's parameters, persistent state, History and presets
 as the UI has them, keeps data of its own between calls, and runs async work
@@ -18,7 +18,7 @@ resources.
 | Reaches    | its block: parameters, state snapshot, I/O | parameters, persistent state, History, presets, the processor's resources |
 | Keeps      | its own fields (`&mut self`)               | two stores Soundor owns: `LocalStore` and `SharedStore`                   |
 | Exists     | once per plugin instance                   | once per plugin instance, editor open or not                              |
-| Runs where | the JUCE runtime and the Web runtime       | the JUCE runtime (natively); see [the Web runtime](#runtimes)             |
+| Runs where | the JUCE runtime and the Web runtime       | JUCE natively and the Web runtime through WASM                            |
 
 The [controller example](/docs/examples/controller) is a complete plugin.
 
@@ -100,7 +100,8 @@ impl NativeMethods for PluginController {
 
     async fn load_table(ctx: AsyncTaskContext<Self>, shape: Shape, size: u32) -> Result<u32, Error> {
         ctx.store.shared.requests.fetch_add(1, Ordering::Relaxed);
-        let table = soundor::unblock(move || render(shape, size)).await;
+        // Keep this computation bounded: browser futures run cooperatively.
+        let table = render(shape, size);
         ctx.processor.resources().wavetable.publish(table);
         ctx.schedule(move |ctx| {
             ctx.store.local.selected = Some(shape);
@@ -122,13 +123,14 @@ soundor::export!(PluginProcessor, PluginController);
 `PluginController` is a type, never a value: Soundor never constructs it, and
 its methods take their context rather than `self`. The names
 `PluginProcessor` and `PluginController` are conventions; any names do.
-`soundor::export!(PluginProcessor)`, without a controller, still exports a
-processor alone, and a runtime's own native method implementation (a C++
-`NativeApi` in the JUCE runtime) backs `soundor:native`.
+Every plugin exports both types through
+`soundor::export!(PluginProcessor, PluginController)`. A processor-only
+export is a compile error, including for plugins without native methods.
 
-`soundor init` scaffolds `native/src/controller.rs` when the config declares
-methods: every method, returning its type's default, so the crate compiles
-until they are written.
+`soundor init` always creates `native/src/lib.rs`, `controller.rs` and
+`processor.rs`. Only `lib.rs` registers the two modules. Configured methods
+get compiling default stubs; without methods, omit `impl NativeMethods`
+because the generated trait supplies its blanket implementation.
 
 ## The stores
 
@@ -197,7 +199,7 @@ are the control thread's, and `schedule()` reaches them. It refers to
 nothing an editor owns, so it stays valid when the editor that called the
 method closes.
 
-Its future is polled by the controller's worker: one thread per plugin
+Natively, its future is polled by the controller's worker: one thread per plugin
 instance, started by its first async call. The worker is an executor and
 nothing more: no timers, no I/O reactor. Blocking work (a file, a decoder,
 a long computation) goes to `soundor::unblock(|| ...)`, which runs it on a
@@ -344,12 +346,61 @@ string`), before the controller is called.
 
 ## Runtimes
 
-The JUCE runtime runs the controller natively, linked into the plugin with
-the processor. The [Web runtime](/docs/web-runtime) implements
-`soundor:native`'s methods in TypeScript (`runtimes/web/src/native.ts`), as
-before: the Rust controller is not compiled to WebAssembly, and a plugin with
-a Web runtime keeps both implementations. A browser-only project needs no
-controller. The processor, including the resources it reads, runs in both.
+The JUCE runtime links the controller into the plugin. The web runtime
+compiles that same crate to `wasm32-unknown-unknown`, creates one controller
+on the browser main thread, and checks its generated contract before use.
+Methods and stores have the same Rust types in both runtimes.
+
+Browser futures run cooperatively through wake-driven event-loop tasks,
+without workers or Tokio. `Send` futures and `Send + Sync` shared stores
+remain required for portability; the browser adapter never treats a
+non-`Send` JavaScript future as `Send`. Use asynchronous libraries compatible
+with those bounds, and keep CPU work bounded or yield between chunks.
+A CPU-heavy future that does not yield blocks browser rendering and input.
+`unblock()` is unavailable when compiling to WASM: blocking work is never
+silently run on the main thread. Native worker and `unblock()` behavior is
+unchanged.
+
+`schedule()` uses the same lazy queue and cancellation state machine in both
+runtimes. Browser callbacks run serially on the main thread in later
+event-loop tasks, with fresh contexts. They cannot interrupt a JS/WASM call.
+Closing the plugin cancels pending futures and scheduled callbacks; closing
+a UI call context rejects its pending calls without changing instance stores.
+A callback already running finishes normally.
+
+The browser's controller and AudioWorklet processor use separate WASM
+instances. Resource publications are serialized by generated slot/type,
+posted through the worklet's MessagePort, and installed between render
+quanta. No Rust pointer crosses instances. The processor acquires complete
+publications at block boundaries; replaced data is reclaimed outside the
+audio callback. The newest publication is retained until audio starts or
+restarts, and plugin destruction releases pending operations and resources.
+
+## Migrating existing projects
+
+Move processor code into `native/src/processor.rs`; keep module declarations
+and the two-type export in `lib.rs`. Add the default controller and stores
+even if there are no methods. Run `soundor gen` and rebuild both runtimes.
+
+Remove the production `WebNativeApi` implementation and the `native` option
+from `startSoundorWebHost`. For example, this former browser method:
+
+```ts
+export const native = { add: (a: number, b: number) => a + b };
+```
+
+becomes the implementation of the config's `add` method in `controller.rs`:
+
+```rust
+impl NativeMethods for PluginController {
+    fn add(_ctx: &mut TaskContext<Self>, a: f64, b: f64) -> f64 {
+        a + b
+    }
+}
+```
+
+The UI still imports `add` from `soundor:native`. Start the browser host
+with `await startSoundorWebHost()`; no JavaScript method glue is needed.
 
 ## Testing
 

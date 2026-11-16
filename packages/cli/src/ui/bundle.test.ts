@@ -59,6 +59,8 @@ describe('findUiEntry', () => {
     expect(findUiEntry(root)).toBe(join(root, 'src/main.ts'));
     await write('src/main.tsx', '');
     expect(findUiEntry(root)).toBe(join(root, 'src/main.tsx'));
+    await write('src/index.tsx', '');
+    expect(findUiEntry(root)).toBe(join(root, 'src/index.tsx'));
   });
 });
 

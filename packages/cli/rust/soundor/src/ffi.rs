@@ -438,7 +438,7 @@ pub use crate::controller_ffi as controller;
 /// WebAssembly, its module's exports (see [`crate::wasm`]), and natively the
 /// controller's C ABI. Invoke it once, in the crate's root, with the type
 /// that implements [`Processor`](crate::Processor), and the one that
-/// implements [`Controller`](crate::Controller) when the plugin has one:
+/// implements [`Controller`](crate::Controller):
 ///
 /// ```ignore
 /// soundor::export!(PluginProcessor, PluginController);
@@ -446,18 +446,18 @@ pub use crate::controller_ffi as controller;
 ///
 /// A controller must implement the config's generated
 /// [`NativeMethods`](crate::NativeMethods): every method soundor.config
-/// declares, with its types, which the compiler checks here. Without a
-/// controller (`soundor::export!(PluginProcessor)`), a runtime's own native
-/// method implementation, if any, backs `soundor:native`.
+/// declares, with its types, which the compiler checks here. A controller is
+/// required even when no methods are declared; the generated trait then
+/// provides a blanket implementation.
 #[macro_export]
 macro_rules! export {
     ($processor:ty) => {
-        $crate::export!(@processor $processor);
-        $crate::__export_controller!(none);
+        compile_error!("Every Soundor plugin requires a controller: use soundor::export!(PluginProcessor, PluginController)");
     };
     ($processor:ty, $controller:ty) => {
         $crate::export!(@processor $processor);
         $crate::__export_controller!($processor, $controller);
+        $crate::__export_wasm_controller!($controller);
     };
     (@processor $processor:ty) => {
         /// The processor's ABI, as `soundor::export!` defines it.

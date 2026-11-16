@@ -542,8 +542,8 @@ impl<C: NativeMethods> Instance<C> {
         Self {
             core: Arc::new(Core {
                 shared: C::Shared::default(),
-                control: ControlQueue::new(wake),
-                executor: Executor::default(),
+                control: ControlQueue::new(wake.clone()),
+                executor: Executor::new(wake),
                 processor: ProcessorHandle::new(slots),
             }),
             local: RefCell::new(C::Local::default()),
@@ -635,7 +635,15 @@ impl<C: NativeMethods> Instance<C> {
         }
         loop {
             match self.core.control.pop() {
-                None => return Ok(Ran::Nothing),
+                None => {
+                    // Browser futures and scheduled control callbacks get
+                    // separate turns; neither executes inside the other.
+                    #[cfg(target_arch = "wasm32")]
+                    if self.core.executor.poll_one() {
+                        return Ok(Ran::Task);
+                    }
+                    return Ok(Ran::Nothing);
+                }
                 // A cancelled callback is dropped: it never runs, and is no
                 // task of the control thread's.
                 Some(ControlItem::Task(task)) if !task.pending() => {}

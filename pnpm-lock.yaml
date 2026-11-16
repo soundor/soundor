@@ -536,6 +536,9 @@ importers:
       snippets:
         specifier: workspace:*
         version: link:../../examples/snippets
+      soundor:
+        specifier: workspace:^
+        version: link:../../packages/cli
       sucrase:
         specifier: 'catalog:'
         version: 3.35.1
@@ -732,6 +735,9 @@ importers:
       '@soundor/react':
         specifier: workspace:*
         version: link:../../packages/react
+      '@soundor/web-runtime':
+        specifier: workspace:*
+        version: link:../../runtimes/web-runtime
       react:
         specifier: 'catalog:'
         version: 19.3.1

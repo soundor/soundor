@@ -37,11 +37,8 @@ export function nativeScaffoldFiles(
   );
   const name = crateName(config.plugin.name);
   const native = describeNativeApi(config.native);
-  // A controller only when the config declares native methods for it.
-  const controller =
-    native.ok && native.model.methods.length > 0
-      ? renderControllerScaffold(native.model, RUST_NAMES)
-      : undefined;
+  if (!native.ok) throw new Error('Invalid native API');
+  const controller = renderControllerScaffold(native.model, RUST_NAMES);
   const processor = gain ? gainProcessor() : passThrough();
   return [
     { path: 'rust-toolchain.toml', contents: toolchain() },
@@ -49,41 +46,26 @@ export function nativeScaffoldFiles(
     { path: 'native/.gitignore', contents: '/target\n' },
     {
       path: 'native/src/lib.rs',
-      contents:
-        controller === undefined ? processor : withController(processor),
+      contents: `//! The plugin's Rust entry point.
+
+mod controller;
+mod processor;
+
+pub use controller::PluginController;
+pub use processor::PluginProcessor;
+
+soundor::export!(PluginProcessor, PluginController);
+`,
     },
-    ...(controller === undefined
-      ? []
-      : [
-          { path: 'native/src/controller.rs', contents: controller },
-          {
-            path: 'native/tests/controller.rs',
-            contents: controllerTests(name),
-          },
-        ]),
+    { path: 'native/src/controller.rs', contents: controller },
+    { path: 'native/src/processor.rs', contents: processor },
+    { path: 'native/tests/controller.rs', contents: controllerTests(name) },
     {
       path: 'native/tests/processor.rs',
       contents: gain ? gainTests(name) : passThroughTests(name),
     },
     { path: 'native/tests/realtime.rs', contents: realtimeTests(name) },
   ];
-}
-
-/** The processor's module, exporting the controller of `controller.rs` too. */
-function withController(processor: string): string {
-  return processor
-    .replace(
-      'use soundor::prelude::*;\n',
-      'use soundor::prelude::*;\n\nmod controller;\npub use controller::PluginController;\n',
-    )
-    .replace(
-      'soundor::export!(PluginProcessor);',
-      'soundor::export!(PluginProcessor, PluginController);',
-    )
-    .replace(
-      "//! Its parameters are soundor.config.ts's, typed",
-      "//! Its controller (controller.rs) backs soundor:native's methods.\n//! Its parameters are soundor.config.ts's, typed",
-    );
 }
 
 function controllerTests(name: string): string {
@@ -176,8 +158,6 @@ impl Processor for PluginProcessor {
         self.gain = target;
     }
 }
-
-soundor::export!(PluginProcessor);
 `;
 }
 
@@ -198,8 +178,6 @@ impl Processor for PluginProcessor {
 
     fn process(&mut self, _ctx: &mut ProcessContext) {}
 }
-
-soundor::export!(PluginProcessor);
 `;
 }
 

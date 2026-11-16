@@ -20,8 +20,10 @@ import {
 } from './parameters';
 import { isAssetId } from './protocol';
 import { ApplicationState } from './state';
+import type { WasmController } from './wasm-controller';
 
 export interface WebHostContext {
+  controller: WasmController | undefined;
   readonly manifest: WebManifest;
   /** The plugin's identity, frozen, as `soundor:host` exports it. */
   readonly plugin: {
@@ -47,6 +49,7 @@ export function createHostContext(
   );
   return {
     manifest,
+    controller: undefined,
     plugin: Object.freeze({
       ...manifest.plugin,
       version: manifest.plugin.version ?? '0.1.0',

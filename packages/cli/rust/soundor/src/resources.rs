@@ -85,6 +85,17 @@ impl<T: Send + Sync> ResourceSlot<T> {
         self.collect();
     }
 
+    #[cfg(target_arch = "wasm32")]
+    pub fn take_pending(&self) -> Option<T> {
+        let pointer = self.pending.swap(ptr::null_mut(), Ordering::AcqRel);
+        if pointer.is_null() {
+            None
+        } else {
+            // SAFETY: the swap transfers the pending allocation to us.
+            Some(*unsafe { Box::from_raw(pointer) })
+        }
+    }
+
     /// Outside the audio thread: frees the value the reader last replaced,
     /// if it has not been freed yet.
     pub fn collect(&self) {

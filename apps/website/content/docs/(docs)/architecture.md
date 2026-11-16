@@ -103,12 +103,12 @@ runtime lays out with the engine's Yoga, compiled to WebAssembly, and provides
 Soundor event routing and focus
 behavior, and root/overlay stacking inside the plugin viewport.
 
-One page or iframe owns one host context. The UI, `native.ts` and the host
+One page or iframe owns one host context. The UI, Rust controller services and the host
 controls share it directly. Native API calls are ordinary TypeScript calls;
 there is no serialization boundary. Storage and the private file tree use
 IndexedDB, isolated by plugin ID.
 
-The CLI still bundles `src/main.tsx`. Vite serves or builds the browser host and
+The CLI still bundles `src/index.tsx` (or an existing `src/main.tsx`). Vite serves or builds the browser host and
 resolves the bundle's `soundor:*` imports. See the
 [web runtime](/docs/web-runtime#vite-and-the-plugin-ui).
 

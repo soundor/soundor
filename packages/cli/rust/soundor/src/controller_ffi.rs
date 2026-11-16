@@ -35,8 +35,8 @@ use crate::processor::Processor;
 pub struct SoundorControllerInfo {
     pub size: u32,
     pub abi_version: u32,
-    /// 1 when the plugin exports a controller (`export!(P, C)`), 0 when it
-    /// exports a processor only.
+    /// Always 1 for plugins built with this SDK. Retained in the native
+    /// ABI so runtimes can diagnose an older processor-only build.
     pub present: u32,
     pub method_count: u32,
     /// The descriptor of its native methods and types, as the runtime's
@@ -420,20 +420,6 @@ macro_rules! __export_controller {
                 }
             }
         }
-    };
-    (none) => {
-        $crate::__export_controller!(@symbols false,
-            |_: *const SoundorControllerHost, _: *mut c_void| -> *mut c_void { ::std::ptr::null_mut() },
-            |_: *mut c_void| {},
-            |_: *mut c_void, _: u32, _: *const u8, _: usize, _: SoundorWriter| -> i32 {
-                $crate::ffi::controller::status::INVALID
-            },
-            |_: *mut c_void, _: u32, _: u64, _: *const u8, _: usize, _: SoundorWriter| -> i32 {
-                $crate::ffi::controller::status::INVALID
-            },
-            |_: *mut c_void, _: u64| {},
-            |_: *mut c_void, _: *mut u64, _: SoundorWriter| -> i32 { $crate::ffi::controller::ran::NOTHING }
-        );
     };
     ($processor:ty, $controller:ty) => {
         $crate::__export_controller!(@symbols true,

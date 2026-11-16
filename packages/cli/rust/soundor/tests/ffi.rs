@@ -40,7 +40,10 @@ impl Processor for Gain {
     }
 }
 
-soundor::export!(Gain);
+#[path = "support/controller.rs"]
+mod controller;
+use controller::PluginController;
+soundor::export!(Gain, PluginController);
 
 fn native() -> NativeProcessor {
     NativeProcessor::new(__soundor_exports::exports())

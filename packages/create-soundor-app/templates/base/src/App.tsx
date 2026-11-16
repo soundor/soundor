@@ -1,7 +1,7 @@
 // The plugin's UI: a React app, bundled by `soundor dev` / `soundor build` and
 // run inside the plugin view by Soundor's runtime (no browser, no DOM).
 
-import { Pressable, render, Text, useParameter, View } from '@soundor/react';
+import { Pressable, Text, useParameter, View } from '@soundor/react';
 import { useRef } from 'react';
 import { plugin } from 'soundor:host';
 import { parameters } from 'soundor:parameters';
@@ -9,7 +9,7 @@ import type { PointerEvent } from 'soundor:ui';
 
 const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
-function App() {
+export function App() {
   const gain = useParameter(parameters.gain);
   const drag = useRef<{ x: number; value: number } | null>(null);
 
@@ -66,5 +66,3 @@ function App() {
     </View>
   );
 }
-
-render(<App />);

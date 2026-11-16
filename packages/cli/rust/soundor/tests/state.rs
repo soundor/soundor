@@ -54,7 +54,10 @@ impl Recorder {
     }
 }
 
-soundor::export!(Recorder);
+#[path = "support/controller.rs"]
+mod controller;
+use controller::PluginController;
+soundor::export!(Recorder, PluginController);
 
 #[test]
 fn has_the_audio_fields_only_with_the_configs_defaults() {

@@ -1,20 +1,5 @@
-/**
- * `@soundor/web-runtime/client`: the Web host, in the browser. A Web host
- * project's entry (`runtimes/web/src/main.ts`) starts it:
- *
- *   import { startSoundorWebHost } from '@soundor/web-runtime/client';
- *   await startSoundorWebHost({ native: () => import('./native') });
- *
- * It renders the host page, installs the project's native API, then
- * evaluates the plugin UI bundle the CLI built, whose `soundor:*` imports
- * reach this page's host. Audio starts with the page's first gesture,
- * through the plugin's processor: its Rust crate (native/), compiled to
- * WebAssembly by the CLI and run in an AudioWorklet.
- *
- * A static build opened with `?embed` shows the plugin alone, filling the
- * page (a docs page's snippet), and with `?playground=<script>` runs the code
- * that script is sent instead of the plugin UI (see `playground.ts`).
- */
+/** The browser host: one Rust controller on the main thread, its Rust
+ * processor in a separate AudioWorklet, and the shared TypeScript UI. */
 
 import {
   presentation as defaultPresentation,
@@ -27,20 +12,15 @@ import { WebAudioHost, type WebAudioInput } from './audio';
 import { processorState } from './audio-state';
 import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
-import { installNative } from './native';
 import { nativeStreamPublishers } from './native-streams';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
 import { createShell, EMBED_PARAM, type Presentation } from './shell';
+import { WasmController } from './wasm-controller';
 
 export interface WebHostOptions {
   /** Where the host renders: by default `#soundor`, or else `<body>`. */
   readonly container?: HTMLElement;
-  /**
-   * Loads the project's `soundor:native` implementation (a module exporting
-   * `native`). Loaded after the host exists, before the plugin UI.
-   */
-  readonly native?: () => Promise<unknown>;
   /** Custom sources listed in the host panel's Audio → Input selector. */
   readonly audioInputs?: readonly WebAudioInput[];
   /**
@@ -87,6 +67,18 @@ export async function startSoundorWebHost(
     options.container ?? document.getElementById('soundor') ?? document.body;
   const context = hostContext();
   await context.state.ready;
+  if (processorWasm === undefined)
+    throw new Error(
+      'Missing native/ WebAssembly: rebuild the plugin with soundor build web',
+    );
+  const wasm = Uint8Array.from(atob(processorWasm), (char) =>
+    char.charCodeAt(0),
+  );
+  const controller = new WasmController(
+    await WebAssembly.compile(wasm),
+    context,
+  );
+  context.controller = controller;
   const audio = new WebAudioHost(context.host, {
     audio: context.manifest.audio,
     inputs: options.audioInputs,
@@ -99,6 +91,7 @@ export async function startSoundorWebHost(
         wasm: Uint8Array.from(atob(processorWasm), (char) =>
           char.charCodeAt(0),
         ),
+        resources: controller,
         parameters: context.parameters.list,
         streams,
         publishStream: (index, value) => {
@@ -111,85 +104,83 @@ export async function startSoundorWebHost(
   });
   // The plugin view, measured again when the shell scales it: the engine,
   // whose WebAssembly loads first.
-  await loadEngine();
-  const view = uiView();
-  const shell = createShell(container, {
-    pluginName: context.plugin.name,
-    presentation: options.presentation ?? pagePresentation(),
-    editor: context.manifest.editor,
-    onScale: () => view.measure(),
-    onGeometry: (geometry) => view.setGeometry(geometry),
-    host: context.host,
-    parameters: context.parameters,
-    parameterGroups: context.manifest.parameterGroups,
-    audio,
-  });
-
-  // The plugin view fills the viewport; soundor:ui renders into it, and its
-  // requestEditorSize() resizes it as the viewport's handle does.
-  view.mount(shell.viewport);
-  view.setEditorRequester((size) => shell.requestEditorSize(size));
-
-  const failed = (title: string, error: unknown): void => {
-    shell.showMessage(
-      title,
-      error instanceof Error
-        ? `${error.name}: ${error.message}`
-        : String(error),
-    );
-    report(error);
-  };
-
-  if (options.native !== undefined) {
-    try {
-      installNative(await options.native());
-    } catch (error) {
-      failed(
-        'The native API (runtimes/web/src/native.ts) failed to load.',
-        error,
-      );
-    }
-  }
-
-  let playground: URL | null = null;
   try {
-    playground = playgroundScript(new URL(window.location.href));
-  } catch (error) {
-    failed('The playground could not start.', error);
-  }
-  if (playground !== null) {
-    // The playground runs the code it is sent, not the project's UI.
+    await loadEngine();
+    const view = uiView();
+    const shell = createShell(container, {
+      pluginName: context.plugin.name,
+      presentation: options.presentation ?? pagePresentation(),
+      editor: context.manifest.editor,
+      onScale: () => view.measure(),
+      onGeometry: (geometry) => view.setGeometry(geometry),
+      host: context.host,
+      parameters: context.parameters,
+      parameterGroups: context.manifest.parameterGroups,
+      audio,
+    });
+
+    // The plugin view fills the viewport; soundor:ui renders into it, and its
+    // requestEditorSize() resizes it as the viewport's handle does.
+    view.mount(shell.viewport);
+    view.setEditorRequester((size) => shell.requestEditorSize(size));
+
+    const failed = (title: string, error: unknown): void => {
+      shell.showMessage(
+        title,
+        error instanceof Error
+          ? `${error.name}: ${error.message}`
+          : String(error),
+      );
+      report(error);
+    };
+
+    let playground: URL | null = null;
     try {
-      await startPlayground(playground, shell);
+      playground = playgroundScript(new URL(window.location.href));
     } catch (error) {
       failed('The playground could not start.', error);
     }
-  } else if (!hasUi) {
-    shell.showMessage(
-      'This plugin has no UI.',
-      'Add src/main.tsx to the project to give it one.',
-    );
-  } else {
-    try {
-      await loadUi();
-    } catch (error) {
-      failed('The plugin UI failed to load.', error);
+    if (playground !== null) {
+      // The playground runs the code it is sent, not the project's UI.
+      try {
+        await startPlayground(playground, shell);
+      } catch (error) {
+        failed('The playground could not start.', error);
+      }
+    } else if (!hasUi) {
+      shell.showMessage(
+        'This plugin has no UI.',
+        'Add src/index.tsx to the project to give it one.',
+      );
+    } else {
+      try {
+        await loadUi();
+      } catch (error) {
+        failed('The plugin UI failed to load.', error);
+      }
     }
-  }
 
-  return {
-    element: shell.element,
-    viewport: shell.viewport,
-    reset: () => context.state.reset(),
-    dispose: () => {
-      context.state.store.resetGestures();
-      void context.state.flush();
-      audio.dispose();
-      view.rootElement.remove();
-      view.setEditorRequester(null);
-      shell.remove();
-    },
-  };
+    return {
+      element: shell.element,
+      viewport: shell.viewport,
+      reset: () => context.state.reset(),
+      dispose: () => {
+        context.state.store.resetGestures();
+        void context.state.flush();
+        controller.dispose();
+        context.controller = undefined;
+        audio.dispose();
+        view.rootElement.remove();
+        view.setEditorRequester(null);
+        shell.remove();
+      },
+    };
+  } catch (error) {
+    controller.dispose();
+    context.controller = undefined;
+    audio.dispose();
+    throw error;
+  }
 }
 
 function pagePresentation(): Presentation {

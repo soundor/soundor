@@ -4,6 +4,4 @@
 // ready.
 import { startSoundorWebHost } from '@soundor/web-runtime/client';
 
-await startSoundorWebHost({
-  native: () => import('./native'),
-});
+await startSoundorWebHost({});

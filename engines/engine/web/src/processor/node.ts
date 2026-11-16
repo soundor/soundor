@@ -48,6 +48,8 @@ export interface ProcessorNode {
    * contract.state bytes, laid out as describeAudioState() says.
    */
   setState(snapshot: Uint8Array): void;
+  /** Posts a generated, owned resource payload for installation between blocks. */
+  publishResource(index: number, bytes: Uint8Array): void;
   reset(): void;
   dispose(): void;
 }
@@ -118,6 +120,7 @@ export async function createProcessorNode(
   };
   // Awaited or not: a failure also reaches onError.
   ready.catch(() => {});
+  let disposed = false;
   return {
     node,
     ready,
@@ -125,8 +128,20 @@ export async function createProcessorNode(
       post({ type: 'parameters', values: [...values] }),
     setTransport: (values) => post({ type: 'transport', values: [...values] }),
     setState: (snapshot) => post({ type: 'state', snapshot: snapshot.slice() }),
+    publishResource: (index, bytes) => {
+      if (disposed) return;
+      const payload = bytes.slice();
+      node.port.postMessage(
+        { type: 'resource', index, bytes: payload } satisfies WorkletCommand,
+        [payload.buffer],
+      );
+    },
     reset: () => post({ type: 'reset' }),
     dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      settle.reject(new Error('The processor was disposed'));
+      post({ type: 'dispose' });
       node.port.onmessage = null;
       node.port.close();
       node.disconnect();

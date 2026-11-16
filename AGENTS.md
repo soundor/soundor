@@ -13,7 +13,7 @@ same lifecycle phases. Two runtimes exist:
 - `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
   hosting an embedded Hermes runtime (interpreted, bytecode compiled at build
   time) that runs the UI bundle, and the project's Rust crate: its processor
-  on the audio thread and, optionally, its controller (the Rust behind
+  on the audio thread and its required controller (the Rust behind
   `soundor:native`'s methods) on the control thread. The UI is laid out with
   Yoga and drawn with Skia Ganesh on macOS, Windows and Linux, with CPU drawing
   as a fallback. Soundor's own compositor
@@ -107,7 +107,7 @@ builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
 Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`,
-`examples/controller` (a Rust controller; JUCE only, no web build), and
+`examples/controller` (the same Rust controller in native and web), and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
 `build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web

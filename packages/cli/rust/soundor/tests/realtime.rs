@@ -53,7 +53,10 @@ impl Processor for Meter {
     }
 }
 
-soundor::export!(Meter);
+#[path = "support/controller.rs"]
+mod controller;
+use controller::PluginController;
+soundor::export!(Meter, PluginController);
 
 /// One that allocates in `process`, as a processor must not.
 #[derive(Default)]

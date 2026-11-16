@@ -58,7 +58,7 @@ Runtime generation adds its own implementation contract:
 
 - JUCE generates CMake integration, processor/editor bases, and C++ native API
   declarations and bindings under `.soundor/generated/runtimes/juce/`.
-- Web generates a manifest and the `WebNativeApi` interface under
+- Web generates a manifest and the Rust controller contract under
   `.soundor/generated/runtimes/web/`.
 
 The shared UI TypeScript project includes the generated declarations and uses
@@ -68,7 +68,7 @@ with browser types. See [CLI bundling](/docs/cli/ui-bundle) and
 
 ## The UI bundle
 
-The CLI finds the project's `src/main.tsx` entry, with `.ts`, `.jsx`, and `.js`
+The CLI finds the project's `src/index.tsx` (or an existing `src/main.tsx`) entry, with `.ts`, `.jsx`, and `.js`
 alternatives, and bundles its npm imports with tsdown. `soundor:*` imports stay
 external for the runtime to supply.
 

@@ -213,7 +213,9 @@
 //! }
 //! ```
 //!
-//! A processor-only plugin (`soundor::export!(PluginProcessor)`) needs no
-//! controller, and a controller of a config without native methods no
-//! `impl NativeMethods`: the generated trait then has a blanket
-//! implementation (`soundor.config`-specific; see the CLI's codegen tests).
+//! A plugin must export a controller, even when it declares no methods.
+//!
+//! ```compile_fail
+//! struct PluginProcessor;
+//! soundor::export!(PluginProcessor);
+//! ```

@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { WebHostOptions } from './index';
 
+vi.mock('soundor:internal/processor', () => ({ default: 'AGFzbQEAAAA=' }));
+vi.mock('./wasm-controller', () => ({
+  WasmController: class {
+    dispose() {}
+  },
+}));
+
 afterEach(() => {
   document.body.replaceChildren();
   document.head.replaceChildren();

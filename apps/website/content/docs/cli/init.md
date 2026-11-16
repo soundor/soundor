@@ -9,16 +9,14 @@ soundor init [runtime] [--config <path>]
 
 `init` writes each configured runtime's host project into `runtimes/<id>/`:
 the files you own and edit. The JUCE runtime writes its CMake project, plugin
-processor and editor; the web runtime its page, Vite config and `native.ts`.
-Both run the project's Rust crate, `native/`, which `init` writes once too:
-its processor, and, when the config declares native methods, a
-[controller](/docs/rust-controller) (`native/src/controller.rs`) with every
-method returning its type's default until you write it.
+processor and editor; the web runtime its page and Vite config.
 
-| Argument / option | What it does                                                      |
-| ----------------- | ----------------------------------------------------------------- |
-| `runtime`         | Only this runtime (its `id`: `juce`, `web`). All of them without. |
-| `--config <path>` | The config to use, instead of finding `soundor.config.ts`.        |
+Every plugin gets `native/src/lib.rs` (module declarations and
+`soundor::export!(PluginProcessor, PluginController)`), `controller.rs`
+(the controller and its stores), and `processor.rs` (audio and MIDI
+processing). The controller is required even without native methods;
+`NativeMethods` then has a generated blanket implementation. Configured
+methods get compiling stubs in `controller.rs`.
 
 ## Good to know
 

@@ -235,7 +235,7 @@ function renderNativeMethods(list: readonly Method[]): string {
 ///
 /// A synchronous method runs on the control thread, inside the JavaScript
 /// call, with a [\`TaskContext\`] of the call. An \`async: true\` one returns a
-/// future the controller's worker polls, with an [\`AsyncTaskContext\`]; it
+/// future the native worker or browser event loop polls, with an [\`AsyncTaskContext\`]; it
 /// reaches the control thread with \`ctx.schedule()\`.`;
   if (list.length === 0)
     return `${intro}
@@ -404,7 +404,8 @@ export function renderControllerScaffold(
     return `    ${doc}
     ${method.model.async ? 'async ' : ''}${head} {${body ? `\n        // TODO: implement it.\n        ${body}\n    ` : '\n        // TODO: implement it.\n    '}}`;
   };
-  return `//! The plugin's controller: the Rust behind \`soundor:native\`'s methods,
+  return (
+    `//! The plugin's controller: the Rust behind \`soundor:native\`'s methods,
 //! on the control thread beside the UI. Each method soundor.config declares
 //! is one here, typed as declared (the compiler checks every one of them,
 //! from the generated \`NativeMethods\`); a synchronous one gets a
@@ -431,10 +432,9 @@ impl Controller for PluginController {
     type Shared = SharedStore;
 }
 
-impl NativeMethods for PluginController {
-${list.map(stub).join('\n\n')}
-}
-`;
+${list.length === 0 ? '' : `impl NativeMethods for PluginController {\n${list.map(stub).join('\n\n')}\n}`}
+`.trimEnd() + '\n'
+  );
 }
 
 /** The controller's part of `src/plugin.rs`. */

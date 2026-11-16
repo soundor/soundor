@@ -71,6 +71,13 @@ export interface WebManifest {
     readonly name: string;
     readonly version?: string;
   };
+  /** Exact generated Rust controller contract, checked before stores are created. */
+  readonly controller?: readonly number[];
+  /** Processor resources in the generated slot order. */
+  readonly resources?: readonly {
+    readonly name: string;
+    readonly element: WebNativeNumeric;
+  }[];
   readonly runtimeVersion?: string;
   readonly env?: Readonly<Record<string, string | boolean | number>>;
   /** The plugin view's size, from soundor.config's `editor`, every field decided. */

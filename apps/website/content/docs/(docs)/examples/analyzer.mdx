@@ -41,7 +41,7 @@ native: {
 
 ## The audio thread publishes
 
-`native/src/lib.rs` keeps the last 2048 samples, and every 1024 it windows
+`native/src/processor.rs` keeps the last 2048 samples, and every 1024 it windows
 them, runs an FFT (`native/src/fft.rs`, its tables made in `prepare`) and
 takes the loudest bin of each of 128 bands, written into the stream's own
 storage and then published whole:
