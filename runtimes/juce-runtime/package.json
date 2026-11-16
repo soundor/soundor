@@ -13,7 +13,8 @@
     "native/CMakeLists.txt",
     "native/SoundorPluginBundle.cmake",
     "native/SoundorRust.cmake",
-    "native/backend"
+    "native/backend",
+    "native/plugin"
   ],
   "type": "module",
   "sideEffects": false,
@@ -34,6 +35,7 @@
     "gen:webgl": "node scripts/webgl-codegen.mjs",
     "lint:native": "cd native && cmake --workflow --preset tidy",
     "test": "vitest run",
+    "test:packed": "pnpm build && node tests/packed.mjs",
     "test:plugin": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --config tests/plugin/soundor.config.ts",
     "test:plugin:audio": "node tests/plugin/audio.mjs",
     "test:plugin:debug": "soundor init --config tests/plugin/soundor.config.ts && soundor build juce --debug --config tests/plugin/soundor.config.ts",

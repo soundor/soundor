@@ -278,7 +278,7 @@ read the docs bundled with the installed package
   content-addressed cache; `SOUNDOR_ENGINE_WASM`), following the VST3 host's
   rules: integrity or network failures are errors, never a reason to build.
   See `contribute/web-engine.md` and the docs' `engine.md`.
-- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
+- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, the managed host in `native/plugin/` and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
   `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine
@@ -354,8 +354,10 @@ swizzle (see `contribute/apple-accessibility.md`).
 
 ### init vs gen ownership
 
-`init` writes user-owned host files once under `runtimes/<id>/` and never
-overwrites them. `gen` regenerates `.soundor/generated/` (deterministic,
+`init` creates the shared Rust crate once and never overwrites user files.
+First-party JUCE and Web hosts are package-managed; their `init` is a no-op.
+Third-party runtimes may write user-owned host files under `runtimes/<id>/`.
+`gen` regenerates `.soundor/generated/` (deterministic,
 `soundor gen --check`). Code that belongs to every plugin goes in the
 generated framework or the runtime package, not in `init` templates.
 

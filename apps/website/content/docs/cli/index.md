@@ -21,7 +21,7 @@ package manager: `pnpm exec soundor dev web`, or with the scripts, `pnpm dev`
 
 | Command                                      | What it does                                                        |
 | -------------------------------------------- | ------------------------------------------------------------------- |
-| [`soundor init [runtime]`](/docs/cli/init)   | Writes the runtimes' host projects, once: yours to edit.            |
+| [`soundor init [runtime]`](/docs/cli/init)   | Creates the Rust crate and initializes runtimes that need files.    |
 | [`soundor gen`](/docs/cli/gen)               | Regenerates the types and the runtimes' frameworks from the config. |
 | [`soundor dev <runtime>`](/docs/cli/dev)     | Develops with one runtime: builds, watches, reloads the UI.         |
 | [`soundor build [runtime]`](/docs/cli/build) | Builds the plugin for release, with every runtime or one.           |

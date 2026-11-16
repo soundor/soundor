@@ -56,6 +56,7 @@ describe('buildDoctorReport', () => {
       'ok',
       'ok',
       'ok',
+      'ok',
     ]);
   });
 
@@ -429,5 +430,23 @@ describe('buildDoctorReport', () => {
     const juce = check(report, 'JUCE');
     expect(juce.status).toBe('fail');
     expect(juce.suggestion).toMatch(/jucePath|JUCE_DIR/);
+  });
+});
+
+it('diagnoses a legacy host without requiring host initialization', async () => {
+  const fs = memoryFs('/proj');
+  const deps: DoctorDeps = { probe: ok, env: {}, engine: { version: '0.2.1' } };
+  expect(
+    check(await buildDoctorReport(fs, {}, deps), 'JUCE host'),
+  ).toMatchObject({
+    status: 'ok',
+    detail: expect.stringContaining('no initialization'),
+  });
+  await fs.write(fs.resolve('runtimes/juce/CMakeLists.txt'), 'custom');
+  expect(
+    check(await buildDoctorReport(fs, {}, deps), 'JUCE host'),
+  ).toMatchObject({
+    status: 'fail',
+    suggestion: expect.stringContaining('remove runtimes/juce yourself'),
   });
 });

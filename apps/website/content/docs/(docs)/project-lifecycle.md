@@ -11,7 +11,7 @@ runtime exposes the same five lifecycle phases.
 
 | Command                   | Purpose                                                                                            |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `soundor init [runtime]`  | Scaffold user-owned host files; preserve files that already exist                                  |
+| `soundor init [runtime]`  | Create the Rust crate and initialize runtimes that need files; preserve existing files             |
 | `soundor gen`             | Regenerate shared declarations and runtime-specific framework files                                |
 | `soundor gen --check`     | Verify generated output matches the current contract without writing it                            |
 | `soundor dev <runtime>`   | Generate development bindings, bundle and watch the UI, and run one runtime's development workflow |
@@ -30,7 +30,7 @@ useful for refreshing types in an editor.
 | --------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
 | `soundor.config.ts`   | You                 | Declare identity, parameters, native API, and runtime options                              |
 | `src/`                | You                 | Shared UI and application logic                                                            |
-| `runtimes/<id>/`      | You                 | Host project, runtime-specific API implementations, build customization                    |
+| `runtimes/<id>/`      | You                 | Host files for third-party runtimes that require them; first-party hosts are managed       |
 | `native/`             | You                 | Shared Rust processor, dependencies, lockfile and processor tests                          |
 | `rust-toolchain.toml` | You                 | Rust toolchain choice, generated once                                                      |
 | `.soundor/generated/` | Soundor             | Regenerated declarations, manifests, and framework; change the config or generator instead |
@@ -127,7 +127,7 @@ and the separate notarization workflow are documented in the
 ## Adding a runtime
 
 Install its package and add its factory to `runtimes`. Run `soundor init <id>`
-if it needs user-owned host files (JUCE does; Web manages its own host).
+if it needs user-owned host files (neither JUCE nor Web does).
 Both first-party runtimes run the shared Rust processor and controller.
 
 Runtime authors implement `init`, `gen`, `dev`, `build`, and `doctor` with

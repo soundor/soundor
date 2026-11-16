@@ -124,7 +124,7 @@ continues normally when debugging is disabled or unavailable.
 
 | Phase    | What it does                                                                                                                                                                        |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init`   | Scaffolds the **user-owned** host under `runtimes/juce/` (`CMakeLists.txt`, `PluginProcessor`, `PluginEditor`). Written once; idempotent.                                           |
+| `init`   | No-op: the installed runtime package owns its CMake project, processor and editor; no initialization needed.                                                                        |
 | `gen`    | Emits the **generated framework** under `.soundor/generated/runtimes/juce/`: `setup.cmake`, the `soundor::` base classes, and the `soundor:native` bindings. Regenerated every run. |
 | `dev`    | Debug CMake build that loads the development UI bundle from disk; opens the VST3 in the host or the Standalone. Signed ad-hoc on macOS.                                             |
 | `build`  | Release build with the production UI bundle embedded; signs it on macOS (see [Signing](#signing-and-distributing-on-macos)) and packages VST3/AU under `.soundor/dist/juce`.        |
@@ -140,17 +140,40 @@ updates only the controller's browser view; observers keep independent selection
 Runtime reload clears all old node references. See the
 [CLI inspector guide](/docs/cli/devtools#inspecting-the-native-ui).
 
-### init vs gen: you own the host, Soundor owns the framework
+### Managed host and generated contract
+
+The installed `@soundor/juce-runtime` owns the CMake entry point and C++ host.
+`soundor dev juce` and `soundor build juce` use it directly, without running
+`soundor init juce` or creating `runtimes/juce/`. The five lifecycle phases
+remain; JUCE's `init` is a no-op.
 
 `gen` produces the config-derived framework into `.soundor/generated/`: the
-`soundor::AudioProcessor` / `soundor::AudioProcessorEditor` base classes, the
-`soundor::native` API, and a `setup.cmake`. It is ephemeral and reproducible
-(`gen --check` is stable).
+`soundor::AudioProcessor` / `soundor::AudioProcessorEditor` classes, bindings
+and `setup.cmake`. It is reproducible (`gen --check` is stable). Build files
+stay in `.soundor/cache/juce/` and output in `.soundor/dist/juce/`.
+The project still owns its Rust processor and controller in `native/`;
+`soundor init` creates that crate once when setting up a project.
 
-`init` scaffolds the host you own: thin `PluginProcessor`/`PluginEditor`
-subclasses of those bases, and a `CMakeLists.txt` whose **only** Soundor-injected
-line is `include(...setup.cmake)`. Edit any of it freely — re-running `init`
-never overwrites existing files.
+## Migration
+
+Older projects contain a user-owned `runtimes/juce/`. Development and builds
+stop if this directory exists, and `soundor doctor` reports it. Soundor
+never deletes or overwrites these files.
+
+Review the directory before removing it yourself. Keep a backup of any
+customizations. Move C++ audio processing and native methods into the Rust
+processor and controller in `native/`. Declare plugin identity, formats,
+audio buses, parameters, presets and editor dimensions in `soundor.config.ts`.
+The managed host uses those settings and generated bindings. With no audio
+configuration it retains the legacy stereo default and matching mono/stereo
+layout negotiation; configured audio and factory presets come from the contract.
+
+Custom CMake changes and C++ processor/editor overrides are no longer used;
+there is no host export or CMake customization API. Projects that require
+those overrides must keep their existing runtime version until migrated.
+After reviewing and migrating, remove `runtimes/juce/` yourself and run
+`soundor dev juce` or `soundor build juce`. Updating packages then updates
+the host implementation with them.
 
 ### The editor's size
 

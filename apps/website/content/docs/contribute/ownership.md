@@ -5,7 +5,7 @@ description: 'Separate user-owned host files from deterministic generated framew
 
 ## Purpose
 
-Users edit their host and DSP code. Soundor regenerates the bindings and
+Users edit their Rust processor and controller code. Soundor regenerates the bindings and
 framework around it. Keeping these responsibilities separate lets a config or
 package update refresh the framework without replacing the user's work.
 
@@ -13,8 +13,9 @@ package update refresh the framework without replacing the user's work.
 
 `packages/cli/src/commands/init.ts` and `gen.ts` orchestrate the phases.
 `packages/core/src/paths.ts`, `codegen.ts` and `generate.ts` define the output
-paths, collection and writing. Each runtime's `scaffold.ts` defines its initial
-host files; its `codegen.ts` produces derived framework files.
+paths, collection and writing. First-party runtimes manage their hosts in their
+packages and implement `init` as a no-op; `codegen.ts` produces derived framework
+files. The CLI's `native/scaffold.ts` creates the project's Rust crate.
 
 ## How it works
 
@@ -31,7 +32,7 @@ flowchart TD
 
 | Location                            | Owner and lifetime                                                                        |
 | ----------------------------------- | ----------------------------------------------------------------------------------------- |
-| `runtimes/<id>/`                    | User-owned host files, created once by `init`                                             |
+| `runtimes/<id>/`                    | Optional third-party runtime host files, created once by `init`                           |
 | `.soundor/generated/`               | Shared declarations, regenerated from config                                              |
 | `.soundor/generated/runtimes/<id>/` | Runtime codegen output, exposed as `ctx.paths.gen`                                        |
 | `.soundor/cache/<id>/`              | Runtime scratch/build data, exposed as `ctx.paths.cache`                                  |

@@ -1,16 +1,16 @@
 ---
 title: 'soundor init'
-description: "Writes the runtimes' host projects into runtimes/<id>/, once; they are yours to edit."
+description: 'Creates the Rust crate and initializes runtimes that need host files.'
 ---
 
 ```sh
 soundor init [runtime] [--config <path>]
 ```
 
-`init` writes each configured runtime's host project into `runtimes/<id>/`:
-the files you own and edit. The JUCE runtime writes its CMake project, plugin
-processor and editor. The web runtime manages its own host and writes no host
-files; it needs no web initialization.
+`init` creates the project's Rust crate and calls each selected runtime's
+initialization phase. JUCE and Web manage their own hosts and write no host
+files; neither needs runtime initialization. Other runtimes may create
+user-owned files in `runtimes/<id>/`.
 
 Every plugin gets `native/src/lib.rs` (module declarations and
 `soundor::export!(PluginProcessor, PluginController)`), `controller.rs`
@@ -28,7 +28,7 @@ methods get compiling stubs in `controller.rs`.
   generated framework ([`gen`](/docs/cli/gen)) or the runtime package, so an
   update of Soundor reaches existing projects without touching your code.
 - **Adding a runtime:** install its package, add its factory to `runtimes`
-  in the config, then `soundor init <id>` if it needs host files. Web does not.
+  in the config, then `soundor init <id>` if it needs host files. JUCE and Web do not.
 
 ```sh
 pnpm add @soundor/web-runtime

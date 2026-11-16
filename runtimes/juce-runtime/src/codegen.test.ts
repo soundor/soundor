@@ -804,3 +804,20 @@ describe('generateJuceSources', () => {
     expect(native).toContain('class NativeApi');
   });
 });
+
+it.each([false, true])(
+  'selects managed factory preset overrides (presets=%s)',
+  (presets) => {
+    const withPresets = resolveConfig({
+      plugin: { id: 'dev.soundor.presets', name: 'Presets' },
+      runtimes: [],
+      ...(presets ? { presets: [{ id: 'default', name: 'Default' }] } : {}),
+    });
+    expect(fileMap(withPresets).get('setup.cmake')).toContain(
+      `SOUNDOR_FACTORY_PRESETS=${presets ? 1 : 0}`,
+    );
+    expect(fileMap(withPresets).get('setup.cmake')).toContain(
+      'SOUNDOR_CONFIGURED_AUDIO=0',
+    );
+  },
+);
