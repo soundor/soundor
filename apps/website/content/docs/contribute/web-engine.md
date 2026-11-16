@@ -239,3 +239,30 @@ Linux x86-64, engine 0.8.1's module (363,625 bytes):
 - **The text cache** keeps up to 4,096 widths per font, then starts again.
 - **Each engine is its own module instance**, with its own memory (1 MB to
   start), which keeps plugin instances on one page independent.
+
+## Managed host and input sources
+
+`@soundor/web-runtime` ships `host/index.html` and `dist/client/managed.js`.
+Its lifecycle runs Vite on that installed host with explicit project, generated,
+UI bundle and processor paths. The plugin project supplies `public/` assets,
+not a Vite config. The host is never copied into a project. Input module paths
+are resolved from the plugin root and enter Vite's browser graph directly;
+Node config evaluation only sees a string. Normal Vite import resolution and
+asset/worker handling apply, including AudioWorklet URLs.
+
+Built-in definitions and config validation live in
+`runtimes/web-runtime/src/input-options.ts`; their existing playback code lives
+in `src/client/audio.ts`. Public factories and custom source validation live in
+`src/client/input.ts`, published as `@soundor/web-runtime/input`. To add a built-in,
+extend the discriminated union, defaults if appropriate, validation, factory,
+selector metadata and audio startup/cleanup branch. Keep permission-sensitive
+sources opt-in at selection time and preserve cancellation and late cleanup.
+Use the same start/cleanup contract for custom sources rather than adding a
+second lifecycle. Update the Web runtime guide and its built-in options table.
+
+Test config validation in `options.test.ts`, resource lifetime and playback in
+`client/audio.test.ts`, and browser bundling, project dependency resolution,
+reloads and invalid entries in the managed-input tests. The phases and UI-bundle
+tests cover managed development/build without initialization. Verify package
+contents as well as source tests: HTML and the browser input declarations must
+be present in a packed installation, with no workspace source dependency.

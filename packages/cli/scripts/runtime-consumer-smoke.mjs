@@ -4,19 +4,21 @@
 // soundor peer dependency and checked by the package manager.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
   readdir,
   readFile,
+  realpath,
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const temporary = await mkdtemp(resolve(tmpdir(), 'soundor-runtime-consumer-'));
@@ -137,6 +139,14 @@ export default defineSoundorConfig({
   run(soundor, ['init']);
   assert.ok(existsSync(resolve(temporary, 'native/Cargo.toml')));
   assert.ok(existsSync(resolve(temporary, 'rust-toolchain.toml')));
+  assert.ok(
+    !existsSync(resolve(temporary, 'runtimes/web')),
+    'web init must not create a host',
+  );
+  assert.ok(
+    existsSync(resolve(temporary, 'runtimes/juce/CMakeLists.txt')),
+    'other runtime initialization is unchanged',
+  );
   run('cargo', ['fmt', '--check', '--manifest-path', 'native/Cargo.toml']);
   // Its tests: the controller, the processor, and allocation-free processing.
   const tested = run('cargo', ['test', '--manifest-path', 'native/Cargo.toml']);
@@ -195,6 +205,247 @@ export default defineSoundorConfig({
   const controller = exports.soundor_web_controller_create();
   assert.ok(controller, 'the scaffold controller must initialize');
   exports.soundor_web_controller_destroy(controller);
+
+  // The managed host from a packed package: a real Rust controller/processor,
+  // a bundled UI, and browser TS/JS inputs outside the default web directory.
+  await mkdir(resolve(temporary, 'src'));
+  await mkdir(resolve(temporary, 'audio'));
+  await writeFile(
+    resolve(temporary, 'src/main.ts'),
+    `
+import { parameters } from 'soundor:parameters';
+globalThis.__packedUi = parameters.gain.get();
+`,
+  );
+  await writeFile(
+    resolve(temporary, 'audio/label.ts'),
+    'export const label: string = "Packed browser source";',
+  );
+  await writeFile(
+    resolve(temporary, 'audio/inputs.ts'),
+    `
+import { defineInput, oscillator, audioFile, microphone } from '@soundor/web-runtime/input';
+import { label } from './label';
+// Browser code: config loading must not evaluate this module.
+document.title = 'Packed browser input';
+const custom = defineInput({ id: 'packed-custom', label, start({context, destination}) {
+  const source = context.createOscillator(); source.connect(destination); source.start();
+  return () => { source.stop(); source.disconnect(); };
+}});
+export default [custom, oscillator({ frequency: 330 }), audioFile(), microphone()];
+`,
+  );
+  const configPath = resolve(temporary, 'soundor.config.ts');
+  const originalConfig = await readFile(configPath, 'utf8');
+  await writeFile(
+    configPath,
+    originalConfig.replace(
+      'webRuntime()',
+      "webRuntime({ inputs: './audio/inputs.ts' })",
+    ),
+  );
+  // Custom inputs opt into a browser project, as Orbit does. Preserve the config project's types.
+  const browserConfig = JSON.parse(
+    await readFile(
+      resolve(repository, 'examples/orbit/tsconfig.web.json'),
+      'utf8',
+    ),
+  );
+  browserConfig.include = ['audio/**/*.ts'];
+  await writeFile(
+    resolve(temporary, 'tsconfig.web.json'),
+    JSON.stringify(browserConfig),
+  );
+  await writeFile(
+    resolve(temporary, 'tsconfig.ui.json'),
+    JSON.stringify({
+      ...browserConfig,
+      compilerOptions: {
+        ...browserConfig.compilerOptions,
+        lib: ['ES2023'],
+        tsBuildInfoFile: './node_modules/.tmp/tsconfig.ui.tsbuildinfo',
+      },
+      include: ['typecheck-ui.ts'],
+    }),
+  );
+  await writeFile(
+    resolve(temporary, 'typecheck-ui.ts'),
+    `
+// @ts-expect-error shared UI must not gain DOM globals
+void document;
+// @ts-expect-error shared UI must not gain Web Audio globals
+void AudioContext;
+export {};
+`,
+  );
+  await writeFile(
+    resolve(temporary, 'tsconfig.node.json'),
+    await readFile(resolve(temporary, 'tsconfig.json')),
+  );
+  await writeFile(
+    resolve(temporary, 'tsconfig.json'),
+    JSON.stringify({
+      files: [],
+      references: [
+        { path: './tsconfig.node.json' },
+        { path: './tsconfig.web.json' },
+        { path: './tsconfig.ui.json' },
+      ],
+    }),
+  );
+  const tsc = resolve(repository, 'packages/cli/node_modules/.bin/tsc');
+  run(tsc, ['-b']);
+  await writeFile(
+    resolve(temporary, 'audio/invalid.ts'),
+    `
+import { defineInput, oscillator } from '@soundor/web-runtime/input';
+// @ts-expect-error the callback receives an AudioContext, not a string
+const bad = defineInput({id: 'bad', label: 'Bad', start({context}) { const value: string = context; return () => {}; }});
+// @ts-expect-error built-in options are checked
+oscillator({ frequency: 'invalid' });
+// @ts-expect-error DOM is present, and its types are checked
+const broken: AudioContext = document;
+void bad; void broken;
+`,
+  );
+  run(tsc, ['-b']);
+  const badPath = resolve(temporary, 'audio/invalid.ts');
+  await writeFile(badPath, 'const bad: AudioContext = document; export {};');
+  assert.match(run(tsc, ['-b'], { status: 1 }), /AudioContext/);
+  await rm(badPath);
+  run(tsc, ['-b']);
+
+  // A source checkout may precede the first published web engine archive.
+  // Prepare the workspace engine once, then use its supported CI override in
+  // the installed consumer; the installed package must never try a source build.
+  if (process.env.SOUNDOR_ENGINE_WASM === undefined) {
+    const { engine } = await import(
+      pathToFileURL(resolve(repository, 'engines/engine/dist/index.mjs')).href
+    );
+    process.env.SOUNDOR_ENGINE_WASM = (
+      await engine({ target: 'web' })
+    ).files.wasm;
+  }
+  run(soundor, ['build', 'web']);
+  const dist = resolve(temporary, '.soundor/dist/web');
+  assert.ok(existsSync(resolve(dist, 'index.html')));
+  assert.ok(!existsSync(resolve(temporary, 'runtimes/web')));
+  const packageHost = resolve(
+    temporary,
+    'node_modules/@soundor/web-runtime/host/index.html',
+  );
+  assert.ok(existsSync(packageHost), 'packed host HTML is present');
+
+  // Playwright is a repository test tool, never a dependency of the consumer.
+  const require = createRequire(
+    resolve(repository, 'runtimes/web-runtime/package.json'),
+  );
+  const { chromium } = require('@playwright/test');
+  const browser = await chromium.launch();
+  const installed = createRequire(
+    await realpath(
+      resolve(temporary, 'node_modules/@soundor/web-runtime/package.json'),
+    ),
+  );
+  const { preview } = await import(installed.resolve('vite'));
+  const staticServer = await preview({
+    root: temporary,
+    configFile: false,
+    build: { outDir: dist },
+    preview: { port: 0 },
+  });
+  try {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(staticServer.resolvedUrls.local[0]);
+    await page.waitForSelector('.soundor-title', { state: 'attached' });
+    await page.waitForFunction(() => globalThis.__packedUi === 0.5);
+    assert.equal(await page.evaluate(() => globalThis.__packedUi), 0.5);
+    assert.equal(await page.title(), 'Packed browser input');
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally {
+    await staticServer.close();
+  }
+
+  const child = spawn(soundor, ['dev', 'web'], {
+    cwd: temporary,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let logs = '';
+  child.stdout.on('data', (chunk) => {
+    logs += chunk;
+  });
+  child.stderr.on('data', (chunk) => {
+    logs += chunk;
+  });
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  const waitFor = async (predicate) => {
+    for (let i = 0; i < 600; i++) {
+      if (predicate()) return;
+      assert.equal(child.exitCode, null, logs);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    throw new Error(`Managed dev server did not become ready: ${logs}`);
+  };
+  try {
+    await waitFor(() => /http:\/\/localhost:\d+/.test(logs));
+    const url = /http:\/\/localhost:\d+/.exec(logs)[0];
+    const page = await browser.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(url);
+    await page.waitForSelector('.soundor-title', { state: 'attached' });
+    await page.waitForFunction(() => globalThis.__packedUi === 0.5);
+    assert.equal(await page.evaluate(() => globalThis.__packedUi), 0.5);
+    assert.equal(await page.title(), 'Packed browser input');
+    await page
+      .getByRole('button', { name: 'Host settings', exact: true })
+      .click();
+    const selector = page.getByRole('combobox', { name: 'Input', exact: true });
+    assert.match(await selector.textContent(), /Packed browser source/);
+    assert.match(await selector.textContent(), /Oscillator/);
+    assert.match(await selector.textContent(), /Microphone/);
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await page.getByText('Audio on', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Pause', exact: true }).click();
+    await writeFile(
+      resolve(temporary, 'audio/label.ts'),
+      'export const label: string = "Updated packed source";',
+    );
+    await page
+      .getByText('Updated packed source', { exact: true })
+      .waitFor({ state: 'attached' });
+    assert.deepEqual(errors, []);
+    // Invalid module values and duplicates must fail visibly in the browser,
+    // without starting a fallback list. Normal updates recover the host.
+    for (const value of [
+      '{}',
+      'undefined',
+      "[{ type: 'file' }, { type: 'file' }]",
+    ]) {
+      await writeFile(
+        resolve(temporary, 'audio/inputs.ts'),
+        `export default ${value};`,
+      );
+      await page.reload();
+      await page
+        .getByText(/The Soundor Web host could not start:.*(input|Input)/)
+        .waitFor();
+    }
+  } finally {
+    child.kill('SIGINT');
+    await exited;
+    await browser.close();
+  }
+
+  // The same installed project can select Web alone with default inputs;
+  // no web initialization is introduced for either runtime selection.
+  await writeFile(configPath, originalConfig.replace('juceRuntime(), ', ''));
+  run(soundor, ['gen']);
+  run(soundor, ['build', 'web']);
+  assert.ok(!existsSync(resolve(temporary, 'runtimes/web')));
 
   // The SDK is a regular dependency; the CLI is the runtime's host peer.
   for (const runtime of ['@soundor/juce-runtime', '@soundor/web-runtime']) {
@@ -256,7 +507,7 @@ export default defineSoundorConfig({
   assert.match(refused, /99\.0\.0/);
 
   console.log(
-    'Packed runtimes: strict pnpm install, gen with both runtimes, the Rust SDK from the packed CLI tested with Cargo, and an incompatible host peer refused by pnpm.',
+    'Packed runtimes: strict pnpm install, gen with both runtimes, the Rust SDK from the packed CLI tested with Cargo, managed Web build/dev and custom inputs in Chromium, separate browser types, and an incompatible host peer refused by pnpm.',
   );
 } finally {
   await rm(temporary, { recursive: true, force: true });

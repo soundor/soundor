@@ -14,7 +14,7 @@
     "test": "vitest run",
     "test:rust": "soundor gen && cargo test --manifest-path native/Cargo.toml",
     "test:watch": "vitest watch",
-    "typecheck": "soundor gen && tsc -b && tsc -p runtimes/web"
+    "typecheck": "soundor gen && tsc -b"
   },
   "dependencies": {
     "@soundor/juce-runtime": "workspace:*",

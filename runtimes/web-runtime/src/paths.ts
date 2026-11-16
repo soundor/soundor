@@ -16,3 +16,6 @@ export function clientModule(name: string, clientDir = CLIENT_DIR): string {
   }
   throw new Error(`@soundor/web-runtime: missing client module '${name}'`);
 }
+
+/** Package-owned HTML, in both source and installed packages. */
+export const HOST_DIR = fileURLToPath(new URL('../host/', import.meta.url));

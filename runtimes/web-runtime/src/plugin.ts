@@ -1,7 +1,7 @@
 /**
- * The Vite plugin that connects a Web host project to Soundor. The lifecycle
- * (`soundor dev` / `soundor build`) adds it to every Vite run, whatever the
- * project's own `vite.config.ts` says, and it owns what must not drift:
+ * The private Vite integration for the package-owned host. The lifecycle
+ * (`soundor dev` / `soundor build`) supplies the plugin project's paths and
+ * owns what must not drift:
  *
  * - the project root, the output directory and a relative production base,
  *   so the build can be hosted under any path;
@@ -17,7 +17,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import {
   renderEnvironmentModule,
@@ -29,10 +29,12 @@ import { normalizePath, searchForWorkspaceRoot, type Plugin } from 'vite';
 import type { WebManifest } from './client/manifest.ts';
 import { MANIFEST_FILE, PARAMETERS_FILE } from './codegen.ts';
 import { engineWasmPath } from './engine-wasm.ts';
+import { defaultInputs } from './input-options.ts';
+import type { WebOptions } from './options.ts';
 import { CLIENT_DIR, clientModule } from './paths.ts';
 import { soundorUiBundle } from './ui-bundle.ts';
 
-/** The plugin's name; `defineWebConfig` checks that it is present. */
+/** The managed integration's plugin name. */
 export const PLUGIN_NAME = 'soundor:web';
 
 const PACKAGE = '@soundor/web-runtime';
@@ -46,8 +48,11 @@ const CLIENT_DEPENDENCIES = [
 ];
 
 export interface SoundorWebPluginOptions {
-  /** The Web host project: `runtimes/<id>/`. */
+  /** This package's host HTML directory. */
   readonly hostDir: string;
+  /** Plugin root, independent of the package-owned host. */
+  readonly projectRoot?: string;
+  readonly inputs?: WebOptions['inputs'];
   /** The runtime's generated directory, holding the manifest. */
   readonly genDir: string;
   /** Lifecycle-selected mode; a debug build uses development values. */
@@ -82,7 +87,11 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
             ...(config.optimizeDeps?.include ?? []),
             ...CLIENT_DEPENDENCIES.map((id) => `${PACKAGE} > ${id}`),
           ],
-          exclude: [...(config.optimizeDeps?.exclude ?? []), CLIENT_ID],
+          exclude: [
+            ...(config.optimizeDeps?.exclude ?? []),
+            CLIENT_ID,
+            `${PACKAGE}/input`,
+          ],
         };
         // Vite serves files outside the host project only from allowed
         // directories: the generated manifest, the UI bundle, this package.
@@ -94,6 +103,7 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
               ...(config.server?.fs?.allow ?? [
                 searchForWorkspaceRoot(options.hostDir),
               ]),
+              options.projectRoot ?? options.hostDir,
               options.genDir,
               options.clientDir ?? CLIENT_DIR,
               ...(options.ui === undefined ? [] : [options.ui.dir]),
@@ -109,6 +119,19 @@ export function soundorWebPlugin(options: SoundorWebPluginOptions): Plugin[] {
             emptyOutDir: true,
           };
         }
+      },
+    },
+    {
+      name: 'soundor:managed-host',
+      transformIndexHtml(html) {
+        const title = (options.pluginName ?? 'Soundor')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;');
+        return html.replace(
+          '<title>Soundor</title>',
+          `<title>${title}</title>`,
+        );
       },
     },
     soundorModules(options),
@@ -129,6 +152,8 @@ const MODULES: Readonly<Record<string, string>> = {
 };
 
 export interface SoundorModulesOptions {
+  readonly projectRoot?: string;
+  readonly inputs?: WebOptions['inputs'];
   /** The runtime's generated directory, holding the manifest. */
   readonly genDir: string;
   /** Lifecycle-selected mode; a debug build uses development values. */
@@ -217,7 +242,14 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
         (command === 'build' ? 'production' : 'development');
     },
     resolveId(id) {
+      if (id === '/@soundor/host.js') return client('managed');
+      if (id === `${PACKAGE}/input`) return client('input');
       if (id === CLIENT_ID) return client('index');
+      if (id === 'soundor:internal/inputs') {
+        if (typeof options.inputs === 'string')
+          return resolve(options.projectRoot!, options.inputs);
+        return `\0${id}`;
+      }
       if (!id.startsWith('soundor:')) return null;
       if (id === 'soundor:internal/manifest') {
         return join(options.genDir, MANIFEST_FILE);
@@ -241,6 +273,8 @@ export function soundorModules(options: SoundorModulesOptions): Plugin {
       return client(module);
     },
     async load(id) {
+      if (id === '\0soundor:internal/inputs')
+        return `export default ${JSON.stringify(options.inputs ?? defaultInputs)};\n`;
       if (id === `\0${UI_MODULE}`) return uiModule(options.ui);
       if (id === `\0${DEV_MODULE}`) return devModule(options.ui, command);
       if (id === `\0${ENGINE_MODULE}`) {

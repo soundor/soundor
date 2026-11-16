@@ -1,4 +1,4 @@
-import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 import {
@@ -30,16 +30,6 @@ import {
   writeGenerated,
 } from './testing';
 
-const PACKAGE_MANAGER_FILES = [
-  'package.json',
-  'package-lock.json',
-  'pnpm-lock.yaml',
-  'yarn.lock',
-  'bun.lock',
-  'bun.lockb',
-  'node_modules',
-];
-
 async function listFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { recursive: true, withFileTypes: true });
   return entries
@@ -50,18 +40,12 @@ async function listFiles(dir: string): Promise<string[]> {
     .sort();
 }
 
-/** An initialized, generated project; the scaffold's vite.config.ts imports
- * the built package, which tests run without, so it is replaced. */
+/** Generated contracts, without initializing a runtime or creating a host. */
 async function preparedProject(config: ResolvedSoundorConfig = testConfig) {
   const root = await tempProject();
   const ctx = makeCtx(root);
-  await webInit(config, ctx);
   await webGen(config, ctx);
   await writeGenerated(ctx);
-  await writeFile(
-    join(root, 'runtimes/web/vite.config.ts'),
-    'export default {};\n',
-  );
   return root;
 }
 
@@ -92,69 +76,10 @@ describe('webRuntime', () => {
 });
 
 describe('webInit', () => {
-  it('scaffolds the user-owned Web host under runtimes/web', async () => {
+  it('is a no-op and never generates a user-owned host', async () => {
     const root = await tempProject();
     await webInit(testConfig, makeCtx(root));
-
-    expect(await listFiles(join(root, 'runtimes/web'))).toEqual([
-      'index.html',
-      'src/main.ts',
-      'tsconfig.json',
-      'vite.config.ts',
-    ]);
-    const html = await readFile(join(root, 'runtimes/web/index.html'), 'utf8');
-    expect(html).toContain('<title>Soundor Basic</title>');
-    expect(html).toContain('src="./src/main.ts"');
-    const main = await readFile(join(root, 'runtimes/web/src/main.ts'), 'utf8');
-    expect(main).toContain(
-      "import { startSoundorWebHost } from '@soundor/web-runtime/client';",
-    );
-    expect(main).toContain('await startSoundorWebHost();');
-    // No audio code of its own: the processor is native/, as WebAssembly.
-    expect(main).not.toContain('audio:');
-    expect(main).not.toContain("import('./audio')");
-    const vite = await readFile(
-      join(root, 'runtimes/web/vite.config.ts'),
-      'utf8',
-    );
-    expect(vite).toContain('defineWebConfig');
-    const tsconfig = await readFile(
-      join(root, 'runtimes/web/tsconfig.json'),
-      'utf8',
-    );
-    expect(tsconfig).toContain('"../../.soundor/generated/parameters.d.ts"');
-  });
-
-  it('never overwrites an existing file', async () => {
-    const root = await tempProject();
-    const ctx = makeCtx(root);
-    await webInit(testConfig, ctx);
-    const main = join(root, 'runtimes/web/src/main.ts');
-    await writeFile(main, 'EDITED');
-    await rm(join(root, 'runtimes/web/index.html'));
-
-    await webInit(testConfig, ctx);
-
-    expect(await readFile(main, 'utf8')).toBe('EDITED');
-    expect(await stat(join(root, 'runtimes/web/index.html'))).toBeTruthy();
-    expect(ctx.logger.lines).toContainEqual({
-      level: 'info',
-      message: 'skip runtimes/web/src/main.ts (exists)',
-    });
-  });
-
-  it('creates no package manager project and names no package manager', async () => {
-    const root = await tempProject();
-    await webInit(testConfig, makeCtx(root));
-
-    const files = await listFiles(join(root, 'runtimes/web'));
-    for (const name of PACKAGE_MANAGER_FILES) {
-      expect(files.some((file) => file.split('/').includes(name))).toBe(false);
-    }
-    for (const file of files) {
-      const contents = await readFile(join(root, 'runtimes/web', file), 'utf8');
-      expect(contents).not.toMatch(/\b(pnpm|npm|npx|yarn|bun|bunx)\b/);
-    }
+    expect(await listFiles(root)).toEqual([]);
   });
 });
 
@@ -349,13 +274,9 @@ describe('webBuild', () => {
     expect(code).toContain('Soundor Basic');
     expect(code).not.toContain(root);
 
-    // Nothing else is written into the project.
-    expect((await listFiles(join(root, 'runtimes/web'))).sort()).toEqual([
-      'index.html',
-      'src/main.ts',
-      'tsconfig.json',
-      'vite.config.ts',
-    ]);
+    expect(
+      (await listFiles(root)).some((file) => file.startsWith('runtimes/')),
+    ).toBe(false);
   });
 
   it('keeps the output directory free of stale files', async () => {
@@ -383,14 +304,16 @@ describe('webBuild', () => {
     });
   });
 
-  it('reports a missing scaffold', async () => {
-    const ctx = makeCtx(await tempProject());
+  it('rejects a legacy host even when explicit inputs are configured', async () => {
+    const root = await tempProject();
+    await mkdir(join(root, 'runtimes/web'), { recursive: true });
+    const ctx = makeCtx(root, { options: { inputs: [] } });
     const build = vi.fn<() => Promise<void>>();
     await expect(
       webBuild(testConfig, ctx, { build: build as never }),
     ).rejects.toMatchObject({
       code: 'CONFIG',
-      message: expect.stringContaining('soundor init web'),
+      message: expect.stringContaining('Move custom inputs'),
     });
     expect(build).not.toHaveBeenCalled();
   });
@@ -423,7 +346,7 @@ describe('webDev', () => {
 
     const html = await (await fetch(url)).text();
     expect(html).toContain('<div id="soundor"></div>');
-    const main = await (await fetch(new URL('src/main.ts', url))).text();
+    const main = await (await fetch(new URL('@soundor/host.js', url))).text();
     expect(main).toContain('startSoundorWebHost');
 
     controller.abort();
@@ -524,13 +447,12 @@ describe('webDoctor', () => {
       'Node.js',
       'Vite',
       'Rust WebAssembly target',
-      'Web host project',
+      'Managed Web host',
     ]);
     expect(before.checks[0]!.status).toBe('ok');
     expect(before.checks[1]!.status).toBe('ok');
     expect(before.checks[3]).toMatchObject({
-      status: 'warn',
-      suggestion: expect.stringContaining('soundor init web'),
+      status: 'ok',
     });
 
     await webInit(testConfig, ctx);

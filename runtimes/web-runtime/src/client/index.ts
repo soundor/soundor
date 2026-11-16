@@ -12,6 +12,7 @@ import { WebAudioHost, type WebAudioInput } from './audio';
 import { processorState } from './audio-state';
 import { hostContext, loadEngine, uiView } from './context';
 import { forwardLogs } from './dev-log';
+import { validateInputs, type WebInput } from './input';
 import { nativeStreamPublishers } from './native-streams';
 import { playgroundScript, startPlayground } from './playground';
 import { report } from './report';
@@ -23,6 +24,8 @@ export interface WebHostOptions {
   readonly container?: HTMLElement;
   /** Custom sources listed in the host panel's Audio → Input selector. */
   readonly audioInputs?: readonly WebAudioInput[];
+  /** Complete input list used by the managed host. */
+  readonly inputs?: readonly WebInput[];
   /**
    * Initially selected custom input, 'oscillator' (default), or 'none'.
    * Microphone and file inputs require explicit selection in the panel.
@@ -59,6 +62,7 @@ let forwarding = false;
 export async function startSoundorWebHost(
   options: WebHostOptions = {},
 ): Promise<WebHost> {
+  if (options.inputs !== undefined) validateInputs(options.inputs);
   if (sendLog !== undefined && !forwarding) {
     forwarding = true;
     forwardLogs(sendLog);
@@ -82,6 +86,7 @@ export async function startSoundorWebHost(
   const audio = new WebAudioHost(context.host, {
     audio: context.manifest.audio,
     inputs: options.audioInputs,
+    configuredInputs: options.inputs,
     defaultInput: options.defaultAudioInput,
     loadProcessor: async () => {
       if (processorWasm === undefined) return undefined;

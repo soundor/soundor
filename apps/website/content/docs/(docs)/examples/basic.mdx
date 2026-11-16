@@ -26,8 +26,6 @@ src/ResizeGrip.tsx  a resize grip of its own, in the view's corner
 native/             the audio processing, in Rust: applies `gain`
                     (src/lib.rs), with its tests (tests/)
 runtimes/juce/      JUCE: the plugin, which runs native/
-runtimes/web/       Web: the browser host, which runs native/ compiled to
-                    WebAssembly
 ```
 
 The UI is the same in both, and so is the audio: both runtimes run the Rust

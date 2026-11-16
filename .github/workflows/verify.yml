@@ -208,11 +208,12 @@ jobs:
       - name: Packed Vitest consumer smoke
         run: pnpm --filter @soundor/vitest test:consumer
 
+      # Shared Chromium for the packed runtime smoke and browser E2E suites.
+      - name: Install test browser
+        run: pnpm --filter @soundor/devtools-client exec playwright install --with-deps chromium
+
       - name: Packed runtimes consumer smoke
         run: pnpm --filter soundor test:runtime-consumer
-
-      - name: Install DevTools browser
-        run: pnpm --filter @soundor/devtools-client exec playwright install --with-deps chromium
 
       - name: DevTools browser E2E
         run: pnpm --filter @soundor/devtools-client test:e2e

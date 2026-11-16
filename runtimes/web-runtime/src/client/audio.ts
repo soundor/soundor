@@ -6,8 +6,10 @@ import type { createProcessorNode } from '@soundor/engine/web/processor';
  * Input instances belong to the transport, and release their resources on
  * pause, replacement or disposal, including work that finishes after a switch.
  */
+import { defaultInputs } from '../input-options';
 import type { WebProcessorState } from './audio-state';
 import type { HostSnapshot, WebHost } from './host';
+import { validateInputs, type WebInput } from './input';
 import { Listeners } from './listeners';
 import type { WebNativeStream } from './manifest';
 import { publishParameter, type WebParameter } from './parameters';
@@ -84,7 +86,7 @@ export interface WebAudioInputContext {
 
 /** A project-defined source in the host panel's Input selector. */
 export interface WebAudioInput {
-  /** Unique, nonempty id; built-in ids are reserved. */
+  /** Unique, nonempty id; oscillator, file, microphone and none are reserved. */
   readonly id: string;
   /** Human-readable name in the host's Input selector. */
   readonly label: string;
@@ -133,6 +135,8 @@ export interface WebAudioHostOptions {
   /** Injectable for tests. */
   readonly createProcessorNode?: typeof createProcessorNode;
   readonly inputs?: readonly WebAudioInput[];
+  /** Complete selection for the managed host; replaces the built-in defaults. */
+  readonly configuredInputs?: readonly WebInput[];
   readonly defaultInput?: string;
   /** Injectable Web APIs for tests. */
   readonly createContext?: () => AudioContext;
@@ -186,26 +190,28 @@ export class WebAudioHost {
   constructor(host: WebHost, options: WebAudioHostOptions = {}) {
     this.#host = host;
     this.#options = options;
-    const ids = new Set(BUILTIN_AUDIO_INPUTS.map((input) => input.id));
-    for (const input of options.inputs ?? []) {
-      if (!input.id.trim() || ids.has(input.id))
-        throw new TypeError(
-          `Duplicate, reserved or empty audio input id: ${input.id}`,
-        );
-      if (!input.label.trim() || typeof input.start !== 'function')
-        throw new TypeError(
-          `Audio input ${input.id} needs a label and start function`,
-        );
-      ids.add(input.id);
-      this.#custom.set(input.id, Object.freeze({ ...input }));
+    const inputs = validateInputs(
+      options.configuredInputs ?? [...defaultInputs, ...(options.inputs ?? [])],
+    );
+    const ids = new Set(['none']);
+    const infos: WebAudioInputInfo[] = [];
+    for (const input of inputs) {
+      if ('type' in input) {
+        ids.add(input.type);
+        infos.push(BUILTIN_AUDIO_INPUTS.find(({ id }) => id === input.type)!);
+      } else {
+        ids.add(input.id);
+        this.#custom.set(input.id, Object.freeze({ ...input }));
+        infos.push({ id: input.id, label: input.label });
+      }
     }
-    this.inputs = Object.freeze([
-      ...BUILTIN_AUDIO_INPUTS,
-      ...[...this.#custom.values()].map(({ id, label }) =>
-        Object.freeze({ id, label }),
-      ),
-    ]);
-    const source = options.defaultInput ?? 'oscillator';
+    this.inputs = Object.freeze([...infos, { id: 'none', label: 'No input' }]);
+    const source =
+      options.defaultInput ??
+      (options.configuredInputs === undefined
+        ? 'oscillator'
+        : (infos.find(({ id }) => id !== 'file' && id !== 'microphone')?.id ??
+          'none'));
     if (!ids.has(source))
       throw new TypeError(`Unknown default audio input: ${source}`);
     if (source === 'microphone' || source === 'file')
@@ -536,9 +542,16 @@ export class WebAudioHost {
     if (source === 'oscillator') {
       const oscillator = context.createOscillator(),
         level = context.createGain();
-      oscillator.type = 'triangle';
-      oscillator.frequency.value = 220;
-      level.gain.value = 0.3;
+      const definition = this.#options.configuredInputs?.find(
+        (input) => 'type' in input && input.type === 'oscillator',
+      );
+      const options =
+        definition && 'type' in definition && definition.type === 'oscillator'
+          ? definition
+          : undefined;
+      oscillator.type = options?.waveform ?? 'triangle';
+      oscillator.frequency.value = options?.frequency ?? 220;
+      level.gain.value = options?.gain ?? 0.3;
       oscillator.connect(level);
       level.connect(bus);
       oscillator.start();

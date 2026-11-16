@@ -24,8 +24,6 @@ src/spectrum.ts     decibels to bar heights, bars that fall slowly
 native/             the analysis, in Rust: an FFT on the audio thread,
                     written straight into the stream (src/lib.rs)
 runtimes/juce/      JUCE: the plugin, which runs native/
-runtimes/web/       Web: the browser host, which runs native/ compiled to
-                    WebAssembly
 ```
 
 The config declares what the audio code publishes:

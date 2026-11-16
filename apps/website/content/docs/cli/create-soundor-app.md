@@ -19,7 +19,10 @@ The scaffolder asks which runtimes the plugin targets: the JUCE runtime (the
 default), the web runtime, or both. The generated project includes a Soundor
 config (plugin identity, parameters, the chosen runtimes) and its
 dependencies, and `soundor init` writes each runtime's host files under
-`runtimes/`. The scaffolder installs the dependencies with the package
+`runtimes/` for runtimes that need them (JUCE). The Web host is managed by
+Soundor and creates no `runtimes/web/` directory. When adding custom browser inputs, add a separate
+[`tsconfig.web.json`](/docs/web-runtime#browser-typescript-environment) and its
+root solution reference; built-in inputs need neither. The scaffolder installs the dependencies with the package
 manager it was started with, pnpm or npm, the two Soundor supports. Started
 any other way, it asks which of them to use.
 

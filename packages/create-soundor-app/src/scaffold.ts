@@ -205,9 +205,6 @@ export function projectManifest(
       Object.assign(scripts, buildScripts(runtimes));
     } else if (script === 'dev') {
       Object.assign(scripts, devScripts(runtimes));
-    } else if (script === 'typecheck' && runtimes.includes('web')) {
-      // The Web host's code has its own tsconfig (DOM types).
-      scripts[script] = `${command} && tsc -p runtimes/web`;
     } else {
       scripts[script] = command;
     }

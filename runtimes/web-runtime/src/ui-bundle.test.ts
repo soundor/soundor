@@ -4,7 +4,7 @@ import { join, relative } from 'node:path';
 import { createServer as viteCreateServer, type ViteDevServer } from 'vite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { webBuild, webDev, webGen, webInit } from './index';
+import { webBuild, webDev, webGen } from './index';
 import {
   makeCtx,
   PNG,
@@ -26,14 +26,8 @@ globalThis.__fixtureUi = { gain: parameters.gain.get(), host: snapshot().hostNam
 async function project(): Promise<string> {
   const root = await tempProject();
   const ctx = makeCtx(root);
-  await webInit(testConfig, ctx);
   await webGen(testConfig, ctx);
   await writeGenerated(ctx);
-  // The scaffold's config imports the built package, which tests run without.
-  await writeFile(
-    join(root, 'runtimes/web/vite.config.ts'),
-    'export default {};\n',
-  );
   return root;
 }
 
