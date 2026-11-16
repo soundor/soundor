@@ -354,7 +354,7 @@ swizzle (see `contribute/apple-accessibility.md`).
 
 ### Source and generated file ownership
 
-`gen` creates missing shared Rust starter files and never overwrites existing
+`gen` creates the shared Rust starter crate when `native/Cargo.toml` is absent and never overwrites existing
 user files. Both first-party hosts are package-managed; no runtime host
 directories or initialization hooks are needed. `gen` regenerates
 `.soundor/generated/` deterministically; `soundor gen --check` is read-only

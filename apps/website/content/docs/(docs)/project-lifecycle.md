@@ -36,7 +36,8 @@ useful for refreshing types in an editor.
 | `.soundor/dist/<id>/` | Build tools         | Runtime build trees and output                                                             |
 | `.soundor/dev/`       | Development session | Build logs and session files                                                               |
 
-`gen` creates missing Rust starter files, preserving existing files. It
+`gen` creates a Rust starter crate when `native/Cargo.toml` is absent,
+preserving existing files. Existing crates keep their sources, tests and layout. It
 regenerates the derived contract under `.soundor/`. `gen --check` only
 compares that derived output and never creates starter files. Framework changes belong in the runtime package or generated code,
 so existing projects can receive them without overwriting custom code.

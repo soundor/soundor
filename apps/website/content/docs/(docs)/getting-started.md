@@ -87,8 +87,8 @@ my-plugin/
 ```
 
 You own `src/`, `native/`, the toolchain file and the config. Soundor owns
-`.soundor/`, which is disposable build output. `gen` creates missing Rust starter
-files without overwriting edits, and rewrites the derived files in `.soundor/`. See [Project lifecycle](/docs/project-lifecycle).
+`.soundor/`, which is disposable build output. `gen` creates a Rust starter crate
+when its manifest is absent, leaves existing crates untouched, and rewrites the derived files in `.soundor/`. See [Project lifecycle](/docs/project-lifecycle).
 
 If you create the project from scratch or upgrade an existing project, use
 the [UI TypeScript setup](/docs/cli/ui-bundle#typescript), including

@@ -41,9 +41,10 @@ in `.soundor/generated/`:
 
 ## Rust starter files
 
-`gen` also creates missing Rust starter files under `native/` and the
-`rust-toolchain.toml` file. Existing files are preserved, including processor
-and controller edits. Development and builds run generation automatically;
+`gen` also creates a Rust starter crate under `native/` and a
+`rust-toolchain.toml` file when `native/Cargo.toml` is absent. Existing files
+are preserved. If the manifest already exists, generation leaves the crate
+and its layout untouched, including missing or intentionally removed tests. Development and builds run generation automatically;
 new projects need no separate initialization command or runtime host directory.
 
 `gen --check` compares only the derived output under `.soundor/` and never

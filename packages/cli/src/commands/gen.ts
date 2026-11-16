@@ -85,8 +85,9 @@ export async function runGen(
   );
   const groups: RunGenGroupReport[] = [];
 
-  // Starter Rust files are user-owned: fill gaps, never overwrite edits.
-  if (options.check !== true) {
+  // An existing crate owns its layout and package/library names. Never add
+  // starter sources or tests to it based on the plugin's display name.
+  if (options.check !== true && !(await fs.exists('native/Cargo.toml'))) {
     for (const file of nativeScaffoldFiles(config)) {
       if (!(await fs.exists(file.path))) {
         await fs.write(file.path, file.contents);
