@@ -18,7 +18,6 @@ import {
   webDev,
   webDoctor,
   webGen,
-  webInit,
   webRuntime,
 } from './index';
 import {
@@ -72,14 +71,6 @@ describe('webRuntime', () => {
     expect(descriptor.options).toEqual({ port: 4000 });
     expect(descriptor.runtime).toBe(webRuntime.runtime);
     expect(webRuntime().options).toEqual({});
-  });
-});
-
-describe('webInit', () => {
-  it('is a no-op and never generates a user-owned host', async () => {
-    const root = await tempProject();
-    await webInit(testConfig, makeCtx(root));
-    expect(await listFiles(root)).toEqual([]);
   });
 });
 
@@ -442,24 +433,21 @@ describe('webDoctor', () => {
     const root = await tempProject();
     const ctx = makeCtx(root);
 
-    const before = await webDoctor(testConfig, ctx);
-    expect(before.checks.map((check) => check.label)).toEqual([
+    const report = await webDoctor(testConfig, ctx);
+    expect(report.checks.map((check) => check.label)).toEqual([
       'Node.js',
       'Vite',
       'Rust WebAssembly target',
       'Managed Web host',
     ]);
-    expect(before.checks[0]!.status).toBe('ok');
-    expect(before.checks[1]!.status).toBe('ok');
-    expect(before.checks[3]).toMatchObject({
+    expect(report.checks[0]!.status).toBe('ok');
+    expect(report.checks[1]!.status).toBe('ok');
+    expect(report.checks[3]).toMatchObject({
       status: 'ok',
     });
 
-    await webInit(testConfig, ctx);
-    const after = await webDoctor(testConfig, ctx);
-    expect(after.checks[3]!.status).toBe('ok');
     expect(
-      after.checks.every((check) => !/cmake|juce|c\+\+/i.test(check.label)),
+      report.checks.every((check) => !/cmake|juce|c\+\+/i.test(check.label)),
     ).toBe(true);
   });
 });
@@ -469,7 +457,6 @@ describe('the audio processor', () => {
     const root = await tempProject();
     const native = fakeNative(root);
     const ctx = makeCtx(root, { native });
-    await webInit(testConfig, ctx);
     await webGen(testConfig, ctx);
     const build = vi.fn<() => Promise<undefined>>(
       async () => undefined,
@@ -487,11 +474,8 @@ describe('the audio processor', () => {
   it('is required: a project without native/ is told to create it', async () => {
     const root = await tempProject();
     const ctx = makeCtx(root, { native: null });
-    await webInit(testConfig, ctx);
     await expect(
       webBuild(testConfig, ctx, { build: vi.fn<() => void>() as never }),
-    ).rejects.toThrow(
-      /no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor init/,
-    );
+    ).rejects.toThrow(/no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor gen/);
   });
 });

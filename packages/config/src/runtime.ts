@@ -2,7 +2,7 @@
  * The runtime contract.
  *
  * A runtime owns execution and the build graph; this defines only the seams the
- * core orchestrates. Every runtime implements the same five-phase {@link
+ * core orchestrates. Every runtime implements the same four-phase {@link
  * Runtime} lifecycle so the CLI can dispatch generically, never special-casing
  * one. A config author registers a runtime by passing a live {@link
  * RuntimeDescriptor} into `runtimes[]` — the object returned by a runtime's
@@ -45,18 +45,13 @@ export interface DoctorReport {
 }
 
 /**
- * The full lifecycle every runtime implements. All five methods share one shape
+ * The full lifecycle every runtime implements. All four methods share one shape
  * — `(config, ctx)` — so orchestration can dispatch by phase alone.
  */
 export interface Runtime<Options extends object = object> {
   /** Stable id; must match the `id` used in `config.runtimes[]`. */
   readonly id: string;
   readonly capabilities?: RuntimeCapabilities;
-  /** Scaffold/prepare a project for this runtime. */
-  init(
-    config: ResolvedSoundorConfig,
-    ctx: LifecycleContext<Options>,
-  ): Promise<void>;
   /** Produce generated sources via `ctx.codegen`. */
   gen(
     config: ResolvedSoundorConfig,

@@ -1,4 +1,5 @@
 import {
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -142,6 +143,60 @@ describe('runGen', () => {
     });
   });
 
+  it('creates a new Rust crate and preserves its edits and layout', async () => {
+    await writeConfig(root, 'gain');
+    await runGen({ cwd: root });
+    const processor = join(root, 'native/src/processor.rs');
+    const manifest = join(root, 'native/Cargo.toml');
+    expect(await readFile(processor, 'utf8')).toContain('impl Processor');
+    expect(await readFile(manifest, 'utf8')).toContain('[dependencies]');
+    await writeFile(processor, '// custom processor');
+    await writeFile(manifest, '# custom dependencies');
+    await rm(join(root, 'native/src/controller.rs'));
+    await runGen({ cwd: root });
+    expect(await readFile(processor, 'utf8')).toBe('// custom processor');
+    expect(await readFile(manifest, 'utf8')).toBe('# custom dependencies');
+    expect(await pathExists(join(root, 'native/src/controller.rs'))).toBe(
+      false,
+    );
+    expect(await pathExists(join(root, 'runtimes'))).toBe(false);
+  });
+
+  it('leaves an existing custom Rust crate untouched', async () => {
+    await writeConfig(root, 'gain');
+    const native = join(root, 'native');
+    await mkdir(join(native, 'src'), { recursive: true });
+    await writeFile(
+      join(native, 'Cargo.toml'),
+      '[package]\nname = "custom-processor"\nversion = "0.1.0"\n\n[lib]\nname = "custom_library"\n',
+    );
+    await writeFile(join(native, 'src/lib.rs'), '// custom layout');
+    const before = await snapshotTree(native);
+    await runGen({ cwd: root });
+    expect(await snapshotTree(native)).toEqual(before);
+    expect(await pathExists(join(root, 'rust-toolchain.toml'))).toBe(false);
+    expect(
+      await pathExists(
+        join(root, '.soundor/generated/rust/soundor/src/plugin.rs'),
+      ),
+    ).toBe(true);
+  });
+
+  it('never creates starter files in check mode', async () => {
+    await writeConfig(root, 'gain');
+    await expect(runGen({ cwd: root, check: true })).rejects.toThrow(
+      /generated/i,
+    );
+    expect(await pathExists(join(root, 'native'))).toBe(false);
+    expect(await pathExists(join(root, 'rust-toolchain.toml'))).toBe(false);
+    await runGen({ cwd: root });
+    await rm(join(root, 'native'), { recursive: true });
+    await rm(join(root, 'rust-toolchain.toml'));
+    await runGen({ cwd: root, check: true });
+    expect(await pathExists(join(root, 'native'))).toBe(false);
+    expect(await pathExists(join(root, 'rust-toolchain.toml'))).toBe(false);
+  });
+
   it('is idempotent across repeated generation', async () => {
     await writeConfig(root, 'gain');
 
@@ -235,7 +290,6 @@ async function writeConfig(root: string, parameterId: string): Promise<void> {
 
 const runtime = {
   id: 'test',
-  async init() {},
   async gen(config, ctx) {
     ctx.codegen.emit({
       path: 'runtime.txt',

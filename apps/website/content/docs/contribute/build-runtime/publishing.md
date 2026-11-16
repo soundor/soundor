@@ -23,8 +23,8 @@ flowchart TD
     package["Runtime tarball: factory, types and resources"] --> project["Installed plugin project"]
     deps["Runtime SDK and core dependencies, declared compatibility"] --> project
     engine["Exact engine package, when used"] --> project
-    project --> init["Initialize and generate"]
-    init --> verify["Doctor, dev and production consumer checks"]
+    project --> gen["Generate"]
+    gen --> verify["Doctor, dev and production consumer checks"]
 ```
 
 ### Name and exports
@@ -88,7 +88,7 @@ engine. It still needs compatible declarations and observable module behavior.
 Check a packed installation in a fresh consumer (as
 `packages/cli/scripts/runtime-consumer-smoke.mjs` does for the reference
 runtimes): import the factory, load config,
-initialize twice, generate and check, run doctor, and exercise development and
+generate and check, run doctor, and exercise development and
 production output. Include assets and user-defined native API types in the
 fixture so missing package resources or dependencies are exposed.
 
@@ -102,4 +102,4 @@ dependency notices with any native dependency archives you distribute.
 When changing exports, dependency ranges or packaged files, run consumer checks
 against the packed result. Treat an engine upgrade as a rebuild of every
 component tied to its ABI and bytecode. Document required user-owned host-file
-edits; new `init` templates cannot migrate existing files automatically.
+edits; package updates cannot migrate user-owned files automatically.

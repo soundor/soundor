@@ -6,7 +6,6 @@ function makeRuntime(id = 'juce'): RuntimeDefinition {
   const noop = async (): Promise<void> => {};
   return {
     id,
-    init: noop,
     gen: noop,
     dev: noop,
     build: noop,

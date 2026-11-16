@@ -38,3 +38,14 @@ in `.soundor/generated/`:
   and generated files can be committed or ignored as you prefer.
 - **A typecheck script** runs it first:
   `"typecheck": "soundor gen && tsc -b"`.
+
+## Rust starter files
+
+`gen` also creates a Rust starter crate under `native/` and a
+`rust-toolchain.toml` file when `native/Cargo.toml` is absent. Existing files
+are preserved. If the manifest already exists, generation leaves the crate
+and its layout untouched, including missing or intentionally removed tests. Development and builds run generation automatically;
+new projects need no separate initialization command or runtime host directory.
+
+`gen --check` compares only the derived output under `.soundor/` and never
+creates or updates user-owned starter files.

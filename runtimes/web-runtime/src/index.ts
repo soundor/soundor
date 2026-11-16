@@ -58,14 +58,6 @@ export interface WebPhaseDeps {
 
 type Ctx = LifecycleContext<WebOptions>;
 
-/** The shared lifecycle requires init; the managed Web host needs no files. */
-export async function webInit(
-  _config: ResolvedSoundorConfig,
-  ctx: Ctx,
-): Promise<void> {
-  resolveWebOptions(ctx.options);
-}
-
 /** `gen` — emit the project's manifest into `.soundor/generated/runtimes/<id>/`. */
 export async function webGen(
   config: ResolvedSoundorConfig,
@@ -187,7 +179,6 @@ export async function webDoctor(
 /** The factory a config author registers: `runtimes: [webRuntime({ ... })]`. */
 export const webRuntime = defineRuntime<WebOptions>({
   id: RUNTIME_ID,
-  init: webInit,
   gen: webGen,
   dev: (config, ctx) => webDev(config, ctx),
   build: (config, ctx) => webBuild(config, ctx),
@@ -253,7 +244,7 @@ export const WASM_TARGET = 'wasm32-unknown-unknown';
 async function buildProcessor(ctx: Ctx): Promise<string> {
   if (ctx.native === undefined)
     throw new EnvError(
-      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor init` to create it.",
+      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor gen` to create missing Rust starter files.",
     );
   ctx.logger.info('Compiling the audio processing (native/) to WebAssembly');
   const library = await ctx.native.build({

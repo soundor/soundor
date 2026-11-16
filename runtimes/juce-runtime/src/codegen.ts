@@ -1,12 +1,10 @@
 /**
  * C++/CMake generation for the JUCE runtime's `gen` phase. These are the
- * *framework* files a user's project inherits — ephemeral, regenerated on every
+ * *framework* files the managed host uses — ephemeral, regenerated on every
  * `gen`, and written under `.soundor/generated/runtimes/juce/`:
  *
  * - `setup.cmake` — the JUCE plumbing (locate JUCE, `juce_add_plugin`, compile
- *   defs, links, generated sources). The user's own `CMakeLists.txt` only
- *   `include()`s this — the single line Soundor injects into a host the user
- *   otherwise fully owns.
+ *   defs, links, generated sources), included by the package-owned host.
  * - `soundor/soundor.h` — umbrella header.
  * - `soundor/SoundorProcessor.{h,cpp}` — the `soundor::AudioProcessor` base:
  *   builds the `AudioProcessorValueTreeState` from the config's parameters,
@@ -21,7 +19,7 @@
  *   bindings generated from the config's `native` API (see native-codegen.ts).
  *
  * Everything is derived from config only — deterministic, so `gen --check` is
- * reproducible. App-specific behavior lives in the user-owned scaffold.
+ * reproducible. Audio processing and controller behavior live in native/.
  */
 
 import { createRequire } from 'node:module';
@@ -300,6 +298,9 @@ juce_add_plugin(\${PROJECT_NAME}
 cmake_language(DEFER CALL soundor_finalize_plugin \${PROJECT_NAME})
 
 target_compile_definitions(\${PROJECT_NAME}
+    PRIVATE
+        SOUNDOR_CONFIGURED_AUDIO=${config.audio !== undefined ? 1 : 0}
+        SOUNDOR_FACTORY_PRESETS=${config.presets?.length ? 1 : 0}
     PUBLIC
         JUCE_USE_CURL=0
         JUCE_WEB_BROWSER=0

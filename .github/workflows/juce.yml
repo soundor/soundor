@@ -229,11 +229,9 @@ jobs:
       # A plugin as a project builds it by default (juceRuntime's prebuilt
       # mode). Given a manifest, it links those archives, never the engine's
       # sources.
-      - name: Configure the test plugin without GPU support
-        if: matrix.nogpu
-        run: |
-          pnpm --filter @soundor/juce-runtime exec soundor init --config tests/plugin/soundor.config.ts
-          sed -i '/^include(/i set(SOUNDOR_ENABLE_GPU OFF CACHE BOOL "" FORCE)' runtimes/juce-runtime/tests/plugin/runtimes/juce/CMakeLists.txt
+      - name: Check the packed runtime consumer
+        if: ${{ !matrix.lint && !matrix.sanitize }}
+        run: pnpm --filter @soundor/juce-runtime exec node tests/packed.mjs
       - name: Build the test plugin
         if: ${{ !matrix.lint && !matrix.sanitize }}
         env:
@@ -241,6 +239,11 @@ jobs:
           EXPLICIT_ENGINE: ${{ !(matrix.nogpu || matrix.sanitize) && (inputs.build-engine || inputs.engine-release != '') && 'true' || '' }}
         run: |
           set -eo pipefail
+          if [ "${{ matrix.nogpu }}" = "true" ]; then
+            build=runtimes/juce-runtime/tests/plugin/.soundor/cache/juce/build-release
+            mkdir -p "$build"
+            echo 'SOUNDOR_ENABLE_GPU:BOOL=OFF' > "$build/CMakeCache.txt"
+          fi
           pnpm --filter @soundor/juce-runtime test:plugin 2>&1 | tee "$RUNNER_TEMP/plugin.log"
           if [ -n "$EXPLICIT_ENGINE" ]; then
             if grep -qE 'soundor_runtime\.dir|Building (Skia|ANGLE|Hermes)' "$RUNNER_TEMP/plugin.log"; then

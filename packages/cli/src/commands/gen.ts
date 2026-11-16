@@ -24,6 +24,7 @@ import {
 } from '@soundor/core';
 import { defineCommand } from 'citty';
 
+import { nativeScaffoldFiles } from '../native/scaffold';
 import { rustSdkFiles } from '../native/sdk';
 
 const CONFIG_FILENAME = 'soundor.config.ts';
@@ -83,6 +84,16 @@ export async function runGen(
     resolveRuntime(config, runtimeEntry.id),
   );
   const groups: RunGenGroupReport[] = [];
+
+  // An existing crate owns its layout and package/library names. Never add
+  // starter sources or tests to it based on the plugin's display name.
+  if (options.check !== true && !(await fs.exists('native/Cargo.toml'))) {
+    for (const file of nativeScaffoldFiles(config)) {
+      if (!(await fs.exists(file.path))) {
+        await fs.write(file.path, file.contents);
+      }
+    }
+  }
 
   if (options.check === true) {
     await checkGeneratedFiles(fs, portableDir, portableFiles);

@@ -91,6 +91,7 @@ export async function buildDoctorReport(
 
   return {
     checks: [
+      await checkManagedHost(fs),
       checkCMake(probe),
       checkCompiler(probe, deps.platform ?? process.platform),
       checkNativeBuildTools(probe),
@@ -389,4 +390,22 @@ async function checkJuce(
 
 function firstLine(value: string | undefined): string | undefined {
   return value?.split('\n')[0]?.trim() || undefined;
+}
+
+/** Legacy files may hold customizations; require an explicit migration. */
+async function checkManagedHost(fs: FileSystemHost): Promise<DoctorCheck> {
+  if (await fs.exists(fs.resolve('runtimes', 'juce'))) {
+    return {
+      label: 'JUCE host',
+      status: 'fail',
+      detail: 'Legacy runtimes/juce host found.',
+      suggestion:
+        'Review customizations, move processing and native methods to native/ and settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. See https://soundor.dev/docs/juce-runtime#migration.',
+    };
+  }
+  return {
+    label: 'JUCE host',
+    status: 'ok',
+    detail: 'Provided by @soundor/juce-runtime; no initialization needed.',
+  };
 }

@@ -28,7 +28,6 @@ function makeRuntime(id: string): Runtime {
   const noop = async (): Promise<void> => {};
   return {
     id,
-    init: noop,
     gen: noop,
     dev: noop,
     build: noop,
@@ -104,7 +103,7 @@ const expectedData = {
 function expectRuntime(config: ResolvedSoundorConfig, id: string): void {
   const runtime = config.runtimes.find((r) => r.id === id)?.runtime;
   expect(runtime?.id).toBe(id);
-  for (const method of ['init', 'gen', 'dev', 'build', 'doctor'] as const) {
+  for (const method of ['gen', 'dev', 'build', 'doctor'] as const) {
     expect(typeof runtime?.[method]).toBe('function');
   }
 }
@@ -142,7 +141,7 @@ describe('parseConfig — loading', () => {
     writeFileSync(
       path,
       `const noop = async () => {};
-       const runtime = { id: 'juce', init: noop, gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
+       const runtime = { id: 'juce', gen: noop, dev: noop, build: noop, doctor: async () => ({ checks: [] }) };
        export default { plugin: { id: 'com.example.defaults', name: ' Defaults ' }, runtimes: [{ id: 'juce', runtime }], parameters: {} };`,
     );
     const config = await parseConfig({ path });

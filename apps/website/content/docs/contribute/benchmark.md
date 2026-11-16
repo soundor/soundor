@@ -20,7 +20,6 @@ src/driver.ts           runs scenarios one at a time and measures their frames
 src/scenarios/          the scenarios, one file per kind (types.ts: what one is)
 scripts/bench.ts        `pnpm bench`: the headless benchmark in the JUCE runtime
 native/                 shared Rust audio processor: applies `gain`
-runtimes/juce/          JUCE host integration
 ```
 
 | Group          | Scenario                             | Stresses                                                                                                                         |

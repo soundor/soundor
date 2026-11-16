@@ -4,7 +4,7 @@ description: 'Test real audio, lifecycle, the C ABI, allocations and parity betw
 ---
 
 The `soundor` SDK includes a pure-Rust test harness. It runs your actual
-processor without JUCE, a browser, or the rendering engine. `init` creates a
+processor without JUCE, a browser, or the rendering engine. `gen` creates a starter crate when `native/Cargo.toml` is absent, including a
 processor integration test alongside `native/src/processor.rs`.
 
 ## Run the crate

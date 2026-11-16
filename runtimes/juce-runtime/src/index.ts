@@ -9,7 +9,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, type Dirent } from 'node:fs';
 import { cp, mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -52,7 +52,6 @@ import {
   type WindowsCrt,
 } from './options';
 import { resolveJuce } from './resolve-juce';
-import { juceScaffoldFiles } from './scaffold';
 
 export type {
   DevLaunch,
@@ -71,8 +70,8 @@ export const RUNTIME_ID = 'juce';
 
 /**
  * The native runtime sources shipped with this package (`native/`), which the
- * generated setup.cmake builds into the plugin. Resolves from both `dist/` and
- * `src/`.
+ * managed host and generated setup.cmake build into the plugin. Resolves from
+ * both `dist/` and `src/`.
  */
 export const NATIVE_DIR = fileURLToPath(new URL('../native', import.meta.url));
 
@@ -100,32 +99,21 @@ type StandaloneLauncher = (
   descriptorPath?: string,
 ) => boolean;
 
-/**
- * `init` — scaffold the user-owned host under `runtimes/<id>/` (idempotent).
- * The scaffold inherits the generated framework and `include()`s its
- * `setup.cmake`; it is written once and never overwritten.
- */
-export async function juceInit(
-  config: ResolvedSoundorConfig,
-  ctx: Ctx,
-): Promise<void> {
-  const options = resolveJuceOptions(ctx.options, config.plugin);
-  const scaffoldDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
-  // CMake wants a forward-slash path regardless of platform.
-  const includePath = relative(scaffoldDir, join(ctx.paths.gen, 'setup.cmake'))
-    .split(sep)
-    .join('/');
-  const files = juceScaffoldFiles(options, RUNTIME_ID, includePath, config);
-
-  for (const file of files) {
-    const target = ctx.fs.resolve(file.path);
-    if (await ctx.fs.exists(target)) {
-      ctx.logger.info(`skip ${file.path} (exists)`);
-      continue;
-    }
-    await ctx.fs.write(target, file.contents);
-    ctx.logger.info(`create ${file.path}`);
+/** Reject legacy hosts before any compilation; never discard user customizations. */
+async function requireManagedHost(ctx: Ctx): Promise<void> {
+  if (await ctx.fs.exists(ctx.fs.resolve('runtimes', RUNTIME_ID))) {
+    throw new EnvError(
+      'The JUCE host is now managed by @soundor/juce-runtime. Review customizations in runtimes/juce, move audio processing and native methods to native/ and plugin settings to soundor.config.ts, then remove runtimes/juce yourself. C++ host customizations are no longer used. Existing files are never deleted; the legacy host cannot be combined with the managed host. See https://soundor.dev/docs/juce-runtime#migration.',
+    );
   }
+}
+
+/** CMake configures the package-owned host against this project's generated contract. */
+function managedHostArgs(ctx: Ctx, pluginName: string): string[] {
+  return [
+    `-DSOUNDOR_GENERATED_DIR=${cmakePath(ctx.paths.gen)}`,
+    `-DSOUNDOR_PLUGIN_TARGET=${pluginName.replace(/[^A-Za-z0-9_]/g, '') || 'SoundorPlugin'}`,
+  ];
 }
 
 /**
@@ -154,6 +142,7 @@ export async function juceDev(
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
+  await requireManagedHost(ctx);
   const run = deps.run ?? runCommand;
   const platform = deps.platform ?? process.platform;
   const options = resolveJuceOptions(ctx.options, config.plugin);
@@ -190,7 +179,7 @@ export async function juceDev(
       );
     }
   }
-  const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
+  const projectDir = join(NATIVE_DIR, 'plugin');
   const buildDir = join(ctx.paths.cache, 'build-debug');
   let devHost: DevVst3Host | undefined;
   const ui = ctx.ui;
@@ -227,6 +216,7 @@ export async function juceDev(
       '-B',
       buildDir,
       ...generatorArgs(platform),
+      ...managedHostArgs(ctx, options.pluginName),
       '-DCMAKE_BUILD_TYPE=Debug',
       `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
       `-DSOUNDOR_ENABLE_DEVTOOLS=${ctx.devtools === undefined ? 'OFF' : 'ON'}`,
@@ -381,7 +371,7 @@ async function buildRust(
 ): Promise<string> {
   if (ctx.native === undefined)
     throw new EnvError(
-      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor init` to create it.",
+      "The project has no Rust crate (native/Cargo.toml), which holds the plugin's audio processing. Run `soundor gen` to create missing Rust starter files.",
     );
   ctx.logger.info('Compiling the audio processing (native/) with Cargo');
   const library = await ctx.native.build({
@@ -408,6 +398,7 @@ export async function juceBuild(
   ctx: Ctx,
   deps: JucePhaseDeps = {},
 ): Promise<void> {
+  await requireManagedHost(ctx);
   const run = deps.run ?? runCommand;
   const platform = deps.platform ?? process.platform;
   const debug = ctx.mode === 'debug';
@@ -415,7 +406,7 @@ export async function juceBuild(
   const options = resolveJuceOptions(ctx.options, config.plugin);
   const jucePath = await requireJuce(ctx, options);
   requireToolchain(deps.probe ?? probeCommand, platform);
-  const projectDir = ctx.fs.resolve('runtimes', RUNTIME_ID);
+  const projectDir = join(NATIVE_DIR, 'plugin');
   const buildDir = join(
     ctx.paths.cache,
     debug ? 'build-debug-build' : 'build-release',
@@ -443,6 +434,7 @@ export async function juceBuild(
     '-B',
     buildDir,
     ...generatorArgs(platform),
+    ...managedHostArgs(ctx, options.pluginName),
     `-DCMAKE_BUILD_TYPE=${configuration}`,
     `-DSOUNDOR_ENGINE_MODE=${options.engineMode}`,
     `-DSOUNDOR_ENABLE_DEVTOOLS=${debug ? 'ON' : 'OFF'}`,
@@ -548,7 +540,6 @@ export const juceRuntime = defineRuntime<JuceOptions>({
       capture: true,
     },
   },
-  init: juceInit,
   gen: juceGen,
   dev: (config, ctx) => juceDev(config, ctx),
   build: (config, ctx) => juceBuild(config, ctx),
@@ -603,7 +594,7 @@ function generatorArgs(platform: NodeJS.Platform): string[] {
 
 /**
  * The oldest macOS to build for: on the command line, as CMake wants it before
- * the first `project()`, which the project's own CMakeLists.txt calls.
+ * the first `project()`, which the managed host's CMakeLists.txt calls.
  */
 function deploymentTargetArgs(
   platform: NodeJS.Platform,
@@ -665,6 +656,15 @@ async function prepareBuildDir(
   let reason: string | undefined;
   if (juce !== undefined && !samePath(juce, jucePath, platform)) {
     reason = `it was configured with JUCE at ${juce}, and JUCE is now at ${jucePath}`;
+  } else if (
+    cached('CMAKE_HOME_DIRECTORY') !== undefined &&
+    !samePath(
+      cached('CMAKE_HOME_DIRECTORY')!,
+      join(NATIVE_DIR, 'plugin'),
+      platform,
+    )
+  ) {
+    reason = 'the managed JUCE host has moved';
   } else if (
     platform !== 'win32' &&
     generator !== undefined &&

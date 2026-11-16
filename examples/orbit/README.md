@@ -39,8 +39,8 @@ version always processes the host's audio input.
   identifies the starting point; parameter edits do not rename it.
 
 `src/` is portable Soundor UI: no DOM, browser audio, or platform checks.
-The managed Web host runs the shared Rust processor in an AudioWorklet;
-`runtimes/juce/Delay.h` implements the same algorithm in C++. Both use three
+The managed JUCE and Web hosts run the same Rust processor from `native/`,
+natively and in an AudioWorklet respectively. It uses three
 filtered, saturated feedback lines, interpolated reads, smoothed delay times
 and mix/bypass. The wet signal uses the input's mono sum; the dry signal
 preserves stereo. The echo map depicts parameters, not a measured waveform.

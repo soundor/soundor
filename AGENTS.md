@@ -201,7 +201,7 @@ read the docs bundled with the installed package
   mapping, snapping, format, parse); runtimes only compile them. See the docs'
   `contribute/expression.md`.
 - `packages/runtime-sdk` — `defineRuntime()`, which turns a runtime definition
-  (`init`, `gen`, `dev`, `build`, `doctor`) into the factory a config calls
+  (`gen`, `dev`, `build`, `doctor`) into the factory a config calls
   (`juceRuntime({...})`).
 - `packages/core` — shared toolchain code: codegen of `.soundor/generated`
   (`@soundor/environment`'s declarations copied, plus `soundor:parameters`
@@ -212,7 +212,7 @@ read the docs bundled with the installed package
   `soundor:storage`, `soundor:fs`, asset imports and the runtime's Web
   globals. Written by hand, except `webgl.d.ts`. Libraries use it (`"types":
   ["@soundor/environment"]`); core copies it into each project.
-- `packages/cli` (`soundor`) — `init`, `gen`, `dev`, `build`, `doctor`. Loads
+- `packages/cli` (`soundor`) — `gen`, `dev`, `build`, `doctor`. Loads
   the config, bundles the UI with tsdown (`src/ui/bundle.ts`: npm deps inlined,
   `soundor:*` left as imports) into one ES module, `bundle.mjs`, then calls
   each runtime's phase. A runtime that runs another form makes it: the JUCE
@@ -278,7 +278,7 @@ read the docs bundled with the installed package
   content-addressed cache; `SOUNDOR_ENGINE_WASM`), following the VST3 host's
   rules: integrity or network failures are errors, never a reason to build.
   See `contribute/web-engine.md` and the docs' `engine.md`.
-- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, scaffolding and the JUCE adapters in `native/backend/juce/`.
+- `runtimes/juce-runtime` — TypeScript codegen, JUCE resolution, the managed host in `native/plugin/` and the JUCE adapters in `native/backend/juce/`.
 - `runtimes/web-runtime` — Node side (`src/`: lifecycle, Vite plugin, codegen,
   `engine-wasm.ts`, the one place that calls `engine({ target: 'web' })`) and the
   browser side (`src/client/`: parameter store, `WebHost`, the page's engine
@@ -352,12 +352,14 @@ types never leave `src/a11y/windows/`. Keep the native and web rules in
 step. Apple bridges must not register fixed Objective-C class names or
 swizzle (see `contribute/apple-accessibility.md`).
 
-### init vs gen ownership
+### Source and generated file ownership
 
-`init` writes user-owned host files once under `runtimes/<id>/` and never
-overwrites them. `gen` regenerates `.soundor/generated/` (deterministic,
-`soundor gen --check`). Code that belongs to every plugin goes in the
-generated framework or the runtime package, not in `init` templates.
+`gen` creates the shared Rust starter crate when `native/Cargo.toml` is absent and never overwrites existing
+user files. Both first-party hosts are package-managed; no runtime host
+directories or initialization hooks are needed. `gen` regenerates
+`.soundor/generated/` deterministically; `soundor gen --check` is read-only
+and checks derived output only. Shared plugin code belongs in the generated
+framework or runtime package, rather than user-owned starter templates.
 
 ### Native runtime invariants (`engines/engine`)
 

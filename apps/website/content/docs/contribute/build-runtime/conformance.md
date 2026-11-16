@@ -30,17 +30,17 @@ flowchart TD
     platform --> review
 ```
 
-| Area                 | Evidence a runtime should provide                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Lifecycle            | Repeat `init` without losing edits; deterministic `gen`; check mode without writes; correct modes and output paths; useful doctor failures |
-| Development          | UI marker reload, failed-build recovery, logs, optional terminal integration, cancellation and cleanup                                     |
-| Parameters           | Every type, invalid values, range rules, deduplicated changes, subscription teardown, nested gestures and host-originated updates          |
-| Native API           | Every supported type, argument order, nested path errors, exceptions, async results and handle validity                                    |
-| Host and services    | Snapshots, subscriptions, persistence isolation, absent services, filesystem traversal, atomic writes and error names                      |
-| UI                   | Node lifetime, layout defaults, input/focus routing, portals, modals, semantic visibility and accessibility actions                        |
-| Animation and canvas | Cancellation, completion, reduced motion, timing, context creation failure and resource teardown                                           |
-| Execution            | Supported globals, promise jobs, module loading, assets, production bundle and clean reload with work pending                              |
-| Platform             | Real rendering, input, accessibility attachment, audio/host interaction and process coexistence where applicable                           |
+| Area                 | Evidence a runtime should provide                                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Lifecycle            | Deterministic `gen`; check mode without writes; correct modes and output paths; useful doctor failures                            |
+| Development          | UI marker reload, failed-build recovery, logs, optional terminal integration, cancellation and cleanup                            |
+| Parameters           | Every type, invalid values, range rules, deduplicated changes, subscription teardown, nested gestures and host-originated updates |
+| Native API           | Every supported type, argument order, nested path errors, exceptions, async results and handle validity                           |
+| Host and services    | Snapshots, subscriptions, persistence isolation, absent services, filesystem traversal, atomic writes and error names             |
+| UI                   | Node lifetime, layout defaults, input/focus routing, portals, modals, semantic visibility and accessibility actions               |
+| Animation and canvas | Cancellation, completion, reduced motion, timing, context creation failure and resource teardown                                  |
+| Execution            | Supported globals, promise jobs, module loading, assets, production bundle and clean reload with work pending                     |
+| Platform             | Real rendering, input, accessibility attachment, audio/host interaction and process coexistence where applicable                  |
 
 Tests should check results, event traces and errors from portable UI code.
 Keep pixel and platform assertions in integration suites that can exercise the

@@ -4,7 +4,6 @@
 const noop = async () => {};
 const runtime = {
   id: 'juce',
-  init: noop,
   gen: noop,
   dev: noop,
   build: noop,

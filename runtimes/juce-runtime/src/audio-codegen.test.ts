@@ -3,7 +3,6 @@ import { expect, it } from 'vitest';
 
 import { generateJuceSources } from './codegen';
 import { resolveJuceOptions } from './options';
-import { juceScaffoldFiles } from './scaffold';
 
 it('generates stereo-only layout negotiation, metadata and host groups from config', () => {
   const config = resolveConfig({
@@ -52,11 +51,5 @@ it('generates stereo-only layout negotiation, metadata and host groups from conf
     'getBypassParameter()',
   );
   expect(source).toContain('AudioProcessorParameterGroup');
-  const scaffold = juceScaffoldFiles(options, 'juce', 'setup.cmake', config);
-  expect(
-    scaffold.find((f) => f.path.endsWith('PluginProcessor.cpp'))!.contents,
-  ).not.toContain('isBusesLayoutSupported');
-  expect(
-    scaffold.find((f) => f.path.endsWith('PluginProcessor.h'))!.contents,
-  ).not.toContain('getTailLengthSeconds');
+  expect(files.get('setup.cmake')).toContain('SOUNDOR_CONFIGURED_AUDIO=1');
 });

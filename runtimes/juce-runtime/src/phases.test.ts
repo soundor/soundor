@@ -21,7 +21,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { HostModule } from './dev-host';
-import { juceBuild, juceDev, juceGen, juceInit } from './index';
+import { juceBuild, juceDev, juceGen, NATIVE_DIR } from './index';
 import type { JuceOptions } from './options';
 import { fakeNative, makeCtx } from './testing';
 
@@ -66,51 +66,6 @@ async function writeBundle(
 }
 
 afterEach(() => vi.restoreAllMocks());
-
-describe('juceInit', () => {
-  it('scaffolds the user-owned host under runtimes/juce and is idempotent', async () => {
-    const ctx = makeCtx();
-    await juceInit(config, ctx);
-
-    const cmake = ctx.fs.resolve('runtimes/juce/CMakeLists.txt');
-    expect(await ctx.fs.exists(cmake)).toBe(true);
-    expect(
-      await ctx.fs.exists(ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp')),
-    ).toBe(true);
-
-    const contents = await ctx.fs.read(cmake);
-    // The only injected line: include the generated setup.cmake (user owns the rest).
-    expect(contents).toContain(
-      'include(${CMAKE_CURRENT_SOURCE_DIR}/../../.soundor/generated/runtimes/juce/setup.cmake)',
-    );
-    expect(contents).toContain('project(');
-    // Plugin plumbing (juce_add_plugin) belongs to the generated setup, not here.
-    expect(contents).not.toContain('juce_add_plugin');
-
-    // The scaffold inherits the generated framework.
-    const proc = await ctx.fs.read(
-      ctx.fs.resolve('runtimes/juce/PluginProcessor.h'),
-    );
-    expect(proc).toContain('public soundor::AudioProcessor');
-
-    // No audio processing in C++: that is the Rust crate's (native/), which
-    // the generated base runs. Without an \`audio\` declaration the buses are
-    // constrained here, so it works in a DAW that negotiates layouts.
-    const procSource = await ctx.fs.read(
-      ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp'),
-    );
-    expect(proc).not.toContain('process(');
-    expect(proc).not.toContain('prepareToPlay');
-    expect(procSource).not.toContain('gainParameter');
-    expect(procSource).not.toContain('applyGainRamp');
-    expect(procSource).toContain('isBusesLayoutSupported');
-
-    // Re-init must not overwrite user edits.
-    await ctx.fs.write(cmake, 'EDITED');
-    await juceInit(config, ctx);
-    expect(await ctx.fs.read(cmake)).toBe('EDITED');
-  });
-});
 
 describe('juceGen', () => {
   it('emits the generated framework through the codegen sink', async () => {
@@ -159,6 +114,12 @@ describe('juceDev', () => {
     expect(configure).toContain('-DSOUNDOR_NODE_EXE=' + process.execPath);
     // Automatic engine selection unless the project selects a mode.
     expect(configure).toContain('-DSOUNDOR_ENGINE_MODE=prebuilt');
+    expect(calls[0]).toContain(join(NATIVE_DIR, 'plugin'));
+    expect(calls[0]).toContain(
+      `-DSOUNDOR_GENERATED_DIR=${ctx.paths.gen.replaceAll('\\', '/')}`,
+    );
+    expect(calls[0]).toContain('-DSOUNDOR_PLUGIN_TARGET=SoundorBasic');
+    expect(await exists(join(root, 'runtimes/juce'))).toBe(false);
     // No UI: the cached UI directory is cleared explicitly.
     expect(configure).toContain('-DSOUNDOR_UI_DIR=');
     expect(configure).toContain('-DSOUNDOR_UI_DEV_DIR=');
@@ -1006,9 +967,51 @@ describe('the Rust processor', () => {
     const { ctx, calls, run } = await build({ native: null });
     await expect(
       juceBuild(config, ctx, { run, probe: okProbe, platform: 'linux' }),
-    ).rejects.toThrow(
-      /no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor init/,
-    );
+    ).rejects.toThrow(/no Rust crate \(native\/Cargo.toml\)[\s\S]*soundor gen/);
     expect(calls).toEqual([]);
+  });
+});
+
+describe('legacy JUCE hosts', () => {
+  it.each([juceDev, juceBuild])(
+    'rejects before compiling and preserves customizations',
+    async (phase) => {
+      const ctx = makeCtx();
+      const path = ctx.fs.resolve('runtimes/juce/PluginProcessor.cpp');
+      await ctx.fs.write(path, 'custom processor');
+      const run = vi.fn<(options: RunCommandOptions) => Promise<void>>();
+      await expect(phase(config, ctx, { run })).rejects.toThrow(
+        /managed.*Review customizations/,
+      );
+      expect(run).not.toHaveBeenCalled();
+      expect(await ctx.fs.read(path)).toBe('custom processor');
+    },
+  );
+});
+
+describe('managed host build caches', () => {
+  it('recreates a cache that points to the previous host or package location', async () => {
+    const root = await tempProjectWithJuce();
+    const ctx = makeCtx({
+      root,
+      fs: createNodeFileSystem(root),
+      options: { jucePath: join(root, 'JUCE') },
+      mode: 'production',
+    });
+    const build = join(ctx.paths.cache, 'build-release');
+    await mkdir(build, { recursive: true });
+    await writeFile(
+      join(build, 'CMakeCache.txt'),
+      `CMAKE_HOME_DIRECTORY:INTERNAL=${root}/runtimes/juce\n`,
+    );
+    await writeFile(join(build, 'build.ninja'), 'stale');
+    await juceBuild(config, ctx, { run: async () => {}, probe: okProbe });
+    expect(await exists(join(build, 'build.ninja'))).toBe(false);
+    await writeFile(
+      join(build, 'CMakeCache.txt'),
+      `CMAKE_HOME_DIRECTORY:INTERNAL=${join(NATIVE_DIR, 'plugin')}\n`,
+    );
+    await juceBuild(config, ctx, { run: async () => {}, probe: okProbe });
+    expect(await exists(join(build, 'CMakeCache.txt'))).toBe(true);
   });
 });

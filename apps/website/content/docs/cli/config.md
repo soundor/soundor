@@ -129,7 +129,7 @@ they do not implement DSP, buffering, or tail rendering.
 JUCE generates bus construction and final layout/tail overrides in the processor
 base. For an existing project adopting `audio`, use the base's default constructor
 and remove handwritten `isBusesLayoutSupported()` and `getTailLengthSeconds()`
-overrides. `init` never overwrites existing user-owned files. With `audio` omitted,
+overrides. `gen` preserves existing Rust starter files. With `audio` omitted,
 existing handwritten buses and overrides retain ownership.
 
 The Web runtime supports one main output, at most one main input, and mono/stereo

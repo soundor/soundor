@@ -45,7 +45,9 @@ release; naming it keeps the scaffolder, and so the new project, on the version
 these docs describe.
 
 The scaffolder prompts for the runtime and package manager, copies the template,
-installs dependencies, and runs `soundor init`. Choose JUCE (the default), web,
+installs dependencies, and runs `soundor gen` to create the Rust crate. Both
+JUCE and Web manage their hosts inside their packages; neither needs runtime
+initialization or a `runtimes/` directory. Choose JUCE (the default), web,
 or both. JUCE projects include VST3 and Standalone formats and the VST3 host:
 `pnpm dev` opens the VST3 in that host. Without the host package, it opens the
 Standalone instead. Either native editor needs a graphical desktop. See
@@ -78,16 +80,15 @@ my-plugin/
   native/src/controller.rs required controller and instance stores
   native/src/processor.rs  shared Rust audio processor
   tsconfig.json            UI types, including generated declarations
-  runtimes/juce/           your CMake project, host integration, and editor
   .soundor/
     generated/            generated types and runtime framework
     ui/                   bundled UI and assets
     dist/                 runtime build output
 ```
 
-You own `src/`, `native/`, the toolchain file, the config, and files under `runtimes/`. Soundor owns
-`.soundor/`, which is disposable build output. `init` preserves existing host
-files; `gen` rewrites generated files. See [Project lifecycle](/docs/project-lifecycle).
+You own `src/`, `native/`, the toolchain file and the config. Soundor owns
+`.soundor/`, which is disposable build output. `gen` creates a Rust starter crate
+when its manifest is absent, leaves existing crates untouched, and rewrites the derived files in `.soundor/`. See [Project lifecycle](/docs/project-lifecycle).
 
 If you create the project from scratch or upgrade an existing project, use
 the [UI TypeScript setup](/docs/cli/ui-bundle#typescript), including
@@ -220,7 +221,7 @@ pnpm build
 pnpm --filter basic dev:web
 ```
 
-This path needs no JUCE or native engine build. The example already includes
-both host projects, one shared Rust gain processor, and application tests. See
+This path needs no JUCE or native engine build. The example uses both managed runtimes and includes
+one shared Rust gain processor and application tests. See
 [Basic example](/docs/examples/basic) for its file map and
 [Contributing](/docs/contribute) for repository checks.

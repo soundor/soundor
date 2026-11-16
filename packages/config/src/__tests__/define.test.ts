@@ -9,7 +9,6 @@ const noop = async (): Promise<void> => {};
 function makeRuntime(id: string): Runtime {
   return {
     id,
-    init: noop,
     gen: noop,
     dev: noop,
     build: noop,

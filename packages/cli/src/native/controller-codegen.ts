@@ -371,7 +371,7 @@ pub(crate) const STATE_MAX_LENGTHS: [Option<usize>; ${fields.length}] = [${field
 }
 
 /**
- * A controller for `soundor init` to scaffold: every native method the config
+ * A controller for `soundor gen` to scaffold: every native method the config
  * declares, implemented with its type's default, so that the crate compiles
  * and the plugin runs until the user writes them.
  */

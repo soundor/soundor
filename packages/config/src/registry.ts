@@ -104,8 +104,6 @@ export async function runPhase(
   const { runtime } = resolved;
   try {
     switch (phase) {
-      case 'init':
-        return await runtime.init(config, ctx);
       case 'gen':
         return await runtime.gen(config, ctx);
       case 'dev':

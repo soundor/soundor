@@ -205,19 +205,19 @@ const main = defineCommand({
     }
     s.stop('Dependencies installed');
 
-    // --- soundor init ---
-    s.start('Running soundor init');
-    const execArgs = [...PM_EXEC[pm], 'soundor', 'init'];
-    const initResult = spawnSync(execArgs[0]!, execArgs.slice(1), {
+    // --- soundor gen ---
+    s.start('Running soundor gen');
+    const execArgs = [...PM_EXEC[pm], 'soundor', 'gen'];
+    const genResult = spawnSync(execArgs[0]!, execArgs.slice(1), {
       cwd: target.targetDir,
       stdio: 'inherit',
       shell: process.platform === 'win32',
     });
-    if (initResult.status !== 0) {
-      cancel('soundor init failed');
+    if (genResult.status !== 0) {
+      cancel('soundor gen failed');
       process.exit(1);
     }
-    s.stop('Runtime initialized');
+    s.stop('Project generated');
 
     // --- Done ---
     // devScripts has a script per runtime, in the same order.

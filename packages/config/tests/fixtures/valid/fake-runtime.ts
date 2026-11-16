@@ -7,7 +7,6 @@ const noop = async (): Promise<void> => {};
 export function fakeRuntime(id: string) {
   return {
     id,
-    init: noop,
     gen: noop,
     dev: noop,
     build: noop,

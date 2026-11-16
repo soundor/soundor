@@ -31,7 +31,7 @@ Node or the toolchain, such as core's springs (`springParameters`,
 
 ## Usage
 
-Runtime packages use this SDK to expose lifecycle hooks for `init`, `gen`,
+Runtime packages use this SDK to expose lifecycle hooks for `gen`,
 `dev`, `build`, and `doctor` commands.
 
 ### Compatibility

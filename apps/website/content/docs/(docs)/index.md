@@ -40,8 +40,9 @@ A project has three main parts:
    parameters, typed native API, and enabled runtimes.
 2. **The UI:** `src/main.tsx` mounts React components from `@soundor/react`.
    The components use Soundor nodes, events, and services.
-3. **The host implementations:** `runtimes/juce/` contains your C++ plugin;
-   The Web host is managed by Soundor; optional custom inputs live in browser modules.
+3. **The Rust crate:** `native/` contains your processor and controller.
+   Both JUCE and Web hosts are managed by Soundor; optional custom Web inputs
+   live in browser modules.
 
 Soundor generates declarations and bindings from the contract. A parameter or
 native method therefore has one declared shape that the UI and runtime

@@ -1,6 +1,6 @@
 ---
 title: 'Lifecycle and tooling'
-description: 'Implement the five phases, development sessions, signing and optional DevTools support.'
+description: 'Implement the four phases, development sessions, signing and optional DevTools support.'
 ---
 
 ## Purpose
@@ -20,19 +20,18 @@ helpers and errors a runtime author needs. Command orchestration lives in
 
 ```mermaid
 flowchart TD
-    factory["defineRuntime: id and five methods"] --> descriptor["factory(options): live descriptor"]
+    factory["defineRuntime: id and four methods"] --> descriptor["factory(options): live descriptor"]
     descriptor --> config["config.runtimes"]
     config --> dispatch["resolveRuntime and runPhase"]
     dispatch --> method["method(config, ctx)"]
     method --> result["Promise<void>, or doctor report"]
 ```
 
-All five methods are required. They receive the parsed `SoundorConfig` and a
+All four methods are required. They receive the parsed `SoundorConfig` and a
 `LifecycleContext<Options>`:
 
 | Phase    | Responsibility                                                       | Result                  |
 | -------- | -------------------------------------------------------------------- | ----------------------- |
-| `init`   | Write missing user-owned host files; preserve edits on repeat runs   | `Promise<void>`         |
 | `gen`    | Emit deterministic relative paths and contents through `ctx.codegen` | `Promise<void>`         |
 | `dev`    | Run the long-lived development workflow until `ctx.signal` aborts    | `Promise<void>`         |
 | `build`  | Produce production output under `ctx.paths.dist`                     | `Promise<void>`         |
