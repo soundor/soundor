@@ -12,7 +12,9 @@ same lifecycle phases. Two runtimes exist:
 
 - `@soundor/juce-runtime` (the reference): a JUCE plugin (VST3/AU/Standalone)
   hosting an embedded Hermes runtime (interpreted, bytecode compiled at build
-  time) that runs the UI bundle, laid out with
+  time) that runs the UI bundle, and the project's Rust crate: its processor
+  on the audio thread and, optionally, its controller (the Rust behind
+  `soundor:native`'s methods) on the control thread. The UI is laid out with
   Yoga and drawn with Skia Ganesh on macOS, Windows and Linux, with CPU drawing
   as a fallback. Soundor's own compositor
   puts the layers together on the GPU (ANGLE: Metal, Direct3D 11, Vulkan) where it
@@ -104,7 +106,8 @@ later configures reuse them. `-DSOUNDOR_ENABLE_GPU=OFF` skips ANGLE. Native
 builds need Node and `pnpm install`: the runtime's JavaScript modules (and the
 tests' Three.js) are lowered with the engine's module-lowering source while building.
 
-Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`, and
+Examples (`examples/basic`, `examples/orbit`, `examples/primitives`, `examples/analyzer`,
+`examples/controller` (a Rust controller; JUCE only, no web build), and
 `examples/snippets`) are real projects using the workspace packages. The docs'
 live snippets are web-only. Run `pnpm --filter <example> dev` (JUCE) or `dev:web`,
 `build:juce` or `build:web`. CI's Workspace job runs their tests, typecheck and web
@@ -216,6 +219,12 @@ read the docs bundled with the installed package
   runtime lowers the bundle for Hermes (`src/native-ui.ts`) with the
   `toNativeModule()` of the engine it links (`@soundor/engine/native-module`). `dev` tails
   the plugin's log file and maps stack frames back through source maps.
+  It ships the Rust SDK (`rust/soundor`), which `gen` copies into each
+  project with `src/plugin.rs` generated from the config (`src/native/`; the
+  SDK's own is from `rust/fixture/soundor.config.ts`, `UPDATE_GOLDEN=1`): the
+  `Processor`, and the `Controller` with its generated `NativeMethods`, both
+  exported by `soundor::export!`. See the docs' `rust-processor.md` and
+  `rust-controller.md`.
 - `packages/devtools-server` — standalone authenticated HTTP/WebSocket backend,
   optional static UI directory, and a separate `/testing` runtime simulator.
 - `packages/devtools-client` — TypeScript/Vite dashboard application; depends on
@@ -357,6 +366,10 @@ generated framework or the runtime package, not in `init` templates.
   ANGLE) is included only by the directory that wraps it (Hermes's
   `hermes.h` only in `src/js/`, JSI through `src/js/Bindings.h`, EGL/GLES only
   in `src/gpu/`).
+- The Rust controller (`processor::RustController`, `src/js/RustMethods.cpp`)
+  is generic: it reads the methods and types from the controller descriptor
+  (`describeController()`), never from generated per-plugin C++, and its
+  callbacks and completions run only from `pump()` on the control thread.
 - Threading: JavaScript runs only on the UI/message thread. Audio-thread
   listeners only set lock-free flags; `RuntimeHost::tick()` (60 Hz from the
   generated editor) drains them, fires timers and settles async work.

@@ -2,7 +2,7 @@
 //! processes (one can take a lock, and miss the audio's deadline). The
 //! test binary counts them with Soundor's allocator.
 
-use orbit::Processor;
+use orbit::PluginProcessor;
 use soundor::testing::{CountingAllocator, TestProcessor};
 
 #[global_allocator]
@@ -17,7 +17,7 @@ fn sine(frames: usize) -> Vec<f32> {
 #[test]
 fn processing_does_not_allocate() {
     for block_size in [1, 64, 512, 4096] {
-        let mut processor = TestProcessor::<Processor>::new()
+        let mut processor = TestProcessor::<PluginProcessor>::new()
             .block_size(block_size)
             .build();
         processor.transport_mut().tempo = Some(132.0);

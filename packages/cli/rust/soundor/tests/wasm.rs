@@ -7,7 +7,7 @@ use soundor::wasm::{Status, WasmHandle};
 #[derive(Default)]
 struct Gain;
 
-impl AudioProcessor for Gain {
+impl Processor for Gain {
     fn prepare(&mut self, _: &PrepareContext) {}
     fn process(&mut self, ctx: &mut ProcessContext) {
         let gain = ctx.params.gain;

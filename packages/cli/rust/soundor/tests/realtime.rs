@@ -17,7 +17,7 @@ struct Meter {
     peak: f32,
 }
 
-impl AudioProcessor for Meter {
+impl Processor for Meter {
     fn prepare(&mut self, _: &PrepareContext) {
         self.peak = 0.0;
     }
@@ -61,7 +61,7 @@ struct Collector {
     seen: Vec<f32>,
 }
 
-impl AudioProcessor for Collector {
+impl Processor for Collector {
     fn prepare(&mut self, _: &PrepareContext) {}
 
     fn process(&mut self, ctx: &mut ProcessContext) {

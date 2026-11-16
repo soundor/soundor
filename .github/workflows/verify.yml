@@ -195,9 +195,9 @@ jobs:
 
       - name: Example application tests, types and web builds
         run: |
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer test &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter snippets --filter soundor-benchmark test:rust &&
-          pnpm --filter basic --filter primitives --filter orbit --filter analyzer typecheck &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller test &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller --filter snippets --filter soundor-benchmark test:rust &&
+          pnpm --filter basic --filter primitives --filter orbit --filter analyzer --filter controller typecheck &&
           pnpm --filter basic --filter primitives --filter orbit --filter analyzer build:web
 
       # The docs and the examples' web builds they embed; fails on a broken

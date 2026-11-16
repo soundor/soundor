@@ -9,6 +9,10 @@
  * - `soundor/native/SoundorNative.cpp` — the bindings (on Hermes's JSI):
  *   argument validation, conversions, exception and promise plumbing,
  *   written against the runtime's internal `js/Bindings.h` helpers.
+ * - With methods, the controller descriptor (`describeController()`) and
+ *   `installController()`, which backs the same methods with the plugin's
+ *   Rust controller through the engine's generic bindings
+ *   (`js/RustMethods.h`) instead of a C++ `NativeApi`.
  *
  * Output is deterministic and readable but not run through clang-format; like
  * all generated code it is excluded from the format and lint checks, and is
@@ -25,7 +29,11 @@ import type {
   NativeTypeModel,
   PrimitiveTypeName,
 } from '@soundor/runtime-sdk';
-import { enumeratorName } from '@soundor/runtime-sdk';
+import {
+  byteLiterals,
+  describeController,
+  enumeratorName,
+} from '@soundor/runtime-sdk';
 
 export interface NativeCodegenFile {
   readonly path: string;
@@ -51,19 +59,65 @@ const PRIMITIVE_TYPES: Record<PrimitiveTypeName, string> = {
   float64: 'double',
 };
 
-/** The generated `soundor:native` C++ sources, paths relative to the gen root. */
+/**
+ * The generated `soundor:native` C++ sources, paths relative to the gen root.
+ * `descriptor` is the plugin's controller descriptor (`describeController()`),
+ * for a Rust controller to back its methods.
+ */
 export function generateNativeModuleSources(
   model: NativeApiModel,
+  descriptor: Uint8Array = describeController(
+    model,
+    { fields: [], types: model.types },
+    0,
+  ),
 ): NativeCodegenFile[] {
   return [
-    { path: 'soundor/native/SoundorNative.h', contents: renderHeader(model) },
+    {
+      path: 'soundor/native/SoundorNative.h',
+      contents: renderHeader(model, descriptor),
+    },
     { path: 'soundor/native/SoundorNative.cpp', contents: renderSource(model) },
   ];
 }
 
 // ── Header ──────────────────────────────────────────────────────────────────
 
-function renderHeader(model: NativeApiModel): string {
+/** installController()'s parameters: the context, the controller, the feeds. */
+function controllerParameters(model: NativeApiModel): string {
+  return [
+    'js::Context& context',
+    'std::shared_ptr<processor::RustController> controller',
+    ...(model.events.length > 0 ? ['const Events& events'] : []),
+    ...(model.streams.length > 0 ? ['const Streams& streams'] : []),
+  ].join(', ');
+}
+
+function renderControllerDeclaration(
+  model: NativeApiModel,
+  descriptor: Uint8Array,
+): string {
+  return `
+    // The plugin's controller descriptor (@soundor/core's describeController()):
+    // these methods, their types, the parameters and the persistent state, as
+    // a Rust controller (\`soundor::export!(PluginProcessor, PluginController)\`)
+    // backs them. processor::RustController checks the controller's own
+    // against it.
+    inline constexpr std::uint8_t controllerDescriptor[] = {
+${byteLiterals(descriptor, '        ')}
+    };
+
+    // As install(), with the methods backed by the plugin's Rust controller
+    // (one per plugin instance, shared by its editors) rather than a NativeApi:
+    // the engine converts arguments and results as these bindings do, runs
+    // async methods on the controller's worker, and settles their promises
+    // when the controller is pumped. What the context started is cancelled
+    // when it goes.
+    void installController(${controllerParameters(model)});
+`;
+}
+
+function renderHeader(model: NativeApiModel, descriptor: Uint8Array): string {
   const types = model.types.map(renderTypeDeclaration);
   const methods = model.methods.map(
     (method) => `        virtual ${methodSignature(method)} = 0;`,
@@ -91,7 +145,7 @@ ${[
   ...(hasStreams ? ['#include <soundor/js/Streams.h>'] : []),
   ...(hasEvents ? ['#include <soundor/js/Events.h>'] : []),
 ].join('\n')}
-#include <soundor/js/Promise.h>
+#include <soundor/js/Promise.h>${model.methods.length > 0 ? '\n#include <soundor/processor/RustController.h>' : ''}
 
 #include <cstddef>
 #include <cstdint>
@@ -118,7 +172,7 @@ ${types.map((type) => `${type}\n\n`).join('')}    // The plugin's native API, de
     };
 ${hasEvents ? `\n${renderEventsDeclaration(model.events)}\n` : ''}${hasStreams ? `\n${renderStreamsDeclaration(model.streams)}\n` : ''}
 ${install}
-} // namespace ${NAMESPACE}
+${model.methods.length > 0 ? renderControllerDeclaration(model, descriptor) : ''}} // namespace ${NAMESPACE}
 `;
 }
 
@@ -276,9 +330,16 @@ function renderSource(model: NativeApiModel): string {
   const structs = model.types.filter((type) => type.kind === 'struct');
 
   const { reads, writes } = conversionUsage(model);
+  const hasMethods = model.methods.length > 0;
   const sections = [
     `        // Identifies this context's NativeApi in its module data.
         const char apiKey = 0;`,
+    ...(hasMethods
+      ? [
+          `        // Identifies this context's Rust controller in its module data.
+        const char controllerKey = 0;`,
+        ]
+      : []),
     ...enums.map((type) =>
       renderEnumConversions(type, reads.has(type.name), writes.has(type.name)),
     ),
@@ -327,9 +388,31 @@ function renderSource(model: NativeApiModel): string {
       ? 'bind::ContextState& ctx, jsi::Object& exports'
       : 'bind::ContextState&, jsi::Object&';
 
+  const feedSetters = exportSetters.filter(
+    (setter) => !setter.includes('bind::function('),
+  );
+  const controllerInstall = hasMethods
+    ? `
+    void installController(${controllerParameters(model)})
+    {
+        if (controller == nullptr)
+            throw std::invalid_argument("soundor:native needs a Rust controller");
+        bind::setRustController(context, &controllerKey, std::move(controller));${connections.map((line) => `\n${line}`).join('')}
+        js::registerNativeModule(context, "soundor:native",
+                                 {
+                                     [](bind::ContextState& ctx, jsi::Object& exports)
+                                     {
+                                         bind::installRustMethods(ctx, exports, &controllerKey);${feedSetters.map((setter) => `\n                                         ${setter}`).join('')}
+                                     },
+                                     {},
+                                     {},
+                                 });
+    }
+`
+    : '';
   return `${HEADER}#include "SoundorNative.h"
 
-#include "js/Bindings.h"
+#include "js/Bindings.h"${hasMethods ? '\n#include "js/RustMethods.h"' : ''}
 
 #include <array>
 #include <stdexcept>
@@ -365,7 +448,7 @@ ${
                                      {},
                                  });
     }
-} // namespace ${NAMESPACE}
+${controllerInstall}} // namespace ${NAMESPACE}
 `;
 }
 

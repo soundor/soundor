@@ -48,7 +48,7 @@ impl<'a> ActiveLayout<'a> {
     }
 }
 
-/// What [`prepare`](crate::AudioProcessor::prepare) is given.
+/// What [`prepare`](crate::Processor::prepare) is given.
 #[non_exhaustive]
 pub struct PrepareContext<'a> {
     /// The sample rate, in hertz.
@@ -68,7 +68,7 @@ pub struct PrepareContext<'a> {
     pub resources: ResourcePublishers<'a>,
 }
 
-/// What [`process`](crate::AudioProcessor::process) is given for one block.
+/// What [`process`](crate::Processor::process) is given for one block.
 ///
 /// Its fields are borrowed apart, so a processor can read `ctx.params` while
 /// it writes `ctx.audio`.

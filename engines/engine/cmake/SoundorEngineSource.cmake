@@ -38,6 +38,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/js/MemoryModuleLoader.cpp
   src/js/NativeModule.cpp
   src/js/Runtime.cpp
+  src/js/RustMethods.cpp
   src/js/Value.cpp
   src/js/ValueConversion.cpp
   src/modules/history/HistoryModule.cpp
@@ -48,6 +49,7 @@ set(SOUNDOR_RUNTIME_SOURCES
   src/platform/FileLog.cpp
   src/platform/Resources.cpp
   src/platform/WorkerThread.cpp
+  src/processor/RustController.cpp
   src/processor/RustProcessor.cpp
   src/runtime/DevSession.cpp
   src/runtime/RuntimeHost.cpp

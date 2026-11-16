@@ -5,6 +5,7 @@
 //! panics.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 
 use crate::audio::Audio;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
@@ -12,7 +13,7 @@ use crate::plugin::{
     PUBLISHED, Parameters, Publish, ResourcePublishers, ResourceSlots, Resources, StateSnapshot,
     Streams,
 };
-use crate::processor::AudioProcessor;
+use crate::processor::Processor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
 
@@ -64,7 +65,7 @@ pub(crate) struct Block<'a> {
     pub state: Option<&'a StateSnapshot>,
 }
 
-pub(crate) struct Instance<P: AudioProcessor> {
+pub(crate) struct Instance<P: Processor> {
     processor: P,
     state: State,
     sample_rate: f64,
@@ -78,12 +79,13 @@ pub(crate) struct Instance<P: AudioProcessor> {
     published: [f64; PUBLISHED.len()],
     // What a block without a state of its own sees.
     default_state: Box<StateSnapshot>,
-    // Each resource's handoff; dropped with the instance, outside the audio
+    // Each resource's handoff, shared with the plugin's controller, which
+    // publishes too; dropped with the last of them, outside the audio
     // thread, with whatever it still holds.
-    resources: ResourceSlots,
+    resources: Arc<ResourceSlots>,
 }
 
-impl<P: AudioProcessor> Instance<P> {
+impl<P: Processor> Instance<P> {
     pub fn new() -> Self {
         Self {
             processor: P::default(),
@@ -97,8 +99,13 @@ impl<P: AudioProcessor> Instance<P> {
             parameters: Parameters::default(),
             published: [f64::NAN; PUBLISHED.len()],
             default_state: StateSnapshot::boxed_defaults(),
-            resources: ResourceSlots::default(),
+            resources: Arc::new(ResourceSlots::default()),
         }
+    }
+
+    /// The resources' handoff, for the plugin's controller to publish to.
+    pub fn resource_slots(&self) -> Arc<ResourceSlots> {
+        self.resources.clone()
     }
 
     pub fn processor(&self) -> &P {

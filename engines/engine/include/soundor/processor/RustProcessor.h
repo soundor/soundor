@@ -79,6 +79,10 @@ namespace soundor::inline SOUNDOR_ABI_NAMESPACE::processor
         // when not, error() says why, and every block is silent.
         [[nodiscard]] bool valid() const noexcept { return handle != nullptr; }
         [[nodiscard]] const std::string& error() const noexcept { return problem; }
+        // The Rust processor's handle, for the plugin instance's Rust
+        // controller (RustController) to publish its audio resources to; null
+        // when not valid().
+        [[nodiscard]] void* nativeHandle() const noexcept { return handle; }
 
         // Off the audio thread: (re)prepares for a sample rate, the most
         // frames a block holds, and the buses' arrangement, allocating what

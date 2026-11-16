@@ -1,11 +1,11 @@
 //! The processor, tested in plain Rust: `cargo test --manifest-path native/Cargo.toml`.
 
 use soundor::testing::TestProcessor;
-use soundor_primitives::Processor;
+use soundor_primitives::PluginProcessor;
 
 #[test]
 fn applies_the_gain() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .sample_rate(48_000.0)
         .block_size(256)
         .parameter("gain", 0.5)

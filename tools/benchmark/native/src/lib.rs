@@ -7,12 +7,12 @@ use soundor::prelude::*;
 /// Applies the `gain` parameter as a linear gain, ramping from one block's
 /// value to the next so that automation doesn't click.
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     /// The last block's gain, where the next ramp starts.
     gain: f32,
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         // Start from the current value, rather than gliding up from silence.
         self.gain = ctx.params.gain;
@@ -38,4 +38,4 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);

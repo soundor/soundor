@@ -44,16 +44,18 @@ use std::cell::{Cell, RefCell};
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub use crate::controller_testing::{TestController, TestHost};
 use crate::ffi::{
     Exports, SoundorBlock, SoundorPrepare, SoundorProcessorInfo, SoundorStreamSink,
     SoundorTransport,
 };
+pub use crate::host::HistoryAction;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance};
 use crate::plugin::{
     DEFAULT_INPUTS, DEFAULT_OUTPUTS, PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot,
 };
-use crate::processor::AudioProcessor;
+use crate::processor::Processor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
 use crate::{ABI_VERSION, config};
@@ -232,7 +234,7 @@ impl StreamSink for RecordedStreams {
 
 /// Builds a [`TestProcessor`]: the sample rate, block size, layout and
 /// parameter values it is prepared with.
-pub struct TestProcessorBuilder<P: AudioProcessor> {
+pub struct TestProcessorBuilder<P: Processor> {
     processor: Option<P>,
     sample_rate: f64,
     block_size: usize,
@@ -241,7 +243,7 @@ pub struct TestProcessorBuilder<P: AudioProcessor> {
     parameters: Parameters,
 }
 
-impl<P: AudioProcessor> TestProcessorBuilder<P> {
+impl<P: Processor> TestProcessorBuilder<P> {
     /// The sample rate, 48 kHz by default.
     pub fn sample_rate(mut self, sample_rate: f64) -> Self {
         self.sample_rate = sample_rate;
@@ -352,7 +354,7 @@ impl<P: AudioProcessor> TestProcessorBuilder<P> {
 
 /// A prepared processor, run as a runtime runs it, with buffers of plain
 /// `f32`s.
-pub struct TestProcessor<P: AudioProcessor> {
+pub struct TestProcessor<P: Processor> {
     instance: Instance<P>,
     sample_rate: f64,
     block_size: usize,
@@ -363,7 +365,13 @@ pub struct TestProcessor<P: AudioProcessor> {
     allocations: usize,
 }
 
-impl<P: AudioProcessor> TestProcessor<P> {
+impl<P: Processor> TestProcessor<P> {
+    /// Its resources' handoff, which a controller of the same plugin
+    /// instance publishes to (`TestController::for_processor`).
+    pub(crate) fn resource_slots(&self) -> std::sync::Arc<crate::plugin::ResourceSlots> {
+        self.instance.resource_slots()
+    }
+
     /// Starts building one, at 48 kHz, in blocks of 512, in the config's
     /// default layout, with the config's default parameter values.
     #[allow(clippy::new_ret_no_self)]

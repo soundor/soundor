@@ -21,7 +21,7 @@ struct Wavetable {
     impulse: Option<usize>,
 }
 
-impl AudioProcessor for Wavetable {
+impl Processor for Wavetable {
     fn prepare(&mut self, ctx: &PrepareContext) {
         // Allocating here is fine: prepare is outside the audio thread.
         let table: Vec<f32> = vec![self.size as f32; self.size];

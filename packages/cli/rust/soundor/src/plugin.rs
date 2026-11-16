@@ -2,7 +2,7 @@
 
 //! The plugin's contract with its processing, from soundor.config.ts.
 
-#![allow(clippy::all, unused_imports)]
+#![allow(clippy::all, unused_imports, unused_variables, unused_mut, dead_code)]
 
 use crate::streams::{BufferStream, StreamSink, ValueStream};
 use crate::layout::Layout;
@@ -308,3 +308,407 @@ pub const LAYOUTS: &[Layout] = &[
 pub const DEFAULT_INPUTS: &[usize] = &[2, 0];
 /// The channels of each output bus in the config's default layout.
 pub const DEFAULT_OUTPUTS: &[usize] = &[2];
+
+// ── The controller ──────────────────────────────────────────────────────
+
+use std::future::Future;
+use std::marker::PhantomData;
+
+use crate::controller::{AsyncTaskContext, CallError, Controller, NativeFuture, Parameter, ParameterValue, ReadOnlyParameter, StateField, TaskContext};
+use crate::error::Error;
+use crate::host::Host;
+use crate::json::{Json, JsonError, StateValue};
+use crate::wire::{Reader, Wire, WireError};
+
+/// The ids of the config's factory presets (`presets`), in its order.
+pub const PRESET_IDS: &[&str] = &["warm"];
+
+/// The config's native types (`native.types`), as native methods and
+/// persistent state hold them.
+pub mod types {
+    use super::*;
+
+    /// `Curve` (`native.types`): one of its values.
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+    pub enum Curve {
+        /// "linear".
+        #[default]
+        Linear,
+        /// "ease-in".
+        EaseIn,
+    }
+
+    impl Curve {
+        /// Every value, in the config's order.
+        pub const ALL: [Self; 2] = [Self::Linear, Self::EaseIn];
+
+        /// Its value in soundor.config, as JavaScript has it.
+        pub fn value(self) -> &'static str {
+            match self {
+                Self::Linear => "linear",
+                Self::EaseIn => "ease-in",
+            }
+        }
+
+        /// The value named `value`.
+        pub fn from_value(value: &str) -> Option<Self> {
+            Self::ALL.into_iter().find(|candidate| candidate.value() == value)
+        }
+    }
+
+    impl Wire for Curve {
+        fn encode(&self, out: &mut Vec<u8>) {
+            (*self as u32).encode(out);
+        }
+        fn decode(input: &mut Reader<'_>) -> Result<Self, WireError> {
+            Self::ALL
+                .get(u32::decode(input)? as usize)
+                .copied()
+                .ok_or(WireError("enum index"))
+        }
+    }
+
+    impl StateValue for Curve {
+        fn write_json(&self, out: &mut String) -> Result<(), JsonError> {
+            crate::json::write_string(self.value(), out);
+            Ok(())
+        }
+        fn read_json(value: &Json) -> Result<Self, JsonError> {
+            match value {
+                Json::String(text) => Self::from_value(text)
+                    .ok_or_else(|| JsonError(format!("invalid Curve: {text}"))),
+                _ => Err(JsonError("expected a Curve".into())),
+            }
+        }
+    }
+
+    /// `Point` (`native.types`).
+    #[derive(Clone, Debug, Default, PartialEq)]
+    pub struct Point {
+        /// `x`: float64.
+        pub x: f64,
+        /// `y`: float64.
+        pub y: f64,
+    }
+
+    impl Wire for Point {
+        fn encode(&self, out: &mut Vec<u8>) {
+            self.x.encode(out);
+            self.y.encode(out);
+        }
+        fn decode(input: &mut Reader<'_>) -> Result<Self, WireError> {
+            Ok(Self {
+                x: Wire::decode(input)?,
+                y: Wire::decode(input)?,
+            })
+        }
+    }
+
+    impl StateValue for Point {
+        fn write_json(&self, out: &mut String) -> Result<(), JsonError> {
+            out.push('{');
+            crate::json::write_string("x", out);
+            out.push(':');
+            self.x.write_json(out)?;
+            out.push(',');
+            crate::json::write_string("y", out);
+            out.push(':');
+            self.y.write_json(out)?;
+            out.push('}');
+            Ok(())
+        }
+        fn read_json(value: &Json) -> Result<Self, JsonError> {
+            let Json::Object(members) = value else {
+                return Err(JsonError("expected a Point".into()));
+            };
+            Ok(Self {
+                x: StateValue::read_json(crate::json::member(members, "x")?)?,
+                y: StateValue::read_json(crate::json::member(members, "y")?)?,
+            })
+        }
+    }
+
+    /// `Analysis` (`native.types`).
+    #[derive(Clone, Debug, Default, PartialEq)]
+    pub struct Analysis {
+        /// `peak`: float32.
+        pub peak: f32,
+        /// `points`: Point[].
+        pub points: Vec<types::Point>,
+        /// `label`: string?.
+        pub label: Option<String>,
+    }
+
+    impl Wire for Analysis {
+        fn encode(&self, out: &mut Vec<u8>) {
+            self.peak.encode(out);
+            self.points.encode(out);
+            self.label.encode(out);
+        }
+        fn decode(input: &mut Reader<'_>) -> Result<Self, WireError> {
+            Ok(Self {
+                peak: Wire::decode(input)?,
+                points: Wire::decode(input)?,
+                label: Wire::decode(input)?,
+            })
+        }
+    }
+
+    impl StateValue for Analysis {
+        fn write_json(&self, out: &mut String) -> Result<(), JsonError> {
+            out.push('{');
+            crate::json::write_string("peak", out);
+            out.push(':');
+            self.peak.write_json(out)?;
+            out.push(',');
+            crate::json::write_string("points", out);
+            out.push(':');
+            self.points.write_json(out)?;
+            out.push(',');
+            crate::json::write_string("label", out);
+            out.push(':');
+            self.label.write_json(out)?;
+            out.push('}');
+            Ok(())
+        }
+        fn read_json(value: &Json) -> Result<Self, JsonError> {
+            let Json::Object(members) = value else {
+                return Err(JsonError("expected a Analysis".into()));
+            };
+            Ok(Self {
+                peak: StateValue::read_json(crate::json::member(members, "peak")?)?,
+                points: StateValue::read_json(crate::json::member(members, "points")?)?,
+                label: StateValue::read_json(crate::json::member(members, "label")?)?,
+            })
+        }
+    }
+}
+
+impl ParameterValue for choices::Mode {
+    fn from_plain(plain: f64) -> Self {
+        Self::from_index(plain.max(0.0).round() as u32)
+    }
+    fn to_plain(self) -> f64 {
+        f64::from(self.index())
+    }
+}
+
+/// soundor.config's native methods (`native.methods`), which the plugin's
+/// controller implements: `impl NativeMethods for PluginController`, with
+/// `soundor::export!(PluginProcessor, PluginController)`. Every method the
+/// config declares is required, with its types; JavaScript calls them
+/// through `soundor:native`.
+///
+/// A synchronous method runs on the control thread, inside the JavaScript
+/// call, with a [`TaskContext`] of the call. An `async: true` one returns a
+/// future the controller's worker polls, with an [`AsyncTaskContext`]; it
+/// reaches the control thread with `ctx.schedule()`.
+pub trait NativeMethods: Controller + Sized {
+    /// `analyze(samples: buffer<float32>)`: returns Analysis to JavaScript, synchronously.
+    fn analyze(ctx: &mut TaskContext<'_, Self>, samples: Vec<f32>) -> types::Analysis;
+
+    /// `describe(gain: float32, id: uint64, tags: string[])`: returns string to JavaScript, synchronously.
+    fn describe(ctx: &mut TaskContext<'_, Self>, gain: f32, id: u64, tags: Vec<String>) -> String;
+
+    /// `fail(message: string)`, async: JavaScript awaits a promise of void, which this future's error rejects.
+    fn fail(ctx: AsyncTaskContext<Self>, message: String) -> impl Future<Output = Result<(), Error>> + Send;
+
+    /// `increment()`: returns int32 to JavaScript, synchronously.
+    fn increment(ctx: &mut TaskContext<'_, Self>) -> i32;
+
+    /// `incrementLater()`, async: JavaScript awaits a promise of int32, which this future's error rejects.
+    fn increment_later(ctx: AsyncTaskContext<Self>) -> impl Future<Output = Result<i32, Error>> + Send;
+
+    /// `loadTable(length: uint32)`, async: JavaScript awaits a promise of buffer<float32>, which this future's error rejects.
+    fn load_table(ctx: AsyncTaskContext<Self>, length: u32) -> impl Future<Output = Result<Vec<f32>, Error>> + Send;
+
+    /// `pick(curve: Curve?)`: returns Curve to JavaScript, synchronously.
+    fn pick(ctx: &mut TaskContext<'_, Self>, curve: Option<types::Curve>) -> types::Curve;
+
+    /// `reset()`: returns void to JavaScript, synchronously.
+    fn reset(ctx: &mut TaskContext<'_, Self>);
+}
+
+/// The config's native methods, in the order the runtime numbers them
+/// (by name): each one's name and whether it is async.
+pub(crate) const METHODS: [(&str, bool); 8] = [("analyze", false), ("describe", false), ("fail", true), ("increment", false), ("incrementLater", true), ("loadTable", true), ("pick", false), ("reset", false)];
+
+/// A synchronous method's call: its arguments decoded, its result encoded.
+pub(crate) fn call<C: NativeMethods>(method: u32, ctx: &mut TaskContext<'_, C>, args: &[u8]) -> Result<Vec<u8>, CallError> {
+    let mut input = Reader::new(args);
+    match method {
+        0 => {
+            let a0 = <Vec<f32> as Wire>::decode(&mut input)?;
+            input.finish()?;
+            Ok(crate::wire::to_bytes(&C::analyze(ctx, a0)))
+        }
+        1 => {
+            let a0 = <f32 as Wire>::decode(&mut input)?;
+            let a1 = <u64 as Wire>::decode(&mut input)?;
+            let a2 = <Vec<String> as Wire>::decode(&mut input)?;
+            input.finish()?;
+            Ok(crate::wire::to_bytes(&C::describe(ctx, a0, a1, a2)))
+        }
+        3 => {
+            input.finish()?;
+            Ok(crate::wire::to_bytes(&C::increment(ctx)))
+        }
+        6 => {
+            let a0 = <Option<types::Curve> as Wire>::decode(&mut input)?;
+            input.finish()?;
+            Ok(crate::wire::to_bytes(&C::pick(ctx, a0)))
+        }
+        7 => {
+            input.finish()?;
+            Ok(crate::wire::to_bytes(&C::reset(ctx)))
+        }
+        2 | 4 | 5 => Err(CallError::WrongKind),
+        _ => Err(CallError::NoSuchMethod),
+    }
+}
+
+/// An async method's future: its arguments decoded, its result encoded.
+pub(crate) fn start<C: NativeMethods>(method: u32, ctx: AsyncTaskContext<C>, args: &[u8]) -> Result<NativeFuture, CallError> {
+    let mut input = Reader::new(args);
+    match method {
+        2 => {
+            let a0 = <String as Wire>::decode(&mut input)?;
+            input.finish()?;
+            let future = C::fail(ctx, a0);
+            Ok(Box::pin(async move { future.await.map(|value| crate::wire::to_bytes(&value)) }))
+        }
+        4 => {
+            input.finish()?;
+            let future = C::increment_later(ctx);
+            Ok(Box::pin(async move { future.await.map(|value| crate::wire::to_bytes(&value)) }))
+        }
+        5 => {
+            let a0 = <u32 as Wire>::decode(&mut input)?;
+            input.finish()?;
+            let future = C::load_table(ctx, a0);
+            Ok(Box::pin(async move { future.await.map(|value| crate::wire::to_bytes(&value)) }))
+        }
+        0 | 1 | 3 | 6 | 7 => Err(CallError::WrongKind),
+        _ => Err(CallError::NoSuchMethod),
+    }
+}
+
+/// The parameters, as a controller reaches them on the control thread:
+/// typed as soundor.config declares them.
+pub struct ParameterAccess<'a> {
+    /// "Gain" (`gain`).
+    pub gain: Parameter<'a, f32>,
+    /// "Bypass" (`bypass`).
+    pub bypass: Parameter<'a, bool>,
+    /// "Mode" (`mode`).
+    pub mode: Parameter<'a, choices::Mode>,
+    /// "Steps" (`steps`).
+    pub steps: Parameter<'a, i32>,
+    /// "Peak" (`peak`), read-only: the processing publishes it.
+    pub peak: ReadOnlyParameter<'a, f32>,
+    _host: PhantomData<&'a Host>,
+}
+
+impl<'a> ParameterAccess<'a> {
+    pub(crate) fn new(host: &'a Host) -> Self {
+        let _ = host;
+        Self {
+            gain: Parameter::new(host, 0),
+            bypass: Parameter::new(host, 1),
+            mode: Parameter::new(host, 2),
+            steps: Parameter::new(host, 3),
+            peak: ReadOnlyParameter::new(host, 4),
+            _host: PhantomData,
+        }
+    }
+}
+
+/// The persistent state (soundor.config's `state`), as a controller
+/// reaches it on the control thread: every field, typed as declared, through
+/// the runtime's state store.
+pub struct StateAccess<'a> {
+    /// `curve`: Curve.
+    pub curve: StateField<'a, types::Curve>,
+    /// `depth`: float64.
+    pub depth: StateField<'a, f64>,
+    /// `enabled`: boolean.
+    pub enabled: StateField<'a, bool>,
+    /// `pattern`: int32[], up to 8 elements.
+    pub pattern: StateField<'a, Vec<i32>>,
+    /// `processingMode`: int32.
+    pub processing_mode: StateField<'a, i32>,
+    /// `seed`: uint64.
+    pub seed: StateField<'a, u64>,
+    /// `selectedPreset`: string?.
+    pub selected_preset: StateField<'a, Option<String>>,
+    /// `selectedTab`: int32.
+    pub selected_tab: StateField<'a, i32>,
+    /// `tags`: string[], up to 4 elements.
+    pub tags: StateField<'a, Vec<String>>,
+    /// `weights`: float32[], up to 3 elements.
+    pub weights: StateField<'a, Vec<f32>>,
+    _host: PhantomData<&'a Host>,
+}
+
+impl<'a> StateAccess<'a> {
+    pub(crate) fn new(host: &'a Host) -> Self {
+        let _ = host;
+        Self {
+            curve: StateField::new(host, 0, "curve"),
+            depth: StateField::new(host, 1, "depth"),
+            enabled: StateField::new(host, 2, "enabled"),
+            pattern: StateField::new(host, 3, "pattern"),
+            processing_mode: StateField::new(host, 4, "processingMode"),
+            seed: StateField::new(host, 5, "seed"),
+            selected_preset: StateField::new(host, 6, "selectedPreset"),
+            selected_tab: StateField::new(host, 7, "selectedTab"),
+            tags: StateField::new(host, 8, "tags"),
+            weights: StateField::new(host, 9, "weights"),
+            _host: PhantomData,
+        }
+    }
+}
+
+/// Every state field's name, in the order the runtime numbers them.
+pub(crate) const STATE_FIELDS: [&str; 10] = ["curve", "depth", "enabled", "pattern", "processingMode", "seed", "selectedPreset", "selectedTab", "tags", "weights"];
+/// Every state field's default, as state JSON.
+pub(crate) const STATE_DEFAULTS: [&str; 10] = ["\"linear\"", "0.25", "true", "[60,64,67]", "1", "\"7\"", "null", "0", "[]", "[]"];
+/// Every state field's `maxLength`, if it has one.
+pub(crate) const STATE_MAX_LENGTHS: [Option<usize>; 10] = [None, None, None, Some(8), None, None, None, None, Some(4), Some(3)];
+
+/// The controller's descriptor (`describeController()`): its methods,
+/// types, parameters and state, which the runtime checks against its own.
+pub(crate) const DESCRIPTOR: &[u8] = &[
+    83, 78, 68, 67, 1, 0, 0, 0, 5, 0, 0, 0, 3, 0, 0, 0,
+    1, 5, 0, 0, 0, 67, 117, 114, 118, 101, 2, 0, 0, 0, 6, 0,
+    0, 0, 108, 105, 110, 101, 97, 114, 7, 0, 0, 0, 101, 97, 115, 101,
+    45, 105, 110, 0, 5, 0, 0, 0, 80, 111, 105, 110, 116, 2, 0, 0,
+    0, 1, 0, 0, 0, 120, 12, 1, 0, 0, 0, 121, 12, 0, 8, 0,
+    0, 0, 65, 110, 97, 108, 121, 115, 105, 115, 3, 0, 0, 0, 4, 0,
+    0, 0, 112, 101, 97, 107, 11, 6, 0, 0, 0, 112, 111, 105, 110, 116,
+    115, 14, 13, 1, 0, 0, 0, 5, 0, 0, 0, 108, 97, 98, 101, 108,
+    16, 2, 10, 0, 0, 0, 5, 0, 0, 0, 99, 117, 114, 118, 101, 13,
+    0, 0, 0, 0, 5, 0, 0, 0, 100, 101, 112, 116, 104, 12, 7, 0,
+    0, 0, 101, 110, 97, 98, 108, 101, 100, 1, 7, 0, 0, 0, 112, 97,
+    116, 116, 101, 114, 110, 14, 7, 14, 0, 0, 0, 112, 114, 111, 99, 101,
+    115, 115, 105, 110, 103, 77, 111, 100, 101, 7, 4, 0, 0, 0, 115, 101,
+    101, 100, 10, 14, 0, 0, 0, 115, 101, 108, 101, 99, 116, 101, 100, 80,
+    114, 101, 115, 101, 116, 16, 2, 11, 0, 0, 0, 115, 101, 108, 101, 99,
+    116, 101, 100, 84, 97, 98, 7, 4, 0, 0, 0, 116, 97, 103, 115, 14,
+    2, 7, 0, 0, 0, 119, 101, 105, 103, 104, 116, 115, 14, 11, 8, 0,
+    0, 0, 7, 0, 0, 0, 97, 110, 97, 108, 121, 122, 101, 0, 1, 0,
+    0, 0, 7, 0, 0, 0, 115, 97, 109, 112, 108, 101, 115, 15, 11, 13,
+    2, 0, 0, 0, 8, 0, 0, 0, 100, 101, 115, 99, 114, 105, 98, 101,
+    0, 3, 0, 0, 0, 4, 0, 0, 0, 103, 97, 105, 110, 11, 2, 0,
+    0, 0, 105, 100, 10, 4, 0, 0, 0, 116, 97, 103, 115, 14, 2, 2,
+    4, 0, 0, 0, 102, 97, 105, 108, 1, 1, 0, 0, 0, 7, 0, 0,
+    0, 109, 101, 115, 115, 97, 103, 101, 2, 0, 9, 0, 0, 0, 105, 110,
+    99, 114, 101, 109, 101, 110, 116, 0, 0, 0, 0, 0, 7, 14, 0, 0,
+    0, 105, 110, 99, 114, 101, 109, 101, 110, 116, 76, 97, 116, 101, 114, 1,
+    0, 0, 0, 0, 7, 9, 0, 0, 0, 108, 111, 97, 100, 84, 97, 98,
+    108, 101, 1, 1, 0, 0, 0, 6, 0, 0, 0, 108, 101, 110, 103, 116,
+    104, 8, 15, 11, 4, 0, 0, 0, 112, 105, 99, 107, 0, 1, 0, 0,
+    0, 5, 0, 0, 0, 99, 117, 114, 118, 101, 16, 13, 0, 0, 0, 0,
+    13, 0, 0, 0, 0, 5, 0, 0, 0, 114, 101, 115, 101, 116, 0, 0,
+    0, 0, 0, 0,
+];

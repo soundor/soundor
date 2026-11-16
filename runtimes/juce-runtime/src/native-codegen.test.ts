@@ -280,7 +280,16 @@ describe('generateNativeModuleSources', () => {
     expect(header).toContain(
       '        std::optional<std::vector<float>> samples {};',
     );
-    expect(header).not.toMatch(/shared_ptr<(?!NativeApi)/);
+    expect(header).not.toMatch(
+      /shared_ptr<(?!NativeApi|processor::RustController)/,
+    );
+    // A Rust controller can back the same methods, from the same contract.
+    expect(header).toContain(
+      'void installController(js::Context& context, std::shared_ptr<processor::RustController> controller',
+    );
+    expect(header).toContain(
+      'inline constexpr std::uint8_t controllerDescriptor[] = {\n        83, 78, 68, 67, 1, 0, 0, 0,',
+    );
   });
 
   it('generates an installable module for an empty API', () => {

@@ -3,10 +3,10 @@
 //! `cargo test --manifest-path native/Cargo.toml` (after `soundor gen`).
 
 use soundor::testing::{Status, TestProcessor};
-use soundor_benchmark_processor::Processor;
+use soundor_benchmark_processor::PluginProcessor;
 
-fn gain(value: f64) -> TestProcessor<Processor> {
-    TestProcessor::<Processor>::new()
+fn gain(value: f64) -> TestProcessor<PluginProcessor> {
+    TestProcessor::<PluginProcessor>::new()
         .sample_rate(48_000.0)
         .block_size(256)
         .parameter("gain", value)
@@ -55,7 +55,7 @@ fn gives_the_same_result_at_any_block_size() {
     let input = sine(4096);
     let expected: Vec<f32> = input.iter().map(|sample| sample * 0.3).collect();
     for block_size in [1, 32, 128, 441, 512, 4096] {
-        let mut processor = TestProcessor::<Processor>::new()
+        let mut processor = TestProcessor::<PluginProcessor>::new()
             .block_size(block_size)
             .parameter("gain", 0.3)
             .build();
@@ -66,7 +66,7 @@ fn gives_the_same_result_at_any_block_size() {
 
 #[test]
 fn ramps_to_a_new_gain_over_one_block() {
-    let mut processor = TestProcessor::<Processor>::new()
+    let mut processor = TestProcessor::<PluginProcessor>::new()
         .block_size(4)
         .parameter("gain", 0.0)
         .build();

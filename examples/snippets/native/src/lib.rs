@@ -7,7 +7,7 @@ use soundor::prelude::*;
 /// Applies `gain`, or unity while bypassed, ramping from one block's value to
 /// the next so that a change doesn't click.
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     /// The last block's gain, where the next ramp starts.
     gain: f32,
 }
@@ -16,7 +16,7 @@ fn target(params: &Parameters) -> f32 {
     if params.bypass { 1.0 } else { params.gain }
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.gain = target(ctx.params);
     }
@@ -40,4 +40,4 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);

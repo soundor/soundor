@@ -8,11 +8,11 @@
 use soundor::prelude::*;
 
 #[derive(Default)]
-pub struct Processor {
+pub struct PluginProcessor {
     max_frames: usize,
 }
 
-impl AudioProcessor for Processor {
+impl Processor for PluginProcessor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.max_frames = ctx.max_frames;
         // A resource prepared outside the audio thread: one element a frame.
@@ -63,4 +63,4 @@ impl AudioProcessor for Processor {
     }
 }
 
-soundor::export!(Processor);
+soundor::export!(PluginProcessor);

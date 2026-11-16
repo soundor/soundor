@@ -396,7 +396,11 @@ export function persistentProcessorSource(
     })
     .join('\n');
   return `
-    AudioProcessor::~AudioProcessor() { cancelPendingUpdate(); }
+    AudioProcessor::~AudioProcessor()
+    {
+        shutdownController();
+        cancelPendingUpdate();
+    }
 
     void AudioProcessor::getStateInformation(juce::MemoryBlock& destData)
     {

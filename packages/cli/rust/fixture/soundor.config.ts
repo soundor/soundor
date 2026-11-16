@@ -1,7 +1,9 @@
 // The config the SDK's own tests run with: its src/plugin.rs is generated
 // from it (UPDATE_GOLDEN=1 pnpm --filter soundor test), and covers every kind
 // of parameter, read-only ones, both kinds of streams, the state the
-// processing reads (and state it does not), resources and optional buses.
+// processing reads (and state it does not, of declared types too),
+// resources, optional buses, presets, and native methods of every kind of
+// type, synchronous and async, for the controller.
 import { defineSoundorConfig } from '@soundor/config';
 
 export default defineSoundorConfig({
@@ -62,8 +64,38 @@ export default defineSoundorConfig({
       maxLength: 8,
     },
     weights: { type: 'float32[]', default: [], audio: true, maxLength: 3 },
+    selectedPreset: { type: 'string?', default: null },
+    curve: { type: 'Curve', default: 'linear' },
+    tags: { type: 'string[]', default: [], maxLength: 4 },
   },
+  presets: [
+    { id: 'warm', name: 'Warm', parameters: { mode: 'warm', gain: 1.5 } },
+  ],
   native: {
+    types: {
+      Curve: { enum: ['linear', 'ease-in'] },
+      Point: { struct: { x: 'float64', y: 'float64' } },
+      Analysis: {
+        struct: { peak: 'float32', points: 'Point[]', label: 'string?' },
+      },
+    },
+    methods: {
+      increment: { returns: 'int32' },
+      reset: {},
+      describe: {
+        args: { gain: 'float32', id: 'uint64', tags: 'string[]' },
+        returns: 'string',
+      },
+      analyze: { args: { samples: 'buffer<float32>' }, returns: 'Analysis' },
+      pick: { args: { curve: 'Curve?' }, returns: 'Curve' },
+      incrementLater: { returns: 'int32', async: true },
+      loadTable: {
+        args: { length: 'uint32' },
+        returns: 'buffer<float32>',
+        async: true,
+      },
+      fail: { args: { message: 'string' }, async: true },
+    },
     streams: {
       level: { type: 'float32' },
       history: { type: 'buffer<float32>', maxLength: 8 },

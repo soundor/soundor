@@ -32,7 +32,7 @@ use crate::ABI_VERSION;
 pub use crate::instance::Status;
 use crate::instance::{Block, Instance, MAX_BUSES, MAX_FRAMES};
 use crate::plugin::{PUBLISHED, Parameters, STATE_SIZE, STREAMS, StateSnapshot};
-use crate::processor::AudioProcessor;
+use crate::processor::Processor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
 
@@ -97,7 +97,7 @@ impl StreamSink for Mailbox {
 }
 
 /// The processor behind a WebAssembly handle, with its buffers.
-pub struct WasmHandle<P: AudioProcessor> {
+pub struct WasmHandle<P: Processor> {
     instance: Instance<P>,
     layout: [u32; 2 + 2 * MAX_BUSES],
     max_frames: usize,
@@ -113,7 +113,7 @@ pub struct WasmHandle<P: AudioProcessor> {
     state: Box<StateSnapshot>,
 }
 
-impl<P: AudioProcessor> WasmHandle<P> {
+impl<P: Processor> WasmHandle<P> {
     /// A processor with the config's default parameter values, stereo in and
     /// out until the layout is written.
     pub fn new() -> Self {
@@ -306,7 +306,7 @@ impl<P: AudioProcessor> WasmHandle<P> {
     }
 }
 
-impl<P: AudioProcessor> Default for WasmHandle<P> {
+impl<P: Processor> Default for WasmHandle<P> {
     fn default() -> Self {
         Self::new()
     }

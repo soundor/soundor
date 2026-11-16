@@ -1429,6 +1429,73 @@ the web runtime's `wasm-processor.test.ts` (Node) and
 `worklet.browser.test.ts` (Chromium), and the examples' native/WASM parity
 tests (Orbit's `e2e/parity.test.ts`).
 
+## Rust controller hosting
+
+A plugin's [controller](/docs/rust-controller) is the Rust behind its
+`soundor:native` methods. The engine hosts it natively; the JUCE runtime owns
+its lifecycle.
+
+|                                                                     | Owns                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Rust SDK (`controller.rs`, `schedule.rs`, `executor.rs`, …)     | `Controller`, the contexts, the stores, `schedule()`'s state machine, the per-instance worker, the value encoding (`wire.rs`), state JSON (`json.rs`), and the controller's C ABI (`controller_ffi.rs`, `host.rs`), which `export!` defines                          |
+| `soundor gen` (`packages/cli/src/native/controller-codegen.ts`)     | the generated `NativeMethods` trait and its dispatch (by method number, arguments decoded, results encoded), the native types, typed `ParameterAccess` and `StateAccess`, and the descriptor (`describeController()` in `@soundor/core`)                             |
+| The engine (`processor/RustController.h`, `src/js/RustMethods.cpp`) | `RustControllerAbi.h`; `processor::RustController`: the descriptor check, create and destroy, calls, operations and their completions, the bounded `pump()`, the services as C callbacks; the generic bindings: one JavaScript function per described method         |
+| A runtime (`juce-runtime`)                                          | when it is created and destroyed (with the plugin instance), its services (`ControllerServices`: parameter editors, the state store, History, presets), waking (`wake()` → an `AsyncUpdater` → `pump()`), and installing it into each editor (`installController()`) |
+
+**The descriptor** is the contract's bytes: the parameter count, the
+declared types, the state fields and the methods with their argument and
+result types, in the value encoding. `gen` writes the same bytes into the
+runtime's `SoundorNative.h` (`native::controllerDescriptor`) and the SDK's
+`plugin.rs`; `RustController` compares them with what
+`soundor_controller_info` reports, so a crate built from another config is
+refused (`present()` but not `active()`), never misread. The engine reads the
+method names and types from it: it is never generated per plugin.
+
+**Calls.** The generic bindings check each argument with the C++ bindings'
+own `bind::read` functions (the same rules and messages), and encode it:
+little-endian numbers, a `uint32` count before a string's bytes or an
+array's or buffer's elements, a tag byte before a nullable, an enum's index,
+a struct's fields in order. A synchronous method is
+`soundor_controller_call()`, inside the JavaScript call. An async one makes a
+promise, and `soundor_controller_start()` with an operation number; the SDK
+spawns the method's future on the instance's worker. Each side copies the
+other's bytes through a `SoundorWriter`, so neither frees the other's memory;
+a Rust panic becomes a status and a message, a C++ exception in a service a
+failure the controller sees.
+
+**The control queue.** Scheduled callbacks and async completions are queued
+in Rust; queuing calls the host's `wake()`, from any thread.
+`RustController::pump()` (on the control thread) calls
+`soundor_controller_run()` for one item at a time: a callback runs there with
+a fresh `TaskContext`; a completion comes back to the engine, which settles
+the operation's promise (`bind::resolvePromise`, `detail::rejectPromise`) and
+then drains that context's jobs, the microtask checkpoint. `pump()` stops
+after its budget (4 ms by default) and reports work left; it never reenters
+itself, and the SDK refuses a call that would reenter the local store.
+Cancelled callbacks are skipped without running.
+
+**Lifecycle.** A context's binding (`setRustController()`, context data)
+cancels its operations when the context goes; a cancelled operation's
+completion is dropped in Rust, never delivered. `shutdown()` (the runtime
+calls it first in the processor's destructor) destroys the Rust controller:
+its queue is closed (queued callbacks resolve `ShutDown`), the wake is
+disconnected under a lock before the call returns, the worker drops every
+task's future and is joined, then the stores are dropped. The processor's
+resources are shared with the controller (an `Arc` of the processor's
+`ResourceSlots`, taken when the controller is created from the processor's
+handle), so publishing from a task never reaches a freed processor.
+
+**Tests.** `tests/native/RustControllerTests.cpp` runs the bridge on a C++
+controller behind the function table, through the generated
+`installController()` of the `soundor:native` fixture: every type both ways,
+the generated bindings' error messages, completions and the microtask
+checkpoint, cancellation when a context goes, the pump's budget, shutdown.
+The JUCE runtime's `soundor_juce_controller_tests` runs JavaScript against a
+real Rust controller (its fixture crate), including a resource reaching the
+processor's next block; the SDK's own tests (`tests/controller.rs`, and the
+`compile_fail` examples of `src/compile_tests.rs`) cover the stores,
+`schedule()`'s races, shutdown and what the compiler refuses.
+
 ## Dependencies
 
 Native dependencies are fetched by CMake (`FetchContent`) from exact revisions,

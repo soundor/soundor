@@ -3,7 +3,7 @@
 //! test binary counts them with Soundor's allocator.
 
 use soundor::testing::{CountingAllocator, TestProcessor};
-use soundor_snippets::Processor;
+use soundor_snippets::PluginProcessor;
 
 #[global_allocator]
 static ALLOCATOR: CountingAllocator = CountingAllocator;
@@ -17,7 +17,7 @@ fn sine(frames: usize) -> Vec<f32> {
 #[test]
 fn processing_does_not_allocate() {
     for block_size in [1, 64, 512, 4096] {
-        let mut processor = TestProcessor::<Processor>::new()
+        let mut processor = TestProcessor::<PluginProcessor>::new()
             .block_size(block_size)
             .build();
         processor.set_parameter("gain", 0.25);

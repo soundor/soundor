@@ -315,6 +315,12 @@ export const native: WebNativeApi = {
   `result`) and copied, buffers included, so the plugin never shares your
   objects. Exceptions stay exceptions, and an async method always returns a
   promise.
+- A [Rust controller](/docs/rust-controller) is the JUCE runtime's: in the
+  browser, `native.ts` implements the methods, whether or not the crate
+  exports a controller, and the crate's WebAssembly module holds the
+  processor alone. Its stores, `ctx.schedule()`, and an async method
+  publishing an audio resource are native-only for now; a browser-only
+  project needs no controller.
 
 ## Audio: the plugin's processor, in WebAssembly
 
