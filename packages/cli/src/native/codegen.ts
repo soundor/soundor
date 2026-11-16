@@ -18,6 +18,7 @@ import {
   describeState,
   type AudioStateElement,
   type AudioStateLayout,
+  type NativeResourceModel,
   type NativeStreamModel,
 } from '@soundor/core';
 
@@ -136,6 +137,14 @@ export function renderPluginRs(config: ResolvedSoundorConfig): string {
     ]),
     'a Rust field',
   );
+  const resources = native.model.resources;
+  checkUnique(
+    resources.map((resource) => [
+      rustField(resource.name),
+      `native.resources.${resource.name}`,
+    ]),
+    'a Rust field',
+  );
   const state = describeAudioState(describeState(config.state, config.native));
   checkUnique(
     state.fields.map((field) => [rustField(field.name), `state.${field.name}`]),
@@ -150,6 +159,7 @@ export function renderPluginRs(config: ResolvedSoundorConfig): string {
     `#![allow(clippy::all, unused_imports)]\n`,
     `use crate::streams::{BufferStream, StreamSink, ValueStream};`,
     `use crate::layout::Layout;`,
+    `use crate::resources::{Resource, ResourcePublisher, ResourceSlot};`,
     `use crate::state::StateArray;\n`,
     `/// The plugin's id (\`plugin.id\`).`,
     `pub const PLUGIN_ID: &str = ${rustString(config.plugin.id)};`,
@@ -163,6 +173,7 @@ export function renderPluginRs(config: ResolvedSoundorConfig): string {
     renderPublish(published),
     renderStreams(streams),
     renderState(state),
+    renderResources(resources),
     renderLayouts(config),
   ].join('\n');
 }
@@ -465,6 +476,79 @@ pub const STATE_SIZE: usize = ${state.size};
 const _: () = assert!(std::mem::size_of::<StateSnapshot>() == STATE_SIZE);
 const _: () = assert!(std::mem::align_of::<StateSnapshot>() == ${state.align});
 ${offsets.join('\n')}
+`;
+}
+
+function renderResources(resources: readonly NativeResourceModel[]): string {
+  const each = (render: (resource: NativeResourceModel) => string) =>
+    resources.map(render).join('\n');
+  return `/// The config's audio resources (\`native.resources\`): each one's handoff
+/// between its publishers and the audio thread.
+#[derive(Default)]
+pub(crate) struct ResourceSlots {
+${each((r) => `    pub ${rustField(r.name)}: ResourceSlot<Box<[${RUST_NUMBERS[r.element]}]>>,`)}
+}
+
+impl ResourceSlots {
+    /// On the audio thread, at a block's start: takes each resource's
+    /// latest publication.
+    ///
+    /// # Safety
+    ///
+    /// One thread at a time, and no [\`Resources\`] of an earlier block lives on.
+    pub(crate) unsafe fn acquire(&self) {${
+      resources.length > 0
+        ? `
+        // SAFETY: as the caller promises.
+        unsafe {
+${each((r) => `            self.${rustField(r.name)}.acquire();`)}
+        }
+    `
+        : ''
+    }}
+
+    /// Outside the audio thread: frees what the audio thread is done with.
+    pub(crate) fn collect(&self) {
+${each((r) => `        self.${rustField(r.name)}.collect();`)}
+    }
+}
+
+/// The config's audio resources, to publish from \`prepare\`: the
+/// processing reads each from the next block (\`ctx.resources\`).
+pub struct ResourcePublishers<'a> {
+${each((r) => `    /// \`${r.name}\`: ${r.element}s.\n    pub ${rustField(r.name)}: ResourcePublisher<'a, ${RUST_NUMBERS[r.element]}>,`)}
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> ResourcePublishers<'a> {
+    pub(crate) fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+${each((r) => `            ${rustField(r.name)}: ResourcePublisher::new(&slots.${rustField(r.name)}),`)}
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
+
+/// The config's audio resources as one block reads them: the latest
+/// publication before the block, the same throughout it.
+pub struct Resources<'a> {
+${each((r) => `    /// \`${r.name}\`: ${r.element}s.\n    pub ${rustField(r.name)}: Resource<'a, ${RUST_NUMBERS[r.element]}>,`)}
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> Resources<'a> {
+    /// # Safety
+    ///
+    /// The block holds \`slots\`' reader side, acquired at its start, for \`'a\`.
+    pub(crate) unsafe fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+${each((r) => `            // SAFETY: as the caller promises.\n            ${rustField(r.name)}: unsafe { Resource::new(&slots.${rustField(r.name)}) },`)}
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
 `;
 }
 

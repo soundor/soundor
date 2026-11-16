@@ -289,6 +289,7 @@ describe('generateNativeModuleSources', () => {
       methods: [],
       events: [],
       streams: [],
+      resources: [],
     });
     expect(header!.contents).toContain(
       'virtual ~NativeApi() = default;\n    };',

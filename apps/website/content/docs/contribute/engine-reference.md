@@ -1332,7 +1332,7 @@ configuration, and where its audio comes from and goes.
 
 |                                                                         | Owns                                                                                                                                                                                                                                                                                    |
 | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, streams, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                                             |
+| The Rust SDK (`packages/cli/rust/soundor`)                              | The processor traits, the processing context, parameters, transport, streams, state, resources, and both ABIs it exports: the C ABI natively, `soundor_wasm_*` in WebAssembly                                                                                                           |
 | The engine, native (`include/soundor/processor/`, `src/processor/`)     | `RustProcessorAbi.h`, the C ABI's declaration, and `processor::RustProcessor`, the bridge: contract and ABI checks, preparing, blocks longer than prepared in parts, in-place channels with copies only where an input shares an output's channel, published values, silence on failure |
 | The engine, Web (`web/src/processor/`, `@soundor/engine/web/processor`) | `WasmProcessor` (the module's memory, views and calls) and the AudioWorklet that runs it, `createProcessorNode()`: registering the worklet once per context, instances, parameters and transport in, published values and streams out, errors, disposal                                 |
 | A runtime (`juce-runtime`, `web-runtime`)                               | The audio callback or the AudioContext, the plugin's lifecycle, its configuration (the contract, the buses, the parameters' values), host automation, state, and where published values and streams go                                                                                  |
@@ -1395,6 +1395,25 @@ processor). In the browser the page encodes the same layout
 (`writeAudioState()`) once per batch of changes and posts it; the worklet's
 `WasmProcessor.setState()` copies it, and writes it into the module before
 the next block.
+
+**Resources** (`native.resources`) live in the Rust SDK alone
+(`src/resources.rs`): neither the engine, the runtimes nor the ABI know of
+them, so they work the same natively and in WebAssembly. Each is a
+`ResourceSlot`, single-reader RCU with deferred reclamation, three pointers:
+`pending` (the latest publication not taken: a publisher swaps a new one in
+and frees whatever it swaps out, which the reader never saw), `current` (the
+reader's alone) and `retired` (the one the reader replaced, which only the
+reader fills, and only when it is empty; a publisher, `prepare()` or the
+slot's drop empties and frees it). At a block's start the reader takes
+`pending` only when `retired` is empty, so the audio thread never frees, and
+what it reads stays valid until its next take. Publishers may be any number
+of threads at once. A plain atomic pointer swap would not be enough: the
+reader could still hold what a publisher swapped out. The SDK's tests check
+concurrent publishers against a reader, lengths up to 2 MiB elements, freeing
+(each value's drop counted) and no allocator call per block. Its benchmark
+(`cargo test --release --lib resources -- --ignored --nocapture`): taking
+and reading an unchanged resource is about 0.35 ns a block, and publishing
+then taking a 4096-element replacement about 86 ns, on a 4-core laptop CPU.
 
 **Loading.** `@soundor/engine/web/processor` is apart from
 `@soundor/engine/web`, and the web runtime imports it only once the plugin

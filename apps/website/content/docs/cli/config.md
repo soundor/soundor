@@ -473,6 +473,20 @@ native: {
 Stream names are camelCase, and no method can be called `streams`. See
 [`soundor:native`](/docs/api/native#streams) for how they are delivered.
 
+`resources` declares immutable data of any length the Rust audio processor
+reads, such as a wavetable or an impulse response: each a `buffer<T>` of one
+number type, with no `maxLength`. They are for the processor alone, never
+saved with the plugin, and not part of presets or History. See
+[Audio resources](/docs/rust-processor#audio-resources).
+
+```ts
+native: {
+  resources: {
+    wavetable: { type: 'buffer<float32>' },
+  },
+}
+```
+
 ### `signing`
 
 How runtimes sign the binaries they build. Optional; nothing here is secret.

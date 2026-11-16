@@ -66,6 +66,8 @@ export type {
   NativeApiIssue,
   NativeApiModel,
   NativeApiResult,
+  NativeResourceDeclaration,
+  NativeResourceModel,
   NativeStreamDeclaration,
   NativeStreamModel,
   NativeField,

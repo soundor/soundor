@@ -1,6 +1,8 @@
 use crate::audio::Audio;
 use crate::layout::Layout;
-use crate::plugin::{LAYOUTS, Parameters, Publish, StateSnapshot, Streams};
+use crate::plugin::{
+    LAYOUTS, Parameters, Publish, ResourcePublishers, Resources, StateSnapshot, Streams,
+};
 use crate::transport::Transport;
 
 /// The audio layout the host negotiated, among those soundor.config
@@ -60,6 +62,10 @@ pub struct PrepareContext<'a> {
     /// The persistent state the processing reads (`audio: true`), as it is
     /// now.
     pub state: &'a StateSnapshot,
+    /// The config's audio resources, to publish: prepare a wavetable or an
+    /// impulse response here, outside the audio thread, and `process` reads
+    /// it from the next block (`ctx.resources.wavetable.publish(table)`).
+    pub resources: ResourcePublishers<'a>,
 }
 
 /// What [`process`](crate::AudioProcessor::process) is given for one block.
@@ -84,6 +90,9 @@ pub struct ProcessContext<'a> {
     pub publish: Publish<'a>,
     /// The config's native streams, to publish to editors.
     pub streams: Streams<'a>,
+    /// The config's audio resources, as published before this block: each
+    /// the same throughout the block (`ctx.resources.wavetable.get()`).
+    pub resources: Resources<'a>,
     /// The sample rate, in hertz, as prepared.
     pub sample_rate: f64,
 }

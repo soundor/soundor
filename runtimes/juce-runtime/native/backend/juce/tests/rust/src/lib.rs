@@ -1,7 +1,8 @@
 //! A processor for the JUCE adapter's tests: the main bus times `gain`, the
 //! sidechain doubled into a second output bus when there is one, `peak`
 //! published, both streams filled (`history`: the gain, the tempo, then
-//! `processingMode` and the length of `pattern` as the state has them), and a
+//! `processingMode` and the length of `pattern` as the state has them, then
+//! the length of the `wavetable` resource `prepare` published), and a
 //! panic at `gain` 2.
 
 use soundor::prelude::*;
@@ -14,6 +15,10 @@ pub struct Processor {
 impl AudioProcessor for Processor {
     fn prepare(&mut self, ctx: &PrepareContext) {
         self.max_frames = ctx.max_frames;
+        // A resource prepared outside the audio thread: one element a frame.
+        ctx.resources
+            .wavetable
+            .publish(vec![0.5f32; ctx.max_frames]);
     }
 
     fn process(&mut self, ctx: &mut ProcessContext) {
@@ -50,6 +55,10 @@ impl AudioProcessor for Processor {
             ctx.transport.tempo.unwrap_or(0.0) as f32,
             ctx.state.processing_mode as f32,
             ctx.state.pattern.len() as f32,
+            ctx.resources
+                .wavetable
+                .get()
+                .map_or(-1.0, |table| table.len() as f32),
         ]);
     }
 }

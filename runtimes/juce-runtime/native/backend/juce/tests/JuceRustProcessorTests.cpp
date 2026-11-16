@@ -240,12 +240,35 @@ TEST_CASE("streams and the transport reach the processing")
     std::array<double, 1> published {};
     CHECK(processor.process(buffer, values, published, transport, &sink) == SOUNDOR_STATUS_OK);
     CHECK(streams.level == doctest::Approx(0.75));
-    CHECK(streams.committed == 4);
+    CHECK(streams.committed == 5);
     CHECK(streams.history[0] == doctest::Approx(0.75f));
     CHECK(streams.history[1] == doctest::Approx(96.0f));
     // Without a state, the config's defaults: processingMode 1, pattern [60, 64, 67].
     CHECK(streams.history[2] == 1.0f);
     CHECK(streams.history[3] == 3.0f);
+    // The wavetable prepare published, one element a frame.
+    CHECK(streams.history[4] == 64.0f);
+}
+
+TEST_CASE("a resource prepare publishes reaches the next block, and preparing again replaces it")
+{
+    RustProcessor processor(contract);
+    const auto values = parameters(0.5);
+    juce::AudioBuffer<float> buffer(2, 8);
+    RecordedStreams streams;
+    const auto sink = streams.sink();
+    std::array<double, 1> published {};
+    for (const int frames : { 64, 16, 512 })
+    {
+        REQUIRE(processor.prepare(48000, frames, stereo(), values) == SOUNDOR_STATUS_OK);
+        CHECK(processor.process(buffer, values, published, noTransport, &sink) == SOUNDOR_STATUS_OK);
+        CHECK(streams.history[4] == static_cast<float>(frames));
+    }
+    // Instances are independent.
+    RustProcessor other(contract);
+    REQUIRE(other.prepare(48000, 32, stereo(), values) == SOUNDOR_STATUS_OK);
+    CHECK(processor.process(buffer, values, published, noTransport, &sink) == SOUNDOR_STATUS_OK);
+    CHECK(streams.history[4] == 512.0f);
 }
 
 TEST_CASE("the state reaches the Rust processing as AudioState hands it over")
@@ -305,7 +328,7 @@ TEST_CASE("processing allocates nothing")
         });
     CHECK(inPlace == 0);
     CHECK(processor.lastStatus() == SOUNDOR_STATUS_OK);
-    CHECK(streams.committed == 4);
+    CHECK(streams.committed == 5);
 
     // An input copied out because it shares a channel with another output.
     RustProcessor aliased(contract);

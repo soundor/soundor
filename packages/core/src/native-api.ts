@@ -82,6 +82,16 @@ export interface NativeStreamDeclaration {
   readonly maxLength?: number;
 }
 
+/**
+ * A resource declared under `native.resources`: immutable data of any
+ * length the audio processing reads (a wavetable, an impulse response),
+ * prepared and published outside the audio thread.
+ */
+export interface NativeResourceDeclaration {
+  /** A `'buffer<T>'` of a number type: `'buffer<float32>'`. */
+  readonly type: NativeTypeRef;
+}
+
 /** The `native` section of a Soundor config. */
 export interface NativeApiDeclaration {
   readonly types?: Readonly<Record<string, NativeTypeDeclaration>>;
@@ -90,6 +100,8 @@ export interface NativeApiDeclaration {
   readonly events?: Readonly<Record<string, NativeEventDeclaration>>;
   /** Values native code keeps publishing, of which the UI reads the latest. */
   readonly streams?: Readonly<Record<string, NativeStreamDeclaration>>;
+  /** Immutable data of any length the audio processing reads. */
+  readonly resources?: Readonly<Record<string, NativeResourceDeclaration>>;
 }
 
 // ── Resolved model ──────────────────────────────────────────────────────────
@@ -187,6 +199,12 @@ export type NativeStreamModel =
       readonly maxLength: number;
     };
 
+/** A resource: an immutable buffer of numbers, of any length. */
+export interface NativeResourceModel {
+  readonly name: string;
+  readonly element: NumericTypeName;
+}
+
 /** The most elements a buffer stream may declare. */
 export const MAX_STREAM_LENGTH = 1 << 24;
 
@@ -199,6 +217,8 @@ export interface NativeApiModel {
   readonly events: readonly NativeEventModel[];
   /** Streams sorted by name. */
   readonly streams: readonly NativeStreamModel[];
+  /** Resources sorted by name. */
+  readonly resources: readonly NativeResourceModel[];
 }
 
 export interface NativeApiIssue {
@@ -494,11 +514,56 @@ export function describeNativeApi(
     if (stream !== undefined) streams.push(stream);
   }
 
+  const resourceDecls = declaration?.resources ?? {};
+  if (!isRecord(resourceDecls)) {
+    issues.push({
+      path: `${basePath}.resources`,
+      message: 'expected an object mapping resource names to { type }',
+    });
+  }
+  const resources: NativeResourceModel[] = [];
+  for (const [name, decl] of isRecord(resourceDecls)
+    ? sortedEntries(resourceDecls)
+    : []) {
+    const path = `${basePath}.resources.${name}`;
+    checkMemberName(name, path, 'resource', issues);
+    const resource = resolveResource(name, decl, path, declaredKinds, issues);
+    if (resource !== undefined) resources.push(resource);
+  }
+
   if (issues.length > 0) return { ok: false, issues };
   return {
     ok: true,
-    model: { types: orderStructs(types), methods, events, streams },
+    model: { types: orderStructs(types), methods, events, streams, resources },
   };
+}
+
+function resolveResource(
+  name: string,
+  decl: unknown,
+  path: string,
+  declared: ReadonlyMap<string, DeclarationKind>,
+  issues: NativeApiIssue[],
+): NativeResourceModel | undefined {
+  if (!isRecord(decl)) {
+    issues.push({ path, message: 'expected { type }' });
+    return undefined;
+  }
+  for (const key of Object.keys(decl))
+    if (key !== 'type')
+      issues.push({
+        path: `${path}.${key}`,
+        message: `unknown resource option '${key}'; a resource has a type, and any length`,
+      });
+  const typePath = `${path}.type`;
+  const type = resolveTypeRef(decl.type, typePath, false, declared, issues);
+  if (type.kind === 'void') return undefined;
+  if (type.kind === 'buffer') return { name, element: type.element };
+  issues.push({
+    path: typePath,
+    message: `'${String(decl.type)}' cannot be a resource; a resource is a 'buffer<T>' of one number type (${NUMERIC_TYPES.join(', ')})`,
+  });
+  return undefined;
 }
 
 function resolveStream(

@@ -340,10 +340,11 @@ describe('the Rust processor in an AudioWorklet', () => {
     expect(result.streams.length).toBeGreaterThanOrEqual(5);
     expect(result.streams.length).toBeLessThanOrEqual(7);
     // history: the gain, the host's tempo and, without a state given, the
-    // config's defaults (processingMode 1, 3 pattern steps); level: the peak.
+    // config's defaults (processingMode 1, 3 pattern steps), and the
+    // wavetable prepare published (maxFrames long); level: the peak.
     for (const changes of result.streams) {
       expect(changes.map(([index]) => index)).toEqual([0, 1]);
-      expect(changes[0]![1]).toEqual([0.75, 96, 1, 3]);
+      expect(changes[0]![1]).toEqual([0.75, 96, 1, 3, 128]);
     }
     const last = result.streams.at(-1)![1]![1] as number;
     expect(last).toBeGreaterThan(0);
@@ -362,7 +363,7 @@ describe('the Rust processor in an AudioWorklet', () => {
     });
     expect(result.streams.length).toBeGreaterThan(0);
     for (const changes of result.streams)
-      expect(changes[0]![1]).toEqual([0.5, 140, 1, 3]);
+      expect(changes[0]![1]).toEqual([0.5, 140, 1, 3, 128]);
   });
 
   it('reads the state it starts with, then the state posted, from the next block', async () => {
@@ -375,7 +376,7 @@ describe('the Rust processor in an AudioWorklet', () => {
       change: { at: 4800 / 48_000, state: [3, 7] },
     });
     const states = result.streams.map((changes) =>
-      (changes[0]![1] as number[]).slice(2),
+      (changes[0]![1] as number[]).slice(2, 4),
     );
     expect(states[0]).toEqual([6, 2]);
     expect(states.at(-1)).toEqual([3, 7]);

@@ -75,6 +75,7 @@ describe('runGen', () => {
             { path: 'rust/soundor/src/lib.rs', status: 'created' },
             { path: 'rust/soundor/src/plugin.rs', status: 'created' },
             { path: 'rust/soundor/src/processor.rs', status: 'created' },
+            { path: 'rust/soundor/src/resources.rs', status: 'created' },
             { path: 'rust/soundor/src/state.rs', status: 'created' },
             { path: 'rust/soundor/src/streams.rs', status: 'created' },
             { path: 'rust/soundor/src/testing.rs', status: 'created' },

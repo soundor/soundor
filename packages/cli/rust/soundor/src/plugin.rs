@@ -6,6 +6,7 @@
 
 use crate::streams::{BufferStream, StreamSink, ValueStream};
 use crate::layout::Layout;
+use crate::resources::{Resource, ResourcePublisher, ResourceSlot};
 use crate::state::StateArray;
 
 /// The plugin's id (`plugin.id`).
@@ -206,6 +207,83 @@ const _: () = assert!(std::mem::offset_of!(StateSnapshot, pattern) == 12);
 const _: () = assert!(std::mem::offset_of!(StateSnapshot, processing_mode) == 48);
 const _: () = assert!(std::mem::offset_of!(StateSnapshot, seed) == 56);
 const _: () = assert!(std::mem::offset_of!(StateSnapshot, weights) == 64);
+
+/// The config's audio resources (`native.resources`): each one's handoff
+/// between its publishers and the audio thread.
+#[derive(Default)]
+pub(crate) struct ResourceSlots {
+    pub impulse: ResourceSlot<Box<[f64]>>,
+    pub wavetable: ResourceSlot<Box<[f32]>>,
+}
+
+impl ResourceSlots {
+    /// On the audio thread, at a block's start: takes each resource's
+    /// latest publication.
+    ///
+    /// # Safety
+    ///
+    /// One thread at a time, and no [`Resources`] of an earlier block lives on.
+    pub(crate) unsafe fn acquire(&self) {
+        // SAFETY: as the caller promises.
+        unsafe {
+            self.impulse.acquire();
+            self.wavetable.acquire();
+        }
+    }
+
+    /// Outside the audio thread: frees what the audio thread is done with.
+    pub(crate) fn collect(&self) {
+        self.impulse.collect();
+        self.wavetable.collect();
+    }
+}
+
+/// The config's audio resources, to publish from `prepare`: the
+/// processing reads each from the next block (`ctx.resources`).
+pub struct ResourcePublishers<'a> {
+    /// `impulse`: float64s.
+    pub impulse: ResourcePublisher<'a, f64>,
+    /// `wavetable`: float32s.
+    pub wavetable: ResourcePublisher<'a, f32>,
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> ResourcePublishers<'a> {
+    pub(crate) fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+            impulse: ResourcePublisher::new(&slots.impulse),
+            wavetable: ResourcePublisher::new(&slots.wavetable),
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
+
+/// The config's audio resources as one block reads them: the latest
+/// publication before the block, the same throughout it.
+pub struct Resources<'a> {
+    /// `impulse`: float64s.
+    pub impulse: Resource<'a, f64>,
+    /// `wavetable`: float32s.
+    pub wavetable: Resource<'a, f32>,
+    _slots: std::marker::PhantomData<&'a ResourceSlots>,
+}
+
+impl<'a> Resources<'a> {
+    /// # Safety
+    ///
+    /// The block holds `slots`' reader side, acquired at its start, for `'a`.
+    pub(crate) unsafe fn new(slots: &'a ResourceSlots) -> Self {
+        let _ = slots;
+        Self {
+            // SAFETY: as the caller promises.
+            impulse: unsafe { Resource::new(&slots.impulse) },
+            // SAFETY: as the caller promises.
+            wavetable: unsafe { Resource::new(&slots.wavetable) },
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
 
 /// The config's audio layouts (`audio.layouts`), in its order. Input buses:
 /// `input`, `sidechain`; output buses: `output`.

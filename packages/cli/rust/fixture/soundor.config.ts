@@ -1,7 +1,7 @@
 // The config the SDK's own tests run with: its src/plugin.rs is generated
 // from it (UPDATE_GOLDEN=1 pnpm --filter soundor test), and covers every kind
 // of parameter, read-only ones, both kinds of streams, the state the
-// processing reads (and state it does not) and optional buses.
+// processing reads (and state it does not), resources and optional buses.
 import { defineSoundorConfig } from '@soundor/config';
 
 export default defineSoundorConfig({
@@ -67,6 +67,10 @@ export default defineSoundorConfig({
     streams: {
       level: { type: 'float32' },
       history: { type: 'buffer<float32>', maxLength: 8 },
+    },
+    resources: {
+      wavetable: { type: 'buffer<float32>' },
+      impulse: { type: 'buffer<float64>' },
     },
   },
 });

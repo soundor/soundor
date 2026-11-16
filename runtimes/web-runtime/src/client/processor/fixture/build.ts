@@ -8,8 +8,9 @@ const FIXTURE = fileURLToPath(new URL('./', import.meta.url));
 
 /**
  * gain, bypass, mode, steps, peak (read-only); streams history (the gain,
- * the tempo, then processingMode and the length of pattern as the state has
- * them), level; a state of 80 bytes.
+ * the tempo, processingMode and the length of pattern as the state has
+ * them, then the length of the wavetable resource prepare published: its
+ * maxFrames), level; a state of 80 bytes.
  */
 export const contract = { parameters: 5, published: 1, streams: 2, state: 80 };
 /** The fixture's state snapshot: processingMode and pattern's length set. */

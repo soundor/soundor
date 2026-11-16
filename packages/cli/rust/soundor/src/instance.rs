@@ -8,7 +8,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use crate::audio::Audio;
 use crate::context::{ActiveLayout, PrepareContext, ProcessContext};
-use crate::plugin::{PUBLISHED, Parameters, Publish, StateSnapshot, Streams};
+use crate::plugin::{
+    PUBLISHED, Parameters, Publish, ResourcePublishers, ResourceSlots, Resources, StateSnapshot,
+    Streams,
+};
 use crate::processor::AudioProcessor;
 use crate::streams::StreamSink;
 use crate::transport::Transport;
@@ -75,6 +78,9 @@ pub(crate) struct Instance<P: AudioProcessor> {
     published: [f64; PUBLISHED.len()],
     // What a block without a state of its own sees.
     default_state: Box<StateSnapshot>,
+    // Each resource's handoff; dropped with the instance, outside the audio
+    // thread, with whatever it still holds.
+    resources: ResourceSlots,
 }
 
 impl<P: AudioProcessor> Instance<P> {
@@ -91,6 +97,7 @@ impl<P: AudioProcessor> Instance<P> {
             parameters: Parameters::default(),
             published: [f64::NAN; PUBLISHED.len()],
             default_state: StateSnapshot::boxed_defaults(),
+            resources: ResourceSlots::default(),
         }
     }
 
@@ -175,7 +182,10 @@ impl<P: AudioProcessor> Instance<P> {
             },
             params: &self.parameters,
             state: state.unwrap_or(&self.default_state),
+            resources: ResourcePublishers::new(&self.resources),
         };
+        // What the audio thread is done with, freed here.
+        self.resources.collect();
         let processor = &mut self.processor;
         match catch_unwind(AssertUnwindSafe(|| processor.prepare(&ctx))) {
             Ok(()) => {
@@ -227,6 +237,9 @@ impl<P: AudioProcessor> Instance<P> {
             }
             self.parameters.read(values);
         }
+        // SAFETY: only `process` acquires and reads, one call at a time; the
+        // last block's `Resources` are gone.
+        unsafe { self.resources.acquire() };
         start_in_place(
             &block,
             self.inputs.first().copied().unwrap_or(0),
@@ -262,6 +275,8 @@ impl<P: AudioProcessor> Instance<P> {
                     slots: &mut self.published,
                 },
                 streams: Streams::new(block.streams),
+                // SAFETY: acquired at this block's start; `ctx` ends with it.
+                resources: unsafe { Resources::new(&self.resources) },
                 sample_rate: self.sample_rate,
             };
             let processor = &mut self.processor;

@@ -165,12 +165,34 @@ describe('the Rust processor in WebAssembly', () => {
     gain.process([one, one], [new Float32Array(32), new Float32Array(32)], 32);
     expect(gain.published(1)[0]).toBeCloseTo(20 * Math.log10(0.75), 5);
     const changes = gain.streamChanges();
-    // Without a state set, the config's defaults: processingMode 1, pattern [60, 64, 67].
+    // Without a state set, the config's defaults: processingMode 1, pattern
+    // [60, 64, 67]; then the wavetable prepare published, maxFrames long.
     expect(changes).toEqual([
-      [0, Float32Array.from([0.75, 96, 1, 3])],
+      [0, Float32Array.from([0.75, 96, 1, 3, 128])],
       [1, Math.fround(0.75)],
     ]);
     expect(gain.streamChanges()).toEqual([]);
+  });
+
+  it('reads the resource prepare published, replaced when prepared again', () => {
+    const table = processor(0.5, [1, 0], [1], 64);
+    const length = () => {
+      table.process([new Float32Array(16)], [new Float32Array(16)], 16);
+      const change = table.streamChanges().find(([index]) => index === 0);
+      return (change![1] as Float32Array)[4];
+    };
+    expect(length()).toBe(64);
+    expect(table.prepare(48_000, 32)).toBe(WASM_STATUS.ok);
+    expect(length()).toBe(32);
+    expect(table.prepare(48_000, 128)).toBe(WASM_STATUS.ok);
+    expect(length()).toBe(128);
+    // Its own: another instance has its own resource.
+    const other = processor(0.5, [1, 0], [1], 16);
+    other.process([new Float32Array(8)], [new Float32Array(8)], 8);
+    expect(
+      (other.streamChanges().find(([i]) => i === 0)![1] as Float32Array)[4],
+    ).toBe(16);
+    expect(length()).toBe(128);
   });
 
   it('reads the state set before each block, whole', () => {
@@ -178,7 +200,7 @@ describe('the Rust processor in WebAssembly', () => {
     const history = () => {
       gain.process([new Float32Array(16)], [new Float32Array(16)], 16);
       const change = gain.streamChanges().find(([index]) => index === 0);
-      return [...(change![1] as Float32Array)].slice(2);
+      return [...(change![1] as Float32Array)].slice(2, 4);
     };
     expect(history()).toEqual([1, 3]);
     gain.setState(fixtureState(7, 8));
@@ -343,7 +365,10 @@ describe('the worklet', () => {
       const message = posted.find(
         (m) => (m as { type: string }).type === 'streams',
       ) as { changes: [number, Float32Array][] };
-      return [...message.changes.find(([index]) => index === 0)![1]].slice(2);
+      return [...message.changes.find(([index]) => index === 0)![1]].slice(
+        2,
+        4,
+      );
     };
     expect(history()).toEqual([6, 2]);
     instance.port.onmessage!({

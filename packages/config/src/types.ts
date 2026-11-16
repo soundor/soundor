@@ -106,6 +106,7 @@ export type {
 
 export type {
   NativeApiDeclaration,
+  NativeResourceDeclaration,
   NativeStreamDeclaration,
   NativeEventDeclaration,
   NativeMethodDeclaration,

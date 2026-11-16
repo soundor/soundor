@@ -19,6 +19,7 @@ export type {
   ScaleEditorConfig,
   MacosSigningConfig,
   NativeApiDeclaration,
+  NativeResourceDeclaration,
   NativeStreamDeclaration,
   NativeEventDeclaration,
   NativeMethodDeclaration,

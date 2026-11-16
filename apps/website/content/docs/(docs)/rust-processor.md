@@ -119,6 +119,49 @@ existing publication semantics. UI-thread native methods still use the
 runtime-specific API implementation; Rust UI-thread methods and arbitrary
 UI/audio message queues are outside this API.
 
+## Audio resources
+
+Data the processing reads that has no fixed size, such as a wavetable, an
+impulse response, a sample or a prepared lookup table, is an audio resource,
+declared under `native.resources` (`wavetable: { type: 'buffer<float32>' }`).
+`prepare()` publishes one, outside the audio thread, and every block from the
+next reads it:
+
+```rust
+fn prepare(&mut self, ctx: &PrepareContext) {
+    // Allocating is fine here: prepare runs outside the audio thread.
+    let table: Vec<f32> = make_wavetable(ctx.sample_rate);
+    ctx.resources.wavetable.publish(table); // moved, not copied
+}
+
+fn process(&mut self, ctx: &mut ProcessContext) {
+    if let Some(table) = ctx.resources.wavetable.get() {
+        // `table` is a &[f32], the same for the whole block.
+    }
+}
+```
+
+- **Immutable and whole.** A published resource is never changed. A block
+  reads the latest publication before it started, from start to end. `get()`
+  is `None` until one is published, and a resource may be empty.
+- **Latest wins.** Publishing again replaces the resource from the next
+  block. A publication the processing never read is freed by the one that
+  replaces it.
+- **Real-time safe.** Taking and reading a resource never allocates, frees,
+  locks or waits: at a block's start the audio thread takes the latest
+  publication with one atomic exchange (one load when there is none). A
+  replaced resource is freed outside the audio thread, by the next
+  publication, the next `prepare()` or the processor's destruction. Until
+  then the audio thread keeps it, so an old resource may stay in memory
+  until then.
+- **Not state.** Resources are not saved with the plugin, are not part of
+  presets or History, and the UI cannot read them. Publish them again in
+  `prepare()` from what the processor has: its state, its parameters, the
+  sample rate. Each processor instance has its own.
+- **One handoff, any publisher.** Publishing takes `&self` and may run on any
+  threads at once. `prepare()` is the publisher for now; others, such as a
+  future controller of the processor, would publish the same way.
+
 ## Builds and development
 
 `soundor build juce` compiles the crate to a native static library with Cargo

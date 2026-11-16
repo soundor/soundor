@@ -93,6 +93,7 @@ const nativeSchema = z.strictObject({
   methods: z.record(z.string(), z.unknown()).optional(),
   events: z.record(z.string(), z.unknown()).optional(),
   streams: z.record(z.string(), z.unknown()).optional(),
+  resources: z.record(z.string(), z.unknown()).optional(),
 });
 
 const signingIdentitySchema = z.string().superRefine((value, ctx) => {
